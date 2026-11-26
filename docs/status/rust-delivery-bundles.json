@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15199,
+    "revision": 15225,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261126-i",
       "agentId": "lead",
       "startedAt": "2026-11-26T13:47:07.933Z",
-      "heartbeatAt": "2026-11-26T15:12:50.545Z",
-      "expiresAt": "2026-11-26T15:42:50.545Z",
+      "heartbeatAt": "2026-11-26T15:30:57.228Z",
+      "expiresAt": "2026-11-26T16:00:57.228Z",
       "generation": 186,
       "tokenHash": "b51d0f715bf58ecc821ed7d7078f9f9757ecea4f1ea36272578ca0a9935549a1"
     },
@@ -215084,6 +215084,403 @@
           "nextAction": "Native Company acceptance read compiled/tested and mounted; GET branch cutover pending."
         },
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.legal.processing-status",
+        "goalId": "G4",
+        "owner": "legal",
+        "kind": "migration",
+        "status": "ready_for_integration",
+        "title": "Switch the Legal processing-status GET to the mounted native read.",
+        "scope": "Switch the Legal processing-status GET to the mounted native read. Use the mounted native transport, fail closed, and delete only the retired TS authority.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-legal/src/routes/api/v1/holdings/[holdingSlug]/legal/**",
+          "packages/server-legal/src/adapters/legal/processing.ts",
+          "packages/server-legal/src/application/processing.ts",
+          "packages/server-legal/src/public/legal/processing.ts",
+          "packages/server-legal/src/adapters/legal_http_auxiliary.rs",
+          "tests/unit/legal/**"
+        ],
+        "resources": [
+          "cutover:legal"
+        ],
+        "nextAction": "Legal processing-status GET is native; TS read authority/port/exports deleted.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "58c65b87b5bb65286e968004497b4089d0b443a8",
+        "lastPushedSha": "58c65b87b5bb65286e968004497b4089d0b443a8",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/legal/processing-status-route.test.ts tests/unit/legal/native-processing-status.test.ts",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-i",
+          "agentId": "w6-legal.processing-status",
+          "at": "2026-11-26T15:30:55.708Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Legal processing-status GET is native; TS read authority/port/exports deleted."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.talent.executive-evidence",
+        "goalId": "G4",
+        "owner": "talent",
+        "kind": "migration",
+        "status": "ready_for_integration",
+        "title": "Switch runtime talent executive evidence to the mounted native point read.",
+        "scope": "Switch runtime talent executive evidence to the mounted native point read. Use the mounted native transport, fail closed, and delete only the retired TS authority.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-runtime/src/adapters/executive/talent-evidence.ts",
+          "packages/server-runtime/src/application/executive/talent-evidence.ts",
+          "packages/server-talent/src/adapters/talent.ts",
+          "packages/server-talent/src/public/talent.ts",
+          "packages/server-talent/src/adapters/native_talent_read_sql.rs",
+          "tests/unit/talent/**"
+        ],
+        "resources": [
+          "cutover:talent"
+        ],
+        "nextAction": "Talent point evidence is native; search family retained separately.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "58c65b87b5bb65286e968004497b4089d0b443a8",
+        "lastPushedSha": "58c65b87b5bb65286e968004497b4089d0b443a8",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/talent/native-talent-evidence-read.test.ts",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-i",
+          "agentId": "w6-talent.executive-evidence",
+          "at": "2026-11-26T15:30:55.982Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Talent point evidence is native; search family retained separately."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.customer_authority.sales-review-counts",
+        "goalId": "G4",
+        "owner": "customer_authority",
+        "kind": "migration",
+        "status": "ready_for_integration",
+        "title": "Switch sales customer review counts to the mounted native route.",
+        "scope": "Switch sales customer review counts to the mounted native route. Use the mounted native transport, fail closed, and delete only the retired TS authority.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-customer_authority/src/adapters/sales-review-counts.ts",
+          "packages/server-customer_authority/src/public/sales-review-counts.ts",
+          "packages/server-customer_authority/package.json",
+          "packages/server-sales/src/adapters/customers.ts",
+          "packages/server-sales/src/public/sales-customers.ts",
+          "packages/feature-customer_authority/src/lib/sales-review-counts.ts",
+          "apps/sales/src/app/api/v1/holdings/[holdingSlug]/customer-reviews/**",
+          "tests/unit/customer_authority/**"
+        ],
+        "resources": [
+          "cutover:customer_authority"
+        ],
+        "nextAction": "Sales review counts GET is native; TS authority deleted and app bridge added.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "58c65b87b5bb65286e968004497b4089d0b443a8",
+        "lastPushedSha": "58c65b87b5bb65286e968004497b4089d0b443a8",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/customer_authority/sales-review-counts-native.test.ts",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-i",
+          "agentId": "w6-customer_authority.sales-review-counts",
+          "at": "2026-11-26T15:30:56.259Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Sales review counts GET is native; TS authority deleted and app bridge added."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.support.event-history",
+        "goalId": "G4",
+        "owner": "support",
+        "kind": "migration",
+        "status": "ready_for_integration",
+        "title": "Switch support ticket/incident event history to the mounted native reads.",
+        "scope": "Switch support ticket/incident event history to the mounted native reads. Use the mounted native transport, fail closed, and delete only the retired TS authority.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-support/src/adapters/support.ts",
+          "packages/server-support/src/adapters/support-incidents.ts",
+          "packages/server-support/src/adapters/native-support-read.ts",
+          "packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/**",
+          "apps/support/src/app/api/v1/holdings/[holdingSlug]/support/**",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/support/**",
+          "tests/unit/support/**"
+        ],
+        "resources": [
+          "cutover:support"
+        ],
+        "nextAction": "Ticket/incident histories use native routes; registry statements retained with no production TS caller.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "58c65b87b5bb65286e968004497b4089d0b443a8",
+        "lastPushedSha": "58c65b87b5bb65286e968004497b4089d0b443a8",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/support/service-team-native-read.test.ts tests/unit/support/read-tail-r21-workspace-list-family.test.ts",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-i",
+          "agentId": "w6-support.event-history",
+          "at": "2026-11-26T15:30:56.533Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Ticket/incident histories use native routes; registry statements retained with no production TS caller."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.identity_access.connection-read",
+        "goalId": "G4",
+        "owner": "identity_access",
+        "kind": "migration",
+        "status": "ready_for_integration",
+        "title": "Switch login routed connection to the mounted native connection-by-id read.",
+        "scope": "Switch login routed connection to the mounted native connection-by-id read. Use the mounted native transport, fail closed, and delete only the retired TS authority.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/adapters/directory-lookup.ts",
+          "packages/server-identity_access/src/public/directory-lookup.ts",
+          "packages/workplace/src/routes/login/page.tsx",
+          "tests/unit/identity_access/**"
+        ],
+        "resources": [
+          "cutover:identity_access"
+        ],
+        "nextAction": "Login routed connection uses native read; legacy connectionById retained only for test oracles and current-API helpers.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "58c65b87b5bb65286e968004497b4089d0b443a8",
+        "lastPushedSha": "58c65b87b5bb65286e968004497b4089d0b443a8",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/identity_access/native-connection-read-transport.test.ts tests/unit/identity_access/read-tail-r27-dedupe.test.ts",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-i",
+          "agentId": "w6-identity_access.connection-read",
+          "at": "2026-11-26T15:30:56.810Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Login routed connection uses native read; legacy connectionById retained only for test oracles and current-API helpers."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.organization.acceptance",
+        "goalId": "G4",
+        "owner": "organization",
+        "kind": "migration",
+        "status": "ready_for_integration",
+        "title": "Switch Company acceptance GET to the mounted native acceptance read.",
+        "scope": "Switch Company acceptance GET to the mounted native acceptance read. Use the mounted native transport, fail closed, and delete only the retired TS authority.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/people/**",
+          "packages/server-organization/src/adapters/company-business-acceptance.ts",
+          "packages/server-organization/src/public/company-business-acceptance.ts",
+          "packages/feature-organization/src/lib/native-organization.ts",
+          "packages/feature-organization/src/adapters/server/native-organization.ts",
+          "tests/unit/organization/**"
+        ],
+        "resources": [
+          "cutover:organization"
+        ],
+        "nextAction": "Organization acceptance GET is native; internal TS read retained only for business readiness.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "58c65b87b5bb65286e968004497b4089d0b443a8",
+        "lastPushedSha": "58c65b87b5bb65286e968004497b4089d0b443a8",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/organization/native-organization-acceptance-read.test.ts",
+            "result": "passed",
+            "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-i",
+          "agentId": "w6-organization.acceptance",
+          "at": "2026-11-26T15:30:57.087Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Organization acceptance GET is native; internal TS read retained only for business readiness."
+        },
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -215092,12 +215489,12 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2440,
+      "totalPackets": 2446,
       "migratedPackets": 369,
       "statusCounts": {
         "pending": 14,
         "in_progress": 0,
-        "ready_for_integration": 140,
+        "ready_for_integration": 146,
         "integrating": 0,
         "migrated": 369,
         "blocked": 1915,
@@ -215106,7 +215503,7 @@
       }
     },
     "lastCoordinatorGeneration": 186,
-    "updatedAt": "2026-11-26T15:12:50.548Z",
+    "updatedAt": "2026-11-26T15:30:57.231Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
