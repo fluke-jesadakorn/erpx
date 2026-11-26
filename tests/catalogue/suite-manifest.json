@@ -165,7 +165,8 @@
         "agent"
       ],
       "files": [
-        "tests/unit/agent/ai-protocols.test.ts"
+        "tests/unit/agent/ai-protocols.test.ts",
+        "tests/unit/agent/native-assistant-sources.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -1129,6 +1130,7 @@
         "agent"
       ],
       "files": [
+        "tests/unit/agent/rust-agent-assistant-view.test.rs",
         "tests/unit/agent/rust-agent-gateway.test.rs"
       ],
       "fixture": "none",
@@ -1145,6 +1147,7 @@
       "cargo": {
         "package": "erpx-server-agent",
         "targets": [
+          "agent_assistant_view",
           "agent_gateway"
         ]
       },
@@ -7449,7 +7452,8 @@
         "operations"
       ],
       "files": [
-        "tests/unit/collaboration/handbook-services.test.ts"
+        "tests/unit/collaboration/handbook-services.test.ts",
+        "tests/unit/collaboration/native-push-settings-parity.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -9038,7 +9042,8 @@
         "collaboration"
       ],
       "files": [
-        "tests/unit/collaboration/rust-collaboration-pg.test.rs"
+        "tests/unit/collaboration/rust-collaboration-pg.test.rs",
+        "tests/unit/collaboration/rust-messaging-people.test.rs"
       ],
       "fixture": "none",
       "requires": {
@@ -9056,7 +9061,8 @@
       "cargo": {
         "package": "erpx-server-collaboration",
         "targets": [
-          "collaboration_pg"
+          "collaboration_pg",
+          "messaging_people"
         ]
       },
       "verificationInputs": [
@@ -14644,7 +14650,8 @@
         "commercial"
       ],
       "files": [
-        "tests/unit/commerce/native-commerce-orders-transport.test.ts"
+        "tests/unit/commerce/native-commerce-orders-transport.test.ts",
+        "tests/unit/commerce/native-commerce-return-lines.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -14824,6 +14831,7 @@
         "commercial"
       ],
       "files": [
+        "tests/unit/commerce/rust-commerce-return-lines.test.rs",
         "tests/unit/commerce/rust-quality-product-read.test.rs"
       ],
       "fixture": "none",
@@ -14839,6 +14847,7 @@
       "cargo": {
         "package": "erpx-server-commerce",
         "targets": [
+          "commerce_return_lines",
           "quality_product_read"
         ]
       },
@@ -18264,7 +18273,8 @@
         "manage_erpx"
       ],
       "files": [
-        "tests/unit/commercial/billing-forecast-routes.test.ts"
+        "tests/unit/commercial/billing-forecast-routes.test.ts",
+        "tests/unit/commercial/native-purchase-command-read.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -23395,7 +23405,9 @@
         "crm"
       ],
       "files": [
-        "tests/unit/crm/rust-crm-accounts.test.rs"
+        "tests/unit/crm/rust-crm-accounts.test.rs",
+        "tests/unit/crm/rust-crm-case-event-history.test.rs",
+        "tests/unit/crm/rust-crm-guest-history.test.rs"
       ],
       "fixture": "none",
       "requires": {
@@ -23410,7 +23422,9 @@
       "cargo": {
         "package": "erpx-server-crm",
         "targets": [
-          "crm_accounts"
+          "crm_accounts",
+          "crm_case_event_history",
+          "crm_guest_history"
         ],
         "manifest": "packages/server-crm/Cargo.toml"
       },
@@ -30195,7 +30209,8 @@
         "ecommerce"
       ],
       "files": [
-        "tests/unit/ecommerce/native-ecommerce-catalog-transport.test.ts"
+        "tests/unit/ecommerce/native-ecommerce-catalog-transport.test.ts",
+        "tests/unit/ecommerce/read-tail-r31-dedupe.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -40065,7 +40080,9 @@
         "finance"
       ],
       "files": [
-        "tests/unit/finance/finance-accrual-tools.test.ts"
+        "tests/unit/finance/finance-accrual-tools.test.ts",
+        "tests/unit/finance/native-catchall-aging.test.ts",
+        "tests/unit/finance/native-lane-6-chart-list.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -52356,7 +52373,8 @@
         "identity_access"
       ],
       "files": [
-        "tests/unit/identity_access/access-problem.test.ts"
+        "tests/unit/identity_access/access-problem.test.ts",
+        "tests/unit/identity_access/native-account-profile-parity.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -63557,7 +63575,9 @@
       ],
       "files": [
         "tests/unit/inventory/initial-physical-stock-client.test.ts",
-        "tests/unit/inventory/initial-physical-stock-transport.test.ts"
+        "tests/unit/inventory/initial-physical-stock-transport.test.ts",
+        "tests/unit/inventory/native-transfer-list.test.ts",
+        "tests/unit/inventory/stock-counts-transition-native-exec.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -72031,7 +72051,9 @@
         "legal"
       ],
       "files": [
-        "tests/unit/legal/legal-ai-evaluation.test.ts"
+        "tests/unit/legal/legal-ai-evaluation.test.ts",
+        "tests/unit/legal/native-rule-impact.test.ts",
+        "tests/unit/legal/read-tail-r33-ordered-history-dedupe.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -77848,7 +77870,8 @@
       ],
       "id": "maintenance.native-lane-36.unit",
       "files": [
-        "tests/unit/maintenance/native-lane-36.test.ts"
+        "tests/unit/maintenance/native-lane-36.test.ts",
+        "tests/unit/maintenance/native-owner-options.test.ts"
       ],
       "framework": "vitest"
     },
@@ -81465,7 +81488,8 @@
         "manufacturing"
       ],
       "files": [
-        "tests/unit/manufacturing/rust-manufacturing-bom-http.test.rs"
+        "tests/unit/manufacturing/rust-manufacturing-bom-http.test.rs",
+        "tests/unit/manufacturing/rust-production-profiles-http.test.rs"
       ],
       "fixture": "none",
       "requires": {
@@ -81480,7 +81504,8 @@
       "cargo": {
         "package": "erpx-server-manufacturing",
         "targets": [
-          "manufacturing_bom_http"
+          "manufacturing_bom_http",
+          "production_profiles_http"
         ]
       },
       "verificationInputs": [
@@ -85069,7 +85094,8 @@
         "marketing"
       ],
       "files": [
-        "tests/unit/marketing/rust-marketing-campaigns.test.rs"
+        "tests/unit/marketing/rust-marketing-campaigns.test.rs",
+        "tests/unit/marketing/rust-public-form-source.test.rs"
       ],
       "fixture": "none",
       "requires": {
@@ -85084,7 +85110,8 @@
       "cargo": {
         "package": "erpx-server-marketing",
         "targets": [
-          "marketing_campaigns"
+          "marketing_campaigns",
+          "public_form_source"
         ]
       },
       "verificationInputs": [
@@ -85563,7 +85590,8 @@
       ],
       "id": "operations.native-lane-28.unit",
       "files": [
-        "tests/unit/operations/native-lane-28.test.ts"
+        "tests/unit/operations/native-lane-28.test.ts",
+        "tests/unit/operations/native-routines-read.test.ts"
       ],
       "framework": "vitest"
     },
@@ -93430,6 +93458,8 @@
         "people_payroll"
       ],
       "files": [
+        "tests/unit/people_payroll/native-pay-group-options.test.ts",
+        "tests/unit/people_payroll/native-people-list.test.ts",
         "tests/unit/people_payroll/payroll-accounting.test.ts"
       ],
       "fixture": "none",
@@ -93514,109 +93544,6 @@
         "@erpx/ui",
         "@erpx/workplace"
       ]
-    },
-    {
-      "id": "people_payroll.api-privacy.integration",
-      "lane": "integration",
-      "owner": "people_payroll",
-      "modules": [
-        "people_payroll"
-      ],
-      "files": [
-        "tests/integration/people_payroll/people-api-privacy.test.ts"
-      ],
-      "fixture": "postgres",
-      "requires": {
-        "jobs": false,
-        "scanner": false
-      },
-      "ci": {
-        "critical": true,
-        "reason": "PostgreSQL-backed domain assertions retain durable transaction, current-authority, and company/data-scope regression in the PR baseline."
-      },
-      "apps": [
-        "people"
-      ],
-      "packages": [
-        "@erpx/catalogue",
-        "@erpx/contracts",
-        "@erpx/feature-benefits",
-        "@erpx/feature-billing",
-        "@erpx/feature-collaboration",
-        "@erpx/feature-commerce",
-        "@erpx/feature-customer_authority",
-        "@erpx/feature-finance",
-        "@erpx/feature-identity_access",
-        "@erpx/feature-inventory",
-        "@erpx/feature-legal",
-        "@erpx/feature-marketing",
-        "@erpx/feature-organization",
-        "@erpx/feature-people",
-        "@erpx/feature-people_payroll",
-        "@erpx/feature-procurement",
-        "@erpx/feature-projects",
-        "@erpx/feature-quality",
-        "@erpx/feature-records",
-        "@erpx/feature-runtime",
-        "@erpx/feature-sales",
-        "@erpx/feature-shared",
-        "@erpx/feature-support",
-        "@erpx/feature-work_projection",
-        "@erpx/native-sdk",
-        "@erpx/server-agent",
-        "@erpx/server-assets",
-        "@erpx/server-benefits",
-        "@erpx/server-brand",
-        "@erpx/server-collaboration",
-        "@erpx/server-commerce",
-        "@erpx/server-commercial",
-        "@erpx/server-crm",
-        "@erpx/server-customer_360",
-        "@erpx/server-customer_authority",
-        "@erpx/server-ecommerce",
-        "@erpx/server-field_service",
-        "@erpx/server-files",
-        "@erpx/server-finance",
-        "@erpx/server-identity_access",
-        "@erpx/server-inventory",
-        "@erpx/server-learning",
-        "@erpx/server-legal",
-        "@erpx/server-maintenance",
-        "@erpx/server-manage_erpx",
-        "@erpx/server-manufacturing",
-        "@erpx/server-marketing",
-        "@erpx/server-operations",
-        "@erpx/server-organization",
-        "@erpx/server-people_payroll",
-        "@erpx/server-planning",
-        "@erpx/server-platform_administration",
-        "@erpx/server-pms",
-        "@erpx/server-pos",
-        "@erpx/server-procurement",
-        "@erpx/server-projects",
-        "@erpx/server-quality",
-        "@erpx/server-records",
-        "@erpx/server-runtime",
-        "@erpx/server-sales",
-        "@erpx/server-shared",
-        "@erpx/server-support",
-        "@erpx/server-talent",
-        "@erpx/server-work_projection",
-        "@erpx/server-workflow",
-        "@erpx/ui",
-        "@erpx/workplace"
-      ],
-      "postgres": {
-        "mode": "template",
-        "slots": [
-          "CONTROL_DB",
-          "H001_DB",
-          "H001_READ_DB"
-        ],
-        "migratedSlots": [
-          "H001_DB"
-        ]
-      }
     },
     {
       "id": "people_payroll.bank-result.unit",
@@ -102877,13 +102804,15 @@
         "reason": "Native Legal release decisions must preserve actual Company setup, independent current reviewer gates, artifact/configuration identity and explicit engineering scope."
       },
       "files": [
-        "tests/unit/platform_administration/rust-legal-release.test.rs"
+        "tests/unit/platform_administration/rust-legal-release.test.rs",
+        "tests/unit/platform_administration/rust-native-platform-usage.test.rs"
       ],
       "framework": "cargo",
       "cargo": {
         "package": "erpx-server-platform-administration",
         "targets": [
-          "legal_release"
+          "legal_release",
+          "native_platform_usage"
         ]
       },
       "verificationInputs": [
@@ -111482,7 +111411,8 @@
         "pos"
       ],
       "files": [
-        "tests/unit/pos/rust-cash-movement.test.rs"
+        "tests/unit/pos/rust-cash-movement.test.rs",
+        "tests/unit/pos/rust-pos-room-charges.test.rs"
       ],
       "fixture": "none",
       "requires": {
@@ -111497,7 +111427,8 @@
       "cargo": {
         "package": "erpx-server-pos",
         "targets": [
-          "cash_movement"
+          "cash_movement",
+          "pos_room_charges"
         ]
       },
       "verificationInputs": [
@@ -114251,7 +114182,8 @@
         "procurement"
       ],
       "files": [
-        "tests/unit/procurement/rust-rfq-award.test.rs"
+        "tests/unit/procurement/rust-rfq-award.test.rs",
+        "tests/unit/procurement/rust-supplier-bill-policy-http.test.rs"
       ],
       "fixture": "none",
       "requires": {
@@ -114266,7 +114198,8 @@
       "cargo": {
         "package": "erpx-server-procurement",
         "targets": [
-          "rfq_award"
+          "rfq_award",
+          "supplier_bill_policy_http"
         ]
       },
       "verificationInputs": [
@@ -117724,7 +117657,8 @@
         "projects"
       ],
       "files": [
-        "tests/unit/projects/rust-project-actuals.test.rs"
+        "tests/unit/projects/rust-project-actuals.test.rs",
+        "tests/unit/projects/rust-project-handoffs.test.rs"
       ],
       "fixture": "none",
       "requires": {
@@ -117742,7 +117676,8 @@
       "cargo": {
         "package": "erpx-server-projects",
         "targets": [
-          "project_actuals_commands"
+          "project_actuals_commands",
+          "project_handoffs"
         ]
       },
       "verificationInputs": [
@@ -118839,6 +118774,7 @@
       ],
       "id": "quality.alert-source-dedupe.unit",
       "files": [
+        "tests/unit/quality/native-quality-alert-queue.test.ts",
         "tests/unit/quality/quality-alert-source-dedupe.test.ts"
       ],
       "framework": "vitest"
@@ -121859,7 +121795,9 @@
       ],
       "id": "records.read-tail-r16-dedupe.unit",
       "files": [
-        "tests/unit/records/read-tail-r16-dedupe.test.ts"
+        "tests/unit/records/read-tail-r16-dedupe.test.ts",
+        "tests/unit/records/records-registry-native-proxy.test.ts",
+        "tests/unit/records/records-registry-routes-pure-transport.test.ts"
       ],
       "framework": "vitest"
     },
@@ -155221,6 +155159,7 @@
         "support"
       ],
       "files": [
+        "tests/unit/support/rust-sla-workspace.test.rs",
         "tests/unit/support/rust-support-record-source.test.rs"
       ],
       "fixture": "none",
@@ -155240,7 +155179,8 @@
       "cargo": {
         "package": "erpx-server-support",
         "targets": [
-          "record_source"
+          "record_source",
+          "sla_workspace"
         ]
       },
       "verificationInputs": [
@@ -158137,7 +158077,8 @@
       ],
       "id": "work_projection.calendar-settlement-source-dedupe.unit",
       "files": [
-        "tests/unit/work_projection/calendar-settlement-source-dedupe.test.ts"
+        "tests/unit/work_projection/calendar-settlement-source-dedupe.test.ts",
+        "tests/unit/work_projection/exec-work-routes-no-sql.test.ts"
       ],
       "framework": "vitest"
     },
