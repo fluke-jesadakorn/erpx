@@ -195,7 +195,8 @@
     "./domain/references": "./src/domain/references.ts",
     "./domain/portal": "./src/domain/portal.ts",
     "./domain/deadlines": "./src/domain/deadlines.ts",
-    "./domain/signing": "./src/domain/signing.ts"
+    "./domain/signing": "./src/domain/signing.ts",
+    "./adapters/native-processing-status/client": "./src/adapters/native-processing-status/client.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
