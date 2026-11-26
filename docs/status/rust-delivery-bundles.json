@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15230,
+    "revision": 15231,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -210025,14 +210025,7 @@
           "route:account"
         ],
         "nextAction": "Account profile GET and preference GET are native; next feature-account slice needs its own bounded inventory.",
-        "claim": {
-          "runId": "run-20261126-k",
-          "agentId": "lead",
-          "claimedAt": "2026-11-26T16:42:45.571Z",
-          "heartbeatAt": "2026-11-26T16:42:45.571Z",
-          "expiresAt": "2026-11-26T17:12:45.571Z",
-          "generation": 188
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": "7e567f588803a3cd546476251f38e9d53545ee2b",
         "lastPushedSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
@@ -210087,14 +210080,14 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-g",
+          "runId": "run-20261126-k",
           "agentId": "lead",
-          "at": "2026-11-26T10:47:06.752Z",
+          "at": "2026-11-26T16:48:02.114Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Native Account profile read committed; mount account_profile_read_router and flip feature-account GET to the native transport."
+          "reason": "released with work preserved",
+          "nextAction": "Account profile GET and preference GET are native; next feature-account slice needs its own bounded inventory."
         },
         "scopeRefinementRequired": false
       },
@@ -215540,7 +215533,7 @@
       }
     },
     "lastCoordinatorGeneration": 188,
-    "updatedAt": "2026-11-26T16:47:01.397Z",
+    "updatedAt": "2026-11-26T16:48:02.119Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
