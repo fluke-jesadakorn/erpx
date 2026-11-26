@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15173,
+    "revision": 15199,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261126-i",
       "agentId": "lead",
       "startedAt": "2026-11-26T13:47:07.933Z",
-      "heartbeatAt": "2026-11-26T14:54:43.772Z",
-      "expiresAt": "2026-11-26T15:24:43.772Z",
+      "heartbeatAt": "2026-11-26T15:12:50.545Z",
+      "expiresAt": "2026-11-26T15:42:50.545Z",
       "generation": 186,
       "tokenHash": "b51d0f715bf58ecc821ed7d7078f9f9757ecea4f1ea36272578ca0a9935549a1"
     },
@@ -214670,6 +214670,420 @@
           "nextAction": "PMS document screens use native owner routes; old workplace screens and Rust read kinds retired in follow-up."
         },
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.legal.routes.2",
+        "goalId": "G4",
+        "owner": "legal",
+        "kind": "migration",
+        "status": "ready_for_integration",
+        "title": "feature-legal route family native slice 2",
+        "scope": "Inventory feature-legal routes and port one further bounded read/command to Rust with real SQL execution and complete payload parity.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-legal/src/**",
+          "packages/server-legal/src/**",
+          "tests/unit/legal/**"
+        ],
+        "resources": [
+          "owner:legal",
+          "route:legal-feature-2"
+        ],
+        "nextAction": "Native processing-status read compiled and mounted; feature-legal GET cutover pending.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "640333c264d8f856788c9dc9be998856220ed89e",
+        "lastPushedSha": "640333c264d8f856788c9dc9be998856220ed89e",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "cargo test -p erpx-server-legal --lib --locked",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/legal/native-processing-status.test.ts",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-i",
+          "agentId": "w5-legal",
+          "at": "2026-11-26T15:12:48.951Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native processing-status read compiled and mounted; feature-legal GET cutover pending."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.talent.routes.2",
+        "goalId": "G4",
+        "owner": "talent",
+        "kind": "migration",
+        "status": "ready_for_integration",
+        "title": "feature-talent route family native slice 2",
+        "scope": "Inventory feature-talent routes and port one further bounded read/command to Rust with real SQL execution and complete payload parity.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-talent/src/**",
+          "packages/server-talent/src/**",
+          "tests/unit/talent/**"
+        ],
+        "resources": [
+          "owner:talent",
+          "route:talent-feature-2"
+        ],
+        "nextAction": "Native talent executive evidence compiled/tested and mounted; runtime evidence cutover pending.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "640333c264d8f856788c9dc9be998856220ed89e",
+        "lastPushedSha": "640333c264d8f856788c9dc9be998856220ed89e",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "cargo test -p erpx-server-talent --lib --locked",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "cargo test -p erpx-server-talent --test talent_evidence_read --locked",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-i",
+          "agentId": "w5-talent",
+          "at": "2026-11-26T15:12:49.234Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native talent executive evidence compiled/tested and mounted; runtime evidence cutover pending."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.customer_authority.routes.2",
+        "goalId": "G4",
+        "owner": "customer_authority",
+        "kind": "migration",
+        "status": "ready_for_integration",
+        "title": "feature-customer_authority route family native slice 2",
+        "scope": "Inventory feature-customer_authority routes and port one further bounded read/command to Rust with real SQL execution and complete payload parity.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-customer_authority/src/**",
+          "packages/server-customer_authority/src/**",
+          "tests/unit/customer_authority/**"
+        ],
+        "resources": [
+          "owner:customer_authority",
+          "route:customer_authority-feature-2"
+        ],
+        "nextAction": "Native sales review counts compiled/tested and mounted; TS authority cutover pending.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "640333c264d8f856788c9dc9be998856220ed89e",
+        "lastPushedSha": "640333c264d8f856788c9dc9be998856220ed89e",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "cargo test -p erpx-server-customer-authority --lib --locked",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "cargo test -p erpx-server-customer-authority --test customer_access --locked",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/customer_authority/sales-review-counts-native.test.ts",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-i",
+          "agentId": "w5-customer_authority",
+          "at": "2026-11-26T15:12:49.512Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native sales review counts compiled/tested and mounted; TS authority cutover pending."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.support.routes.2",
+        "goalId": "G4",
+        "owner": "support",
+        "kind": "migration",
+        "status": "ready_for_integration",
+        "title": "feature-support route family native slice 2",
+        "scope": "Inventory feature-support routes and port one further bounded read/command to Rust with real SQL execution and complete payload parity.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-support/src/**",
+          "packages/server-support/src/**",
+          "tests/unit/support/**"
+        ],
+        "resources": [
+          "owner:support",
+          "route:support-feature-2"
+        ],
+        "nextAction": "Native ticket/incident event history compiled/tested and mounted; detail route cutover pending.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "640333c264d8f856788c9dc9be998856220ed89e",
+        "lastPushedSha": "640333c264d8f856788c9dc9be998856220ed89e",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "cargo test -p erpx-server-support --lib --locked",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "cargo test -p erpx-server-support --test support_event_history --locked",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-i",
+          "agentId": "w5-support",
+          "at": "2026-11-26T15:12:49.788Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native ticket/incident event history compiled/tested and mounted; detail route cutover pending."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.identity_access.routes.2",
+        "goalId": "G4",
+        "owner": "identity_access",
+        "kind": "migration",
+        "status": "ready_for_integration",
+        "title": "feature-identity_access route family native slice 2",
+        "scope": "Inventory feature-identity_access routes and port one further bounded read/command to Rust with real SQL execution and complete payload parity.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-identity_access/src/**",
+          "packages/server-identity_access/src/**",
+          "tests/unit/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access",
+          "route:identity_access-feature-2"
+        ],
+        "nextAction": "Native directory connection-by-id compiled/tested and mounted; login caller cutover pending.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "640333c264d8f856788c9dc9be998856220ed89e",
+        "lastPushedSha": "640333c264d8f856788c9dc9be998856220ed89e",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --lib --locked",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-i",
+          "agentId": "w5-identity_access",
+          "at": "2026-11-26T15:12:50.084Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native directory connection-by-id compiled/tested and mounted; login caller cutover pending."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.organization.routes.2",
+        "goalId": "G4",
+        "owner": "organization",
+        "kind": "migration",
+        "status": "ready_for_integration",
+        "title": "feature-organization route family native slice 2",
+        "scope": "Inventory feature-organization routes and port one further bounded read/command to Rust with real SQL execution and complete payload parity.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-organization/src/**",
+          "packages/server-organization/src/**",
+          "tests/unit/organization/**"
+        ],
+        "resources": [
+          "owner:organization",
+          "route:organization-feature-2"
+        ],
+        "nextAction": "Native Company acceptance read compiled/tested and mounted; GET branch cutover pending.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "640333c264d8f856788c9dc9be998856220ed89e",
+        "lastPushedSha": "640333c264d8f856788c9dc9be998856220ed89e",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "cargo test -p erpx-server-organization --lib --locked",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/organization/native-organization-acceptance-read.test.ts",
+            "result": "passed",
+            "sourceSha": "640333c264d8f856788c9dc9be998856220ed89e"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-i",
+          "agentId": "w5-organization",
+          "at": "2026-11-26T15:12:50.395Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native Company acceptance read compiled/tested and mounted; GET branch cutover pending."
+        },
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -214678,12 +215092,12 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2434,
+      "totalPackets": 2440,
       "migratedPackets": 369,
       "statusCounts": {
         "pending": 14,
         "in_progress": 0,
-        "ready_for_integration": 134,
+        "ready_for_integration": 140,
         "integrating": 0,
         "migrated": 369,
         "blocked": 1915,
@@ -214692,7 +215106,7 @@
       }
     },
     "lastCoordinatorGeneration": 186,
-    "updatedAt": "2026-11-26T14:54:43.775Z",
+    "updatedAt": "2026-11-26T15:12:50.548Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
