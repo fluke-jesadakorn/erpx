@@ -4,7 +4,8 @@ import { publicScope, requireWorkContext } from "@erpx/server-identity_access/pu
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { holdingResources } from "../../../../../../../../../packages/server-runtime/src/public/runtime";
-import { pushSettings, registerPush, removePushDevice, savePushPreferences } from "@erpx/server-collaboration/public/web-push";
+import { registerPush, removePushDevice, savePushPreferences } from "@erpx/server-collaboration/public/web-push";
+import { nativePushSettings } from "@erpx/server-collaboration/public/native-push-settings";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { frontAppForHost, frontPushLandingPath } from "@erpx/feature-shared/lib/front-host";
 import { frontCompanyBrand } from "@erpx/server-work_projection/public/front-app";
@@ -20,8 +21,7 @@ function assertOrigin(request:Request) {
 export async function GET(_request:Request,context:Context) {
   try {
     const actor=await requireWorkContext((await context.params).holdingSlug);
-    const {write}=await holdingResources(actor.holdingId);
-    return response(await pushSettings(write,actor));
+    return response(await nativePushSettings(actor));
   } catch(error) { return errorResponse(error); }
 }
 export async function POST(request:Request,context:Context) {
