@@ -13,7 +13,6 @@ import {
   PMS_RD_CHARGE_CORRECTION_PENDING,
   PMS_RD_CHARGE_CORRECTION_PENDING_COUNT,
   PMS_RD_GUEST_COMMAND_RECORD,
-  PMS_RD_DOCUMENT_BY_ID,
   PMS_RD_DOCUMENT_SNAPSHOT,
   PMS_RD_PROPERTY_CONFIG,
   PMS_RD_PENDING_HOTEL_TRANSFERS,
@@ -22,7 +21,6 @@ import {
   PMS_RD_HOSPITALITY_SETUP_PROPERTIES,
   PMS_RD_ATTACHMENT_PROPERTY_IMAGE,
   PMS_RD_ATTACHMENT_RECORD_IMAGE,
-  PMS_RD_DOCUMENT_RELATED_POSTINGS,
   PMS_RD_POS_GUEST_HOTELS,
   PMS_RD_POS_GUEST_CHOICES,
   PMS_RD_POS_STRIPE_PAYMENT,
@@ -354,24 +352,17 @@ describe('native PMS guest command record read retirement', () => {
   });
 });
 
-const documentByIdSql = 'SELECT * FROM pms_documents WHERE id=?';
 const documentSnapshotSql = 'SELECT property_id,snapshot_json FROM pms_documents WHERE id=?';
 
 describe('native PMS document point-read retirement', () => {
-  it('exposes fixed document read kinds with no SQL on the wire', () => {
-    expect(PMS_RD_DOCUMENT_BY_ID).toBe('pms_rd_document_by_id');
+  it('keeps only the document snapshot read kind and deletes the retired by-id authority', async () => {
     expect(PMS_RD_DOCUMENT_SNAPSHOT).toBe('pms_rd_document_snapshot');
-    for (const kind of [PMS_RD_DOCUMENT_BY_ID, PMS_RD_DOCUMENT_SNAPSHOT]) {
-      expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
-    }
-  });
-
-  it('removes both TypeScript pms_documents point-read SELECT literals', async () => {
+    expect(PMS_RD_DOCUMENT_SNAPSHOT).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
+    const source = await readFile(new URL('../../../packages/server-pms/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
+    expect(source).not.toContain('pms_rd_document_by_id');
     const entrypoint = await readFile(new URL('../../../packages/server-pms/src/adapters/entrypoint-queries.ts', import.meta.url), 'utf8');
-    const document = entrypoint.split('\n').find(line => line.includes('document: (id: string)')) ?? '';
-    expect(document).toContain('nativePmsReadFirst');
-    expect(document).toContain('PMS_RD_DOCUMENT_BY_ID');
-    expect(document).not.toContain('db.prepare');
+    expect(entrypoint).not.toContain('pmsDocumentQueries');
+    expect(entrypoint).not.toContain('db.prepare');
     expect(entrypoint).not.toContain('SELECT * FROM pms_documents WHERE id=?');
 
     const details = await readFile(new URL('../../../packages/server-pms/src/adapters/pms/record-details.ts', import.meta.url), 'utf8');
@@ -379,13 +370,12 @@ describe('native PMS document point-read retirement', () => {
     expect(details).not.toContain('SELECT property_id,snapshot_json FROM pms_documents WHERE id=?');
   });
 
-  it('plans both document reads in Rust and runs them on the caller unit', async () => {
+  it('plans the retained snapshot read in Rust and runs it on the caller unit', async () => {
     const bodies: { kind: string; values: unknown[] }[] = [];
     vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
       const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
       bodies.push(body);
-      const sql = body.kind === PMS_RD_DOCUMENT_BY_ID ? documentByIdSql : documentSnapshotSql;
-      return new Response(JSON.stringify({ data: { statements: [{ sql, values: body.values }] } }), {
+      return new Response(JSON.stringify({ data: { statements: [{ sql: documentSnapshotSql, values: body.values }] } }), {
         status: 200, headers: { 'content-type': 'application/json' },
       });
     }));
@@ -395,15 +385,13 @@ describe('native PMS document point-read retirement', () => {
       async batch<T>() { return [{ results: [{ property_id: 'property-1', snapshot_json: '{}' }], success: true, meta: { changes: 0, duration: 0 } }] as unknown as { results: T[]; success: boolean; meta: { changes: number; duration: number } }[]; },
       async exec() { return { count: 0, duration: 0 }; },
     };
-    const full = await nativePmsReadFirst<{ property_id: string }>(PMS_RD_DOCUMENT_BY_ID, ['doc-1'], db as never);
     const snapshot = await nativePmsReadFirst<{ property_id: string }>(PMS_RD_DOCUMENT_SNAPSHOT, ['doc-1'], db as never);
 
-    expect(full).toMatchObject({ property_id: 'property-1' });
     expect(snapshot).toMatchObject({ property_id: 'property-1' });
-    expect(bodies.map(b => b.kind)).toEqual([PMS_RD_DOCUMENT_BY_ID, PMS_RD_DOCUMENT_SNAPSHOT]);
-    expect(bodies.map(b => b.values)).toEqual([['doc-1'], ['doc-1']]);
-    expect(bound).toEqual([['doc-1'], ['doc-1']]);
-    expect(prepared).toEqual([documentByIdSql, documentSnapshotSql]);
+    expect(bodies.map(b => b.kind)).toEqual([PMS_RD_DOCUMENT_SNAPSHOT]);
+    expect(bodies.map(b => b.values)).toEqual([['doc-1']]);
+    expect(bound).toEqual([['doc-1']]);
+    expect(prepared).toEqual([documentSnapshotSql]);
     for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
   });
 });
@@ -639,44 +627,15 @@ describe('native PMS attachment read-source image retirement', () => {
 const relatedPostingsSql = "SELECT DISTINCT pp.journal_id FROM pms_postings pp JOIN pms_records r ON r.id=pp.record_id AND r.property_id=pp.property_id\n    WHERE pp.property_id=? AND r.kind='entry' AND r.data_json::jsonb->>'guestAccountId'=(SELECT guest_account_id FROM pms_documents WHERE id=?)";
 
 describe('native PMS document related-postings read retirement', () => {
-  it('exposes a fixed related-postings read kind with no SQL on the wire', () => {
-    expect(PMS_RD_DOCUMENT_RELATED_POSTINGS).toBe('pms_rd_document_related_postings');
-    expect(PMS_RD_DOCUMENT_RELATED_POSTINGS).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
-  });
-
-  it('removes the TypeScript related-postings SELECT literal', async () => {
+  it('removes the TypeScript plan/execute authority for related postings', async () => {
+    const source = await readFile(new URL('../../../packages/server-pms/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
+    expect(source).not.toContain('pms_rd_document_related_postings');
     const entrypoint = await readFile(new URL('../../../packages/server-pms/src/adapters/entrypoint-queries.ts', import.meta.url), 'utf8');
-    const call = entrypoint.split('\n').find(line => line.includes('PMS_RD_DOCUMENT_RELATED_POSTINGS,')) ?? '';
-    expect(call).toContain('nativePmsReadAll');
-    expect(call).not.toContain('db.prepare');
+    expect(entrypoint).not.toContain('nativePmsReadAll');
+    expect(entrypoint).not.toContain('db.prepare');
     expect(entrypoint).not.toContain(relatedPostingsSql);
-    expect(entrypoint).toContain('PMS_RD_DOCUMENT_BY_ID');
-  });
-
-  it('plans the related-postings read in Rust and runs it on the caller unit', async () => {
-    const bodies: { kind: string; values: unknown[] }[] = [];
-    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
-      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
-      bodies.push(body);
-      return new Response(JSON.stringify({ data: { statements: [{ sql: relatedPostingsSql, values: body.values }] } }), {
-        status: 200, headers: { 'content-type': 'application/json' },
-      });
-    }));
-    const prepared: string[] = [], bound: unknown[][] = [];
-    const db = {
-      prepare(sql: string) { prepared.push(sql); return { bind(...values: unknown[]) { bound.push(values); return this; } }; },
-      async batch<T>() { return [{ results: [{ journal_id: 'journal-1' }], success: true, meta: { changes: 0, duration: 0 } }] as unknown as { results: T[]; success: boolean; meta: { changes: number; duration: number } }[]; },
-      async exec() { return { count: 0, duration: 0 }; },
-    };
-    const { pmsDocumentQueries } = await import('../../../packages/server-pms/src/adapters/entrypoint-queries');
-    const postings = await pmsDocumentQueries(db as never).relatedPostings('property-1', 'doc-1');
-
-    expect(postings).toMatchObject([{ journal_id: 'journal-1' }]);
-    expect(bodies.map(b => b.kind)).toEqual([PMS_RD_DOCUMENT_RELATED_POSTINGS]);
-    expect(bodies.map(b => b.values)).toEqual([['property-1', 'doc-1']]);
-    expect(bound).toEqual([['property-1', 'doc-1']]);
-    expect(prepared).toEqual([relatedPostingsSql]);
-    for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
+    const presentation = await readFile(new URL('../../../packages/server-pms/src/adapters/presentation-queries.ts', import.meta.url), 'utf8');
+    expect(presentation).not.toContain('pmsDocumentQueries');
   });
 });
 

@@ -26,7 +26,6 @@ export const PMS_RD_POSTING_BY_RECORD = 'pms_rd_posting_by_record';
 export const PMS_RD_CHARGE_CORRECTION_PENDING = 'pms_rd_charge_correction_pending';
 export const PMS_RD_CHARGE_CORRECTION_PENDING_COUNT = 'pms_rd_charge_correction_pending_count';
 export const PMS_RD_GUEST_COMMAND_RECORD = 'pms_rd_guest_command_record';
-export const PMS_RD_DOCUMENT_BY_ID = 'pms_rd_document_by_id';
 export const PMS_RD_DOCUMENT_SNAPSHOT = 'pms_rd_document_snapshot';
 export const PMS_RD_PROPERTY_CONFIG = 'pms_rd_property_config';
 export const PMS_RD_PENDING_HOTEL_TRANSFERS = 'pms_rd_pending_hotel_transfers';
@@ -35,7 +34,6 @@ export const PMS_RD_UNPOSTED_COUNTER_RECEIPTS = 'pms_rd_unposted_counter_receipt
 export const PMS_RD_HOSPITALITY_SETUP_PROPERTIES = 'pms_rd_hospitality_setup_properties';
 export const PMS_RD_ATTACHMENT_PROPERTY_IMAGE = 'pms_rd_attachment_property_image';
 export const PMS_RD_ATTACHMENT_RECORD_IMAGE = 'pms_rd_attachment_record_image';
-export const PMS_RD_DOCUMENT_RELATED_POSTINGS = 'pms_rd_document_related_postings';
 export const PMS_RD_POS_GUEST_HOTELS = 'pms_rd_pos_guest_hotels';
 export const PMS_RD_POS_GUEST_CHOICES = 'pms_rd_pos_guest_choices';
 /** Native successors of the owner-local `posStripePmsFacts` byte-identical

@@ -1,6 +1,5 @@
 import "server-only";
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
-import { pmsDocumentQueries } from "@erpx/server-pms/public/entrypoint-queries";
 import { loadPms } from "../../../../packages/server-pms/src/public/pms";
 import { resolveDocumentBrand } from "@erpx/server-brand/public/branding";
 import { pmsImportBatches } from "@erpx/server-pms/public/pms/import";
@@ -11,7 +10,6 @@ type ReadArguments<F extends (...args: never[]) => unknown> = Parameters<F> exte
 export async function pmsPresentationQueries(holdingId: string) {
   const { write } = await holdingResources(holdingId);
   return {
-    pmsDocumentQueries: (...args: ReadArguments<typeof pmsDocumentQueries>) => pmsDocumentQueries(write, ...args),
     loadPms: (...args: ReadArguments<typeof loadPms>) => loadPms(write, ...args),
     resolveDocumentBrand: (...args: Parameters<typeof resolveDocumentBrand>) => resolveDocumentBrand(...args),
     pmsImportBatches: (...args: ReadArguments<typeof pmsImportBatches>) => pmsImportBatches(write, ...args),

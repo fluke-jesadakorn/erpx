@@ -1,1 +1,3 @@
-export { pmsDocumentQueries, type PmsDocumentRow } from "@erpx/server-pms/adapters/entrypoint-queries";
+// Retired owner export: the document entrypoint authority is native, not a
+// TypeScript plan/execute reader. See @erpx/feature-pms adapters/server/native-pms-documents.
+export {};

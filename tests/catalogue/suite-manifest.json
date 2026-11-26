@@ -104541,6 +104541,7 @@
       "id": "pms.native-pms-transport.unit",
       "framework": "vitest",
       "files": [
+        "tests/unit/pms/native-pms-documents-client.test.ts",
         "tests/unit/pms/native-pms-transport.test.ts"
       ],
       "verificationInputs": [

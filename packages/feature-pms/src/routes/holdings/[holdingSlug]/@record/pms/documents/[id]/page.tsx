@@ -1,4 +1,4 @@
-import Owner from '@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/pms/documents/[id]/standard-document';
+import Owner from '../../../../../../../components/standard-pms-document-screen';
 import {RecordDetailBoundary} from '@erpx/feature-records/components/record-detail-boundary';
 import {recordSections,defaultRecordSection,type RecordTarget} from '@erpx/feature-records/lib/record-drawer';
 import {notFound} from 'next/navigation';

@@ -228,6 +228,7 @@
 @source "../../../../packages/feature-people_payroll/src/public/native-payroll-summary.ts";
 @source "../../../../packages/feature-platform_administration/src/components/settings/push-settings.tsx";
 @source "../../../../packages/feature-pms/src/adapters/server/native-pms-command.ts";
+@source "../../../../packages/feature-pms/src/adapters/server/native-pms-documents.ts";
 @source "../../../../packages/feature-pms/src/adapters/server/native-pms-owner-write.ts";
 @source "../../../../packages/feature-pms/src/adapters/server/native-pms.ts";
 @source "../../../../packages/feature-pms/src/components/booking-flow.tsx";
@@ -270,6 +271,7 @@
 @source "../../../../packages/feature-pms/src/components/standard-pms-backoffice-navigation.tsx";
 @source "../../../../packages/feature-pms/src/components/standard-pms-backoffice-readiness.tsx";
 @source "../../../../packages/feature-pms/src/components/standard-pms-backoffice-workspace.tsx";
+@source "../../../../packages/feature-pms/src/components/standard-pms-document-screen.tsx";
 @source "../../../../packages/feature-pms/src/components/standard-pms-front-workspace.tsx";
 @source "../../../../packages/feature-pms/src/components/standard-pms-import.tsx";
 @source "../../../../packages/feature-pms/src/components/standard-pms-navigation.tsx";
@@ -3410,7 +3412,6 @@
 @source "../../../../packages/server-pms/src/adapters/counter-purchase-boundary.ts";
 @source "../../../../packages/server-pms/src/adapters/crm-attachment-sources.ts";
 @source "../../../../packages/server-pms/src/adapters/crm-purchase-sources.ts";
-@source "../../../../packages/server-pms/src/adapters/entrypoint-queries.ts";
 @source "../../../../packages/server-pms/src/adapters/executive-metric-projections.ts";
 @source "../../../../packages/server-pms/src/adapters/feature-availability.ts";
 @source "../../../../packages/server-pms/src/adapters/finance-owned-snapshot-sources.ts";
@@ -3514,7 +3515,6 @@
 @source "../../../../packages/server-pms/src/public/commercial-owner-projection-sources.ts";
 @source "../../../../packages/server-pms/src/public/crm-attachment-sources.ts";
 @source "../../../../packages/server-pms/src/public/crm-purchase-sources.ts";
-@source "../../../../packages/server-pms/src/public/entrypoint-queries.ts";
 @source "../../../../packages/server-pms/src/public/executive-metric-projections.ts";
 @source "../../../../packages/server-pms/src/public/feature-availability.ts";
 @source "../../../../packages/server-pms/src/public/finance-owned-snapshot-sources.ts";
@@ -3584,6 +3584,7 @@
 @source "../../../../packages/server-pos/src/adapters/native-pos-registers-statement.ts";
 @source "../../../../packages/server-pos/src/adapters/native-pos-sale-child.ts";
 @source "../../../../packages/server-pos/src/adapters/native-pos-stripe-reads.ts";
+@source "../../../../packages/server-pos/src/adapters/native_customer_search/client.ts";
 @source "../../../../packages/server-pos/src/adapters/native_room_charges/client.ts";
 @source "../../../../packages/server-pos/src/adapters/platform-owner-projection-sources.ts";
 @source "../../../../packages/server-pos/src/adapters/pms-booking-change-facts.ts";
@@ -3638,6 +3639,7 @@
 @source "../../../../packages/server-pos/src/public/finance-snapshot-sources.ts";
 @source "../../../../packages/server-pos/src/public/initial-physical-stock-sources.ts";
 @source "../../../../packages/server-pos/src/public/movement-presentation-query.ts";
+@source "../../../../packages/server-pos/src/public/native-customer-search.ts";
 @source "../../../../packages/server-pos/src/public/platform-owner-projection-sources.ts";
 @source "../../../../packages/server-pos/src/public/pms-booking-change-facts.ts";
 @source "../../../../packages/server-pos/src/public/pms-booking-facts.ts";
@@ -4664,7 +4666,6 @@
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/@record/default.tsx";
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/@record/error.tsx";
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/hospitality/setup/standard-screen.tsx";
-@source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/pms/documents/[id]/standard-document.tsx";
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/pms/import/screen.tsx";
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/pms/standard-entry.tsx";
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/account-switcher.tsx";
