@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15011,
+    "revision": 15038,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261126-h",
       "agentId": "lead",
       "startedAt": "2026-11-26T11:25:33.089Z",
-      "heartbeatAt": "2026-11-26T12:41:50.087Z",
-      "expiresAt": "2026-11-26T13:11:50.087Z",
+      "heartbeatAt": "2026-11-26T12:56:20.648Z",
+      "expiresAt": "2026-11-26T13:26:20.648Z",
       "generation": 185,
       "tokenHash": "a2fe8c7a10c8ce3c4b1477b7e4c5e54247c26c1db11e17b3fd8b5969ec4cf16a"
     },
@@ -200953,25 +200953,46 @@
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
-        "claim": {
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "7a3605f318ee120b5318226e7a7e926cb1198a15",
+        "lastPushedSha": "7a3605f318ee120b5318226e7a7e926cb1198a15",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "7a3605f318ee120b5318226e7a7e926cb1198a15"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "7a3605f318ee120b5318226e7a7e926cb1198a15"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "7a3605f318ee120b5318226e7a7e926cb1198a15"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/collaboration/native-inbox-summary-cutover.test.ts tests/unit/collaboration/collaboration-services.test.ts",
+            "result": "passed",
+            "sourceSha": "7a3605f318ee120b5318226e7a7e926cb1198a15"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
           "runId": "run-20261126-h",
           "agentId": "w-inbox",
-          "claimedAt": "2026-11-26T12:41:35.038Z",
-          "heartbeatAt": "2026-11-26T12:41:50.087Z",
-          "expiresAt": "2026-11-26T13:11:50.087Z",
-          "generation": 185
+          "at": "2026-11-26T12:55:34.470Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Inbox summary now native-only; TS aggregation branch deleted."
         },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
         "scopeRefinementRequired": false,
         "id": "retire.collaboration.inbox-shared-helpers",
         "owner": "collaboration",
@@ -200983,7 +201004,7 @@
         "resources": [
           "owner:collaboration"
         ],
-        "nextAction": "Retire the shared inbox.ts helper reads behind the native inbox port and delete replaced TS SQL"
+        "nextAction": "Inbox summary now native-only; TS aggregation branch deleted."
       },
       {
         "goalId": "G4",
@@ -209147,11 +209168,18 @@
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "ready_for_integration",
+        "status": "integrating",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261126-h",
+          "agentId": "w-files",
+          "claimedAt": "2026-11-26T12:55:51.728Z",
+          "heartbeatAt": "2026-11-26T12:56:20.648Z",
+          "expiresAt": "2026-11-26T13:26:20.648Z",
+          "generation": 185
+        },
         "baseSha": null,
         "implementedCommit": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
         "lastPushedSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
@@ -209178,7 +209206,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261126-e",
           "agentId": "lead",
@@ -209666,7 +209694,7 @@
         "goalId": "G4",
         "owner": "support",
         "kind": "migration",
-        "status": "ready_for_integration",
+        "status": "integrating",
         "title": "support feature routes native execution",
         "scope": "Inventory the feature-support route package (7 shared handlers). Port one bounded support, service-team or SLA read/command family to Rust domain/application/adapters/http with real PostgreSQL execution, remove the TS authority for that family, and prepare the exact route-deletion packet.",
         "workflowIds": [],
@@ -209682,7 +209710,14 @@
           "route:support"
         ],
         "nextAction": "Native Support SLA workspace committed; implement the composition backend/mount and then delete GET/re-exports.",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261126-h",
+          "agentId": "w-support",
+          "claimedAt": "2026-11-26T12:55:52.510Z",
+          "heartbeatAt": "2026-11-26T12:56:20.648Z",
+          "expiresAt": "2026-11-26T13:26:20.648Z",
+          "generation": 185
+        },
         "baseSha": null,
         "implementedCommit": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
         "lastPushedSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
@@ -209709,7 +209744,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261126-g",
           "agentId": "lead",
@@ -210487,7 +210522,7 @@
         "goalId": "G4",
         "owner": "pms",
         "kind": "migration",
-        "status": "integrating",
+        "status": "ready_for_integration",
         "title": "feature-pms routes native execution",
         "scope": "Inventory feature-pms routes (stripe payments/refunds, imports, booking changes/refunds, reports, action routes). Port one bounded PMS read/command to Rust domain/application/adapters/http with real SQL execution and prepare the exact deletion packet.",
         "workflowIds": [],
@@ -210502,18 +210537,11 @@
           "owner:pms",
           "route:pms-feature"
         ],
-        "nextAction": "Wave-3 PMS import batches committed and mounted; delete GET branch next.",
-        "claim": {
-          "runId": "run-20261126-h",
-          "agentId": "w-pms2",
-          "claimedAt": "2026-11-26T12:35:02.923Z",
-          "heartbeatAt": "2026-11-26T12:41:50.087Z",
-          "expiresAt": "2026-11-26T13:11:50.087Z",
-          "generation": 185
-        },
+        "nextAction": "Native PMS PromptPay status read committed; GET branch/re-exports cut; router mounted. Additional PMS rows tracked in op. pms-feature-route-op.",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": "539935933f59419f35283c30460f023a9c2b5431",
-        "lastPushedSha": "539935933f59419f35283c30460f023a9c2b5431",
+        "implementedCommit": "7a3605f318ee120b5318226e7a7e926cb1198a15",
+        "lastPushedSha": "7a3605f318ee120b5318226e7a7e926cb1198a15",
         "checks": [
           {
             "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
@@ -210534,17 +210562,37 @@
             "command": "cargo test -p erpx-server-pms --lib --locked adapters::import_batches",
             "result": "passed",
             "sourceSha": "539935933f59419f35283c30460f023a9c2b5431"
+          },
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "7a3605f318ee120b5318226e7a7e926cb1198a15"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "7a3605f318ee120b5318226e7a7e926cb1198a15"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "7a3605f318ee120b5318226e7a7e926cb1198a15"
+          },
+          {
+            "command": "cargo test -p erpx-server-pms --lib payment_status --locked",
+            "result": "passed",
+            "sourceSha": "7a3605f318ee120b5318226e7a7e926cb1198a15"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "handoff",
         "handoff": {
           "runId": "run-20261126-h",
-          "agentId": "lead",
-          "at": "2026-11-26T11:51:05.159Z",
+          "agentId": "w-pms2",
+          "at": "2026-11-26T12:55:33.897Z",
           "previousStatus": "ready_for_integration",
           "reason": "handoff",
-          "nextAction": "Wave-3 PMS import batches committed and mounted; delete GET branch next."
+          "nextAction": "Native PMS PromptPay status read committed; GET branch/re-exports cut; router mounted. Additional PMS rows tracked in op. pms-feature-route-op."
         },
         "scopeRefinementRequired": false
       },
@@ -211722,7 +211770,7 @@
         "goalId": "G4",
         "owner": "ecommerce",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "title": "feature-ecommerce routes native execution",
         "scope": "Inventory feature-ecommerce routes and port one bounded read/command to Rust with real SQL execution and complete payload parity.",
         "workflowIds": [],
@@ -211737,22 +211785,48 @@
           "owner:ecommerce",
           "route:ecommerce-feature"
         ],
-        "nextAction": "Port one bounded fully-native operation with real SQL execution and prepare its cutover/deletion packet.",
-        "claim": {
+        "nextAction": "Native ecommerce detail links committed; TS SELECTs deleted; router mounted; shared GET held until remaining detail reads migrate.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "7a3605f318ee120b5318226e7a7e926cb1198a15",
+        "lastPushedSha": "7a3605f318ee120b5318226e7a7e926cb1198a15",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "7a3605f318ee120b5318226e7a7e926cb1198a15"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "7a3605f318ee120b5318226e7a7e926cb1198a15"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "7a3605f318ee120b5318226e7a7e926cb1198a15"
+          },
+          {
+            "command": "cargo test -p erpx-server-ecommerce --lib --locked",
+            "result": "passed",
+            "sourceSha": "7a3605f318ee120b5318226e7a7e926cb1198a15"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/ecommerce/native-detail-links.test.ts",
+            "result": "passed",
+            "sourceSha": "7a3605f318ee120b5318226e7a7e926cb1198a15"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
           "runId": "run-20261126-h",
           "agentId": "w-ecom3",
-          "claimedAt": "2026-11-26T12:41:35.178Z",
-          "heartbeatAt": "2026-11-26T12:41:50.087Z",
-          "expiresAt": "2026-11-26T13:11:50.087Z",
-          "generation": 185
+          "at": "2026-11-26T12:55:34.185Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native ecommerce detail links committed; TS SELECTs deleted; router mounted; shared GET held until remaining detail reads migrate."
         },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
         "scopeRefinementRequired": false
       },
       {
@@ -212394,7 +212468,7 @@
         "goalId": "G4",
         "owner": "agent",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "title": "Cut over assistant source references",
         "scope": "Delete the TS assistant-sources authority and shared GET branch and switch callers to the mounted native source read.",
         "workflowIds": [],
@@ -212428,13 +212502,338 @@
           "owner:agent",
           "route:assistant-sources"
         ],
-        "nextAction": "Cut the TS assistant-sources authority/branch over to the mounted native read.",
-        "claim": {
+        "nextAction": "Guided-intake uses native assistant sources; view GET retained (native view not yet migrated).",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "7a3605f318ee120b5318226e7a7e926cb1198a15",
+        "lastPushedSha": "7a3605f318ee120b5318226e7a7e926cb1198a15",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "7a3605f318ee120b5318226e7a7e926cb1198a15"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "7a3605f318ee120b5318226e7a7e926cb1198a15"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "7a3605f318ee120b5318226e7a7e926cb1198a15"
+          },
+          {
+            "command": "cargo test -p erpx-server-agent --lib --locked",
+            "result": "passed",
+            "sourceSha": "7a3605f318ee120b5318226e7a7e926cb1198a15"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
           "runId": "run-20261126-h",
           "agentId": "c-agent",
-          "claimedAt": "2026-11-26T12:41:34.898Z",
-          "heartbeatAt": "2026-11-26T12:41:50.087Z",
-          "expiresAt": "2026-11-26T13:11:50.087Z",
+          "at": "2026-11-26T12:55:34.756Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Guided-intake uses native assistant sources; view GET retained (native view not yet migrated)."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.field_service.routes",
+        "goalId": "G4",
+        "owner": "field_service",
+        "kind": "migration",
+        "status": "in_progress",
+        "title": "feature-field_service routes native execution",
+        "scope": "Inventory feature-field_service routes and port one bounded read/command to Rust with real SQL execution and complete payload parity.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-field_service/src/**",
+          "packages/server-field_service/src/**",
+          "tests/unit/field_service/**"
+        ],
+        "resources": [
+          "owner:field_service",
+          "route:field_service-feature"
+        ],
+        "nextAction": "Port one bounded fully-native operation with real SQL execution and prepare its cutover packet.",
+        "claim": {
+          "runId": "run-20261126-h",
+          "agentId": "w-field_service",
+          "claimedAt": "2026-11-26T12:55:51.264Z",
+          "heartbeatAt": "2026-11-26T12:56:20.648Z",
+          "expiresAt": "2026-11-26T13:26:20.648Z",
+          "generation": 185
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.billing.routes",
+        "goalId": "G4",
+        "owner": "billing",
+        "kind": "migration",
+        "status": "in_progress",
+        "title": "feature-billing routes native execution",
+        "scope": "Inventory feature-billing routes and port one bounded read/command to Rust with real SQL execution and complete payload parity.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-billing/src/**",
+          "packages/server-billing/src/**",
+          "tests/unit/billing/**"
+        ],
+        "resources": [
+          "owner:billing",
+          "route:billing-feature"
+        ],
+        "nextAction": "Port one bounded fully-native operation with real SQL execution and prepare its cutover packet.",
+        "claim": {
+          "runId": "run-20261126-h",
+          "agentId": "w-billing",
+          "claimedAt": "2026-11-26T12:55:51.415Z",
+          "heartbeatAt": "2026-11-26T12:56:20.648Z",
+          "expiresAt": "2026-11-26T13:26:20.648Z",
+          "generation": 185
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.brand.routes",
+        "goalId": "G4",
+        "owner": "brand",
+        "kind": "migration",
+        "status": "in_progress",
+        "title": "feature-brand routes native execution",
+        "scope": "Inventory feature-brand routes and port one bounded read/command to Rust with real SQL execution and complete payload parity.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-brand/src/**",
+          "packages/server-brand/src/**",
+          "tests/unit/brand/**"
+        ],
+        "resources": [
+          "owner:brand",
+          "route:brand-feature"
+        ],
+        "nextAction": "Port one bounded fully-native operation with real SQL execution and prepare its cutover packet.",
+        "claim": {
+          "runId": "run-20261126-h",
+          "agentId": "w-brand",
+          "claimedAt": "2026-11-26T12:55:51.575Z",
+          "heartbeatAt": "2026-11-26T12:56:20.648Z",
+          "expiresAt": "2026-11-26T13:26:20.648Z",
+          "generation": 185
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.records.routes",
+        "goalId": "G4",
+        "owner": "records",
+        "kind": "migration",
+        "status": "in_progress",
+        "title": "feature-records routes native execution",
+        "scope": "Inventory feature-records routes and port one bounded read/command to Rust with real SQL execution and complete payload parity.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-records/src/**",
+          "packages/server-records/src/**",
+          "tests/unit/records/**"
+        ],
+        "resources": [
+          "owner:records",
+          "route:records-feature"
+        ],
+        "nextAction": "Port one bounded fully-native operation with real SQL execution and prepare its cutover packet.",
+        "claim": {
+          "runId": "run-20261126-h",
+          "agentId": "w-records",
+          "claimedAt": "2026-11-26T12:55:51.881Z",
+          "heartbeatAt": "2026-11-26T12:56:20.648Z",
+          "expiresAt": "2026-11-26T13:26:20.648Z",
+          "generation": 185
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.identity_access.routes",
+        "goalId": "G4",
+        "owner": "identity_access",
+        "kind": "migration",
+        "status": "in_progress",
+        "title": "feature-identity_access routes native execution",
+        "scope": "Inventory feature-identity_access routes and port one bounded read/command to Rust with real SQL execution and complete payload parity.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-identity_access/src/**",
+          "packages/server-identity_access/src/**",
+          "tests/unit/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access",
+          "route:identity_access-feature"
+        ],
+        "nextAction": "Port one bounded fully-native operation with real SQL execution and prepare its cutover packet.",
+        "claim": {
+          "runId": "run-20261126-h",
+          "agentId": "w-identity_access",
+          "claimedAt": "2026-11-26T12:55:52.028Z",
+          "heartbeatAt": "2026-11-26T12:56:20.648Z",
+          "expiresAt": "2026-11-26T13:26:20.648Z",
+          "generation": 185
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.organization.routes",
+        "goalId": "G4",
+        "owner": "organization",
+        "kind": "migration",
+        "status": "in_progress",
+        "title": "feature-organization routes native execution",
+        "scope": "Inventory feature-organization routes and port one bounded read/command to Rust with real SQL execution and complete payload parity.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-organization/src/**",
+          "packages/server-organization/src/**",
+          "tests/unit/organization/**"
+        ],
+        "resources": [
+          "owner:organization",
+          "route:organization-feature"
+        ],
+        "nextAction": "Port one bounded fully-native operation with real SQL execution and prepare its cutover packet.",
+        "claim": {
+          "runId": "run-20261126-h",
+          "agentId": "w-organization",
+          "claimedAt": "2026-11-26T12:55:52.174Z",
+          "heartbeatAt": "2026-11-26T12:56:20.648Z",
+          "expiresAt": "2026-11-26T13:26:20.648Z",
+          "generation": 185
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.customer_authority.routes",
+        "goalId": "G4",
+        "owner": "customer_authority",
+        "kind": "migration",
+        "status": "in_progress",
+        "title": "feature-customer_authority routes native execution",
+        "scope": "Inventory feature-customer_authority routes and port one bounded read/command to Rust with real SQL execution and complete payload parity.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-customer_authority/src/**",
+          "packages/server-customer_authority/src/**",
+          "tests/unit/customer_authority/**"
+        ],
+        "resources": [
+          "owner:customer_authority",
+          "route:customer_authority-feature"
+        ],
+        "nextAction": "Port one bounded fully-native operation with real SQL execution and prepare its cutover packet.",
+        "claim": {
+          "runId": "run-20261126-h",
+          "agentId": "w-customer_authority",
+          "claimedAt": "2026-11-26T12:55:52.337Z",
+          "heartbeatAt": "2026-11-26T12:56:20.648Z",
+          "expiresAt": "2026-11-26T13:26:20.648Z",
+          "generation": 185
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.procurement.routes",
+        "goalId": "G4",
+        "owner": "procurement",
+        "kind": "migration",
+        "status": "in_progress",
+        "title": "feature-procurement routes native execution",
+        "scope": "Inventory feature-procurement routes and port one bounded read/command to Rust with real SQL execution and complete payload parity.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-procurement/src/**",
+          "packages/server-procurement/src/**",
+          "tests/unit/procurement/**"
+        ],
+        "resources": [
+          "owner:procurement",
+          "route:procurement-feature"
+        ],
+        "nextAction": "Port one bounded fully-native operation with real SQL execution and prepare its cutover packet.",
+        "claim": {
+          "runId": "run-20261126-h",
+          "agentId": "w-procurement",
+          "claimedAt": "2026-11-26T12:55:52.661Z",
+          "heartbeatAt": "2026-11-26T12:56:20.648Z",
+          "expiresAt": "2026-11-26T13:26:20.648Z",
           "generation": 185
         },
         "baseSha": null,
@@ -212453,13 +212852,13 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2403,
+      "totalPackets": 2411,
       "migratedPackets": 369,
       "statusCounts": {
         "pending": 14,
-        "in_progress": 3,
-        "ready_for_integration": 99,
-        "integrating": 1,
+        "in_progress": 8,
+        "ready_for_integration": 101,
+        "integrating": 2,
         "migrated": 369,
         "blocked": 1915,
         "deferred": 2,
@@ -212467,7 +212866,7 @@
       }
     },
     "lastCoordinatorGeneration": 185,
-    "updatedAt": "2026-11-26T12:41:50.091Z",
+    "updatedAt": "2026-11-26T12:56:20.652Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
