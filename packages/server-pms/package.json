@@ -157,7 +157,8 @@
     "./domain/booking": "./src/domain/booking.ts",
     "./domain/home": "./src/domain/home.ts",
     "./domain/pms-model": "./src/domain/pms-model.ts",
-    "./domain/pms": "./src/domain/pms.ts"
+    "./domain/pms": "./src/domain/pms.ts",
+    "./adapters/native-payment-status": "./src/adapters/native-payment-status.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
