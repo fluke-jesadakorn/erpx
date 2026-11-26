@@ -1,7 +1,13 @@
 import {RoutineTemplateEditor} from '@erpx/feature-operations/components/routine-template-editor';
+import {
+  nativeRoutineTemplateDetail,
+  nativeRoutineTemplatesAvailable,
+} from '@erpx/feature-operations/public/native-routines-read';
 import {staffPickerDisplayOptions} from '@erpx/feature-work_projection/lib/staff-picker-display';
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
 import { staffPresentationQueries } from "@erpx/server-work_projection/public/presentation-context-queries";
+import { ApiError } from "@erpx/server-runtime/public/http";
+import { headers } from "next/headers";
 
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@erpx/feature-shared/components/features/feature-page";
 import { RoutineScheduleControls } from "@erpx/feature-records/components/loaders/modules--staff-work-controls";
@@ -9,6 +15,17 @@ import { pageError } from "@erpx/server-work_projection/public/page-error";
 
 
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
+async function nativeTemplate(holdingSlug: string, id: string, userId: string) {
+  if (!nativeRoutineTemplatesAvailable())
+    throw new ApiError(503, "NATIVE_ROUTINES_UNAVAILABLE", "The native Operations routine read is unavailable.");
+  const request = new Request(
+    `http://native-routines.invalid/api/v1/holdings/${encodeURIComponent(holdingSlug)}/routine-templates/${encodeURIComponent(id)}`,
+    { headers: new Headers(await headers() as unknown as Headers) },
+  );
+  const row = await nativeRoutineTemplateDetail(request, holdingSlug, id, userId);
+  if (row === null) throw new ApiError(404, "TEMPLATE_NOT_FOUND", "Routine template not found.");
+  return row;
+}
 export default async function Routine({
   params,
 }: {
@@ -16,7 +33,7 @@ export default async function Routine({
 }) {
   const { holdingSlug, id } = await params,
     { actor, queries, base, options, projects,staff } = await staffPresentationQueries(holdingSlug,{routineProjects:true}),
-    template = await queries.getTemplate(actor, id).catch((e) => {
+    template = await nativeTemplate(holdingSlug, id, actor.userId).catch((e) => {
       return pageError(e, holdingSlug);
     }),
     purchases=await queries.routinePurchases(),

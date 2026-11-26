@@ -6,42 +6,7 @@ import { getQualityHold } from "@erpx/server-quality/public/quality";
 import { holdEvidenceSource, inspectionEvidenceSource, evidenceHead } from "./inspection-evidence-source-sql";
 import { QualityInspectionRow } from '@erpx/server-runtime/public/executive/evidence-contract';
 export function executiveMainEvidenceSources(db: SqlDatabase) {
-    return { async factsSearchQualityInspectionEvidence(input: {
-            filters: {
-                from: string;
-                to: string;
-                currency: string;
-            };
-            query: string;
-            limit: number;
-            metric: "quality-holds" | "quality-releases" | "inspection-pass-rate";
-            cursor?: string | undefined;
-        }, actor: WorkContext, cursor: {
-            createdAt: number;
-            id: string;
-        } | null): Promise<{
-            rows: QualityInspectionRow[];
-        }> {
-            const conditions = [
-                "h.company_id=?",
-                "(?::text IS NULL OR h.branch_id=?)",
-                "i.created_at>=?",
-                "i.created_at<?",
-            ];
-            const values: unknown[] = [actor.companyId, actor.branchId, actor.branchId, Date.parse(input.filters.from), Date.parse(input.filters.to) + 86400000];
-            if (input.query) {
-                conditions.push("(position(lower(?) in lower(p.name))>0 OR position(lower(?) in lower(i.result))>0)");
-                values.push(input.query, input.query);
-            }
-            if (cursor) {
-                conditions.push("(i.created_at,i.id)<(?,?)");
-                values.push(cursor.createdAt, cursor.id);
-            }
-            const rows = (await db.prepare(`${inspectionEvidenceSource("i.id,i.hold_id,i.result,i.created_at,i.reviewed_version,p.name product_name,w.name warehouse_name")}
-    WHERE ${conditions.join(" AND ")}
-    ORDER BY i.created_at DESC,i.id DESC LIMIT ?`).bind(...values, input.limit + 1).all<QualityInspectionRow>()).results;
-            return { rows };
-        }, async factsSearchQualityHoldEvidence(releases: boolean, input: {
+    return { async factsSearchQualityHoldEvidence(releases: boolean, input: {
             filters: {
                 from: string;
                 to: string;

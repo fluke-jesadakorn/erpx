@@ -3,6 +3,7 @@ import {staffHandler} from "@erpx/server-work_projection/public/staff-api";
 import {ApiError,errorResponse} from "@erpx/server-runtime/public/http";
 import {requireWorkContext} from "@erpx/server-identity_access/public/authorization";
 import {
+  nativeRoutineTemplateDetail,
   nativeRoutineTemplateList,
   nativeRoutineTemplatesAvailable,
 } from "@erpx/feature-operations/public/native-routines-read";
@@ -19,10 +20,10 @@ const retained = staffHandler("routine-templates");
 
 /**
  * The native Operations owner is authoritative for routine template
- * create/update/clone/run, schedule create/update and the template list read.
+ * create/update/clone/run, schedule create/update and both template reads.
  * A configured native owner that cannot answer must fail closed; there is no
- * retained command or list-read fallback. The retained handler answers only
- * the shape the native owner does not serve: template detail reads.
+ * retained command or read fallback. The retained handler answers only the
+ * subpaths the native owner does not serve.
  */
 function nativePath(p: string[]): string | null {
   if (p.length === 0) return "";
@@ -52,10 +53,16 @@ function readUnavailable() {
 
 export async function GET(request: Request, context: Context) {
   const { holdingSlug, path = [] } = await context.params;
-  if (path.length > 0) return retained(request, context);
+  if (path.length > 1) return retained(request, context);
   if (!nativeRoutineTemplatesAvailable()) return readUnavailable();
   try {
     const actor = await requireWorkContext(holdingSlug);
+    if (path.length === 1) {
+      const data = await nativeRoutineTemplateDetail(request, holdingSlug, path[0], actor.userId);
+      if (data === null)
+        return errorResponse(new ApiError(404, "TEMPLATE_NOT_FOUND", "Routine template not found."));
+      return Response.json(canonicalDestinationLinks({ data }), { headers });
+    }
     const data = await nativeRoutineTemplateList(request, holdingSlug, actor.userId);
     return Response.json(canonicalDestinationLinks({ data }), { headers });
   } catch (error) {

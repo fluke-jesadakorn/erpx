@@ -110,7 +110,9 @@
     "./domain/package-commands": "./src/domain/package-commands.ts",
     "./domain/pos-permissions": "./src/domain/pos-permissions.ts",
     "./domain/startup": "./src/domain/startup.ts",
-    "./domain/pos": "./src/domain/pos.ts"
+    "./domain/pos": "./src/domain/pos.ts",
+    "./public/native-customer-search": "./src/public/native-customer-search.ts",
+    "./adapters/native_customer_search/client": "./src/adapters/native_customer_search/client.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

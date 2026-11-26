@@ -24,6 +24,7 @@ import type { metricCatalogFor } from "@erpx/server-runtime/public/executive/met
 import type { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import type { getSupplierBill } from "@erpx/server-procurement/public/supplier-bill-matching";
 import type { getQualityHold } from "@erpx/server-quality/public/quality";
+import { nativeQualityEvidenceRows } from "@erpx/server-quality/public/quality-evidence";
 import type { productionDetail } from "@erpx/server-manufacturing/public/production";
 import type { maintenanceDowntimeEvidenceRows } from "@erpx/server-maintenance/public/asset-maintenance";
 import type {getSupportIncident} from '@erpx/server-support/public/support-incident-read';
@@ -298,22 +299,6 @@ export interface ExecutiveEvidenceRepository {
         currency: string;
     }, recordId: string): Promise<{
         row: SalesFulfillmentEvidenceRow;
-    }>;
-    factsSearchQualityInspectionEvidence(input: {
-        filters: {
-            from: string;
-            to: string;
-            currency: string;
-        };
-        query: string;
-        limit: number;
-        metric: "quality-holds" | "quality-releases" | "inspection-pass-rate";
-        cursor?: string | undefined;
-    }, actor: WorkContext, cursor: {
-        createdAt: number;
-        id: string;
-    } | null): Promise<{
-        rows: QualityInspectionRow[];
     }>;
     factsSearchQualityHoldEvidence(releases: boolean, input: {
         filters: {
@@ -1519,9 +1504,22 @@ export function createExecutiveEvidenceApplication(ports: ExecutiveEvidencePorts
         await requireQualityEvidence(actor, input.metric);
         if (input.metric !== "inspection-pass-rate")
             return searchQualityHoldEvidence(actor, input);
-        const cursor = qualityCursorValue(input.cursor);
-        const { rows } = await r.
-            factsSearchQualityInspectionEvidence(input, actor, cursor);
+        const rows = await nativeQualityEvidenceRows(
+            {
+                holdingId: actor.holdingId,
+                holdingSlug: actor.holdingSlug,
+                companyId: actor.companyId,
+                branchId: actor.branchId ?? null,
+            },
+            {
+                from: input.filters.from,
+                to: input.filters.to,
+                currency: input.filters.currency,
+                query: input.query,
+                limit: input.limit,
+                cursor: input.cursor ?? null,
+            },
+        );
         const hasMore = rows.length > input.limit;
         const items = rows.slice(0, input.limit);
         const queryHash = await ports.digest(JSON.stringify({ providerId: qualityProviderId, metric: input.metric, filters: input.filters, query: input.query, cursor: input.cursor ?? null }));

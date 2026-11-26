@@ -21,7 +21,7 @@ import {frontCompanyQuickAccessRequest,frontLegacyQuickAccessRequest} from '@erp
 import {boundedBody} from '@erpx/server-legal/public/legal/body';
 import { pmsHomeRead, pmsHomeWrite } from "@erpx/server-pms/public/pms/home-api";
 import {nativeCreateComment,nativePostAction,nativePublishDraft,nativeSaveDraft,nativeSocialAvailable} from '@erpx/server-collaboration/public/native-social-page';
-import { posCustomers } from "@erpx/server-pos/public/pos-daily";
+import { nativePosCustomerSearch } from "../../../../../../../../../../../packages/server-pos/src/public/native-customer-search";
 import { posProductImage } from "@erpx/server-pos/public/pos-images";
 import {frontTaxDocumentCommand,frontTaxDocumentView} from "@erpx/server-finance/public/hospitality-tax-documents";
 import {taxDocumentRequest} from "@erpx/server-finance/public/hospitality-tax-document-request";
@@ -145,8 +145,8 @@ export async function GET(request: Request, { params }: Context) {
     }
     if(app==='pos'&&path[0]==='images'&&path.length===2)return posProductImage(await frontActor(request,holdingSlug,companySlug,app),path[1]);
     if(app==='pos'&&path.join('/')==='customers/search'){
-      const actor=await frontActor(request,holdingSlug,companySlug,app),db=(await holdingResources(actor.holdingId)).write;
-      return Response.json(canonicalDestinationLinks({data:await posCustomers(db,actor,new URL(request.url).searchParams.get('q')??'')}),{headers:{'Cache-Control':'private, no-store'}});
+      const actor=await frontActor(request,holdingSlug,companySlug,app);
+      return Response.json(canonicalDestinationLinks({data:await nativePosCustomerSearch(actor,new URL(request.url).searchParams.get('q')??'')}),{headers:{'Cache-Control':'private, no-store'}});
     }
     if (path.length)
       throw new ApiError(403, "FRONT_ROUTE_FORBIDDEN", "This work belongs in ERPX administration.");

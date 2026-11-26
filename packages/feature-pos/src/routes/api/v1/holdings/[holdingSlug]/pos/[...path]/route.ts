@@ -11,7 +11,8 @@ import {posCommand} from '@erpx/server-pos/public/pos-core';
 import {requirePosPurchased} from '@erpx/server-pos/public/purchase-boundary';
 import {NATIVE_POS_COMMANDS,NATIVE_POS_DAY_COMMANDS,nativePosCashActor,nativePosCashAvailable,nativePosCommandScope,nativePosDayCommandScope,nativePosWorkflowOperation,nativePosCashConfiguration,createNativePosCashClient,nativePosCashFailure} from '@erpx/feature-pos/adapters/server/native-pos-cash';
 import {finishPosOAuth,oauthUrl} from '@erpx/server-pos/public/pos-stripe';
-import { posCustomers,posDayReport } from "@erpx/server-pos/public/pos-daily";
+import { posDayReport } from "@erpx/server-pos/public/pos-daily";
+import { nativePosCustomerSearch } from "../../../../../../../../../../packages/server-pos/src/public/native-customer-search";
 import { posProductImage,uploadPosProductImage } from "@erpx/server-pos/public/pos-images";
 type Context={params:Promise<{holdingSlug:string;path:string[]}>};
 export async function POST(request:Request,{params}:Context){
@@ -78,9 +79,14 @@ export async function GET(request:Request,{params}:Context){
   const {holdingSlug,path}=await params;
   if(path.join('/')==='room-charge-reversals') return Response.json(canonicalDestinationLinks({data:await roomChargeReversalQueue(await requireWorkContext(holdingSlug),new URL(request.url).searchParams.get('property')??undefined)}),{headers:{'Cache-Control':'private, no-store'}});
   if(path[0]==='images'&&path.length===2)return posProductImage(await requireWorkContext(holdingSlug),path[1],new URL(request.url).searchParams.get('original')==='1');
-  if(path.join('/')==='customers/search'||path.join('/')==='day/report'){
+  if(path.join('/')==='customers/search'){
+   const actor=await requireWorkContext(holdingSlug);
+   const data=await nativePosCustomerSearch(actor,new URL(request.url).searchParams.get('q')??'');
+   return Response.json(canonicalDestinationLinks({data}),{headers:{'Cache-Control':'private, no-store'}});
+  }
+  if(path.join('/')==='day/report'){
    const actor=await requireWorkContext(holdingSlug),db=(await holdingResources(actor.holdingId)).write,url=new URL(request.url);
-   const data=path[0]==='customers'?await posCustomers(db,actor,url.searchParams.get('q')??''):await posDayReport(db,actor,z.string().min(1).parse(actor.branchId??url.searchParams.get('branch')),z.iso.date().parse(url.searchParams.get('date')));
+   const data=await posDayReport(db,actor,z.string().min(1).parse(actor.branchId??url.searchParams.get('branch')),z.iso.date().parse(url.searchParams.get('date')));
    return Response.json(canonicalDestinationLinks({data}),{headers:{'Cache-Control':'private, no-store'}});
   }
   if(path.join('/')!=='connect/callback')throw new ApiError(404,'NOT_FOUND','Not found.');

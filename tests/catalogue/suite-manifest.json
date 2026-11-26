@@ -63992,6 +63992,7 @@
       ],
       "files": [
         "tests/unit/inventory/native-inventory-availability-transport.test.ts",
+        "tests/unit/inventory/native-transfer-detail-cutover.test.ts",
         "tests/unit/inventory/native-transfer-detail.test.ts"
       ],
       "fixture": "none",
@@ -118873,6 +118874,7 @@
         "quality"
       ],
       "files": [
+        "tests/unit/quality/native-quality-evidence-consumer.test.ts",
         "tests/unit/quality/native-quality-transport.test.ts"
       ],
       "fixture": "none",
