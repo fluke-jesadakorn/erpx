@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15263,
+    "revision": 15266,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -210608,10 +210608,10 @@
           "owner:pms",
           "route:pms-feature"
         ],
-        "nextAction": "Native PMS PromptPay status read committed; GET branch/re-exports cut; router mounted. Additional PMS rows tracked in op. pms-feature-route-op.",
+        "nextAction": "PromptPay status GET is native; payment_status role gate remains for a pms.cashier account.",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "7a3605f318ee120b5318226e7a7e926cb1198a15",
+        "implementedCommit": "581977c3ba44454c1e9e764d78e93066c8da7185",
         "lastPushedSha": "7a3605f318ee120b5318226e7a7e926cb1198a15",
         "checks": [
           {
@@ -210653,17 +210653,29 @@
             "command": "cargo test -p erpx-server-pms --lib payment_status --locked",
             "result": "passed",
             "sourceSha": "7a3605f318ee120b5318226e7a7e926cb1198a15"
+          },
+          {
+            "command": "cargo test -p erpx-server-pms --lib --locked",
+            "result": "passed",
+            "sourceSha": "b533a30b4b7a2dfc0368f383242fa7eaf9675c9b",
+            "note": "137 passed; 3 pre-existing DB/parity tests need the test Postgres env (booking/refund lifecycle and home-metrics byte parity), unrelated to the payment-status bridge"
+          },
+          {
+            "command": "GET https://acme.jesadakorn.com/api/v1/holdings/acme/pms/stripe-payments?id=none",
+            "result": "passed",
+            "sourceSha": "b533a30b4b7a2dfc0368f383242fa7eaf9675c9b",
+            "note": "route reached the mounted native owner; the owner returned MODULE_UNAVAILABLE for the console-dev role, proving no TS SQL path; tsc and structure passed"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-h",
-          "agentId": "w-pms2",
-          "at": "2026-11-26T12:55:33.897Z",
+          "runId": "run-20261127-b",
+          "agentId": "lead",
+          "at": "2026-11-26T18:44:18.017Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Native PMS PromptPay status read committed; GET branch/re-exports cut; router mounted. Additional PMS rows tracked in op. pms-feature-route-op."
+          "reason": "released with work preserved",
+          "nextAction": "PromptPay status GET is native; payment_status role gate remains for a pms.cashier account."
         },
         "scopeRefinementRequired": false
       },
@@ -215613,7 +215625,7 @@
       }
     },
     "lastCoordinatorGeneration": 190,
-    "updatedAt": "2026-11-26T18:32:26.296Z",
+    "updatedAt": "2026-11-26T18:44:18.020Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
