@@ -1426,6 +1426,7 @@
 @source "../../../../packages/server-finance/src/adapters/native-lane-3/setup-client.ts";
 @source "../../../../packages/server-finance/src/adapters/native-lane-4/client.ts";
 @source "../../../../packages/server-finance/src/adapters/native-lane-5/client.ts";
+@source "../../../../packages/server-finance/src/adapters/native-lane-6/client.ts";
 @source "../../../../packages/server-finance/src/adapters/native-refund-notification.ts";
 @source "../../../../packages/server-finance/src/adapters/native-service-invoice-payment-evidence.ts";
 @source "../../../../packages/server-finance/src/adapters/payroll-other-bank-evidence.ts";

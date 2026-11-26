@@ -15,7 +15,10 @@ use erpx_server_collaboration::public::messaging_http::{
     MessagingHistoryData, MessagingHttpAttachmentRequest, MessagingHttpBackend,
     MessagingHttpCommand, MessagingHttpCommandRequest, MessagingHttpFuture, MessagingHttpReadReply,
     MessagingHttpReadRequest, MessagingHttpReceipt, MessagingHttpTarget, MessagingMembersData,
-    MessagingOverviewData, MessagingReadKind,
+    MessagingOverviewData, MessagingPeopleRequest, MessagingReadKind,
+};
+use erpx_server_collaboration::public::messaging_people::{
+    PeopleService, PgMessagingPeopleRead, Person,
 };
 use erpx_server_collaboration::public::messaging_native::{
     Change as RoomChange, HistoryCursor, MessagingActor, PgMessagingUnit, Receipt as RoomReceipt,
@@ -1278,6 +1281,87 @@ impl<C: Clock + Send + Sync + 'static> MessagingService<C> {
             .await
     }
 
+    /// Native people picker. A team-filtered read keeps the retained Messages
+    /// `history` purchase gate and the owner team-visibility rule before any
+    /// row is returned. The Company, clock and viewer come from the
+    /// authenticated Holding selection, never from the wire.
+    pub async fn people(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        selection: HoldingWorkspaceRequest,
+        search: Option<String>,
+        team_id: Option<String>,
+    ) -> Result<Vec<Person>, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let control = self.control.clone();
+        let expected = company.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                move || {
+                    let mut request = selection;
+                    if request.company_id != expected {
+                        return Err(scope_error());
+                    }
+                    request.mutation = false;
+                    Ok(request)
+                },
+                WorkAuthorizationRequest {
+                    permission: "records.read".into(),
+                    module: Some("collaboration".into()),
+                    destination: "messaging".into(),
+                    api: true,
+                },
+                CollaborationSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let control = control.clone();
+                    let search = search.clone();
+                    let team_id = team_id.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope_error().into());
+                        }
+                        let now = clock.now().get();
+                        if team_id.is_some() {
+                            let purchase =
+                                messaging_purchase_access(connection, &company, now).await?;
+                            if let Some(access) = purchase {
+                                if !access.history {
+                                    return Err(BusinessError::new(
+                                        FailureKind::Forbidden,
+                                        access.codes.history.as_code(),
+                                        "This package does not permit the requested work.",
+                                    )
+                                    .into());
+                                }
+                            }
+                        }
+                        let viewer = current.user_id().as_str().to_owned();
+                        let people = PeopleService::new(PgMessagingPeopleRead::new(control))
+                            .read(
+                                company.as_str(),
+                                now,
+                                &viewer,
+                                search.as_deref(),
+                                team_id.as_deref(),
+                            )
+                            .await?;
+                        Ok(people)
+                    })
+                },
+            )
+            .await
+    }
+
     pub async fn command(
         &self,
         host: &str,
@@ -1544,6 +1628,25 @@ impl<C: Clock + Send + Sync + 'static> MessagingHttpBackend for MessagingBackend
             let (proof, selection) = self.context(request.headers)?;
             self.service
                 .read(request.host, proof, selection, request.kind)
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn people<'a>(
+        &'a self,
+        request: MessagingPeopleRequest<'a>,
+    ) -> MessagingHttpFuture<'a, Vec<Person>> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .people(
+                    request.host,
+                    proof,
+                    selection,
+                    request.search.map(str::to_owned),
+                    request.team_id.map(str::to_owned),
+                )
                 .await
                 .map_err(business)
         })

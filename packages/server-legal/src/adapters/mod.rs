@@ -73,3 +73,4 @@ pub(crate) mod legal_wave3_postgres;
 pub(crate) mod postgres_destruction;
 pub(crate) mod retention_execution;
 pub mod native_lane_26;
+pub mod native_rule_impact;

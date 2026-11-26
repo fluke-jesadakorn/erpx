@@ -21,10 +21,12 @@ impl MessagingPeopleRead for FakeRead {
         &'a self,
         company_id: &'a str,
         now: i64,
+        viewer_id: &'a str,
         team_id: Option<&'a str>,
     ) -> MessagingPeopleFuture<'a, Vec<PersonRow>> {
         assert_eq!(company_id, "c");
         assert_eq!(now, 1_700_000_000_000);
+        assert_eq!(viewer_id, "viewer");
         assert_eq!(team_id, Some("team-1"));
         let rows = self.rows.clone();
         Box::pin(async move { Ok(rows) })
@@ -48,7 +50,7 @@ async fn service_returns_the_complete_picker_payload() {
         ],
     });
     let people = service
-        .read("c", 1_700_000_000_000, Some("ada"), Some("team-1"))
+        .read("c", 1_700_000_000_000, "viewer", Some("ada"), Some("team-1"))
         .await
         .unwrap();
     assert_eq!(people.len(), 1);
@@ -84,6 +86,7 @@ async fn reader_failure_fails_closed() {
             &'a self,
             _company_id: &'a str,
             _now: i64,
+            _viewer_id: &'a str,
             _team_id: Option<&'a str>,
         ) -> MessagingPeopleFuture<'a, Vec<PersonRow>> {
             Box::pin(async {
@@ -92,7 +95,7 @@ async fn reader_failure_fails_closed() {
         }
     }
     let result = PeopleService::new(Failing)
-        .read("c", 1_700_000_000_000, None, None)
+        .read("c", 1_700_000_000_000, "viewer", None, None)
         .await;
     assert!(result.is_err());
 }

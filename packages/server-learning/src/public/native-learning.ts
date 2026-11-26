@@ -192,7 +192,12 @@ export type NativeLearningDetail = NativeLearningWorkspace &
     history: NativeLearningEvent[];
     handoff: NativeLearningHandoff | null;
     certificate: NativeLearningCertificate | null;
+    benefitContinuation: NativeLearningBenefitContinuation;
   }>;
+
+export type NativeLearningBenefitContinuation = Readonly<{
+  eligibilityCode: string;
+}> | null;
 
 export type NativeLearningReceipt = Readonly<{
   id: string;
@@ -426,6 +431,17 @@ const certificate = (value: unknown): value is NativeLearningCertificate =>
   integer(value.created_at) &&
   optionalIdentifier(value.revocation_id);
 
+/** Navigation-only projection produced by the Rust detail handler. Its single
+ * field is a code already validated on the issuing certificate; no Benefits
+ * business row is transported. */
+const benefitContinuation = (
+  value: unknown,
+): value is NativeLearningBenefitContinuation =>
+  value === null ||
+  (exact(value, ['eligibilityCode']) &&
+    content(value.eligibilityCode, 1, 120) &&
+    !/[\u0000-\u001f\u007f]/.test(value.eligibilityCode));
+
 const eligibilityConsumption = (value: unknown): value is NativeLearningEligibilityConsumption =>
   exact(value, [
     'id',
@@ -633,6 +649,7 @@ function detail(
       'history',
       'handoff',
       'certificate',
+      'benefitContinuation',
     ])
   )
     return failure('NATIVE_LEARNING_RESPONSE_INVALID');
@@ -657,7 +674,8 @@ function detail(
     value.history.length > 500 ||
     !value.history.every(event) ||
     (value.handoff !== null && !handoff(value.handoff)) ||
-    (value.certificate !== null && !certificate(value.certificate))
+    (value.certificate !== null && !certificate(value.certificate)) ||
+    !benefitContinuation(value.benefitContinuation)
   )
     return failure('NATIVE_LEARNING_RESPONSE_INVALID');
   let previous = 0;

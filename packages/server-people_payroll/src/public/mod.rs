@@ -60,3 +60,10 @@ pub mod holding_directory {
 pub mod native_pay_group_options {
     pub use crate::adapters::native_pay_group_options::*;
 }
+
+/// Native people-directory list owner port, sqlx execution and router.
+/// Composition mounts `router_for_holdings`/`router_with_reader`; no TypeScript
+/// SQL remains in this slice.
+pub mod native_people_list {
+    pub use crate::adapters::native_people_list::*;
+}

@@ -1576,6 +1576,89 @@ fn benefit_continuation_requires_benefits_navigation_authority_and_exact_source(
     .is_none());
 }
 
+#[tokio::test]
+async fn detail_payload_always_emits_benefit_continuation_key() {
+    use erpx_server_learning::public::learning::{
+        EventRow, LearningFuture, LearningReadRepository, PersonRow, learning_detail,
+    };
+    use erpx_server_shared::public::BusinessError;
+
+    struct DetailRead {
+        row: AssignmentRow,
+    }
+    impl LearningReadRepository for DetailRead {
+        type Error = BusinessError;
+        fn courses<'a>(
+            &'a mut self,
+            _actor: &'a LearningActor,
+        ) -> LearningFuture<'a, Vec<CourseRow>, Self::Error> {
+            Box::pin(async { Ok(vec![]) })
+        }
+        fn assignments<'a>(
+            &'a mut self,
+            _actor: &'a LearningActor,
+            _personal: bool,
+        ) -> LearningFuture<'a, Vec<AssignmentRow>, Self::Error> {
+            let row = self.row.clone();
+            Box::pin(async move { Ok(vec![row]) })
+        }
+        fn people<'a>(
+            &'a mut self,
+            _actor: &'a LearningActor,
+        ) -> LearningFuture<'a, Vec<PersonRow>, Self::Error> {
+            Box::pin(async { Ok(vec![]) })
+        }
+        fn assignment<'a>(
+            &'a mut self,
+            _actor: &'a LearningActor,
+            _id: &'a str,
+        ) -> LearningFuture<'a, Option<AssignmentRow>, Self::Error> {
+            let row = self.row.clone();
+            Box::pin(async move { Ok(Some(row)) })
+        }
+        fn events<'a>(
+            &'a mut self,
+            _id: &'a str,
+        ) -> LearningFuture<'a, Vec<EventRow>, Self::Error> {
+            Box::pin(async { Ok(vec![]) })
+        }
+        fn handoff<'a>(
+            &'a mut self,
+            _id: &'a str,
+        ) -> LearningFuture<'a, Option<HandoffRow>, Self::Error> {
+            Box::pin(async { Ok(None) })
+        }
+        fn certificate<'a>(
+            &'a mut self,
+            _id: &'a str,
+        ) -> LearningFuture<'a, Option<CertificateRow>, Self::Error> {
+            Box::pin(async { Ok(None) })
+        }
+    }
+
+    let mut repository = DetailRead {
+        row: assignment("completed", true),
+    };
+    let actor = learner();
+    let value = learning_detail(&mut repository, &actor, "assignment-1", NOW)
+        .await
+        .expect("detail read succeeds for the scoped assignment");
+    let object = value.as_object().expect("detail payload is an object");
+    assert!(
+        object.contains_key("benefitContinuation"),
+        "the native transport validator requires this key on every detail reply"
+    );
+    assert!(
+        object["benefitContinuation"].is_null(),
+        "no reviewed certificate yields the null continuation"
+    );
+    assert_eq!(
+        object.len(),
+        11,
+        "the complete Rust detail key set is pinned for transport parity"
+    );
+}
+
 #[test]
 fn assignment_evidence_request_uses_exact_files_policy_context() {
     let change = complete_change().validate().unwrap();

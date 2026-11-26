@@ -81,3 +81,7 @@ path = "../../tests/integration/procurement/rust-rfq-transition-stage.test.rs"
 
 [lints]
 workspace = true
+
+[[test]]
+name = "supplier_bill_policy_http"
+path = "../../tests/unit/procurement/rust-supplier-bill-policy-http.test.rs"

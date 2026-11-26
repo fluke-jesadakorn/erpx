@@ -131,3 +131,4 @@ pub mod native_lane_2;
 pub mod native_lane_3;
 pub mod native_lane_4;
 pub mod native_lane_5;
+pub mod native_lane_6;

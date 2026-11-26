@@ -157,6 +157,7 @@ export function nativeLearningProjectDetail(
     history,
     handoff: certificates ? value.handoff : null,
     certificate: certificates ? value.certificate : null,
+    benefitContinuation: value.benefitContinuation,
   };
 }
 

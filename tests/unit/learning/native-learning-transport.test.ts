@@ -124,7 +124,7 @@ describe('native Learning transport',()=>{
  it('forwards the exact scoped detail path and complete detail evidence',async()=>{
   const branchActor={...actor,branchId:'branch',departmentId:'department',scope:{kind:'department' as const,branchSlug:'north',departmentSlug:'team'}};
   const branchContext={...context,branchId:'branch',departmentId:'department',branchSlug:'north',departmentSlug:'team'};
-  const transport=vi.fn().mockResolvedValue(ok({data:{courses:[course],assignments:[{...assignment,version:2}],people:[person],canWrite:true,canReview:true,actorId:'reviewer',assignment,history:[event],handoff,certificate},context:branchContext}));
+  const transport=vi.fn().mockResolvedValue(ok({data:{courses:[course],assignments:[{...assignment,version:2}],people:[person],canWrite:true,canReview:true,actorId:'reviewer',assignment,history:[event],handoff,certificate,benefitContinuation:null},context:branchContext}));
   const learning=createNativeLearningClient(nativeLearningConfiguration(config()),transport);
   const result=await learning.detail(incoming(),branchActor,'learning-assignment-1',{...input,branchSlug:'north',departmentSlug:'team'});
   expect(result.assignment.status).toBe('in_progress');
@@ -136,11 +136,34 @@ describe('native Learning transport',()=>{
   expect(headers.get('x-erpx-workspace-department')).toBe('team');
  });
 
+ it('accepts the exact Rust benefitContinuation detail field and rejects drift',async()=>{
+  const base={courses:[course],assignments:[assignment],people:[person],canWrite:true,canReview:true,actorId:'reviewer',assignment,history:[event],handoff,certificate};
+  const detail=async(value:unknown)=>{
+   const learning=createNativeLearningClient(nativeLearningConfiguration(config()),vi.fn().mockResolvedValue(ok({data:{...base,benefitContinuation:value},context})));
+   return learning.detail(incoming(),actor,'learning-assignment-1',input);
+  };
+  expect((await detail(null)).benefitContinuation).toBeNull();
+  expect((await detail({eligibilityCode:'equipment_operator'})).benefitContinuation).toEqual({eligibilityCode:'equipment_operator'});
+  for(const invalid of [
+   {eligibilityCode:'equipment_operator',href:'/holdings/acme/learning'},
+   {eligibilityCode:''},
+   {eligibilityCode:'a\nb'},
+   {eligibilityCode:'x'.repeat(121)},
+   {code:'equipment_operator'},
+   'equipment_operator',
+  ]){
+   await expect(detail(invalid)).rejects.toMatchObject({code:'NATIVE_LEARNING_RESPONSE_INVALID'});
+  }
+  // A missing field is a parity break too: the native handler always emits it.
+  const learning=createNativeLearningClient(nativeLearningConfiguration(config()),vi.fn().mockResolvedValue(ok({data:base,context})));
+  await expect(learning.detail(incoming(),actor,'learning-assignment-1',input)).rejects.toMatchObject({code:'NATIVE_LEARNING_RESPONSE_INVALID'});
+ });
+
  it('reads Unicode assignment, person, event and evidence within UTF-16 limits',async()=>{
   const saved={...assignment,course_title:'ก'.repeat(160),learner_name:'😀'.repeat(150),result_evidence:'ก'.repeat(3000),completion_reason:'😀'.repeat(1500)};
   const member={...person,name:'😀'.repeat(150)};
   const history={...event,reason:'😀'.repeat(1500)};
-  const payload=(assignmentValue:unknown,historyValue:unknown,personValue:unknown)=>({data:{courses:[course],assignments:[assignmentValue],people:[personValue],canWrite:true,canReview:true,actorId:'reviewer',assignment:assignmentValue,history:[historyValue],handoff:null,certificate:null},context});
+  const payload=(assignmentValue:unknown,historyValue:unknown,personValue:unknown)=>({data:{courses:[course],assignments:[assignmentValue],people:[personValue],canWrite:true,canReview:true,actorId:'reviewer',assignment:assignmentValue,history:[historyValue],handoff:null,certificate:null,benefitContinuation:null},context});
   const accepted=createNativeLearningClient(nativeLearningConfiguration(config()),vi.fn().mockResolvedValue(ok(payload(saved,history,member))));
   const detail=await accepted.detail(incoming(),actor,'learning-assignment-1',input);
   expect(detail.assignment.result_evidence).toBe(saved.result_evidence);

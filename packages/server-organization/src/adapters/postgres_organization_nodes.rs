@@ -224,6 +224,16 @@ pub fn messaging_room_organization_sql(room_alias: &str, user_parameter: &str) -
         member_sql("n", user_parameter)
     )
 }
+
+/// Exact managed-team predicate from `messagingManagedTeamSql`. Managed teams
+/// are visible to current Company-node members; the team alias and user
+/// parameter are supplied by the closed query here.
+pub fn messaging_team_organization_sql(team_alias: &str, user_parameter: &str) -> String {
+    format!(
+        "EXISTS(SELECT 1 FROM organization_nodes n WHERE n.company_id={team_alias}.company_id AND n.kind='company' AND n.status='active' AND {})",
+        member_sql("n", user_parameter)
+    )
+}
 /// Exact current audience predicate from `organizationChannelEngagementSql`.
 /// The node alias and user parameter are supplied by the closed query here.
 fn member_sql(node: &str, user_parameter: &str) -> String {

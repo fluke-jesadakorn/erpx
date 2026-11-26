@@ -40,3 +40,7 @@ path = "../../tests/integration/marketing/rust-native-read-parity-postgres.test.
 
 [lints]
 workspace = true
+
+[[test]]
+name = "public_form_source"
+path = "../../tests/unit/marketing/rust-public-form-source.test.rs"

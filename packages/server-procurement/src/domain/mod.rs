@@ -3,6 +3,7 @@ pub(crate) mod native_command;
 
 pub(crate) mod supplier_promise_command;
 pub(crate) mod supplier_bill_command;
+pub(crate) mod supplier_bill_policy_read;
 pub(crate) mod rfq_award;
 pub(crate) mod rfq_transition;
 pub(crate) mod rfq_request_status;

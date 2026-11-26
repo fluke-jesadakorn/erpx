@@ -18,6 +18,7 @@ pub trait MessagingPeopleRead: Send + Sync {
         &'a self,
         company_id: &'a str,
         now: i64,
+        viewer_id: &'a str,
         team_id: Option<&'a str>,
     ) -> MessagingPeopleFuture<'a, Vec<PersonRow>>;
 }
@@ -27,9 +28,10 @@ impl MessagingPeopleRead for std::sync::Arc<dyn MessagingPeopleRead> {
         &'a self,
         company_id: &'a str,
         now: i64,
+        viewer_id: &'a str,
         team_id: Option<&'a str>,
     ) -> MessagingPeopleFuture<'a, Vec<PersonRow>> {
-        MessagingPeopleRead::active(self.as_ref(), company_id, now, team_id)
+        MessagingPeopleRead::active(self.as_ref(), company_id, now, viewer_id, team_id)
     }
 }
 
@@ -56,13 +58,14 @@ impl<R: MessagingPeopleRead> PeopleService<R> {
         &self,
         company_id: &str,
         now: i64,
+        viewer_id: &str,
         search: Option<&str>,
         team_id: Option<&str>,
     ) -> Result<Vec<Person>, BusinessError> {
         let query = PeopleQuery::new(search, team_id)?;
         let rows = self
             .reader
-            .active(company_id, now, query.team_id.as_deref())
+            .active(company_id, now, viewer_id, query.team_id.as_deref())
             .await
             .map_err(|_| unavailable())?;
         Ok(project(rows, &query))

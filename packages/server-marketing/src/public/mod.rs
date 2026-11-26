@@ -11,3 +11,4 @@ pub use crate::adapters::native_read::{bind, BoundPlan, ReadScope};
 
 pub mod asset_normalization;
 pub mod native_lane_40;
+pub mod public_form_source;
