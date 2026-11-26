@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15231,
+    "revision": 15233,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -212807,7 +212807,7 @@
         "goalId": "G4",
         "owner": "records",
         "kind": "migration",
-        "status": "integrating",
+        "status": "ready_for_integration",
         "title": "feature-records routes native execution",
         "scope": "Inventory feature-records routes and port one bounded read/command to Rust with real SQL execution and complete payload parity.",
         "workflowIds": [],
@@ -212822,17 +212822,10 @@
           "owner:records",
           "route:records-feature"
         ],
-        "nextAction": "Native Records search owner SQL compiled/tested; router mount and shared GET cutover pending.",
-        "claim": {
-          "runId": "run-20261126-k",
-          "agentId": "worker-records-14",
-          "claimedAt": "2026-11-26T16:41:26.513Z",
-          "heartbeatAt": "2026-11-26T16:41:26.513Z",
-          "expiresAt": "2026-11-26T17:11:26.513Z",
-          "generation": 188
-        },
+        "nextAction": "Native shared search GET is live; add an identity-access public principal-search port for person hits, then verify @user search.",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": "3cbd0350c675ab420131cdd1870ed5d73c07a224",
+        "implementedCommit": "a940a1d336ac8f94a144aefe8ada28feb5a0fd1e",
         "lastPushedSha": "3cbd0350c675ab420131cdd1870ed5d73c07a224",
         "checks": [
           {
@@ -212864,17 +212857,50 @@
             "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/records/native-record-search-cutover.test.ts",
             "result": "passed",
             "sourceSha": "3cbd0350c675ab420131cdd1870ed5d73c07a224"
+          },
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "a940a1d33"
+          },
+          {
+            "command": "cargo test -p erpx-server-records --lib --locked",
+            "result": "passed",
+            "sourceSha": "e62bbde31",
+            "note": "worker reported 67/67"
+          },
+          {
+            "command": "bunx vitest run --config tests/config/vitest.unit.config.mts tests/unit/records/native-record-search-cutover.test.ts tests/unit/records/records-registry-routes-pure-transport.test.ts",
+            "result": "passed",
+            "sourceSha": "a940a1d33",
+            "note": "12/12"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "a940a1d33"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "a940a1d33"
+          },
+          {
+            "command": "GET https://acme.jesadakorn.com/api/v1/holdings/acme/records/search?q=a",
+            "result": "passed",
+            "sourceSha": "a940a1d33",
+            "note": "200 with native workspace_records rows after ERPX_NATIVE_RECORDS_CONFIG was set"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-i",
-          "agentId": "lead",
-          "at": "2026-11-26T13:47:23.900Z",
+          "runId": "run-20261126-k",
+          "agentId": "worker-records-14",
+          "at": "2026-11-26T16:56:18.233Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Native Records search owner SQL compiled/tested; router mount and shared GET cutover pending."
+          "reason": "released with work preserved",
+          "nextAction": "Native shared search GET is live; add an identity-access public principal-search port for person hits, then verify @user search."
         },
         "scopeRefinementRequired": false
       },
@@ -215524,8 +215550,8 @@
       "statusCounts": {
         "pending": 14,
         "in_progress": 0,
-        "ready_for_integration": 145,
-        "integrating": 1,
+        "ready_for_integration": 146,
+        "integrating": 0,
         "migrated": 369,
         "blocked": 1915,
         "deferred": 2,
@@ -215533,7 +215559,7 @@
       }
     },
     "lastCoordinatorGeneration": 188,
-    "updatedAt": "2026-11-26T16:48:02.119Z",
+    "updatedAt": "2026-11-26T16:56:18.236Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
