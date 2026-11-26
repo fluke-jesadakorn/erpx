@@ -66,6 +66,17 @@ git grep -I -o -E "INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET" HEAD \
 3. Batch the cross-owner producer ports (Finance customer witness and money snapshot) that block several consumers at once.
 4. Close the SELECT-only read tail per owner after its write path is native.
 
+### Rust execution and Next API route retirement (2026-11-26)
+
+A SQL-plan or `include_str!` contract that leaves TypeScript preparing and executing the statement is an **intermediary only** and must not be reported as a migrated capability. The corrected completion bar for an API capability is:
+
+1. The Rust Axum owner handler executes the SQL against PostgreSQL and returns the payload (a plan-only reply is not execution).
+2. The Next shared route handler in `packages/workplace/src/routes/**` and its `apps/*/src/app/api/**` re-exports for that path are deleted once no non-backend consumer needs them.
+3. Browser/SSR callers reach the Rust endpoint directly, or through a non-business gateway/reverse proxy that preserves the Host and session; the proxy carries no owner SQL, fallback or payload shaping.
+4. Any shared response envelope (for example canonical destination links) required after deletion is produced by Rust or by a client presentation helper, never by the deleted backend route.
+5. Tests pin parity from the Rust handler and prove the deleted route files cannot resolve.
+
+Tracked route retirement counts the 95 shared workplace route handlers and 969 app re-exports (inventory in `.scratch/lanes/route-inventory.json` at run start); these counts and the list of deleted routes belong in the handoff next to the retirement KPI.
 
 Copyable goal template for any AI: `Continue <goal-id> / <task-id> from docs/production-plan.md#rust-migration-current and the tracked executionPlan. Read status and handoff, request the lead's central claim, change only its paths, pass the targeted migration gate, and report source/checks/retirement/next action for the lead to record. Keep acceptance deferred; use only codex/rust-backend-migration.`
 
