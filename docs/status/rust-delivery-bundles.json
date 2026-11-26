@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 14736,
+    "revision": 14769,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -208604,24 +208604,45 @@
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "blocked",
+        "status": "ready_for_integration",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
+        "lastPushedSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "cargo check -p erpx-server-records --locked",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
+        "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261126-d",
-          "agentId": "exec-records",
-          "at": "2026-11-26T08:14:55.153Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
-          "nextAction": "Confirm Rust execution for the records registry routes; port any TS step; prepare exact route-deletion packet (Next route + app re-exports)"
+          "runId": "run-20261126-e",
+          "agentId": "lead",
+          "at": "2026-11-26T08:29:53.419Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native registry execution committed 070a4c45; mount/config verification and deletion of registry routes pending. Four non-registry records routes restored to HEAD."
         },
         "scopeRefinementRequired": false,
         "id": "exec.records.registry",
@@ -208636,29 +208657,50 @@
           "owner:records",
           "route:records"
         ],
-        "nextAction": "Confirm Rust execution for the records registry routes; port any TS step; prepare exact route-deletion packet (Next route + app re-exports)"
+        "nextAction": "Native registry execution committed 070a4c45; mount/config verification and deletion of registry routes pending. Four non-registry records routes restored to HEAD."
       },
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "blocked",
+        "status": "ready_for_integration",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
+        "lastPushedSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/work_projection/exec-work-routes-no-sql.test.ts",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
+        "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261126-d",
-          "agentId": "exec-work",
-          "at": "2026-11-26T08:14:55.153Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
-          "nextAction": "Port card-preferences/navigation/page-layouts execution to Rust (card-preferences may already be); remove TS SQL; prepare route-deletion packet"
+          "runId": "run-20261126-e",
+          "agentId": "lead",
+          "at": "2026-11-26T08:29:53.821Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native navigation owner backend committed 070a4c45; composition mount and page-layout command SQL adapter still required before route deletion."
         },
         "scopeRefinementRequired": false,
         "id": "exec.work.routes",
@@ -208675,29 +208717,55 @@
           "owner:work_projection",
           "route:work"
         ],
-        "nextAction": "Port card-preferences/navigation/page-layouts execution to Rust (card-preferences may already be); remove TS SQL; prepare route-deletion packet"
+        "nextAction": "Native navigation owner backend committed 070a4c45; composition mount and page-layout command SQL adapter still required before route deletion."
       },
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "blocked",
+        "status": "ready_for_integration",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
+        "lastPushedSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "cargo check -p erpx-server-identity-access --locked",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/identity_access/native-iam-assignments-transport.test.ts tests/unit/identity_access/native-session-server.test.ts",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
+        "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261126-d",
-          "agentId": "exec-identity",
-          "at": "2026-11-26T08:14:55.153Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
-          "nextAction": "Finish native execution for the IAM/assignments/companies routes; remove TS fallback; prepare route-deletion packet"
+          "runId": "run-20261126-e",
+          "agentId": "lead",
+          "at": "2026-11-26T08:29:54.225Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native lane-44 owner slice committed 070a4c45; TS routes retained. Mount WorkScopeLease backend and set ERPX_NATIVE_IAM_ROUTES_CONFIG before cutover."
         },
         "scopeRefinementRequired": false,
         "id": "exec.identity.routes",
@@ -208714,29 +208782,55 @@
           "owner:identity_access",
           "route:identity"
         ],
-        "nextAction": "Finish native execution for the IAM/assignments/companies routes; remove TS fallback; prepare route-deletion packet"
+        "nextAction": "Native lane-44 owner slice committed 070a4c45; TS routes retained. Mount WorkScopeLease backend and set ERPX_NATIVE_IAM_ROUTES_CONFIG before cutover."
       },
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "blocked",
+        "status": "ready_for_integration",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
+        "lastPushedSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "cargo check -p erpx-server-people-payroll --locked",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "cargo check -p erpx-server-organization --locked",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
+        "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261126-d",
-          "agentId": "exec-organization",
-          "at": "2026-11-26T08:14:55.153Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
-          "nextAction": "Port holding people directory execution to Rust with payload parity; prepare shared-route and app re-export deletion packet"
+          "runId": "run-20261126-e",
+          "agentId": "lead",
+          "at": "2026-11-26T08:29:54.637Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native holding-directory owner slice committed 070a4c45; TS authority restored. Mount HoldingDirectoryAuthority before route deletion."
         },
         "scopeRefinementRequired": false,
         "id": "exec.organization.people-directory",
@@ -208752,29 +208846,55 @@
           "owner:organization",
           "route:people-directory"
         ],
-        "nextAction": "Port holding people directory execution to Rust with payload parity; prepare shared-route and app re-export deletion packet"
+        "nextAction": "Native holding-directory owner slice committed 070a4c45; TS authority restored. Mount HoldingDirectoryAuthority before route deletion."
       },
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "blocked",
+        "status": "ready_for_integration",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
+        "lastPushedSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "cargo check -p erpx-server-finance --locked",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/finance/native-catchall-aging.test.ts",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
+        "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261126-d",
-          "agentId": "exec-finance",
-          "at": "2026-11-26T08:14:55.153Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
-          "nextAction": "Inventory the finance catch-all; port one fully-native operation to Rust execution and prepare its deletion packet; no plan-only work"
+          "runId": "run-20261126-e",
+          "agentId": "lead",
+          "at": "2026-11-26T08:29:55.046Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native aging branch committed 070a4c45; verify ERPX_NATIVE_FINANCE_LANE_2_CONFIG and split the catch-all before deletion."
         },
         "scopeRefinementRequired": false,
         "id": "exec.finance.catchall",
@@ -208789,29 +208909,55 @@
           "owner:finance",
           "route:finance"
         ],
-        "nextAction": "Inventory the finance catch-all; port one fully-native operation to Rust execution and prepare its deletion packet; no plan-only work"
+        "nextAction": "Native aging branch committed 070a4c45; verify ERPX_NATIVE_FINANCE_LANE_2_CONFIG and split the catch-all before deletion."
       },
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "blocked",
+        "status": "ready_for_integration",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
+        "lastPushedSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "cargo test -p erpx-server-commerce --test order_http --locked",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx vitest run --config tests/config/vitest.unit.config.mts tests/unit/commerce/native-commerce-orders-transport.test.ts",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
+        "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261126-d",
-          "agentId": "exec-commerce",
-          "at": "2026-11-26T08:14:55.153Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
-          "nextAction": "Inventory the commerce catch-all; port one fully-native operation to Rust execution and prepare its deletion packet; no plan-only work"
+          "runId": "run-20261126-e",
+          "agentId": "lead",
+          "at": "2026-11-26T08:29:55.454Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native order-detail branch committed 070a4c45; verify public host/gateway path and split the catch-all before deleting re-exports."
         },
         "scopeRefinementRequired": false,
         "id": "exec.commerce.catchall",
@@ -208826,29 +208972,50 @@
           "owner:commerce",
           "route:commerce"
         ],
-        "nextAction": "Inventory the commerce catch-all; port one fully-native operation to Rust execution and prepare its deletion packet; no plan-only work"
+        "nextAction": "Native order-detail branch committed 070a4c45; verify public host/gateway path and split the catch-all before deleting re-exports."
       },
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "blocked",
+        "status": "ready_for_integration",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
+        "lastPushedSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "cargo test -p erpx-server-files --lib --locked",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
+        "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261126-d",
-          "agentId": "exec-files",
-          "at": "2026-11-26T08:14:55.153Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
-          "nextAction": "Confirm Rust execution for attachment content routes; port any TS step; prepare route-deletion packet"
+          "runId": "run-20261126-e",
+          "agentId": "lead",
+          "at": "2026-11-26T08:29:55.871Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native attachment-content owner slice committed 070a4c45; TS content routes retained. Composition content backend still required."
         },
         "scopeRefinementRequired": false,
         "id": "exec.files.routes",
@@ -208864,29 +209031,55 @@
           "owner:files",
           "route:files"
         ],
-        "nextAction": "Confirm Rust execution for attachment content routes; port any TS step; prepare route-deletion packet"
+        "nextAction": "Native attachment-content owner slice committed 070a4c45; TS content routes retained. Composition content backend still required."
       },
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "blocked",
+        "status": "ready_for_integration",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
+        "lastPushedSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "cargo check -p erpx-server-inventory --locked",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx vitest run --config tests/unit/inventory/vitest.stock-counts-transition.config.mts tests/unit/inventory/stock-counts-transition-native-exec.test.ts",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
+        "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261126-d",
-          "agentId": "exec-inventory",
-          "at": "2026-11-26T08:14:55.153Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
-          "nextAction": "Port stock-counts catch-all execution to Rust (or one bounded operation) and prepare its deletion packet; no plan-only work"
+          "runId": "run-20261126-e",
+          "agentId": "lead",
+          "at": "2026-11-26T08:29:56.281Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native stock-count transition committed 070a4c45; POS/manufacturing retained consumers need a removal task before route deletion."
         },
         "scopeRefinementRequired": false,
         "id": "exec.inventory.catchall",
@@ -208901,7 +209094,7 @@
           "owner:inventory",
           "route:inventory"
         ],
-        "nextAction": "Port stock-counts catch-all execution to Rust (or one bounded operation) and prepare its deletion packet; no plan-only work"
+        "nextAction": "Native stock-count transition committed 070a4c45; POS/manufacturing retained consumers need a removal task before route deletion."
       },
       {
         "id": "exec.people.catchall",
@@ -208939,7 +209132,7 @@
         "goalId": "G4",
         "owner": "pms",
         "kind": "migration",
-        "status": "blocked",
+        "status": "ready_for_integration",
         "title": "pms native route execution",
         "scope": "Inventory the /pms catch-all. Port one bounded read or command family to Rust domain/application/adapters/http with real PostgreSQL execution, remove the TypeScript authority for that family, and prepare the exact shared-route plus app re-export deletion packet. No plan-only SQL contract.",
         "workflowIds": [],
@@ -208954,21 +209147,47 @@
           "owner:pms",
           "route:pms"
         ],
-        "nextAction": "Inventory the pms catch-all and port one fully-native operation with Rust SQL execution; prepare its route-deletion packet.",
+        "nextAction": "Native home-metrics router committed and mounted; set ERPX_NATIVE_HOME_METRICS_CONFIG and verify parity before deleting the /pms catch-all.",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
+        "lastPushedSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "cargo test -p erpx-server-pms --test pms_home_metrics --locked",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx vitest run --config tests/config/vitest.unit.config.mts tests/unit/pms/native-pms-read-plan.test.ts",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Generation 180 (run-20261126-c) appeared without operator instruction while this session held the lead. The operator instructed this session to kill subagents and continue the Rust-execution route-retirement plan. Reclaim single-checkout coordination; preserve all on-disk WIP for review.",
+        "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261126-c",
-          "agentId": "exec-pms",
-          "at": "2026-11-26T06:24:57.126Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Generation 180 (run-20261126-c) appeared without operator instruction while this session held the lead. The operator instructed this session to kill subagents and continue the Rust-execution route-retirement plan. Reclaim single-checkout coordination; preserve all on-disk WIP for review.",
-          "nextAction": "Inventory the pms catch-all and port one fully-native operation with Rust SQL execution; prepare its route-deletion packet."
+          "runId": "run-20261126-e",
+          "agentId": "lead",
+          "at": "2026-11-26T08:29:56.693Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native home-metrics router committed and mounted; set ERPX_NATIVE_HOME_METRICS_CONFIG and verify parity before deleting the /pms catch-all."
         },
         "scopeRefinementRequired": false
       },
@@ -208977,7 +209196,7 @@
         "goalId": "G4",
         "owner": "agent",
         "kind": "migration",
-        "status": "blocked",
+        "status": "ready_for_integration",
         "title": "agent assistant route native execution",
         "scope": "Port one bounded assistant workspace operation (GET assistantView or POST askAssistant) to the Agent owner with domain/application/adapters/http, real Rust SQL execution, CQRS command/query separation and idempotency where the operation writes. Remove the TypeScript authority for that operation and prepare the exact route deletion packet.",
         "workflowIds": [],
@@ -208992,21 +209211,42 @@
           "owner:agent",
           "route:assistant"
         ],
-        "nextAction": "Port the bounded assistant read or ask command to native Agent execution; prepare its route-deletion packet.",
+        "nextAction": "Native assistant-view owner slice committed 070a4c45; mount AssistantViewHttpBackend and bind sources() before deleting GET; POST remains TS.",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
+        "lastPushedSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "cargo test -p erpx-server-agent --test agent_assistant_view --locked",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Generation 180 (run-20261126-c) appeared without operator instruction while this session held the lead. The operator instructed this session to kill subagents and continue the Rust-execution route-retirement plan. Reclaim single-checkout coordination; preserve all on-disk WIP for review.",
+        "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261126-c",
-          "agentId": "exec-agent",
-          "at": "2026-11-26T06:24:57.126Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Generation 180 (run-20261126-c) appeared without operator instruction while this session held the lead. The operator instructed this session to kill subagents and continue the Rust-execution route-retirement plan. Reclaim single-checkout coordination; preserve all on-disk WIP for review.",
-          "nextAction": "Port the bounded assistant read or ask command to native Agent execution; prepare its route-deletion packet."
+          "runId": "run-20261126-e",
+          "agentId": "lead",
+          "at": "2026-11-26T08:29:57.098Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native assistant-view owner slice committed 070a4c45; mount AssistantViewHttpBackend and bind sources() before deleting GET; POST remains TS."
         },
         "scopeRefinementRequired": false
       },
@@ -209015,7 +209255,7 @@
         "goalId": "G4",
         "owner": "collaboration",
         "kind": "migration",
-        "status": "blocked",
+        "status": "ready_for_integration",
         "title": "collaboration push route native execution",
         "scope": "Port one bounded push settings operation (settings read, subscription registration, preferences or device removal) to the Collaboration owner with domain/application/adapters/http, real Rust SQL execution and CQRS separation. Remove the TypeScript authority for that operation and prepare the exact route deletion packet.",
         "workflowIds": [],
@@ -209030,21 +209270,47 @@
           "owner:collaboration",
           "route:push"
         ],
-        "nextAction": "Port one bounded push operation to native Collaboration execution; prepare its route-deletion packet.",
+        "nextAction": "Native push-settings public alias committed 070a4c45; configure lane-16 and add edge context headers before deleting GET/re-exports.",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
+        "lastPushedSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "cargo check -p erpx-server-collaboration --locked",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/collaboration/native-push-settings-parity.test.ts",
+            "result": "passed",
+            "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Generation 180 (run-20261126-c) appeared without operator instruction while this session held the lead. The operator instructed this session to kill subagents and continue the Rust-execution route-retirement plan. Reclaim single-checkout coordination; preserve all on-disk WIP for review.",
+        "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261126-c",
-          "agentId": "exec-collab",
-          "at": "2026-11-26T06:24:57.126Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Generation 180 (run-20261126-c) appeared without operator instruction while this session held the lead. The operator instructed this session to kill subagents and continue the Rust-execution route-retirement plan. Reclaim single-checkout coordination; preserve all on-disk WIP for review.",
-          "nextAction": "Port one bounded push operation to native Collaboration execution; prepare its route-deletion packet."
+          "runId": "run-20261126-e",
+          "agentId": "lead",
+          "at": "2026-11-26T08:29:57.501Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native push-settings public alias committed 070a4c45; configure lane-16 and add edge context headers before deleting GET/re-exports."
         },
         "scopeRefinementRequired": false
       },
@@ -209284,16 +209550,16 @@
       "statusCounts": {
         "pending": 26,
         "in_progress": 0,
-        "ready_for_integration": 37,
+        "ready_for_integration": 48,
         "integrating": 0,
         "migrated": 369,
-        "blocked": 1927,
+        "blocked": 1916,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 182,
-    "updatedAt": "2026-11-26T08:14:55.158Z",
+    "updatedAt": "2026-11-26T08:29:57.505Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
