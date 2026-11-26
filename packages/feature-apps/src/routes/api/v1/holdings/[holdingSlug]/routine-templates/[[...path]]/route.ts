@@ -1,6 +1,11 @@
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import {staffHandler} from "@erpx/server-work_projection/public/staff-api";
 import {ApiError,errorResponse} from "@erpx/server-runtime/public/http";
+import {requireWorkContext} from "@erpx/server-identity_access/public/authorization";
+import {
+  nativeRoutineTemplateList,
+  nativeRoutineTemplatesAvailable,
+} from "@erpx/feature-operations/public/native-routines-read";
 import {
   nativeRoutineCommand,
   nativeRoutineRun,
@@ -14,10 +19,10 @@ const retained = staffHandler("routine-templates");
 
 /**
  * The native Operations owner is authoritative for routine template
- * create/update/clone/run and schedule create/update. A configured native owner
- * that cannot answer must fail closed; there is no retained command fallback.
- * The retained handler answers only the shapes the native owner does not serve:
- * template reads.
+ * create/update/clone/run, schedule create/update and the template list read.
+ * A configured native owner that cannot answer must fail closed; there is no
+ * retained command or list-read fallback. The retained handler answers only
+ * the shape the native owner does not serve: template detail reads.
  */
 function nativePath(p: string[]): string | null {
   if (p.length === 0) return "";
@@ -39,8 +44,23 @@ function unavailable() {
   );
 }
 
+function readUnavailable() {
+  return errorResponse(
+    new ApiError(503, "NATIVE_ROUTINES_UNAVAILABLE", "The native Operations routine read is unavailable."),
+  );
+}
+
 export async function GET(request: Request, context: Context) {
-  return retained(request, context);
+  const { holdingSlug, path = [] } = await context.params;
+  if (path.length > 0) return retained(request, context);
+  if (!nativeRoutineTemplatesAvailable()) return readUnavailable();
+  try {
+    const actor = await requireWorkContext(holdingSlug);
+    const data = await nativeRoutineTemplateList(request, holdingSlug, actor.userId);
+    return Response.json(canonicalDestinationLinks({ data }), { headers });
+  } catch (error) {
+    return errorResponse(error);
+  }
 }
 
 export async function POST(request: Request, context: Context) {

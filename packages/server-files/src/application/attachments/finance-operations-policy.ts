@@ -88,7 +88,7 @@ export type FinanceAttachmentUnit<Effect> = {
         version: number;
     }>;
     versionGuard(commandId: string, targetType: string, targetId: string, companyId: string, version: number, index: number, actor?: WorkContext): Effect | null;
-    versionStep(targetType: string, targetId: string, expectedVersion: number, now: number): Effect | null;
+    versionStep(targetType: string, targetId: string, expectedVersion: number, now: number, context?: { actor: WorkContext; commandId: string }): Effect | null;
 };
 export type Row = {
     company_id: string;
@@ -294,6 +294,6 @@ export function createFinanceAttachmentPolicy<Effect>(ports: {
             throw ports.error(422, "ATTACHMENT_SENSITIVE_SYSTEM_MATERIAL", "Passwords, private keys, secrets, configuration exports and database dumps must never be uploaded. Attach only a sanitized review artifact.");
     }
     function financeOperationsAttachmentTargetVersionGuard(db: FinanceAttachmentUnit<Effect>, commandId: string, targetType: string, targetId: string, companyId: string, version: number, index: number, actor?: WorkContext): Effect | null { return db.versionGuard(commandId, targetType, targetId, companyId, version, index, actor); }
-    function financeOperationsAttachmentRecordVersionStep(db: FinanceAttachmentUnit<Effect>, targetType: string, targetId: string, expectedVersion: number, now: number): Effect | null { return db.versionStep(targetType, targetId, expectedVersion, now); }
+    function financeOperationsAttachmentRecordVersionStep(db: FinanceAttachmentUnit<Effect>, targetType: string, targetId: string, expectedVersion: number, now: number, context?: { actor: WorkContext; commandId: string }): Effect | null { return db.versionStep(targetType, targetId, expectedVersion, now, context); }
     return { financeOperationsAttachmentPolicies, forbiddenAttachmentPurposeKeys, authorizeFinanceOperationsAttachmentTarget, financeOperationsAttachmentTargetVersionGuard, financeOperationsAttachmentRecordVersionStep, requiresSanitizedEvidenceAttestation, assertSanitizedEvidenceMetadata };
 }

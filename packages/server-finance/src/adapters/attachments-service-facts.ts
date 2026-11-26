@@ -2,14 +2,14 @@ import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { ApiError } from "@erpx/server-runtime/public/http";
-import { nativeFinanceAttachmentVersionGuard, nativeFinanceOwnerWriteSystem } from "./native-finance-owner-write";
+import { nativeFinanceAttachmentVersionGuard, nativeFinanceAttachmentVersionStep } from "./native-finance-owner-write";
 
 /**
  * The invoice-payment/supplier-bill attachment version guard is owned by the
  * native Finance port. This adapter only carries typed facts to that port; it
  * authors no guard SQL and has no TypeScript fallback.
  */
-export function attachmentServiceFinanceFacts(db: SqlDatabase) {
+export function attachmentServiceFinanceFacts(_db: SqlDatabase) {
     return {
         versionGuard: (
             commandId: string,
@@ -34,19 +34,31 @@ export function attachmentServiceFinanceFacts(db: SqlDatabase) {
                 scopeKind: actor.assignmentScope,
             });
         },
-        versionStep: (targetType: string, targetId: string, expectedVersion: number, now: number) => {
+        versionStep: (
+            targetType: string,
+            targetId: string,
+            expectedVersion: number,
+            now: number,
+            context?: { actor: WorkContext; commandId: string },
+        ) => {
             if (targetType !== "invoice_payment" && targetType !== "supplier_bill") return null;
-            // Native Finance owner-write executes the version step in Rust with
-            // the guard, receipt/audit/outbox in the caller unit. The reply is
-            // an inert sequencing placeholder; no write SQL remains in TypeScript.
-            return nativeFinanceOwnerWriteSystem(
-                db,
-                "system",
-                `finance_attachment_version_step_${targetType}`,
-                [now, targetId, expectedVersion],
-                `avs-${targetId}-${expectedVersion}`,
+            // The mounted native Finance version-step port executes the bump,
+            // receipt, audit and outbox in the caller's serializable unit. This
+            // adapter carries typed actor facts only; it authors no SQL and has
+            // no TypeScript fallback.
+            if (!context) throw new ApiError(422, "ATTACHMENT_TARGET_UNSUPPORTED", "The native Finance attachment version step requires an authorized actor.");
+            return nativeFinanceAttachmentVersionStep({
+                companyId: context.actor.companyId,
+                targetType,
+                targetId,
+                expectedVersion,
                 now,
-            );
+                userId: context.actor.userId,
+                assignmentId: context.actor.assignmentId,
+                role: context.actor.role,
+                scopeKind: context.actor.assignmentScope,
+                key: context.commandId,
+            });
         },
     };
 }

@@ -127,16 +127,26 @@ describe("finance attachment version guard cutover (retire.finance.attachment-ve
     }
   });
 
-  it("keeps version steps on the native owner write with no local SQL", async () => {
+  it("routes every finance version step to the mounted native port with no local SQL", async () => {
     for (const targetType of Object.keys(financeTable)) {
       const { db, prepared } = stubDb();
-      const step = FinanceAttachmentFinanceFacts(db).versionStep(targetType, "target-1", 2, 77) as Promise<unknown>;
-      expect(step, `${targetType} step`).toBeInstanceOf(Promise);
-      await expect(step, `${targetType} native delegation`).rejects.toThrow(
+      const step = FinanceAttachmentFinanceFacts(db).versionStep(
+        targetType, "target-1", 2, 77, { actor, commandId: "command-1" },
+      ) as { __nativeWrite?: boolean; query?: string; run: () => Promise<unknown> } | null;
+      expect(step, `${targetType} step`).not.toBeNull();
+      expect(step!.__nativeWrite).toBe(true);
+      expect(step!.query, `${targetType} must author no step SQL`).toBeUndefined();
+      await expect(step!.run(), `${targetType} native delegation`).rejects.toThrow(
         "The native Finance owner write is unavailable.",
       );
-      expect(prepared, `${targetType} must author no local SQL`).toHaveLength(0);
+      expect(prepared, `${targetType} must prepare no local SQL`).toHaveLength(0);
     }
+  });
+
+  it("fails closed when a version step has no authorized actor", () => {
+    const { db } = stubDb();
+    expect(() => FinanceAttachmentFinanceFacts(db).versionStep("finance_journal", "target-1", 2, 77))
+      .toThrow("requires an authorized actor");
   });
 
   it("fails closed for unknown finance targets without touching the native guard", () => {

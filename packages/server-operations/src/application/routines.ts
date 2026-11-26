@@ -15,9 +15,6 @@ type PortResult<Value, Effect> = Value extends Promise<infer Result> ? Promise<P
     [Key in keyof Value]: PortResult<Value[Key], Effect>;
 } : Value;
 export interface RoutinesRepository<Effect> {
-    readListTemplatesEffect(companyId: string, userId: string, value: 0 | 1): Promise<{
-        results: (TemplateRow)[];
-    }>;
     readGetTemplateRow(id: string, companyId: string): Promise<TemplateRow | null>;
 }
 export interface RoutinesPorts<Effect> {
@@ -26,10 +23,6 @@ export interface RoutinesPorts<Effect> {
 }
 export function createRoutinesApplication<Effect>(ports: RoutinesPorts<Effect>) {
     const r = ports.repository;
-    async function listTemplates(actor: StaffActor) {
-        const owner = await ports.companyAuthority(actor, ["holding_owner"]);
-        return (await r.readListTemplatesEffect(actor.companyId, actor.userId, owner ? 1 : 0)).results;
-    }
     async function getTemplate(actor: StaffActor, id: string) {
         const row = await r.readGetTemplateRow(id, actor.companyId);
         if (!row ||
@@ -43,5 +36,5 @@ export function createRoutinesApplication<Effect>(ports: RoutinesPorts<Effect>) 
         return (row.creator_user_id === actor.userId ||
             (await ports.companyAuthority(actor, ["holding_owner"])));
     }
-    return { listTemplates, getTemplate, canEditTemplate };
+    return { getTemplate, canEditTemplate };
 }

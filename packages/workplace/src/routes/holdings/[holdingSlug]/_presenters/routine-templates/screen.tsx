@@ -8,10 +8,25 @@ import {StaffTaskLinks} from '@erpx/feature-work_projection/components/staff-wor
 import { ListFilters } from "@erpx/ui/components/list-filters";
 import { EmptyState,PageHeader } from "@erpx/ui/components/primitives";
 import { administrationAccess } from "@erpx/server-runtime/public/administration";
+import { headers } from "next/headers";
+import { ApiError } from "@erpx/server-runtime/public/http";
+import {
+  nativeRoutineTemplateList,
+  nativeRoutineTemplatesAvailable,
+} from "@erpx/feature-operations/public/native-routines-read";
 
 
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { Card } from "@erpx/ui/components/foundation";
+async function nativeTemplates(holdingSlug: string, userId: string) {
+  if (!nativeRoutineTemplatesAvailable())
+    throw new ApiError(503, "NATIVE_ROUTINES_UNAVAILABLE", "The native Operations routine read is unavailable.");
+  const request = new Request(
+    `http://native-routines.invalid/api/v1/holdings/${encodeURIComponent(holdingSlug)}/routine-templates`,
+    { headers: new Headers(await headers() as unknown as Headers) },
+  );
+  return nativeRoutineTemplateList(request, holdingSlug, userId);
+}
 export default async function Routines({
   params,
   searchParams,
@@ -22,7 +37,7 @@ export default async function Routines({
   const { holdingSlug } = await params,
     { actor, queries, base, options, projects, staff } =
       await staffPresentationQueries(holdingSlug,{routineProjects:true}),
-    templates = await queries.listTemplates(actor),purchases=await queries.routinePurchases();
+    templates = await nativeTemplates(holdingSlug, actor.userId),purchases=await queries.routinePurchases();
   const query=await searchParams;
   const visible=templates.filter(t=>(!query.q||t.title.toLowerCase().includes(query.q.toLowerCase()))&&(!query.status||query.status==="all"||(query.status==="published"?t.published:!t.published)));
   const access = await administrationAccess(actor);

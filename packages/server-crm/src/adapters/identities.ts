@@ -19,7 +19,6 @@ import {createCRMIdentityApplication,type CRMIdentityPorts,type CRMIdentityMutat
 import {crmIdentityCommand} from "@erpx/server-crm/domain/identities";
 import {requireCRMPurchasedRead,crmReferenceHistory,crmReferencePurchaseControls,withCRMPurchasedCommand,crmNativeReadFilter,type CRMPurchaseTarget} from "@erpx/server-crm/adapters/purchases";
 import {crmCreatorLeadScopeSql} from "./read-tail-r24-sql";
-import {crmGuestLinkReservationSourceSql} from "./read-tail-r26-sql";
 import {crmContactAccountReadSql} from "./read-tail-r35-sql";
 import {crmScopedDescListSql} from "./read-tail-r40-sql";
 /** G4 r24: the creator (created_by) lead-scope guards render through the one
@@ -40,10 +39,7 @@ async identities(){const write=await database(); const [accounts,contacts,custom
   WHERE g.company_id=? AND ${await crmNativeReadFilter('guest-link','g')} AND (?::text IS NULL OR p.branch_id=?) AND ${contactScopeSql}`,'g.created_at DESC LIMIT 200'))
   .bind(a.companyId,a.branchId,a.branchId,a.branchId,a.userId,a.branchId,a.departmentId,a.departmentId).all<Row>()).results:[];
  return {accounts:accounts.results,contacts:contacts.results,customers:customers.results,guestLinks};},
-async contact(contactId){const write=await database();return await write.prepare(crmContactAccountReadSql('c.id,c.name,c.account_id','acc',`WHERE c.id=? AND c.company_id=? AND ${contactScopeSql}`)).bind(contactId,a.companyId,a.branchId,a.userId,a.branchId,a.departmentId,a.departmentId).first<Row>();},
-async stays(contactId){const write=await database();return (await write.prepare(crmGuestLinkReservationSourceSql(`g.guest_id,r.id reservation_id,r.data_json::jsonb->>'state' reservation_state,
-  s.id stay_id,s.data_json::jsonb->>'state' stay_state,s.data_json::jsonb->>'arrival' arrival,
-  s.data_json::jsonb->>'departure' departure,p.id property_id`,pmsProjectionSources.pms_properties,pmsProjectionSources.pms_records,`\n  LEFT JOIN (${pmsProjectionSources.pms_records}) s ON s.property_id=p.id AND s.kind='stay' AND s.data_json::jsonb->>'reservationId'=r.id`,' ORDER BY r.updated_at DESC,s.id LIMIT 201','\n  ')).bind(contactId,a.companyId,a.branchId,a.branchId).all<Row>()).results;},commit:async(mutation,result)=>commit(await database(),a,mutation,result),
+commit:async(mutation,result)=>commit(await database(),a,mutation,result),
 };return createCRMIdentityApplication(ports);}
 async function commit<Result>(write:SqlDatabase,a:WorkContext,m:CRMIdentityMutation,result:Result):Promise<Result>{
  const {input:i,recordId,key,now,version}=m;
@@ -64,4 +60,3 @@ async function commit<Result>(write:SqlDatabase,a:WorkContext,m:CRMIdentityMutat
 async function translated<Result>(action:()=>Promise<Result>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 export function crmIdentities(a:WorkContext){return translated(async()=>{const db=(await holdingResources(a.holdingId)).write,purchase=await requireCRMPurchasedRead(db,a),view=await application(a,db).workspace(),hotel=await crmReferenceHistory(db,a,'pms.reservations');return {...view,canGuestReview:view.canGuestReview&&hotel,...(purchase?{purchase,referencePurchases:await crmReferencePurchaseControls(db,a)}: {})};});}
 export function changeCRMIdentity(a:WorkContext,raw:unknown,key:string){return translated(()=>{const input=crmIdentityCommand.parse(raw),target:CRMPurchaseTarget=input.action==='create-account'?{kind:'account',id:`account-${key}`}:input.action==='create-contact'?{kind:'contact',id:`contact-${key}`}:input.action==='link-finance'?{kind:'account',id:input.accountId}:input.action==='guest-sharing'?{kind:'guest-link',id:input.linkId}:{kind:'contact',id:input.contactId};return withCRMPurchasedCommand(a,{key,operation:`crm.identity.${input.action}`,target,existing:input.action!=='create-account'&&input.action!=='create-contact',purpose:input.action==='create-account'||input.action==='create-contact'||input.action==='link-guest'||input.action==='guest-sharing'&&input.state==='granted'?'new-work':'settle-existing',sources:input.action==='create-contact'?[{kind:'account',id:input.accountId}]:[],permissions:input.action==='link-finance'?['commerce.approve']:input.action==='link-guest'||input.action==='guest-sharing'?['commerce.approve','pms.read']:[],capabilities:input.action==='link-guest'||input.action==='guest-sharing'?['pms.reservations']:[]},db=>application(a,db).change(input,key));});}
-export function crmContactHistory(a:WorkContext,id:string){return translated(async()=>{const db=(await holdingResources(a.holdingId)).write;await requireCRMPurchasedRead(db,a,{kind:'contact',id});if(!await crmReferenceHistory(db,a,'pms.reservations'))throw new ApiError(403,'PACKAGE_REQUIRED','Retained Hotel reservation history is required.');return application(a,db).history(id);});}

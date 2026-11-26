@@ -8,7 +8,7 @@ import type {assignLevel,headSchema,levelAssignmentSchema,levelSchema,saveLevel,
 import type {listTasks,taskDetail} from '@erpx/server-operations/public/staff-tasks';
 import type {listProjectMilestones,projectMilestoneSchema,projectMilestoneTransitionSchema} from "@erpx/server-projects/public/project-milestones";
 import type {listProjectWorkLogs,projectWorkLogDecisionSchema,projectWorkLogSchema} from "@erpx/server-projects/public/project-actuals";
-import type {canEditTemplate,getTemplate,listTemplates,ScheduleRow} from "@erpx/server-operations/public/routines";
+import type {canEditTemplate,getTemplate,ScheduleRow} from "@erpx/server-operations/public/routines";
 import type {rerouteApproval} from '@erpx/server-workflow/public/approvals';
 import type {changeAppointment} from '@erpx/server-organization/public/department-authority';
 import type {getProject,listProjects,projectSchema} from "@erpx/server-projects/public/staff-projects";
@@ -32,7 +32,6 @@ listProjectWorkLogs:WithoutDatabase<typeof listProjectWorkLogs>;
 projectCommand(command:ProjectCommandPort):Promise<unknown>;
 canEditTemplate:WithoutDatabase<typeof canEditTemplate>;
 getTemplate:WithoutDatabase<typeof getTemplate>;
-listTemplates:WithoutDatabase<typeof listTemplates>;
 rerouteApproval:WithoutDatabase<typeof rerouteApproval>;
 changeAppointment:WithoutDatabase<typeof changeAppointment>;headSchema:typeof headSchema.parse;
 levelAssignmentSchema:typeof levelAssignmentSchema.parse;
@@ -83,9 +82,8 @@ const {holdingSlug,path:p=[]}=await context.params;const actor=await ports.requi
                 tasks: await ports.listTasks( actor, p[0]),
               }
             : await ports.listProjects( actor);
-        else if (resource === "routine-templates")
-          data = p[0]
-            ? {
+        else if (resource === "routine-templates" && p[0])
+          data = {
                 template: await ports.getTemplate( actor, p[0]),
                 schedules: (
                   await ports.facts.templateSchedules(p[0],actor.companyId)
@@ -94,8 +92,7 @@ const {holdingSlug,path:p=[]}=await context.params;const actor=await ports.requi
                   actor,
                   await ports.getTemplate( actor, p[0]),
                 ),
-              }
-            : await ports.listTemplates( actor);
+              };
         else if (
           resource === "approvals" &&
           (await ports.companyAuthority( actor))

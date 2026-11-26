@@ -130,7 +130,7 @@ describe("CRM activity and identity ports",()=>{
  // tests/integration/crm/crm-activities.test.ts + the Rust activities suites.
  test("identity linking preserves independent review requirements as a commit contract and validates access after replay",async()=>{
   const mutations:CRMIdentityMutation[]=[],calls:string[]=[];
-  const ports:CRMIdentityPorts={canReview:true,canCreate:true,clock:{now:()=>42},authorize(permission){calls.push(permission);},async replay(){calls.push("replay");return null;},async identities(){return {accounts:[],contacts:[],customers:[]};},async contact(){return null;},async stays(){return [];},async commit(m,result){mutations.push(m);return result;}};
+  const ports:CRMIdentityPorts={canReview:true,canCreate:true,clock:{now:()=>42},authorize(permission){calls.push(permission);},async replay(){calls.push("replay");return null;},async identities(){return {accounts:[],contacts:[],customers:[]};},async commit(m,result){mutations.push(m);return result;}};
   await createCRMIdentityApplication(ports).change({action:"link-finance",accountId:"account",customerId:"customer",expectedVersion:2,evidence:"Independently match the customer"},"key");
   expect(calls).toEqual(["commerce.sales","replay","commerce.approve"]);
   expect(mutations[0]).toMatchObject({recordId:"account",operation:"crm.identity.link-finance",version:3,now:42});

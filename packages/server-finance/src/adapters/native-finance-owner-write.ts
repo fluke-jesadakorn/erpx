@@ -432,3 +432,152 @@ export function nativeFinanceAttachmentVersionGuard(
   };
   return descriptor as unknown as NativeAttachmentVersionGuard;
 }
+
+/** Bounded input for the mounted Finance attachment-version step port. The
+ * Files service supplies the already-authorized actor; the owner rechecks scope
+ * and the live version in its own serializable unit. */
+export type NativeAttachmentVersionStepInput = Readonly<{
+  companyId: string;
+  targetType: string;
+  targetId: string;
+  expectedVersion: number;
+  now: number;
+  userId: string;
+  assignmentId: string;
+  role: string;
+  scopeKind: string;
+  key?: string;
+}>;
+
+type StepContext = Readonly<{ companyId?: string; key?: string; now?: number }>;
+
+/** SqlStatement-shaped descriptor for the mounted native version-step port. It
+ * carries no SQL, so the Files native-effects resolver can run it in the
+ * command's Company/key context alongside the other owner effects. A missing
+ * transport, an unregistered target, a stale version or an invalid reply fails
+ * closed; there is no TypeScript step fallback. */
+export type NativeAttachmentVersionStep = SqlStatement & {
+  readonly __nativeWrite: true;
+  withContext(context: StepContext): NativeAttachmentVersionStep;
+};
+
+async function dispatchStep(
+  context: StepContext | undefined,
+  input: NativeAttachmentVersionStepInput,
+): Promise<void> {
+  const settings = config();
+  const company = context?.companyId ?? input.companyId;
+  const key = context?.key ?? input.key ?? `finance-step-${input.targetId}-${input.expectedVersion}`;
+  const now = context?.now ?? input.now;
+  // The owner step writes its own receipt, so it must not reuse the business
+  // command id as its idempotency key. A namespaced, deterministic key keeps
+  // retries exactly-once without colliding with the caller's receipt row.
+  const stepKey = financeOwnerKey('finance_attachment_step', [key, input.targetId, input.expectedVersion]);
+  if (
+    !identifier(company) ||
+    !validKey(key) ||
+    !validKey(stepKey) ||
+    !validKind(input.targetType) ||
+    !identifier(input.targetId) ||
+    !Number.isSafeInteger(input.expectedVersion) ||
+    input.expectedVersion <= 0 ||
+    !Number.isSafeInteger(now) ||
+    now <= 0 ||
+    !identifier(input.userId) ||
+    !identifier(input.assignmentId) ||
+    input.role.length === 0 ||
+    input.role.length > 128 ||
+    !identifier(input.scopeKind) ||
+    !['company', 'holding', 'branch', 'department'].includes(input.scopeKind)
+  )
+    return fail();
+  const url = new URL(
+    `/api/v1/companies/${encodeURIComponent(company)}/finance/attachment-version/step`,
+    settings.privateBaseUrl,
+  );
+  const body = JSON.stringify({
+    targetType: input.targetType,
+    targetId: input.targetId,
+    expectedVersion: input.expectedVersion,
+    userId: input.userId,
+    assignmentId: input.assignmentId,
+    role: input.role,
+    scopeKind: input.scopeKind,
+    now,
+  });
+  let response: Response;
+  try {
+    response = await post(
+      url,
+      {
+        'content-type': 'application/json',
+        'idempotency-key': stepKey,
+        'x-erpx-context-company': company,
+      },
+      body,
+      settings.timeoutMs,
+    );
+  } catch {
+    return fail();
+  }
+  if (response.redirected || response.status !== 200 || !response.body) {
+    void response.body?.cancel().catch(() => undefined);
+    return fail(response.status);
+  }
+  if (response.headers.get('content-type')?.split(';')[0]?.trim() !== 'application/json') {
+    void response.body.cancel().catch(() => undefined);
+    return fail();
+  }
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    return fail();
+  }
+  // A successful step may return either the unchanged version (no-op) or the
+  // bumped version, so only the bounded reply shape is pinned here.
+  if (
+    !record(payload) ||
+    !record(payload.data) ||
+    payload.data.ok !== true ||
+    !Number.isSafeInteger(payload.data.version) ||
+    (payload.data.version as number) <= 0 ||
+    typeof payload.data.changed !== 'boolean' ||
+    payload.data.targetType !== input.targetType ||
+    payload.data.targetId !== input.targetId
+  )
+    return fail();
+}
+
+export function nativeFinanceAttachmentVersionStep(
+  input: NativeAttachmentVersionStepInput,
+): NativeAttachmentVersionStep {
+  const descriptor = {
+    __nativeWrite: true as const,
+    context: undefined as StepContext | undefined,
+    withContext(context: StepContext) {
+      descriptor.context = { ...descriptor.context, ...context };
+      return descriptor;
+    },
+    bind() {
+      return descriptor;
+    },
+    async run<T>() {
+      await dispatchStep(descriptor.context, input);
+      return { results: [], success: true, meta: { changes: 0, duration: 0 } } as SqlResult<T>;
+    },
+    async first<T>() {
+      await dispatchStep(descriptor.context, input);
+      return null as T | null;
+    },
+    async all<T>() {
+      await dispatchStep(descriptor.context, input);
+      return { results: [], success: true, meta: { changes: 0, duration: 0 } } as SqlResult<never>;
+    },
+    async raw() {
+      await dispatchStep(descriptor.context, input);
+      return [];
+    },
+  };
+  return descriptor as unknown as NativeAttachmentVersionStep;
+}

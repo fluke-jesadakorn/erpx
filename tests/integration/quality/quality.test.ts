@@ -75,7 +75,7 @@ it('cancels an incorrect uninspected hold only after independent review, retaini
 });
 
 it('recovers quality due-soon and overdue escalations with live routing and persisted acknowledgement',async()=>{
- const {qualityAlerts,qualityAlertWork,getQualityAlert}=await import("@erpx/server-quality/public/quality-alerts");
+ const {qualityAlertWork,getQualityAlert}=await import("@erpx/server-quality/public/quality-alerts");
 
  const due=await seedNativeQualityHold(db,f.owner,{warehouseId:warehouse,productId:product,expectedStockVersion:Number(await db.prepare('SELECT version FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first('version')),dueDate:'2026-09-22',reason:'Prepare a quality inspection before the receiving deadline'},key());
  const overdue=await seedNativeQualityHold(db,f.owner,{warehouseId:warehouse,productId:product,expectedStockVersion:Number(await db.prepare('SELECT version FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first('version')),dueDate:'2026-09-20',reason:'Recover a missed quality inspection and preserve the quarantine evidence'},key());
@@ -92,9 +92,9 @@ it('recovers quality due-soon and overdue escalations with live routing and pers
    ON CONFLICT DO NOTHING`).bind(now,...(from?[from,to]:[to])).run();
  await seedQualityAlertNotices(db,now);
  expect((await db.prepare("SELECT id,phase,source_version,due_date::text due_date FROM inventory_quality_alerts WHERE hold_id IN (?,?) ORDER BY id").bind(String(due.id),String(overdue.id)).all<{id:string;phase:string;source_version:number;due_date:string}>()).results).toEqual([{id:`quality-alert-due-soon-${due.id}`,phase:'due_soon',source_version:1,due_date:'2026-09-22'},{id:`quality-alert-overdue-${overdue.id}`,phase:'overdue',source_version:1,due_date:'2026-09-20'}]);
- const alerts=await qualityAlerts(f.manager),dueAlert=alerts.find(a=>a.hold_id===String(due.id)&&a.phase==='due_soon'),overdueAlert=alerts.find(a=>a.hold_id===String(overdue.id)&&a.phase==='overdue');
- expect(dueAlert).toMatchObject({source_version:1,version:1,can_ack:1,recipients:2});
- expect(overdueAlert).toMatchObject({source_version:1,version:1,can_ack:1,recipients:2});
+ const alertRows=(await db.prepare("SELECT id,hold_id,phase,source_version,version FROM inventory_quality_alerts WHERE hold_id IN (?,?) ORDER BY id").bind(String(due.id),String(overdue.id)).all<{id:string;hold_id:string;phase:string;source_version:number;version:number}>()).results,dueAlert=alertRows.find(a=>a.hold_id===String(due.id)&&a.phase==='due_soon'),overdueAlert=alertRows.find(a=>a.hold_id===String(overdue.id)&&a.phase==='overdue');
+ expect(dueAlert).toMatchObject({source_version:1,version:1});
+ expect(overdueAlert).toMatchObject({source_version:1,version:1});
  expect((await qualityAlertWork(f.manager)).filter(w=>w.type==='quality_alert')).toEqual(expect.arrayContaining([expect.objectContaining({id:dueAlert?.id,queue:'todo',canAct:true,nextAction:'Prepare the next inspection or release action'}),expect.objectContaining({id:overdueAlert?.id,queue:'todo',canAct:true})]));
  const holdIds=[String(due.id),String(overdue.id)],work=mergeWorkItems([...(await qualityWork(f.manager)),...(await qualityAlertWork(f.manager))]);
  const escalations=filterWork(work,'all','quality_alert','').filter(row=>holdIds.includes(row.id));

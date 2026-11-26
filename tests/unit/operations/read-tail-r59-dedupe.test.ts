@@ -11,7 +11,7 @@ vi.mock('@erpx/server-operations/public/staff-policy', async () => {
   return { ...actual, companyAuthority: () => Promise.resolve(true) };
 });
 import { operationsAliasSelectAll } from '../../../packages/server-operations/src/adapters/operations-alias-select-all';
-import { listTemplates, getTemplate } from '../../../packages/server-operations/src/adapters/routines';
+import { getTemplate } from '../../../packages/server-operations/src/adapters/routines';
 import { OPERATIONS_VIEWER_CLOCK_SQL } from '../../../packages/server-operations/src/adapters/workforce-actor-scope-source';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-operations/src');
@@ -74,15 +74,11 @@ describe('operations read-tail r59 alias-qualified select-all head retirement', 
     });
     const database = { prepare(sql: string) { captured.push(sql); return statement(); } } as any;
     const actor = { companyId: 'c', branchId: 'b', departmentId: 'd', userId: 'u', assignmentId: 'a' } as any;
-    await listTemplates(database, actor);
     await getTemplate(database, actor, 'tid');
-    expect(captured).toHaveLength(2);
-    expect(captured[0]).toBe(retired.list);
-    expect(captured[1]).toBe(retired.get);
-    expect(sha(captured[0])).toBe(oracle.list);
-    expect(sha(captured[1])).toBe(oracle.get);
-    expect(binds(captured[0])).toBe(3);
-    expect(binds(captured[1])).toBe(2);
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toBe(retired.get);
+    expect(sha(captured[0])).toBe(oracle.get);
+    expect(binds(captured[0])).toBe(2);
   });
 
   it('keeps one head definition and routes both read sites through it', async () => {
@@ -91,11 +87,10 @@ describe('operations read-tail r59 alias-qualified select-all head retirement', 
     ]);
     expect(helper.match(/export const operationsAliasSelectAll/g)).toHaveLength(1);
     expect(helper).toContain('`SELECT ${alias}.* FROM ${table} ${alias} WHERE ${tail}`');
-    expect(routines.match(/operationsAliasSelectAll\(/g)).toHaveLength(2);
+    expect(routines.match(/operationsAliasSelectAll\(/g)).toHaveLength(1);
     expect(routines).toContain("from './operations-alias-select-all'");
     expect(routines).not.toContain('SELECT t.* FROM routine_templates t WHERE');
     expect(routines).not.toContain('templateSelect');
-    expect(routines).toContain("operationsAliasSelectAll('t','routine_templates', `t.company_id=?");
     expect(routines).toContain("operationsAliasSelectAll('t','routine_templates', `t.id=?");
   });
 

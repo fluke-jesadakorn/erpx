@@ -14,12 +14,7 @@ export type { ScheduleRow } from '@erpx/server-operations/domain/routines';
  *  so the rendered SQL and binds stay byte-identical to the retired literals. */
 function application(provided?: SqlDatabase,readScope={where:'TRUE',args:[] as SqlValue[]}) {
     let database = provided!;
-    const repository: RoutinesRepository<SqlStatement> = { readListTemplatesEffect(companyId: string, userId: string, value: 0 | 1) {
-            return database.prepare(operationsAliasSelectAll('t','routine_templates', `t.company_id=? AND (t.published=1 OR t.creator_user_id=? OR ?=1) AND (${readScope.where}) ORDER BY t.updated_at DESC,t.id`))
-                .bind(companyId, userId, value,...readScope.args)
-                .all<TemplateRow>();
-        },
-        readGetTemplateRow(id: string, companyId: string) {
+    const repository: RoutinesRepository<SqlStatement> = { readGetTemplateRow(id: string, companyId: string) {
             return database.prepare(operationsAliasSelectAll('t','routine_templates', `t.id=? AND t.company_id=? AND (${readScope.where})`))
                 .bind(id, companyId,...readScope.args)
                 .first<TemplateRow>();
@@ -42,6 +37,5 @@ catch (error) {
         throw new NativeApiError(error.status, error.code, error.message);
     throw error;
 } }
-export async function listTemplates(db: SqlDatabase, actor: StaffActor) { return invoke(async() => application(db,await workRoutineReadScope(db,actor)).listTemplates(actor)); }
 export async function getTemplate(db: SqlDatabase, actor: StaffActor, id: string) { const scope=await workRoutineReadScope(db,actor);return invoke(() => application(db,scope).getTemplate(actor, id)); }
 export async function canEditTemplate(db: SqlDatabase, actor: StaffActor, row: TemplateRow) { return invoke(() => application(db).canEditTemplate(actor, row)); }

@@ -117,6 +117,7 @@
     "@erpx/contracts": "workspace:*",
     "@erpx/feature-collaboration": "workspace:*",
     "@erpx/feature-field_service": "workspace:*",
+    "@erpx/feature-operations": "workspace:*",
     "@erpx/feature-projects": "workspace:*",
     "@erpx/feature-records": "workspace:*",
     "@erpx/feature-runtime": "workspace:*",

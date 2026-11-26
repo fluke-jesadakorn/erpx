@@ -8,7 +8,6 @@ import {listTasks} from '@erpx/server-operations/public/staff-tasks';
 import { nativeProjectMilestones } from "@erpx/server-projects/public/project-milestones";
 import { listProjectWorkLogs } from "@erpx/server-projects/public/project-actuals";
 import { projectMemberIds } from "@erpx/server-projects/public/people-app-entrypoint-facts";
-import { listTemplates } from "@erpx/server-operations/public/routines";
 import { getTemplate } from "@erpx/server-operations/public/routines";
 import { canEditTemplate } from "@erpx/server-operations/public/routines";
 import { routineTemplateSchedules } from "@erpx/server-operations/public/people-app-entrypoint-facts";
@@ -29,7 +28,6 @@ export async function staffPresentationQueries(holdingSlug: string,presentation?
     listProjectMilestones: (...args: ReadArguments<typeof nativeProjectMilestones>) => nativeProjectMilestones(write, ...args),
     listProjectWorkLogs: (...args: ReadArguments<typeof listProjectWorkLogs>) => listProjectWorkLogs(write, ...args),
     projectMemberIds: (...args: ReadArguments<typeof projectMemberIds>) => projectMemberIds(write, ...args),
-    listTemplates: (...args: ReadArguments<typeof listTemplates>) => listTemplates(write, ...args),
     getTemplate: (...args: ReadArguments<typeof getTemplate>) => getTemplate(write, ...args),
     canEditTemplate: (...args: ReadArguments<typeof canEditTemplate>) => canEditTemplate(write, ...args),
     routineTemplateSchedules: (...args: ReadArguments<typeof routineTemplateSchedules>) => routineTemplateSchedules(write, ...args),
