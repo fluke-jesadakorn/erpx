@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15151,
+    "revision": 15173,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261126-i",
       "agentId": "lead",
       "startedAt": "2026-11-26T13:47:07.933Z",
-      "heartbeatAt": "2026-11-26T14:42:11.370Z",
-      "expiresAt": "2026-11-26T15:12:11.370Z",
+      "heartbeatAt": "2026-11-26T14:54:43.772Z",
+      "expiresAt": "2026-11-26T15:24:43.772Z",
       "generation": 186,
       "tokenHash": "b51d0f715bf58ecc821ed7d7078f9f9757ecea4f1ea36272578ca0a9935549a1"
     },
@@ -214338,6 +214338,338 @@
           "nextAction": "Native maintenance org-node options compiled and mounted; maintenance lib retains one pre-existing renderer assertion, workspace cutover pending."
         },
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.operations.routine-detail",
+        "goalId": "G4",
+        "owner": "operations",
+        "kind": "migration",
+        "status": "ready_for_integration",
+        "title": "Switch the routine-template detail GET to the mounted native detail route.",
+        "scope": "Switch the routine-template detail GET to the mounted native detail route. Use the mounted native transport, fail closed, and delete only the retired TS authority.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/routine-templates/**",
+          "apps/launcher/src/app/api/v1/holdings/[holdingSlug]/routine-templates/**",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/routine-templates/**",
+          "packages/feature-operations/src/**",
+          "packages/server-operations/src/adapters/routines.ts",
+          "packages/server-operations/src/application/routines.ts",
+          "packages/server-operations/src/public/routines.ts",
+          "packages/server-work_projection/src/application/staff-api.ts",
+          "packages/server-work_projection/src/adapters/staff-api.ts",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/routine-templates/**"
+        ],
+        "resources": [
+          "cutover:operations"
+        ],
+        "nextAction": "Routine detail GET and presenter use native transport; presentation-context wire and TS authority retained for other subpaths.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "1ce263c83320df9948ad7a570e4e867d02f3efed",
+        "lastPushedSha": "1ce263c83320df9948ad7a570e4e867d02f3efed",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "1ce263c83320df9948ad7a570e4e867d02f3efed"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "1ce263c83320df9948ad7a570e4e867d02f3efed"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "1ce263c83320df9948ad7a570e4e867d02f3efed"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "1ce263c83320df9948ad7a570e4e867d02f3efed"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-i",
+          "agentId": "w4-operations.routine-detail",
+          "at": "2026-11-26T14:54:42.537Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Routine detail GET and presenter use native transport; presentation-context wire and TS authority retained for other subpaths."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.inventory.transfer-detail",
+        "goalId": "G4",
+        "owner": "inventory",
+        "kind": "migration",
+        "status": "ready_for_integration",
+        "title": "Switch inventory getTransfer callers to the mounted native detail endpoint.",
+        "scope": "Switch inventory getTransfer callers to the mounted native detail endpoint. Use the mounted native transport, fail closed, and delete only the retired TS authority.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-inventory/src/adapters/inventory-transfers.ts",
+          "packages/server-inventory/src/public/inventory-transfer-read.ts",
+          "packages/server-inventory/src/public/inventory-transfers.ts",
+          "packages/server-workflow/src/adapters/flow-access.ts",
+          "tests/unit/inventory/**"
+        ],
+        "resources": [
+          "cutover:inventory"
+        ],
+        "nextAction": "Native transfer detail cut with purchase gate retained; all callers use (actor,id) and no SQL unit.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "1ce263c83320df9948ad7a570e4e867d02f3efed",
+        "lastPushedSha": "1ce263c83320df9948ad7a570e4e867d02f3efed",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "1ce263c83320df9948ad7a570e4e867d02f3efed"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "1ce263c83320df9948ad7a570e4e867d02f3efed"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "1ce263c83320df9948ad7a570e4e867d02f3efed"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "1ce263c83320df9948ad7a570e4e867d02f3efed"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/inventory/native-transfer-detail.test.ts tests/unit/inventory/native-transfer-detail-cutover.test.ts",
+            "result": "passed",
+            "sourceSha": "1ce263c83320df9948ad7a570e4e867d02f3efed"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-i",
+          "agentId": "w4-inventory.transfer-detail",
+          "at": "2026-11-26T14:54:42.809Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native transfer detail cut with purchase gate retained; all callers use (actor,id) and no SQL unit."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.pos.customer-search",
+        "goalId": "G4",
+        "owner": "pos",
+        "kind": "migration",
+        "status": "ready_for_integration",
+        "title": "Switch POS customer search to the mounted native customer-search route.",
+        "scope": "Switch POS customer search to the mounted native customer-search route. Use the mounted native transport, fail closed, and delete only the retired TS authority.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-pos/src/routes/api/v1/holdings/[holdingSlug]/pos/**",
+          "packages/workplace/src/routes/api/v1/front/**",
+          "packages/feature-pos/src/components/pos-sales.tsx",
+          "packages/feature-pos/src/components/standard-pos-sale-workspace.tsx",
+          "apps/pos/src/app/api/v1/holdings/[holdingSlug]/pos/**",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/pos/**",
+          "packages/server-pos/src/adapters/pos-daily.ts",
+          "packages/server-pos/src/application/pos-daily.ts",
+          "packages/server-pos/src/public/pos-daily.ts",
+          "packages/server-finance/src/adapters/pos-daily-facts.ts",
+          "tests/unit/pos/**"
+        ],
+        "resources": [
+          "cutover:pos"
+        ],
+        "nextAction": "Native POS customer search cut in both shared branches; finance posCustomers retained for workspace reads.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "1ce263c83320df9948ad7a570e4e867d02f3efed",
+        "lastPushedSha": "1ce263c83320df9948ad7a570e4e867d02f3efed",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "1ce263c83320df9948ad7a570e4e867d02f3efed"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "1ce263c83320df9948ad7a570e4e867d02f3efed"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "1ce263c83320df9948ad7a570e4e867d02f3efed"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "1ce263c83320df9948ad7a570e4e867d02f3efed"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/pos/read-tail-r39-dedupe.test.ts",
+            "result": "passed",
+            "sourceSha": "1ce263c83320df9948ad7a570e4e867d02f3efed"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-i",
+          "agentId": "w4-pos.customer-search",
+          "at": "2026-11-26T14:54:43.083Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native POS customer search cut in both shared branches; finance posCustomers retained for workspace reads."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.quality.inspection-evidence",
+        "goalId": "G4",
+        "owner": "quality",
+        "kind": "migration",
+        "status": "ready_for_integration",
+        "title": "Switch executive inspection evidence to the mounted native quality evidence route.",
+        "scope": "Switch executive inspection evidence to the mounted native quality evidence route. Use the mounted native transport, fail closed, and delete only the retired TS authority.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-quality/src/adapters/executive-main-evidence-sources.ts",
+          "packages/server-quality/package.json",
+          "packages/server-runtime/src/application/executive/evidence.ts",
+          "tests/unit/quality/**"
+        ],
+        "resources": [
+          "cutover:quality"
+        ],
+        "nextAction": "Executive inspection evidence uses native transport; integration oracle needs native config.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "1ce263c83320df9948ad7a570e4e867d02f3efed",
+        "lastPushedSha": "1ce263c83320df9948ad7a570e4e867d02f3efed",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "1ce263c83320df9948ad7a570e4e867d02f3efed"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "1ce263c83320df9948ad7a570e4e867d02f3efed"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "1ce263c83320df9948ad7a570e4e867d02f3efed"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "1ce263c83320df9948ad7a570e4e867d02f3efed"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/quality/native-quality-evidence-consumer.test.ts tests/unit/quality/read-tail-r26-dedupe.test.ts",
+            "result": "passed",
+            "sourceSha": "1ce263c83320df9948ad7a570e4e867d02f3efed"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-i",
+          "agentId": "w4-quality.inspection-evidence",
+          "at": "2026-11-26T14:54:43.355Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Executive inspection evidence uses native transport; integration oracle needs native config."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.pms.documents",
+        "goalId": "G4",
+        "owner": "pms",
+        "kind": "migration",
+        "status": "ready_for_integration",
+        "title": "Switch PMS document entrypoint and postings screens to the mounted native document routes.",
+        "scope": "Switch PMS document entrypoint and postings screens to the mounted native document routes. Use the mounted native transport, fail closed, and delete only the retired TS authority.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-pms/src/adapters/entrypoint-queries.ts",
+          "packages/server-pms/src/public/entrypoint-queries.ts",
+          "packages/server-pms/src/adapters/presentation-queries.ts",
+          "packages/server-pms/src/adapters/native-pms-read.ts",
+          "packages/feature-pms/src/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/pms/documents/**",
+          "tests/unit/pms/**"
+        ],
+        "resources": [
+          "cutover:pms"
+        ],
+        "nextAction": "PMS document screens use native owner routes; old workplace screens and Rust read kinds retired in follow-up.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "1ce263c83320df9948ad7a570e4e867d02f3efed",
+        "lastPushedSha": "1ce263c83320df9948ad7a570e4e867d02f3efed",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "1ce263c83320df9948ad7a570e4e867d02f3efed"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "1ce263c83320df9948ad7a570e4e867d02f3efed"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "1ce263c83320df9948ad7a570e4e867d02f3efed"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "1ce263c83320df9948ad7a570e4e867d02f3efed"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/pms/native-pms-documents-client.test.ts tests/unit/pms/native-pms-read-plan.test.ts tests/unit/pms/hospitality-page-cut.test.ts",
+            "result": "passed",
+            "sourceSha": "1ce263c83320df9948ad7a570e4e867d02f3efed"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-i",
+          "agentId": "w4-pms.documents",
+          "at": "2026-11-26T14:54:43.632Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "PMS document screens use native owner routes; old workplace screens and Rust read kinds retired in follow-up."
+        },
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -214346,12 +214678,12 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2429,
+      "totalPackets": 2434,
       "migratedPackets": 369,
       "statusCounts": {
         "pending": 14,
         "in_progress": 0,
-        "ready_for_integration": 129,
+        "ready_for_integration": 134,
         "integrating": 0,
         "migrated": 369,
         "blocked": 1915,
@@ -214360,7 +214692,7 @@
       }
     },
     "lastCoordinatorGeneration": 186,
-    "updatedAt": "2026-11-26T14:42:11.375Z",
+    "updatedAt": "2026-11-26T14:54:43.775Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",

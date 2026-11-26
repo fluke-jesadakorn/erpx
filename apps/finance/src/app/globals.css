@@ -3720,7 +3720,6 @@
 @source "../../../../packages/server-pms/src/adapters/counter-purchase-boundary.ts";
 @source "../../../../packages/server-pms/src/adapters/crm-attachment-sources.ts";
 @source "../../../../packages/server-pms/src/adapters/crm-purchase-sources.ts";
-@source "../../../../packages/server-pms/src/adapters/entrypoint-queries.ts";
 @source "../../../../packages/server-pms/src/adapters/executive-metric-projections.ts";
 @source "../../../../packages/server-pms/src/adapters/feature-availability.ts";
 @source "../../../../packages/server-pms/src/adapters/finance-owned-snapshot-sources.ts";
@@ -3821,7 +3820,6 @@
 @source "../../../../packages/server-pms/src/public/commercial-owner-projection-sources.ts";
 @source "../../../../packages/server-pms/src/public/crm-attachment-sources.ts";
 @source "../../../../packages/server-pms/src/public/crm-purchase-sources.ts";
-@source "../../../../packages/server-pms/src/public/entrypoint-queries.ts";
 @source "../../../../packages/server-pms/src/public/executive-metric-projections.ts";
 @source "../../../../packages/server-pms/src/public/feature-availability.ts";
 @source "../../../../packages/server-pms/src/public/finance-owned-snapshot-sources.ts";

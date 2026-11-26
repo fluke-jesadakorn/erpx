@@ -4076,6 +4076,7 @@
 @source "../../../../packages/server-quality/src/adapters/quality-alert-recipient-sql.ts";
 @source "../../../../packages/server-quality/src/adapters/quality-attachment-source-select-sql.ts";
 @source "../../../../packages/server-quality/src/adapters/quality-child-agg-sql.ts";
+@source "../../../../packages/server-quality/src/adapters/quality-evidence-client.ts";
 @source "../../../../packages/server-quality/src/adapters/quality-lineage-recursion-sql.ts";
 @source "../../../../packages/server-quality/src/adapters/quality-lineage-terminal-sql.ts";
 @source "../../../../packages/server-quality/src/adapters/quality-scope-sql.ts";
@@ -4104,6 +4105,7 @@
 @source "../../../../packages/server-quality/src/public/product-presentation-request.ts";
 @source "../../../../packages/server-quality/src/public/purchase-sources.ts";
 @source "../../../../packages/server-quality/src/public/quality-alerts.ts";
+@source "../../../../packages/server-quality/src/public/quality-evidence.ts";
 @source "../../../../packages/server-quality/src/public/quality.ts";
 @source "../../../../packages/server-quality/src/public/record-purchases.ts";
 @source "../../../../packages/server-quality/src/public/rules/product-entry.ts";

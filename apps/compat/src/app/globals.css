@@ -1513,6 +1513,7 @@
 @source "../../../../packages/feature-platform_administration/src/public/native-agent-ai-providers.ts";
 @source "../../../../packages/feature-platform_administration/src/public/native-manage-erpx.ts";
 @source "../../../../packages/feature-pms/src/adapters/server/native-pms-command.ts";
+@source "../../../../packages/feature-pms/src/adapters/server/native-pms-documents.ts";
 @source "../../../../packages/feature-pms/src/adapters/server/native-pms-owner-write.ts";
 @source "../../../../packages/feature-pms/src/adapters/server/native-pms.ts";
 @source "../../../../packages/feature-pms/src/components/booking-copy.tsx";
@@ -1562,6 +1563,7 @@
 @source "../../../../packages/feature-pms/src/components/standard-pms-backoffice-navigation.tsx";
 @source "../../../../packages/feature-pms/src/components/standard-pms-backoffice-readiness.tsx";
 @source "../../../../packages/feature-pms/src/components/standard-pms-backoffice-workspace.tsx";
+@source "../../../../packages/feature-pms/src/components/standard-pms-document-screen.tsx";
 @source "../../../../packages/feature-pms/src/components/standard-pms-front-workspace.tsx";
 @source "../../../../packages/feature-pms/src/components/standard-pms-import.tsx";
 @source "../../../../packages/feature-pms/src/components/standard-pms-navigation.tsx";
@@ -6401,7 +6403,6 @@
 @source "../../../../packages/server-pms/src/adapters/crm-analytics-sources.ts";
 @source "../../../../packages/server-pms/src/adapters/crm-attachment-sources.ts";
 @source "../../../../packages/server-pms/src/adapters/crm-purchase-sources.ts";
-@source "../../../../packages/server-pms/src/adapters/entrypoint-queries.ts";
 @source "../../../../packages/server-pms/src/adapters/executive-main-evidence-sources.ts";
 @source "../../../../packages/server-pms/src/adapters/executive-metric-projections.ts";
 @source "../../../../packages/server-pms/src/adapters/feature-availability.ts";
@@ -6522,7 +6523,6 @@
 @source "../../../../packages/server-pms/src/public/crm-analytics-sources.ts";
 @source "../../../../packages/server-pms/src/public/crm-attachment-sources.ts";
 @source "../../../../packages/server-pms/src/public/crm-purchase-sources.ts";
-@source "../../../../packages/server-pms/src/public/entrypoint-queries.ts";
 @source "../../../../packages/server-pms/src/public/executive-main-evidence-sources.ts";
 @source "../../../../packages/server-pms/src/public/executive-metric-projections.ts";
 @source "../../../../packages/server-pms/src/public/feature-availability.ts";
@@ -6605,6 +6605,7 @@
 @source "../../../../packages/server-pos/src/adapters/native-pos-registers-statement.ts";
 @source "../../../../packages/server-pos/src/adapters/native-pos-sale-child.ts";
 @source "../../../../packages/server-pos/src/adapters/native-pos-stripe-reads.ts";
+@source "../../../../packages/server-pos/src/adapters/native_customer_search/client.ts";
 @source "../../../../packages/server-pos/src/adapters/native_room_charges/client.ts";
 @source "../../../../packages/server-pos/src/adapters/package-obligations.ts";
 @source "../../../../packages/server-pos/src/adapters/platform-owner-projection-sources.ts";
@@ -6667,6 +6668,7 @@
 @source "../../../../packages/server-pos/src/public/finance-snapshot-sources.ts";
 @source "../../../../packages/server-pos/src/public/initial-physical-stock-sources.ts";
 @source "../../../../packages/server-pos/src/public/movement-presentation-query.ts";
+@source "../../../../packages/server-pos/src/public/native-customer-search.ts";
 @source "../../../../packages/server-pos/src/public/package-obligations.ts";
 @source "../../../../packages/server-pos/src/public/platform-owner-projection-sources.ts";
 @source "../../../../packages/server-pos/src/public/pms-booking-change-facts.ts";
@@ -6925,6 +6927,7 @@
 @source "../../../../packages/server-quality/src/adapters/quality-alert-recipient-sql.ts";
 @source "../../../../packages/server-quality/src/adapters/quality-attachment-source-select-sql.ts";
 @source "../../../../packages/server-quality/src/adapters/quality-child-agg-sql.ts";
+@source "../../../../packages/server-quality/src/adapters/quality-evidence-client.ts";
 @source "../../../../packages/server-quality/src/adapters/quality-id-source-sql.ts";
 @source "../../../../packages/server-quality/src/adapters/quality-lineage-recursion-sql.ts";
 @source "../../../../packages/server-quality/src/adapters/quality-lineage-terminal-sql.ts";
@@ -6963,6 +6966,7 @@
 @source "../../../../packages/server-quality/src/public/purchase-sources.ts";
 @source "../../../../packages/server-quality/src/public/purchases.ts";
 @source "../../../../packages/server-quality/src/public/quality-alerts.ts";
+@source "../../../../packages/server-quality/src/public/quality-evidence.ts";
 @source "../../../../packages/server-quality/src/public/quality.ts";
 @source "../../../../packages/server-quality/src/public/record-purchases.ts";
 @source "../../../../packages/server-quality/src/public/rules/product-entry.ts";
