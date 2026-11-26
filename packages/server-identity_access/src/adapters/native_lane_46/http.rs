@@ -395,22 +395,22 @@ mod tests {
 
     #[tokio::test]
     async fn per_holding_readers_are_distinct() {
-        let acme: Arc<dyn ConnectionRead> = probe(false);
-        let other: Arc<dyn ConnectionRead> = probe(false);
+        let acme = probe(false);
+        let other = probe(false);
         let app = router_with_readers(vec![
             (
                 LaneTarget {
                     host: "acme.example.test".into(),
                     holding_slug: "acme".into(),
                 },
-                acme.clone(),
+                acme.clone() as Arc<dyn ConnectionRead>,
             ),
             (
                 LaneTarget {
                     host: "other.example.test".into(),
                     holding_slug: "other".into(),
                 },
-                other.clone(),
+                other.clone() as Arc<dyn ConnectionRead>,
             ),
         ])
         .expect("router");
