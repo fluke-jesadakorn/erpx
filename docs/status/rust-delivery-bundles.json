@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 14988,
+    "revision": 15011,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261126-h",
       "agentId": "lead",
       "startedAt": "2026-11-26T11:25:33.089Z",
-      "heartbeatAt": "2026-11-26T12:27:03.199Z",
-      "expiresAt": "2026-11-26T12:57:03.199Z",
+      "heartbeatAt": "2026-11-26T12:41:50.087Z",
+      "expiresAt": "2026-11-26T13:11:50.087Z",
       "generation": 185,
       "tokenHash": "a2fe8c7a10c8ce3c4b1477b7e4c5e54247c26c1db11e17b3fd8b5969ec4cf16a"
     },
@@ -112438,15 +112438,8 @@
         "resources": [
           "owner:pos"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261126-h",
-          "agentId": "w-pos2",
-          "claimedAt": "2026-11-26T12:26:38.238Z",
-          "heartbeatAt": "2026-11-26T12:27:03.199Z",
-          "expiresAt": "2026-11-26T12:57:03.199Z",
-          "generation": 185
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "b43f5c44303dce8d26635e05538a1877c2fac494",
         "implementedCommit": "80f0c1f7866d983981ecff82112a6e5587c982fb",
         "lastPushedSha": "80f0c1f7866d983981ecff82112a6e5587c982fb",
@@ -112634,15 +112627,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Integrated; claim released",
+        "blocker": "handoff",
+        "nextAction": "Classified: remaining POS inline reads are FOR UPDATE write locks or cross-owner PMS fragments with no matching native port; needs a dedicated port task.",
         "handoff": {
-          "runId": "run-20261123-f",
-          "agentId": "wC15",
-          "at": "2026-11-23T17:31:24.874Z",
+          "runId": "run-20261126-h",
+          "agentId": "w-pos2",
+          "at": "2026-11-26T12:34:46.083Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Integrated; claim released"
+          "nextAction": "Classified: remaining POS inline reads are FOR UPDATE write locks or cross-owner PMS fragments with no matching native port; needs a dedicated port task."
         }
       },
       {
@@ -200960,11 +200953,18 @@
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261126-h",
+          "agentId": "w-inbox",
+          "claimedAt": "2026-11-26T12:41:35.038Z",
+          "heartbeatAt": "2026-11-26T12:41:50.087Z",
+          "expiresAt": "2026-11-26T13:11:50.087Z",
+          "generation": 185
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -210487,7 +210487,7 @@
         "goalId": "G4",
         "owner": "pms",
         "kind": "migration",
-        "status": "ready_for_integration",
+        "status": "integrating",
         "title": "feature-pms routes native execution",
         "scope": "Inventory feature-pms routes (stripe payments/refunds, imports, booking changes/refunds, reports, action routes). Port one bounded PMS read/command to Rust domain/application/adapters/http with real SQL execution and prepare the exact deletion packet.",
         "workflowIds": [],
@@ -210503,7 +210503,14 @@
           "route:pms-feature"
         ],
         "nextAction": "Wave-3 PMS import batches committed and mounted; delete GET branch next.",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261126-h",
+          "agentId": "w-pms2",
+          "claimedAt": "2026-11-26T12:35:02.923Z",
+          "heartbeatAt": "2026-11-26T12:41:50.087Z",
+          "expiresAt": "2026-11-26T13:11:50.087Z",
+          "generation": 185
+        },
         "baseSha": null,
         "implementedCommit": "539935933f59419f35283c30460f023a9c2b5431",
         "lastPushedSha": "539935933f59419f35283c30460f023a9c2b5431",
@@ -210530,7 +210537,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261126-h",
           "agentId": "lead",
@@ -211715,7 +211722,7 @@
         "goalId": "G4",
         "owner": "ecommerce",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "title": "feature-ecommerce routes native execution",
         "scope": "Inventory feature-ecommerce routes and port one bounded read/command to Rust with real SQL execution and complete payload parity.",
         "workflowIds": [],
@@ -211731,7 +211738,14 @@
           "route:ecommerce-feature"
         ],
         "nextAction": "Port one bounded fully-native operation with real SQL execution and prepare its cutover/deletion packet.",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261126-h",
+          "agentId": "w-ecom3",
+          "claimedAt": "2026-11-26T12:41:35.178Z",
+          "heartbeatAt": "2026-11-26T12:41:50.087Z",
+          "expiresAt": "2026-11-26T13:11:50.087Z",
+          "generation": 185
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -211923,7 +211937,7 @@
         "goalId": "G4",
         "owner": "commerce",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "title": "Cut over commerce return lines",
         "scope": "Delete the TS return-line SQL authority and switch the order read to the mounted native endpoint, preserving transaction callers.",
         "workflowIds": [],
@@ -211942,22 +211956,48 @@
           "owner:commerce",
           "route:commerce-return-lines"
         ],
-        "nextAction": "Cut the TS read authority/branch over to the mounted native owner read and delete the residual SQL.",
-        "claim": {
+        "nextAction": "Native return-line port committed; getOrder reads it fail-closed.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "4c98df6035e2201cb3cc7656a93fe578f557a759",
+        "lastPushedSha": "4c98df6035e2201cb3cc7656a93fe578f557a759",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "cargo test -p erpx-server-commerce --lib --locked",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/commerce/native-commerce-return-lines.test.ts",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
           "runId": "run-20261126-h",
           "agentId": "c-commerce",
-          "claimedAt": "2026-11-26T12:26:02.150Z",
-          "heartbeatAt": "2026-11-26T12:27:03.199Z",
-          "expiresAt": "2026-11-26T12:57:03.199Z",
-          "generation": 185
+          "at": "2026-11-26T12:41:23.358Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native return-line port committed; getOrder reads it fail-closed."
         },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
         "scopeRefinementRequired": false
       },
       {
@@ -211965,7 +212005,7 @@
         "goalId": "G4",
         "owner": "inventory",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "title": "Cut over stock transfers",
         "scope": "Delete the TS transfer-list authority/branch/re-exports and switch presenters to the mounted native transfer list.",
         "workflowIds": [],
@@ -211983,22 +212023,48 @@
           "owner:inventory",
           "route:inventory-transfers"
         ],
-        "nextAction": "Cut the TS read authority/branch over to the mounted native owner read and delete the residual SQL.",
-        "claim": {
+        "nextAction": "Native transfer list committed; GET route/re-exports deleted; presenters native-backed.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "4c98df6035e2201cb3cc7656a93fe578f557a759",
+        "lastPushedSha": "4c98df6035e2201cb3cc7656a93fe578f557a759",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "cargo test -p erpx-server-inventory --lib --locked",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/inventory/native-transfer-list.test.ts",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
           "runId": "run-20261126-h",
           "agentId": "c-inventory",
-          "claimedAt": "2026-11-26T12:26:02.294Z",
-          "heartbeatAt": "2026-11-26T12:27:03.199Z",
-          "expiresAt": "2026-11-26T12:57:03.199Z",
-          "generation": 185
+          "at": "2026-11-26T12:41:23.641Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native transfer list committed; GET route/re-exports deleted; presenters native-backed."
         },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
         "scopeRefinementRequired": false
       },
       {
@@ -212006,7 +212072,7 @@
         "goalId": "G4",
         "owner": "maintenance",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "title": "Cut over maintenance owner options",
         "scope": "Replace the TS people lookup with the mounted native owner-options read and delete the residual SELECT/callers.",
         "workflowIds": [],
@@ -212024,22 +212090,48 @@
           "owner:maintenance",
           "route:maintenance-owners"
         ],
-        "nextAction": "Cut the TS read authority/branch over to the mounted native owner read and delete the residual SQL.",
-        "claim": {
+        "nextAction": "Maintenance people-option SELECT deleted; consoles use native owner options.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "4c98df6035e2201cb3cc7656a93fe578f557a759",
+        "lastPushedSha": "4c98df6035e2201cb3cc7656a93fe578f557a759",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "cargo test -p erpx-server-maintenance --lib native_owner_options --locked",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/maintenance/native-owner-options.test.ts",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
           "runId": "run-20261126-h",
           "agentId": "c-maintenance",
-          "claimedAt": "2026-11-26T12:26:02.478Z",
-          "heartbeatAt": "2026-11-26T12:27:03.199Z",
-          "expiresAt": "2026-11-26T12:57:03.199Z",
-          "generation": 185
+          "at": "2026-11-26T12:41:23.918Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Maintenance people-option SELECT deleted; consoles use native owner options."
         },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
         "scopeRefinementRequired": false
       },
       {
@@ -212047,7 +212139,7 @@
         "goalId": "G4",
         "owner": "quality",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "title": "Cut over quality alert queue",
         "scope": "Delete the TS alert-queue read authority and switch presenters to the mounted native queue; keep commands.",
         "workflowIds": [],
@@ -212064,22 +212156,48 @@
           "owner:quality",
           "route:quality-alerts"
         ],
-        "nextAction": "Cut the TS read authority/branch over to the mounted native owner read and delete the residual SQL.",
-        "claim": {
+        "nextAction": "Quality alert-queue TS read deleted; presenters use native queue.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "4c98df6035e2201cb3cc7656a93fe578f557a759",
+        "lastPushedSha": "4c98df6035e2201cb3cc7656a93fe578f557a759",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "cargo test -p erpx-server-quality --lib --locked",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/quality/native-quality-alert-queue.test.ts",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
           "runId": "run-20261126-h",
           "agentId": "c-alerts",
-          "claimedAt": "2026-11-26T12:26:23.516Z",
-          "heartbeatAt": "2026-11-26T12:27:03.199Z",
-          "expiresAt": "2026-11-26T12:57:03.199Z",
-          "generation": 185
+          "at": "2026-11-26T12:41:24.196Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Quality alert-queue TS read deleted; presenters use native queue."
         },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
         "scopeRefinementRequired": false
       },
       {
@@ -212087,7 +212205,7 @@
         "goalId": "G4",
         "owner": "crm",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "title": "Cut over CRM guest history",
         "scope": "Delete the TS contact guest-history authority and guest-history GET branch and switch the identity console to the mounted native read.",
         "workflowIds": [],
@@ -212104,22 +212222,43 @@
           "owner:crm",
           "route:crm-guest-history"
         ],
-        "nextAction": "Cut the TS read authority/branch over to the mounted native owner read and delete the residual SQL.",
-        "claim": {
+        "nextAction": "CRM guest-history TS authority deleted; app GET re-exports native; identity drawer fail-closed.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "4c98df6035e2201cb3cc7656a93fe578f557a759",
+        "lastPushedSha": "4c98df6035e2201cb3cc7656a93fe578f557a759",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "cargo test -p erpx-server-crm --lib guest_history --locked",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
           "runId": "run-20261126-h",
           "agentId": "c-crm",
-          "claimedAt": "2026-11-26T12:26:02.706Z",
-          "heartbeatAt": "2026-11-26T12:27:03.199Z",
-          "expiresAt": "2026-11-26T12:57:03.199Z",
-          "generation": 185
+          "at": "2026-11-26T12:41:24.499Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "CRM guest-history TS authority deleted; app GET re-exports native; identity drawer fail-closed."
         },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
         "scopeRefinementRequired": false
       },
       {
@@ -212127,7 +212266,7 @@
         "goalId": "G4",
         "owner": "operations",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "title": "Cut over routine templates",
         "scope": "Switch the routine-template GET and presenters to the mounted native list and delete the TS authority.",
         "workflowIds": [],
@@ -212145,22 +212284,43 @@
           "owner:operations",
           "route:operations-templates"
         ],
-        "nextAction": "Cut the TS read authority/branch over to the mounted native owner read and delete the residual SQL.",
-        "claim": {
+        "nextAction": "Routine-template list uses native read; list SQL deleted; native router mounted.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "4c98df6035e2201cb3cc7656a93fe578f557a759",
+        "lastPushedSha": "4c98df6035e2201cb3cc7656a93fe578f557a759",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "cargo test -p erpx-server-operations --lib --locked",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
           "runId": "run-20261126-h",
           "agentId": "c-operations",
-          "claimedAt": "2026-11-26T12:26:02.851Z",
-          "heartbeatAt": "2026-11-26T12:27:03.199Z",
-          "expiresAt": "2026-11-26T12:57:03.199Z",
-          "generation": 185
+          "at": "2026-11-26T12:41:24.799Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Routine-template list uses native read; list SQL deleted; native router mounted."
         },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
         "scopeRefinementRequired": false
       },
       {
@@ -212168,7 +212328,7 @@
         "goalId": "G4",
         "owner": "finance",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "title": "Finish finance attachment version cutover",
         "scope": "Switch the remaining version-step consumers to the mounted native Finance port and delete residual TS guard/step SQL.",
         "workflowIds": [],
@@ -212185,22 +212345,48 @@
           "owner:finance",
           "route:finance-attachment-version"
         ],
-        "nextAction": "Cut the TS read authority/branch over to the mounted native owner read and delete the residual SQL.",
-        "claim": {
+        "nextAction": "Finance step consumers use mounted native port; guard/step SQL descriptors deleted.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "4c98df6035e2201cb3cc7656a93fe578f557a759",
+        "lastPushedSha": "4c98df6035e2201cb3cc7656a93fe578f557a759",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "cargo test -p erpx-server-finance --lib --locked",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/finance/native-finance-attachment-version-step.test.ts tests/unit/finance/finance-operations-attachment-policy.test.ts",
+            "result": "passed",
+            "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
           "runId": "run-20261126-h",
           "agentId": "c-finance-attach",
-          "claimedAt": "2026-11-26T12:26:02.999Z",
-          "heartbeatAt": "2026-11-26T12:27:03.199Z",
-          "expiresAt": "2026-11-26T12:57:03.199Z",
-          "generation": 185
+          "at": "2026-11-26T12:41:25.089Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Finance step consumers use mounted native port; guard/step SQL descriptors deleted."
         },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
         "scopeRefinementRequired": false
       },
       {
@@ -212208,7 +212394,7 @@
         "goalId": "G4",
         "owner": "agent",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "title": "Cut over assistant source references",
         "scope": "Delete the TS assistant-sources authority and shared GET branch and switch callers to the mounted native source read.",
         "workflowIds": [],
@@ -212243,7 +212429,14 @@
           "route:assistant-sources"
         ],
         "nextAction": "Cut the TS assistant-sources authority/branch over to the mounted native read.",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261126-h",
+          "agentId": "c-agent",
+          "claimedAt": "2026-11-26T12:41:34.898Z",
+          "heartbeatAt": "2026-11-26T12:41:50.087Z",
+          "expiresAt": "2026-11-26T13:11:50.087Z",
+          "generation": 185
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -212263,18 +212456,18 @@
       "totalPackets": 2403,
       "migratedPackets": 369,
       "statusCounts": {
-        "pending": 17,
-        "in_progress": 8,
-        "ready_for_integration": 93,
-        "integrating": 0,
+        "pending": 14,
+        "in_progress": 3,
+        "ready_for_integration": 99,
+        "integrating": 1,
         "migrated": 369,
-        "blocked": 1914,
+        "blocked": 1915,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 185,
-    "updatedAt": "2026-11-26T12:27:03.203Z",
+    "updatedAt": "2026-11-26T12:41:50.091Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
