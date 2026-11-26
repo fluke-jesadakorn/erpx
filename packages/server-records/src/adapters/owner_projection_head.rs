@@ -64,7 +64,7 @@ mod tests {
     #[test]
     fn native_rfq_source_states_the_same_projection_bytes() {
         let rfq = include_str!("rfq_request_source.rs");
-        assert!(rfq.contains(EXPECTED));
+        assert!(rfq.contains(&EXPECTED.replace('"', "\\\"")));
         assert_eq!(rfq.matches(" FROM employee_requests)").count(), 2);
     }
 }

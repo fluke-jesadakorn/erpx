@@ -32,3 +32,4 @@ pub(crate) mod postgres_roster;
 pub(crate) mod rfq_request_scope;
 pub mod native_lane_23;
 pub mod native_lane_24;
+pub mod native_draft_read;

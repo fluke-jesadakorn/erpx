@@ -3,6 +3,7 @@ pub mod access_event_postgres;
 pub mod billing_http;
 pub mod billing_owner_write;
 pub mod cost;
+pub mod forecast_http;
 pub mod forecast_read;
 pub mod invoice_http;
 pub mod invoice_postgres;

@@ -33,8 +33,6 @@ export const BRAND_RD_METRIC_PROFILES_BRANCH = "brand_rd_metric_profiles_branch"
 export const BRAND_RD_METRIC_UPDATES_MONTH = "brand_rd_metric_updates_month";
 export const BRAND_RD_METRIC_UPDATES_BRANCH = "brand_rd_metric_updates_branch";
 export const BRAND_RD_EVIDENCE_SEARCH = "brand_rd_evidence_search";
-export const BRAND_RD_MANAGEMENT_BRANCH_EXISTS = "brand_rd_management_branch_exists";
-export const BRAND_RD_MANAGEMENT_COMPANY_EXISTS = "brand_rd_management_company_exists";
 export const BRAND_RD_WORKSPACE_CHOICE = "brand_rd_workspace_choice";
 
 const unavailable = (code = "NATIVE_BRAND_READ_UNAVAILABLE", status = 503): never => {

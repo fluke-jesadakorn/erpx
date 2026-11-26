@@ -45,5 +45,8 @@ pub(crate) mod support_auxiliary_http;
 pub(crate) mod sla_workspace;
 pub(crate) mod sla_workspace_http;
 
+pub(crate) mod sla_policy_read;
+pub(crate) mod sla_policy_read_http;
+
 pub(crate) mod native_support_read_sql;
 pub mod native_lane_31;

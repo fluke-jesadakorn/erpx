@@ -199,6 +199,7 @@ pub struct BillingService<C> {
     authorizer: Arc<HoldingWorkAuthorizer>,
     configuration: BillingConfiguration,
     clock: Arc<C>,
+    control: erpx_server_runtime::public::postgres::DatabasePool,
 }
 
 impl<C: Clock + Send + Sync + 'static> BillingService<C> {
@@ -206,11 +207,13 @@ impl<C: Clock + Send + Sync + 'static> BillingService<C> {
         authorizer: Arc<HoldingWorkAuthorizer>,
         configuration: BillingConfiguration,
         clock: Arc<C>,
+        control: erpx_server_runtime::public::postgres::DatabasePool,
     ) -> Self {
         Self {
             authorizer,
             configuration,
             clock,
+            control,
         }
     }
 
@@ -648,6 +651,62 @@ impl<C: Clock + Send + Sync + 'static> BillingService<C> {
 }
 
 impl<C: Clock + Send + Sync + 'static> BillingService<C> {
+    /// Native Billing seat-forecast baseline read on the Control database.
+    pub async fn forecast(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        selection: HoldingWorkspaceRequest,
+    ) -> Result<erpx_server_billing::public::forecast_http::BillingForecastHttpResponse, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let control = self.control.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(move || Ok(selection)),
+                Self::access(),
+                BillingSources,
+                move |_connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let control = control.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.read")?;
+                        let mut connection = control.raw().acquire().await.map_err(|_| {
+                            PgTransactionError::Business(unavailable())
+                        })?;
+                        let baseline = erpx_server_billing::public::forecast_read::read_seat_forecast_baseline(
+                            &mut connection,
+                            &holding,
+                            clock.now().get(),
+                        )
+                        .await?;
+                        let data = serde_json::to_value(baseline).map_err(|_| unavailable())?;
+                        Ok(
+                            erpx_server_billing::public::forecast_http::BillingForecastHttpResponse {
+                                data,
+                                context: serde_json::json!({
+                                    "userId": current.user_id().as_str(),
+                                    "holdingId": holding.as_str(),
+                                    "companyId": company.as_str(),
+                                }),
+                            },
+                        )
+                    })
+                },
+            )
+            .await
+    }
+
     pub async fn invoice<Input>(
         &self,
         host: &str,
@@ -946,5 +1005,63 @@ mod tests {
                 .expect("invalid trusted storage caps fail closed");
             assert_eq!(error.code, "BILLING_UNAVAILABLE");
         }
+    }
+}
+
+pub struct BillingForecastBackend<C> {
+    policy: Arc<AccountPolicy>,
+    scopes: Arc<dyn BusinessScopeSlugs>,
+    service: Arc<BillingService<C>>,
+}
+
+impl<C: Clock + Send + Sync + 'static> BillingForecastBackend<C> {
+    pub fn new(
+        policy: Arc<AccountPolicy>,
+        scopes: Arc<dyn BusinessScopeSlugs>,
+        service: Arc<BillingService<C>>,
+    ) -> Self {
+        Self { policy, scopes, service }
+    }
+
+    fn context(
+        &self,
+        headers: &erpx_server_runtime::public::http_support::HeaderMap,
+    ) -> Result<(DeviceProof, HoldingWorkspaceRequest), BusinessError> {
+        let inbound = parse_inbound_account_request(&self.policy, headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(not_found());
+        }
+        let (branch, department) = self.scopes.slugs(headers)?;
+        Ok((
+            inbound.into_proof(),
+            HoldingWorkspaceRequest {
+                company_id: self.service.company().clone(),
+                branch_slug: branch,
+                department_slug: department,
+                expected: None,
+                mutation: false,
+            },
+        ))
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static>
+    erpx_server_billing::public::forecast_http::BillingForecastHttpBackend
+    for BillingForecastBackend<C>
+{
+    fn forecast<'a>(
+        &'a self,
+        request: erpx_server_billing::public::forecast_http::BillingForecastHttpRequest<'a>,
+    ) -> erpx_server_billing::public::forecast_http::BillingForecastHttpFuture<
+        'a,
+        erpx_server_billing::public::forecast_http::BillingForecastHttpResponse,
+    > {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .forecast(request.host, proof, selection)
+                .await
+                .map_err(business)
+        })
     }
 }

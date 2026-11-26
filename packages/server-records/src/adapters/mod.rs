@@ -14,6 +14,8 @@ pub(crate) mod record_details_http;
 pub(crate) mod owner_projection_head;
 pub(crate) mod record_registry;
 pub(crate) mod record_registry_http;
+pub(crate) mod record_search;
+pub(crate) mod record_search_http;
 
 pub(crate) mod portal_commerce_locks;
 pub mod native_lane_35;

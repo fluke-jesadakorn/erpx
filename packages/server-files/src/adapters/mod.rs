@@ -19,6 +19,8 @@ pub mod files_wave1b_postgres;
 pub mod files_wave1b_http;
 pub mod attachment_read_postgres;
 pub mod attachment_read_use_cases;
+pub mod document_derivative_http;
+pub mod document_derivative_postgres;
 pub mod asset_descriptor_binding;
 pub mod portal_attachment_http;
 pub mod postgres_attachment_scan;

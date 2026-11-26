@@ -50,7 +50,7 @@ use crate::{
     support_evidence_http::{SupportEvidenceHttpTarget, support_evidence_http_router},
     support_incident_command::SupportIncidentCommand,
     support_incident_http::{SupportIncidentHttpTarget, support_incident_http_router},
-    support_read_http::{SupportReadHttpTarget, support_read_http_router},
+    support_read_http::{SlaPolicyReadBackend, SupportReadHttpTarget, support_read_http_router},
     support_session_command::SupportSessionCommand,
     support_session_http::{SupportSessionHttpTarget, support_session_http_router},
     support_sla_command::{SupportSlaCommand, drain_support_sla},
@@ -3292,6 +3292,7 @@ async fn assemble_checked(
         let mut iam_roles_targets = Vec::new();
         let mut position_gpo_targets = Vec::new();
         let mut billing_targets = Vec::new();
+        let mut billing_forecast_targets = Vec::new();
         let mut billing_invoice_targets = Vec::new();
         let mut billing_rollout_targets = Vec::new();
         let mut billing_provider_targets = Vec::new();
@@ -3401,6 +3402,7 @@ async fn assemble_checked(
         let mut customer_timeline_activity_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut customer_authority_targets = Vec::new();
+        let mut customer_sources_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut customer_duplicate_targets = Vec::new();
         #[cfg(feature = "existing-business")]
@@ -5638,6 +5640,28 @@ async fn assemble_checked(
                         ),
                     },
                 );
+                customer_sources_targets.push(
+                    erpx_server_customer_authority::public::access_sources::AccessSourcesTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        company_id: company.as_str().to_owned(),
+                        backend: Arc::new(
+                            crate::customer_authority::CustomerAuthorityBackend::new(
+                                config.policy.clone(),
+                                Arc::new(FinanceJournalReadScopeHeaders),
+                                Arc::new(crate::customer_authority::CustomerAuthorityService::new(
+                                    authorizer.clone(),
+                                    crate::customer_authority::CustomerAuthorityConfiguration::new(
+                                        holding.registration.holding_id.clone(),
+                                        company.clone(),
+                                    ),
+                                    Arc::new(SharedClock(clock.clone())),
+                                )),
+                            ),
+                        ),
+                    },
+                );
             }
         }
         #[cfg(feature = "existing-business")]
@@ -5810,17 +5834,19 @@ async fn assemble_checked(
                         Arc::new(SharedClock(clock.clone())),
                     )),
                 });
+                let billing_service = Arc::new(crate::billing::BillingService::new(
+                    authorizer.clone(),
+                    crate::billing::BillingConfiguration::new(
+                        holding.registration.holding_id.clone(),
+                        company.clone(),
+                    ),
+                    Arc::new(SharedClock(clock.clone())),
+                    pools[0].clone(),
+                ));
                 let billing_backend = Arc::new(crate::billing::BillingBackend::new(
                     config.policy.clone(),
                     Arc::new(FinanceJournalReadScopeHeaders),
-                    Arc::new(crate::billing::BillingService::new(
-                        authorizer.clone(),
-                        crate::billing::BillingConfiguration::new(
-                            holding.registration.holding_id.clone(),
-                            company.clone(),
-                        ),
-                        Arc::new(SharedClock(clock.clone())),
-                    )),
+                    billing_service.clone(),
                 ));
                 billing_invoice_targets.push(
                     erpx_server_billing::public::invoice_http::BillingInvoiceHttpTarget {
@@ -5836,6 +5862,18 @@ async fn assemble_checked(
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
                         backend: billing_backend.clone(),
+                    },
+                );
+                billing_forecast_targets.push(
+                    erpx_server_billing::public::forecast_http::BillingForecastHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::billing::BillingForecastBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            billing_service,
+                        )),
                     },
                 );
                 billing_rollout_targets.push(
@@ -6977,6 +7015,14 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_DIRECTORY_OPERATION_CONFIGURATION_INVALID")?,
             );
         }
+        if !billing_forecast_targets.is_empty() {
+            router = router.merge(
+                erpx_server_billing::public::forecast_http::billing_forecast_router(
+                    billing_forecast_targets,
+                )
+                .map_err(|_| "PRIVATE_API_BILLING_FORECAST_CONFIGURATION_INVALID")?,
+            );
+        }
         if !billing_targets.is_empty() {
             router = router.merge(
                 erpx_server_billing::public::billing_http::billing_router(billing_targets)
@@ -7246,6 +7292,15 @@ async fn assemble_checked(
                     customer_authority_targets,
                 )
                 .map_err(|_| "PRIVATE_API_CUSTOMER_AUTHORITY_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !customer_sources_targets.is_empty() {
+            router = router.merge(
+                erpx_server_customer_authority::public::access_sources::customer_access_sources_router(
+                    customer_sources_targets,
+                )
+                .map_err(|_| "PRIVATE_API_CUSTOMER_ACCESS_SOURCES_CONFIGURATION_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]
@@ -9264,6 +9319,7 @@ async fn assemble_checked(
         );
         let mut targets = Vec::new();
         let mut read_targets = Vec::new();
+        let mut sla_read_targets = Vec::new();
         for (holding_id, company) in &config.support_ticket_writes {
             let index = config
                 .holdings
@@ -9282,17 +9338,30 @@ async fn assemble_checked(
                 )
                 .map_err(|_| "PRIVATE_API_SUPPORT_TICKET_CONFIGURATION_INVALID")?,
             );
+            let read_service = Arc::new(SupportTicketReadService {
+                authorizer: authorizer.clone(),
+                holding: holding_id.clone(),
+                company: company.clone(),
+                catalogue: catalogue.clone(),
+                clock: Arc::new(SharedClock(clock.clone())),
+            });
             read_targets.push(SupportReadHttpTarget {
                 host: holding.host.clone(),
                 holding_slug: holding.registration.slug.clone(),
-                service: Arc::new(SupportTicketReadService {
-                    authorizer: authorizer.clone(),
-                    holding: holding_id.clone(),
-                    company: company.clone(),
-                    catalogue: catalogue.clone(),
-                    clock: Arc::new(SharedClock(clock.clone())),
-                }),
+                service: read_service.clone(),
             });
+            sla_read_targets.push(
+                erpx_server_support::public::sla_policy_read_http::SlaPolicyReadHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    origin: format!("https://{}", holding.host),
+                    backend: Arc::new(SlaPolicyReadBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FieldServiceReadScopeHeaders),
+                        read_service,
+                    )),
+                },
+            );
             targets.push(SupportTicketHttpTarget {
                 host: holding.host.clone(),
                 holding_slug: holding.registration.slug.clone(),
@@ -9321,6 +9390,12 @@ async fn assemble_checked(
                 read_targets,
             )
             .map_err(|_| "PRIVATE_API_SUPPORT_TICKET_CONFIGURATION_INVALID")?,
+        );
+        router = router.merge(
+            erpx_server_support::public::sla_policy_read_http::sla_policy_read_http_router(
+                sla_read_targets,
+            )
+            .map_err(|_| "PRIVATE_API_SUPPORT_SLA_POLICY_CONFIGURATION_INVALID")?,
         );
     }
     if !config.support_evidence_writes.is_empty() {

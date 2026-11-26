@@ -4,6 +4,7 @@ pub mod session;
 pub mod business_time;
 pub mod sla;
 pub mod sla_workspace;
+pub mod sla_policy_read;
 pub mod support_evidence;
 pub mod support_attachment;
 pub mod ticket_portal;

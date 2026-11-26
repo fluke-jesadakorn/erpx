@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 pub const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
 const BANGKOK_OFFSET_MS: i64 = 7 * 60 * 60 * 1_000;
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TargetPrice {
     pub id: String,
     pub effective_month: String,
@@ -23,23 +23,23 @@ pub struct TargetPrice {
     pub rating_enabled: bool,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ForecastSeats {
     pub count: Option<i64>,
     pub observed_at: Option<i64>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ForecastStorage {
     pub original_bytes: Option<i64>,
     pub observed_at: Option<i64>,
     pub coverage: String,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SeatForecastBaseline {
     pub generated_at: i64,
     pub forecast_month: String,
@@ -245,4 +245,41 @@ pub fn baseline(
         seats,
         storage,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn wire_shape_matches_the_retained_seat_forecast_payload() {
+        let value = baseline(
+            &HoldingId::new("h001").unwrap(),
+            1_700_000_000_000,
+            None,
+            None,
+            None,
+        )
+        .unwrap()
+        .to_wire()
+        .unwrap();
+        let object = value.as_object().unwrap();
+        assert_eq!(
+            object.keys().map(String::as_str).collect::<Vec<_>>(),
+            vec![
+                "forecastMonth",
+                "generatedAt",
+                "model",
+                "price",
+                "priceEffectiveForMonth",
+                "seats",
+                "sourceMonth",
+                "storage",
+            ]
+        );
+        // The exact wire object round-trips into the domain with no extra field.
+        let decoded: SeatForecastBaseline = serde_json::from_value(value).unwrap();
+        assert_eq!(decoded.model, "seat_what_if");
+        assert_eq!(decoded.storage.coverage, "unavailable");
+    }
 }

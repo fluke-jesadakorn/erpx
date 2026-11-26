@@ -46,6 +46,8 @@
 @source "../../../../packages/feature-collaboration/src/components/join-form.tsx";
 @source "../../../../packages/feature-collaboration/src/lib/native-handbook-page.ts";
 @source "../../../../packages/feature-commerce/src/lib/commerce-math.ts";
+@source "../../../../packages/feature-commerce/src/public/native-commerce-orders.ts";
+@source "../../../../packages/feature-commerce/src/public/native-commerce-return-lines.ts";
 @source "../../../../packages/feature-files/src/components/attachment-feature-context.tsx";
 @source "../../../../packages/feature-files/src/lib/attachment-client.ts";
 @source "../../../../packages/feature-files/src/lib/document-pages.ts";
@@ -338,7 +340,6 @@
 @source "../../../../packages/server-brand/src/adapters/native-brand-attachment-statement.ts";
 @source "../../../../packages/server-brand/src/adapters/native-brand-management.ts";
 @source "../../../../packages/server-brand/src/adapters/native-brand-presentation.ts";
-@source "../../../../packages/server-brand/src/adapters/native-brand-read-ports.ts";
 @source "../../../../packages/server-brand/src/adapters/native-lane-39/client.ts";
 @source "../../../../packages/server-brand/src/adapters/workspace-choice-brand.ts";
 @source "../../../../packages/server-brand/src/application/branding.ts";
@@ -460,6 +461,7 @@
 @source "../../../../packages/server-collaboration/src/public/messaging-attachment-read.ts";
 @source "../../../../packages/server-collaboration/src/public/messaging-owner-projections.ts";
 @source "../../../../packages/server-collaboration/src/public/messaging-read.ts";
+@source "../../../../packages/server-collaboration/src/public/native-inbox-page.ts";
 @source "../../../../packages/server-collaboration/src/public/organization-channels.ts";
 @source "../../../../packages/server-collaboration/src/public/organization-node-channels.ts";
 @source "../../../../packages/server-collaboration/src/public/pms-source-authorization.ts";
@@ -1585,6 +1587,7 @@
 @source "../../../../packages/server-inventory/src/adapters/native-replay-probe.ts";
 @source "../../../../packages/server-inventory/src/adapters/native-scoped-field.ts";
 @source "../../../../packages/server-inventory/src/adapters/native-service-count-source.ts";
+@source "../../../../packages/server-inventory/src/adapters/native-transfer-list-read.ts";
 @source "../../../../packages/server-inventory/src/adapters/pos-initial-physical-stock-count-source-sql.ts";
 @source "../../../../packages/server-inventory/src/adapters/pos-initial-physical-stock-count-source.ts";
 @source "../../../../packages/server-inventory/src/adapters/pos-startup-sources.ts";
@@ -1756,6 +1759,7 @@
 @source "../../../../packages/server-maintenance/src/adapters/iam-scope-guard.ts";
 @source "../../../../packages/server-maintenance/src/adapters/maintenance-owner-name.ts";
 @source "../../../../packages/server-maintenance/src/adapters/native-lane-36/client.ts";
+@source "../../../../packages/server-maintenance/src/adapters/native-owner-options-read.ts";
 @source "../../../../packages/server-maintenance/src/adapters/native-preventive-read.ts";
 @source "../../../../packages/server-maintenance/src/adapters/projection-lookup.ts";
 @source "../../../../packages/server-maintenance/src/adapters/purchase-sources.ts";

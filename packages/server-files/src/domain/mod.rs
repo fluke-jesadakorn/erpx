@@ -6,6 +6,7 @@ pub mod preview;
 pub mod attachment_command;
 pub mod attachment_content;
 pub mod attachment_read;
+pub mod document_derivative;
 pub mod attachment_scan;
 pub mod files_wave1b;
 

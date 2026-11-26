@@ -28,8 +28,6 @@ pub const RD_METRIC_PROFILES_BRANCH: &str = "brand_rd_metric_profiles_branch";
 pub const RD_METRIC_UPDATES_MONTH: &str = "brand_rd_metric_updates_month";
 pub const RD_METRIC_UPDATES_BRANCH: &str = "brand_rd_metric_updates_branch";
 pub const RD_EVIDENCE_SEARCH: &str = "brand_rd_evidence_search";
-pub const RD_MANAGEMENT_BRANCH_EXISTS: &str = "brand_rd_management_branch_exists";
-pub const RD_MANAGEMENT_COMPANY_EXISTS: &str = "brand_rd_management_company_exists";
 pub const RD_WORKSPACE_CHOICE: &str = "brand_rd_workspace_choice";
 
 fn invalid() -> BusinessError {
@@ -137,33 +135,6 @@ WHERE {} ORDER BY b.display_name,p.scope_id LIMIT ?",
                 values: values.to_vec(),
             })
         }
-        RD_MANAGEMENT_BRANCH_EXISTS => {
-            if values.len() != 2 {
-                return Err(invalid());
-            }
-            as_str(&values[0])?;
-            as_str(&values[1])?;
-            Ok(BrandReadStatement {
-                sql: format!(
-                    "SELECT id,display_name FROM ({ORG_NODES}) organization_nodes \
-WHERE id=? AND company_id=? AND kind='branch' AND status='active'"
-                ),
-                values: values.to_vec(),
-            })
-        }
-        RD_MANAGEMENT_COMPANY_EXISTS => {
-            if values.len() != 1 {
-                return Err(invalid());
-            }
-            as_str(&values[0])?;
-            Ok(BrandReadStatement {
-                sql: format!(
-                    "SELECT 1 FROM ({ORG_NODES}) organization_nodes \
-WHERE id=? AND kind='company' AND status='active'"
-                ),
-                values: values.to_vec(),
-            })
-        }
         RD_WORKSPACE_CHOICE => {
             if values.is_empty() || values.len() > 1000 {
                 return Err(invalid());
@@ -232,41 +203,7 @@ mod tests {
     }
 
     #[test]
-    fn management_guard_plans_are_byte_identical_to_retired_literals() {
-        let branch = plan_brand_read(RD_MANAGEMENT_BRANCH_EXISTS, &v(json!(["br", "co"])), Default::default()).unwrap();
-        assert_eq!(
-            branch.sql,
-            format!("SELECT id,display_name FROM ({ORG_NODES}) organization_nodes \
-WHERE id=? AND company_id=? AND kind='branch' AND status='active'")
-        );
-        assert_eq!(branch.values, v(json!(["br", "co"])));
-
-        let company = plan_brand_read(RD_MANAGEMENT_COMPANY_EXISTS, &v(json!(["co"])), Default::default()).unwrap();
-        assert_eq!(
-            company.sql,
-            format!("SELECT 1 FROM ({ORG_NODES}) organization_nodes \
-WHERE id=? AND kind='company' AND status='active'")
-        );
-        assert_eq!(company.values, v(json!(["co"])));
-
-        // Wrong arity or non-text binds fail closed; no predicate is inherited
-        // from the caller and no statement is accepted from the wire.
-        assert!(plan_brand_read(RD_MANAGEMENT_BRANCH_EXISTS, &v(json!(["br"])), Default::default()).is_err());
-        assert!(plan_brand_read(RD_MANAGEMENT_BRANCH_EXISTS, &v(json!(["br", 7])), Default::default()).is_err());
-        assert!(plan_brand_read(RD_MANAGEMENT_COMPANY_EXISTS, &v(json!(["co", "co"])), Default::default()).is_err());
-        assert!(plan_brand_read(RD_MANAGEMENT_COMPANY_EXISTS, &v(json!([null])), Default::default()).is_err());
-    }
-
-    #[test]
-    fn management_and_workspace_kinds_are_allow_listed() {
-        let branch = plan_brand_read(RD_MANAGEMENT_BRANCH_EXISTS, &v(json!(["br", "co"])), Default::default()).unwrap();
-        assert!(branch.sql.contains("kind='branch' AND status='active'"));
-        assert_eq!(branch.values.len(), 2);
-
-        let company = plan_brand_read(RD_MANAGEMENT_COMPANY_EXISTS, &v(json!(["co"])), Default::default()).unwrap();
-        assert!(company.sql.contains("kind='company' AND status='active'"));
-        assert_eq!(company.values.len(), 1);
-
+    fn workspace_kind_is_allow_listed() {
         let choice = plan_brand_read(RD_WORKSPACE_CHOICE, &v(json!(["a", "b", "c"])), Default::default()).unwrap();
         assert!(choice.sql.contains("company_id IN (?,?,?)"));
         assert_eq!(choice.values.len(), 3);

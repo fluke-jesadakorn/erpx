@@ -74,7 +74,7 @@ describe('Push policies remain independent of the machine clock and configuratio
 const candidate:Candidate={id:'delivery',event_id:'event',company_id:'company',user_id:'owner',delivered_at:1,read_at:null,archived_at:null,source_type:'post',source_id:'post',source_version:3,category:'mention',preview:'Private source'};
 function inbox(facts:Partial<InboxRepository>={}){const calls:string[]=[],ports=repository<InboxPorts<string>>({repository:repository<InboxRepository>({candidate:async()=>({...candidate}),...facts},calls),clock:{now:()=>42},identifiers:{next:()=> 'id'},candidates:async()=>({results:[candidate]}),visibleNotifications:async()=>[]},calls);return {calls,ports,app:createInboxApplication<string>(ports)};}
 describe('Inbox read and mutation share current source privacy',()=>{
- test('unavailable sources are removed from both page and summary',async()=>{const f=inbox();expect((await f.app.inboxPage(actor,{})).items).toEqual([]);expect(await f.app.inboxSummary(actor)).toMatchObject({unread:0});});
+ test('unavailable sources are removed from the page; summary is native-only',async()=>{const f=inbox();expect((await f.app.inboxPage(actor,{})).items).toEqual([]);expect('inboxSummary' in f.app).toBe(false);});
  test('withdrawn source cannot mark even a previously delivered event as read',async()=>{const f=inbox();await expect(f.app.changeInboxState(actor,'delivery',{read:true})).rejects.toMatchObject({code:'INBOX_ITEM_NOT_FOUND'});expect(f.calls).toEqual([]);});
  test('malformed cursor is rejected before any projection lookup',async()=>{const f=inbox();await expect(f.app.inboxPage(actor,{cursor:'not-a-cursor'})).rejects.toMatchObject({code:'INVALID_CURSOR'});expect(f.calls).toEqual([]);});
 });

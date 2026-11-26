@@ -17,3 +17,5 @@ pub(crate) mod package_settlement;
 pub mod executive_evidence;
 
 pub(crate) mod reservation_read_http;
+
+pub(crate) mod reservation_part;

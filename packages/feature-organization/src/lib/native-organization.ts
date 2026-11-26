@@ -194,6 +194,37 @@ export async function nativeOrganizationWorkspace(
   return await native.workspace(incoming, context(actor), search.toString());
 }
 
+/** Complete payload of the native `organization/drafts` GET. Field-for-field
+ * parity with the retired `getOrganizationDraft` TypeScript authority: the
+ * active draft with decoded `definition`/`base_snapshot`, its scheduled
+ * requests and the recent submitted-draft list. */
+export type NativeOrganizationDraftRead = Readonly<{
+  draft: Row | null;
+  requests: readonly Row[];
+  recent: readonly Row[];
+}>;
+
+/** Native draft read. A missing configuration returns `undefined` so the lead's
+ * route can fail closed with 503; a configured failure throws instead of
+ * silently falling back to the TypeScript authority. The Holding scope and
+ * both Company-draft permissions are repeated by the Rust ingress. */
+export async function nativeOrganizationDraftRead(
+  actor: WorkContext,
+  holdingSlug: string,
+  id: string | undefined,
+  incoming: Pick<Headers, 'get'>,
+): Promise<NativeOrganizationDraftRead | undefined> {
+  const native = client(actor);
+  if (!native) return undefined;
+  if (actor.holdingSlug !== holdingSlug)
+    throw new NativeOrganizationError('NATIVE_ORGANIZATION_CONTEXT_CHANGED');
+  if (actor.scope.kind !== 'holding' || actor.branchId || actor.departmentId)
+    throw new NativeOrganizationError('NATIVE_ORGANIZATION_AUTHORITY_INVALID');
+  if (!hasPermission(actor, 'people.manage') || !hasPermission(actor, 'organization.manage'))
+    throw new NativeOrganizationError('NATIVE_ORGANIZATION_AUTHORITY_INVALID');
+  return await native.drafts(incoming, context(actor), id);
+}
+
 /** Native access projection read. A missing configuration returns `undefined`
  * so consumers keep the retained owner read; a configured failure throws
  * instead of silently returning retained data. */

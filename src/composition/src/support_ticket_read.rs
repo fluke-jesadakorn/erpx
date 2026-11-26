@@ -616,6 +616,154 @@ impl<C: Clock + Send + Sync + 'static> SupportTicketReadService<C> {
             .await
     }
 
+    /// Native Support SLA policy point read.
+    pub async fn sla_policy_point<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        workspace: Input,
+        id: String,
+    ) -> Result<Value, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let expected_company = self.company.clone();
+        let holding = self.holding.clone();
+        let company = self.company.clone();
+        let catalogue = self.catalogue.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                move || read_workspace(workspace, &expected_company),
+                WorkAuthorizationRequest {
+                    permission: WorkPermissionRequirement::Exact("support.read".into()),
+                    module: None,
+                    destination: "support.sla.policy".into(),
+                    api: true,
+                },
+                SupportReadSources,
+                move |c, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let catalogue = catalogue.clone();
+                    let clock = clock.clone();
+                    let id = id.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope_required().into());
+                        }
+                        require_purchase(
+                            c,
+                            current,
+                            &catalogue,
+                            clock.as_ref(),
+                            "support.sla",
+                            CapabilityPurpose::History,
+                        )
+                        .await?;
+                        let new_work = purchase_allowed(
+                            c,
+                            current,
+                            &catalogue,
+                            clock.as_ref(),
+                            "support.sla",
+                            CapabilityPurpose::NewWork,
+                        )
+                        .await?;
+                        let scope = erpx_server_support::public::sla_policy_read::SlaPolicyReadScope {
+                            company_id: company.as_str().to_owned(),
+                            user_id: current.user_id().as_str().to_owned(),
+                            support_manage: current.has_permission("support.manage"),
+                            support_read: true,
+                            new_work,
+                        };
+                        erpx_server_support::public::sla_policy_read::load_policy_point(
+                            c, scope, &id,
+                        )
+                        .await
+                        .map_err(Into::into)
+                    })
+                },
+            )
+            .await
+    }
+
+    /// Native Support SLA policy-work read.
+    pub async fn sla_policy_work<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        workspace: Input,
+    ) -> Result<Value, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let expected_company = self.company.clone();
+        let holding = self.holding.clone();
+        let company = self.company.clone();
+        let catalogue = self.catalogue.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                move || read_workspace(workspace, &expected_company),
+                WorkAuthorizationRequest {
+                    permission: WorkPermissionRequirement::Exact("support.read".into()),
+                    module: None,
+                    destination: "support.sla.policy.work".into(),
+                    api: true,
+                },
+                SupportReadSources,
+                move |c, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let catalogue = catalogue.clone();
+                    let clock = clock.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope_required().into());
+                        }
+                        require_purchase(
+                            c,
+                            current,
+                            &catalogue,
+                            clock.as_ref(),
+                            "support.sla",
+                            CapabilityPurpose::History,
+                        )
+                        .await?;
+                        let new_work = purchase_allowed(
+                            c,
+                            current,
+                            &catalogue,
+                            clock.as_ref(),
+                            "support.sla",
+                            CapabilityPurpose::NewWork,
+                        )
+                        .await?;
+                        let scope = erpx_server_support::public::sla_policy_read::SlaPolicyReadScope {
+                            company_id: company.as_str().to_owned(),
+                            user_id: current.user_id().as_str().to_owned(),
+                            support_manage: current.has_permission("support.manage"),
+                            support_read: true,
+                            new_work,
+                        };
+                        erpx_server_support::public::sla_policy_read::load_policy_work(c, scope)
+                            .await
+                            .map_err(Into::into)
+                    })
+                },
+            )
+            .await
+    }
+
     pub async fn sla_workspace<Input>(
         &self,
         host: &str,

@@ -71,6 +71,8 @@
 @source "../../../../packages/feature-collaboration/src/lib/native-handbook-page.ts";
 @source "../../../../packages/feature-commerce/src/components/commerce-draft-boundary.tsx";
 @source "../../../../packages/feature-commerce/src/lib/commerce-math.ts";
+@source "../../../../packages/feature-commerce/src/public/native-commerce-orders.ts";
+@source "../../../../packages/feature-commerce/src/public/native-commerce-return-lines.ts";
 @source "../../../../packages/feature-field_service/src/components/service-spare-form.tsx";
 @source "../../../../packages/feature-files/src/application/field-bind.ts";
 @source "../../../../packages/feature-files/src/application/field-content-lifetime.ts";
@@ -329,6 +331,7 @@
 @source "../../../../packages/server-agent/src/adapters/executive-metric-projections.ts";
 @source "../../../../packages/server-agent/src/adapters/finance-ai-quota-sources.ts";
 @source "../../../../packages/server-agent/src/adapters/hospitality-owner-projection-sources.ts";
+@source "../../../../packages/server-agent/src/adapters/native-assistant-sources.ts";
 @source "../../../../packages/server-agent/src/adapters/native-owner-write.ts";
 @source "../../../../packages/server-agent/src/adapters/native-quota-command.ts";
 @source "../../../../packages/server-agent/src/adapters/operations-guided-intake-facts.ts";
@@ -604,6 +607,7 @@
 @source "../../../../packages/server-collaboration/src/public/messaging-owner-projections.ts";
 @source "../../../../packages/server-collaboration/src/public/messaging-read.ts";
 @source "../../../../packages/server-collaboration/src/public/messaging.ts";
+@source "../../../../packages/server-collaboration/src/public/native-inbox-page.ts";
 @source "../../../../packages/server-collaboration/src/public/operations-guided-intake-facts.ts";
 @source "../../../../packages/server-collaboration/src/public/organization-channels.ts";
 @source "../../../../packages/server-collaboration/src/public/organization-node-channels.ts";
@@ -964,6 +968,7 @@
 @source "../../../../packages/server-ecommerce/src/adapters/commerce-source-locks.ts";
 @source "../../../../packages/server-ecommerce/src/adapters/ecommerce.ts";
 @source "../../../../packages/server-ecommerce/src/adapters/executive-metric-projections.ts";
+@source "../../../../packages/server-ecommerce/src/adapters/native-detail-links/client.ts";
 @source "../../../../packages/server-ecommerce/src/adapters/native-exec-metric/client.ts";
 @source "../../../../packages/server-ecommerce/src/adapters/native-lane-39/client.ts";
 @source "../../../../packages/server-ecommerce/src/adapters/native-wave2.ts";
@@ -1973,6 +1978,7 @@
 @source "../../../../packages/server-inventory/src/adapters/native-replay-probe.ts";
 @source "../../../../packages/server-inventory/src/adapters/native-scoped-field.ts";
 @source "../../../../packages/server-inventory/src/adapters/native-service-count-source.ts";
+@source "../../../../packages/server-inventory/src/adapters/native-transfer-list-read.ts";
 @source "../../../../packages/server-inventory/src/adapters/pos-facts.ts";
 @source "../../../../packages/server-inventory/src/adapters/pos-initial-physical-stock-count-source-sql.ts";
 @source "../../../../packages/server-inventory/src/adapters/pos-initial-physical-stock-count-source.ts";
@@ -2156,6 +2162,7 @@
 @source "../../../../packages/server-maintenance/src/adapters/iam-scope-guard.ts";
 @source "../../../../packages/server-maintenance/src/adapters/maintenance-owner-name.ts";
 @source "../../../../packages/server-maintenance/src/adapters/native-lane-36/client.ts";
+@source "../../../../packages/server-maintenance/src/adapters/native-owner-options-read.ts";
 @source "../../../../packages/server-maintenance/src/adapters/native-preventive-read.ts";
 @source "../../../../packages/server-maintenance/src/adapters/projection-lookup.ts";
 @source "../../../../packages/server-maintenance/src/adapters/purchase-sources.ts";

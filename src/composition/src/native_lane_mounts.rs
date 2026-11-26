@@ -1334,5 +1334,91 @@ pub fn mount(
         .map_err(|_| "PRIVATE_API_ECOMMERCE_DETAIL_LINKS_INVALID")?,
     );
 
+    // Brand: active Branch/Company management guards.
+    router = router.merge(
+        erpx_server_brand::public::native_lane_40::router_for_holdings(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    (
+                        erpx_server_brand::public::native_lane_40::ManagementGuardTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                        },
+                        pools[i + 1].clone(),
+                    )
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_BRAND_LANE40_INVALID")?,
+    );
+
+    // Identity & Access lane 45: IAM session list read.
+    router = router.merge(
+        erpx_server_identity_access::public::native_lane_45::router_for_holdings(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    (
+                        erpx_server_identity_access::public::native_lane_45::LaneTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                        },
+                        pools[0].clone(),
+                    )
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_IDENTITY_LANE45_INVALID")?,
+    );
+
+    // Organization: native draft read.
+    router = router.merge(
+        erpx_server_organization::public::native_draft_read::router_for_holdings(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    (
+                        erpx_server_organization::public::native_draft_read::LaneTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                        },
+                        pools[i + 1].clone(),
+                    )
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_ORGANIZATION_DRAFT_READ_INVALID")?,
+    );
+
+    // Field Service: part-reservation read, one store per Holding pool.
+    for (i, holding) in config.holdings.iter().enumerate() {
+        let store = std::sync::Arc::new(
+            erpx_server_field_service::public::reservation_part::PgFieldPartReservationStore::new(
+                pools[i + 1].raw().clone(),
+            ),
+        );
+        router = router.merge(
+            erpx_server_field_service::public::reservation_part::field_part_reservation_router(
+                vec![
+                    erpx_server_field_service::public::reservation_part::FieldPartReservationTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        holding_id: holding.registration.holding_id.as_str().to_owned(),
+                        origin: format!("https://{}", holding.host),
+                    },
+                ],
+                store,
+            )
+            .map_err(|_| "PRIVATE_API_FIELD_RESERVATION_PART_INVALID")?,
+        );
+    }
+
     Ok(router)
 }

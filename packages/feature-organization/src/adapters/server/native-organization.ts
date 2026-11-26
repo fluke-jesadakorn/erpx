@@ -98,7 +98,8 @@ const exact = (value: unknown, keys: readonly string[]): value is Row =>
   record(value) && Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
 const text = (value: unknown, max = 4096): value is string =>
   typeof value === 'string' && new TextEncoder().encode(value).length <= max;
-const identifier = (value: unknown): value is string => text(value, 200) && value.length > 0;
+const identifier = (value: unknown): value is string =>
+  text(value, 200) && value.length > 0 && !/[\s/\\]/.test(value);
 const integer = (value: unknown, min = 0): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= min;
 const optionalText = (value: unknown, max = 4096) => value === null || text(value, max);
@@ -147,6 +148,62 @@ function template(value: unknown): value is NativeOrganizationTemplate {
     value.positions.length <= 100 &&
     value.positions.every(record)
   );
+}
+
+/** Complete payload of the native `organization/drafts` GET. Field-for-field
+ * parity with the retired TypeScript `getOrganizationDraft` read. */
+export type NativeOrganizationDraftPayload = Readonly<{
+  draft: Row | null;
+  requests: readonly Row[];
+  recent: readonly Row[];
+}>;
+
+function draftPayload(value: unknown): NativeOrganizationDraftPayload {
+  if (!exact(value, ['data'])) return failure('NATIVE_ORGANIZATION_RESPONSE_INVALID');
+  const data = value.data;
+  if (
+    !record(data) ||
+    Object.keys(data).length !== 3 ||
+    !Object.hasOwn(data, 'draft') ||
+    !Object.hasOwn(data, 'requests') ||
+    !Object.hasOwn(data, 'recent')
+  )
+    return failure('NATIVE_ORGANIZATION_RESPONSE_INVALID');
+  if (data.draft !== null) {
+    if (
+      !record(data.draft) ||
+      !identifier(data.draft.id) ||
+      !identifier(data.draft.company_id) ||
+      !identifier(data.draft.owner_id) ||
+      !(data.draft.state === 'draft' || data.draft.state === 'submitted') ||
+      !integer(data.draft.version, 1) ||
+      !record(data.draft.definition) ||
+      !integer(data.draft.created_at, 0) ||
+      !integer(data.draft.updated_at, 0) ||
+      !record(data.draft.base_snapshot)
+    )
+      return failure('NATIVE_ORGANIZATION_RESPONSE_INVALID');
+  }
+  if (
+    !Array.isArray(data.requests) ||
+    data.requests.length > 20000 ||
+    !data.requests.every(
+      (row) =>
+        record(row) &&
+        identifier(row.id) &&
+        Array.isArray(row.item_keys) &&
+        text(row.state, 40) &&
+        optionalText(row.last_error, 4096) &&
+        (row.change_id === null || identifier(row.change_id)),
+    ) ||
+    !Array.isArray(data.recent) ||
+    data.recent.length > 20 ||
+    !data.recent.every(
+      (row) => record(row) && identifier(row.id) && integer(row.updated_at, 0) && integer(row.count, 0),
+    )
+  )
+    return failure('NATIVE_ORGANIZATION_RESPONSE_INVALID');
+  return data as NativeOrganizationDraftPayload;
 }
 
 function workspace(value: unknown): NativeOrganizationWorkspace {
@@ -837,6 +894,11 @@ function call(
     headers.set('x-erpx-context-revision', String(actor.authority.revision));
     headers.set('x-erpx-context-assignment-version', String(actor.authority.assignmentVersion));
   }
+  // Bounded actor facts for owner reads that repeat their authorization fence
+  // inside Rust (for example the native organization/drafts read).
+  headers.set('x-erpx-context-user', actor.userId);
+  headers.set('x-erpx-context-permissions', (actor.iam?.permissions ?? []).join(','));
+  headers.set('x-erpx-context-scope', actor.scope.kind);
   if (body !== undefined) {
     if (new TextEncoder().encode(body).length > 64 * 1024)
       return Promise.reject(new NativeOrganizationError('NATIVE_ORGANIZATION_REQUEST_INVALID'));
@@ -1002,6 +1064,34 @@ export function createNativeOrganizationClient(
         return failure('NATIVE_ORGANIZATION_UNAVAILABLE');
       });
       return workspace(await boundedJson(response));
+    },
+    async drafts(
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeOrganizationPageContext,
+      id?: string,
+      signal?: AbortSignal,
+    ): Promise<NativeOrganizationDraftPayload> {
+      if (id !== undefined && !identifier(id))
+        return Promise.reject(new NativeOrganizationError('NATIVE_ORGANIZATION_REQUEST_INVALID'));
+      const path = `/drafts${id === undefined ? '' : `?id=${encodeURIComponent(id)}`}`;
+      const response = await call(
+        transport,
+        config.base,
+        config.holdings,
+        incoming,
+        actor,
+        actor.holdingSlug,
+        'organization',
+        path,
+        undefined,
+        undefined,
+        undefined,
+        signal,
+      ).catch((error: unknown) => {
+        if (error instanceof NativeOrganizationError) throw error;
+        return failure('NATIVE_ORGANIZATION_UNAVAILABLE');
+      });
+      return draftPayload(await boundedJson(response));
     },
     async change(
       incoming: Pick<Headers, 'get'>,

@@ -21,6 +21,10 @@ use erpx_server_identity_access::public::{
 };
 use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::{BusinessError, Clock, FailureKind};
+use erpx_server_support::public::sla_policy_read_http::{
+    SlaPolicyPointHttpRequest, SlaPolicyReadHttpBackend, SlaPolicyWorkHttpRequest,
+    SupportHttpFuture,
+};
 use serde::Deserialize;
 use serde_json::json;
 use std::{collections::BTreeMap, sync::Arc};
@@ -309,4 +313,88 @@ async fn read_surface<C: Clock + Send + Sync + 'static>(
             .insert(name, HeaderValue::from_static(value));
     }
     response
+}
+
+
+/// Composition adapter for the native Support SLA policy point/work reads.
+pub struct SlaPolicyReadBackend<C> {
+    policy: Arc<AccountPolicy>,
+    scopes: Arc<dyn BusinessScopeSlugs>,
+    service: Arc<SupportTicketReadService<C>>,
+}
+
+impl<C: Clock + Send + Sync + 'static> SlaPolicyReadBackend<C> {
+    pub fn new(
+        policy: Arc<AccountPolicy>,
+        scopes: Arc<dyn BusinessScopeSlugs>,
+        service: Arc<SupportTicketReadService<C>>,
+    ) -> Self {
+        Self {
+            policy,
+            scopes,
+            service,
+        }
+    }
+
+    fn context(
+        &self,
+        headers: &HeaderMap,
+    ) -> Result<(erpx_server_identity_access::public::DeviceProof, impl FnOnce() -> Result<erpx_server_identity_access::public::work_context::HoldingWorkspaceRequest, BusinessError> + Send + 'static), BusinessError> {
+        let inbound = parse_inbound_account_request(&self.policy, headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing());
+        }
+        if unique_request_header(headers, "origin")?
+            .is_some_and(|value| value != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            ));
+        }
+        let (branch, department) = self.scopes.slugs(headers)?.clone();
+        let captured = CapturedHoldingMutation::capture(headers, branch, department);
+        let company = self.service.company_id().clone();
+        Ok((inbound.into_proof(), move || captured.resolve_read(company)))
+    }
+}
+
+fn sla_business(error: PgTransactionError<BusinessError>) -> BusinessError {
+    match error {
+        PgTransactionError::Business(error) => error,
+        _ => BusinessError::new(
+            FailureKind::Unavailable,
+            "SUPPORT_SLA_UNAVAILABLE",
+            "Unable to read the Support SLA policy.",
+        ),
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> SlaPolicyReadHttpBackend for SlaPolicyReadBackend<C> {
+    fn point<'a>(
+        &'a self,
+        request: SlaPolicyPointHttpRequest<'a>,
+    ) -> SupportHttpFuture<'a, serde_json::Value> {
+        Box::pin(async move {
+            let (proof, workspace) = self.context(request.headers)?;
+            self.service
+                .sla_policy_point(request.host, proof, workspace, request.id.to_owned())
+                .await
+                .map_err(sla_business)
+        })
+    }
+
+    fn work<'a>(
+        &'a self,
+        request: SlaPolicyWorkHttpRequest<'a>,
+    ) -> SupportHttpFuture<'a, serde_json::Value> {
+        Box::pin(async move {
+            let (proof, workspace) = self.context(request.headers)?;
+            self.service
+                .sla_policy_work(request.host, proof, workspace)
+                .await
+                .map_err(sla_business)
+        })
+    }
 }

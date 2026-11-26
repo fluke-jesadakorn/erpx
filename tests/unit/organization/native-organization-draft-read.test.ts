@@ -1,0 +1,139 @@
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('server-only', () => ({}));
+
+import {
+  createNativeOrganizationClient,
+  NativeOrganizationError,
+  type NativeOrganizationPageContext,
+} from '../../../packages/feature-organization/src/adapters/server/native-organization';
+
+const actor: NativeOrganizationPageContext = {
+  userId: 'user-1',
+  holdingId: 'h001',
+  holdingSlug: 'acme',
+  companyId: 'company',
+  branchId: null,
+  departmentId: null,
+  assignmentId: 'assignment-1',
+  role: 'holding_owner',
+  assignmentScope: 'holding',
+  scope: { kind: 'holding' },
+  authority: { revision: 7, assignmentVersion: 1 },
+  modules: ['people'],
+  iam: { permissions: ['people.manage', 'organization.manage'] },
+};
+
+const incoming = new Headers({ host: 'acme.example.test', cookie: 'erpx_session=current' });
+
+const configuration = {
+  privateBaseUrl: 'http://127.0.0.1:3999',
+  holdings: [{ origin: 'https://acme.example.test', holdingSlug: 'acme', holdingId: 'h001' }],
+  timeoutMs: 1_000,
+} as const;
+
+const complete = {
+  data: {
+    draft: {
+      id: 'draft-1',
+      company_id: 'company',
+      owner_id: 'user-1',
+      state: 'draft',
+      version: 2,
+      definition: { items: [], reason: 'Move', effectiveAt: 1, timezone: 'Asia/Bangkok', managers: {}, leave: {} },
+      created_at: 1,
+      updated_at: 2,
+      base_snapshot: { nodes: [], people: [] },
+    },
+    requests: [
+      {
+        id: 'request-1',
+        item_keys: ['person:eng-1', 'position:pos-1'],
+        state: 'scheduled',
+        last_error: null,
+        change_id: null,
+      },
+    ],
+    recent: [{ id: 'draft-0', updated_at: 1, count: 3 }],
+  },
+};
+
+type Call = { method: string; url: string; headers: Headers };
+function client(response: unknown) {
+  const calls: Call[] = [];
+  const transport = async (
+    method: 'GET' | 'POST',
+    url: URL,
+    headers: Headers,
+    _body: string | undefined,
+  ) => {
+    calls.push({ method, url: url.toString(), headers });
+    return new Response(JSON.stringify(response), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+  return { calls, api: createNativeOrganizationClient(configuration, transport) };
+}
+
+describe('native organization/drafts read client', () => {
+  it('accepts the complete owner payload field-for-field and routes by Holding', async () => {
+    const { api, calls } = client(complete);
+    const result = await api.drafts(incoming, actor);
+    expect(result).toEqual(complete.data);
+    expect((result.draft?.definition as Record<string, unknown> | undefined)?.reason).toBe('Move');
+    expect(result.requests[0]?.item_keys).toEqual(['person:eng-1', 'position:pos-1']);
+    expect(result.recent[0]?.count).toBe(3);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.method).toBe('GET');
+    expect(calls[0]?.url).toBe(
+      'http://127.0.0.1:3999/api/v1/holdings/acme/people/organization/drafts',
+    );
+    expect(calls[0]?.headers.get('x-erpx-context-company')).toBe('company');
+    expect(calls[0]?.headers.get('x-erpx-context-user')).toBe('user-1');
+    expect(calls[0]?.headers.get('x-erpx-context-permissions')).toBe(
+      'people.manage,organization.manage',
+    );
+    expect(calls[0]?.headers.get('x-erpx-context-scope')).toBe('holding');
+  });
+
+  it('sends a bounded id selector and rejects a malformed one locally', async () => {
+    const { api, calls } = client(complete);
+    await api.drafts(incoming, actor, 'draft-1');
+    expect(calls[0]?.url).toContain('?id=draft-1');
+    await expect(api.drafts(incoming, actor, 'bad id')).rejects.toBeInstanceOf(
+      NativeOrganizationError,
+    );
+  });
+
+  it('fails closed on a partial or malformed reply', async () => {
+    const missingField = {
+      data: { draft: complete.data.draft, requests: complete.data.requests },
+    };
+    await expect(client(missingField).api.drafts(incoming, actor)).rejects.toMatchObject({
+      code: 'NATIVE_ORGANIZATION_RESPONSE_INVALID',
+    });
+    const badKeys = structuredClone(complete) as unknown as {
+      data: { requests: Record<string, unknown>[] };
+    };
+    badKeys.data.requests[0]!.item_keys = 'person:eng-1';
+    await expect(client(badKeys).api.drafts(incoming, actor)).rejects.toMatchObject({
+      code: 'NATIVE_ORGANIZATION_RESPONSE_INVALID',
+    });
+    const badState = structuredClone(complete);
+    badState.data.draft!.state = 'unknown';
+    await expect(client(badState).api.drafts(incoming, actor)).rejects.toMatchObject({
+      code: 'NATIVE_ORGANIZATION_RESPONSE_INVALID',
+    });
+  });
+
+  it('fails closed when a configured transport is unavailable', async () => {
+    const transport = async () =>
+      new Response(null, { status: 503, headers: { 'content-type': 'application/json' } });
+    const api = createNativeOrganizationClient(configuration, transport);
+    await expect(api.drafts(incoming, actor)).rejects.toMatchObject({
+      code: 'NATIVE_ORGANIZATION_UNAVAILABLE',
+      status: 503,
+    });
+  });
+});

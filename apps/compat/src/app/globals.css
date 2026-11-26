@@ -476,6 +476,7 @@
 @source "../../../../packages/feature-commerce/src/lib/posting-setup-prerequisite-command.ts";
 @source "../../../../packages/feature-commerce/src/lib/purchase-controls.ts";
 @source "../../../../packages/feature-commerce/src/public/native-commerce-orders.ts";
+@source "../../../../packages/feature-commerce/src/public/native-commerce-return-lines.ts";
 @source "../../../../packages/feature-commercial/src/components/company-package-manager.tsx";
 @source "../../../../packages/feature-commercial/src/components/legacy-grant-review.tsx";
 @source "../../../../packages/feature-commercial/src/domain/provider-package-command.ts";
@@ -1231,6 +1232,7 @@
 @source "../../../../packages/feature-marketing/src/lib/public-form-command.ts";
 @source "../../../../packages/feature-marketing/src/public/native-marketing-lead.ts";
 @source "../../../../packages/feature-operations/src/adapters/server/native-operations.ts";
+@source "../../../../packages/feature-operations/src/adapters/server/native-routines-read.ts";
 @source "../../../../packages/feature-operations/src/components/operations-console.tsx";
 @source "../../../../packages/feature-operations/src/components/routine-command-feedback.tsx";
 @source "../../../../packages/feature-operations/src/components/routine-editor.tsx";
@@ -1241,6 +1243,7 @@
 @source "../../../../packages/feature-operations/src/lib/routine-command.ts";
 @source "../../../../packages/feature-operations/src/lib/routine-purchase-controls.ts";
 @source "../../../../packages/feature-operations/src/public/native-operations.ts";
+@source "../../../../packages/feature-operations/src/public/native-routines-read.ts";
 @source "../../../../packages/feature-organization/src/adapters/server/native-organization.ts";
 @source "../../../../packages/feature-organization/src/components/department-authority-workspace.tsx";
 @source "../../../../packages/feature-organization/src/components/department-override-decision.tsx";
@@ -2474,6 +2477,7 @@
 @source "../../../../packages/server-agent/src/adapters/finance-ai-quota-sources.ts";
 @source "../../../../packages/server-agent/src/adapters/hospitality-owner-projection-sources.ts";
 @source "../../../../packages/server-agent/src/adapters/native-agent-evidence.ts";
+@source "../../../../packages/server-agent/src/adapters/native-assistant-sources.ts";
 @source "../../../../packages/server-agent/src/adapters/native-owner-write.ts";
 @source "../../../../packages/server-agent/src/adapters/native-quota-command.ts";
 @source "../../../../packages/server-agent/src/adapters/operations-guided-intake-facts.ts";
@@ -3247,6 +3251,7 @@
 @source "../../../../packages/server-crm/src/adapters/native-crm-history.ts";
 @source "../../../../packages/server-crm/src/adapters/native-crm-notification.ts";
 @source "../../../../packages/server-crm/src/adapters/native-crm-read.ts";
+@source "../../../../packages/server-crm/src/adapters/native-guest-history.ts";
 @source "../../../../packages/server-crm/src/adapters/purchases.ts";
 @source "../../../../packages/server-crm/src/adapters/read-tail-r24-sql.ts";
 @source "../../../../packages/server-crm/src/adapters/read-tail-r25-sql.ts";
@@ -3417,6 +3422,7 @@
 @source "../../../../packages/server-ecommerce/src/adapters/commerce-source-locks.ts";
 @source "../../../../packages/server-ecommerce/src/adapters/ecommerce.ts";
 @source "../../../../packages/server-ecommerce/src/adapters/executive-metric-projections.ts";
+@source "../../../../packages/server-ecommerce/src/adapters/native-detail-links/client.ts";
 @source "../../../../packages/server-ecommerce/src/adapters/native-exec-metric/client.ts";
 @source "../../../../packages/server-ecommerce/src/adapters/native-lane-39/client.ts";
 @source "../../../../packages/server-ecommerce/src/adapters/native-wave2.ts";
@@ -4742,6 +4748,7 @@
 @source "../../../../packages/server-inventory/src/adapters/native-replay-probe.ts";
 @source "../../../../packages/server-inventory/src/adapters/native-scoped-field.ts";
 @source "../../../../packages/server-inventory/src/adapters/native-service-count-source.ts";
+@source "../../../../packages/server-inventory/src/adapters/native-transfer-list-read.ts";
 @source "../../../../packages/server-inventory/src/adapters/pms-package-obligations.ts";
 @source "../../../../packages/server-inventory/src/adapters/pos-core-facts.ts";
 @source "../../../../packages/server-inventory/src/adapters/pos-facts.ts";
@@ -5118,6 +5125,7 @@
 @source "../../../../packages/server-maintenance/src/adapters/iam-scope-guard.ts";
 @source "../../../../packages/server-maintenance/src/adapters/maintenance-owner-name.ts";
 @source "../../../../packages/server-maintenance/src/adapters/native-lane-36/client.ts";
+@source "../../../../packages/server-maintenance/src/adapters/native-owner-options-read.ts";
 @source "../../../../packages/server-maintenance/src/adapters/native-preventive-read.ts";
 @source "../../../../packages/server-maintenance/src/adapters/package-obligations.ts";
 @source "../../../../packages/server-maintenance/src/adapters/projection-lookup.ts";

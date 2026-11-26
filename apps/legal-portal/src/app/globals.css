@@ -216,7 +216,6 @@
 @source "../../../../packages/server-brand/src/adapters/native-brand-attachment-statement.ts";
 @source "../../../../packages/server-brand/src/adapters/native-brand-management.ts";
 @source "../../../../packages/server-brand/src/adapters/native-brand-presentation.ts";
-@source "../../../../packages/server-brand/src/adapters/native-brand-read-ports.ts";
 @source "../../../../packages/server-brand/src/adapters/native-lane-39/client.ts";
 @source "../../../../packages/server-brand/src/adapters/workspace-choice-brand.ts";
 @source "../../../../packages/server-brand/src/application/branding.ts";

@@ -1,4 +1,5 @@
 pub mod access;
+pub mod access_sources;
 pub(crate) mod customer_authority_wave3;
 pub mod duplicates;
 pub mod identity;

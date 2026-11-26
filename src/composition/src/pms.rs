@@ -25,6 +25,11 @@ use erpx_server_pms::public::pms_http::{
     PmsHttpRefundContextRequest, PmsHttpResponse, PmsRefundContextSelection,
 };
 use erpx_server_pms::public::refund::{PgPmsRefundRepository, PmsRefundRepository};
+use erpx_server_pms::public::payment_status::{
+    PgPmsPaymentStatusRead, PmsPaymentStatusFacts, PmsPaymentStatusHttpBackend,
+    PmsPaymentStatusFuture, PmsPaymentStatusRequest, PmsPaymentStatusView,
+    pms_payment_status,
+};
 use erpx_server_pms::public::report::{
     PgPmsReportRead, PmsReportEntries, PmsReportEntriesRequest, PmsReportHttpBackend,
     PmsReportHttpFuture, PmsReportHttpResponse, PmsReportRange, PmsReportRangeRequest,
@@ -318,6 +323,46 @@ impl<C: Clock + Send + Sync + 'static> PmsService<C> {
             request.mutation = false;
             Ok(request)
         }
+    }
+
+    /// Native PromptPay payment-status read on the caller's Holding unit.
+    pub async fn payment_status(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        selection: HoldingWorkspaceRequest,
+        id: String,
+    ) -> Result<PmsPaymentStatusView, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(move || Ok(selection)),
+                Self::access(),
+                PmsSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let id = id.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("pms.read")?;
+                        let facts = PmsPaymentStatusFacts {
+                            company_id: company.as_str().to_owned(),
+                            id,
+                        };
+                        let mut repository = PgPmsPaymentStatusRead::new(connection);
+                        Ok(pms_payment_status(&facts, &mut repository).await?)
+                    })
+                },
+            )
+            .await
     }
 
     pub async fn read<Input>(
@@ -1218,6 +1263,75 @@ impl<C: Clock + Send + Sync + 'static> PmsHttpBackend for PmsBackend<C> {
             let context_selection = request.selection.clone();
             self.service
                 .refund_context(request.host, proof, move || Ok(selection), context_selection)
+                .await
+                .map_err(business)
+        })
+    }
+}
+
+pub struct PmsPaymentStatusBackend<C> {
+    policy: Arc<AccountPolicy>,
+    scopes: Arc<dyn BusinessScopeSlugs>,
+    service: Arc<PmsService<C>>,
+}
+
+impl<C: Clock + Send + Sync + 'static> PmsPaymentStatusBackend<C> {
+    pub fn new(
+        policy: Arc<AccountPolicy>,
+        scopes: Arc<dyn BusinessScopeSlugs>,
+        service: Arc<PmsService<C>>,
+    ) -> Self {
+        Self { policy, scopes, service }
+    }
+
+    fn context(
+        &self,
+        headers: &erpx_server_runtime::public::http_support::HeaderMap,
+    ) -> Result<(DeviceProof, HoldingWorkspaceRequest), BusinessError> {
+        let inbound = parse_inbound_account_request(&self.policy, headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(not_found());
+        }
+        let (branch, department) = self.scopes.slugs(headers)?;
+        Ok((
+            inbound.into_proof(),
+            HoldingWorkspaceRequest {
+                company_id: self.service.company().clone(),
+                branch_slug: branch,
+                department_slug: department,
+                expected: None,
+                mutation: false,
+            },
+        ))
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> PmsPaymentStatusHttpBackend
+    for PmsPaymentStatusBackend<C>
+{
+    fn status<'a>(
+        &'a self,
+        request: PmsPaymentStatusRequest<'a>,
+    ) -> PmsPaymentStatusFuture<'a, PmsPaymentStatusView, BusinessError> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .payment_status(request.host, proof, selection, request.facts.id)
+                .await
+                .map_err(business)
+        })
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> PmsPaymentStatusHttpBackend for PmsBackend<C> {
+    fn status<'a>(
+        &'a self,
+        request: PmsPaymentStatusRequest<'a>,
+    ) -> PmsPaymentStatusFuture<'a, PmsPaymentStatusView, BusinessError> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .payment_status(request.host, proof, selection, request.facts.id)
                 .await
                 .map_err(business)
         })

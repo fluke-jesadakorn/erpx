@@ -17,6 +17,9 @@ pub mod record_write;
 
 pub mod record_registry_http;
 
+pub mod record_search;
+pub mod record_search_http;
+
 pub mod source_record;
 
 pub mod owner_projection_head;

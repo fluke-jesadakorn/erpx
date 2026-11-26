@@ -37,3 +37,7 @@ pub(crate) mod reservation_alerts;
 pub(crate) mod executive;
 pub(crate) mod package_settlement;
 pub mod native_lane_39;
+
+pub(crate) mod reservation_part_http;
+
+pub(crate) mod reservation_part_source;

@@ -98,7 +98,7 @@ mod postgres_tests {
                 "INSERT INTO \"user\"(id,name,email,\"createdAt\",\"updatedAt\") \
                  VALUES('user-1','Ada','ada@example.test',1,1);",
             )
-            .execute(&pool)
+            .execute(pool.raw())
             .await
             .unwrap();
 
@@ -115,7 +115,7 @@ mod postgres_tests {
                 "INSERT INTO account_preferences(user_id,language,appearance,version,updated_at) \
                  VALUES('user-1','th','dark',7,1);",
             )
-            .execute(&pool)
+            .execute(pool.raw())
             .await
             .unwrap();
             let row = AccountProfileReader::read(&reader, "user-1")

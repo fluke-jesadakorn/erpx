@@ -1,7 +1,8 @@
 //! Native Customer Authority owner.
 //!
 //! The qualified slices are the source-bound customer access request/decision
-//! command and its bounded workspace/detail read, the customer duplicate
+//! command and its bounded workspace/detail read, the native customer-access
+//! sources read with its sqlx/axum router, the customer duplicate
 //! review request/decision/reopen/merge commands with their HTTP router, and
 //! the customer identity request/change workspace with its HTTP router, and the
 //! verified external portal-session customer proof consumed by Support and

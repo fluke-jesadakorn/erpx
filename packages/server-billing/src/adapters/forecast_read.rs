@@ -1,7 +1,7 @@
 //! PostgreSQL read adapter for the Billing seat-forecast baseline. The caller
 //! owns the Control connection; this adapter never commits, writes or reads a
 //! Holding database.
-use crate::application::forecast_read::SeatForecastRepository;
+use crate::application::forecast_read::{ReadSeatForecast, SeatForecastRepository};
 use crate::domain::forecast_read::{
     RetainedStorageTotalsRow, SeatForecastPriceRow, UsageSnapshotRow,
 };
@@ -177,10 +177,10 @@ pub async fn read_seat_forecast_baseline(
     holding: &HoldingId,
     now: i64,
 ) -> Result<crate::domain::forecast_read::SeatForecastBaseline, PgTransactionError<BusinessError>> {
-    crate::application::forecast_read::read_seat_forecast_baseline(
-        &mut PgSeatForecastRepository::new(connection),
-        holding,
+    ReadSeatForecast::new(
+        holding.clone(),
         erpx_server_shared::public::TimestampMillis::new(now),
     )
+    .handle(&mut PgSeatForecastRepository::new(connection))
     .await
 }

@@ -1,5 +1,6 @@
 import type { BillingView } from "@erpx/feature-billing/lib/billing";
 import type { BillingInput } from "@erpx/server-billing/domain/billing";
+import type { SeatForecastBaseline } from "@erpx/server-billing/domain/forecast";
 
 /**
  * Pure Billing owner transport. It carries the retained browser Host, cookie
@@ -349,6 +350,31 @@ const WORKSPACE_KEYS = [
   "jobs",
   "legacy",
 ] as const;
+const FORECAST_KEYS = [
+  "generatedAt",
+  "forecastMonth",
+  "sourceMonth",
+  "model",
+  "price",
+  "priceEffectiveForMonth",
+  "seats",
+  "storage",
+] as const;
+const FORECAST_PRICE_KEYS = [
+  "id",
+  "effectiveMonth",
+  "baseMonthlySatang",
+  "includedOriginalBytes",
+  "storageSatangPerGbMonth",
+  "aiMarkupPercent",
+  "seatTermsStatus",
+  "includedSeats",
+  "seatMonthlySatang",
+  "storageAllowanceMode",
+  "ratingEnabled",
+] as const;
+const FORECAST_SEATS_KEYS = ["count", "observedAt"] as const;
+const FORECAST_STORAGE_KEYS = ["originalBytes", "observedAt", "coverage"] as const;
 
 export class NativeBillingError extends Error {
   readonly code: string;
@@ -654,6 +680,56 @@ function workspaceData(
   )
     return failure("NATIVE_BILLING_CONTEXT_CHANGED");
   return value as BillingView;
+}
+
+/**
+ * Exact owner seat-forecast payload. This mirrors the Rust
+ * `SeatForecastBaseline` wire shape (`deny_unknown_fields`); an extra, missing
+ * or renamed field fails closed and never becomes a partial TS projection.
+ */
+function forecastData(value: unknown): SeatForecastBaseline {
+  if (!exact(value, FORECAST_KEYS)) return failure("NATIVE_BILLING_RESPONSE_INVALID");
+  if (
+    !integer(value.generatedAt) ||
+    !month(value.forecastMonth) ||
+    !month(value.sourceMonth) ||
+    value.model !== "seat_what_if" ||
+    !boolean(value.priceEffectiveForMonth)
+  )
+    return failure("NATIVE_BILLING_RESPONSE_INVALID");
+  const price = value.price;
+  if (
+    price !== null &&
+    (!exact(price, FORECAST_PRICE_KEYS) ||
+      !identifier(price.id) ||
+      !month(price.effectiveMonth) ||
+      !integer(price.baseMonthlySatang) ||
+      !integer(price.includedOriginalBytes) ||
+      !integer(price.storageSatangPerGbMonth) ||
+      !integer(price.aiMarkupPercent) ||
+      !["undefined", "defined"].includes(String(price.seatTermsStatus)) ||
+      !integer(price.includedSeats) ||
+      !optionalInteger(price.seatMonthlySatang) ||
+      !["holding_flat", "per_paid_seat_time"].includes(String(price.storageAllowanceMode)) ||
+      !boolean(price.ratingEnabled))
+  )
+    return failure("NATIVE_BILLING_RESPONSE_INVALID");
+  const seats = value.seats;
+  if (
+    !exact(seats, FORECAST_SEATS_KEYS) ||
+    !optionalInteger(seats.count) ||
+    !optionalInteger(seats.observedAt)
+  )
+    return failure("NATIVE_BILLING_RESPONSE_INVALID");
+  const storage = value.storage;
+  if (
+    !exact(storage, FORECAST_STORAGE_KEYS) ||
+    !optionalInteger(storage.originalBytes) ||
+    !optionalInteger(storage.observedAt) ||
+    !["measured", "partial", "unavailable"].includes(String(storage.coverage))
+  )
+    return failure("NATIVE_BILLING_RESPONSE_INVALID");
+  return value as SeatForecastBaseline;
 }
 
 function configuration(raw: NativeBillingConfiguration) {
@@ -1049,12 +1125,50 @@ export function createNativeBillingClient(
     return { ok: true };
   };
 
+  /**
+   * Seat-forecast baseline read. The native owner route is the sole authority:
+   * a missing or malformed response fails closed, with no TypeScript SQL
+   * reader behind it.
+   */
+  const forecast = async (
+    incoming: Pick<Headers, "get">,
+    actor: NativeBillingPageContext,
+    input: NativeBillingReadInput,
+    signal?: AbortSignal,
+  ): Promise<SeatForecastBaseline> => {
+    if (
+      !identifier(input.holdingId) ||
+      !/^[a-z0-9_-]{1,128}$/.test(input.holdingSlug)
+    )
+      return failure("NATIVE_BILLING_REQUEST_INVALID");
+    const response = await ownerCall(
+      transport,
+      config,
+      incoming,
+      actor,
+      input,
+      "GET",
+      "/forecast",
+      undefined,
+      undefined,
+      signal,
+    ).catch((error: unknown) => {
+      if (error instanceof NativeBillingError) throw error;
+      return failure("NATIVE_BILLING_UNAVAILABLE");
+    });
+    const value = await boundedJson(response);
+    if (!exact(value, ["data", "context"]))
+      return failure("NATIVE_BILLING_RESPONSE_INVALID");
+    context(value.context, actor, input);
+    return forecastData(value.data);
+  };
+
   const holding = (holdingId: string) => {
     return [...config.holdings.values()].find(
       (candidate) => candidate.holdingId === holdingId,
     );
   };
-  return { billing, command, invoice, holding };
+  return { billing, command, invoice, forecast, holding };
 }
 
 export type NativeEvidenceAccessEvent = Readonly<{

@@ -35,6 +35,28 @@ pub trait SeatForecastRepository {
     ) -> impl Future<Output = Result<Option<RetainedStorageTotalsRow>, Self::Error>> + Send;
 }
 
+/// Read-only query. One Control snapshot, no transaction and no idempotency
+/// key: the seat-forecast baseline is a pure what-if projection over owner
+/// facts, so a retry is always safe and cannot write.
+#[derive(Clone, Debug)]
+pub struct ReadSeatForecast {
+    pub holding: HoldingId,
+    pub now: TimestampMillis,
+}
+
+impl ReadSeatForecast {
+    pub fn new(holding: HoldingId, now: TimestampMillis) -> Self {
+        Self { holding, now }
+    }
+
+    pub async fn handle<R: SeatForecastRepository>(
+        &self,
+        repository: &mut R,
+    ) -> Result<SeatForecastBaseline, R::Error> {
+        read_seat_forecast_baseline(repository, &self.holding, self.now).await
+    }
+}
+
 pub async fn read_seat_forecast_baseline<R: SeatForecastRepository>(
     repository: &mut R,
     holding: &HoldingId,

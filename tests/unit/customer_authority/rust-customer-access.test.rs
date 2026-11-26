@@ -1,4 +1,6 @@
 //! Native Customer Authority customer-access policy, command and read tests.
+mod access_sources_cases;
+
 use erpx_server_customer_authority::public::access::{
     AccessActor, AccessBindingRow, AccessChange, AccessEventRow, AccessFuture, AccessOrder,
     AccessReadRow, AccessReceipt, AccessRequest, AccessSourceRow, ChangePlan,

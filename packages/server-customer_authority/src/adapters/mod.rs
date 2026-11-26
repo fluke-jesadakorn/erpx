@@ -1,5 +1,7 @@
 pub mod access;
 pub mod access_http;
+pub mod access_sources_http;
+pub mod access_sources_postgres;
 pub mod duplicates;
 pub mod duplicates_http;
 pub mod identity_http;

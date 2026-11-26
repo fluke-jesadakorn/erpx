@@ -218,7 +218,7 @@ mod tests {
         assert_eq!(value["items"][0]["clock"]["state"], "running");
         assert_eq!(value["canManage"], true);
         assert_eq!(value["canCreate"], true);
-        assert_eq!(value["now"], 1_793_757_600_000);
+        assert_eq!(value["now"], 1_793_757_600_000i64);
     }
 
     #[test]

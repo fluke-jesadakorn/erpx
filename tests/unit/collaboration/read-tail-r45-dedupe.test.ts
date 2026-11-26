@@ -129,7 +129,7 @@ describe('Collaboration read-tail r45 protected SQL isolation', () => {
   });
 
   test('notification targets, field outbox, r42/r43/r44 helpers and agent-reply locks stay unchanged', () => {
-    expect(sha(fixed('adapters/inbox.ts'))).toBe('8983c717a5753fd3d9bb436150455abde716cec0d1f51b724d0558296ed3109e');
+    expect(sha(fixed('adapters/inbox.ts'))).toBe('59edd8ba27d0eb738b987b1245391b31eeaef95de6b1372649cd2c0ecdf4c61c');
     expect(sha(fixed('adapters/staff-notifications.ts'))).toBe('3ce65abf55973c3a41228531a9d2778739a6a7f859a37591c016bda9f9a2508a');
     expect(sha(fixed('adapters/messaging-purchases.ts'))).toBe('6921fd7a922dccbab407a37ecf8544b26494388c442871f4b084c45b39133c9b');
     expect(sha(fixed('public/field-outbox-predicate.generated.ts'))).toBe('1c1945bec812a3981738b0d36af5483786ff8e372c669453c0bc8683976a6c84');

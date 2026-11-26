@@ -41,3 +41,5 @@ pub mod executive_evidence;
 pub mod native_lane_39;
 
 pub mod reservation_read_http;
+
+pub mod reservation_part;

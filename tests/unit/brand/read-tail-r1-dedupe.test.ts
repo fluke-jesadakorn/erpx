@@ -2,16 +2,16 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 vi.mock("server-only", () => ({}));
+import { LANE39_CONFIG_ENV } from "../../../packages/server-brand/src/adapters/native-lane-39/client";
 
 /**
- * G4 / retire.brand.read-tail-r2: the two Brand management authority guards are
- * now owner-planned native reads. r1 folded their old TypeScript statement head
- * into `read-tail-r1.ts`; r2 deletes that file and routes both guards through
- * the owner read port. The exact retired statements are Rust oracles in
- * `native_read_sql.rs`; this suite pins the switched consumer, binds and KPI.
- * r3 moves the last owner `SELECT` head (the cross-owner attachment scope
- * probe) into the Rust-owned `attachment-scope-head-sources.json` contract,
- * bound with `include_str!` in `attachment_scope_head.rs`; the owner KPI is 0.
+ * G4 / retire.brand.read-tail-r2: the two Brand management authority guards were
+ * owner-planned native reads. r2 folded their old TypeScript statement heads
+ * into a Rust plan oracle; lane 40 replaces that intermediary with owner-
+ * executed sqlx statements behind two axum routes. The TypeScript adapter now
+ * emits no SQL, no plan request and no bind array; it fails closed on every
+ * transport or row-shape failure. This suite pins the switched consumer, the
+ * exact axum targets and the owner KPI.
  */
 const root = resolve(__dirname, "../../../");
 const srcRoot = resolve(root, "packages/server-brand/src");
@@ -19,56 +19,51 @@ const adapters = resolve(srcRoot, "adapters");
 const read = (name: string) => readFileSync(resolve(adapters, name), "utf8");
 const count = (s: string, needle: string) => s.split(needle).length - 1;
 
-const SRC = 'SELECT "id","kind","slug","display_name","parent_id","company_id","branch_id","status","hierarchy_revision" FROM organization_nodes';
-const BRANCH_SQL = `SELECT id,display_name FROM (${SRC}) organization_nodes WHERE id=? AND company_id=? AND kind='branch' AND status='active'`;
-const COMPANY_SQL = `SELECT 1 FROM (${SRC}) organization_nodes WHERE id=? AND kind='company' AND status='active'`;
-
-const envKey = "ERPX_NATIVE_BRAND_READ_CONFIG";
+const envKey = LANE39_CONFIG_ENV;
 const original = process.env[envKey];
-const requests: { url: URL; init: RequestInit; body: { kind: string; values: unknown[] } }[] = [];
+const requests: { url: URL; init: RequestInit; body: { id: string } }[] = [];
 
 const configure = () => {
   process.env[envKey] = JSON.stringify({
     privateBaseUrl: "http://127.0.0.1:44997",
     timeoutMs: 1000,
-    holdings: [{ origin: "https://acme.example.com", holdingSlug: "acme", holdingId: "h001" }],
+    holdings: [{
+      origin: "https://acme.example.com",
+      host: "acme.example.com",
+      holdingSlug: "acme",
+      holdingId: "h001",
+      companyId: "company-1",
+    }],
   });
 };
 const actor = {
   holdingId: "h001", holdingSlug: "acme", companyId: "company-1", branchId: "branch-1",
   assignmentId: "assignment-1", scope: { kind: "branch", branchSlug: "north" },
 } as never;
-const fakeDb = (row: Record<string, unknown> | null) => {
-  const prepared: string[] = [];
-  const bound: unknown[][] = [];
-  const db = {
-    prepare(sql: string) {
-      prepared.push(sql);
-      return {
-        bind(...values: unknown[]) { bound.push(values); return this; },
-        async first<T>() { return row as T | null; },
-      };
-    },
-  };
-  return { db, prepared, bound };
-};
+/** The caller unit is retained only for signature compatibility; lane 40 runs
+ * the SQL on the owner's registered pool, so no TypeScript db stub is used. */
+const fakeDb = () => ({} as never);
 
-describe("Brand management guard native cutover (r2)", () => {
+describe("Brand management guard native cutover (lane 40)", () => {
   beforeEach(() => {
     requests.length = 0;
     configure();
     vi.stubGlobal("fetch", vi.fn(async (url: URL, init: RequestInit) => {
-      const body = JSON.parse(String(init.body)) as typeof requests[number]["body"];
+      const body = JSON.parse(String(init.body)) as { id: string };
       requests.push({ url, init, body });
-      const backend = process.env["BRAND_TEST_BACKEND"];
-      if (backend === "error")
-        return new Response(JSON.stringify({ error: { code: "BRAND_READ_PLAN_INVALID", message: "rejected" } }), {
-          status: 400, headers: { "content-type": "application/json" },
-        });
-      const sql = body.kind === "brand_rd_management_branch_exists" ? BRANCH_SQL : COMPANY_SQL;
-      return new Response(JSON.stringify({ data: { sql, values: body.values } }), {
+      const json = (value: unknown) => new Response(JSON.stringify(value), {
         status: 200, headers: { "content-type": "application/json" },
       });
+      const backend = process.env["BRAND_TEST_BACKEND"];
+      if (backend === "error")
+        return new Response(JSON.stringify({ error: { code: "BRAND_MANAGEMENT_READ_FAILED", message: "rejected" } }), {
+          status: 400, headers: { "content-type": "application/json" },
+        });
+      if (backend === "drift") return json({ branch: { id: "br-1" } });
+      const company = url.pathname.endsWith("company");
+      return json(company
+        ? { exists: body.id === "co-1" }
+        : { branch: body.id === "br-1" ? { id: "br-1", display_name: "North" } : null });
     }));
   });
   afterEach(() => {
@@ -78,49 +73,47 @@ describe("Brand management guard native cutover (r2)", () => {
     vi.unstubAllGlobals();
   });
 
-  test("both guards execute owner-planned statements with unchanged binds and row shapes", async () => {
+  test("both guards execute on the owner axum route with no TypeScript statement", async () => {
     const ports = await import("../../../packages/server-brand/src/adapters/native-brand-management");
-    const branchDb = fakeDb({ id: "br-1", display_name: "North" });
-    expect(await ports.nativeBrandManagementBranch(branchDb.db as never, actor, "br-1"))
+    const db = fakeDb();
+    expect(await ports.nativeBrandManagementBranch(db, actor, "br-1"))
       .toEqual({ id: "br-1", display_name: "North" });
-    expect(branchDb.prepared).toEqual([BRANCH_SQL]);
-    expect(branchDb.bound).toEqual([["br-1", "company-1"]]);
-    expect(requests[0]!.body).toEqual({
-      kind: "brand_rd_management_branch_exists", values: ["br-1", "company-1"],
-      range: false, query: false, cursor: false,
-    });
+    expect(requests[0]!.url.toString()).toBe(
+      "http://127.0.0.1:44997/api/v1/holdings/acme/branding/lane40-management-branch",
+    );
+    expect(requests[0]!.body).toEqual({ id: "br-1" });
+    expect(String(requests[0]!.body)).not.toContain("SELECT");
+    expect((requests[0]!.init.headers as Headers).get("x-erpx-context-company")).toBe("company-1");
 
-    const companyDb = fakeDb({ present: 1 });
-    expect(await ports.nativeBrandManagementCompanyExists(companyDb.db as never, actor, "co-1")).toBe(true);
-    expect(companyDb.prepared).toEqual([COMPANY_SQL]);
-    expect(companyDb.bound).toEqual([["co-1"]]);
-    expect(requests[1]!.body).toEqual({
-      kind: "brand_rd_management_company_exists", values: ["co-1"],
-      range: false, query: false, cursor: false,
-    });
-    expect(await ports.nativeBrandManagementCompanyExists(fakeDb(null).db as never, actor, "co-2")).toBe(false);
-    expect(await ports.nativeBrandManagementBranch(fakeDb(null).db as never, actor, "br-2")).toBeNull();
+    expect(await ports.nativeBrandManagementCompanyExists(db, actor, "co-1")).toBe(true);
+    expect(requests[1]!.url.toString()).toBe(
+      "http://127.0.0.1:44997/api/v1/holdings/acme/branding/lane40-management-company",
+    );
+    expect(requests[1]!.body).toEqual({ id: "co-1" });
+    expect(await ports.nativeBrandManagementCompanyExists(db, actor, "co-2")).toBe(false);
+    expect(await ports.nativeBrandManagementBranch(db, actor, "br-2")).toBeNull();
   });
 
-  test("native read failures and malformed rows fail closed without a TS fallback", async () => {
+  test("native guard failures and malformed rows fail closed without a TS fallback", async () => {
     const ports = await import("../../../packages/server-brand/src/adapters/native-brand-management");
-    await expect(ports.nativeBrandManagementBranch(fakeDb(null).db as never, actor, "bad/id"))
+    const db = fakeDb();
+    await expect(ports.nativeBrandManagementBranch(db, actor, "bad/id"))
       .rejects.toMatchObject({ code: "BRAND_MANAGEMENT_REQUEST_INVALID", status: 422 });
     expect(requests).toHaveLength(0);
 
-    await expect(ports.nativeBrandManagementBranch(fakeDb({ id: "br-1" }).db as never, actor, "br-1"))
-      .rejects.toMatchObject({ code: "NATIVE_BRAND_MANAGEMENT_RESPONSE_INVALID", status: 502 });
-    await expect(ports.nativeBrandManagementCompanyExists(fakeDb(null).db as never, actor, "co-1"))
-      .resolves.toBe(false);
+    process.env["BRAND_TEST_BACKEND"] = "drift";
+    await expect(ports.nativeBrandManagementBranch(db, actor, "br-1"))
+      .rejects.toMatchObject({ code: "BRAND_MANAGEMENT_RESPONSE_INVALID", status: 502 });
+    delete process.env["BRAND_TEST_BACKEND"];
 
     delete process.env[envKey];
-    await expect(ports.nativeBrandManagementBranch(fakeDb(null).db as never, actor, "br-1"))
-      .rejects.toMatchObject({ code: "NATIVE_BRAND_READ_CONFIGURATION_REQUIRED" });
+    await expect(ports.nativeBrandManagementBranch(db, actor, "br-1"))
+      .rejects.toMatchObject({ code: "BRAND_MANAGEMENT_CONFIGURATION_REQUIRED" });
 
     configure();
     process.env["BRAND_TEST_BACKEND"] = "error";
-    await expect(ports.nativeBrandManagementCompanyExists(fakeDb(null).db as never, actor, "co-1"))
-      .rejects.toMatchObject({ code: "NATIVE_BRAND_READ_FAILED", status: 400 });
+    await expect(ports.nativeBrandManagementCompanyExists(db, actor, "co-1"))
+      .rejects.toMatchObject({ code: "BRAND_MANAGEMENT_READ_FAILED", status: 400 });
   });
 
   test("the switched consumer and native transports author no statement text", () => {
@@ -135,6 +128,12 @@ describe("Brand management guard native cutover (r2)", () => {
     expect(existsSync(resolve(adapters, "read-tail-r1.ts"))).toBe(false);
     for (const name of ["native-brand-management.ts", "native-brand-read-ports.ts"])
       expect(read(name)).not.toMatch(/\bSELECT\s/);
+    // The plan-only intermediary for this family is deleted; SQL now executes in Rust.
+    expect(read("native_read_sql.rs")).not.toContain("RD_MANAGEMENT_BRANCH_EXISTS");
+    expect(read("native_read_sql.rs")).not.toContain("RD_MANAGEMENT_COMPANY_EXISTS");
+    const lane = readFileSync(resolve(adapters, "native_lane_40/http.rs"), "utf8");
+    expect(lane).toContain("lane40-management-branch");
+    expect(lane).toContain("lane40-management-company");
   });
 
   test("the cross-owner scope probe renders from the Rust-owned scope-head contract", () => {
@@ -211,9 +210,7 @@ describe("Brand management guard native cutover (r2)", () => {
       }
     };
     walk(srcRoot);
-    // r1: 3 -> 2 (two literals folded into one helper); r2: the helper is
-    // deleted and both guards plan on the owner; r3: the cross-owner scope
-    // head moves into the Rust-owned JSON contract, leaving no owner SELECT.
+    // r1/r2 removed the TypeScript guard literals; lane 40 keeps the owner at 0.
     expect(total).toBe(0);
     expect(total).toBeLessThan(1);
     expect(count(read("branding.ts"), "SELECT ")).toBe(0);

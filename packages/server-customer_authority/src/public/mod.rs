@@ -1,5 +1,6 @@
 pub mod access;
 pub mod access_http;
+pub mod access_sources;
 pub mod customer_authority_wave3;
 pub mod duplicates;
 pub mod duplicates_http;
