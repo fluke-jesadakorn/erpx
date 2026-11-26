@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 14790,
+    "revision": 14828,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261126-f",
+      "runId": "run-20261126-g",
       "agentId": "lead",
-      "startedAt": "2026-11-26T10:15:53.146Z",
-      "heartbeatAt": "2026-11-26T10:16:00.346Z",
-      "expiresAt": "2026-11-26T10:46:00.346Z",
-      "generation": 183,
-      "tokenHash": "84e80c00e5f55fa44d8bebe24f48c7a04cefed9eb066dc35623ec921153739d3"
+      "startedAt": "2026-11-26T10:46:48.802Z",
+      "heartbeatAt": "2026-11-26T10:46:54.950Z",
+      "expiresAt": "2026-11-26T11:16:54.950Z",
+      "generation": 184,
+      "tokenHash": "76a9e3af08127a301ea18fe3e57ce51cd5345d49f9d232376926669101db21e5"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -209101,7 +209101,7 @@
         "goalId": "G4",
         "owner": "people_payroll",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "title": "people_payroll native route execution",
         "scope": "Inventory the /people/[[...path]] catch-all. Port one bounded read or command family to Rust domain/application/adapters/http with real PostgreSQL execution, remove the TypeScript authority for that family, and prepare the exact shared-route plus app re-export deletion packet. No plan-only SQL contract.",
         "workflowIds": [],
@@ -209116,22 +209116,48 @@
           "owner:people_payroll",
           "route:people"
         ],
-        "nextAction": "Inventory the people catch-all and port one fully-native operation with Rust SQL execution; prepare its route-deletion packet.",
-        "claim": {
-          "runId": "run-20261126-f",
-          "agentId": "exec-people",
-          "claimedAt": "2026-11-26T10:17:53.221Z",
-          "heartbeatAt": "2026-11-26T10:17:53.221Z",
-          "expiresAt": "2026-11-26T10:47:53.221Z",
-          "generation": 183
-        },
+        "nextAction": "Native pay-group options slice committed bb19c972; mount native_pay_group_options router and rewire the people catch-all before route deletion.",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
+        "lastPushedSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "cargo test -p erpx-server-people-payroll --lib --locked",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/people_payroll/native-pay-group-options.test.ts",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-g",
+          "agentId": "lead",
+          "at": "2026-11-26T10:47:03.467Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native pay-group options slice committed bb19c972; mount native_pay_group_options router and rewire the people catch-all before route deletion."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -209352,7 +209378,7 @@
         "goalId": "G4",
         "owner": "platform_administration",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "title": "platform/admin feature routes native execution",
         "scope": "Inventory the feature-admin route package (32 shared handlers). Port one bounded admin or platform read/command family to Rust domain/application/adapters/http with real PostgreSQL execution, remove the TS authority for that family, and prepare the exact route-deletion packet. Do not touch other owners' server crates.",
         "workflowIds": [],
@@ -209367,22 +209393,43 @@
           "owner:platform_administration",
           "route:admin"
         ],
-        "nextAction": "Inventory feature-admin routes and port one fully-native operation with Rust SQL execution; prepare its route-deletion packet.",
-        "claim": {
-          "runId": "run-20261126-f",
-          "agentId": "exec-admin",
-          "claimedAt": "2026-11-26T10:17:53.360Z",
-          "heartbeatAt": "2026-11-26T10:17:53.360Z",
-          "expiresAt": "2026-11-26T10:47:53.360Z",
-          "generation": 183
-        },
+        "nextAction": "Native Platform usage read committed and mounted; cut the feature-admin usage route and retire the TS projection after moving consumers.",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
+        "lastPushedSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "cargo test -p erpx-server-platform-administration --test native_platform_usage --locked",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-g",
+          "agentId": "lead",
+          "at": "2026-11-26T10:47:03.903Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native Platform usage read committed and mounted; cut the feature-admin usage route and retire the TS projection after moving consumers."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -209390,7 +209437,7 @@
         "goalId": "G4",
         "owner": "crm",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "title": "sales/crm feature routes native execution",
         "scope": "Inventory the feature-sales route package (11 shared handlers). Port one bounded customer, CRM or marketing read/command family to Rust domain/application/adapters/http with real PostgreSQL execution, remove the TS authority for that family, and prepare the exact route-deletion packet.",
         "workflowIds": [],
@@ -209405,22 +209452,43 @@
           "owner:crm",
           "route:sales"
         ],
-        "nextAction": "Inventory feature-sales routes and port one fully-native operation with Rust SQL execution; prepare its route-deletion packet.",
-        "claim": {
-          "runId": "run-20261126-f",
-          "agentId": "exec-sales",
-          "claimedAt": "2026-11-26T10:17:53.500Z",
-          "heartbeatAt": "2026-11-26T10:17:53.500Z",
-          "expiresAt": "2026-11-26T10:47:53.500Z",
-          "generation": 183
-        },
+        "nextAction": "Native CRM case-event history committed; mount the owner router and cut the crm GET branch before route deletion.",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
+        "lastPushedSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "cargo test -p erpx-server-crm --test crm_case_event_history --locked",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-g",
+          "agentId": "lead",
+          "at": "2026-11-26T10:47:04.354Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native CRM case-event history committed; mount the owner router and cut the crm GET branch before route deletion."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -209428,7 +209496,7 @@
         "goalId": "G4",
         "owner": "support",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "title": "support feature routes native execution",
         "scope": "Inventory the feature-support route package (7 shared handlers). Port one bounded support, service-team or SLA read/command family to Rust domain/application/adapters/http with real PostgreSQL execution, remove the TS authority for that family, and prepare the exact route-deletion packet.",
         "workflowIds": [],
@@ -209443,28 +209511,42 @@
           "owner:support",
           "route:support"
         ],
-        "nextAction": "Inventory feature-support routes and port one fully-native operation with Rust SQL execution; prepare its route-deletion packet.",
-        "claim": {
-          "runId": "run-20261126-f",
-          "agentId": "exec-support",
-          "claimedAt": "2026-11-26T10:17:53.640Z",
-          "heartbeatAt": "2026-11-26T10:17:53.640Z",
-          "expiresAt": "2026-11-26T10:47:53.640Z",
-          "generation": 183
-        },
+        "nextAction": "Native Support SLA workspace committed; implement the composition backend/mount and then delete GET/re-exports.",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
+        "lastPushedSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "cargo test -p erpx-server-support --test sla_workspace --locked",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261126-c",
-          "agentId": "exec-support",
-          "at": "2026-11-26T06:24:57.126Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Generation 180 (run-20261126-c) appeared without operator instruction while this session held the lead. The operator instructed this session to kill subagents and continue the Rust-execution route-retirement plan. Reclaim single-checkout coordination; preserve all on-disk WIP for review.",
-          "nextAction": "Inventory feature-support routes and port one fully-native operation with Rust SQL execution; prepare its route-deletion packet."
+          "runId": "run-20261126-g",
+          "agentId": "lead",
+          "at": "2026-11-26T10:47:04.853Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native Support SLA workspace committed; implement the composition backend/mount and then delete GET/re-exports."
         },
         "scopeRefinementRequired": false
       },
@@ -209473,7 +209555,7 @@
         "goalId": "G4",
         "owner": "field_service",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "title": "field service feature routes native execution",
         "scope": "Inventory the feature-service route package (6 shared handlers). Port one bounded field-service read/command family to Rust domain/application/adapters/http with real PostgreSQL execution, remove the TS authority for that family, and prepare the exact route-deletion packet.",
         "workflowIds": [],
@@ -209488,22 +209570,43 @@
           "owner:field_service",
           "route:service"
         ],
-        "nextAction": "Inventory feature-service routes and port one fully-native operation with Rust SQL execution; prepare its route-deletion packet.",
-        "claim": {
-          "runId": "run-20261126-f",
-          "agentId": "exec-service",
-          "claimedAt": "2026-11-26T10:17:53.775Z",
-          "heartbeatAt": "2026-11-26T10:17:53.775Z",
-          "expiresAt": "2026-11-26T10:47:53.775Z",
-          "generation": 183
-        },
+        "nextAction": "Native Field reservation readback committed; mount it beside the existing reservation service and cut the route branch.",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
+        "lastPushedSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "cargo test -p erpx-server-field-service --lib --locked",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-g",
+          "agentId": "lead",
+          "at": "2026-11-26T10:47:05.317Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native Field reservation readback committed; mount it beside the existing reservation service and cut the route branch."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -209511,7 +209614,7 @@
         "goalId": "G4",
         "owner": "assets",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "title": "assets/maintenance feature routes native execution",
         "scope": "Inventory the feature-assets route package (5 shared handlers). Port one bounded asset or maintenance read/command family to Rust domain/application/adapters/http with real PostgreSQL execution, remove the TS authority for that family, and prepare the exact route-deletion packet.",
         "workflowIds": [],
@@ -209526,22 +209629,43 @@
           "owner:assets",
           "route:assets"
         ],
-        "nextAction": "Inventory feature-assets routes and port one fully-native operation with Rust SQL execution; prepare its route-deletion packet.",
-        "claim": {
-          "runId": "run-20261126-f",
-          "agentId": "exec-assets",
-          "claimedAt": "2026-11-26T10:17:53.911Z",
-          "heartbeatAt": "2026-11-26T10:17:53.911Z",
-          "expiresAt": "2026-11-26T10:47:53.911Z",
-          "generation": 183
-        },
+        "nextAction": "Native Asset register read committed; mount the AssetReadActorSource/router and cut the shared assets route.",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
+        "lastPushedSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "cargo test -p erpx-server-assets --lib --locked",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-g",
+          "agentId": "lead",
+          "at": "2026-11-26T10:47:05.811Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native Asset register read committed; mount the AssetReadActorSource/router and cut the shared assets route."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -209585,7 +209709,7 @@
         "goalId": "G4",
         "owner": "collaboration",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "title": "feature-apps routes native execution",
         "scope": "Inventory the feature-apps route package (posts, inbox, handover, operations, handbook, stories, feed, staff, approvals, messaging, daily plan, routines, executive). Port one bounded collaboration or work-projection slice to Rust domain/application/adapters/http with real SQL execution and prepare the exact route-deletion packet.",
         "workflowIds": [],
@@ -209600,22 +209724,43 @@
           "owner:collaboration",
           "route:apps"
         ],
-        "nextAction": "Port one fully-native feature-apps operation with Rust SQL execution and prepare its deletion packet.",
-        "claim": {
-          "runId": "run-20261126-f",
-          "agentId": "exec-apps",
-          "claimedAt": "2026-11-26T10:17:54.047Z",
-          "heartbeatAt": "2026-11-26T10:17:54.047Z",
-          "expiresAt": "2026-11-26T10:47:54.047Z",
-          "generation": 183
-        },
+        "nextAction": "Native messaging-people slice committed; add MessagingHttpBackend::people and cut the messaging route once the backend is mounted.",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
+        "lastPushedSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test messaging_people --locked",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-g",
+          "agentId": "lead",
+          "at": "2026-11-26T10:47:06.272Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native messaging-people slice committed; add MessagingHttpBackend::people and cut the messaging route once the backend is mounted."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -209623,7 +209768,7 @@
         "goalId": "G4",
         "owner": "identity_access",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "title": "feature-account routes native execution",
         "scope": "Inventory the feature-account route package (join, invitations, security, device accounts, quick access, IAM, profile, legal-portal enroll). Port one bounded identity slice to Rust domain/application/adapters/http with real SQL execution and prepare the exact route-deletion packet.",
         "workflowIds": [],
@@ -209638,22 +209783,48 @@
           "owner:identity_access",
           "route:account"
         ],
-        "nextAction": "Port one fully-native feature-account operation with Rust SQL execution and prepare its deletion packet.",
-        "claim": {
-          "runId": "run-20261126-f",
-          "agentId": "exec-account",
-          "claimedAt": "2026-11-26T10:17:54.183Z",
-          "heartbeatAt": "2026-11-26T10:17:54.183Z",
-          "expiresAt": "2026-11-26T10:47:54.183Z",
-          "generation": 183
-        },
+        "nextAction": "Native Account profile read committed; mount account_profile_read_router and flip feature-account GET to the native transport.",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
+        "lastPushedSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "cargo check -p erpx-server-identity-access --locked",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/identity_access/native-account-profile-parity.test.ts",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-g",
+          "agentId": "lead",
+          "at": "2026-11-26T10:47:06.752Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native Account profile read committed; mount account_profile_read_router and flip feature-account GET to the native transport."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -209661,7 +209832,7 @@
         "goalId": "G4",
         "owner": "customer_authority",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "title": "feature-portal routes native execution",
         "scope": "Inventory the feature-portal route package (customer portal enroll, tickets, acknowledgements, attachments, quick access). Port one bounded customer-authority slice to Rust domain/application/adapters/http with real SQL execution and prepare the exact route-deletion packet.",
         "workflowIds": [],
@@ -209676,22 +209847,43 @@
           "owner:customer_authority",
           "route:portal"
         ],
-        "nextAction": "Port one fully-native feature-portal operation with Rust SQL execution and prepare its deletion packet.",
-        "claim": {
-          "runId": "run-20261126-f",
-          "agentId": "exec-portal",
-          "claimedAt": "2026-11-26T10:17:54.318Z",
-          "heartbeatAt": "2026-11-26T10:17:54.318Z",
-          "expiresAt": "2026-11-26T10:47:54.318Z",
-          "generation": 183
-        },
+        "nextAction": "Native portal support-threads read committed; mount the portal router and cut the tickets route/SSR caller.",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
+        "lastPushedSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "cargo test -p erpx-server-customer-authority --lib --locked",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-g",
+          "agentId": "lead",
+          "at": "2026-11-26T10:47:07.265Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native portal support-threads read committed; mount the portal router and cut the tickets route/SSR caller."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -209699,7 +209891,7 @@
         "goalId": "G4",
         "owner": "pos",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "title": "feature-pos routes native execution",
         "scope": "Inventory the feature-pos route package (POS workspace, initial physical stock, startup, stripe webhooks). Port one bounded POS read/command to Rust domain/application/adapters/http with real SQL execution and prepare the exact route-deletion packet.",
         "workflowIds": [],
@@ -209714,22 +209906,43 @@
           "owner:pos",
           "route:pos"
         ],
-        "nextAction": "Port one fully-native feature-pos operation with Rust SQL execution and prepare its deletion packet.",
-        "claim": {
-          "runId": "run-20261126-f",
-          "agentId": "exec-pos",
-          "claimedAt": "2026-11-26T10:17:54.456Z",
-          "heartbeatAt": "2026-11-26T10:17:54.456Z",
-          "expiresAt": "2026-11-26T10:47:54.456Z",
-          "generation": 183
-        },
+        "nextAction": "Native POS room-charge reversal committed; mount the router with actor/package headers and cut the POS/front branches.",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
+        "lastPushedSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "cargo test -p erpx-server-pos --test pos_room_charges --locked",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-g",
+          "agentId": "lead",
+          "at": "2026-11-26T10:47:07.770Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native POS room-charge reversal committed; mount the router with actor/package headers and cut the POS/front branches."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -209737,7 +209950,7 @@
         "goalId": "G4",
         "owner": "manufacturing",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "title": "feature-manufacturing routes native execution",
         "scope": "Inventory the feature-manufacturing route package (production, initial physical stock, posting setup). Port one bounded manufacturing read/command to Rust domain/application/adapters/http with real SQL execution and prepare the exact route-deletion packet.",
         "workflowIds": [],
@@ -209752,22 +209965,43 @@
           "owner:manufacturing",
           "route:manufacturing"
         ],
-        "nextAction": "Port one fully-native feature-manufacturing operation with Rust SQL execution and prepare its deletion packet.",
-        "claim": {
-          "runId": "run-20261126-f",
-          "agentId": "exec-manufacturing",
-          "claimedAt": "2026-11-26T10:17:54.592Z",
-          "heartbeatAt": "2026-11-26T10:17:54.592Z",
-          "expiresAt": "2026-11-26T10:47:54.592Z",
-          "generation": 183
-        },
+        "nextAction": "Native production profiles committed and mounted; cut the production route and retire the TS profile projection.",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
+        "lastPushedSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "cargo test -p erpx-server-manufacturing --test production_profiles_http --locked",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-g",
+          "agentId": "lead",
+          "at": "2026-11-26T10:47:08.235Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native production profiles committed and mounted; cut the production route and retire the TS profile projection."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -209775,7 +210009,7 @@
         "goalId": "G4",
         "owner": "projects",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "title": "feature-projects routes native execution",
         "scope": "Inventory the feature-projects route package (projects WBS, structure, project worker startup). Port one bounded projects read/command to Rust domain/application/adapters/http with real SQL execution and prepare the exact route-deletion packet.",
         "workflowIds": [],
@@ -209790,22 +210024,43 @@
           "owner:projects",
           "route:projects"
         ],
-        "nextAction": "Port one fully-native feature-projects operation with Rust SQL execution and prepare its deletion packet.",
-        "claim": {
-          "runId": "run-20261126-f",
-          "agentId": "exec-projects",
-          "claimedAt": "2026-11-26T10:17:54.732Z",
-          "heartbeatAt": "2026-11-26T10:17:54.732Z",
-          "expiresAt": "2026-11-26T10:47:54.732Z",
-          "generation": 183
-        },
+        "nextAction": "Native project handoffs committed; mount the handoff_views_router and move structure consumers before deletion.",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
+        "lastPushedSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "cargo test -p erpx-server-projects --test project_handoffs --locked",
+            "result": "passed",
+            "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-g",
+          "agentId": "lead",
+          "at": "2026-11-26T10:47:08.701Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native project handoffs committed; mount the handoff_views_router and move structure consumers before deletion."
+        },
         "scopeRefinementRequired": false
       }
     ],
@@ -209819,8 +210074,8 @@
       "migratedPackets": 369,
       "statusCounts": {
         "pending": 21,
-        "in_progress": 12,
-        "ready_for_integration": 48,
+        "in_progress": 0,
+        "ready_for_integration": 60,
         "integrating": 0,
         "migrated": 369,
         "blocked": 1915,
@@ -209828,8 +210083,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 183,
-    "updatedAt": "2026-11-26T10:17:54.736Z",
+    "lastCoordinatorGeneration": 184,
+    "updatedAt": "2026-11-26T10:47:08.705Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
@@ -209864,10 +210119,10 @@
       }
     },
     "lastRecovery": {
-      "previousRunId": "run-20261126-e",
-      "runId": "run-20261126-f",
-      "at": "2026-11-26T10:15:53.147Z",
-      "reason": "run-20261126-e lease expired because its heartbeat automation did not fire; no active claims or worker processes; operator closed the competing session; resume coordination with preserved WIP and ready-for-integration evidence.",
+      "previousRunId": "run-20261126-f",
+      "runId": "run-20261126-g",
+      "at": "2026-11-26T10:46:48.803Z",
+      "reason": "run-20261126-f lease expired because its heartbeat automation did not fire; no active claims or worker processes; wave-2 code is committed/pushed at bb19c9728; resume coordination to record ready-for-integration evidence.",
       "wipReviewed": true,
       "previousRunStopped": true
     },
