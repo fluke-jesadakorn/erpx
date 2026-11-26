@@ -100,6 +100,7 @@ import { peoplePayrollFinalOwnerProjections } from '../../../packages/server-fin
 import { workflowFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/workflow-final-owner-projections';
 import {
   nativeFinanceReadAll,
+  setNativeFinanceReadTransportForTest,
   nativeFinanceReadFirst,
   nativeFinanceReadScalarFirst,
   FINANCE_RD_TAX_PENDING_CORRECTION_COUNT,
@@ -113,6 +114,7 @@ import {
 
 const envKey = 'ERPX_NATIVE_FINANCE_READ_CONFIG';
 const original = process.env[envKey];
+beforeEach(() => { setNativeFinanceReadTransportForTest((url, init) => fetch(url, init)); });
 beforeEach(() => {
   process.env[envKey] = JSON.stringify({
     privateBaseUrl: 'http://127.0.0.1:44992',

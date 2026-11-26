@@ -1165,6 +1165,30 @@ pub fn mount(
         .map_err(|_| "PRIVATE_API_TALENT_DETAIL_INVALID")?,
     );
 
+    // Finance: owner read planner for the browser Finance route.
+    router = router.merge(
+        erpx_server_finance::public::finance_owner_write_http::command_plan_router(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    erpx_server_finance::public::finance_owner_write_http::FinanceOwnerWriteTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(
+                            crate::finance_owner_write::FinanceOwnerWriteBackendImpl::new(
+                                pools[i + 1].clone(),
+                            ),
+                        ),
+                    }
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_FINANCE_COMMAND_PLAN_INVALID")?,
+    );
+
     // Finance lane 6: chart-list read.
     router = router.merge(
         erpx_server_finance::public::native_lane_6::router_for_holdings(

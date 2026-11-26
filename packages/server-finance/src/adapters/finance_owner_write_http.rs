@@ -357,6 +357,40 @@ pub fn owner_write_router(targets: Vec<FinanceOwnerWriteTarget>) -> Result<Route
         })))
 }
 
+/// Read-only command-plan router. It exposes only the owner read planner; the
+/// browser owner-write route remains on the authenticated owner-write mount.
+pub fn command_plan_router(
+    targets: Vec<FinanceOwnerWriteTarget>,
+) -> Result<Router, BusinessError> {
+    let mut configured = BTreeMap::new();
+    for target in targets {
+        let host = target.host.clone();
+        if host.is_empty()
+            || target.holding_slug.is_empty()
+            || target.holding_slug.len() > 128
+            || !target.holding_slug.bytes().all(|byte| {
+                byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'_' | b'-')
+            })
+            || !valid_origin(&target.origin)
+            || configured
+                .insert((host, target.holding_slug.clone()), target)
+                .is_some()
+        {
+            return Err(invalid());
+        }
+    }
+    Ok(Router::new()
+        .route(
+            "/api/v1/holdings/{holding_slug}/finance/command-plan",
+            post(plan_read),
+        )
+        .with_state(Arc::new(FinanceOwnerWriteHttpState {
+            targets: configured,
+            company_targets: BTreeMap::new(),
+            default_company: None,
+        })))
+}
+
 /// System router keyed by exact Company id.
 pub fn owner_write_company_router(
     pairs: Vec<(String, Arc<dyn FinanceOwnerWriteBackend>)>,

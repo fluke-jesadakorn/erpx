@@ -1,6 +1,7 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { nativeRequest } from '@erpx/server-runtime/public/native-http';
 import type { SqlDatabase, SqlResult } from '@erpx/server-runtime/public/runtime/types';
 
 /**
@@ -192,6 +193,15 @@ function configuration(): Settings {
   return { privateBaseUrl: base.origin, timeoutMs: value.timeoutMs, holdings };
 }
 
+/** Test seam: the production transport always preserves the explicit Host. */
+let financeReadTransport: ((url: URL, init: RequestInit) => Promise<Response>) | undefined;
+
+export function setNativeFinanceReadTransportForTest(
+  transport: (url: URL, init: RequestInit) => Promise<Response>,
+): void {
+  financeReadTransport = transport;
+}
+
 /** Plan an owner read in Rust and run it on the caller's open unit. Pure read:
  * the kind selects the SQL; only routing-scoped values cross the wire. */
 export async function nativeFinanceReadAll<T>(
@@ -205,7 +215,7 @@ export async function nativeFinanceReadAll<T>(
   const url = new URL(`/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/finance/command-plan`, config.privateBaseUrl);
   let response: Response;
   try {
-    response = await fetch(url, {
+    const init: RequestInit = {
       method: 'POST',
       headers: {
         host: new URL(holding.origin).host,
@@ -220,7 +230,15 @@ export async function nativeFinanceReadAll<T>(
       cache: 'no-store',
       redirect: 'error',
       signal: AbortSignal.timeout(config.timeoutMs),
-    });
+    };
+    response = financeReadTransport
+      ? await financeReadTransport(url, init)
+      : await nativeRequest(url, {
+          method: 'POST',
+          headers: Object.fromEntries(new Headers(init.headers).entries()),
+          body: typeof init.body === 'string' ? init.body : undefined,
+          signal: init.signal ?? undefined,
+        }, config.timeoutMs);
   } catch { return unavailable(); }
   if (response.status !== 200) {
     void response.body?.cancel().catch(() => undefined);
