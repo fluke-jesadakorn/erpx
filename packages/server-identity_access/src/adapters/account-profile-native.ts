@@ -1,5 +1,6 @@
 import 'server-only';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { nativeRequest } from '@erpx/server-runtime/public/native-http';
 import type { AccountProfile } from '@erpx/server-identity_access/domain/account-preferences';
 
 /**
@@ -83,9 +84,10 @@ export async function nativeAccountProfile(userId: string): Promise<AccountProfi
   });
   let response: Response;
   try {
-    response = await fetch(
-      `${config.base}/api/v1/holdings/${encodeURIComponent(config.holdingSlug)}/account/profile`,
-      { method: 'GET', headers, cache: 'no-store', signal: AbortSignal.timeout(config.timeoutMs) },
+    response = await nativeRequest(
+      new URL(`/api/v1/holdings/${encodeURIComponent(config.holdingSlug)}/account/profile`, config.base),
+      { method: 'GET', headers: Object.fromEntries(headers.entries()) },
+      config.timeoutMs,
     );
   } catch {
     throw new ApiError(503, 'ACCOUNT_PROFILE_UNAVAILABLE', 'The native Account profile service is unavailable.');
