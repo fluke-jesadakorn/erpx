@@ -17,7 +17,7 @@ use crate::application::work_navigation::{
 };
 use erpx_server_collaboration::public::staff_facts::unread_home_count;
 use erpx_server_identity_access::public::account_inbound_http::{
-    parse_inbound_account_request, unique_request_header,
+    holding_mutation_request, parse_inbound_account_request, unique_request_header,
 };
 use erpx_server_identity_access::public::effective_authority::{
     AuthorizedWorkContext, HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
@@ -133,14 +133,24 @@ impl WorkNavigationBackend {
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(not_found());
         }
+        let branch = slug(headers, "x-erpx-workspace-branch")?;
+        let department = slug(headers, "x-erpx-workspace-department")?;
+        if mutation {
+            // A mutation must present the complete rendered selection so the
+            // authorizer can reject a stale role/revision before any write.
+            return Ok((
+                inbound.into_proof(),
+                holding_mutation_request(headers, branch, department)?,
+            ));
+        }
         let company = unique_request_header(headers, "x-erpx-context-company")?
             .ok_or_else(scope_error)?;
         Ok((
             inbound.into_proof(),
             HoldingWorkspaceRequest {
                 company_id: CompanyId::new(company)?,
-                branch_slug: slug(headers, "x-erpx-workspace-branch")?,
-                department_slug: slug(headers, "x-erpx-workspace-department")?,
+                branch_slug: branch,
+                department_slug: department,
                 expected: None,
                 mutation,
             },
@@ -271,6 +281,16 @@ impl WorkNavigationHttpBackend for WorkNavigationBackend {
                 )
                 .await
                 .map_err(business)?;
+            // The application composes the canonical `{data: snapshot}`
+            // envelope; the HTTP ingress validates and wraps the snapshot once.
+            let data = data
+                .get("data")
+                .cloned()
+                .ok_or_else(|| BusinessError::new(
+                    erpx_server_shared::public::FailureKind::Unavailable,
+                    "WORK_NAVIGATION_RESPONSE_INVALID",
+                    "The native Work navigation read is unavailable.",
+                ))?;
             Ok(WorkNavigationReadHttpResponse { data })
         })
     }
