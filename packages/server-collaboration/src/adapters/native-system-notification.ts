@@ -87,11 +87,19 @@ export async function nativeHoldingNotificationStatement(
 ): Promise<SqlStatement> {
   const config = configuration();
   const headers = new Headers({ 'content-type': 'application/json', 'idempotency-key': key, 'x-erpx-context-holding': holdingId });
+  // The native input is camelCase with deny_unknown_fields; the retained
+  // TypeScript callers still carry snake_case keys (table_name, values_json).
+  const payload = Object.fromEntries(
+    Object.entries({ ...input, now, idempotencyKey: key }).map(([name, value]) => [
+      name.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase()),
+      value,
+    ]),
+  );
   let response: Response;
   try {
     response = await fetch(
       `${config.privateBaseUrl}/api/v1/holdings/${encodeURIComponent(holdingId)}/collaboration/notification-statement-by-holding`,
-      { method: 'POST', headers, body: JSON.stringify({ ...input, now, idempotencyKey: key }), cache: 'no-store', signal: AbortSignal.timeout(config.timeoutMs) },
+      { method: 'POST', headers, body: JSON.stringify(payload), cache: 'no-store', signal: AbortSignal.timeout(config.timeoutMs) },
     );
   } catch { throw new ApiError(503, 'NATIVE_COLLABORATION_UNAVAILABLE', 'The native Collaboration service is unavailable.'); }
   const body = (await response.json().catch(() => null)) as { data?: Statement; error?: { code?: string; message?: string } } | null;

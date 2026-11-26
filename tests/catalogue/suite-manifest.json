@@ -94718,6 +94718,7 @@
       ],
       "files": [
         "tests/unit/people_payroll/leave-self-service.test.ts",
+        "tests/unit/people_payroll/native-leave-policies.test.ts",
         "tests/unit/people_payroll/time-entry-loader.test.tsx"
       ],
       "fixture": "none",
@@ -109642,7 +109643,8 @@
       ],
       "id": "pos.native-child-tail-statement.unit",
       "files": [
-        "tests/unit/pos/native-pos-child-tail-statement.test.ts"
+        "tests/unit/pos/native-pos-child-tail-statement.test.ts",
+        "tests/unit/pos/native-customer-search-cutover.test.ts"
       ],
       "framework": "vitest"
     },

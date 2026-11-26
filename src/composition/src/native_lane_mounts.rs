@@ -1652,6 +1652,17 @@ pub fn mount(
         ).map_err(|_| "PRIVATE_API_QUALITY_EVIDENCE_INVALID")?,
     );
 
+    // Legal wf3a13 system planner: holdings/companies are only route keys; the
+    // caller executes the returned statement on its own Holding unit.
+    router = router.merge(
+        crate::legal_wave3::legal_wave3_system(
+            Arc::new(crate::legal_wave3::LegalWave3Planner),
+            vec!["h001".to_owned()],
+            vec!["acme-co".to_owned()],
+        )
+        .map_err(|_| "PRIVATE_API_LEGAL_WAVE3_SYSTEM_INVALID")?,
+    );
+
     // Legal: processing-status read.
     router = router.merge(
         erpx_server_legal::public::native_processing_status::router_for_holdings(

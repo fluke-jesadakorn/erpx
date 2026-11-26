@@ -50,6 +50,31 @@ pub trait LegalWave3Executor: Send + Sync {
     ) -> LegalWave3Future<'a>;
 }
 
+/// Pure planner executor: the Legal owner plans the exact statement and the
+/// caller executes it in its own serializable unit. No authority is minted here.
+pub struct LegalWave3Planner;
+
+impl LegalWave3Executor for LegalWave3Planner {
+    fn execute<'a>(
+        &'a self,
+        _scope: &'a str,
+        kind: &'a str,
+        values: &'a [Value],
+        now: i64,
+        _key: &'a str,
+    ) -> LegalWave3Future<'a> {
+        Box::pin(async move {
+            erpx_server_legal::public::legal_wave3::plan_legal_wave3(
+                &erpx_server_legal::public::legal_wave3::LegalWave3Command {
+                    kind: kind.to_owned(),
+                    values: values.to_vec(),
+                    now,
+                },
+            )
+        })
+    }
+}
+
 /// Adapter binding the HTTP ingress to a composition executor. Scope is read
 /// only from validated private-gateway context headers, never from the body.
 pub struct LegalWave3BackendAdapter {

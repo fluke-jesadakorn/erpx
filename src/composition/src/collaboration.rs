@@ -247,7 +247,9 @@ use erpx_server_records::public::record_context::{
     PgRecordContext, RecordContextActor, record_context,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
-use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
+use erpx_server_runtime::public::postgres::{
+    DatabasePool, PgTransactionError, PgUnitOfWork, PgWorkFuture, TransactionOptions,
+};
 use erpx_server_shared::public::{
     BusinessError, Clock, CompanyId, FailureKind, HoldingId, TimestampMillis,
 };
@@ -5010,6 +5012,105 @@ impl<C: Clock + Send + Sync + 'static>
     }
 }
 
+/// Holding-keyed system statements that need owner rows before planning. The
+/// legal reminder and beta-cleanup planners query the Holding unit, so the
+/// backend owns one bounded transaction; every other kind delegates to the
+/// DB-free system planner.
+pub struct HoldingSystemNotificationBackend {
+    pool: DatabasePool,
+    company: Option<CompanyId>,
+}
+
+impl HoldingSystemNotificationBackend {
+    /// Company is resolved from each system request. The route is loopback-only
+    /// and every owner statement binds the supplied Company on the Holding unit.
+    pub fn new(pool: DatabasePool) -> Self {
+        Self { pool, company: None }
+    }
+
+    pub fn for_company(pool: DatabasePool, company: CompanyId) -> Self {
+        Self { pool, company: Some(company) }
+    }
+}
+
+impl StatementBackend for HoldingSystemNotificationBackend {
+    fn statement<'a>(&'a self, request: StatementRequest<'a>) -> StatementFuture<'a> {
+        Box::pin(async move {
+            let kind = request.input.kind.as_deref().unwrap_or_default();
+            if !matches!(
+                kind,
+                "legal_feature"
+                    | "legal_sla"
+                    | "legal_escalation"
+                    | "legal_deadline"
+                    | "legal_envelope_expire"
+                    | "beta_expire_upload"
+            ) {
+                return SystemNotificationBackend.statement(request).await;
+            }
+            let input = request.input.clone();
+            let company = match &self.company {
+                Some(company) => company.clone(),
+                None => CompanyId::new(if input.company_id.is_empty() {
+                    "system"
+                } else {
+                    &input.company_id
+                })
+                .map_err(|_| {
+                    BusinessError::invalid(
+                        "NOTIFICATION_STATEMENT_INVALID",
+                        "Use one notification statement request.",
+                    )
+                })?,
+            };
+            PgUnitOfWork::new(self.pool.clone())
+                .run::<_, BusinessError, _>(
+                    TransactionOptions::default(),
+                    move |connection| {
+                        let company = company.clone();
+                        let input = input.clone();
+                        Box::pin(async move {
+                            match input.kind.as_deref() {
+                                Some("legal_feature") => {
+                                    legal_feature_notice_statement(connection, &company, &input)
+                                        .await
+                                }
+                                Some("legal_sla") => {
+                                    legal_sla_notice_statement(connection, &company, &input)
+                                        .await
+                                }
+                                Some("legal_escalation") => {
+                                    legal_escalation_notice_statement(connection, &company, &input)
+                                        .await
+                                }
+                                Some("legal_deadline") => {
+                                    legal_deadline_notice_statement(connection, &company, &input)
+                                        .await
+                                }
+                                Some("legal_envelope_expire") => {
+                                    legal_envelope_expire_statement(connection, &company, &input)
+                                        .await
+                                }
+                                Some("beta_expire_upload") => {
+                                    beta_expire_upload_statement(connection, &company, &input)
+                                        .await
+                                }
+                                _ => Err(PgTransactionError::Business(
+                                    BusinessError::invalid(
+                                        "NOTIFICATION_STATEMENT_INVALID",
+                                        "Use one notification statement request.",
+                                    ),
+                                )),
+                            }
+                        })
+                    },
+                )
+                .await
+                .map_err(business)
+        })
+    }
+}
+
 /// System-context statement backend: resolves the Company from the request
 /// payload and plans the notification INSERT without a browser DeviceProof.
 pub struct SystemNotificationBackend;
@@ -5035,7 +5136,13 @@ impl StatementBackend for SystemNotificationBackend {
                     },
                 );
             }
-            let company = erpx_server_shared::public::CompanyId::new(&request.input.company_id)
+            let company = erpx_server_shared::public::CompanyId::new(
+                if request.input.company_id.is_empty() {
+                    "system"
+                } else {
+                    &request.input.company_id
+                },
+            )
                 .map_err(|_| {
                     BusinessError::invalid(
                         "NOTIFICATION_STATEMENT_INVALID",

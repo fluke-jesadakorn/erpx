@@ -3626,7 +3626,6 @@ async fn assemble_checked(
         let mut notification_statement_targets = Vec::new();
         let mut notification_statement_system_targets = Vec::new();
         let mut notification_statement_companies = Vec::new();
-        let mut notification_statement_holdings = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut legal_auxiliary_targets = Vec::new();
         #[cfg(feature = "existing-business")]
@@ -4421,7 +4420,6 @@ async fn assemble_checked(
                         },
                     );
                     notification_statement_companies.push(company.clone());
-                    notification_statement_holdings.push(holding.registration.holding_id.clone());
                     wf1a7_company_pools.insert(company.as_str().to_owned(), pools[i + 1].clone());
                     runtime_company_pools
                         .insert(company.as_str().to_owned(), pools[i + 1].clone());
@@ -7681,19 +7679,33 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_SYSTEM_NOTIFICATION_STATEMENT_CONFIGURATION_INVALID")?,
             );
         }
-        if !notification_statement_holdings.is_empty() {
-            let pairs = notification_statement_holdings
-                .into_iter()
-                .map(|holding| holding.as_str().to_owned())
-                .zip(notification_statement_system_targets.into_iter())
-                .collect::<Vec<_>>();
-            router = router.merge(
-                erpx_server_collaboration::public::notification_statement_http::holding_notification_statement_router(
-                    pairs,
-                )
-                .map_err(|_| "PRIVATE_API_HOLDING_NOTIFICATION_STATEMENT_CONFIGURATION_INVALID")?,
-            );
-        }
+        // Holding-keyed system statements: legal reminders and beta cleanup
+        // resolve their Company from the request and run on that Holding pool.
+        router = router.merge(
+            erpx_server_collaboration::public::notification_statement_http::holding_notification_statement_router(
+                config
+                    .holdings
+                    .iter()
+                    .enumerate()
+                    .map(|(i, holding)| {
+                        (
+                            holding.registration.holding_id.as_str().to_owned(),
+                            erpx_server_collaboration::public::notification_statement_http::StatementTarget {
+                                host: holding.host.clone(),
+                                holding_slug: holding.registration.slug.clone(),
+                                origin: format!("https://{}", holding.host),
+                                backend: Arc::new(
+                                    crate::collaboration::HoldingSystemNotificationBackend::new(
+                                        pools[i + 1].clone(),
+                                    ),
+                                ),
+                            },
+                        )
+                    })
+                    .collect(),
+            )
+            .map_err(|_| "PRIVATE_API_HOLDING_NOTIFICATION_STATEMENT_CONFIGURATION_INVALID")?,
+        );
         for runtime_router in runtime_native_routers {
             router = router.merge(runtime_router);
         }
@@ -10296,6 +10308,10 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 || path.ends_with("/collaboration/notification-statement")
                 || path.ends_with("/finance/owner-write")
                 || path.contains("/finance/company-money/"))
+            || path.starts_with("/api/v1/holdings/")
+                && path.ends_with("/collaboration/notification-statement-by-holding")
+            || path.starts_with("/api/v1/holdings/")
+                && path.ends_with("/legal/wave3-command-by-holding")
             || path.starts_with("/api/v1/holdings/")
                 && path.ends_with("/workflow/wave3-execute")
             || path.starts_with("/api/v1/holdings/")

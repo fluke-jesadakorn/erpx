@@ -15,6 +15,7 @@ const INSERT: &str = "INSERT INTO staff_notifications(id,company_id,user_id,reco
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct NotificationStatementInput {
+    #[serde(default)]
     pub company_id: String,
     pub user_id: String,
     pub record_type: String,

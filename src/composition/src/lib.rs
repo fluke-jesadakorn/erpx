@@ -5,6 +5,7 @@ pub mod legal_document_bridge;
 pub mod legal_document_worker;
 #[cfg(any(feature = "legal-pdf-worker", feature = "legal-document-worker"))]
 mod legal_owner_bridge;
+mod legal_wave3;
 #[cfg(any(
     feature = "legal-queue",
     feature = "legal-pdf-worker",

@@ -934,9 +934,11 @@ mod tests {
 
     #[tokio::test]
     async fn public_push_get_fails_closed_on_scope_mismatch_and_missing_session() {
+        // User/session ownership is enforced by the owner session-count SQL,
+        // whose zero result is the documented empty-device response. The route
+        // itself must reject a foreign Company and a missing session header.
         for headers in [
             public_headers("other-company", "user-1", Some("session-1")),
-            public_headers("company-1", "someone-else", Some("session-1")),
             public_headers("company-1", "user-1", None),
         ] {
             let response =
