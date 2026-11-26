@@ -160,6 +160,10 @@ struct HoldingDocument {
     database: DatabaseDocument,
     #[serde(default)]
     read_database: Option<DatabaseDocument>,
+    /// Read-model writer for the Work projection. Uses the read jobs role;
+    /// reads stay on `read_database` with the read-only role.
+    #[serde(default)]
+    projection_database: Option<DatabaseDocument>,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -398,6 +402,7 @@ pub(crate) struct HoldingConfiguration {
     pub(crate) registration: ConfiguredAccountHolding,
     database: RuntimeDatabase,
     read_database: Option<RuntimeDatabase>,
+    projection_database: Option<RuntimeDatabase>,
 }
 /// Only a bounded explicit parser can construct this configuration. Debug never
 /// exposes database credentials, key material, cookies or private file contents.
@@ -659,6 +664,10 @@ fn direct_development_database(url: &str) -> Result<RuntimeDatabase, &'static st
     let endpoint = url::Url::parse(url).map_err(|_| "EXACT_DEVELOPMENT_DATABASE_REQUIRED")?;
     let database = endpoint.path().trim_matches('/');
     let expected_role = format!("{database}_app");
+    let expected_read_jobs = format!("{database}_jobs");
+    let role = endpoint.username();
+    let role_allowed = role == expected_role
+        || (database.ends_with("_read") && role == expected_read_jobs);
     let exact_database = matches!(
         database,
         "erpx_dev_control"
@@ -673,7 +682,7 @@ fn direct_development_database(url: &str) -> Result<RuntimeDatabase, &'static st
     if !matches!(endpoint.scheme(), "postgres" | "postgresql")
         || endpoint.host_str() != Some("127.0.0.1")
         || endpoint.port() != Some(5432)
-        || endpoint.username() != expected_role
+        || !role_allowed
         || endpoint.password().is_none_or(str::is_empty)
         || !exact_database
         || endpoint.query().is_some()
@@ -685,7 +694,7 @@ fn direct_development_database(url: &str) -> Result<RuntimeDatabase, &'static st
         DatabaseConfig::from_url(url).map_err(|_| "EXACT_DEVELOPMENT_DATABASE_REQUIRED")?;
     Ok(RuntimeDatabase::Durable {
         configuration,
-        identity: (database.to_owned(), expected_role),
+        identity: (database.to_owned(), role.to_owned()),
     })
 }
 fn runtime_database(
@@ -935,6 +944,48 @@ impl DevelopmentApiConfiguration {
                 }
                 None => None,
             };
+            let projection_database = match h.projection_database {
+                Some(projection) => {
+                    let selected = runtime_database(
+                        &projection,
+                        profile,
+                        "EXACT_LEASED_API_DATABASE_REQUIRED",
+                    )?;
+                    match profile {
+                        Profile::Development => {
+                            if projection.browser {
+                                if projection.direct || projection.lease_token.is_some() {
+                                    return Err("DEVELOPMENT_DATABASE_SELECTION_CONFLICT");
+                                }
+                            } else if projection.direct {
+                                if projection.lease_token.is_some() {
+                                    return Err("DEVELOPMENT_DATABASE_SELECTION_CONFLICT");
+                                }
+                            } else {
+                                let token = projection
+                                    .lease_token
+                                    .as_ref()
+                                    .ok_or("EXACT_LEASED_API_DATABASE_REQUIRED")?;
+                                if !tokens.insert(token.clone()) {
+                                    return Err("DISTINCT_EXACT_API_HOLDINGS_REQUIRED");
+                                }
+                            }
+                        }
+                        Profile::Production => {
+                            if !urls.insert(projection.url.clone()) {
+                                return Err("DISTINCT_EXACT_API_HOLDINGS_REQUIRED");
+                            }
+                        }
+                        Profile::Test => {
+                            if !urls.insert(projection.url.clone()) {
+                                return Err("DISTINCT_EXACT_API_HOLDINGS_REQUIRED");
+                            }
+                        }
+                    }
+                    Some(selected)
+                }
+                None => None,
+            };
             origins.push(HoldingOrigin {
                 origin: format!("{origin_scheme}://{}", h.host),
                 host: h.host.clone(),
@@ -951,6 +1002,7 @@ impl DevelopmentApiConfiguration {
                 },
                 database,
                 read_database,
+                projection_database,
             });
         }
         let two_ids = BTreeSet::from(["h001".to_owned(), "h002".to_owned()]);
@@ -2300,12 +2352,68 @@ pub async fn assemble_development_api(
         },
         None => None,
     };
-    let result = assemble_checked(&config, &pools, control_read.as_ref(), clock, secrets).await;
+    let mut holding_reads = std::collections::BTreeMap::new();
+    let mut holding_projections = std::collections::BTreeMap::new();
+    for holding in &config.holdings {
+        if let Some(database) = &holding.read_database {
+            match database.connect(limits).await {
+                Ok(pool) => {
+                    holding_reads.insert(holding.registration.slug.clone(), pool);
+                }
+                Err(_) => {
+                    for p in &pools {
+                        p.close().await;
+                    }
+                    if let Some(read) = &control_read {
+                        read.close().await;
+                    }
+                    for pool in holding_reads.values() {
+                        pool.close().await;
+                    }
+                    return Err("PRIVATE_API_DATABASE_UNAVAILABLE");
+                }
+            }
+        }
+        if let Some(database) = &holding.projection_database {
+            match database.connect(limits).await {
+                Ok(pool) => {
+                    holding_projections.insert(holding.registration.slug.clone(), pool);
+                }
+                Err(_) => {
+                    for p in &pools {
+                        p.close().await;
+                    }
+                    if let Some(read) = &control_read {
+                        read.close().await;
+                    }
+                    for pool in holding_reads.values() {
+                        pool.close().await;
+                    }
+                    for pool in holding_projections.values() {
+                        pool.close().await;
+                    }
+                    return Err("PRIVATE_API_DATABASE_UNAVAILABLE");
+                }
+            }
+        }
+    }
+    let result = assemble_checked(
+        &config,
+        &pools,
+        control_read.as_ref(),
+        &holding_reads,
+        &holding_projections,
+        clock,
+        secrets,
+    )
+    .await;
     match result {
         Ok(assembly) => {
             if let Some(read) = control_read {
                 pools.push(read);
             }
+            pools.extend(holding_reads.into_values());
+            pools.extend(holding_projections.into_values());
             Ok(DevelopmentApiRuntime {
                 router: assembly.router,
                 #[cfg(feature = "files-scan-worker")]
@@ -2320,6 +2428,12 @@ pub async fn assemble_development_api(
             }
             if let Some(read) = &control_read {
                 read.close().await;
+            }
+            for pool in holding_reads.values() {
+                pool.close().await;
+            }
+            for pool in holding_projections.values() {
+                pool.close().await;
             }
             Err(error)
         }
@@ -2534,6 +2648,8 @@ async fn assemble_checked(
     config: &DevelopmentApiConfiguration,
     pools: &[DatabasePool],
     control_read: Option<&DatabasePool>,
+    holding_reads: &std::collections::BTreeMap<String, DatabasePool>,
+    holding_projections: &std::collections::BTreeMap<String, DatabasePool>,
     clock: Arc<dyn Clock + Send + Sync>,
     secrets: Arc<dyn AuthenticationSecrets>,
 ) -> Result<CheckedAssembly, &'static str> {
@@ -7671,7 +7787,8 @@ async fn assemble_checked(
                 );
             }
             let work_owner_backend = Arc::new(
-                crate::work_projection_wave2::WorkProjectionOwnerWriteBackend::new(
+                crate::work_projection_wave2::WorkProjectionOwnerWriteBackend::with_reads(
+                    holding_projections.clone(),
                     agent_pools.clone(),
                     pools[0].clone(),
                 ),

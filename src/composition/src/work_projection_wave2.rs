@@ -130,6 +130,7 @@ pub fn home_read_cursor_router(
 /// exact registered Holding pool or the Control pool from the route target,
 /// opens one transaction and injects `PgOwnerWrite`. No SQL lives here.
 pub struct WorkProjectionOwnerWriteBackend {
+    reads: std::collections::BTreeMap<String, DatabasePool>,
     holdings: std::collections::BTreeMap<String, DatabasePool>,
     control: DatabasePool,
 }
@@ -140,6 +141,21 @@ impl WorkProjectionOwnerWriteBackend {
         control: DatabasePool,
     ) -> Self {
         Self {
+            reads: std::collections::BTreeMap::new(),
+            holdings: holdings.into_iter().collect(),
+            control,
+        }
+    }
+
+    /// Work projection tables live in each Holding read model. The write pool
+    /// remains a fallback only for deployments without a registered read model.
+    pub fn with_reads(
+        reads: impl IntoIterator<Item = (String, DatabasePool)>,
+        holdings: impl IntoIterator<Item = (String, DatabasePool)>,
+        control: DatabasePool,
+    ) -> Self {
+        Self {
+            reads: reads.into_iter().collect(),
             holdings: holdings.into_iter().collect(),
             control,
         }
@@ -152,8 +168,9 @@ impl OwnerWriteHttpBackend for WorkProjectionOwnerWriteBackend {
             let pool = if request.control {
                 self.control.clone()
             } else {
-                self.holdings
+                self.reads
                     .get(request.holding_slug)
+                    .or_else(|| self.holdings.get(request.holding_slug))
                     .ok_or_else(unavailable)?
                     .clone()
             };
