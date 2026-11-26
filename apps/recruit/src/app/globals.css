@@ -2075,6 +2075,7 @@
 @source "../../../../packages/server-inventory/src/adapters/native-replay-probe.ts";
 @source "../../../../packages/server-inventory/src/adapters/native-scoped-field.ts";
 @source "../../../../packages/server-inventory/src/adapters/native-service-count-source.ts";
+@source "../../../../packages/server-inventory/src/adapters/native-transfer-detail-read.ts";
 @source "../../../../packages/server-inventory/src/adapters/native-transfer-list-read.ts";
 @source "../../../../packages/server-inventory/src/adapters/pos-facts.ts";
 @source "../../../../packages/server-inventory/src/adapters/pos-initial-physical-stock-count-source-sql.ts";

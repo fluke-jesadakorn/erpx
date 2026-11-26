@@ -9,3 +9,5 @@ pub(crate) mod staff_tasks;
 pub(crate) mod routine_commands;
 
 pub(crate) mod routine_template_read;
+
+pub(crate) mod routine_template_detail_read;

@@ -12,6 +12,8 @@ pub(crate) mod native_quality_read_sql;
 
 pub mod quality_read;
 pub mod quality_alert_queue;
+pub mod quality_evidence;
+pub mod quality_evidence_http;
 pub mod quality_work;
 pub mod quality_alerts;
 pub mod quality_commands;

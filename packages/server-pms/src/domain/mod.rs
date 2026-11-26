@@ -4,6 +4,7 @@ pub mod scheduled_legal;
 pub mod booking;
 pub mod front_desk;
 pub mod home_metrics;
+pub mod native_documents;
 pub(crate) mod record_source;
 pub mod refund;
 pub mod room_board;

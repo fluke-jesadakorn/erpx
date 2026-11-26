@@ -9,6 +9,7 @@ pub mod quality_http;
 pub mod quality_alert_queue;
 
 pub mod quality_commands;
+pub mod quality_evidence;
 pub mod quality_read;
 pub mod quality_work;
 pub mod quality_alerts;

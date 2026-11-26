@@ -311,7 +311,7 @@ mod tests {
             },
         };
         assert!(validate(&query).is_ok());
-        let mut bad = query;
+        let mut bad = query.clone();
         bad.company.clear();
         assert!(validate(&bad).is_err());
         bad = RoomChargeQuery {

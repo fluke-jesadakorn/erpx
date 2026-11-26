@@ -1,6 +1,7 @@
 import 'server-only';
 
 export {
+  nativeRoutineTemplateDetail,
   nativeRoutineTemplateList,
   nativeRoutineTemplatesAvailable,
 } from '../adapters/server/native-routines-read';

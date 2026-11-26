@@ -1523,5 +1523,91 @@ pub fn mount(
         .map_err(|_| "PRIVATE_API_PROJECTS_MEMBERS_INVALID")?,
     );
 
+    // PMS: document entrypoint and related postings.
+    router = router.merge(
+        erpx_server_pms::public::native_documents::router_for_holdings(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    (
+                        erpx_server_pms::public::native_documents::DocumentTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                        },
+                        pools[i + 1].clone(),
+                    )
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_PMS_DOCUMENTS_INVALID")?,
+    );
+
+    // Inventory: native stock-transfer detail.
+    router = router.merge(
+        erpx_server_inventory::public::native_transfer_detail::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| (
+                erpx_server_inventory::public::native_transfer_detail::TransferDetailTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                },
+                pools[i + 1].clone(),
+            )).collect(),
+        ).map_err(|_| "PRIVATE_API_INVENTORY_TRANSFER_DETAIL_INVALID")?,
+    );
+
+    // Maintenance: organization-node options.
+    router = router.merge(
+        erpx_server_maintenance::public::native_org_nodes::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| (
+                erpx_server_maintenance::public::native_org_nodes::OrgNodeTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                },
+                pools[i + 1].clone(),
+            )).collect(),
+        ).map_err(|_| "PRIVATE_API_MAINTENANCE_ORG_NODES_INVALID")?,
+    );
+
+    // POS: customer search.
+    router = router.merge(
+        erpx_server_pos::public::native_customer_search::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| (
+                erpx_server_pos::public::native_customer_search::CustomerSearchTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                },
+                pools[i + 1].clone(),
+            )).collect(),
+        ).map_err(|_| "PRIVATE_API_POS_CUSTOMER_SEARCH_INVALID")?,
+    );
+
+    // Operations: routine-template detail read.
+    router = router.merge(
+        erpx_server_operations::public::native_routines_detail_read::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| (
+                erpx_server_operations::public::native_routines_detail_read::TemplateDetailTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                },
+                pools[i + 1].clone(),
+            )).collect(),
+        ).map_err(|_| "PRIVATE_API_OPERATIONS_ROUTINE_DETAIL_INVALID")?,
+    );
+
+    // Quality: executive inspection evidence search.
+    router = router.merge(
+        erpx_server_quality::public::quality_evidence::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| (
+                erpx_server_quality::public::quality_evidence::QualityEvidenceTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                },
+                pools[i + 1].clone(),
+            )).collect(),
+        ).map_err(|_| "PRIVATE_API_QUALITY_EVIDENCE_INVALID")?,
+    );
+
     Ok(router)
 }

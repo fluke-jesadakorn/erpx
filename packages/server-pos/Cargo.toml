@@ -76,3 +76,7 @@ workspace=true
 [[test]]
 name = "pos_room_charges"
 path = "../../tests/unit/pos/rust-pos-room-charges.test.rs"
+
+[[test]]
+name = "pos_customer_search"
+path = "../../tests/unit/pos/rust-pos-customer-search.test.rs"

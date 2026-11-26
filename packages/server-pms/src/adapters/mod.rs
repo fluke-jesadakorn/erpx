@@ -10,6 +10,8 @@ pub mod home_metrics_http;
 pub mod home_metrics_postgres;
 pub mod import_batches_http;
 pub mod import_batches_postgres;
+pub mod native_documents_http;
+pub mod native_documents_postgres;
 pub mod native_read_sql;
 pub mod night_audit_postgres;
 pub mod night_audit_worker;

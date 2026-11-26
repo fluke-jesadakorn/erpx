@@ -63991,7 +63991,8 @@
         "inventory"
       ],
       "files": [
-        "tests/unit/inventory/native-inventory-availability-transport.test.ts"
+        "tests/unit/inventory/native-inventory-availability-transport.test.ts",
+        "tests/unit/inventory/native-transfer-detail.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -77893,7 +77894,8 @@
         "maintenance"
       ],
       "files": [
-        "tests/unit/maintenance/native-maintenance-transport.test.ts"
+        "tests/unit/maintenance/native-maintenance-transport.test.ts",
+        "tests/unit/maintenance/native-org-nodes.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -85679,6 +85681,7 @@
         "reason": "Native routine route switches must prefer native pages and fail closed instead of silently falling back to the retained staff API."
       },
       "files": [
+        "tests/unit/operations/native-routines-detail.test.ts",
         "tests/unit/operations/native-routines-route.test.ts"
       ],
       "framework": "vitest",
@@ -170423,6 +170426,42 @@
       ],
       "packages": [
         "@erpx/server-commerce"
+      ]
+    },
+    {
+      "id": "pos.rust-customer-search.unit",
+      "lane": "unit",
+      "owner": "pos",
+      "modules": [
+        "pos"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native POS customer search must execute the owner finance_parties statement with Company scope."
+      },
+      "files": [
+        "tests/unit/pos/rust-pos-customer-search.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-pos",
+        "targets": [
+          "pos_customer_search"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-pos/Cargo.toml"
+      ],
+      "packages": [
+        "@erpx/server-pos"
       ]
     }
   ]

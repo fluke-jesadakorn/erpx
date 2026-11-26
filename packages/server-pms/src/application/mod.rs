@@ -3,6 +3,7 @@ pub mod front_desk;
 pub mod home_metrics;
 pub mod import_batches;
 pub(crate) mod initial_count_modules;
+pub mod native_documents;
 pub mod payment_status;
 pub mod refund;
 pub mod room_board;

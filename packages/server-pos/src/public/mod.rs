@@ -26,3 +26,4 @@ pub mod day_report;
 pub mod owner_writes_http;
 pub mod native_lane_25;
 pub mod native_room_charges;
+pub mod native_customer_search;

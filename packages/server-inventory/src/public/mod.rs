@@ -69,3 +69,4 @@ pub mod supply_package_obligations;
 pub mod native_lane_17;
 pub mod native_lane_18;
 pub mod native_transfer_list;
+pub mod native_transfer_detail;
