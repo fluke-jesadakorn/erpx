@@ -230,7 +230,7 @@ describe('legal read-tail r31 native inspection-source cutover', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(242);
-    expect(total).toBeLessThanOrEqual(38);
-    expect(total).toBe(38);
+    expect(total).toBeLessThanOrEqual(37);
+    expect(total).toBe(37);
   });
 });

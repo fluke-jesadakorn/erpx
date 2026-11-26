@@ -10,9 +10,16 @@ import { legalDestructionWorker } from '@erpx/server-collaboration/adapters/nati
 import {legalHoldGuardPrefix,legalHoldGuardSuffix} from '../legal-hold-guard-sources';
 import {legalHoldActiveSql} from '../legal-read-tail-r23-sources';
 import {legalFilesAdvisoryLockSql} from '../legal-read-tail-r9-sources';
+/** Byte-identical Legal destruction-by-id row-lock head (continued read-tail
+ * family). One renderer for the two state-specific point reads; each caller
+ * appends its fixed row-lock tail and keeps its own single bind. The state is a
+ * trusted union, no request text reaches the head, and no SQL fallback is
+ * introduced. */
+const legalDestructionByIdLockSql = (projection: string, state: 'approved' | 'executing') =>
+  `SELECT ${projection} FROM legal_destructions x JOIN legal_items i ON i.id=x.item_id WHERE x.id=? AND x.state='${state}'`;
 function work(db:SqlDatabase,files:FileStore,companyId:string):LegalDestructionWork{const nw=legalDestructionWorker(db,companyId);return {
 beginJournal:async ()=>{await db.prepare(legalFilesAdvisoryLockSql).run();},
-approvedDestruction:(facts:{id:string;})=>db.prepare("SELECT x.*,i.company_id FROM legal_destructions x JOIN legal_items i ON i.id=x.item_id WHERE x.id=? AND x.state='approved' FOR UPDATE OF x,i").bind(facts.id).first<{
+approvedDestruction:(facts:{id:string;})=>db.prepare(legalDestructionByIdLockSql('x.*,i.company_id','approved')+' FOR UPDATE OF x,i').bind(facts.id).first<{
           id: string;
           item_id: string;
           company_id: string;
@@ -24,7 +31,7 @@ blockDestruction:async (facts:{id:string;})=>{await (await nw.block(facts)).run(
 startExecution:async (facts:{now:number;id:string;})=>{await (await nw.start(facts)).run();},
 recordStarted:async (facts:{identifier:string;fact1:string;now:number;item_id:string;})=>{await (await nw.startedEvent(facts)).run();},
 beginExecution:async ()=>{await db.prepare(legalFilesAdvisoryLockSql).run();},
-executingDestruction:(facts:{id:string;})=>db.prepare("SELECT x.*,i.company_id,i.version item_version FROM legal_destructions x JOIN legal_items i ON i.id=x.item_id WHERE x.id=? AND x.state='executing' FOR UPDATE OF x,i").bind(facts.id).first<{
+executingDestruction:(facts:{id:string;})=>db.prepare(legalDestructionByIdLockSql('x.*,i.company_id,i.version item_version','executing')+' FOR UPDATE OF x,i').bind(facts.id).first<{
           id: string;
           item_id: string;
           company_id: string;

@@ -73,6 +73,26 @@ describe('legal read-tail r32 parameterized family dedupe', () => {
     expect(texts[19]).toContain('FOR UPDATE OF x,i');
   });
 
+  it('folds the two destruction-by-id row-lock reads into one byte-identical head', async () => {
+    const worker = await src('legal/destruction-worker.ts');
+    const approved =
+      "SELECT x.*,i.company_id FROM legal_destructions x JOIN legal_items i ON i.id=x.item_id WHERE x.id=? AND x.state='approved' FOR UPDATE OF x,i";
+    const executing =
+      "SELECT x.*,i.company_id,i.version item_version FROM legal_destructions x JOIN legal_items i ON i.id=x.item_id WHERE x.id=? AND x.state='executing' FOR UPDATE OF x,i";
+    const head = (projection: string, state: string) =>
+      `SELECT ${projection} FROM legal_destructions x JOIN legal_items i ON i.id=x.item_id WHERE x.id=? AND x.state='${state}'`;
+    const tail = ' FOR UPDATE OF x,i';
+    expect(head('x.*,i.company_id', 'approved') + tail).toBe(approved);
+    expect(head('x.*,i.company_id,i.version item_version', 'executing') + tail).toBe(executing);
+    expect(worker).toContain("legalDestructionByIdLockSql('x.*,i.company_id','approved')+' FOR UPDATE OF x,i'");
+    expect(worker).toContain("legalDestructionByIdLockSql('x.*,i.company_id,i.version item_version','executing')+' FOR UPDATE OF x,i'");
+    expect(worker).not.toContain(approved);
+    expect(worker).not.toContain(executing);
+    expect((worker.match(/FOR UPDATE OF x,i/g) ?? []).length).toBe(2);
+    expect((worker.match(/SELECT /g) ?? []).length).toBe(3);
+    expect(head('x', 'approved')).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|LOCK\s+TABLE/i);
+  });
+
   it('retirement:ts-statements stays strictly below the recorded BEFORE=241', async () => {
     let total = 0;
     const walk = async (dir: string) => {

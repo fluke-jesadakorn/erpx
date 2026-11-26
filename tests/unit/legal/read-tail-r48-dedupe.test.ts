@@ -200,6 +200,6 @@ describe('legal read-tail r48 compound corpus source-clean and members/settings 
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(112);
-    expect(total).toBe(38);
+    expect(total).toBe(37);
   });
 });
