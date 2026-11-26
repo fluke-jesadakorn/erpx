@@ -1,5 +1,6 @@
 import "server-only";
 import { ApiError } from "@erpx/server-runtime/public/http";
+import { nativeRequest } from "@erpx/server-runtime/public/native-http";
 
 /**
  * Strict private transport for the native PMS home hotel-metrics read. The
@@ -186,7 +187,19 @@ function validateRows(payload: unknown): readonly NativeHomeMetricsRow[] {
 }
 
 /** Create a client with an injectable transport for contract tests. */
-export function createNativeHomeMetricsClient(config: unknown, fetchImpl: Fetch = fetch) {
+export function createNativeHomeMetricsClient(
+  config: unknown,
+  fetchImpl: Fetch = (input, init = {}) => nativeRequest(
+    typeof input === "string" ? new URL(input) : input,
+    {
+      method: init.method,
+      headers: Object.fromEntries(new Headers(init.headers).entries()),
+      body: typeof init.body === "string" ? init.body : undefined,
+      signal: init.signal ?? undefined,
+    },
+    15_000,
+  ),
+) {
   const settings = parseNativeHomeMetricsConfig(config);
   return {
     async hotelMetrics(request: NativeHomeMetricsRequest): Promise<readonly NativeHomeMetricsRow[]> {
