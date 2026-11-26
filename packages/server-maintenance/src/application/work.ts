@@ -5,7 +5,7 @@ import type { WorkItem } from "@erpx/feature-work_projection/lib/work-item";
 
 export type DowntimeQuery = { from: number; to: number; query: string; limit: number; cursor?: { endedAt: number; id: string }; recordId?: string };
 export type MaintenanceRepository = {
-  items(): Promise<Work[]>; assets(): Promise<Row[]>; people(): Promise<Row[]>; nodes?(): Promise<Row[]>;
+  items(): Promise<Work[]>; assets(): Promise<Row[]>; nodes?(): Promise<Row[]>;
   spares(branchId: string): Promise<Awaited<ReturnType<typeof import("@erpx/server-inventory/public/inventory-consumption").availableServiceSpares>>>;
   consumptions(id: string): Promise<Row[]>; history(id: string): Promise<Row[]>;
   downtime(input: DowntimeQuery): Promise<MaintenanceDowntimeEvidenceRow[]>;
@@ -20,7 +20,7 @@ export function createMaintenanceApplication(ports: {
   const fail = (status: number, code: string, message: string): never => { throw ports.error(status, code, message); };
   async function maintenanceWorkspace() {
     ports.authorize(); const repository = await ports.repository();
-    return { items: await repository.items(), assets: await repository.assets(), people: await repository.people(), nodes: await repository.nodes?.()??[], canCreate: ports.canWrite() };
+    return { items: await repository.items(), assets: await repository.assets(), nodes: await repository.nodes?.()??[], canCreate: ports.canWrite() };
   }
   async function maintenanceDetail(id: string) {
     const data = await maintenanceWorkspace(), work = data.items.find(item => item.id === id);

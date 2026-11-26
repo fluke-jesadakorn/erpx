@@ -109,9 +109,6 @@ export type CommerceUnit<Effect> = {
     readCommerceFulfillments1(facts: {
         id: string;
     }): Promise<CommerceRows<Row>>;
-    readCommerceReturnLines1(facts: {
-        id: string;
-    }): Promise<CommerceRows<Row>>;
     readCommerceReturns1(facts: {
         id: string;
     }): Promise<CommerceRows<Row>>;
@@ -1331,7 +1328,7 @@ export function createCommerceApplication<Effect, Context = unknown>(ports: {
         realizedFxMinor: number;
     };
 }) {
-const{getOrder,allowed,scope,orderRow}=createCommerceOrderRead<Effect>(ports);
+const{getOrder,allowed,scope,orderRow}=createCommerceOrderRead<Effect>({...ports,readReturnLines:async()=>{throw ports.error(503,"NATIVE_COMMERCE_RETURN_LINE_UNAVAILABLE","The native Commerce return-line reader is not bound.");}});
     async function commerceMoney(write: CommerceUnit<Effect>, actor: WorkContext, input: {
         sourceType: string;
         sourceId: string;
@@ -2091,8 +2088,8 @@ const{getOrder,allowed,scope,orderRow}=createCommerceOrderRead<Effect>(ports);
     return { commerceOverview, workOrderRows, getOrder, changeOrderReservation, requestCommerceReturn, decideCommerceReturn, completeCommerceReturn, saveOrder, transitionOrder, invoiceFulfillment, settleInvoice, prepareInvoiceSettlement, saveMaster, commercePage };
 }
 
-export type CommerceOrderReadUnit<Effect>=Pick<CommerceUnit<Effect>,"readCommerceOrders1"|"readInventoryActiveReservations2"|"readCommerceFulfillments1"|"readCommerceReturnLines1"|"readCommerceReturns1"|"readHrPeople1"|"readCommerceOrders4"|"readInventoryOrderReservations1"|"readInventoryQualityHolds1"|"readCommerceReturnLotAllocations1"|"readCommerceReturnLotAllocations2"|"readInventoryQualityHolds2"|"readCommerceFulfillmentEvidence1"|"readAttachments1"|"readCommerceCustomerNotifications1"|"readCommerceCustomerNotificationSettings1">;
-export function createCommerceOrderRead<Effect>(ports:{require(actor:WorkContext,permission:string):WorkContext;error(status:number,code:string,message:string):Error;forActor(actor:WorkContext):Promise<CommerceOrderReadUnit<Effect>>}){
+export type CommerceOrderReadUnit<Effect>=Pick<CommerceUnit<Effect>,"readCommerceOrders1"|"readInventoryActiveReservations2"|"readCommerceFulfillments1"|"readCommerceReturns1"|"readHrPeople1"|"readCommerceOrders4"|"readInventoryOrderReservations1"|"readInventoryQualityHolds1"|"readCommerceReturnLotAllocations1"|"readCommerceReturnLotAllocations2"|"readInventoryQualityHolds2"|"readCommerceFulfillmentEvidence1"|"readAttachments1"|"readCommerceCustomerNotifications1"|"readCommerceCustomerNotificationSettings1">;
+export function createCommerceOrderRead<Effect>(ports:{require(actor:WorkContext,permission:string):WorkContext;error(status:number,code:string,message:string):Error;forActor(actor:WorkContext):Promise<CommerceOrderReadUnit<Effect>>;readReturnLines(actor:WorkContext,id:string):Promise<Row[]>}){
 function allowed(actor: WorkContext, kind: keyof typeof roles) {
         return ports.require(actor, roles[kind]);
     }
@@ -2118,10 +2115,10 @@ async function getOrder(actor: WorkContext, id: string, ownerWrite?: CommerceOrd
             readQueue = result;
             return result;
         };
-        const [lines, fulfillments, fulfillmentLines, returns, history, children, reservations, lots, lotAllocations, returnLotAllocations, returnQualityHolds, fulfillmentEvidence, pendingDeliveryEvidence, customerNotifications, customerNotificationSettings] = await Promise.all([
+        const [lines, fulfillments, returnLines, returns, history, children, reservations, lots, lotAllocations, returnLotAllocations, returnQualityHolds, fulfillmentEvidence, pendingDeliveryEvidence, customerNotifications, customerNotificationSettings] = await Promise.all([
             read(() => write.readInventoryActiveReservations2({ id: id })),
             read(() => write.readCommerceFulfillments1({ id: id })),
-            read(() => write.readCommerceReturnLines1({ id: id })),
+            read(() => ports.readReturnLines(actor, id)),
             read(() => write.readCommerceReturns1({ id: id })),
             read(() => write.readHrPeople1({ id: id })),
             read(() => write.readCommerceOrders4({ id: id })),
@@ -2139,7 +2136,7 @@ async function getOrder(actor: WorkContext, id: string, ownerWrite?: CommerceOrd
             order,
             lines: lines.results,
             fulfillments: fulfillments.results,
-            fulfillmentLines: fulfillmentLines.results,
+            fulfillmentLines: returnLines,
             returns: returns.results,
             history: history.results,
             children: children.results,

@@ -8,9 +8,8 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { requireWorkContext, publicScope } from "@erpx/server-identity_access/public/authorization";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
-import { qualityAlerts } from "@erpx/server-quality/public/quality-alerts";
 import { QualityConsole } from "@erpx/feature-quality/components/quality-console";
-import { nativeQualityWorkspace, type NativeQualityWorkspace } from "@erpx/feature-quality/public/native-quality";
+import { nativeQualityAlerts, nativeQualityWorkspace, type NativeQualityQueueAlert, type NativeQualityWorkspace } from "@erpx/feature-quality/public/native-quality";
 import { RecordDocumentDrawer } from "@erpx/feature-files/components/record-document-drawer";
 import { AttachmentFeatureSurface } from "@erpx/feature-files/components/attachment-feature-context";
 import { PageContent, Card, TableFrame } from "@erpx/ui/components/foundation";
@@ -19,7 +18,7 @@ export default async function Page({ params }: { params: Promise<{ holdingSlug: 
   const actor = await requireWorkContext((await params).holdingSlug),
     base = workspaceBase(publicScope(actor));
   let data: NativeQualityWorkspace,
-    alerts: Awaited<ReturnType<typeof qualityAlerts>>;
+    alerts: readonly NativeQualityQueueAlert[];
   try {
     const native = await nativeQualityWorkspace(actor.holdingSlug);
     if (!native)
@@ -29,7 +28,14 @@ export default async function Page({ params }: { params: Promise<{ holdingSlug: 
         "The native Quality service is unavailable.",
       );
     data = native;
-    alerts = await qualityAlerts(actor);
+    const queue = await nativeQualityAlerts(actor.holdingSlug);
+    if (!queue)
+      throw new ApiError(
+        503,
+        "NATIVE_QUALITY_UNAVAILABLE",
+        "The native Quality service is unavailable.",
+      );
+    alerts = queue;
   } catch (error) {
     if (error instanceof ApiError && error.status === 403)
       return accessPage("permission", actor.holdingSlug);

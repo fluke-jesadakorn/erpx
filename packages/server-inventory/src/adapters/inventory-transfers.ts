@@ -4,9 +4,10 @@
  * Transfer create/revision, submit, post, reject and cancel now belong to the
  * native command mount (`packages/server-inventory/src/public/transfers.rs` +
  * composition); every write entry point fails closed with
- * `NATIVE_INVENTORY_TRANSFER_REQUIRED`. This module keeps only the current
- * Transfer reads, options and pure permission helpers so workplaces,
- * projections, flow access and records can list and open a Transfer.
+ * `NATIVE_INVENTORY_TRANSFER_REQUIRED`. Transfer list reads are served only by
+ * the mounted native owner route; this module keeps the current detail/options
+ * reads and pure permission helpers so workplaces, projections, flow access and
+ * records can open a Transfer.
  */
 import {requireTransferPurchasedRead} from "@erpx/server-inventory/adapters/transfer-purchases";
 import {inventoryQualityHoldReadSource} from '@erpx/server-quality/public/inventory-hold-read-source';
@@ -14,7 +15,7 @@ import {activeQualityHoldExistsSql,decisionActorRowsSql,lotAllocationRowsHeadSql
 import {inventoryReadProjection as inventorycommerceProjection} from '@erpx/server-commerce/public/inventory-read-projections';
 import {inventoryReadProjection as inventoryfinanceProjection} from '@erpx/server-finance/public/inventory-read-projections';
 import {inventoryReadProjection as inventorypeople_payrollProjection} from '@erpx/server-people_payroll/public/inventory-read-projections';
-import {readListPage} from "@erpx/server-work_projection/public/list-page";
+import {readListPageRows} from "@erpx/server-work_projection/public/list-page";
 import {requirePermission} from "@erpx/server-identity_access/public/iam-permissions";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import "server-only";
@@ -26,6 +27,7 @@ import {canReadCounts} from '@erpx/server-inventory/domain/counts';
 import {transferSchema,transferActionSchema,canPrepareTransfers,canEditTransfer,canReviewTransfer,type TransferRow} from '@erpx/server-inventory/domain/transfers';
 import {inventoryTransferSources as commerceSources} from '@erpx/server-commerce/public/inventory-transfers-sources';
 import {inventoryTransferSources as workflowSources} from '@erpx/server-workflow/public/inventory-transfers-sources';
+import {nativeTransferList} from './native-transfer-list-read';
 export {transferSchema,transferActionSchema,canPrepareTransfers,canEditTransfer,canReviewTransfer} from '@erpx/server-inventory/domain/transfers';
 export type {TransferRow} from '@erpx/server-inventory/domain/transfers';
 type TransferCommandResult={id:string;status:string;version:number};
@@ -34,9 +36,15 @@ function scope(actor:WorkContext){return {sql:"t.company_id=? AND (?::text IS NU
 async function exposed<T>(action:()=>Promise<T>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 function readable(actor:WorkContext){if(!canReadCounts(actor))throw new BusinessRuleError(403,"INVENTORY_SCOPE_REQUIRED","An inventory or finance assignment is required.");}
 async function scopedTransfer(db:SqlDatabase,actor:WorkContext,id:string){const s=scope(actor);return db.prepare(`${select} WHERE t.id=? AND ${s.sql}`).bind(id,...s.args).first<TransferRow>();}
-export async function listTransfers(actor:WorkContext){readable(actor);const {write}=await holdingResources(actor.holdingId);await requireTransferPurchasedRead(write,actor);return exposed(async()=>{const s=scope(actor);return (await write.prepare(`${select} WHERE ${s.sql} ORDER BY t.updated_at DESC LIMIT 250`).bind(...s.args).all<TransferRow>()).results;});}
-export async function transfersPage(actor:WorkContext,query:{q?:string;status?:string;cursor?:string}){readable(actor);const {write}=await holdingResources(actor.holdingId);await requireTransferPurchasedRead(write,actor);return exposed(async()=>{const s=scope(actor);return readListPage<TransferRow&{id:string;page_key:string}>(write,{sql:`SELECT records.*,updated_at::text AS page_key FROM (${select} WHERE ${s.sql}) records
-      WHERE (?='' OR status=?) AND (?='' OR strpos(lower(number||' '||reason||' '||source_warehouse_name||' '||target_warehouse_name),lower(?))>0)`,args:[...s.args,query.status??'',query.status??'',query.q??'',query.q??''],cursor:query.cursor,descending:true,scope:[actor.companyId,actor.branchId,'transfers',query.q??'',query.status??'']});});}
+/** The transfer-list SQL authority was deleted; the native owner read is the only list authority. */
+export async function transfersPage(actor:WorkContext,query:{q?:string;status?:string;cursor?:string}){readable(actor);const {write}=await holdingResources(actor.holdingId);await requireTransferPurchasedRead(write,actor);
+  const rows=await nativeTransferList(actor),status=query.status??'',q=(query.q??'').toLowerCase();
+  const filtered=(rows as (TransferRow&{id:string;page_key:string})[]).filter(row=>(!status||String(row.status)===status)&&(!q||[row.number,row.reason,row.source_warehouse_name,row.target_warehouse_name].map(v=>String(v??'')).join(' ').toLowerCase().includes(q))).map(row=>({...row,id:String(row.id),page_key:String(row.updated_at??'')}));
+  return exposed(()=>readListPageRows<TransferRow&{id:string;page_key:string}>({scope:[actor.companyId,actor.branchId,'transfers',query.q??'',query.status??''],cursor:query.cursor,descending:true},async({cursor,descending,limit})=>{
+    const ordered=[...filtered].sort((a,b)=>descending?b.page_key.localeCompare(a.page_key)||b.id.localeCompare(a.id):a.page_key.localeCompare(b.page_key)||a.id.localeCompare(b.id));
+    const page=cursor?ordered.filter(row=>descending?row.page_key<cursor.key||(row.page_key===cursor.key&&row.id<cursor.id):row.page_key>cursor.key||(row.page_key===cursor.key&&row.id>cursor.id)):ordered;
+    return page.slice(0,limit);
+  }));}
 export async function getTransfer(actor:WorkContext,id:string,provided?:SqlDatabase){readable(actor);const write=provided??(await holdingResources(actor.holdingId)).write;await requireTransferPurchasedRead(write,actor,{kind:"transfer",id});return exposed(async()=>{const row=await scopedTransfer(write,actor,id);if(!row)throw new BusinessRuleError(404,"TRANSFER_NOT_FOUND","Transfer not found in this workspace.");return row;});}
 export async function transferOptions(actor:WorkContext){requirePermission(actor,"inventory.prepare");readable(actor);const {write}=await holdingResources(actor.holdingId);await requireTransferPurchasedRead(write,actor);return exposed(async()=>{const commerce=commerceSources(write);const[warehouses,stock,lots]=await Promise.all([commerce.activeWarehouses(actor.companyId),commerce.availableStock(actor.companyId,actor.branchId,actor.branchId),write.prepare(`${lotBalanceRowsHeadSql}p.unit,CASE WHEN ${activeQualityHoldExistsSql(inventoryQualityHoldReadSource(), "h.lot_id=l.id AND h.warehouse_id=b.warehouse_id AND h.status NOT IN ('released','cancelled','disposed')")} THEN 1 ELSE 0 END quality_held FROM inventory_lots l JOIN inventory_lot_balances b ON b.lot_id=l.id ${inventorycommerceProjection.lineProduct} ${inventorycommerceProjection.lotWarehouse} WHERE l.company_id=? AND b.quantity_milli>0 AND (?::text IS NULL OR w.branch_id=?) ORDER BY l.expiry_date NULLS LAST,l.created_at,l.id`).bind(actor.companyId,actor.branchId,actor.branchId).all<TransferRow>()]);return {warehouses:warehouses.results,sources:warehouses.results.filter(w=>!actor.branchId||actor.branchId===w.branch_id),stock:stock.results,lots:lots.results};});}
 export async function transferDetail(actor:WorkContext,id:string){return exposed(async()=>{const transfer=await getTransfer(actor,id);const {write}=await holdingResources(actor.holdingId);const workflow=workflowSources(write);const[lines,allocations,decisions,history]=await Promise.all([

@@ -6,6 +6,7 @@ import {
   withAssetPurchasedCommand,
   withAssetPurchasedRead,
 } from '@erpx/server-assets/public/purchases';
+import { maintenanceOwnerOptions } from '@erpx/server-maintenance/public/asset-maintenance';
 import type {
   MaintenanceDetailView,
   MaintenanceWorkspaceView,
@@ -56,7 +57,7 @@ export async function ownedMaintenanceWorkspace(actor: WorkContext, holdingSlug:
   }
   if (!data) return undefined;
   try {
-    return { ...data, purchases: await assetPurchaseControls(actor) } as MaintenanceWorkspaceView;
+    return { ...data, people: await maintenanceOwnerOptions(actor), purchases: await assetPurchaseControls(actor) } as MaintenanceWorkspaceView;
   } catch (error) {
     ownedFailure(error);
   }
@@ -73,7 +74,7 @@ export async function ownedMaintenanceDetail(actor: WorkContext, holdingSlug: st
   }
   if (!data) return undefined;
   try {
-    return { ...data, purchases: await assetPurchaseControls(actor) } as MaintenanceDetailView;
+    return { ...data, people: await maintenanceOwnerOptions(actor), purchases: await assetPurchaseControls(actor) } as MaintenanceDetailView;
   } catch (error) {
     ownedFailure(error);
   }
@@ -100,7 +101,7 @@ export async function ownedMaintenancePlanDetail(actor: WorkContext, holdingSlug
   }
   if (!data) return undefined;
   try {
-    return { ...data, purchases: await assetPurchaseControls(actor) } as PreventivePlanDetailView;
+    return { ...data, people: await maintenanceOwnerOptions(actor), purchases: await assetPurchaseControls(actor) } as PreventivePlanDetailView;
   } catch (error) {
     ownedFailure(error);
   }

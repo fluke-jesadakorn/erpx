@@ -11,9 +11,8 @@ import { OperationSummary } from "@erpx/workplace/components/operation-summary";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { requireWorkContext, publicScope } from "@erpx/server-identity_access/public/authorization";
 import { ApiError } from "@erpx/server-runtime/public/http";
-import { qualityAlerts } from "@erpx/server-quality/public/quality-alerts";
 import { QualityCancellationHistory } from "@erpx/feature-quality/components/quality-cancellation-history";
-import { nativeQualityCancellationHistory, nativeQualityDetailCore, type NativeQualityDetailCore } from "@erpx/feature-quality/public/native-quality";
+import { nativeQualityAlerts, nativeQualityCancellationHistory, nativeQualityDetailCore, type NativeQualityDetailCore, type NativeQualityQueueAlert } from "@erpx/feature-quality/public/native-quality";
 import { holdingResources } from "@erpx/server-runtime/public/runtime";
 import { qualityEvidenceDescriptors } from "@erpx/server-files/public/quality-evidence-descriptors";
 import { accessPage } from "@erpx/server-work_projection/public/page-error";
@@ -42,7 +41,7 @@ export default async function Page({
   const actor = await requireWorkContext(holdingSlug);
   const base = workspaceBase(publicScope(actor));
   let data: NativeQualityDetailCore;
-  let alerts: Awaited<ReturnType<typeof qualityAlerts>>;
+  let alerts: readonly NativeQualityQueueAlert[];
   let attachments: Awaited<ReturnType<typeof qualityEvidenceDescriptors>>["results"];
   let cancellationHistory:
     | Awaited<ReturnType<typeof nativeQualityCancellationHistory>>
@@ -71,7 +70,14 @@ export default async function Page({
         id,
       )
     ).results;
-    alerts = (await qualityAlerts(actor)).filter((alert) => alert.hold_id === id);
+    const queue = await nativeQualityAlerts(holdingSlug);
+    if (!queue)
+      throw new ApiError(
+        503,
+        "NATIVE_QUALITY_UNAVAILABLE",
+        "The native Quality service is unavailable.",
+      );
+    alerts = queue.filter((alert) => alert.hold_id === id);
   } catch (error) {
     if (error instanceof ApiError && error.status === 403) {
       return accessPage("permission", actor.holdingSlug);

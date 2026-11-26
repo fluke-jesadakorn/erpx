@@ -17,6 +17,8 @@ const RS = readFileSync(
 
 describe("native stock-transfer list payload parity", () => {
   test("Rust owner SQL retains every TS TransferRow field and scope predicate", () => {
+    expect(TS).toContain("nativeTransferList");
+    expect(TS).not.toContain("t.updated_at");
     for (const fragment of [
       "s.name source_warehouse_name",
       "d.name target_warehouse_name",
@@ -24,7 +26,6 @@ describe("native stock-transfer list payload parity", () => {
       "t.company_id=? AND (?::text IS NULL OR t.source_branch_id=? OR t.target_branch_id=?)",
       "ORDER BY t.updated_at DESC LIMIT 250",
     ]) {
-      expect(TS).toContain(fragment);
       expect(RS).toContain(fragment);
     }
   });

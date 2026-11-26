@@ -177,7 +177,9 @@ import type {
   preventivePlans,
 } from '@erpx/server-maintenance/public/maintenance-preventive';
 
-export type MaintenanceWorkspaceView = Awaited<ReturnType<typeof maintenanceWorkspace>>;
-export type MaintenanceDetailView = Awaited<ReturnType<typeof maintenanceDetail>>;
+/** Owner options are supplied by the mounted native owner-options read, never
+ * by the retired TypeScript `people` repository branch. */
+export type MaintenanceWorkspaceView = Awaited<ReturnType<typeof maintenanceWorkspace>> & { people: NativeMaintenancePerson[] };
+export type MaintenanceDetailView = Awaited<ReturnType<typeof maintenanceDetail>> & { people: NativeMaintenancePerson[] };
 export type PreventivePlanListView = Awaited<ReturnType<typeof preventivePlans>>;
 export type PreventivePlanDetailView = Awaited<ReturnType<typeof preventivePlanDetail>>;

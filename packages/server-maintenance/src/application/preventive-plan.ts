@@ -5,7 +5,7 @@ import type { Clock } from "@erpx/server-shared/application/ports";
 export type PreventiveRepository = {
   plans(): Promise<PreventivePlanRow[]>; plan(id: string): Promise<Plan | null>;
   assetVersion(id: string): Promise<{ version: number } | null>;
-  people(id: string): Promise<{ id: string; name: string }[]>; history(id: string): Promise<Record<string, unknown>[]>; occurrences(id: string): Promise<Record<string, unknown>[]>;
+  history(id: string): Promise<Record<string, unknown>[]>; occurrences(id: string): Promise<Record<string, unknown>[]>;
 };
 /** Retained preventive reads. Plan save/transition commands are native
  * (`erpx-server-maintenance`); this port only shapes the owner rows the
@@ -23,7 +23,7 @@ export function createPreventiveApplication(ports: {
   async function preventivePlans() { ports.authorize(); return (await ports.repository()).plans(); }
   async function preventivePlanDetail(id: string) {
     ports.authorize(); const repository = await ports.repository(), plan = await planFrom(repository, id);
-    return { plan, actorId: ports.actorId, canWrite: ports.canWrite(), canReview: ports.canReview(), assetVersion: Number((await repository.assetVersion(plan.asset_id))?.version ?? null), people: await repository.people(id), history: await repository.history(id), occurrences: await repository.occurrences(id) };
+    return { plan, actorId: ports.actorId, canWrite: ports.canWrite(), canReview: ports.canReview(), assetVersion: Number((await repository.assetVersion(plan.asset_id))?.version ?? null), history: await repository.history(id), occurrences: await repository.occurrences(id) };
   }
   async function preventivePlanWork(): Promise<WorkItem[]> {
     if (!ports.canRead()) return [];

@@ -6,8 +6,7 @@ import { Button, Field, Select, TextArea, TextInput } from "@erpx/ui/components/
 import { useState } from "react";
 import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
-import type { NativeQualityDetailCore, NativeQualityWorkspace } from "@erpx/feature-quality/public/native-quality";
-import type { qualityAlerts } from "@erpx/server-quality/public/quality-alerts";
+import type { NativeQualityDetailCore, NativeQualityQueueAlert, NativeQualityWorkspace } from "@erpx/feature-quality/public/native-quality";
 import styles from "@erpx/feature-quality/components/quality-console.module.css";
 import {
   AttachmentPanel,
@@ -26,7 +25,7 @@ export function QualityConsole({
   base: string;
   data?: NativeQualityWorkspace;
   detail?: NativeQualityDetailCore;
-  alerts?: Awaited<ReturnType<typeof qualityAlerts>>;
+  alerts?: readonly NativeQualityQueueAlert[];
 }) {
   const command=useQualityCommand(base),scope=useQualityPurchaseScope(),{pending,error:commandError,notice,uncertain,retry,canPrepare,canSettle}=command,
     [uploadBusy,setUploadBusy]=useState(false),[localError,setError]=useState(""),

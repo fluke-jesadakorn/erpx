@@ -1,12 +1,10 @@
-import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { z } from "zod";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { ApiError,errorResponse } from "@erpx/server-runtime/public/http";
-import { listTransfers,transferOptions,transferDetail,transferSchema,transferActionSchema } from "@erpx/server-inventory/public/inventory-transfers";
+import { transferSchema,transferActionSchema } from "@erpx/server-inventory/public/inventory-transfers";
 import { nativeTransferCommand } from "@erpx/feature-supply/lib/native-inventory-command";
 type Context={params:Promise<{holdingSlug:string;path?:string[]}>};
-export async function GET(_request:Request,context:Context){try{const {holdingSlug,path:p=[]}=await context.params,actor=await requireWorkContext(holdingSlug);if(p.length>1)throw new ApiError(404,"NOT_FOUND","Stock transfer route not found.");return Response.json(canonicalDestinationLinks({data:p.length?await transferDetail(actor,p[0]):{transfers:await listTransfers(actor),options:await transferOptions(actor)}}),{headers:{"Cache-Control":"private, no-store"}});}catch(e){return errorResponse(e);}}
 export async function POST(request:Request,context:Context){try{
  const origin=request.headers.get("origin");if(origin&&origin!==requestPublicOrigin(request))throw new ApiError(403,"ORIGIN_FORBIDDEN","Use the application origin.");
  const {holdingSlug,path:p=[]}=await context.params;await requireWorkContext(holdingSlug);const key=request.headers.get("Idempotency-Key");if(!key)throw new ApiError(422,"COMMAND_KEY_REQUIRED","Idempotency-Key is required.");const input=await request.json();let native;

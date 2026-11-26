@@ -9,7 +9,7 @@ import { Button, Field, Select, TextArea, TextInput } from "@erpx/ui/components/
 import { PreferredDateTimeField } from "@erpx/feature-people_payroll/components/time/preferred-date-time-field";
 import { ServiceSpareForm } from "@erpx/feature-field_service/components/service-spare-form";
 import type {AssetDetailView,AssetWorkspaceView} from "@erpx/feature-assets/lib/asset-view";
-import type {maintenanceDetail,maintenanceWorkspace} from "@erpx/server-maintenance/public/asset-maintenance";
+import type {MaintenanceDetailView,MaintenanceWorkspaceView} from "@erpx/feature-assets/lib/maintenance-view";
 import { FormLayout } from "@erpx/ui/components/foundation";
 import {useAccountPreferences} from "@erpx/feature-identity_access/components/account-preferences-context";
 const retirementReviewCopy={
@@ -198,8 +198,8 @@ export function MaintenanceConsole({
   detail,
 }: {
   base: string;
-  data?: Awaited<ReturnType<typeof maintenanceWorkspace>>;
-  detail?: Awaited<ReturnType<typeof maintenanceDetail>>;
+  data?: MaintenanceWorkspaceView;
+  detail?: MaintenanceDetailView;
 }) {
   const purchases=detail?.purchases??data?.purchases,{send,retry,busy,error,notice,saved,uncertain}=useAssetCommand(base,"maintenance",purchases,detail?.work),
     r = detail?.work;

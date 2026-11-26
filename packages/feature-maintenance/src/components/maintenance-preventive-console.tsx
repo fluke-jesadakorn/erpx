@@ -7,11 +7,10 @@ import {useAssetCommand} from "@erpx/feature-assets/components/use-asset-command
 import {assetCommandAllowed} from "@erpx/feature-assets/lib/command";
 import {Button,Field,Select,TextArea,TextInput} from "@erpx/ui/components/foundation";
 import {PreferredDateTimeField} from "@erpx/feature-people_payroll/components/time/preferred-date-time-field";
-import type {maintenanceWorkspace} from "@erpx/server-maintenance/public/asset-maintenance";
-import type {preventivePlanDetail} from "@erpx/server-maintenance/public/maintenance-preventive";
+import type {MaintenanceWorkspaceView,PreventivePlanDetailView} from "@erpx/feature-assets/lib/maintenance-view";
 import { FormLayout } from "@erpx/ui/components/foundation";
 
-export function MaintenancePreventiveConsole({base,data,detail}:{base:string;data?:Awaited<ReturnType<typeof maintenanceWorkspace>>;detail?:Awaited<ReturnType<typeof preventivePlanDetail>>}){
+export function MaintenancePreventiveConsole({base,data,detail}:{base:string;data?:MaintenanceWorkspaceView;detail?:PreventivePlanDetailView}){
  const purchases=detail?.purchases??data?.purchases,{send,retry,busy,error,notice,saved,uncertain}=useAssetCommand(base,"maintenance/plans",purchases,detail?.plan),p=detail?.plan;
  const canEdit=detail?detail.canWrite&&['draft','paused'].includes(p!.status)&&(p!.created_by===detail.actorId||detail.canReview):Boolean(data?.canCreate);
  const people=detail?.people??data?.people??[];

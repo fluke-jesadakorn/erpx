@@ -130,7 +130,6 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
         },
         readInventoryActiveReservations2(...args){return nativeCommerceOrderReadRepository(db).readInventoryActiveReservations2(...args);},
         readCommerceFulfillments1(...args){return nativeCommerceOrderReadRepository(db).readCommerceFulfillments1(...args);},
-        readCommerceReturnLines1(...args){return nativeCommerceOrderReadRepository(db).readCommerceReturnLines1(...args);},
         readCommerceReturns1(...args){return nativeCommerceOrderReadRepository(db).readCommerceReturns1(...args);},
         readHrPeople1(...args){return nativeCommerceOrderReadRepository(db).readHrPeople1(...args);},
         readCommerceOrders4(...args){return nativeCommerceOrderReadRepository(db).readCommerceOrders4(...args);},
