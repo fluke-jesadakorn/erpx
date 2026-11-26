@@ -156,4 +156,5 @@ pub use crate::adapters::retention_execution::{
     LegalRetentionUnit, PgIndependentReview, execute_with_sources, require_independent_review,
 };
 pub mod native_lane_26;
+pub mod native_processing_status;
 pub mod native_rule_impact;

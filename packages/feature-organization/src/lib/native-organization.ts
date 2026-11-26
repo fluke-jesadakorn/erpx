@@ -15,6 +15,7 @@ import {
   nativeOrganizationDetail,
   nativeOrganizationFailure,
   nativeOrganizationOverview,
+  type NativeCompanyAcceptance,
   NativeOrganizationError,
   type NativeOrganizationPageContext,
   type NativeOrganizationWorkspace,
@@ -223,6 +224,24 @@ export async function nativeOrganizationDraftRead(
   if (!hasPermission(actor, 'people.manage') || !hasPermission(actor, 'organization.manage'))
     throw new NativeOrganizationError('NATIVE_ORGANIZATION_AUTHORITY_INVALID');
   return await native.drafts(incoming, context(actor), id);
+}
+
+/** Native Company acceptance read. A missing configuration returns `undefined`
+ * so the lead's route can fail closed with 503; a configured failure throws
+ * instead of silently falling back to the TypeScript authority. The Holding
+ * scope and Company authority are repeated by the Rust ingress. */
+export async function nativeOrganizationAcceptance(
+  actor: WorkContext,
+  holdingSlug: string,
+  incoming: Pick<Headers, 'get'>,
+): Promise<NativeCompanyAcceptance | undefined> {
+  const native = client(actor);
+  if (!native) return undefined;
+  if (actor.holdingSlug !== holdingSlug)
+    throw new NativeOrganizationError('NATIVE_ORGANIZATION_CONTEXT_CHANGED');
+  if (actor.scope.kind !== 'holding' || actor.branchId || actor.departmentId)
+    throw new NativeOrganizationError('NATIVE_ORGANIZATION_AUTHORITY_INVALID');
+  return await native.acceptance(incoming, context(actor));
 }
 
 /** Native access projection read. A missing configuration returns `undefined`

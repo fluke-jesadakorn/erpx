@@ -12,7 +12,8 @@
     "./lib/access-sources": "./src/lib/access-sources.ts",
     "./lib/portal-command-attempt": "./src/lib/portal-command-attempt.ts",
     "./lib/portal-display": "./src/lib/portal-display.ts",
-    "./lib/support-ticket-portal-command": "./src/lib/support-ticket-portal-command.ts"
+    "./lib/support-ticket-portal-command": "./src/lib/support-ticket-portal-command.ts",
+    "./lib/sales-review-counts": "./src/lib/sales-review-counts.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

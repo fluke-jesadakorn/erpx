@@ -51,3 +51,7 @@ path = "../../tests/unit/support/rust-sla-workspace.test.rs"
 [[test]]
 name = "sla_policy_read"
 path = "../../tests/unit/support/rust-sla-policy-read.test.rs"
+
+[[test]]
+name = "support_event_history"
+path = "../../tests/unit/support/rust-support-event-history.test.rs"

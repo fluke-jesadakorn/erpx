@@ -16,6 +16,8 @@ pub mod portal_invitation_token;
 pub mod portal_invitations;
 pub mod portal_read;
 pub mod portal_session;
+pub mod sales_review_counts_http;
+pub mod sales_review_counts_postgres;
 pub(crate) mod portal_support_commands;
 pub(crate) mod portal_support_commands_http;
 pub(crate) mod portal_support_threads_http;

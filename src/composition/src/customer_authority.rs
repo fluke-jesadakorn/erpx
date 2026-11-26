@@ -15,6 +15,10 @@ use erpx_server_customer_authority::public::access_sources::{
     AccessSourceRow, AccessSourcesBackend, AccessSourcesQuery, AccessSourcesRequest,
     PgAccessSources, SourcesFuture, customer_access_sources,
 };
+use erpx_server_customer_authority::public::sales_review_counts::{
+    PgSalesReviewCounts, ReviewCount, ReviewCountsFuture, SalesReviewCountsBackend,
+    SalesReviewCountsQuery, SalesReviewCountsRequest, sales_customer_review_counts,
+};
 use erpx_server_customer_authority::public::access_http::{
     CustomerAccessHttpBackend, CustomerAccessHttpCommand, CustomerAccessHttpFuture,
     CustomerAccessHttpRequest, CustomerAccessHttpResponse, CustomerAccessHttpTarget,
@@ -248,6 +252,57 @@ impl<C: Clock + Send + Sync + 'static> CustomerAuthorityService<C> {
                             data,
                             context: context(current),
                         })
+                    })
+                },
+            )
+            .await
+    }
+
+    /// Native sales customer-review counts for the current Company scope.
+    pub async fn sales_review_counts<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+    ) -> Result<Vec<ReviewCount>, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                CustomerAuthoritySources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        let workspace = current.selection().workspace();
+                        let query = SalesReviewCountsQuery {
+                            company_id: company.as_str().to_owned(),
+                            branch_id: workspace
+                                .branch_id
+                                .as_ref()
+                                .map(|value| value.as_str().to_owned()),
+                            department_id: workspace
+                                .department_id
+                                .as_ref()
+                                .map(|value| value.as_str().to_owned()),
+                        };
+                        let mut source = PgSalesReviewCounts::new(connection);
+                        sales_customer_review_counts(&mut source, query)
+                            .await
+                            .map_err(Into::into)
                     })
                 },
             )
@@ -1355,6 +1410,22 @@ impl<C: Clock + Send + Sync + 'static> AccessSourcesBackend for CustomerAuthorit
             let (proof, selection) = self.context(request.headers)?;
             self.service
                 .access_sources(request.host, proof, move || Ok(selection))
+                .await
+                .map_err(business)
+        })
+    }
+}
+
+
+impl<C: Clock + Send + Sync + 'static> SalesReviewCountsBackend for CustomerAuthorityBackend<C> {
+    fn execute<'a>(
+        &'a self,
+        request: SalesReviewCountsRequest<'a>,
+    ) -> ReviewCountsFuture<'a, Vec<ReviewCount>> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .sales_review_counts(request.host, proof, move || Ok(selection))
                 .await
                 .map_err(business)
         })

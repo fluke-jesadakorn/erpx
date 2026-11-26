@@ -31,7 +31,7 @@ export type NativeOrganizationPageContext = {
     | { kind: 'department'; branchSlug?: string; departmentSlug: string };
   authority?: { revision: number; assignmentVersion: number };
   modules: readonly string[];
-  iam?: { permissions: readonly string[] };
+  iam?: { permissions: readonly string[]; personUserIds?: readonly string[] };
 };
 
 export type NativeOrganizationConfiguration = Readonly<{
@@ -204,6 +204,93 @@ function draftPayload(value: unknown): NativeOrganizationDraftPayload {
   )
     return failure('NATIVE_ORGANIZATION_RESPONSE_INVALID');
   return data as NativeOrganizationDraftPayload;
+}
+
+/** Complete payload of the native `organization/acceptance` GET. Field-for-field
+ * parity with the retired TypeScript `companyBusinessAcceptance` read. */
+export type NativeCompanyAcceptance = Readonly<{
+  companyId: string;
+  status: string;
+  version: number;
+  checks: readonly Row[];
+  blockers: readonly string[];
+  canSubmit: boolean;
+  canReview: boolean;
+  canRevoke: boolean;
+  requestedBy: string | null;
+  reviewedBy: string | null;
+  reason: string | null;
+  reviewReason: string | null;
+  updatedAt: number | null;
+  events: readonly Row[];
+}>;
+
+const ACCEPTANCE_STATUSES = ['draft', 'submitted', 'rejected', 'accepted', 'revoked'];
+const ACCEPTANCE_ACTIONS = ['submitted', 'rejected', 'accepted', 'revoked'];
+
+function acceptance(value: unknown): NativeCompanyAcceptance {
+  if (!exact(value, ['data'])) return failure('NATIVE_ORGANIZATION_RESPONSE_INVALID');
+  const data = value.data;
+  const keys = [
+    'companyId',
+    'status',
+    'version',
+    'checks',
+    'blockers',
+    'canSubmit',
+    'canReview',
+    'canRevoke',
+    'requestedBy',
+    'reviewedBy',
+    'reason',
+    'reviewReason',
+    'updatedAt',
+    'events',
+  ];
+  if (!exact(data, keys)) return failure('NATIVE_ORGANIZATION_RESPONSE_INVALID');
+  if (
+    !identifier(data.companyId) ||
+    typeof data.status !== 'string' ||
+    !ACCEPTANCE_STATUSES.includes(data.status) ||
+    !integer(data.version, 0) ||
+    !Array.isArray(data.checks) ||
+    data.checks.length !== 5 ||
+    !data.checks.every(
+      (check) =>
+        exact(check, ['id', 'label', 'ready', 'owner', 'detail']) &&
+        text(check.id, 120) &&
+        text(check.label, 400) &&
+        typeof check.ready === 'boolean' &&
+        text(check.owner, 200) &&
+        text(check.detail, 400),
+    ) ||
+    !Array.isArray(data.blockers) ||
+    data.blockers.length > 5 ||
+    !data.blockers.every((row) => text(row, 400)) ||
+    typeof data.canSubmit !== 'boolean' ||
+    typeof data.canReview !== 'boolean' ||
+    typeof data.canRevoke !== 'boolean' ||
+    !nullableIdentifier(data.requestedBy) ||
+    !nullableIdentifier(data.reviewedBy) ||
+    !optionalText(data.reason, 2000) ||
+    !optionalText(data.reviewReason, 2000) ||
+    !(data.updatedAt === null || integer(data.updatedAt, 0)) ||
+    !Array.isArray(data.events) ||
+    data.events.length > 20000 ||
+    !data.events.every(
+      (event) =>
+        exact(event, ['id', 'action', 'actor_id', 'version', 'reason', 'created_at']) &&
+        identifier(event.id) &&
+        typeof event.action === 'string' &&
+        ACCEPTANCE_ACTIONS.includes(event.action) &&
+        identifier(event.actor_id) &&
+        integer(event.version, 1) &&
+        text(event.reason, 2000) &&
+        integer(event.created_at, 0),
+    )
+  )
+    return failure('NATIVE_ORGANIZATION_RESPONSE_INVALID');
+  return data as NativeCompanyAcceptance;
 }
 
 function workspace(value: unknown): NativeOrganizationWorkspace {
@@ -898,6 +985,7 @@ function call(
   // inside Rust (for example the native organization/drafts read).
   headers.set('x-erpx-context-user', actor.userId);
   headers.set('x-erpx-context-permissions', (actor.iam?.permissions ?? []).join(','));
+  headers.set('x-erpx-context-person-ids', (actor.iam?.personUserIds ?? []).join(','));
   headers.set('x-erpx-context-scope', actor.scope.kind);
   if (body !== undefined) {
     if (new TextEncoder().encode(body).length > 64 * 1024)
@@ -1092,6 +1180,30 @@ export function createNativeOrganizationClient(
         return failure('NATIVE_ORGANIZATION_UNAVAILABLE');
       });
       return draftPayload(await boundedJson(response));
+    },
+    async acceptance(
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeOrganizationPageContext,
+      signal?: AbortSignal,
+    ): Promise<NativeCompanyAcceptance> {
+      const response = await call(
+        transport,
+        config.base,
+        config.holdings,
+        incoming,
+        actor,
+        actor.holdingSlug,
+        'organization',
+        '/acceptance',
+        undefined,
+        undefined,
+        undefined,
+        signal,
+      ).catch((error: unknown) => {
+        if (error instanceof NativeOrganizationError) throw error;
+        return failure('NATIVE_ORGANIZATION_UNAVAILABLE');
+      });
+      return acceptance(await boundedJson(response));
     },
     async change(
       incoming: Pick<Headers, 'get'>,

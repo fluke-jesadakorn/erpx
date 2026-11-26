@@ -89987,6 +89987,7 @@
       ],
       "id": "organization.read-tail-r25-dedupe.unit",
       "files": [
+        "tests/unit/organization/native-organization-acceptance-read.test.ts",
         "tests/unit/organization/native-organization-draft-read.test.ts",
         "tests/unit/organization/read-tail-r25-dedupe.test.ts"
       ],
@@ -170465,6 +170466,78 @@
       ],
       "packages": [
         "@erpx/server-pos"
+      ]
+    },
+    {
+      "id": "support.rust-support-event-history.unit",
+      "lane": "unit",
+      "owner": "support",
+      "modules": [
+        "support"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Support event history must execute the owner statements and preserve row payloads."
+      },
+      "files": [
+        "tests/unit/support/rust-support-event-history.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-support",
+        "targets": [
+          "support_event_history"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-support/Cargo.toml"
+      ],
+      "packages": [
+        "@erpx/server-support"
+      ]
+    },
+    {
+      "id": "talent.rust-talent-evidence-read.unit",
+      "lane": "unit",
+      "owner": "talent",
+      "modules": [
+        "talent"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Talent executive evidence must execute the two owner statements."
+      },
+      "files": [
+        "tests/unit/talent/rust-talent-evidence-read.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-talent",
+        "targets": [
+          "talent_evidence_read"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-talent/Cargo.toml"
+      ],
+      "packages": [
+        "@erpx/server-talent"
       ]
     }
   ]

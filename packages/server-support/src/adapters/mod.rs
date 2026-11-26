@@ -50,3 +50,6 @@ pub(crate) mod sla_policy_read_http;
 
 pub(crate) mod native_support_read_sql;
 pub mod native_lane_31;
+
+pub(crate) mod support_event_history;
+pub(crate) mod support_event_history_http;

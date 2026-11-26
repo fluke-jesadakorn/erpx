@@ -52,3 +52,4 @@ pub mod people_staff_placement {
 pub mod native_lane_23;
 pub mod native_lane_24;
 pub mod native_draft_read;
+pub mod native_acceptance_read;

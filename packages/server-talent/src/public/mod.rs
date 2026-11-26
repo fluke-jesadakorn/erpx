@@ -1,5 +1,6 @@
 pub mod candidate;
 pub mod native_talent_detail;
+pub mod native_talent_evidence;
 pub mod native_talent_read_sql;
 pub mod offer;
 pub mod requisition;

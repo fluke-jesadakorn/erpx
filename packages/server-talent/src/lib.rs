@@ -12,7 +12,9 @@
 //!   monthly-compensation Money snapshot port and the accepted-offer hire
 //!   handoff contract consumed by People intake;
 //! - application detail read (application, history, proposal, offer and hire
-//!   handoff) executed by a native sqlx adapter behind an axum owner route.
+//!   handoff) executed by a native sqlx adapter behind an axum owner route;
+//! - executive-evidence point read (open requisition and bounded application
+//!   row) executed by a native sqlx adapter behind an axum owner route.
 //!
 //! Interview material, attachments, package obligations, the talent workspace
 //! merge, offer documents and the People hire intake itself remain with their

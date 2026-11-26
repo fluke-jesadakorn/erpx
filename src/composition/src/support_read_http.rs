@@ -25,6 +25,9 @@ use erpx_server_support::public::sla_policy_read_http::{
     SlaPolicyPointHttpRequest, SlaPolicyReadHttpBackend, SlaPolicyWorkHttpRequest,
     SupportHttpFuture,
 };
+use erpx_server_support::public::support_event_history_http::{
+    IncidentHistoryHttpRequest, SupportEventHistoryHttpBackend, TicketHistoryHttpRequest,
+};
 use serde::Deserialize;
 use serde_json::json;
 use std::{collections::BTreeMap, sync::Arc};
@@ -395,6 +398,83 @@ impl<C: Clock + Send + Sync + 'static> SlaPolicyReadHttpBackend for SlaPolicyRea
                 .sla_policy_work(request.host, proof, workspace)
                 .await
                 .map_err(sla_business)
+        })
+    }
+}
+
+
+/// Composition adapter for the native Support ticket/incident event history.
+pub struct SupportEventHistoryBackend<C> {
+    policy: Arc<AccountPolicy>,
+    scopes: Arc<dyn BusinessScopeSlugs>,
+    service: Arc<SupportTicketReadService<C>>,
+}
+
+impl<C: Clock + Send + Sync + 'static> SupportEventHistoryBackend<C> {
+    pub fn new(
+        policy: Arc<AccountPolicy>,
+        scopes: Arc<dyn BusinessScopeSlugs>,
+        service: Arc<SupportTicketReadService<C>>,
+    ) -> Self {
+        Self {
+            policy,
+            scopes,
+            service,
+        }
+    }
+
+    fn context(
+        &self,
+        headers: &HeaderMap,
+    ) -> Result<(erpx_server_identity_access::public::DeviceProof, impl FnOnce() -> Result<erpx_server_identity_access::public::work_context::HoldingWorkspaceRequest, BusinessError> + Send + 'static), BusinessError> {
+        let inbound = parse_inbound_account_request(&self.policy, headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing());
+        }
+        let (branch, department) = self.scopes.slugs(headers)?.clone();
+        let captured = CapturedHoldingMutation::capture(headers, branch, department);
+        let company = self.service.company_id().clone();
+        Ok((inbound.into_proof(), move || captured.resolve_read(company)))
+    }
+}
+
+fn history_business(error: PgTransactionError<BusinessError>) -> BusinessError {
+    match error {
+        PgTransactionError::Business(error) => error,
+        _ => BusinessError::new(
+            FailureKind::Unavailable,
+            "SUPPORT_HISTORY_UNAVAILABLE",
+            "Unable to read the Support event history.",
+        ),
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> SupportEventHistoryHttpBackend
+    for SupportEventHistoryBackend<C>
+{
+    fn ticket_history<'a>(
+        &'a self,
+        request: TicketHistoryHttpRequest<'a>,
+    ) -> SupportHttpFuture<'a, serde_json::Value> {
+        Box::pin(async move {
+            let (proof, workspace) = self.context(request.headers)?;
+            self.service
+                .ticket_event_history(request.host, proof, workspace, request.id.to_owned())
+                .await
+                .map_err(history_business)
+        })
+    }
+
+    fn incident_history<'a>(
+        &'a self,
+        request: IncidentHistoryHttpRequest<'a>,
+    ) -> SupportHttpFuture<'a, serde_json::Value> {
+        Box::pin(async move {
+            let (proof, workspace) = self.context(request.headers)?;
+            self.service
+                .incident_event_history(request.host, proof, workspace, request.id.to_owned())
+                .await
+                .map_err(history_business)
         })
     }
 }

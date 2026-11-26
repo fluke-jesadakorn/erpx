@@ -14,6 +14,7 @@ pub mod portal_invitations;
 pub mod portal_read;
 pub use crate::adapters::portal_read::{bind, BoundPlan, ReadScope};
 pub mod portal_session;
+pub mod sales_review_counts;
 pub mod portal_support_commands;
 pub mod portal_support_threads;
 

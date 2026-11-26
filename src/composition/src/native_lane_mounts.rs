@@ -1609,5 +1609,57 @@ pub fn mount(
         ).map_err(|_| "PRIVATE_API_QUALITY_EVIDENCE_INVALID")?,
     );
 
+    // Legal: processing-status read.
+    router = router.merge(
+        erpx_server_legal::public::native_processing_status::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| (
+                erpx_server_legal::public::native_processing_status::ProcessingStatusTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                },
+                pools[i + 1].clone(),
+            )).collect(),
+        ).map_err(|_| "PRIVATE_API_LEGAL_PROCESSING_STATUS_INVALID")?,
+    );
+
+    // Talent: executive evidence point read.
+    router = router.merge(
+        erpx_server_talent::public::native_talent_evidence::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| (
+                erpx_server_talent::public::native_talent_evidence::TalentEvidenceTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                },
+                pools[i + 1].clone(),
+            )).collect(),
+        ).map_err(|_| "PRIVATE_API_TALENT_EVIDENCE_INVALID")?,
+    );
+
+    // Identity & Access lane 46: directory connection by id.
+    router = router.merge(
+        erpx_server_identity_access::public::native_lane_46::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| (
+                erpx_server_identity_access::public::native_lane_46::LaneTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                },
+                pools[i + 1].clone(),
+            )).collect(),
+        ).map_err(|_| "PRIVATE_API_IDENTITY_LANE46_INVALID")?,
+    );
+
+    // Organization: Company setup-acceptance read.
+    router = router.merge(
+        erpx_server_organization::public::native_acceptance_read::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| (
+                erpx_server_organization::public::native_acceptance_read::LaneTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                },
+                pools[i + 1].clone(),
+            )).collect(),
+        ).map_err(|_| "PRIVATE_API_ORGANIZATION_ACCEPTANCE_INVALID")?,
+    );
+
     Ok(router)
 }

@@ -616,6 +616,108 @@ impl<C: Clock + Send + Sync + 'static> SupportTicketReadService<C> {
             .await
     }
 
+    /// Native Support ticket event history.
+    pub async fn ticket_event_history<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        workspace: Input,
+        id: String,
+    ) -> Result<Value, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.holding.clone();
+        let company = self.company.clone();
+        let expected_company = company.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                move || read_workspace(workspace, &expected_company),
+                WorkAuthorizationRequest {
+                    permission: WorkPermissionRequirement::Exact("support.read".into()),
+                    module: None,
+                    destination: "support.ticket.events".into(),
+                    api: true,
+                },
+                SupportReadSources,
+                move |c, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let id = id.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope_required().into());
+                        }
+                        current.require_permission("support.read")?;
+                        let scope = erpx_server_support::public::support_event_history::SupportEventHistoryScope {
+                            company_id: company.as_str().to_owned(),
+                            user_id: current.user_id().as_str().to_owned(),
+                            support_read: true,
+                        };
+                        erpx_server_support::public::support_event_history::load_ticket_history(c, scope, &id)
+                            .await
+                            .map_err(Into::into)
+                    })
+                },
+            )
+            .await
+    }
+
+    /// Native Support incident event history.
+    pub async fn incident_event_history<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        workspace: Input,
+        id: String,
+    ) -> Result<Value, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.holding.clone();
+        let company = self.company.clone();
+        let expected_company = company.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                move || read_workspace(workspace, &expected_company),
+                WorkAuthorizationRequest {
+                    permission: WorkPermissionRequirement::Exact("support.read".into()),
+                    module: None,
+                    destination: "support.incident.events".into(),
+                    api: true,
+                },
+                SupportReadSources,
+                move |c, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let id = id.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope_required().into());
+                        }
+                        current.require_permission("support.read")?;
+                        let scope = erpx_server_support::public::support_event_history::SupportEventHistoryScope {
+                            company_id: company.as_str().to_owned(),
+                            user_id: current.user_id().as_str().to_owned(),
+                            support_read: true,
+                        };
+                        erpx_server_support::public::support_event_history::load_incident_history(c, scope, &id)
+                            .await
+                            .map_err(Into::into)
+                    })
+                },
+            )
+            .await
+    }
+
     /// Native Support SLA policy point read.
     pub async fn sla_policy_point<Input>(
         &self,

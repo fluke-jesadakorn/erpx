@@ -50,3 +50,6 @@ pub mod support_auxiliary_http;
 
 pub mod native_support_read_sql;
 pub mod native_lane_31;
+
+pub mod support_event_history;
+pub mod support_event_history_http;

@@ -44,6 +44,7 @@ pub trait AccessSourcesBackend: Send + Sync {
     ) -> SourcesFuture<'a, Vec<AccessSourceRow>>;
 }
 
+#[derive(Clone)]
 pub struct AccessSourcesTarget {
     pub host: String,
     pub holding_slug: String,

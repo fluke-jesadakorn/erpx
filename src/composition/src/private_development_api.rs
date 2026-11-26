@@ -50,7 +50,10 @@ use crate::{
     support_evidence_http::{SupportEvidenceHttpTarget, support_evidence_http_router},
     support_incident_command::SupportIncidentCommand,
     support_incident_http::{SupportIncidentHttpTarget, support_incident_http_router},
-    support_read_http::{SlaPolicyReadBackend, SupportReadHttpTarget, support_read_http_router},
+    support_read_http::{
+        SlaPolicyReadBackend, SupportEventHistoryBackend, SupportReadHttpTarget,
+        support_read_http_router,
+    },
     support_session_command::SupportSessionCommand,
     support_session_http::{SupportSessionHttpTarget, support_session_http_router},
     support_sla_command::{SupportSlaCommand, drain_support_sla},
@@ -3403,6 +3406,7 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut customer_authority_targets = Vec::new();
         let mut customer_sources_targets = Vec::new();
+        let mut customer_review_counts_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut customer_duplicate_targets = Vec::new();
         #[cfg(feature = "existing-business")]
@@ -5640,6 +5644,28 @@ async fn assemble_checked(
                         ),
                     },
                 );
+                customer_review_counts_targets.push(
+                    erpx_server_customer_authority::public::sales_review_counts::SalesReviewCountsTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        company_id: company.as_str().to_owned(),
+                        backend: Arc::new(
+                            crate::customer_authority::CustomerAuthorityBackend::new(
+                                config.policy.clone(),
+                                Arc::new(FinanceJournalReadScopeHeaders),
+                                Arc::new(crate::customer_authority::CustomerAuthorityService::new(
+                                    authorizer.clone(),
+                                    crate::customer_authority::CustomerAuthorityConfiguration::new(
+                                        holding.registration.holding_id.clone(),
+                                        company.clone(),
+                                    ),
+                                    Arc::new(SharedClock(clock.clone())),
+                                )),
+                            ),
+                        ),
+                    },
+                );
                 customer_sources_targets.push(
                     erpx_server_customer_authority::public::access_sources::AccessSourcesTarget {
                         host: holding.host.clone(),
@@ -7301,6 +7327,15 @@ async fn assemble_checked(
                     customer_sources_targets,
                 )
                 .map_err(|_| "PRIVATE_API_CUSTOMER_ACCESS_SOURCES_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !customer_review_counts_targets.is_empty() {
+            router = router.merge(
+                erpx_server_customer_authority::public::sales_review_counts::sales_review_counts_router(
+                    customer_review_counts_targets,
+                )
+                .map_err(|_| "PRIVATE_API_CUSTOMER_REVIEW_COUNTS_CONFIGURATION_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]
@@ -9320,6 +9355,7 @@ async fn assemble_checked(
         let mut targets = Vec::new();
         let mut read_targets = Vec::new();
         let mut sla_read_targets = Vec::new();
+        let mut support_history_targets = Vec::new();
         for (holding_id, company) in &config.support_ticket_writes {
             let index = config
                 .holdings
@@ -9350,6 +9386,18 @@ async fn assemble_checked(
                 holding_slug: holding.registration.slug.clone(),
                 service: read_service.clone(),
             });
+            support_history_targets.push(
+                erpx_server_support::public::support_event_history_http::SupportEventHistoryHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    origin: format!("https://{}", holding.host),
+                    backend: Arc::new(SupportEventHistoryBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FieldServiceReadScopeHeaders),
+                        read_service.clone(),
+                    )),
+                },
+            );
             sla_read_targets.push(
                 erpx_server_support::public::sla_policy_read_http::SlaPolicyReadHttpTarget {
                     host: holding.host.clone(),
@@ -9396,6 +9444,12 @@ async fn assemble_checked(
                 sla_read_targets,
             )
             .map_err(|_| "PRIVATE_API_SUPPORT_SLA_POLICY_CONFIGURATION_INVALID")?,
+        );
+        router = router.merge(
+            erpx_server_support::public::support_event_history_http::support_event_history_http_router(
+                support_history_targets,
+            )
+            .map_err(|_| "PRIVATE_API_SUPPORT_EVENT_HISTORY_CONFIGURATION_INVALID")?,
         );
     }
     if !config.support_evidence_writes.is_empty() {

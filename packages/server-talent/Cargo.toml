@@ -59,3 +59,7 @@ path = "../../tests/integration/talent/rust-talent-offer-read-parity-postgres.te
 
 [lints]
 workspace = true
+
+[[test]]
+name = "talent_evidence_read"
+path = "../../tests/unit/talent/rust-talent-evidence-read.test.rs"

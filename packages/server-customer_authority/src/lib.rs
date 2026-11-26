@@ -6,7 +6,8 @@
 //! review request/decision/reopen/merge commands with their HTTP router, and
 //! the customer identity request/change workspace with its HTTP router, and the
 //! verified external portal-session customer proof consumed by Support and
-//! portal private files. Portal invitations/enrollment, portal support threads,
+//! portal private files, and the sales customer review counts read with its
+//! sqlx execution and axum router. Portal invitations/enrollment, portal support threads,
 //! attachments and every other Customer Authority workflow remain in the
 //! retained TypeScript owner until their native slices are implemented.
 mod adapters;
