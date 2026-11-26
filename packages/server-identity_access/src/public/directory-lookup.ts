@@ -1,1 +1,1 @@
-export {connectionById,routedConnection} from '@erpx/server-identity_access/adapters/directory-lookup';
+export {connectionById,nativeConnectionById,routedConnection} from '@erpx/server-identity_access/adapters/directory-lookup';

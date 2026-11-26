@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
@@ -150,5 +151,71 @@ describe('nativeOrganizationAcceptance route contract', () => {
         incoming,
       ),
     ).rejects.toBeInstanceOf(NativeOrganizationError);
+  });
+});
+
+const routeSource = readFileSync(
+  new URL(
+    '../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts',
+    import.meta.url,
+  ),
+  'utf8',
+);
+const lines = routeSource.split('\n');
+
+describe('organization/acceptance catch-all cutover', () => {
+  it('serves the exact GET branch from the native reader and fails closed with 503', () => {
+    const branch = lines.find((line) =>
+      line.includes('p[1]==="acceptance" && p.length===2'),
+    );
+    expect(branch).toBeDefined();
+    expect(branch).toContain('nativeOrganizationAcceptance(');
+    expect(branch).toContain('nativeOrganizationFailure(');
+    expect(branch).toContain('503');
+    expect(branch).not.toContain('companyBusinessAcceptance(');
+    expect(branch).not.toMatch(/\bSELECT\b|\bINSERT\b|\bUPDATE\b|\bDELETE\b/);
+    const ownerImport = lines.find((line) =>
+      line.includes('@erpx/server-finance/public/company-business-acceptance'),
+    );
+    expect(ownerImport).toBeDefined();
+    expect(ownerImport).not.toMatch(/\bcompanyBusinessAcceptance\b/);
+    expect(ownerImport).toContain('submitCompanyBusinessAcceptance');
+    expect(ownerImport).toContain('decideCompanyBusinessAcceptance');
+    expect(ownerImport).toContain('revokeCompanyBusinessAcceptance');
+  });
+
+  it('keeps the submit, review and revoke POST branches on the retained commands', () => {
+    for (const [suffix, command] of [
+      ['submit', 'submitCompanyBusinessAcceptance'],
+      ['review', 'decideCompanyBusinessAcceptance'],
+      ['revoke', 'revokeCompanyBusinessAcceptance'],
+    ] as const) {
+      const branch = lines.find((line) =>
+        line.includes(`p[1]==="acceptance" && p[2]==="${suffix}"`),
+      );
+      expect(branch).toBeDefined();
+      expect(branch).toContain(command);
+    }
+  });
+
+  it('retains the internal TS read only for business readiness while the HTTP GET is native', () => {
+    const adapter = readFileSync(
+      new URL(
+        '../../../packages/server-organization/src/adapters/company-business-acceptance.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+    const publicExport = readFileSync(
+      new URL(
+        '../../../packages/server-organization/src/public/company-business-acceptance.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+    expect(adapter).toMatch(/export function companyBusinessAcceptance\(/);
+    expect(publicExport).toMatch(/\bcompanyBusinessAcceptance\b/);
+    expect(publicExport).toMatch(/submitCompanyBusinessAcceptance/);
+    expect(publicExport).toMatch(/companyBusinessAcceptanceWork/);
   });
 });

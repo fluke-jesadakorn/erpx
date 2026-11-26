@@ -2249,6 +2249,7 @@
 @source "../../../../packages/server-legal/src/adapters/native-legal-auxiliary.ts";
 @source "../../../../packages/server-legal/src/adapters/native-legal-hold-notice.ts";
 @source "../../../../packages/server-legal/src/adapters/native-legal-wave3.ts";
+@source "../../../../packages/server-legal/src/adapters/native-processing-status/client.ts";
 @source "../../../../packages/server-legal/src/adapters/native-rule-impact/client.ts";
 @source "../../../../packages/server-legal/src/adapters/pms-rollout-facts.ts";
 @source "../../../../packages/server-legal/src/adapters/presentation-queries.ts";

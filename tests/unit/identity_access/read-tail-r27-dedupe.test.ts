@@ -42,9 +42,10 @@ describe('Identity access read-tail r27 seven parameterized families', () => {
       'newestPageSql', 'principalDisplaySql', 'memberByCompanyUserSql', 'assignmentValidUntilSql',
     ]) expect((helper.match(new RegExp(`export const ${name} =`, 'g')) ?? []).length, name).toBe(1);
 
-    for (const rel of [
-      'adapters/directory-lookup.ts', 'adapters/directory-operation-preview.ts', 'adapters/iam-migrations.ts',
-    ]) expect(calls(rel, 'iamConnectionByIdSql'), rel).toBe(2);
+    // The login routed read is native-only; the builder stays for the other two features.
+    expect(calls('adapters/directory-lookup.ts', 'iamConnectionByIdSql')).toBe(2);
+    for (const rel of ['adapters/directory-operation-preview.ts', 'adapters/iam-migrations.ts'])
+      expect(calls(rel, 'iamConnectionByIdSql'), rel).toBe(2);
     expect(calls('adapters/iam-service-reads.ts', 'auditFeedSql')).toBe(3);
     expect(calls('adapters/iam-service-reads.ts', 'newestPageSql')).toBe(3);
     expect(calls('adapters/executive-report-sources.ts', 'activeWorkContextAssignmentSql')).toBe(3);

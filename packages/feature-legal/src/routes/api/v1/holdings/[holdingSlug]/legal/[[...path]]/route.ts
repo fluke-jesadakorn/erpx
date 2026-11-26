@@ -19,7 +19,7 @@ import {
 import { boundedBody } from "@erpx/server-legal/public/legal/body";
 import { featureDetail, featureCommand } from "@erpx/server-legal/public/legal/features";
 import { retentionView, retentionCommand } from "@erpx/server-legal/public/legal/retention";
-import { findInspectionSource, queueInspection, processingStatus } from "@erpx/server-legal/public/legal/processing";
+import { findInspectionSource, queueInspection } from "@erpx/server-legal/public/legal/processing";
 import { trustView, trustCommand } from "@erpx/server-legal/public/legal/trust";
 import {
   startRevision,
@@ -53,6 +53,7 @@ import { legalReadScope } from "@erpx/server-legal/public/purchases";
 import { nativeLegalAvailable, nativeLegalCommand, nativeLegalCommandSelected, nativeLegalDetail, nativeLegalExport, nativeLegalFailure, nativeLegalRegister } from "@erpx/feature-legal/lib/native-legal";
 import { createAttachmentSet, reserveAttachmentFile, completeAttachmentUpload, scanAttachmentNow } from "@erpx/server-files/public/attachments/service";
 import { nativeRuleImpactRead } from "../../../../../../../../../../packages/server-legal/src/adapters/native-rule-impact/client";
+import { nativeProcessingStatusRead } from "../../../../../../../../../../packages/server-legal/src/adapters/native-processing-status/client";
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };
 function nativeFailure(error: unknown): never { const failure = nativeLegalFailure(error); if (failure) throw new ApiError(failure.status, failure.code, failure.message); throw error; }
@@ -144,11 +145,17 @@ export async function GET(request: Request, ctx: Context) {
         canonicalDestinationLinks({ data: await retentionView(write, a, path[1]) }),
         { headers: { "Cache-Control": "private, no-store" } },
       );
-    if (path[0] === "processing" && path.length === 2)
-      return Response.json(
-        canonicalDestinationLinks({ data: await processingStatus(write, a, path[1]) }),
-        { headers: { "Cache-Control": "private, no-store" } },
+    if (path[0] === "processing" && path.length === 2) {
+      const actor = { holdingId: a.holdingId, holdingSlug: a.holdingSlug, companyId: a.companyId };
+      const read = await nativeProcessingStatusRead(
+        actor,
+        { itemAccessible: a.modules.includes("legal") },
+        path[1],
       );
+      return Response.json(canonicalDestinationLinks({ data: read }), {
+        headers: { "Cache-Control": "private, no-store" },
+      });
+    }
     if (path[0] === "trust" && path.length === 1)
       return Response.json(
         canonicalDestinationLinks({ data: await trustView(write, a) }),

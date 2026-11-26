@@ -98,6 +98,22 @@ describe('native Legal processing-status read', () => {
     expect(requests[0].accessible).toBe('true');
   });
 
+  it('passes a false item-access witness verbatim so the owner can deny', async () => {
+    await expect(
+      nativeProcessingStatusRead(actor, { itemAccessible: false }, 'job-1'),
+    ).resolves.toEqual(READ);
+    expect(requests[0].accessible).toBe('false');
+  });
+
+  it('fails closed when no native configuration is present', async () => {
+    delete process.env[ENV];
+    await expect(nativeProcessingStatusRead(actor, authority, 'job-1')).rejects.toMatchObject({
+      status: 503,
+      code: 'NATIVE_LEGAL_PROCESSING_STATUS_CONFIGURATION_REQUIRED',
+    });
+    expect(requests).toHaveLength(0);
+  });
+
   it('fails closed on a malformed payload with no TypeScript fallback', async () => {
     mode = 'bad';
     await expect(nativeProcessingStatusRead(actor, authority, 'job-1')).rejects.toMatchObject({

@@ -37,7 +37,7 @@ async revokeVersion(key:string,value:"acceptance-version",companyId:string,expec
 async revokeAcceptance(version:number,now:number,reason:string,now2:number,companyId:string){return nativeOrgStatement(db,companyId,'acceptance_revoke',[version,now,reason,now2,companyId],`company-acceptance-revoke:${companyId}:${version}`,now);},
 async revokeEvent(value:string,companyId:string,userId:string,version:number,reason:string,now:number){return nativeOrgStatement(db,companyId,'acceptance_revoked_event',[value,companyId,userId,version,reason,now],`company-acceptance-event:${value}`,now);},
 async workCurrent(companyId:string){return nativeOrgAll<AcceptanceRow>(db,companyId,'acceptance_read_current',[companyId]).then(rows=>rows[0]??null);}}});}
-export function companyBusinessAcceptance(db:SqlDatabase,...args:Parameters<ReturnType<typeof bind>["companyBusinessAcceptance"]>){return bind(db, args[0] as WorkContext).companyBusinessAcceptance(...args);}
+export function companyBusinessAcceptance(db:SqlDatabase,actor:WorkContext){return bind(db,actor).companyBusinessAcceptance(actor);}
 export function submitCompanyBusinessAcceptance(db:SqlDatabase,...args:Parameters<ReturnType<typeof bind>["submitCompanyBusinessAcceptance"]>){return bind(db, args[0] as WorkContext).submitCompanyBusinessAcceptance(...args);}
 export function decideCompanyBusinessAcceptance(db:SqlDatabase,...args:Parameters<ReturnType<typeof bind>["decideCompanyBusinessAcceptance"]>){return bind(db, args[0] as WorkContext).decideCompanyBusinessAcceptance(...args);}
 export function revokeCompanyBusinessAcceptance(db:SqlDatabase,...args:Parameters<ReturnType<typeof bind>["revokeCompanyBusinessAcceptance"]>){return bind(db, args[0] as WorkContext).revokeCompanyBusinessAcceptance(...args);}

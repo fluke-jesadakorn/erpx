@@ -175,8 +175,10 @@ describe('support service-team coverage native read', () => {
     const incidents = await source('packages/server-support/src/adapters/support-incidents.ts');
     expect(detail).not.toContain('FROM support_ticket_events WHERE ticket_id=?');
     expect(incidents).not.toContain('FROM support_incident_events WHERE incident_id=?');
-    expect(detail).toContain('SUPPORT_RD_TICKET_EVENT_HISTORY');
-    expect(incidents).toContain('SUPPORT_RD_INCIDENT_EVENT_HISTORY');
+    expect(detail).toContain("nativeSupportEventHistory<Row>(a, 'ticket', id)");
+    expect(incidents).toContain("nativeSupportEventHistory<Row>(a, 'incident', id)");
+    expect(detail).not.toContain('SUPPORT_RD_TICKET_EVENT_HISTORY');
+    expect(incidents).not.toContain('SUPPORT_RD_INCIDENT_EVENT_HISTORY');
   });
 
   it('plans ticket and incident event history in Rust with owner-scoped binds', async () => {
@@ -203,6 +205,38 @@ describe('support service-team coverage native read', () => {
         kind: 'support_rd_incident_event_history',
         values: ['incident-1'],
       });
+    } finally {
+      fetchMock.mockRestore();
+      delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;
+    }
+  });
+
+  it('reads history from the mounted native GET routes and fails closed', async () => {
+    process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG = config;
+    const rows = [{ id: 'e1', ticket_id: 'ticket-1', version: 1, action: 'create' }];
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+      new Response(JSON.stringify({ data: rows }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    const actor = { holdingSlug: 'acme', holdingId: 'h1', companyId: 'company' };
+    try {
+      const { nativeSupportEventHistory } = await import('@erpx/server-support/adapters/native-support-read');
+      await expect(nativeSupportEventHistory(actor as never, 'ticket', 'ticket-1')).resolves.toEqual(rows);
+      expect(String(fetchMock.mock.calls[0]![0])).toBe(
+        'http://127.0.0.1:3997/api/v1/holdings/acme/support/tickets/ticket-1/events',
+      );
+      fetchMock.mockClear();
+      await expect(nativeSupportEventHistory(actor as never, 'incident', 'incident-1')).resolves.toEqual(rows);
+      expect(String(fetchMock.mock.calls[0]![0])).toBe(
+        'http://127.0.0.1:3997/api/v1/holdings/acme/support/incidents/incident-1/events',
+      );
+      fetchMock.mockClear();
+      await expect(nativeSupportEventHistory(
+        { ...actor, holdingId: 'another-holding' } as never, 'ticket', 'ticket-1',
+      )).rejects.toMatchObject({ status: 422 });
+      expect(fetchMock).not.toHaveBeenCalled();
     } finally {
       fetchMock.mockRestore();
       delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;

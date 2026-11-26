@@ -503,6 +503,7 @@
 @source "../../../../packages/feature-customer_authority/src/lib/access-sources.ts";
 @source "../../../../packages/feature-customer_authority/src/lib/portal-command-attempt.ts";
 @source "../../../../packages/feature-customer_authority/src/lib/portal-display.ts";
+@source "../../../../packages/feature-customer_authority/src/lib/sales-review-counts.ts";
 @source "../../../../packages/feature-customer_authority/src/lib/support-ticket-portal-command.ts";
 @source "../../../../packages/feature-ecommerce/src/components/ecommerce-checkout-controls.tsx";
 @source "../../../../packages/feature-ecommerce/src/components/ecommerce-console.tsx";
@@ -3391,7 +3392,6 @@
 @source "../../../../packages/server-customer_authority/src/adapters/portal-release-gate.ts";
 @source "../../../../packages/server-customer_authority/src/adapters/portal-source-locks.ts";
 @source "../../../../packages/server-customer_authority/src/adapters/portal-support-sources.ts";
-@source "../../../../packages/server-customer_authority/src/adapters/sales-review-counts.ts";
 @source "../../../../packages/server-customer_authority/src/application/access.ts";
 @source "../../../../packages/server-customer_authority/src/application/duplicates.ts";
 @source "../../../../packages/server-customer_authority/src/application/identity.ts";
@@ -3417,7 +3417,6 @@
 @source "../../../../packages/server-customer_authority/src/public/portal-read-purchases.ts";
 @source "../../../../packages/server-customer_authority/src/public/portal-source-locks.ts";
 @source "../../../../packages/server-customer_authority/src/public/portal-support-sources.ts";
-@source "../../../../packages/server-customer_authority/src/public/sales-review-counts.ts";
 @source "../../../../packages/server-ecommerce/src/adapters/attachment-purchases.ts";
 @source "../../../../packages/server-ecommerce/src/adapters/attachment-read.ts";
 @source "../../../../packages/server-ecommerce/src/adapters/attachments-operational-facts.ts";
@@ -4987,6 +4986,7 @@
 @source "../../../../packages/server-legal/src/adapters/native-legal-hold-notice.ts";
 @source "../../../../packages/server-legal/src/adapters/native-legal-package-obligations.ts";
 @source "../../../../packages/server-legal/src/adapters/native-legal-wave3.ts";
+@source "../../../../packages/server-legal/src/adapters/native-processing-status/client.ts";
 @source "../../../../packages/server-legal/src/adapters/native-rule-impact/client.ts";
 @source "../../../../packages/server-legal/src/adapters/package-obligations.ts";
 @source "../../../../packages/server-legal/src/adapters/pms-rollout-facts.ts";

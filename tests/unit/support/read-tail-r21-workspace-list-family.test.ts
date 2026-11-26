@@ -47,7 +47,8 @@ describe('Support read-tail r21 workspace list family', () => {
         expect(incidents).toContain('await runtime.requirePurchase("support.incidents")');
         expect(incidents).toContain('await runtime.purchase("support.incidents")');
         expect(incidents).toContain('SUPPORT_RD_INCIDENT_TICKET_LINKS');
-        expect(incidents).toContain('SUPPORT_RD_INCIDENT_EVENT_HISTORY');
+        expect(incidents).toContain("nativeSupportEventHistory<Row>(a, 'incident', id)");
+        expect(incidents).not.toContain('SUPPORT_RD_INCIDENT_EVENT_HISTORY');
         expect(incidents).toContain('SUPPORT_RD_INCIDENT_TICKET_CANDIDATES');
         expect(incidents).not.toMatch(/LOCK TABLE|FOR SHARE/);
     });

@@ -20,9 +20,8 @@ import {snapshotMoney} from '@erpx/server-finance/public/company-money';
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { decimalToMinor } from "@erpx/feature-finance/lib/finance-money";
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
-import { createTalentWorkspace, createTalentOffer as createTalentOfferApplication, createChangeTalentRecord, createTalentDetail, createTalentExecutiveEvidence, createTalentWork, type TalentCommandPorts, type TalentCommand, type TalentMutation, type TalentExecutiveEvidenceMetric } from "@erpx/server-talent/application/talent";
+import { createTalentWorkspace, createTalentOffer as createTalentOfferApplication, createChangeTalentRecord, createTalentDetail, createTalentWork, type TalentCommandPorts, type TalentCommand, type TalentMutation } from "@erpx/server-talent/application/talent";
 import type { TalentKind } from "@erpx/server-talent/domain/talent";
-export type { TalentExecutiveEvidenceMetric } from "@erpx/server-talent/application/talent";
 function access(a: WorkContext, write = false) {
   requirePermission(a, write ? "records.write" : "records.read");
   if (!hasModuleAccess(a.modules, "talent"))
@@ -111,8 +110,6 @@ export async function talentDetail(a:WorkContext,id:string){return withTalentPur
  const database=db??await lazyDatabase(a)(),detail=await nativeTalentDetail(database)(a,id),offerDocuments=detail.canManageDocuments&&detail.offer?await SensitiveAttachmentTalentFacts(database).readTalentOffers1({targetId:String(detail.offer.id),companyId:a.companyId}):null;
  return {...detail,offerDocumentsEditable:offerDocuments?.pending_hire_delivery===0,owners:await recruiterReferences(database,a),canWrite:hasPermission(a,"records.write"),purchases:await talentPurchaseControls(a,database)};
 });}
-export function nativeTalentExecutiveEvidence(db:SqlDatabase){return createTalentExecutiveEvidence({authorize:access,error:violation=>new ApiError(violation.status,violation.code,violation.message),requisition:(a,id)=>nativeTalentReadFirst<Row>('talent_rd_exec_requisition',[id, a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId],db),applications:(a,id,range)=>nativeTalentReadFirst<Row>('talent_rd_exec_application',[id, a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId, range.from, range.toExclusive],db)});}
-export async function talentExecutiveEvidenceRow(db:SqlDatabase,a:WorkContext,metric:TalentExecutiveEvidenceMetric,recordId:string,range?:{from:number;toExclusive:number}){return withTalentPurchasedRead(a,[metric==="open-requisitions"?"recruit.positions":"recruit.applications"],async()=>nativeTalentExecutiveEvidence(db)(a,metric,recordId,range),db);}
 async function talentWorkOwned(a:WorkContext,provided?:SqlDatabase):Promise<import("@erpx/feature-work_projection/lib/work-item").WorkItem[]>{const database=provided?async()=>provided:lazyDatabase(a);return createTalentWork({authorize:access,async rows(a){const write=await database();return (
       await write
         .prepare(

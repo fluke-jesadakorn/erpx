@@ -29,7 +29,7 @@ import {createSalesCustomerApplication,type SalesCustomerRepository} from '@erpx
 import {salesOrderWorkItems} from '@erpx/server-sales/application/order-work';
 import {salesOpportunityCounts,salesOpenOpportunities} from '@erpx/server-crm/public/sales-projection';
 import {salesSupportCounts,salesOpenSupportCases} from '@erpx/server-support/public/sales-projection';
-import {salesCustomerReviewCounts} from '@erpx/server-customer_authority/public/sales-review-counts';
+import {nativeSalesCustomerReviewCounts} from '@erpx/feature-customer_authority/lib/sales-review-counts';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 export type {CustomerSummary,CustomerDirectoryRow} from '@erpx/server-sales/domain/customers';
 function orderScope(actor: WorkContext, alias = "o") {
@@ -55,7 +55,7 @@ function repository(write:SqlDatabase,actor:WorkContext):SalesCustomerRepository
  opportunityCounts:ids=>salesOpportunityCounts(write,actor,ids),supportCounts:ids=>salesSupportCounts(write,actor,ids),
  async directory(search,status,cursor){const page=await salesCustomerDirectory(write,actor,search,status,cursor);return {items:page.items.map(row=>({...row,id:row.id as string,page_key:row.page_key as string})),nextCursor:page.nextCursor,previousCursor:page.previousCursor,hasMore:page.hasMore};},
  customer:async id=>salesCustomerProfile(write,actor,id),orders:async id=>salesCustomerOpenOrders(write,actor,id),followups:async id=>{const purchase=await followupProjectionScope(write,actor,'c');return (await write.prepare(followupCustomerOrderRead(commerceProjectionSources.commerce_orders,'c.id,c.next_action,c.due_date,c.status,c.order_id,o.number order_number',s.sql,purchase.where,"o.party_id=? AND c.status='open'",'ORDER BY c.due_date,c.id LIMIT 30')).bind(...s.args,...purchase.args, id).all<Row>()).results;},opportunities:id=>salesOpenOpportunities(write,actor,id),cases:id=>salesOpenSupportCases(write,actor,id),supportSource:id=>salesSupportOrderSource(write,actor,id),
-notes:async id=>{let incoming;try{incoming=await headers();}catch{return customerNotesForCustomer(actor,id);}if(!incoming.get('host')||!incoming.get('cookie'))return customerNotesForCustomer(actor,id);return nativeCustomerNotes(incoming,actor,{customerId:id});},reviews:()=>salesCustomerReviewCounts(write,actor),
+notes:async id=>{let incoming;try{incoming=await headers();}catch{return customerNotesForCustomer(actor,id);}if(!incoming.get('host')||!incoming.get('cookie'))return customerNotesForCustomer(actor,id);return nativeCustomerNotes(incoming,actor,{customerId:id});},reviews:()=>nativeSalesCustomerReviewCounts(actor.holdingSlug,{branchId:actor.branchId??undefined,departmentId:actor.departmentId??undefined}).then(rows=>rows.map(row=>({...row}))),
  crmWork:()=>crmWork(reader),followupWork:()=>customerFollowupWork(reader),orderWork:()=>salesOrderWork(reader),followupIds:async id=>(await customerFollowupWorkspace(reader,id)).items.map(row=>String(row.id)),
 };}
 async function translated<Result>(action:()=>Promise<Result>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}

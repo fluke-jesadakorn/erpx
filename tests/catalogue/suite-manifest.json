@@ -54903,6 +54903,7 @@
         "identity_access"
       ],
       "files": [
+        "tests/unit/identity_access/native-connection-read-transport.test.ts",
         "tests/unit/identity_access/native-iam-assignments-transport.test.ts"
       ],
       "fixture": "none",
@@ -73216,7 +73217,8 @@
       "id": "legal.native-lane-26.unit",
       "files": [
         "tests/unit/legal/native-lane-26.test.ts",
-        "tests/unit/legal/native-processing-status.test.ts"
+        "tests/unit/legal/native-processing-status.test.ts",
+        "tests/unit/legal/processing-status-route.test.ts"
       ],
       "framework": "vitest"
     },
@@ -156611,6 +156613,7 @@
         "talent"
       ],
       "files": [
+        "tests/unit/talent/native-talent-evidence-read.test.ts",
         "tests/unit/talent/native-talent-requisition-transport.test.ts"
       ],
       "fixture": "none",

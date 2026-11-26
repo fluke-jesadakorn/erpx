@@ -2,6 +2,7 @@ import 'server-only';
 import { createHash } from 'node:crypto';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import type { SqlDatabase, SqlResult } from '@erpx/server-runtime/public/runtime/types';
+import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 
 /**
  * Strict owner transport for the native Support `command-plan` read route.
@@ -304,4 +305,79 @@ export async function nativeSupportReadPlan<T>(
 ): Promise<{ sql: string; values: readonly unknown[]; results: T[] }> {
   const { plan, result } = await planAndRun<T>(kind, values, db);
   return { sql: plan.sql, values: plan.values, results: result.results };
+}
+
+const MAX_EVENT_ROWS = 5000;
+const eventRow = (value: unknown): Record<string, unknown> => {
+  if (
+    !record(value) || typeof value.id !== 'string' || !value.id ||
+    typeof value.version !== 'number' || !Number.isSafeInteger(value.version) || value.version < 1 ||
+    typeof value.action !== 'string' || !value.action
+  ) return unavailable();
+  return value;
+};
+
+/**
+ * Strict fail-closed transport for the mounted native Support event-history
+ * GET routes. The axum owner executes the `support_ticket_events` /
+ * `support_incident_events` SELECT and returns the complete immutable row
+ * projection. This bridge carries no SQL, accepts no SQL from a caller and
+ * never falls back to the plan/execute bridge or a TypeScript reader: missing
+ * or invalid configuration, an unregistered Holding/caller, a bad selector, a
+ * transport failure or a malformed reply fails closed with 503.
+ */
+export async function nativeSupportEventHistory<T = Record<string, unknown>>(
+  actor: WorkContext,
+  kind: 'ticket' | 'incident',
+  id: string,
+): Promise<T[]> {
+  const config = configuration();
+  const holding = config.holdings.find(
+    h => h.holdingSlug === actor.holdingSlug && h.holdingId === actor.holdingId,
+  );
+  if (!holding || typeof id !== 'string' || !id || id.length > 200 || /[\u0000-\u001f\u007f]/.test(id)) {
+    throw new ApiError(422, 'SUPPORT_EVENT_HISTORY_SELECTOR_INVALID', 'Choose one bounded Support record.');
+  }
+  const owner = kind === 'ticket' ? 'tickets' : 'incidents';
+  const path = `/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/support/${owner}/${encodeURIComponent(id)}/events`;
+  const url = new URL(path, config.privateBaseUrl);
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        host: new URL(holding.origin).host,
+        origin: holding.origin,
+        accept: 'application/json',
+        'cache-control': 'no-cache',
+        'x-erpx-context-company': holding.companyId,
+        'x-erpx-context-holding': holding.holdingId,
+      },
+      cache: 'no-store',
+      redirect: 'error',
+      signal: AbortSignal.timeout(config.timeoutMs),
+    });
+  } catch { return unavailable(); }
+  if (response.status >= 400 && response.status < 500) {
+    void response.body?.cancel().catch(() => undefined);
+    const payload = await response.json().catch((): unknown => null);
+    const err = record(payload) ? (payload as { error?: { code?: string; message?: string } }).error : undefined;
+    throw new ApiError(
+      response.status,
+      err?.code ?? 'SUPPORT_NATIVE_HISTORY_FAILED',
+      err?.message ?? 'The native Support history read was rejected.',
+    );
+  }
+  if (
+    response.status !== 200 ||
+    response.headers.get('content-type')?.split(';')[0]?.trim() !== 'application/json'
+  ) {
+    void response.body?.cancel().catch(() => undefined);
+    return unavailable();
+  }
+  const payload: unknown = await response.json().catch((): unknown => null);
+  if (!record(payload) || !Array.isArray(payload.data) || payload.data.length > MAX_EVENT_ROWS) {
+    return unavailable();
+  }
+  return payload.data.map(value => eventRow(value) as T);
 }

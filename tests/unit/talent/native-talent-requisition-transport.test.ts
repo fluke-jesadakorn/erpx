@@ -277,52 +277,6 @@ describe('native Talent detail read tail', () => {
     }
   });
 
-  it('plans the two executive-evidence row reads through the mounted command-plan route', async () => {
-    const previous = process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
-    process.env.ERPX_NATIVE_TALENT_READ_CONFIG = readConfig;
-    const cases: Array<{ kind: string; values: unknown[]; sql: string }> = [
-      {
-        kind: 'talent_rd_exec_requisition',
-        values: ['req-1', 'company', 'branch', 'branch', null, null],
-        sql: 'SELECT r.id FROM talent_requisitions r WHERE r.id=? LIMIT 1',
-      },
-      {
-        kind: 'talent_rd_exec_application',
-        values: ['app-1', 'company', 'branch', 'branch', null, null, 1000, 2000],
-        sql: 'SELECT a.id FROM talent_applications a WHERE a.id=? LIMIT 1',
-      },
-    ];
-    const fetchMock = vi.fn(async (_url: unknown, init: { body?: string }) => {
-      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
-      const match = cases.find((item) => item.kind === body.kind);
-      expect(match).toBeDefined();
-      expect(body.values).toEqual(match!.values);
-      return ok({ data: { statements: [{ sql: match!.sql, values: body.values }] } });
-    });
-    vi.stubGlobal('fetch', fetchMock);
-    const db = {
-      prepare(sql: string) {
-        return {
-          bind(...values: unknown[]) {
-            return { first: async () => ({ sql, values }) };
-          },
-        };
-      },
-    } as never;
-    try {
-      for (const item of cases) {
-        const seen = await nativeTalentReadFirst<{ sql: string; values: unknown[] }>(item.kind, item.values, db);
-        expect(seen!.sql).toBe(item.sql);
-        expect(seen!.values).toEqual(item.values);
-      }
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-    } finally {
-      vi.unstubAllGlobals();
-      if (previous === undefined) delete process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
-      else process.env.ERPX_NATIVE_TALENT_READ_CONFIG = previous;
-    }
-  });
-
   it('plans the candidate privacy-history read through the mounted command-plan route', async () => {
     const previous = process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
     process.env.ERPX_NATIVE_TALENT_READ_CONFIG = readConfig;

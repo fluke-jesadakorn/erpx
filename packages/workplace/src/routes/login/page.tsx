@@ -4,7 +4,7 @@ import { InlineNotice } from "@erpx/ui/components/foundation";
 import { ActionAnchor } from "@erpx/ui/components/action-anchor";
 import { ArrowRight, Clock3, Grid2X2 } from "lucide-react";
 
-import {routedConnection} from '@erpx/server-identity_access/public/directory-lookup';
+import {nativeConnectionById} from '@erpx/server-identity_access/public/directory-lookup';
 import { DirectoryLogin } from "@erpx/workplace/routes/login/directory-login";
 import { LoginForm } from "@erpx/workplace/routes/login/login-form";
 import { AuthShell } from "@erpx/workplace/components/auth-shell";
@@ -39,7 +39,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   }
   const transaction = account && /^[a-f0-9-]{36}$/.test(query.sso ?? "") && /^[A-Za-z0-9_-]{43}$/.test(query.state ?? "") && /^[A-Za-z0-9_-]{43}$/.test(query.challenge ?? "");
   const next = transaction ? `/sso/authorize?${new URLSearchParams({ transaction: query.sso!, state: query.state!, challenge: query.challenge! })}` : account ? accountWorkspaceLoginReturn(query.next)??deviceAccountReturn(query.next)??legalEnrollmentReturnPath(query.next) : safeReturnPath(query.next);
-  let directory=null;if(query.connection&&/^[a-f0-9-]{36}$/i.test(query.connection)){try{const {connection}=await routedConnection(query.connection);if(connection.status==="active")directory=connection;}catch{/* Unavailable sign-in options are omitted. */}}
+  let directory=null;if(query.connection&&/^[a-f0-9-]{36}$/i.test(query.connection)){try{const connection=await nativeConnectionById(query.connection);if(connection.status==="active")directory=connection;}catch{/* Fail closed: unavailable native sign-in options are omitted. */}}
   const registration = !account && await publicBetaEnabled();
   return <AuthShell eyebrow={account ? "ERPX ACCOUNT" : "ERPX CONSOLE"} title="Welcome back." description="Sign in to your workspace and pick up where you left off.">
     {query.reason === "sign_in" && <InlineNotice tone="info" className={styles.notice} role="status">Your session has expired. Sign in to continue to the requested page.</InlineNotice>}
