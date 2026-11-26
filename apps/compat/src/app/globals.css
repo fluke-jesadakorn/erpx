@@ -7046,6 +7046,7 @@
 @source "../../../../packages/server-records/src/public/legal-attachment-read-sources.ts";
 @source "../../../../packages/server-records/src/public/native-record-context.ts";
 @source "../../../../packages/server-records/src/public/native-record-registry.ts";
+@source "../../../../packages/server-records/src/public/native-record-search.ts";
 @source "../../../../packages/server-records/src/public/platform-owner-projection-sources.ts";
 @source "../../../../packages/server-records/src/public/presentation-queries.ts";
 @source "../../../../packages/server-records/src/public/record-details.ts";

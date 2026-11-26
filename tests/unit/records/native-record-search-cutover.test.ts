@@ -205,7 +205,10 @@ describe('native Records search transport', () => {
     const { nativeRecordSearch } = await vi.importActual<
       typeof import('../../../packages/server-records/src/public/native-record-search')
     >('../../../packages/server-records/src/public/native-record-search');
-    const reply = await nativeRecordSearch(actor, '@user/Alice');
+    const reply = await nativeRecordSearch(actor, '@user/Alice', async (url, headers) => {
+      seen.push({ url, init: { method: 'GET', headers } });
+      return new Response(JSON.stringify({ data }), { status: 200, headers: { 'content-type': 'application/json' } });
+    });
     expect(seen[0]!.url.origin).toBe(config.privateBaseUrl);
     expect(seen[0]!.url.pathname).toBe('/api/v1/holdings/acme/records/native-search');
     expect(seen[0]!.url.searchParams.get('q')).toBe('@user/Alice');
@@ -228,11 +231,8 @@ describe('native Records search transport', () => {
       code: 'NATIVE_RECORDS_SEARCH_UNAVAILABLE',
     });
     process.env.ERPX_NATIVE_RECORDS_CONFIG = JSON.stringify(config);
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => new Response(JSON.stringify({ error: { code: 'FORBIDDEN' } }), { status: 403, headers: { 'content-type': 'application/json' } })),
-    );
-    await expect(nativeRecordSearch(actor, 'desk')).rejects.toMatchObject({ status: 403, code: 'FORBIDDEN' });
+    const rejected = async () => new Response(JSON.stringify({ error: { code: 'FORBIDDEN' } }), { status: 403, headers: { 'content-type': 'application/json' } });
+    await expect(nativeRecordSearch(actor, 'desk', rejected)).rejects.toMatchObject({ status: 403, code: 'FORBIDDEN' });
     expect(ApiError).toBeDefined();
   });
 });

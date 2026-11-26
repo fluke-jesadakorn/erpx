@@ -4404,6 +4404,7 @@
 @source "../../../../packages/server-records/src/public/identity-access-verified-context-projections.ts";
 @source "../../../../packages/server-records/src/public/legal-attachment-read-sources.ts";
 @source "../../../../packages/server-records/src/public/native-record-context.ts";
+@source "../../../../packages/server-records/src/public/native-record-search.ts";
 @source "../../../../packages/server-records/src/public/platform-owner-projection-sources.ts";
 @source "../../../../packages/server-records/src/public/record-details.ts";
 @source "../../../../packages/server-records/src/public/record-domain-details.ts";

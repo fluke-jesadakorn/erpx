@@ -1,4 +1,6 @@
 import 'server-only';
+import { Agent, request as httpRequest } from 'node:http';
+import { Readable } from 'node:stream';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 
@@ -41,6 +43,29 @@ function configuration(): Settings {
   return { privateBaseUrl: value.privateBaseUrl, holdings, timeoutMs };
 }
 
+/** GET with the explicit Host header; Node fetch cannot override Host. */
+function directGet(url: URL, headers: Record<string, string>, timeoutMs: number): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const agent = new Agent({ keepAlive: false, maxSockets: 1, maxTotalSockets: 1, proxyEnv: {} as import('node:http').ProxyEnv });
+    const outgoing = httpRequest(url, {
+      method: 'GET',
+      agent,
+      headers: { ...headers },
+      signal: AbortSignal.timeout(timeoutMs),
+      maxHeaderSize: 8192,
+    }, incoming => {
+      incoming.once('close', () => agent.destroy());
+      try {
+        const values = new Headers();
+        for (let i = 0; i < incoming.rawHeaders.length; i += 2) values.append(incoming.rawHeaders[i]!, incoming.rawHeaders[i + 1]!);
+        resolve(new Response(Readable.toWeb(incoming) as unknown as ReadableStream<Uint8Array>, { status: incoming.statusCode ?? 502, headers: values }));
+      } catch (error) { incoming.destroy(); agent.destroy(); reject(error); }
+    });
+    outgoing.once('error', error => { agent.destroy(); reject(error); });
+    outgoing.end();
+  });
+}
+
 export function nativeRecordSearchAvailable(): boolean {
   return process.env.ERPX_NATIVE_RECORDS_CONFIG !== undefined;
 }
@@ -49,6 +74,7 @@ export function nativeRecordSearchAvailable(): boolean {
 export async function nativeRecordSearch(
   actor: WorkContext,
   q: string,
+  send: (url: URL, headers: Record<string, string>, timeoutMs: number) => Promise<Response> = directGet,
 ): Promise<Record<string, unknown>[]> {
   if (typeof q !== 'string' || q.length < 1 || q.length > 800 || q.includes('\0')) return unavailable();
   const config = configuration();
@@ -71,7 +97,7 @@ export async function nativeRecordSearch(
 
   let response: Response;
   try {
-    response = await fetch(url, { method: 'GET', headers, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(config.timeoutMs) });
+    response = await send(url, headers, config.timeoutMs);
   } catch { return unavailable(); }
   if (response.status !== 200 || response.headers.get('content-type')?.split(';')[0]?.trim() !== 'application/json') {
     if (response.status >= 400 && response.status < 500) {
