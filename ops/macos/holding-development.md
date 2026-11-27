@@ -1,8 +1,8 @@
 # Holding development routing
 
-The exact registrations in `packages/contracts/src/holding-hosts.ts` are `acme.jesadakorn.com` (h001), `northstar.jesadakorn.com` (h002), and `admin.jesadakorn.com` (h003). Account uses `account-dev-erpx.jesadakorn.com`. The future production name for h003 is `admin.erpx.com`.
+The exact registrations in `packages/contracts/src/holding-hosts.ts` are `acme.jesadakorn.com` (h001), `northstar.jesadakorn.com` (h002), and `erpx-internal.jesadakorn.com` (h003). Account uses `account-dev-erpx.jesadakorn.com`. The future production name for h003 is `admin.erpx.com`.
 
-For the h003 cutover, update the development Account and native Holding profiles for the new exact hostname while retaining the h003 binding and Company IDs. Verify normal SSO, Feed, Apps and Sandbox Billing PDF on the new host, including denial for a customer identity. After those checks, retire the old `erpx-internal.jesadakorn.com` route through the gateway's generic 404. Keep the old route as a tombstone and verify it with the public hostname.
+The h003 cutover targets `admin.jesadakorn.com`. Update the exact registration, development Account and native Holding profiles while retaining the h003 binding and Company IDs. Verify normal SSO, Feed, Apps and Sandbox Billing PDF on the new host, including denial for a customer identity. After those checks, retire the old `erpx-internal.jesadakorn.com` route through the gateway's generic 404. Keep the old route as a tombstone and verify it with the public hostname.
 
 The Admin application listens on 3224. The independent OASIS 3D showroom uses 3218.
 
