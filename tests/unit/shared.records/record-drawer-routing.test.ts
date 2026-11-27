@@ -9,6 +9,7 @@ import {canonicalDestinationLinks} from '@erpx/feature-work_projection/lib/desti
 import {destinationProduct} from '@erpx/contracts/product-registry';
 import {productPageAllowed} from '@erpx/feature-runtime/lib/product-route-policy';
 import {productEntryCapability} from '@erpx/server-commercial/public/rules/product-entry-capability';
+import {productNavigationHref} from '@erpx/feature-work_projection/lib/product-navigation';
 const recordDrawerHarness=vi.hoisted(()=>({active:false,states:[] as unknown[],stateCursor:0,refs:[] as {current:unknown}[],refCursor:0,effects:[] as (()=>void|(()=>void))[],contentNode:undefined as unknown}));
 vi.mock('react',async importOriginal=>{
  const actual=await importOriginal<typeof import('react')>();
@@ -42,6 +43,24 @@ vi.mock("@erpx/ui/components/record-context",()=>({EmbeddedRecord:(props:{childr
 vi.mock("@erpx/feature-work_projection/lib/context-switch",()=>({registerUnsavedWork:()=>()=>{}}));
 import {RecordDrawer} from '@erpx/feature-records/components/record-drawer';
 const base='/holdings/acme';
+it('opens a quotation in the selected Company and preserves the exact public list return',()=>{
+  vi.stubEnv('ERPX_COMPANY_ADDRESS_ROUTING','acme');
+  try {
+    const current='/acme-co/bangkok/sales/documents/quote?tag=a&tag=b';
+    const selectedBase=`${base}/branches/bangkok`;
+    const target={kind:'order' as const,id:'quote-1',args:{view:'quote'}};
+    const owner=recordDrawerHref(current,target,'acme',selectedBase,'acme-co');
+    const scope={audience:'sales' as const,holdingSlug:'acme',companySlug:'acme-co'};
+    const opened=new URL(productNavigationHref(owner,scope).href);
+    expect(opened.pathname).toBe('/acme-co/bangkok/sales/documents/quote/quote-1/overview');
+    expect(opened.searchParams.get('returnTo')).toBe(current);
+    expect(recordDrawerHref(current,target,'acme',`${base}/branches/other`,'acme-co')).toBe(current);
+    expect(recordDrawerHref(current,target,'acme',selectedBase,'other-company')).toBe(current);
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});
+
 it('opens distinct Support cases from the product entry and returns to its original filters',()=>{
  const current='/support?company=company&tag=one&tag=two#list';
  const first=recordDrawerHref(current,{kind:'support_ticket',id:'ticket:one%'},'acme',base),second=recordDrawerHref(current,{kind:'support_ticket',id:'ticket-two'},'acme',base);

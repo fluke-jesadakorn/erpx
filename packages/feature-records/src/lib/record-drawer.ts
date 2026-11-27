@@ -63,14 +63,28 @@ export function withoutRecordDrawer(current:string,holdingSlug?:string) {
  else url.pathname=url.pathname.replace(/\/records\/[^/]+\/[^/]+\/overview$/,'');
  url.pathname=url.pathname.replace(/\/receipts\/[^/]+\/overview$/,'');
  for(const name of ['returnTo','detailKind','detailId','detailArgs','detailPage','detailMode'])url.searchParams.delete(name);
- return canonicalUiHref(url.pathname+url.search+url.hash);
+ const href=url.pathname+url.search+url.hash;
+ return url.pathname.startsWith('/holdings/')?canonicalUiHref(href):href;
 }
-export function recordDrawerHref(current:string,target:RecordTarget,holdingSlug?:string,knownBase?:string) {
+export function recordDrawerHref(current:string,target:RecordTarget,holdingSlug?:string,knownBase?:string,companySlug?:string) {
  const url=new URL(current,'https://erpx.invalid'),holding=holdingSlug??holdingHostForHost(url.host)?.holdingSlug,parts=workspacePathParts(url.pathname,holding);
  let base=parts?.base;
+ const host=holding?holdingHostForSlug(holding):undefined;
+ const trustedCurrent=current.startsWith('/')&&!current.startsWith('//')&&url.origin==='https://erpx.invalid'||/^https:\/\//i.test(current)&&!!host&&url.protocol==='https:'&&url.host===host.hostname;
+ if(holding&&knownBase&&companySlug&&trustedCurrent){
+  const route=parseHoldingRoute(holding,url.pathname);
+  if(route?.companySlug){
+   const match=/^\/holdings\/([^/]+)(?:\/branches\/([^/]+))?(?:\/departments\/([^/]+))?$/.exec(knownBase);
+   const branch=match?.[2],department=match?.[3];
+   const sameWorkspace=route.workspaceSlug
+    ? !(branch&&department)&&(branch??department)===route.workspaceSlug
+    : branch===route.branchSlug&&department===route.departmentSlug;
+   if(route.companySlug!==companySlug||match?.[1]!==holding||!sameWorkspace)return current;
+   base=knownBase;
+  }
+ }
  if(!base&&holding&&knownBase===`/holdings/${holding}`){
-  const host=holdingHostForSlug(holding),entry=parseHoldingRoute(holding,url.pathname),destination=parseHoldingRoute(holding,new URL(recordCanonicalHref(knownBase,target),'https://erpx.invalid').pathname);
-  const trustedCurrent=current.startsWith('/')&&!current.startsWith('//')&&url.origin==='https://erpx.invalid'||/^https:\/\//i.test(current)&&!!host&&url.protocol==='https:'&&url.host===host.hostname;
+  const entry=parseHoldingRoute(holding,url.pathname),destination=parseHoldingRoute(holding,new URL(recordCanonicalHref(knownBase,target),'https://erpx.invalid').pathname);
   if(trustedCurrent&&entry?.kind==='entry'&&destination?.app===entry.app)base=knownBase;
  }
  if(!base)return current;
