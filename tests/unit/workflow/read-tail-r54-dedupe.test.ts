@@ -37,7 +37,7 @@ const guards = (nativeApprovalPlanningPorts(db).repository as unknown as {
 
 describe('read-tail r54 approval guard-head fold', () => {
   it('keeps the three native heads byte-identical with unchanged bind positions', () => {
-    for (const [key, oracle] of Object.entries(heads)) check(fragments[key]!, oracle);
+    for (const [key, oracle] of Object.entries(heads)) check((fragments as Record<string, string>)[key]!, oracle);
     expect(`${instancePrefix}pending' AND current_step=?)`).toContain("state='pending' AND current_step=?)");
   });
 
@@ -80,7 +80,7 @@ describe('read-tail r54 approval guard-head fold', () => {
 
   it('folds read-only heads only and drops the TS SELECT tail 23->20', async () => {
     for (const [key, oracle] of Object.entries(heads)) {
-      const sql = fragments[key]!;
+      const sql = (fragments as Record<string, string>)[key]!;
       expect(sql.startsWith('EXISTS(SELECT 1') || sql.startsWith('NOT EXISTS(SELECT 1')).toBe(true);
       expect(sql).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
       check(sql, oracle);

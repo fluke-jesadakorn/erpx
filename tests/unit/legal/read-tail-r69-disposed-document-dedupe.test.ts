@@ -54,8 +54,8 @@ describe('legal read-tail r69 disposed-document head reuse', () => {
     expect(documents).toContain('NOT EXISTS(${legalDisposedDocumentPrefix}=?)');
     expect(copies).toContain('NOT EXISTS(${legalDisposedDocumentPrefix} IN (?,?))');
     for (const [name, text] of [['documents', documents], ['executed-copies', copies]]) {
-      expect(text).not.toContain(retired, name);
-      expect(text).toMatch(/legalDisposedDocumentPrefix/, name);
+      expect(text).not.toContain(retired);
+      expect(text).toMatch(/legalDisposedDocumentPrefix/);
     }
   });
 
