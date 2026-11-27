@@ -102,9 +102,9 @@ describe('Learning read-tail r18 deferred families and invariants', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(33);
-    expect(total).toBe(21);
+    expect(total).toBe(20);
     expect(selectCount(src('learning.ts'))).toBe(0);
-    expect(selectCount(src('learning-read-sql.ts'))).toBe(20);
+    expect(selectCount(src('learning-read-sql.ts'))).toBe(19);
     expect(selectCount(src('executive-metric-projections.ts'))).toBe(1);
     expect(src('native_lane_31/postgres.rs')).toContain('SELECT e.id,e.assignment_id,e.version event_version,e.status,e.created_at,c.title course_title');
   });

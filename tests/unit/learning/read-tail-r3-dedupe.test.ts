@@ -86,7 +86,7 @@ describe('Learning overdue-evidence oracle migrated to the native owner', () => 
   test('the TypeScript constant is deleted and the Rust owner pins its bytes', () => {
     const shared = src('learning-read-sql.ts');
     expect(shared).not.toContain('overdueEvidenceColumns');
-    expect((shared.match(/SELECT /g) ?? []).length).toBe(20);
+    expect((shared.match(/SELECT /g) ?? []).length).toBe(19);
     const rust = src('native_lane_31/postgres.rs');
     expect(rust).toContain('pub const OVERDUE_SQL: &str = concat!(');
     expect(rust).toContain(preOverdueColumns);
@@ -143,7 +143,7 @@ describe('Learning native source family moved into the native owner contract', (
     expect(readFileSync(resolve(srcRoot, 'public', 'learning_native_sources.rs'), 'utf8')).toContain('learning_native_source_union_sql');
   });
 
-  test('retirement:ts-statements KPI is 21 (native source family cut 29 -> 21)', () => {
+  test('retirement:ts-statements KPI is 20 (native source family cut 29 -> 20)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -153,8 +153,8 @@ describe('Learning native source family moved into the native owner contract', (
       }
     };
     walk(srcRoot);
-    expect(total).toBe(21);
-    expect(selectCount(src('learning-read-sql.ts'))).toBe(20);
+    expect(total).toBe(20);
+    expect(selectCount(src('learning-read-sql.ts'))).toBe(19);
     expect(selectCount(src('executive-metric-projections.ts'))).toBe(1);
   });
 });

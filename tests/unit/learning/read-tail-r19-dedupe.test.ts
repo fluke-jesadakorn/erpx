@@ -113,7 +113,7 @@ describe('Learning read-tail r19 assignment-child delegation', () => {
     expect(locks).toBe(7);
   });
 
-  test('retirement:ts-statements KPI is 21 (strictly below the r24 BEFORE=33 baseline)', () => {
+  test('retirement:ts-statements KPI is 20 (strictly below the r24 BEFORE=33 baseline)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -124,9 +124,9 @@ describe('Learning read-tail r19 assignment-child delegation', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(33);
-    expect(total).toBe(21);
+    expect(total).toBe(20);
     expect(selectCount(src('learning.ts'))).toBe(0);
-    expect(selectCount(src('learning-read-sql.ts'))).toBe(20);
+    expect(selectCount(src('learning-read-sql.ts'))).toBe(19);
     expect(selectCount(src('executive-metric-projections.ts'))).toBe(1);
     expect(src('native_lane_31/postgres.rs')).toContain('SELECT e.id,e.assignment_id,e.version event_version,e.status,e.created_at,c.title course_title');
   });
