@@ -9291,15 +9291,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16470,
+    "revision": 16488,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-main-ux-runtime",
       "agentId": "codex-lead",
       "startedAt": "2026-11-27T20:18:08.571Z",
-      "heartbeatAt": "2026-11-27T21:02:39.822Z",
-      "expiresAt": "2026-11-27T21:32:39.822Z",
+      "heartbeatAt": "2026-11-27T21:09:52.512Z",
+      "expiresAt": "2026-11-27T21:39:52.512Z",
       "generation": 226,
       "tokenHash": "95a7f4010461446ff4aff388ab3801b3cfeaf23f711a0b3d7b1b41a5b98ed762"
     },
@@ -226817,15 +226817,8 @@
         "resources": [
           "ui:main-sales-followup-entry"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-main-ux-runtime",
-          "agentId": "codex-lead",
-          "claimedAt": "2026-11-27T20:55:14.990Z",
-          "heartbeatAt": "2026-11-27T21:02:39.822Z",
-          "expiresAt": "2026-11-27T21:32:39.822Z",
-          "generation": 226
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": "5555b6ff6732b3ff5b4f1a11e3072f81cbbf5527",
         "lastPushedSha": "5555b6ff6732b3ff5b4f1a11e3072f81cbbf5527",
@@ -226856,15 +226849,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Canonical quote click is verified. Trace commerce detail and current Sales permission to reach the linked Follow-up drawer; browser CTA timed out.",
+        "blocker": "handoff",
+        "nextAction": "5555b6ff6 normal SSO and quotation row canonical 200. Reopen the row, wait for Commerce business sections and verify Follow-up new=1. No handler retired.",
         "handoff": {
           "runId": "run-main-ux-runtime",
           "agentId": "codex-lead",
-          "at": "2026-11-27T20:54:43.417Z",
+          "at": "2026-11-27T21:09:52.777Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Canonical quote click is verified. Trace commerce detail and current Sales permission to reach the linked Follow-up drawer; browser CTA timed out."
+          "nextAction": "5555b6ff6 normal SSO and quotation row canonical 200. Reopen the row, wait for Commerce business sections and verify Follow-up new=1. No handler retired."
         }
       },
       {
@@ -226894,18 +226887,33 @@
             "command": "Sales Pricing and gateway targeted Vitest",
             "result": "passed",
             "tests": 23
+          },
+          {
+            "sourceSha": "f27c99e86cab45234bd1418e2b15cbce4d845329",
+            "command": "signed Acme Company Price Lists Chrome read",
+            "result": "passed",
+            "detail": "HTTP 200 and Price lists and discounts, Price lists, Price-list history after Commerce lane14 native binding."
+          },
+          {
+            "sourceSha": "f27c99e86cab45234bd1418e2b15cbce4d845329",
+            "command": "compiled Axum 3195 Pricing workspace PostgreSQL read",
+            "result": "passed",
+            "holdings": [
+              "acme",
+              "northstar"
+            ]
           }
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "Compile and boot the isolated Rust candidate, configure the main Holding pricing client, then verify signed-in Price Lists reads and writes before enabling the route.",
+        "nextAction": "Signed Acme Price Lists read is live. Qualify Northstar rendered state and write route/command receipts before retiring remaining pricing consumers.",
         "handoff": {
           "runId": "run-main-ux-runtime",
           "agentId": "codex-lead",
-          "at": "2026-11-27T20:31:01.729Z",
+          "at": "2026-11-27T21:04:31.003Z",
           "previousStatus": "ready_for_integration",
           "reason": "handoff",
-          "nextAction": "Compile and boot the isolated Rust candidate, configure the main Holding pricing client, then verify signed-in Price Lists reads and writes before enabling the route."
+          "nextAction": "Signed Acme Price Lists read is live. Qualify Northstar rendered state and write route/command receipts before retiring remaining pricing consumers."
         }
       },
       {
@@ -227368,23 +227376,23 @@
         "resources": [
           "organization-directory-main-transport"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-main-ux-runtime",
-          "agentId": "hy4-demo-people",
-          "claimedAt": "2026-11-27T21:00:52.023Z",
-          "heartbeatAt": "2026-11-27T21:02:39.822Z",
-          "expiresAt": "2026-11-27T21:32:39.822Z",
-          "generation": 226
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
-        "nextAction": "Fix exact loopback Host transport and support a separate directory native config for the Acme and Northstar People app."
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-main-ux-runtime",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T21:09:53.042Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "a8d32a198 targeted 43/44; legacy directory source assertion still fails. Scoped native hierarchy 200 both Holdings. Confirm rendered hierarchy then retire TS directory consumer."
+        },
+        "nextAction": "a8d32a198 targeted 43/44; legacy directory source assertion still fails. Scoped native hierarchy 200 both Holdings. Confirm rendered hierarchy then retire TS directory consumer."
       },
       {
         "id": "integrate.pos.main-owner-transport",
@@ -227397,28 +227405,29 @@
         "requiredPorts": [],
         "allowedPaths": [
           "packages/server-collaboration/src/adapters/native-notification-statement.ts",
-          "tests/unit/shared.ui/workplace-navigation.test.ts"
+          "tests/unit/shared.ui/workplace-navigation.test.ts",
+          "tests/unit/collaboration/collaboration-services.test.ts"
         ],
         "resources": [
           "pos-main-statement-transport"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-main-ux-runtime",
-          "agentId": "hy4-demo-pos",
-          "claimedAt": "2026-11-27T21:01:32.975Z",
-          "heartbeatAt": "2026-11-27T21:02:39.822Z",
-          "expiresAt": "2026-11-27T21:32:39.822Z",
-          "generation": 226
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
-        "nextAction": "Verify and repair the exact native SSR transport using a scoped regression."
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-main-ux-runtime",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T21:09:53.307Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "b264b125a and cb4179758 transport 206 and session 129 tests passed. Verify hydrated signed POS and replace TS SQL plan execution with native results."
+        },
+        "nextAction": "b264b125a and cb4179758 transport 206 and session 129 tests passed. Verify hydrated signed POS and replace TS SQL plan execution with native results."
       },
       {
         "id": "integrate.projects.main-ssr-origin",
@@ -227436,23 +227445,57 @@
         "resources": [
           "projects-main-ssr-origin"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-main-ux-runtime",
-          "agentId": "hy4-demo-projects",
-          "claimedAt": "2026-11-27T21:01:33.503Z",
-          "heartbeatAt": "2026-11-27T21:02:39.822Z",
-          "expiresAt": "2026-11-27T21:32:39.822Z",
-          "generation": 226
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
-        "nextAction": "Verify and repair the exact native SSR transport using a scoped regression."
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-demo-projects",
+          "at": "2026-11-27T21:09:53.821Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "c7f36c0f8 HY4 exact same-Holding Origin, 22 targeted tests passed; broad Projects tests 279/281. Verify signed scoped Project Actuals and permission before retirement."
+        },
+        "nextAction": "c7f36c0f8 HY4 exact same-Holding Origin, 22 targeted tests passed; broad Projects tests 279/281. Verify signed scoped Project Actuals and permission before retirement."
+      },
+      {
+        "id": "integrate.inventory.pos-stock-transport",
+        "goalId": "G4",
+        "owner": "inventory",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Restore POS stock availability through native Inventory",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-inventory/src/adapters/native-lane-18/client.ts",
+          "tests/unit/inventory/native-lane-18.test.ts"
+        ],
+        "resources": [
+          "inventory-pos-stock-transport"
+        ],
+        "status": "blocked",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-main-ux-runtime",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T21:09:53.567Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "a3c29fea7 pinned Node26 fetch 404 versus exact loopback Host 200. Six transport tests pass and existing owner SELECT count pin expects 276 versus 274. Verify signed POS stock payload."
+        },
+        "nextAction": "a3c29fea7 pinned Node26 fetch 404 versus exact loopback Host 200. Six transport tests pass and existing owner SELECT count pin expects 276 versus 274. Verify signed POS stock payload."
       }
     ],
     "migrationProgress": {
@@ -227475,7 +227518,7 @@
       }
     },
     "lastCoordinatorGeneration": 226,
-    "updatedAt": "2026-11-27T21:02:39.826Z",
+    "updatedAt": "2026-11-27T21:09:53.825Z",
     "handoff": {
       "fromRun": "run-20261128-route",
       "verifiedPushedCheckpoint": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
