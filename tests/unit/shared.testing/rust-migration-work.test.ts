@@ -258,6 +258,23 @@ describe('portable Rust migration work coordination', () => {
     expect(f.store.read().executionPlan.tasks[0].status).toBe('migrated');
   });
 
+  it('accepts a route retirement delta only for a cutover packet', async () => {
+    const cutover = fixture([task('cutover.one')]); await begin(cutover.store); await claim(cutover.store, 'cutover.one');
+    await cutover.store.update('cutover.one', { runId: 'lead-1', status: 'ready_for_integration', nextAction: 'Integrate' });
+    await cutover.store.handoff('cutover.one', { runId: 'lead-1', nextAction: 'Integrate' });
+    await claim(cutover.store, 'cutover.one');
+    const base = { runId: 'lead-1', status: 'migrated' as const, nextAction: 'Next', implementedCommit: candidate, pushedSha: pushed };
+    const routes = { command: 'retirement:next-routes', before: 10, after: 8, result: 'passed', sourceSha: candidate };
+    await cutover.store.update('cutover.one', { ...base, checks: [passed, routes] });
+    expect(cutover.store.read().executionPlan.tasks[0].status).toBe('migrated');
+
+    const owner = fixture([task('migrate.files')]); await begin(owner.store); await claim(owner.store, 'migrate.files');
+    await owner.store.update('migrate.files', { runId: 'lead-1', status: 'ready_for_integration', nextAction: 'Integrate' });
+    await owner.store.handoff('migrate.files', { runId: 'lead-1', nextAction: 'Integrate' });
+    await claim(owner.store, 'migrate.files');
+    await expect(owner.store.update('migrate.files', { ...base, checks: [passed, routes] })).rejects.toThrow('RETIREMENT_KPI_REQUIRED');
+  });
+
   it('binds a retire task when a migrated packet still records owner writers', async () => {
     const f = fixture([task('migrate.files', { owner: 'files' })]); await begin(f.store); await claim(f.store, 'migrate.files');
     await f.store.update('migrate.files', { runId: 'lead-1', status: 'ready_for_integration', nextAction: 'Integrate' });

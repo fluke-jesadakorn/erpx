@@ -30,8 +30,11 @@ type StoreOptions = { now?: () => number; mutexTimeoutMs?: number };
 const statuses = new Set<WorkStatus>(['pending', 'in_progress', 'ready_for_integration', 'integrating', 'migrated', 'blocked', 'deferred', 'done']);
 const kinds = new Set<WorkKind>(['coordination', 'inventory', 'migration', 'integration', 'acceptance']);
 const terminal = (status: WorkStatus) => status === 'migrated' || status === 'done';
-const retirementCheck = (check: Record<string, unknown>) => typeof check.command === 'string'
+const ownerRetirementCheck = (check: Record<string, unknown>) => typeof check.command === 'string'
   && (check.command.startsWith('retirement:ts-writes') || check.command.startsWith('retirement:ts-statements'));
+const routeRetirementCheck = (check: Record<string, unknown>) => typeof check.command === 'string'
+  && check.command.startsWith('retirement:next-routes');
+const retirementCheck = (check: Record<string, unknown>) => ownerRetirementCheck(check) || routeRetirementCheck(check);
 const retireTask = (task: MigrationTask) => task.id.startsWith('retire.');
 const retirementCoversOwner = (id: string, owner: string) => id === `retire.${owner}` || id.startsWith(`retire.${owner}.`);
 function latestSourceChecks(task: MigrationTask): Map<string, Record<string, unknown>> {
@@ -380,7 +383,8 @@ export class MigrationWorkStore {
         const latest = latestSourceChecks(task);
         if (!task.implementedCommit || !task.lastPushedSha || !latest.size || [...latest.values()].some(check => check.result !== 'passed')) fail('MIGRATION_EVIDENCE_REQUIRED');
         if (['migration', 'integration'].includes(task.kind)) {
-          const retirement = [...latest.values()].filter(retirementCheck).at(-1);
+          const allowedRetirement = retireTask(task) || !task.id.startsWith('cutover.') ? ownerRetirementCheck : retirementCheck;
+          const retirement = [...latest.values()].filter(allowedRetirement).at(-1);
           if (!retirement || retirement.result !== 'passed' || !Number.isInteger(retirement.before) || !Number.isInteger(retirement.after) || !(Number(retirement.after) < Number(retirement.before))) fail('RETIREMENT_KPI_REQUIRED');
           if (task.retainedLegacy.some(entry => !object(entry) || typeof entry.removalTaskId !== 'string' || !entry.removalTaskId.trim() || typeof entry.removalCondition !== 'string' || !entry.removalCondition.trim())) fail('RETAINED_LEGACY_REMOVAL_TASK_REQUIRED');
           if (task.cutover !== undefined) {
@@ -402,7 +406,7 @@ export class MigrationWorkStore {
               && !plan.tasks.some(candidate => retireTask(candidate) && retirementCoversOwner(candidate.id, other.owner))
               && !(latestRetirementCheck(other)?.result === 'passed' && Number(latestRetirementCheck(other)?.after) === 0));
             if (uncovered.length) fail('RETIREMENT_TASKS_INCOMPLETE');
-          } else if (Number(retirement.after) !== 0) {
+          } else if (Number(retirement.after) !== 0 && !(task.id.startsWith('cutover.') && routeRetirementCheck(retirement))) {
             const bound = plan.tasks.filter(other => other.id !== task.id && retireTask(other) && retirementCoversOwner(other.id, task.owner));
             const chosen = bound.find(other => other.id === `retire.${task.owner}`) ?? bound[0];
             if (!chosen) fail('RETIRE_TASK_REQUIRED');
