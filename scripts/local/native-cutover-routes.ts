@@ -92,6 +92,13 @@ export function oasisDemoNativeRoute(host: string, url: string): { url: string; 
     try { if (!validId(conversation[1]!)) return; } catch { return; }
     return {...scoped, methods: readWrite, workContext:true};
   }
+  const pricing = /^commerce\/pricing(?:\/([^/]+)(?:\/edit)?)?$/.exec(route);
+  if (pricing) {
+    try { if (pricing[1] && !validId(pricing[1])) return; } catch { return; }
+    const suffix = route.slice("commerce/pricing".length);
+    const query = scoped.url.slice(canonical.length);
+    return {...scoped, url: `${prefix}sales/pricing${suffix}${query}`, methods: write, workContext:true};
+  }
   const match = /^(crm\/activities|crm\/leads|commerce\/orders)\/([^/]+)(?:\/(changes|opportunity\/changes|transition))?$/.exec(route);
   if (!match) return;
   const [, owner, id, action] = match;
@@ -144,7 +151,7 @@ export function respondToHoldingQualityMethod(res: ServerResponse, method: strin
 }
 
 /** Native Holding operations and paths reserved for private SSR. */
-export function holdingNativeCutoverPath(url: string, holdingSlug: string, method: string | undefined): "records" | "record-action" | "routine-templates" | "routine-schedules" | "routine-command" | "routine-editor-private" | "quality-read" | "quality-command" | "quality-missing" | "plugins" | "social" | "navigation-command" | "quotation-summary" | undefined {
+export function holdingNativeCutoverPath(url: string, holdingSlug: string, method: string | undefined): "records" | "record-action" | "routine-templates" | "routine-schedules" | "routine-command" | "native-private-read" | "quality-read" | "quality-command" | "quality-missing" | "plugins" | "social" | "navigation-command" | "quotation-summary" | undefined {
   const [path] = url.split("?", 1);
   const prefix = `/api/v1/holdings/${holdingSlug}/`;
   if (!path?.startsWith(prefix)) return;
@@ -183,7 +190,8 @@ export function holdingNativeCutoverPath(url: string, holdingSlug: string, metho
       return;
     }
   }
-  if (owner === "routine-template-editor-context" && segment === undefined) return "routine-editor-private";
+  if (owner === "routine-template-editor-context" && segment === undefined) return "native-private-read";
+  if (owner === "sales" && segment === "price-list-workspace" && tail.length === 0) return "native-private-read";
   if (owner === "routine-templates" || owner === "routine-schedules") {
     try {
       if (segment !== undefined && !validId(segment)) return;

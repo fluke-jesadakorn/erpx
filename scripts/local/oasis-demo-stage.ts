@@ -67,6 +67,7 @@ if (import.meta.main || process.argv[1]?.endsWith('/stage/entry.mjs')) {
     ERPX_NATIVE_CRM_CONFIG:companyServices,
     ERPX_NATIVE_CRM_PIPELINE_CONFIG:holding, ERPX_NATIVE_CRM_ACTIVITY_WORKSPACE_CONFIG:holding,
     ERPX_NATIVE_SALES_DOCUMENTS_CONFIG:holding, ERPX_NATIVE_COMMERCE_ORDER_CONFIG:holding,
+    ERPX_NATIVE_SALES_PRICE_LIST_CONFIG:companyServices,
   } satisfies NodeJS.ProcessEnv;
   const children = new Map<string, ChildProcess>();
   let shuttingDown = false, gateway: Awaited<ReturnType<typeof startCompiledWorkspaceGateway>> | undefined;

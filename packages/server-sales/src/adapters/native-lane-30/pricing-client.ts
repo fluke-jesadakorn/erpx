@@ -1,4 +1,5 @@
 import "server-only";
+import { Agent, request } from "node:http";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 
@@ -36,6 +37,7 @@ type Config = Readonly<{ base: string; timeoutMs: number; holdings: readonly Hol
 export const NATIVE_SALES_PRICE_LIST_CONFIG_ENV = "ERPX_NATIVE_SALES_PRICE_LIST_CONFIG";
 const ROUTE = "/api/v1/holdings/{holding_slug}/sales/price-list-workspace";
 const RESERVED_PORTS = new Set([3000, 3001, 3100, 3101, 3103, 5432, 5433, 5435, 8080]);
+const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 
 const unavailable = (code = "SALES_NATIVE_PRICE_LIST_UNAVAILABLE"): never => {
   throw new ApiError(503, code, "The native Sales price-list read is unavailable.");
@@ -163,12 +165,58 @@ function response(value: unknown, actor: PriceListActor): PriceListWorkspace {
   return value as unknown as PriceListWorkspace;
 }
 
-const directFetch: PriceListTransport = (url, headers, signal) =>
-  fetch(url, { method: "GET", headers, cache: "no-store", redirect: "error", signal });
+// Node fetch replaces an explicit Host with the loopback listener address; the
+// registered Holding Host is the authority the native owner expects.
+const directTransport: PriceListTransport = (url, headers, signal) =>
+  new Promise((resolve, reject) => {
+    const agent = new Agent({
+      keepAlive: false,
+      maxSockets: 1,
+      maxTotalSockets: 1,
+      proxyEnv: {} as import("node:http").ProxyEnv,
+    });
+    const outgoing = request(
+      url,
+      {
+        method: "GET",
+        agent,
+        headers: Object.fromEntries(headers),
+        signal,
+        maxHeaderSize: 8192,
+      },
+      incoming => {
+        incoming.once("error", reject);
+        const code = incoming.statusCode ?? 502;
+        const status = code >= 200 && code <= 599 ? code : 502;
+        const responseHeaders = new Headers();
+        const contentType = incoming.headers["content-type"];
+        if (contentType !== undefined) responseHeaders.set("content-type", contentType);
+        if (status !== 200) {
+          incoming.resume();
+          resolve(new Response(null, { status, headers: responseHeaders }));
+          return;
+        }
+        const chunks: Buffer[] = [];
+        let bytes = 0;
+        incoming.on("data", (chunk: Buffer) => {
+          bytes += chunk.length;
+          if (bytes > MAX_RESPONSE_BYTES)
+            incoming.destroy(new Error("SALES_NATIVE_PRICE_LIST_RESPONSE_TOO_LARGE"));
+          else chunks.push(chunk);
+        });
+        incoming.once("end", () => {
+          resolve(new Response(Buffer.concat(chunks), { status, headers: responseHeaders }));
+        });
+      },
+    );
+    outgoing.once("error", reject);
+    outgoing.once("close", () => agent.destroy());
+    outgoing.end();
+  });
 
 export function createPriceListWorkspaceClient(
   rawConfig: string,
-  transport: PriceListTransport = directFetch,
+  transport: PriceListTransport = directTransport,
 ) {
   const config = configuration(rawConfig);
   return {
@@ -220,7 +268,7 @@ export function createPriceListWorkspaceClient(
 /** Configuration-backed client used by `adapters/pricing.ts`. */
 export async function readPriceListWorkspace(
   actor: PriceListActor,
-  transport: PriceListTransport = directFetch,
+  transport: PriceListTransport = directTransport,
 ): Promise<PriceListWorkspace> {
   const raw = process.env[NATIVE_SALES_PRICE_LIST_CONFIG_ENV];
   if (raw === undefined) return unavailable("SALES_NATIVE_PRICE_LIST_CONFIG_REQUIRED");

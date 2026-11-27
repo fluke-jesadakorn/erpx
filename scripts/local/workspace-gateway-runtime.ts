@@ -300,7 +300,7 @@ const server = createServer(async (req, res) => {
     } catch (error) { failed(res, error); return; }
   }
   const cutover = holding && scoped && holdingNativeCutoverPath(scoped.url, holding.holdingSlug, req.method);
-  if (cutover === "routine-editor-private") {
+  if (cutover === "native-private-read") {
     nativeApiError(res, 404, "NOT_FOUND", "Not found.");
     return;
   }

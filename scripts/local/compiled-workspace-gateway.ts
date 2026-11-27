@@ -236,7 +236,7 @@ export async function startCompiledWorkspaceGateway(routing: CompiledGatewayRout
       const scoped = holdingSlug === undefined ? undefined : normalizeHoldingNativePath(url, holdingSlug);
       if (holdingSlug && scoped && isHoldingQualityPath(scoped.url, holdingSlug) && respondToHoldingQualityMethod(res, req.method)) return;
       const cutover = holdingSlug && scoped && holdingNativeCutoverPath(scoped.url, holdingSlug, req.method);
-      if (cutover === 'routine-editor-private') {
+      if (cutover === 'native-private-read') {
         res.writeHead(404, {'Cache-Control':'private, no-store'});
         res.end();
         return;

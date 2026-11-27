@@ -281,6 +281,14 @@ it('routes only the OASIS walkthrough APIs to Rust and rejects foreign hosts, te
   expect(target(`${base}/commerce/pending-quotations`, 'POST')).toEqual({status:405, allow:'GET, HEAD'});
   expect(target(`${base}/commerce/pending-quotations`, 'GET', account)).toEqual({status:404});
   expect(target(`${base}/commerce/orders/order-1`, 'PATCH')).toEqual({status:405, allow:'GET, HEAD, POST'});
+  for (const suffix of ['', '/price-list-1', '/price-list-1/edit']) {
+    expect(target(`/__erpx/sales${base}/commerce/pricing${suffix}`, 'POST')).toMatchObject({
+      port:3382, native:true, path:`${base}/sales/pricing${suffix}`, workContext:true,
+    });
+  }
+  expect(target(`${base}/commerce/pricing`)).toEqual({status:405, allow:'POST'});
+  expect(target(`${base}/commerce/pricing/price-list-1/unexpected`, 'POST')).toEqual({status:404});
+  expect(target(`${base}/sales/price-list-workspace`)).toEqual({status:404});
   for (const path of ['/api/auth/sign-up/email', '/sso/authorize', '/api/v1/holdings/acme/crm/activities', `${base}/crm`,
     `${base}/reports/crm-marketing`, `${base}/commerce/orders/order-1/fulfill`, `${base}/crm/leads/%2F/changes`,
     '/internal/session-context', '/admin', '/__erpx/admin/_next/static/chunks/app.js', '/launch?app=admin']) expect(target(path)).toEqual({status:404});

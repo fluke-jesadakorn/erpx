@@ -436,6 +436,27 @@ pub fn mount(
         .map_err(|_| "PRIVATE_API_SALES_LANE30_INVALID")?,
     );
 
+    // Sales price-list SSR reads use the registered Holding's writer pool.
+    router = router.merge(
+        erpx_server_sales::public::native_lane_30::price_list_router_for_holdings(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    (
+                        erpx_server_sales::public::native_lane_30::PriceListTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                        },
+                        pools[i + 1].clone(),
+                    )
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_SALES_PRICE_LIST_READ_INVALID")?,
+    );
+
     // Learning lane 31: evidence detail.
     router = router.merge(
         erpx_server_learning::public::native_lane_31::router_for_holdings(

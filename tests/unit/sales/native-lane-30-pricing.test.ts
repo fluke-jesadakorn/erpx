@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { describe, expect, it, vi } from 'vitest';
+import { createServer } from 'node:http';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
@@ -20,7 +21,7 @@ const config = {
     { origin: 'https://erpx-internal.jesadakorn.com', host: 'erpx-internal.jesadakorn.com', holdingId: 'h003', holdingSlug: 'erpx', companyId: 'erpx-co' },
   ],
 };
-const raw = JSON.stringify(config);
+let raw = JSON.stringify(config);
 const actorFor = (holdingId: string, holdingSlug: string, companyId: string): PriceListActor => ({
   holdingId, holdingSlug, companyId,
 });
@@ -38,6 +39,45 @@ const item = {
 };
 const payloadFor = (company: string) => ({ lists: [{ ...list, company_id: company }], items: [item] });
 const payload = payloadFor('acme-co');
+
+type Seen = Readonly<{
+  url: string;
+  host: string | undefined;
+  origin: string | undefined;
+  company: string | undefined;
+}>;
+let seen: Seen;
+let reply: { status: number; contentType: string; body: unknown; delayMs: number };
+const server = createServer((request, result) => {
+  result.on('error', () => {});
+  seen = {
+    url: request.url ?? '',
+    host: request.headers.host,
+    origin: request.headers.origin,
+    company: request.headers['x-erpx-context-company'] as string | undefined,
+  };
+  const company = String(request.headers['x-erpx-context-company'] ?? '');
+  const send = () => {
+    result.writeHead(reply.status, { 'content-type': reply.contentType });
+    result.end(typeof reply.body === 'string' ? reply.body : JSON.stringify(reply.body ?? payloadFor(company)));
+  };
+  if (reply.delayMs > 0) setTimeout(send, reply.delayMs);
+  else send();
+});
+beforeAll(async () => {
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('Expected a loopback listener');
+  config.privateBaseUrl = `http://127.0.0.1:${address.port}`;
+  raw = JSON.stringify(config);
+});
+beforeEach(() => { reply = { status: 200, contentType: 'application/json', body: undefined, delayMs: 0 }; });
+afterAll(() => new Promise<void>((resolve, reject) => {
+  server.close(error => error ? reject(error) : resolve());
+}));
 
 const json = (value: unknown) =>
   new Response(JSON.stringify(value), { status: 200, headers: { 'content-type': 'application/json' } });
@@ -62,6 +102,42 @@ describe('native lane 30 price-list workspace client', () => {
     expect(Object.keys(payload)).toEqual(['lists', 'items']);
     expect(Object.keys(list)).toHaveLength(17);
     expect(Object.keys(item)).toHaveLength(8);
+  });
+
+  it('preserves the registered Holding Host on the default loopback transport', async () => {
+    const client = createPriceListWorkspaceClient(raw);
+    expect(await client.read(actorFor('h001', 'acme', 'acme-co'))).toEqual(payload);
+    expect(seen).toEqual({
+      url: '/api/v1/holdings/acme/sales/price-list-workspace',
+      host: 'acme.jesadakorn.com',
+      origin: 'https://acme.jesadakorn.com',
+      company: 'acme-co',
+    });
+    expect(seen.host).not.toContain('127.0.0.1');
+    const northstar = await client.read(actorFor('h002', 'northstar', 'northstar-co'));
+    expect(northstar.lists[0].company_id).toBe('northstar-co');
+    expect(seen).toEqual({
+      url: '/api/v1/holdings/northstar/sales/price-list-workspace',
+      host: 'northstar.jesadakorn.com',
+      origin: 'https://northstar.jesadakorn.com',
+      company: 'northstar-co',
+    });
+  });
+
+  it('keeps status, content-type, timeout and byte bounds on the default transport', async () => {
+    const client = createPriceListWorkspaceClient(raw);
+    reply = { status: 503, contentType: 'application/json', body: {}, delayMs: 0 };
+    await expect503(() => client.read(actorFor('h001', 'acme', 'acme-co')));
+    reply = { status: 200, contentType: 'text/plain', body: payload, delayMs: 0 };
+    await expect503(
+      () => client.read(actorFor('h001', 'acme', 'acme-co')),
+      'SALES_NATIVE_PRICE_LIST_RESPONSE_INVALID',
+    );
+    reply = { status: 200, contentType: 'application/json', body: 'x'.repeat(2 * 1024 * 1024 + 1), delayMs: 0 };
+    await expect503(() => client.read(actorFor('h001', 'acme', 'acme-co')));
+    reply = { status: 200, contentType: 'application/json', body: payload, delayMs: 500 };
+    const slow = createPriceListWorkspaceClient(JSON.stringify({ ...config, timeoutMs: 250 }));
+    await expect503(() => slow.read(actorFor('h001', 'acme', 'acme-co')));
   });
 
   it('selects the actor Holding for all three registered targets, never the first', async () => {
