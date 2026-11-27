@@ -97,6 +97,19 @@ impl RecordsRegistryHttpBackend for Probe {
                     ),
                     serde_json::json!({"id": record_id, "moduleId": module_id}),
                 ),
+                RecordsRegistryHttpCommand::Mention {
+                    module_id,
+                    record_id,
+                    input,
+                    key,
+                } => (
+                    format!(
+                        "mention|{module_id}|{record_id}|{}|{}",
+                        key.as_ref().map_or("", |key| key.as_str()),
+                        input.target_id
+                    ),
+                    serde_json::json!({"mentions": [{"targetId": input.target_id}]}),
+                ),
                 RecordsRegistryHttpCommand::Transition {
                     module_id,
                     record_id,
@@ -735,6 +748,67 @@ async fn actual_router_forwards_reference_with_origin_and_idempotency() {
         response["error"]["code"],
         "RECORDS_REGISTRY_REQUEST_INVALID"
     );
+}
+
+#[tokio::test]
+async fn mentions_use_created_data_envelope_and_strip_unknown_input_fields() {
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let router = records_registry_http_router(vec![target(
+        "acme.example.test",
+        "acme",
+        seen.clone(),
+        false,
+    )])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let _server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+    let path = "/api/v1/holdings/acme/records/support/record-1/mentions";
+    let valid = r#"{"targetKind":"person","targetId":"u-1","targetLabel":"Person","extra":true}"#;
+    let invalid = r#"{"targetKind":"group","targetId":"u-1","targetLabel":"Person"}"#;
+    let origin = "https://acme.example.test";
+    let (status, response, headers) = http(
+        addr,
+        post(
+            path,
+            "acme.example.test",
+            origin,
+            "records:mention-key-1",
+            valid,
+        ),
+    )
+    .await;
+    assert_eq!(status, 201);
+    assert_eq!(
+        response,
+        serde_json::json!({"data":{"mentions":[{"targetId":"u-1"}]}})
+    );
+    assert!(headers.contains("cache-control: private, no-store"));
+    let (status, response, _) = http(
+        addr,
+        post(
+            path,
+            "acme.example.test",
+            origin,
+            "records:mention-key-2",
+            invalid,
+        ),
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(response["error"]["code"], "VALIDATION_FAILED");
+    let (status, _, headers) = http(
+        addr,
+        format!("GET {path} HTTP/1.1\r\nHost: acme.example.test\r\nConnection: close\r\n\r\n"),
+    )
+    .await;
+    assert_eq!(status, 405);
+    assert!(!headers.contains("allow:"));
+    let calls = seen.lock().unwrap();
+    assert_eq!(calls.len(), 1);
+    assert!(calls[0].contains("mention|support|record-1|records:mention-key-1|u-1"));
 }
 
 #[tokio::test]

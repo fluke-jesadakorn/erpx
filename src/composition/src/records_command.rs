@@ -5,7 +5,18 @@ use crate::records::RecordsConfiguration;
 use erpx_server_identity_access::public::{
     DeviceProof,
     effective_authority::{AuthorizedWorkContext, HoldingWorkAuthorizer, WorkAuthorizationRequest},
+    records_principal_search::{active_assignment_on, active_principal_display_name},
     work_context::{HoldingWorkspaceRequest, WorkScopeKind},
+};
+use erpx_server_records::public::native_command::{
+    NativeCommand, PgNativeCommandRepository, execute_native_command,
+};
+use erpx_server_records::public::record_context::{
+    PgRecordContext, RecordContextActor, RecordContextRepository, record_context,
+};
+use erpx_server_records::public::record_social::{
+    AddPrincipalMentionInput, MENTION_STATEMENT, MentionWrite, OP_MENTION,
+    mention_target_not_eligible, mention_target_unavailable, plan_mention, validate_mention_input,
 };
 use erpx_server_records::public::record_write::{
     ArchiveRecordInput, CreateRecordInput, MAX_REFERENCES, MAX_SAFE, RecordFieldInput,
@@ -13,7 +24,7 @@ use erpx_server_records::public::record_write::{
     ValidatedRecord, ValidatedRecordUpdate, reference_limit, validate_archive, validate_create,
     validate_reference, validate_transition, validate_update, version_conflict,
 };
-use erpx_server_runtime::public::postgres::PgTransactionError;
+use erpx_server_runtime::public::postgres::{DatabasePool, PgTransactionError};
 use erpx_server_shared::public::{
     BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, IdentifierSource,
     RecordId, TimestampMillis,
@@ -638,6 +649,116 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for ReferenceEffects<'_, C> {
             return Err(changed().into());
         }
         Ok(())
+    }
+}
+
+struct MentionEffects<'a> {
+    display_name: &'a Result<Option<String>, BusinessError>,
+    actor: &'a RecordContextActor,
+    module_id: &'a str,
+    record_id: &'a str,
+    input: &'a AddPrincipalMentionInput,
+    now: i64,
+    write: Option<MentionWrite>,
+}
+
+// The workflow ledger fingerprints the captured input in legacy field order.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MentionReceiptInput<'a> {
+    module_id: &'a str,
+    #[serde(flatten)]
+    mention: &'a AddPrincipalMentionInput,
+}
+
+impl PgOwnerCommandEffects for MentionEffects<'_> {
+    async fn lock_sources(
+        &mut self,
+        connection: &mut PgConnection,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        sqlx::query(
+            "LOCK TABLE workspace_records,record_principal_mentions \
+             IN SHARE ROW EXCLUSIVE MODE NOWAIT",
+        )
+        .execute(&mut *connection)
+        .await
+        .map_err(
+            erpx_server_runtime::public::postgres::PersistenceError::pre_snapshot_lock_conflict,
+        )?;
+        Ok(())
+    }
+
+    async fn prepare(
+        &mut self,
+        connection: &mut PgConnection,
+        _: &CommandActor,
+        _: &WorkflowRequest,
+    ) -> Result<WorkflowOutput, Error> {
+        let record = PgRecordContext::new(connection)
+            .record(self.actor, self.module_id, self.record_id)
+            .await?
+            .ok_or_else(record_not_found)?;
+        if !active_assignment_on(connection, &self.input.target_id, self.now).await? {
+            return Err(mention_target_not_eligible().into());
+        }
+        let name = self
+            .display_name
+            .as_ref()
+            .map_err(Clone::clone)?
+            .as_deref()
+            .ok_or_else(mention_target_unavailable)?;
+        self.write = Some(plan_mention(
+            self.module_id,
+            self.record_id,
+            self.input,
+            name,
+        )?);
+        Ok(WorkflowOutput {
+            version: record.version,
+            result: CommandJson::from_serializable(&serde_json::json!({"id": self.record_id}))?,
+            event_scope: None,
+        })
+    }
+
+    async fn apply(
+        &mut self,
+        connection: &mut PgConnection,
+        current: &CommandActor,
+        command: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        let write = self.write.as_ref().ok_or_else(unavailable)?;
+        let statement = NativeCommand {
+            kind: MENTION_STATEMENT.to_owned(),
+            values: write.values(current.user_id.as_str(), self.now),
+            now: self.now,
+        };
+        execute_native_command(
+            &statement,
+            &command.key,
+            &mut PgNativeCommandRepository::new(connection),
+        )
+        .await?;
+        Ok(())
+    }
+
+    async fn retain(
+        &mut self,
+        connection: &mut PgConnection,
+        _: &CommandActor,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        let rows = PgRecordContext::new(connection)
+            .mentions(self.module_id, self.record_id)
+            .await?;
+        if rows
+            .iter()
+            .any(|row| row.target_kind == "person" && row.target_id == self.input.target_id)
+        {
+            Ok(())
+        } else {
+            Err(changed().into())
+        }
     }
 }
 
@@ -1353,6 +1474,111 @@ impl<C: Clock + Send + Sync + 'static> RecordsCommandService<C> {
                                 "moduleId": module_id,
                             }),
                         ))
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn mention_with_context<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        control: DatabasePool,
+        module_id: String,
+        record_id: String,
+        mention: AddPrincipalMentionInput,
+        key: Option<CommandKey>,
+    ) -> Result<(serde_json::Value, serde_json::Value), Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        erpx_server_records::public::record_context::validate_request(&module_id, &record_id)?;
+        validate_mention_input(&mention)?;
+        let holding = self.configuration.holding_id().clone();
+        let company = self.configuration.company().clone();
+        let clock = self.clock.clone();
+        let key = match key {
+            Some(key) => key,
+            None => CommandKey::new(Ids.next().as_str())?,
+        };
+        let request = WorkflowRequest {
+            key: key.as_str().to_owned(),
+            operation: OP_MENTION.into(),
+            record_id,
+            input: CommandJson::from_serializable(&MentionReceiptInput {
+                module_id: &module_id,
+                mention: &mention,
+            })?,
+        };
+        // Resolve the Control fact before the authorizer takes its Control
+        // lease, so concurrent Holding writes never wait for a second slot.
+        let display_name = if proof.active.is_some() {
+            active_principal_display_name(&control, &mention.target_id).await
+        } else {
+            Ok(None)
+        };
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(&module_id),
+                crate::records::RecordsSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let module_id = module_id.clone();
+                    let mention = mention.clone();
+                    let request = request.clone();
+                    let display_name = display_name.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.write")?;
+                        current.require_permission("records.read")?;
+                        require_module(current, &module_id)?;
+                        let actor = crate::records::records_actor(current)?;
+                        let now = clock.now().get();
+                        let mut authority = Authority {
+                            current,
+                            request: &request,
+                            clock: clock.as_ref(),
+                        };
+                        let mut effects = MentionEffects {
+                            display_name: &display_name,
+                            actor: &actor,
+                            module_id: &module_id,
+                            record_id: &request.record_id,
+                            input: &mention,
+                            now,
+                            write: None,
+                        };
+                        let mut ids = Ids;
+                        PgCommandLedger::new(
+                            company,
+                            connection,
+                            &mut authority,
+                            clock.as_ref(),
+                            &mut ids,
+                        )
+                        .execute(&request, &mut effects)
+                        .await?;
+                        let data = record_context(
+                            &mut PgRecordContext::new(connection),
+                            &mut crate::records::RecordsContextGuardImpl,
+                            &actor,
+                            &module_id,
+                            &request.record_id,
+                            now,
+                        )
+                        .await?;
+                        Ok((data, crate::records::context_value(current)))
                     })
                 },
             )

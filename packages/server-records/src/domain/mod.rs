@@ -10,3 +10,4 @@ pub(crate) mod record_search;
 
 pub(crate) mod record_write;
 pub(crate) mod source_record;
+pub(crate) mod record_social;

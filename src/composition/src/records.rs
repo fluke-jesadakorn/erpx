@@ -1,7 +1,9 @@
 use crate::business_http::BusinessScopeSlugs;
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
-    account_inbound_http::{parse_inbound_account_request, unique_request_header},
+    account_inbound_http::{
+        CapturedHoldingMutation, parse_inbound_account_request, unique_request_header,
+    },
     effective_authority::{
         AuthorizedWorkContext, HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
         WorkAuthorizationRequest,
@@ -29,7 +31,7 @@ use erpx_server_records::public::record_registry_http::{
     RecordsRegistryHttpRequest, RecordsRegistryHttpResponse,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
-use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
+use erpx_server_runtime::public::postgres::{DatabasePool, PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
     AssignmentId, BusinessError, Clock, CompanyId, FailureKind, HoldingId,
 };
@@ -424,6 +426,9 @@ impl<C: Clock + Send + Sync + 'static> RecordsService<C> {
             RecordsRegistryHttpCommand::Reference { .. } => {
                 return Err(unavailable().into());
             }
+            RecordsRegistryHttpCommand::Mention { .. } => {
+                return Err(unavailable().into());
+            }
             RecordsRegistryHttpCommand::Transition { .. } => {
                 return Err(unavailable().into());
             }
@@ -498,6 +503,7 @@ impl<C: Clock + Send + Sync + 'static> RecordsService<C> {
 pub struct RecordsBackend<C> {
     policy: Arc<AccountPolicy>,
     scopes: Arc<dyn BusinessScopeSlugs>,
+    control: DatabasePool,
     service: Arc<RecordsService<C>>,
     command: Arc<crate::records_command::RecordsCommandService<C>>,
 }
@@ -506,12 +512,14 @@ impl<C: Clock + Send + Sync + 'static> RecordsBackend<C> {
     pub fn new(
         policy: Arc<AccountPolicy>,
         scopes: Arc<dyn BusinessScopeSlugs>,
+        control: DatabasePool,
         service: Arc<RecordsService<C>>,
         command: Arc<crate::records_command::RecordsCommandService<C>>,
     ) -> Self {
         Self {
             policy,
             scopes,
+            control,
             service,
             command,
         }
@@ -647,6 +655,36 @@ impl<C: Clock + Send + Sync + 'static> RecordsRegistryHttpBackend for RecordsBac
         request: RecordsRegistryHttpRequest<'a>,
     ) -> RecordsRegistryHttpFuture<'a, RecordsRegistryHttpResponse> {
         Box::pin(async move {
+            if let RecordsRegistryHttpCommand::Mention {
+                module_id,
+                record_id,
+                input,
+                key,
+            } = request.command
+            {
+                let inbound = parse_inbound_account_request(&self.policy, request.headers)?;
+                if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+                    return Err(not_found());
+                }
+                let (branch, department) = self.scopes.slugs(request.headers)?;
+                let selected =
+                    CapturedHoldingMutation::capture(request.headers, branch, department);
+                let (data, context) = self
+                    .command
+                    .mention_with_context(
+                        request.host,
+                        inbound.into_proof(),
+                        move || selected.resolve(),
+                        self.control.clone(),
+                        module_id,
+                        record_id,
+                        input,
+                        key,
+                    )
+                    .await
+                    .map_err(business)?;
+                return Ok(RecordsRegistryHttpResponse { data, context });
+            }
             let create = matches!(
                 request.command,
                 RecordsRegistryHttpCommand::Create { .. }

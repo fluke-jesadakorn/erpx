@@ -6352,6 +6352,7 @@ async fn assemble_checked(
                 let records_backend = Arc::new(crate::records::RecordsBackend::new(
                     config.policy.clone(),
                     Arc::new(FinanceJournalReadScopeHeaders),
+                    pools[0].clone(),
                     Arc::new(crate::records::RecordsService::new(
                         authorizer.clone(),
                         records_configuration,

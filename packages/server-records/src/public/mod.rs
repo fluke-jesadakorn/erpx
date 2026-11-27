@@ -26,3 +26,4 @@ pub mod owner_projection_head;
 pub mod portal_commerce_locks;
 pub mod rfq_request_source;
 pub mod native_lane_35;
+pub mod record_social;

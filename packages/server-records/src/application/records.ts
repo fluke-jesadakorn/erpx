@@ -6,7 +6,7 @@ import { z } from "zod";
 import { hasModuleAccess } from "@erpx/catalogue/module-access";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { readListPage } from "@erpx/server-work_projection/public/list-page";
-import { type RecordField, type WorkspaceRecord, type RecordRow, updateRecordSchema, createRecordSchema, transitionSchema, addReferenceSchema, suggestionSchema, suggestionDecisionSchema, addPrincipalMentionSchema, nextStatus } from '@erpx/server-records/domain/records';
+import { type RecordField, type WorkspaceRecord, type RecordRow, updateRecordSchema, createRecordSchema, transitionSchema, addReferenceSchema, suggestionSchema, suggestionDecisionSchema, nextStatus } from '@erpx/server-records/domain/records';
 import { BusinessRuleError, type Clock, type IdentifierSource } from '@erpx/server-shared/index';
 import type { RecordsCommands } from '@erpx/server-records/domain/commands';
 type Tail<Value extends unknown[]> = Value extends [
@@ -67,11 +67,6 @@ export interface RecordsRepository<Effect> {
         })[];
     }>;
     readSearchReferencesAssignment(user_id: string, now: number, now2: number): Promise<Record<string, unknown> | null>;
-    readAddPrincipalMentionEligible(targetId: string, now: number, now2: number): Promise<Record<string, unknown> | null>;
-    readAddPrincipalMentionPrincipal(targetId: string): Promise<{
-        display_name: string;
-    } | null>;
-    stageAddPrincipalMentionEffect(moduleId: string, id: string, targetKind: "person", targetId: string, display_name: string, userId: string, now: number): Effect;
     readAddReferenceCount(moduleId: string, id: string): Promise<{
         count: number;
     } | null>;
@@ -281,20 +276,6 @@ export function createRecordsApplication<Effect>(ports: RecordsPorts<Effect>) {
         }
         return [...result.results.map(item => ({ kind: "record", ...item })), ...eligiblePeople].slice(0, 12);
     }
-    async function addPrincipalMention(actor: WorkContext, moduleId: string, id: string, input: z.infer<typeof addPrincipalMentionSchema>, key = ports.identifiers.next()) {
-        const current = await getRecord(actor, moduleId, id);
-        await ports.prepare(actor.holdingId);
-        const now = ports.clock.now();
-        const eligible = await r.readAddPrincipalMentionEligible(input.targetId, now, now);
-        if (!eligible)
-            throw new BusinessRuleError(404, "MENTION_TARGET_NOT_FOUND", "That person is not available in this Holding.");
-        await ports.prepareControl();
-        const principal = await r.readAddPrincipalMentionPrincipal(input.targetId);
-        if (!principal)
-            throw new BusinessRuleError(404, "MENTION_TARGET_NOT_FOUND", "That person is unavailable.");
-        await recordMutation(actor, moduleId, id, current.version, "record.mention", input, [r.stageAddPrincipalMentionEffect(moduleId, id, input.targetKind, input.targetId, principal.display_name, actor.userId, now)], key);
-        return recordContext(actor, moduleId, id);
-    }
     async function addReference(actor: WorkContext, moduleId: string, id: string, input: z.infer<typeof addReferenceSchema>, key = ports.identifiers.next()) {
         const current = await getRecord(actor, moduleId, id);
         await getRecord(actor, input.targetModule, input.targetId);
@@ -368,5 +349,5 @@ export function createRecordsApplication<Effect>(ports: RecordsPorts<Effect>) {
         const page = await ports.pageRecords(actor, moduleId, sectionId, query);
         return { ...page, items: page.items.map(mapRecord) };
     }
-    return { listRecords, getRecord, createRecord, archiveRecord, updateRecord, transitionRecord, recordContext, searchReferences, addPrincipalMention, addReference, requestSuggestion, decideSuggestion, recordsPage };
+    return { listRecords, getRecord, createRecord, archiveRecord, updateRecord, transitionRecord, recordContext, searchReferences, addReference, requestSuggestion, decideSuggestion, recordsPage };
 }

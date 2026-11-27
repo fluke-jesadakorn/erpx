@@ -184,7 +184,9 @@ pub mod user_management;
 pub mod directory_operation;
 pub mod messaging_people;
 pub mod records_principal_search {
-    pub use crate::adapters::records_principal_search::{active_assignment, search_principals};
+    pub use crate::adapters::records_principal_search::{
+        active_assignment, active_assignment_on, active_principal_display_name, search_principals,
+    };
 }
 pub mod portal_private_session_lease;
 pub mod rfq_request_membership;

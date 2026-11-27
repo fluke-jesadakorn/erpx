@@ -7,10 +7,5 @@ export function RecordsIdentityAccessOwnedFacts(control: SqlDatabase) {
                 user_id: string;
                 display_name: string;
             }>();
-        },
-        readAddPrincipalMentionPrincipal(targetId: string) {
-            return control.prepare(`SELECT display_name FROM principals WHERE user_id=? AND status='active'`).bind(targetId).first<{
-                display_name: string;
-            }>();
         } };
 }

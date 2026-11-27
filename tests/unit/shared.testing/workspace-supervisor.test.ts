@@ -429,9 +429,10 @@ it('routes retired Holding entries and their transport aliases directly to Axum'
       ['DELETE', 'support/record'],
       ['POST', 'support/record/references'],
       ['POST', 'support/record/transition'],
+      ['POST', 'support/record/mentions'],
     ] as const)
       expect(holdingNativeCutoverPath(`/api/v1/holdings/acme/records/${tail}`, 'acme', method)).toBe('record-action');
-    for (const tail of ['search', 'native-search', '%73earch', 'support%2Frecord', 'support/%2F', 'support/record/mentions',
+    for (const tail of ['search', 'native-search', '%73earch', 'support%2Frecord', 'support/%2F',
       'support/record/suggestions', 'support/record/references/extra', 'support/record/detail'])
       expect(holdingNativeCutoverPath(`/api/v1/holdings/acme/records/${tail}`, 'acme', 'GET')).toBeUndefined();
     await new Promise<void>(done => upstream.close(() => done()));

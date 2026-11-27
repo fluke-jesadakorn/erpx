@@ -80,6 +80,7 @@ async fn records_setup(
     let backend = Arc::new(RecordsBackend::new(
         Arc::new(review::account::fixture::account::policy()),
         Arc::new(FinanceJournalReadScopeHeaders),
+        p.system.control.clone(),
         Arc::new(RecordsService::new(
             p.authorizer.clone(),
             configuration,

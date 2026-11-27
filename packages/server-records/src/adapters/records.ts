@@ -48,7 +48,7 @@ import { ApiError as NativeApiError } from '@erpx/server-runtime/public/http';
 import { createNativeRecordContextClient, nativeRecordContextConfiguration, nativeRecordContextFailure } from '../public/native-record-context';
 import { projectionColumnHeadSql } from './read-tail-r32-sql';
 import { nativeRecordsStatement } from '@erpx/feature-records/adapters/server/native-records-command';
-import { type RecordRow, updateRecordSchema, createRecordSchema, transitionSchema, addReferenceSchema, suggestionSchema, suggestionDecisionSchema, addPrincipalMentionSchema } from '@erpx/server-records/domain/records';
+import { type RecordRow, updateRecordSchema, createRecordSchema, transitionSchema, addReferenceSchema, suggestionSchema, suggestionDecisionSchema } from '@erpx/server-records/domain/records';
 import { createRecordsApplication, type RecordsRepository } from '@erpx/server-records/application/records';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import { RecordsIdentityAccessFacts } from '@erpx/server-identity_access/public/records-records-facts';
@@ -60,7 +60,6 @@ export { transitionSchema } from '@erpx/server-records/domain/records';
 export { addReferenceSchema } from '@erpx/server-records/domain/records';
 export { suggestionSchema } from '@erpx/server-records/domain/records';
 export { suggestionDecisionSchema } from '@erpx/server-records/domain/records';
-export { addPrincipalMentionSchema } from '@erpx/server-records/domain/records';
 // Shared owner-local version fence for record guards (guard3/guard25); identical SQL.
 const recordVersionExistsSql = existsGuardSql('workspace_records', 'module_id=? AND id=? AND version=? AND archived_at IS NULL');
 // Shared owner-local workspace-record projection for list/get/page reads. The
@@ -119,9 +118,6 @@ function application(provided?: SqlDatabase,actor?:WorkContext) {
         },
         readSearchReferencesPeople(...args) { return RecordsIdentityAccessOwnedFacts(control).readSearchReferencesPeople(...args); },
         readSearchReferencesAssignment(...args) { return RecordsIdentityAccessFacts(database).readSearchReferencesAssignment(...args); },
-        readAddPrincipalMentionEligible(...args) { return RecordsIdentityAccessFacts(database).readAddPrincipalMentionEligible(...args); },
-        readAddPrincipalMentionPrincipal(...args) { return RecordsIdentityAccessOwnedFacts(control).readAddPrincipalMentionPrincipal(...args); },
-        stageAddPrincipalMentionEffect(moduleId: string, id: string, targetKind: "person", targetId: string, display_name: string, userId: string, now: number) { return nativeRecordsStatement('records_stmt_18', { companyId: actor?.companyId, actor, now: Date.now() }).bind(moduleId, id, targetKind, targetId, display_name, userId, now); },
         /** Retired: the reference-count guard executes in the native Rust records command route. */
         readAddReferenceCount() { throw new NativeApiError(503,'NATIVE_RECORDS_UNAVAILABLE','The native Records reference reader is unavailable.'); },
         /** Retired: record references execute in the native Rust records command route. */
@@ -206,7 +202,6 @@ export async function recordContext(actor: WorkContext, moduleId: string, id: st
     }
 }
 export async function searchReferences(actor: WorkContext, query: string) { return invoke(() => application(undefined,actor).searchReferences(actor, query)); }
-export async function addPrincipalMention(actor: WorkContext, moduleId: string, id: string, input: z.infer<typeof addPrincipalMentionSchema>, key = crypto.randomUUID()) { return invoke(() => application(undefined,actor).addPrincipalMention(actor, moduleId, id, input, key)); }
 export async function addReference(actor: WorkContext, moduleId: string, id: string, input: z.infer<typeof addReferenceSchema>, key = crypto.randomUUID()) { return invoke(() => application(undefined,actor).addReference(actor, moduleId, id, input, key)); }
 export async function requestSuggestion(actor: WorkContext, moduleId: string, id: string, input: z.infer<typeof suggestionSchema>, key = crypto.randomUUID()) { return invoke(() => application(undefined,actor).requestSuggestion(actor, moduleId, id, input, key)); }
 export async function decideSuggestion(actor: WorkContext, moduleId: string, id: string, suggestionId: string, input: z.infer<typeof suggestionDecisionSchema>, key = crypto.randomUUID()) { return invoke(() => application(undefined,actor).decideSuggestion(actor, moduleId, id, suggestionId, input, key)); }

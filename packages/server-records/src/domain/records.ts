@@ -51,11 +51,6 @@ export const suggestionDecisionSchema = z.object({
     expectedVersion: z.number().int().positive(),
     action: z.enum(["apply", "reject"]),
 });
-export const addPrincipalMentionSchema = z.object({
-    targetKind: z.literal("person"),
-    targetId: z.string().min(1).max(128),
-    targetLabel: z.string().min(1).max(160),
-});
 export const nextStatus: Record<string, Partial<Record<z.infer<typeof transitionSchema>["action"], WorkspaceRecord["status"]>>> = {
     draft: { submit: "in_review" }, in_review: { approve: "approved", reject: "rejected" },
     approved: { complete: "completed", reopen: "draft" }, rejected: { reopen: "draft" }, completed: { reopen: "draft" },

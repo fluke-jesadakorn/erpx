@@ -7,13 +7,20 @@
 //! responsibilities behind [`RecordsRegistryHttpBackend`].
 use crate::domain::record_context::valid_module;
 use crate::domain::record_registry::RegistryQuery;
+use crate::domain::record_social::{
+    AddPrincipalMentionInput, mention_input_invalid, validate_mention_input,
+};
 use crate::domain::record_write::{
     ArchiveRecordInput, CreateRecordInput, MAX_SAFE, ReferenceRecordInput, TransitionRecordInput,
     UpdateRecordInput,
 };
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
-    StatusCode, body::to_bytes, header, routing::get, routing::patch, routing::post, serde_json,
+    StatusCode,
+    body::to_bytes,
+    header,
+    routing::{any, get, patch, post},
+    serde_json,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
 use serde_json::Value;
@@ -57,6 +64,12 @@ pub enum RecordsRegistryHttpCommand {
         record_id: String,
         input: ReferenceRecordInput,
         key: String,
+    },
+    Mention {
+        module_id: String,
+        record_id: String,
+        input: AddPrincipalMentionInput,
+        key: Option<CommandKey>,
     },
     Transition {
         module_id: String,
@@ -375,6 +388,12 @@ pub fn records_registry_http_router(
             post(add_reference).options(command_options),
         )
         .route(
+            "/api/v1/holdings/{holding_slug}/records/{module_id}/{record_id}/mentions",
+            any(|| async { StatusCode::METHOD_NOT_ALLOWED })
+                .post(add_mention)
+                .options(command_options),
+        )
+        .route(
             "/api/v1/holdings/{holding_slug}/records/{module_id}/{record_id}/transition",
             post(transition_record).options(command_options),
         )
@@ -617,6 +636,61 @@ async fn add_reference(
     }
 }
 
+async fn add_mention(
+    State(state): State<Arc<RecordsRegistryHttpState>>,
+    Path((slug, module_id, record_id)): Path<(String, String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let result = async move {
+        let target = target(&state, &headers, &slug)?;
+        if unique_header(&headers, header::ORIGIN)?.is_none_or(|origin| origin != target.origin) {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            ));
+        }
+        if !valid_module(&module_id) || !crate::domain::record_context::valid_id(&record_id) {
+            return Err(missing());
+        }
+        let key = unique_header(&headers, HeaderName::from_static("idempotency-key"))?
+            .map(CommandKey::new)
+            .transpose()?;
+        let input = read_action_body(request).await.map_err(|error| {
+            if error.code == "REQUEST_TOO_LARGE" {
+                error
+            } else {
+                mention_input_invalid()
+            }
+        })?;
+        validate_mention_input(&input)?;
+        target
+            .backend
+            .execute(RecordsRegistryHttpRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                command: RecordsRegistryHttpCommand::Mention {
+                    module_id,
+                    record_id,
+                    input,
+                    key,
+                },
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(reply) => {
+            let mut response = bounded(serde_json::json!({"data": reply.data}));
+            *response.status_mut() = StatusCode::CREATED;
+            response
+        }
+        Err(error) => error_response(error),
+    }
+}
+
 async fn transition_record(
     State(state): State<Arc<RecordsRegistryHttpState>>,
     Path((slug, module_id, record_id)): Path<(String, String, String)>,
@@ -802,13 +876,23 @@ mod wire_parity_tests {
         assert_eq!(
             keys(&view),
             vec![
-                "createdBy", "description", "fields", "id", "moduleId", "sectionId", "status",
-                "title", "updatedAt", "version"
+                "createdBy",
+                "description",
+                "fields",
+                "id",
+                "moduleId",
+                "sectionId",
+                "status",
+                "title",
+                "updatedAt",
+                "version"
             ]
         );
-        assert!(keys(&view).iter().all(|key| *key != "href"
-            && !key.ends_with("Href")
-            && !key.ends_with("_href")));
+        assert!(
+            keys(&view)
+                .iter()
+                .all(|key| *key != "href" && !key.ends_with("Href") && !key.ends_with("_href"))
+        );
         let page = RegistryPage {
             items: Vec::new(),
             next_cursor: None,
