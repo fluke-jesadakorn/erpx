@@ -12,9 +12,12 @@ import { AppsLauncher } from "@erpx/workplace/components/apps-launcher";
 export async function OfficeProductMenus({ productId, accountId, companyId, scopeBase, workspaceLabel, language, productLabel }: {
   productId: ProductId | "admin"; accountId: string; companyId: string; scopeBase: string; workspaceLabel: string; language: "en" | "th"; productLabel?: string;
 }) {
-  const [choices, adminChoices, provider] = await Promise.all([productLaunchChoices(), adminLaunchChoices(), providerEntryOverview()]);
-  const th = language === "th";
+  const routed = holdingRoutingEnabled(process.env);
   const holdingSlug = scopeBase.split("/")[2];
+  const [choices, adminChoices, provider] = await Promise.all([
+    productLaunchChoices(undefined, routed ? holdingSlug : undefined), adminLaunchChoices(), providerEntryOverview(),
+  ]);
+  const th = language === "th";
   const companies = buildAppsCompanies(choices.map(choice => ({
     ...choice, label: choice.productId === "apps" ? th ? "ฟีด" : "Feed" : product(choice.productId)!.label[language],
     accessLabel: productAccessLabel(choice, language),
@@ -23,6 +26,6 @@ export async function OfficeProductMenus({ productId, accountId, companyId, scop
     currentCompanyId={JSON.stringify([holdingSlug, companyId])} currentWorkspaceId={scopeBase} currentProductId={productId}
     productLabel={productLabel ?? (productId === "apps" ? th ? "แอป" : "Apps" : productId === "admin" ? th ? "ดูแลบริษัท" : "Administration" : product(productId)!.label[language])}
     workspaceLabel={workspaceLabel}
-    companies={holdingRoutingEnabled(process.env) ? companies.filter(company => company.holdingSlug === holdingSlug) : companies}
+    companies={routed ? companies.filter(company => company.holdingSlug === holdingSlug) : companies}
     provider={provider ? { href: configuredProductHandoff("admin", "/provider")!, role: provider.role } : null} />;
 }

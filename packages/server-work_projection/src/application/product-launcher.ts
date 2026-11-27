@@ -47,6 +47,10 @@ export function createProductLauncher(ports: {
   purchaseFacts(access: AccountAccessContext): Promise<CompanyPurchaseFacts>;
   moduleAccess(access: AccountAccessContext): Promise<ProductModuleAccess>;
   ready(access: AccountAccessContext, moduleId: string): Promise<boolean>;
+  /** Render-local readiness cache key. Only supply when readiness has no workspace dimension. */
+  readyKey?(access: AccountAccessContext, moduleId: string): string;
+  /** Restrict candidate enumeration to one Holding before any authority/purchase/readiness read. */
+  holdingSlug?: string;
   expensePostingPrerequisitesEntry?(access:AccountAccessContext,assignment:AccountAccessContext["assignments"][number]):Promise<{revision:string;purchasePurpose:"history"}|null>;
   payrollPostingPrerequisitesEntry?(access:AccountAccessContext,assignment:AccountAccessContext["assignments"][number]):Promise<{revision:string;purchasePurpose:"history"}|null>;
   peopleFinancialEntry?(access:AccountAccessContext,assignment:AccountAccessContext["assignments"][number],target:PeopleFinancialEntry):Promise<{revision:string;purchasePurpose:"history"}|null>;
@@ -67,8 +71,11 @@ export function createProductLauncher(ports: {
     const deferredProducts=new Set(products.filter(definition=>ports.commercialAdmissionDeferred?.(definition.id)===true).map(definition=>definition.id));
     const purchaseReads = new Map<string, Promise<CompanyPurchaseFacts>>();
     const moduleReads = new Map<string, ReturnType<typeof ports.moduleAccess>>();
+    const readyReads = new Map<string, Promise<boolean>>();
     const result: (ProductWorkspaceCandidate & { productId: ProductId; href: string; purchasePurpose: CapabilityPurpose; sourceRecord?:true })[] = [];
-    for (const candidate of productWorkspaceCandidates(await ports.choices())) {
+    const candidates = productWorkspaceCandidates(await ports.choices())
+      .filter(candidate => !ports.holdingSlug || candidate.scope.holdingSlug === ports.holdingSlug);
+    for (const [candidateIndex, candidate] of candidates.entries()) {
       let access: AccountAccessContext;
       try { access = await ports.access(candidate.scope, { companyId: candidate.companyId }); }
       catch (error) { if (ports.denied(error)) continue; throw error; }
@@ -82,10 +89,10 @@ export function createProductLauncher(ports: {
       if (!moduleRead) { moduleRead = ports.moduleAccess(access); moduleReads.set(key, moduleRead); }
       const authority = await moduleRead;
       const applicable = access.assignments.filter(assignment => assignmentApplies(assignment, access.scope) && authority.modulesByAssignment.has(assignment.id));
-      const readyReads = new Map<string, Promise<boolean>>();
       const readyModule = (id: string) => {
-        let read = readyReads.get(id);
-        if (!read) { read = ports.ready(access, id); readyReads.set(id, read); }
+        const key = ports.readyKey ? ports.readyKey(access, id) : `${candidateIndex}:${id}`;
+        let read = readyReads.get(key);
+        if (!read) { read = ports.ready(access, id); readyReads.set(key, read); }
         return read;
       };
       for (const definition of products) {

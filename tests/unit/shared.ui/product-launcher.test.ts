@@ -440,3 +440,60 @@ it("limits a product host to the same authorized links as the complete launcher"
   expect(scoped.access.mock.calls).toEqual(complete.access.mock.calls);
   expect(await createProductLauncher(scoped)("learn")).toEqual([]);
 });
+
+const multiHolding = (): WorkspaceChoice[] => [...choices(), buildWorkspaceHoldingChoice("northstar", "Northstar Holding", [
+  { companyId: "c3", companyName: "Company Three", scopeKind: "holding", scopeNodeId: null },
+], [], true)!];
+const holdingFixture = () => {
+  const f = fixture();
+  return { ...f, choices: async () => multiHolding(), access: vi.fn(async (scope: import("@erpx/feature-work_projection/lib/workspace").HoldingWorkspaceScope, options: { companyId: string }) => ({
+    scope: { ...scope, holdingId: scope.holdingSlug === "northstar" ? "h002" : "h001", companyId: options.companyId,
+      branchId: scope.kind !== "holding" ? "b1" : undefined, departmentId: scope.kind === "department" ? "d1" : undefined },
+    assignments: [{ id: "role", role: "holding_owner", companyId: options.companyId, branchId: null, scopeKind: "holding", scopeNodeId: null, modules: ["finance", "pos"] }],
+  }) as AccountAccessContext) };
+};
+
+it('scopes candidate reads to the active Holding before authority, purchase and readiness while preserving exact route invites', async () => {
+  const complete = await createProductLauncher(holdingFixture())();
+  expect(new Set(complete.map(link => link.scope.holdingSlug))).toEqual(new Set(["acme", "northstar"]));
+  const active = holdingFixture();
+  const links = await createProductLauncher({ ...active, holdingSlug: "northstar" })();
+  expect(links).toEqual(complete.filter(link => link.scope.holdingSlug === "northstar"));
+  expect(links.length).toBeGreaterThan(0);
+  expect(active.access.mock.calls.every(([scope]) => scope.holdingSlug === "northstar")).toBe(true);
+  expect(active.purchaseFacts.mock.calls.every(([account]) => account.scope.holdingSlug === "northstar")).toBe(true);
+  expect((active.moduleAccess.mock.calls as unknown as [AccountAccessContext][]).every(([account]) => account.scope.holdingSlug === "northstar")).toBe(true);
+  expect((active.ready.mock.calls as unknown as [AccountAccessContext, string][]).every(([account]) => account.scope.holdingSlug === "northstar")).toBe(true);
+});
+
+it('reuses one module readiness read per Holding, Company and module within a render without changing the generic contract', async () => {
+  const plain = vi.fn(async (_access: AccountAccessContext, _moduleId: string) => true);
+  await createProductLauncher({ ...fixture(), ready: plain })();
+  const cached = vi.fn(async (_access: AccountAccessContext, _moduleId: string) => true);
+  const readyKey = (access: AccountAccessContext, moduleId: string) => `${access.scope.holdingId}:${access.scope.companyId}:${moduleId}`;
+  await createProductLauncher({ ...fixture(), ready: cached, readyKey })();
+  const keys = cached.mock.calls.map(([access, id]) => readyKey(access, id));
+  expect(plain.mock.calls.length).toBeGreaterThan(keys.length);
+  expect(new Set(keys).size).toBe(keys.length);
+  expect(keys.every(key => key.startsWith("h001:"))).toBe(true);
+});
+
+it('passes the active Holding to Office product choices only in Holding mode and retains unscoped global choices', async () => {
+  const { OfficeProductMenus } = await import('@erpx/workplace/components/office-product-menus');
+  menuSources.products.mockResolvedValue([]);
+  menuSources.admin.mockResolvedValue([{ holding: 'Acme', company: 'Admin', companyId: 'c9', workspace: 'Admin', scope: { kind: 'holding', holdingSlug: 'acme' }, kind: 'management', href: 'admin-management' }]);
+  const before = Object.fromEntries(['ERPX_HOLDING_ROUTING', 'ERPX_ENVIRONMENT', 'ERPX_PRODUCT_ENVIRONMENT'].map(key => [key, process.env[key]]));
+  process.env.ERPX_HOLDING_ROUTING = 'enabled';
+  process.env.ERPX_ENVIRONMENT = 'local';
+  process.env.ERPX_PRODUCT_ENVIRONMENT = 'development';
+  try {
+    menuSources.products.mockClear();
+    await OfficeProductMenus({ accountId: 'u', productId: 'apps', companyId: 'c1', scopeBase: '/holdings/acme', workspaceLabel: 'Acme', language: 'en' });
+    expect(menuSources.products).toHaveBeenCalledExactlyOnceWith(undefined, 'acme');
+  } finally {
+    for (const [key, value] of Object.entries(before)) if (value === undefined) delete process.env[key]; else process.env[key] = value;
+  }
+  menuSources.products.mockClear();
+  await OfficeProductMenus({ accountId: 'u', productId: 'apps', companyId: 'c1', scopeBase: '/holdings/acme', workspaceLabel: 'Acme', language: 'en' });
+  expect(menuSources.products).toHaveBeenCalledExactlyOnceWith(undefined, undefined);
+});

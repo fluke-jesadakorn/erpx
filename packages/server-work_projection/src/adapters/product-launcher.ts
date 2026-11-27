@@ -48,7 +48,7 @@ export async function existingWorkspaceLaunchChoices() {
 }
 
 /** Small server projection: no grants, permissions, or module catalogue enter Client props. */
-export async function productLaunchChoices(productId?: import("@erpx/contracts/product-registry").ProductId) {
+export async function productLaunchChoices(productId?: import("@erpx/contracts/product-registry").ProductId, holdingSlug?: string) {
   // One render-local directory/session/assignment snapshot per Company, with
   // explicit node/lineage validation for each requested scope. Never global.
   const accounts = new Map<string, Promise<AccountAccessContext>>();
@@ -57,6 +57,10 @@ export async function productLaunchChoices(productId?: import("@erpx/contracts/p
   holdingFrontUrl:holdingFrontUiUrl,
   commercialAdmissionDeferred:id=>developmentModuleAdmissionDeferred(id,process.env),
   choices: productWorkspaceChoices, moduleAccess: accountWorkModuleAccess,
+  holdingSlug,
+  // Native release checks depend only on Holding, Company and module, so many
+  // workspace candidates in one render share the same readiness probe.
+  readyKey: (access, moduleId) => `${access.scope.holdingId}:${access.scope.companyId}:${moduleId}`,
   access: async (scope, options) => {
     const key = `${scope.holdingSlug}:${options.companyId}`;
     let pending = accounts.get(key);
