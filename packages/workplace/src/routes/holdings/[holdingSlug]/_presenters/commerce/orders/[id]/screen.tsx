@@ -281,8 +281,8 @@ export default async function OrderPage({
       {!printing && order.kind !== "purchase" && (
         <Link href={canonicalUiHref(`${base}/commerce/orders/${id}/notes`)}>Customer contact notes (internal)</Link>
       )}
-      {!printing && order.kind !== "purchase" && (
-        <Link href={canonicalUiHref(`${base}/customer-followups?orderId=${encodeURIComponent(id)}`)}>
+      {!printing && order.kind !== "purchase" && canEdit && purchase?.newWork !== false && (
+        <Link href={canonicalUiHref(`${base}/customer-followups?new=1&orderId=${encodeURIComponent(id)}`)}>
           Assign customer follow-up
         </Link>
       )}

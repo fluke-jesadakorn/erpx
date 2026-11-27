@@ -36,11 +36,31 @@ import { HubCreate, HubCursor, HubFilters, HubTable, hubPage } from "@erpx/featu
 import styles from "@erpx/feature-sales/components/customers/hub.module.css";
 
 export async function SalesTodayView({ actor, base, query }: { actor: WorkContext; base: string; query: HubQuery }) {
-  const data = await salesToday(actor, query), rows = hubPage(data.items, query), newForm = query.new === "1";
+  const data = await salesToday(actor, query), rows = hubPage(data.items, query);
+  const newForm = data.canCreateFollowup && query.new === "1";
   const source = newForm && query.orderId ? await customerFollowupWorkspace(actor, queryValue(query, "orderId")) : null;
   const orders = newForm && !source ? (await workOrderRows(actor)).filter(row => ["quote", "sales"].includes(String(row.kind))) : [];
   return <>
-    <div className={styles.filterRow}><HubSegments base={base} hub="sales" query={query} name="owner" selected={queryValue(query, "owner", "mine")} label="Work ownership" values={[["mine", "My work"], ["team", "Team"]]} />{(data.canCreateFollowup||newForm) && <HubCreate base={base} hub="sales" query={query} label="New follow-up">{newForm && (source?.order ? <CustomerFollowupForm base={base} order={source.order} recipients={source.recipients} purchase={source.purchase} inlineCreate /> : <form className={styles.section} data-work-dirty="false"><input type="hidden" name="view" value="today" /><input type="hidden" name="new" value="1" /><Field appearance="standard">Customer quotation or order<Select appearance="standard" name="orderId" required defaultValue=""><option value="">Choose source</option>{orders.map(order => <option key={String(order.id)} value={String(order.id)}>{String(order.number)} · {String(order.party_name)}</option>)}</Select></Field><Button appearance="standard" variant="primary" type="submit">Continue</Button></form>)}</HubCreate>}</div>
+    <div className={styles.filterRow}>
+      <HubSegments base={base} hub="sales" query={query} name="owner" selected={queryValue(query, "owner", "mine")} label="Work ownership" values={[["mine", "My work"], ["team", "Team"]]} />
+      {data.canCreateFollowup && <HubCreate base={base} hub="sales" query={query} label="New follow-up">
+        {newForm && (source ? (
+          source.canCreate && source.order
+            ? <CustomerFollowupForm base={base} order={source.order} recipients={source.recipients} purchase={source.purchase} inlineCreate />
+            : <InlineNotice tone="warning">A follow-up cannot be assigned from this quotation or order.</InlineNotice>
+        ) : <form className={styles.section} data-work-dirty="false">
+          <input type="hidden" name="view" value="today" />
+          <input type="hidden" name="new" value="1" />
+          <Field appearance="standard">Customer quotation or order
+            <Select appearance="standard" name="orderId" required defaultValue="">
+              <option value="">Choose source</option>
+              {orders.map(order => <option key={String(order.id)} value={String(order.id)}>{String(order.number)} · {String(order.party_name)}</option>)}
+            </Select>
+          </Field>
+          <Button appearance="standard" variant="primary" type="submit">Continue</Button>
+        </form>)}
+      </HubCreate>}
+    </div>
     <HubFilters query={query} placeholder="Search tasks and customers" filters={[{ name: "kind", label: "Task type", values: [["all", "All tasks"], ...(data.canReadCrm ? [["crm", "CRM & activities"], ["followups", "Follow-ups"]] as const : []), ...(data.canReadDocuments ? [["documents", "Sales documents"]] as const : [])] }, { name: "status", label: "Task status", values: [["", "Open tasks"], ["all", "All statuses"]] }]} />
     {data.unavailable.length > 0 && <InlineNotice tone="warning" role="status">Unable to load {data.unavailable.join(", ")}. Refresh to retry; the available tasks remain below.</InlineNotice>}
     {rows.length ? <HubTable label="Sales work" columns={["Next action", "Status", "Responsible", "Due"]}>{rows.map(row => <tr key={`${row.type}-${row.id}`}><td><Link className={styles.recordName} href={`${base}${row.href}`}>{row.title}</Link><span className={styles.meta}>{row.nextAction}{row.blocker ? ` · ${row.blocker}` : ""}</span></td><td data-label="Status"><StatusBadge appearance="standard" status={row.status} /></td><td data-label="Responsible">{row.responsibleQueue || "Unassigned"}</td><td data-label="Due" className={row.dueAt && row.dueAt < data.observedAt ? styles.overdue : undefined}>{row.dueAt ? <TimeText appearance="standard" value={row.dueAt} options={{ year: "numeric", month: "short", day: "numeric" }} /> : "No date"}</td></tr>)}</HubTable> : <HubEmpty title={data.unavailable.length ? "Some tasks are unavailable" : "No tasks in this view"}>Try Team or adjust the filters.</HubEmpty>}

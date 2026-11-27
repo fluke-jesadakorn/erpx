@@ -306,8 +306,11 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
   const holdings = [...new Set(companies.map(item => item.holdingSlug ?? item.holding))].map(id => ({ id, companies: companies.filter(item => (item.holdingSlug ?? item.holding) === id) }));
   const activeProduct = workspace?.id === currentWorkspaceId && company?.id === currentCompanyId ? currentProductId : undefined;
   const history = company ? current.memory.recent[company.id] ?? [] : [];
-  const apps = workspace ? visibleApps(workspace.apps, appQuery) : [];
-  const featuredPair = apps.length === 2 && apps[0].productId === "apps" && apps[1].productId === "sales";
+  const visible = workspace ? visibleApps(workspace.apps, appQuery) : [];
+  const feed = visible.find(app => app.productId === "apps");
+  const sales = visible.find(app => app.productId === "sales");
+  const featuredPair = Boolean(feed && sales);
+  const apps = feed && sales ? [feed, sales, ...visible.filter(app => app !== feed && app !== sales)] : visible;
   const recent = workspace ? recentApps(workspace.apps, history, activeProduct) : [];
   return <>
     <Button ref={trigger} appearance="standard" variant="ghost" className={styles.trigger} data-apps-launcher-trigger aria-label={[t("แอป", "Apps"),workspaceLabel].filter(Boolean).join(" · ")} aria-haspopup="dialog" aria-expanded={open} onClick={showHere}>
@@ -321,7 +324,7 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
           <h2>{t("พื้นที่ทำงาน", "Workspaces")}</h2>
           <label className={styles.search}>
             <Search size={16} aria-hidden="true" />
-            <TextInput aria-label={t("ค้นหาพื้นที่ทำงาน", "Search workspaces")} placeholder={t("ค้นหาพื้นที่ทำงาน", "Search workspaces")} data-autofocus={!workspace || undefined} appearance="standard" type="search" value={areaQuery} onChange={event => setAreaQuery(event.target.value)} />
+            <TextInput aria-label={t("ค้นหาพื้นที่ทำงาน", "Search workspaces")} placeholder={t("ค้นหา", "Search")} data-autofocus={!workspace || undefined} appearance="standard" type="search" value={areaQuery} onChange={event => setAreaQuery(event.target.value)} />
           </label>
           <ul>{holdings.map(holding => {
             const items = holding.companies.filter(item => matches(`${item.holding} ${item.label}`) || item.workspaces.some(area => matches(area.label)));
