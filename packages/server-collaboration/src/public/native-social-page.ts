@@ -1,6 +1,7 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { nativeRequest } from '@erpx/server-runtime/public/native-http';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import type { HomePost, SocialPageData } from './native-social-page-types';
 
@@ -416,14 +417,10 @@ export async function nativeSocialPageDataSSR(
   const requestHeaders = ssrHeaders(actor, incoming);
   let response: Response;
   try {
-    response = await fetch(
-      `${config.privateBaseUrl}/api/v1/holdings/${encodeURIComponent(actor.holdingSlug)}/page${search ? `?${search}` : ''}`,
-      {
-        method: 'GET',
-        headers: requestHeaders,
-        cache: 'no-store',
-        signal: AbortSignal.timeout(config.timeoutMs),
-      },
+    response = await nativeRequest(
+      new URL(`${config.privateBaseUrl}/api/v1/holdings/${encodeURIComponent(actor.holdingSlug)}/page${search ? `?${search}` : ''}`),
+      { headers: Object.fromEntries(requestHeaders) },
+      config.timeoutMs,
     );
   } catch {
     throw new ApiError(
