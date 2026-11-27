@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15615,
+    "revision": 15668,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": null,
@@ -213424,7 +213424,7 @@
         "goalId": "G4",
         "owner": "records",
         "kind": "migration",
-        "status": "ready_for_integration",
+        "status": "blocked",
         "title": "feature-records routes native execution",
         "scope": "Inventory feature-records routes and port one bounded read/command to Rust with real SQL execution and complete payload parity.",
         "workflowIds": [],
@@ -213439,9 +213439,9 @@
           "owner:records",
           "route:records-feature"
         ],
-        "nextAction": "Records search returns real record and person hits; next Records family.",
+        "nextAction": "Read-only HY4 review complete. Start same-transaction selected-context Record search and port the retained 23 owner predicates before enabling gateway or retiring handlers. Inspect src/composition/src/native_lane_mounts.rs and packages/server-records/src/adapters/records.ts.",
         "claim": null,
-        "baseSha": null,
+        "baseSha": "06cfedd279b79d1ef7ba7c3552ebdc1a43094eb9",
         "implementedCommit": "a85deb97370224cca0a87191ab152ce0fa6b8805",
         "lastPushedSha": "3cbd0350c675ab420131cdd1870ed5d73c07a224",
         "checks": [
@@ -213519,17 +213519,23 @@
             "result": "passed",
             "sourceSha": "3e6d431753a173cc369c6ef2be3013187b4c01d1",
             "note": "200 with real active-assignment principal hits (Ada Bennett, Ada Suwan, Jesadakorn Kirtnu)"
+          },
+          {
+            "command": "HY4 read-only source parity audit of public Records search",
+            "sourceSha": "06cfedd279b79d1ef7ba7c3552ebdc1a43094eb9",
+            "result": "failed",
+            "note": "The Rust record search admission only filters by module and omits the legacy 23 owner source/purchase guards. The existing public Next transport and the 17 app re-exports cannot retire until exact per-owner source admission and authorized selected context are proved. Rust also scans 300 candidates before per-row filtering, which can underfill results."
           }
         ],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
+        "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261127-b",
-          "agentId": "lead",
-          "at": "2026-11-26T18:49:01.615Z",
-          "previousStatus": "ready_for_integration",
-          "reason": "released with work preserved",
-          "nextAction": "Records search returns real record and person hits; next Records family."
+          "runId": "run-goal-routine-editor",
+          "agentId": "hy4-records-search-audit",
+          "at": "2026-11-27T07:12:40.950Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Read-only HY4 review complete. Start same-transaction selected-context Record search and port the retained 23 owner predicates before enabling gateway or retiring handlers. Inspect src/composition/src/native_lane_mounts.rs and packages/server-records/src/adapters/records.ts."
         },
         "scopeRefinementRequired": false
       },
@@ -218258,32 +218264,49 @@
           "packages/server-projects/src/adapters/purchases.ts",
           "packages/server-projects/src/adapters/optional-project-options.ts",
           "packages/server-projects/src/adapters/routine-project-options.ts",
-          "packages/server-projects/src/adapters/native_lane_27/domain.rs",
           "packages/server-projects/src/adapters/native_lane_27/http.rs",
-          "packages/server-projects/src/adapters/native_lane_27/postgres.rs",
-          "packages/server-projects/src/public/native_lane_27.rs",
           "packages/server-projects/src/public/routine-project-options.ts",
           "packages/server-projects/src/public/optional-project-options.ts",
           "packages/server-projects/package.json",
           "packages/server-work_projection/src/adapters/staff-page.ts",
           "packages/server-work_projection/src/adapters/presentation-context-queries.ts",
           "packages/server-operations/src/adapters/work-routine-presentation.ts",
-          "packages/feature-operations/src/adapters/server/native-routines-read.ts",
           "src/composition/src/native_lane_mounts.rs",
           "src/composition/src/routine_commands.rs",
-          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/routine-templates/screen.tsx",
-          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/routine-templates/[id]/screen.tsx",
           "tests/integration/commercial/provider-legacy-grants.test.ts",
-          "tests/unit/operations/task-worker-display.test.ts"
+          "tests/unit/operations/task-worker-display.test.ts",
+          "packages/server-operations/src/adapters/routine_commands_http.rs",
+          "packages/server-operations/src/public/work-routine-presentation.ts",
+          "packages/server-operations/package.json",
+          "scripts/local/native-cutover-routes.ts",
+          "scripts/local/workspace-gateway-runtime.ts",
+          "scripts/local/compiled-workspace-gateway.ts",
+          "tests/unit/shared.testing/workspace-supervisor.test.ts",
+          "tests/unit/operations/rust-routine-run-http.test.rs",
+          "apps/launcher/turbo.json",
+          "apps/launcher/src/app/globals.css",
+          "apps/compat/src/app/globals.css",
+          "tests/catalogue/suite-manifest.json",
+          "packages/server-operations/src/domain/routine-purchase-controls.ts",
+          "tests/integration/operations/staff-task-alerts.test.ts",
+          "tests/unit/shared.work/presentation-owner-queries.test.ts",
+          "tests/unit/operations/operations-services.test.ts",
+          "tests/unit/operations/read-tail-r55-dedupe.test.ts",
+          "src/composition/src/branding.rs",
+          "packages/server-brand/src/adapters/identity.rs",
+          "packages/server-brand/src/adapters/branding.rs",
+          "packages/server-brand/src/adapters/branding_use_cases.rs"
         ],
         "resources": [
-          "path:cutover.operations.routine-ssr-dependencies"
+          "path:cutover.operations.routine-ssr-dependencies",
+          "build:heavy",
+          "service:dev-postgres-browser"
         ],
-        "status": "blocked",
+        "status": "migrated",
         "claim": null,
-        "baseSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
-        "implementedCommit": "402a1fb5af3215b2b9d0393223c7c013bf0f7799",
-        "lastPushedSha": "402a1fb5af3215b2b9d0393223c7c013bf0f7799",
+        "baseSha": "83d6a52d95b83235dbe43c110fe17492cb27b309",
+        "implementedCommit": "06cfedd279b79d1ef7ba7c3552ebdc1a43094eb9",
+        "lastPushedSha": "06cfedd279b79d1ef7ba7c3552ebdc1a43094eb9",
         "checks": [
           {
             "command": "Authenticated public Acme routine detail SSR with explicit Company",
@@ -218304,23 +218327,179 @@
             "command": "Loopback vs Node fetch checked exact Acme Holding Host; direct Node HTTP returns native list and nested schedule",
             "sourceSha": "402a1fb5af3215b2b9d0393223c7c013bf0f7799",
             "result": "passed"
+          },
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-operations --test routine_run_http",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed",
+            "passed": 9
+          },
+          {
+            "command": "bun x vitest run --config tests/config/vitest.unit.config.mts (Operations, work projection, workspace gateway)",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed",
+            "passed": 192
+          },
+          {
+            "command": "bun x tsc --noEmit -p tests/config/tsconfig.json",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed"
+          },
+          {
+            "command": "PostgreSQL Acme SSO candidate and development native context",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed",
+            "note": "Private 200: active fixture, people 116, levels 7, departments 18. Dedicated shadow candidate verified grouped purchased affordances and context; stale revision 409, wrong Company 403, public 404."
+          },
+          {
+            "command": "Authenticated Acme HTTPS SSR list and seeded detail",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed",
+            "note": "Both 200; direct and /__erpx/apps forms of the private route return 404. Development and private production health 200; retired Console root 404."
+          },
+          {
+            "command": "bun run structure:check and bun run test:catalogue",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed",
+            "note": "33 modules, 2425 suites."
+          },
+          {
+            "command": "cutover runtime delta: Operations routine editor SSR",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed",
+            "privateMethodPaths": 1,
+            "publicMethodPaths": 0,
+            "nextRouteBranchesRetired": 0,
+            "nextRouteFilesRetired": 0,
+            "typeScriptBackendFilesRetired": 4,
+            "ssrCallersMigrated": 2,
+            "nextInventory": 1414,
+            "note": "Baseline architecture diagnostics and stale capability matrix remain. Projects crate-wide test also reports two existing handoff count assertions; picker target passed."
+          },
+          {
+            "command": "retirement:ts-statements:routine-editor-context",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed",
+            "before": 1,
+            "after": 0,
+            "note": "Actual database.prepare current-actor SELECT in packages/server-operations/src/adapters/work-routine-presentation.ts; the whole file is deleted."
+          },
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api",
+            "sourceSha": "06cfedd279b79d1ef7ba7c3552ebdc1a43094eb9",
+            "result": "passed"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-operations --test routine_run_http",
+            "sourceSha": "06cfedd279b79d1ef7ba7c3552ebdc1a43094eb9",
+            "result": "passed",
+            "passed": 9
+          },
+          {
+            "command": "bun x vitest run --config tests/config/vitest.unit.config.mts (Operations, work projection, workspace gateway)",
+            "sourceSha": "06cfedd279b79d1ef7ba7c3552ebdc1a43094eb9",
+            "result": "passed",
+            "passed": 193
+          },
+          {
+            "command": "bun x tsc --noEmit -p tests/config/tsconfig.json",
+            "sourceSha": "06cfedd279b79d1ef7ba7c3552ebdc1a43094eb9",
+            "result": "passed"
+          },
+          {
+            "command": "PostgreSQL Acme SSO candidate and development native context",
+            "sourceSha": "06cfedd279b79d1ef7ba7c3552ebdc1a43094eb9",
+            "result": "passed",
+            "note": "Private 200: active fixture, people 116, levels 7, departments 18. Dedicated shadow candidate verified grouped purchased affordances and context; stale revision 409, wrong Company 403, public 404."
+          },
+          {
+            "command": "Authenticated Acme HTTPS SSR list and seeded detail",
+            "sourceSha": "06cfedd279b79d1ef7ba7c3552ebdc1a43094eb9",
+            "result": "passed",
+            "note": "Both 200; direct and /__erpx/apps forms of the private route return 404. Development and private production health 200; retired Console root 404."
+          },
+          {
+            "command": "bun run structure:check and bun run test:catalogue",
+            "sourceSha": "06cfedd279b79d1ef7ba7c3552ebdc1a43094eb9",
+            "result": "passed",
+            "note": "33 modules, 2425 suites."
+          },
+          {
+            "command": "cutover runtime delta: Operations routine editor SSR",
+            "sourceSha": "06cfedd279b79d1ef7ba7c3552ebdc1a43094eb9",
+            "result": "passed",
+            "privateMethodPaths": 1,
+            "publicMethodPaths": 0,
+            "nextRouteBranchesRetired": 0,
+            "nextRouteFilesRetired": 0,
+            "typeScriptBackendFilesRetired": 4,
+            "ssrCallersMigrated": 2,
+            "nextInventory": 1414,
+            "note": "Baseline architecture diagnostics and stale capability matrix remain. Projects crate-wide test also reports two existing handoff count assertions; picker target passed."
+          },
+          {
+            "command": "retirement:ts-statements:routine-editor-context",
+            "sourceSha": "06cfedd279b79d1ef7ba7c3552ebdc1a43094eb9",
+            "result": "passed",
+            "before": 1,
+            "after": 0,
+            "note": "Actual database.prepare current-actor SELECT in packages/server-operations/src/adapters/work-routine-presentation.ts; the whole file is deleted."
+          },
+          {
+            "command": "Normal SSO and PostgreSQL on canonical Acme Routine collection and detail (Operations actor and standalone records.read actor)",
+            "sourceSha": "06cfedd279b79d1ef7ba7c3552ebdc1a43094eb9",
+            "result": "passed",
+            "note": "Both actor classes render list and published detail with 200. Standalone actor has no Operations module, has private editor and nested detail, with no-grant purchase-only attempt rejected 403, no-hint or public nested-schedule transport rejected 403, and public editor route rejected 404. Module-enabled reader rejected stale revision 409 and wrong Company 403."
+          },
+          {
+            "command": "Native Brand shell and management admission; cargo test --locked -p erpx-server-brand --test branding_http",
+            "sourceSha": "06cfedd279b79d1ef7ba7c3552ebdc1a43094eb9",
+            "result": "passed",
+            "passed": 2,
+            "note": "After normal SSO, the standalone selected workspace Brand read returns 200, Brand profiles returns 403 for the same actor."
           }
         ],
-        "retainedLegacy": [],
-        "blocker": "handoff",
+        "retainedLegacy": [
+          {
+            "path": "packages/server-work_projection/src/adapters/staff-page.ts",
+            "removalTaskId": "retire.work_projection.next-read-family-1",
+            "removalCondition": "Move retained Tasks staffPage consumers to the native Task presenter port before removing the shared staff and Project fetch."
+          },
+          {
+            "path": "packages/server-projects/src/adapters/optional-project-options.ts",
+            "removalTaskId": "retire.projects.next-read-family-1",
+            "removalCondition": "Cut over remaining Task and Project presenters that still use the optional Project picker."
+          },
+          {
+            "path": "packages/server-identity_access/src/adapters/authorization.ts",
+            "removalTaskId": "retire.identity_access.next-read-family-1",
+            "removalCondition": "Serve SSR Work context through the native Identity authority and retire shared TypeScript authorization execution."
+          }
+        ],
+        "blocker": null,
         "handoff": {
-          "runId": "run-goal-suggestions",
-          "agentId": "hy4-operations-picker",
-          "at": "2026-11-27T06:34:26.800Z",
-          "previousStatus": "in_progress",
+          "runId": "run-goal-routine-editor",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T07:09:39.664Z",
+          "previousStatus": "blocked",
           "reason": "handoff",
-          "nextAction": "HY4 picker prerequisite saved as .scratch/dev/rust-migration/parked/ops-picker-697607da5.patch. It contains concat!(VISIBLE_PROJECTS_SCOPE) which Rust rejects and uses id/title order where existing native visibleProjects sorts by updated_at DESC. Use the existing exact same Company/owner-or-member predicate and ordering, read on the authorized Holding transaction, then compose Project history, strict beta and scheduled operations/Projects capability, and purchase presentation for both SSR callers."
+          "nextAction": "Claim the exact Brand owner files for the shell-only read authority fix."
         },
-        "nextAction": "HY4 picker prerequisite saved as .scratch/dev/rust-migration/parked/ops-picker-697607da5.patch. It contains concat!(VISIBLE_PROJECTS_SCOPE) which Rust rejects and uses id/title order where existing native visibleProjects sorts by updated_at DESC. Use the existing exact same Company/owner-or-member predicate and ordering, read on the authorized Holding transaction, then compose Project history, strict beta and scheduled operations/Projects capability, and purchase presentation for both SSR callers.",
+        "nextAction": "Development verified on 06cfedd27. Continue exec.records.routes: restore exact per-owner source guards in native search before retiring 17 app routes and the shared handler.",
         "deliverables": [
           "Native current Holding and Company-scoped routine picker and purchase controls for canonical list and detail SSR; verify no duplicate TypeScript permission or SQL execution.",
           "Remove routine-only Projects adapter and public export after moving the production caller and the legacy-grant oracle."
-        ]
+        ],
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "cutover.operations.routine-schedule-state",
@@ -219013,6 +219192,402 @@
           "routeAuthority": true,
           "presenterParity": true
         }
+      },
+      {
+        "id": "cutover.projects.routine-editor-picker",
+        "owner": "projects",
+        "title": "Bind native routine editor Project options to the authorized Holding connection",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-projects/src/adapters/native_lane_27/domain.rs",
+          "packages/server-projects/src/adapters/native_lane_27/postgres.rs",
+          "packages/server-projects/src/adapters/native_lane_27/mod.rs",
+          "packages/server-projects/src/public/native_lane_27.rs"
+        ],
+        "resources": [
+          "path:cutover.projects.routine-editor-picker"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": "83d6a52d95b83235dbe43c110fe17492cb27b309",
+        "implementedCommit": "fdbdda05a4870e3833324aa823ad836c7d467451",
+        "lastPushedSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+        "checks": [
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-operations --test routine_run_http",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed",
+            "passed": 9
+          },
+          {
+            "command": "bun x vitest run --config tests/config/vitest.unit.config.mts (Operations, work projection, workspace gateway)",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed",
+            "passed": 192
+          },
+          {
+            "command": "bun x tsc --noEmit -p tests/config/tsconfig.json",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed"
+          },
+          {
+            "command": "PostgreSQL Acme SSO candidate and development native context",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed",
+            "note": "Private 200: active fixture, people 116, levels 7, departments 18. Dedicated shadow candidate verified grouped purchased affordances and context; stale revision 409, wrong Company 403, public 404."
+          },
+          {
+            "command": "Authenticated Acme HTTPS SSR list and seeded detail",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed",
+            "note": "Both 200; direct and /__erpx/apps forms of the private route return 404. Development and private production health 200; retired Console root 404."
+          },
+          {
+            "command": "bun run structure:check and bun run test:catalogue",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed",
+            "note": "33 modules, 2425 suites."
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-projects --lib routine_picker_statement",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed",
+            "passed": 1
+          },
+          {
+            "command": "PostgreSQL Project picker owner/member fixture",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed",
+            "note": "Executed the exact port SELECT with same- and other-Company fixture rows; id/title only and order verified."
+          },
+          {
+            "command": "retirement:ts-statements:routine-project-picker",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed",
+            "before": 1,
+            "after": 0,
+            "note": "One distinct legacy Project SELECT execution path for the Routine editor via routineProjectOptions -> optionalProjectOptions -> listProjects; dedicated adapter and export deleted. Other Project consumers retain the shared optional reader."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-work_projection/src/adapters/staff-page.ts",
+            "removalTaskId": "retire.work_projection.next-read-family-1",
+            "removalCondition": "Move retained Tasks staffPage consumers to the native Task presenter port before removing the shared staff and Project fetch."
+          },
+          {
+            "path": "packages/server-projects/src/adapters/optional-project-options.ts",
+            "removalTaskId": "retire.projects.next-read-family-1",
+            "removalCondition": "Cut over remaining Task and Project presenters that still use the optional Project picker."
+          },
+          {
+            "path": "packages/server-identity_access/src/adapters/authorization.ts",
+            "removalTaskId": "retire.identity_access.next-read-family-1",
+            "removalCondition": "Serve SSR Work context through the native Identity authority and retire shared TypeScript authorization execution."
+          }
+        ],
+        "blocker": null,
+        "handoff": {
+          "runId": "run-goal-routine-editor",
+          "agentId": "hy4-routine-projects",
+          "at": "2026-11-27T06:54:34.803Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "HY4 implemented owner port; lead will correct Rust SQL string spacing and execute Project visibility verification on PostgreSQL."
+        },
+        "nextAction": "Native editor owner port verified in Acme SSR; proceed with standalone Operations admission parity.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
+      },
+      {
+        "id": "cutover.operations.routine-editor-staff",
+        "owner": "operations",
+        "title": "Supply minimal native staff editor facts with Organization and People ports",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/routine_editor_staff.rs",
+          "src/composition/src/lib.rs",
+          "packages/server-people_payroll/src/adapters/staff_facts.rs",
+          "packages/server-people_payroll/src/public/staff_facts.rs",
+          "packages/server-organization/src/adapters/routine_editor_staff.rs",
+          "packages/server-organization/src/adapters/mod.rs",
+          "packages/server-organization/src/public/mod.rs"
+        ],
+        "resources": [
+          "path:cutover.operations.routine-editor-staff"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": "83d6a52d95b83235dbe43c110fe17492cb27b309",
+        "implementedCommit": "fdbdda05a4870e3833324aa823ad836c7d467451",
+        "lastPushedSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+        "checks": [
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-operations --test routine_run_http",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed",
+            "passed": 9
+          },
+          {
+            "command": "bun x vitest run --config tests/config/vitest.unit.config.mts (Operations, work projection, workspace gateway)",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed",
+            "passed": 192
+          },
+          {
+            "command": "bun x tsc --noEmit -p tests/config/tsconfig.json",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed"
+          },
+          {
+            "command": "PostgreSQL Acme SSO candidate and development native context",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed",
+            "note": "Private 200: active fixture, people 116, levels 7, departments 18. Dedicated shadow candidate verified grouped purchased affordances and context; stale revision 409, wrong Company 403, public 404."
+          },
+          {
+            "command": "Authenticated Acme HTTPS SSR list and seeded detail",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed",
+            "note": "Both 200; direct and /__erpx/apps forms of the private route return 404. Development and private production health 200; retired Console root 404."
+          },
+          {
+            "command": "bun run structure:check and bun run test:catalogue",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed",
+            "note": "33 modules, 2425 suites."
+          },
+          {
+            "command": "retirement:ts-statements:routine-staff-picker",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed",
+            "before": 4,
+            "after": 0,
+            "note": "Routine editor legacy staffSettings roster, levels, departments and current staff SELECTs now run in Axum. Counts apply to this SSR execution path; the same shared SQL remains for Tasks and staff settings."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-work_projection/src/adapters/staff-page.ts",
+            "removalTaskId": "retire.work_projection.next-read-family-1",
+            "removalCondition": "Move retained Tasks staffPage consumers to the native Task presenter port before removing the shared staff and Project fetch."
+          },
+          {
+            "path": "packages/server-projects/src/adapters/optional-project-options.ts",
+            "removalTaskId": "retire.projects.next-read-family-1",
+            "removalCondition": "Cut over remaining Task and Project presenters that still use the optional Project picker."
+          },
+          {
+            "path": "packages/server-identity_access/src/adapters/authorization.ts",
+            "removalTaskId": "retire.identity_access.next-read-family-1",
+            "removalCondition": "Serve SSR Work context through the native Identity authority and retire shared TypeScript authorization execution."
+          }
+        ],
+        "blocker": null,
+        "handoff": {
+          "runId": "run-goal-routine-editor",
+          "agentId": "hy4-routine-staff",
+          "at": "2026-11-27T06:58:04.925Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "HY4 supplied People and Organization ports; lead verified authenticated editor contexts on PostgreSQL and will bind deployed source evidence."
+        },
+        "nextAction": "Native editor owner port verified in Acme SSR; proceed with standalone Operations admission parity.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
+      },
+      {
+        "id": "cutover.operations.routine-editor-ssr-client",
+        "owner": "operations",
+        "title": "Route Operations list and detail SSR to the native routine editor context",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-operations/src/adapters/server/native-routines-read.ts",
+          "packages/feature-operations/src/public/native-routines-read.ts",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/routine-templates/screen.tsx",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/routine-templates/[id]/screen.tsx",
+          "tests/unit/operations/native-routines-read.test.ts",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/routine-templates/routine-read-request.ts"
+        ],
+        "resources": [
+          "path:cutover.operations.routine-editor-ssr-client"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": "83d6a52d95b83235dbe43c110fe17492cb27b309",
+        "implementedCommit": "06cfedd279b79d1ef7ba7c3552ebdc1a43094eb9",
+        "lastPushedSha": "06cfedd279b79d1ef7ba7c3552ebdc1a43094eb9",
+        "checks": [
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-operations --test routine_run_http",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed",
+            "passed": 9
+          },
+          {
+            "command": "bun x vitest run --config tests/config/vitest.unit.config.mts (Operations, work projection, workspace gateway)",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed",
+            "passed": 192
+          },
+          {
+            "command": "bun x tsc --noEmit -p tests/config/tsconfig.json",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed"
+          },
+          {
+            "command": "PostgreSQL Acme SSO candidate and development native context",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed",
+            "note": "Private 200: active fixture, people 116, levels 7, departments 18. Dedicated shadow candidate verified grouped purchased affordances and context; stale revision 409, wrong Company 403, public 404."
+          },
+          {
+            "command": "Authenticated Acme HTTPS SSR list and seeded detail",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed",
+            "note": "Both 200; direct and /__erpx/apps forms of the private route return 404. Development and private production health 200; retired Console root 404."
+          },
+          {
+            "command": "bun run structure:check and bun run test:catalogue",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed",
+            "note": "33 modules, 2425 suites."
+          },
+          {
+            "command": "retirement:ts-statements:routine-editor-ssr-client",
+            "sourceSha": "fdbdda05a4870e3833324aa823ad836c7d467451",
+            "result": "passed",
+            "before": 1,
+            "after": 0,
+            "note": "Same single dedicated purchase authority SELECT as parent milestone, counted once across the milestone; removed legacy staff presentation from both SSR callers."
+          },
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api",
+            "sourceSha": "06cfedd279b79d1ef7ba7c3552ebdc1a43094eb9",
+            "result": "passed"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-operations --test routine_run_http",
+            "sourceSha": "06cfedd279b79d1ef7ba7c3552ebdc1a43094eb9",
+            "result": "passed",
+            "passed": 9
+          },
+          {
+            "command": "bun x vitest run --config tests/config/vitest.unit.config.mts (Operations, work projection, workspace gateway)",
+            "sourceSha": "06cfedd279b79d1ef7ba7c3552ebdc1a43094eb9",
+            "result": "passed",
+            "passed": 193
+          },
+          {
+            "command": "bun x tsc --noEmit -p tests/config/tsconfig.json",
+            "sourceSha": "06cfedd279b79d1ef7ba7c3552ebdc1a43094eb9",
+            "result": "passed"
+          },
+          {
+            "command": "PostgreSQL Acme SSO candidate and development native context",
+            "sourceSha": "06cfedd279b79d1ef7ba7c3552ebdc1a43094eb9",
+            "result": "passed",
+            "note": "Private 200: active fixture, people 116, levels 7, departments 18. Dedicated shadow candidate verified grouped purchased affordances and context; stale revision 409, wrong Company 403, public 404."
+          },
+          {
+            "command": "Authenticated Acme HTTPS SSR list and seeded detail",
+            "sourceSha": "06cfedd279b79d1ef7ba7c3552ebdc1a43094eb9",
+            "result": "passed",
+            "note": "Both 200; direct and /__erpx/apps forms of the private route return 404. Development and private production health 200; retired Console root 404."
+          },
+          {
+            "command": "bun run structure:check and bun run test:catalogue",
+            "sourceSha": "06cfedd279b79d1ef7ba7c3552ebdc1a43094eb9",
+            "result": "passed",
+            "note": "33 modules, 2425 suites."
+          },
+          {
+            "command": "retirement:ts-statements:routine-editor-ssr-client",
+            "sourceSha": "06cfedd279b79d1ef7ba7c3552ebdc1a43094eb9",
+            "result": "passed",
+            "before": 1,
+            "after": 0,
+            "note": "Same single dedicated purchase authority SELECT as parent milestone, counted once across the milestone; removed legacy staff presentation from both SSR callers."
+          },
+          {
+            "command": "Normal SSO and PostgreSQL on canonical Acme Routine collection and detail (Operations actor and standalone records.read actor)",
+            "sourceSha": "06cfedd279b79d1ef7ba7c3552ebdc1a43094eb9",
+            "result": "passed",
+            "note": "Both actor classes render list and published detail with 200. Standalone actor has no Operations module, has private editor and nested detail, with no-grant purchase-only attempt rejected 403, no-hint or public nested-schedule transport rejected 403, and public editor route rejected 404. Module-enabled reader rejected stale revision 409 and wrong Company 403."
+          },
+          {
+            "command": "Native Brand shell and management admission; cargo test --locked -p erpx-server-brand --test branding_http",
+            "sourceSha": "06cfedd279b79d1ef7ba7c3552ebdc1a43094eb9",
+            "result": "passed",
+            "passed": 2,
+            "note": "After normal SSO, the standalone selected workspace Brand read returns 200, Brand profiles returns 403 for the same actor."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-work_projection/src/adapters/staff-page.ts",
+            "removalTaskId": "retire.work_projection.next-read-family-1",
+            "removalCondition": "Move retained Tasks staffPage consumers to the native Task presenter port before removing the shared staff and Project fetch."
+          },
+          {
+            "path": "packages/server-projects/src/adapters/optional-project-options.ts",
+            "removalTaskId": "retire.projects.next-read-family-1",
+            "removalCondition": "Cut over remaining Task and Project presenters that still use the optional Project picker."
+          },
+          {
+            "path": "packages/server-identity_access/src/adapters/authorization.ts",
+            "removalTaskId": "retire.identity_access.next-read-family-1",
+            "removalCondition": "Serve SSR Work context through the native Identity authority and retire shared TypeScript authorization execution."
+          }
+        ],
+        "blocker": null,
+        "handoff": {
+          "runId": "run-goal-routine-editor",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T07:04:31.873Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Add the shared server-only request builder to the client scope."
+        },
+        "nextAction": "Development verified on 06cfedd27. Continue exec.records.routes: restore exact per-owner source guards in native search before retiring 17 app routes and the shared handler.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       }
     ],
     "migrationProgress": {
@@ -219026,16 +219601,16 @@
       "statusCounts": {
         "pending": 14,
         "in_progress": 0,
-        "ready_for_integration": 144,
+        "ready_for_integration": 143,
         "integrating": 0,
         "migrated": 370,
-        "blocked": 1920,
+        "blocked": 1921,
         "deferred": 2,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 200,
-    "updatedAt": "2026-11-27T06:42:10.393Z",
+    "lastCoordinatorGeneration": 201,
+    "updatedAt": "2026-11-27T07:12:41.104Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
