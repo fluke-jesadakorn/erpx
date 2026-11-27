@@ -67,6 +67,21 @@
 .flight { position: fixed; inset: 0; z-index: 120; pointer-events: none; transform-origin: left top; }
 .administration { display: grid; gap: .5rem; border-top: 1px solid var(--ui-line); padding-top: .75rem; }
 .administration a { display: flex; align-items: center; gap: .5rem; min-height: 44px; color: inherit; }
+.recent {
+  position: sticky;
+  bottom: 0;
+  align-self: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .3rem;
+  padding: .3rem;
+  border: 1px solid var(--ui-line);
+  border-radius: 1rem;
+  background: var(--ui-card);
+  box-shadow: 0 8px 26px #10162218;
+}
+.recent a { display: inline-flex; align-items: center; gap: .4rem; min-height: 44px; padding: .45rem .75rem; border-radius: .65rem; color: var(--ui-ink); text-decoration: none; }
+.recent a:hover { background: color-mix(in srgb, var(--launcher-accent) 14%, var(--ui-card)); }
 .area:focus-visible, .app:focus-visible, .tree summary:focus-visible, .results a:focus-visible { outline: 2px solid var(--ui-brand); outline-offset: 2px; }
 @media (max-width: 767px) {
   .areaToggle { display: inline-flex; align-self: flex-start; margin: .5rem 1rem 0; min-height: 44px; }

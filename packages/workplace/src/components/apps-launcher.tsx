@@ -141,10 +141,14 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
     return <button type="button" key={area.id} data-workspace-id={area.id} className={styles.area} aria-pressed={company?.id === item.id && workspace?.id === area.id} onClick={() => select(item, area)}><MapPin size={16} aria-hidden="true" /><span>{label}</span></button>;
   }
   const holdings = [...new Set(companies.map(item => item.holdingSlug ?? item.holding))].map(id => ({ id, companies: companies.filter(item => (item.holdingSlug ?? item.holding) === id) }));
-  const apps = workspace ? visibleApps(workspace.apps, current.memory.recent[company!.id] ?? [], appQuery) : [];
+  const history = company ? current.memory.recent[company.id] ?? [] : [];
+  const apps = workspace ? visibleApps(workspace.apps, history, appQuery) : [];
+  const recent = workspace && !appQuery.trim()
+    ? history.flatMap(id => workspace.apps.find(app => app.productId === id) ?? []).slice(0, 4)
+    : [];
   return <>
-    <Button ref={trigger} appearance="standard" variant="ghost" className={styles.trigger} data-apps-launcher-trigger aria-label={[productLabel ?? t("แอป", "Apps"),workspaceLabel].filter(Boolean).join(" · ")} aria-haspopup="dialog" aria-expanded={open} onClick={() => window.dispatchEvent(new Event("erpx:open-apps"))}>
-      <Grid2X2 size={18} aria-hidden="true" /><span>{productLabel ?? t("แอป", "Apps")}{workspaceLabel && <small>{workspaceLabel}</small>}</span><ChevronDown size={16} aria-hidden="true" />
+    <Button ref={trigger} appearance="standard" variant="ghost" className={styles.trigger} data-apps-launcher-trigger aria-label={[t("แอป", "Apps"),workspaceLabel].filter(Boolean).join(" · ")} aria-haspopup="dialog" aria-expanded={open} onClick={() => window.dispatchEvent(new Event("erpx:open-apps"))}>
+      <Grid2X2 size={18} aria-hidden="true" /><span>{t("แอป", "Apps")}{workspaceLabel && <small>{productLabel && productLabel !== t("แอป", "Apps") ? `${productLabel} · ${workspaceLabel}` : workspaceLabel}</small>}</span><ChevronDown size={16} aria-hidden="true" />
     </Button>
     <Dialog appearance="standard" presentation="fullscreen" open={open} onClose={close} title={t("แอป", "Apps")} className={styles.modal} bodyClassName={styles.modalBody} finalFocus={() => trigger.current} closeLabel={t("ปิดแอป", "Close Apps")}>
       {(notice || current.invalid) && <InlineNotice tone="info">{t("พื้นที่ที่จำไว้ไม่อยู่ในสิทธิ์ปัจจุบันแล้ว กรุณาเลือกใหม่", "Your remembered workspace is no longer available. Choose again.")}</InlineNotice>}
@@ -191,6 +195,14 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
             {(workspace.adminHref || workspace.managementHref) && <div className={styles.administration}>{[[workspace.adminHref, t("ดูแลบริษัท", "Company administration")], [workspace.managementHref, "ERPX Management"]].map(([href, label]) => href && <a key={href} data-product-switch href={href} onClick={() => remember()}><Settings size={18} aria-hidden="true" />{label}<ArrowUpRight size={16} aria-hidden="true" /></a>)}</div>}
             {workspace.id === currentWorkspaceId && company && company.id === currentCompanyId && !entry && <CompanyPluginCatalogue
               key={`${company.id}:${workspace.id}`} api={`/api/v1${workspace.id}/plugins`} language={language} />}
+            {recent.length > 0 && <nav className={styles.recent} aria-label={t("แอปที่เปิดล่าสุด", "Recently opened apps")}>
+              {recent.map(app => {
+                const Icon = appIcons[app.productId as keyof typeof appIcons] ?? Grid2X2;
+                return <a data-product-switch data-recent-app={app.productId} href={app.href} key={app.productId} onClick={event => launch(event, app.productId)}>
+                  <Icon size={19} strokeWidth={1.65} aria-hidden="true" /><span>{app.label}</span>
+                </a>;
+              })}
+            </nav>}
           </>}
           {provider && <a data-product-switch href={provider.href}>{t("พื้นที่ผู้ให้บริการ", "Provider administration")} · {provider.role}</a>}
           {existingWorkspaces.map(item => <a key={item.href} data-product-switch href={item.href}>{item.holding}</a>)}
