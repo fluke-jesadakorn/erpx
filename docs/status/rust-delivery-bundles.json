@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15764,
+    "revision": 15780,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": null,
@@ -220366,6 +220366,23 @@
             "command": "python3 .scratch/dev/hy4-expense-image-sql-check.py",
             "result": "passed",
             "detail": "Structural source JSON query executed against dev PostgreSQL using isolated relation fixtures. Current raw Rust output is not wired to native Records."
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-people-payroll --lib expense_records_search",
+            "result": "passed",
+            "tests": 19,
+            "source": "HY4 local patch, outside released candidate"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-people-payroll --lib",
+            "result": "passed",
+            "tests": 198,
+            "source": "HY4 local patch, outside released candidate"
+          },
+          {
+            "command": "python3 .scratch/dev/hy4-expense-producers-pg.py",
+            "result": "passed",
+            "detail": "Type-checked real PostgreSQL queries for same-person aliases, direct assignment roles, and separate Workflow participant and recorded decisions against ERPX dev fixtures. Live approval/Treasury enforcement still requires composition."
           }
         ],
         "retainedLegacy": [
@@ -220377,14 +220394,14 @@
         ],
         "blocker": "handoff",
         "handoff": {
-          "runId": "run-goal-expense-quality",
+          "runId": "run-goal-quality-detail",
           "agentId": "hy4-expense",
-          "at": "2026-11-27T08:13:49.442Z",
+          "at": "2026-11-27T08:34:59.083Z",
           "previousStatus": "blocked",
           "reason": "handoff",
-          "nextAction": "After reclaim, git apply --check .scratch/dev/goal-expense-reviewed-owner.patch. Bring up typed Identity, Workflow and Treasury producers before Records binds the enforced predicate; source recheck is available as a reviewed local patch."
+          "nextAction": "Resume .scratch/dev/goal-expense-with-producers.patch, then port live approval.canDecide and independent Treasury prepared/cancelled evidence. Continue enforced Records binding only after owner transaction ports pass."
         },
-        "nextAction": "After reclaim, git apply --check .scratch/dev/goal-expense-reviewed-owner.patch. Bring up typed Identity, Workflow and Treasury producers before Records binds the enforced predicate; source recheck is available as a reviewed local patch.",
+        "nextAction": "Resume .scratch/dev/goal-expense-with-producers.patch, then port live approval.canDecide and independent Treasury prepared/cancelled evidence. Continue enforced Records binding only after owner transaction ports pass.",
         "scopeRefinementRequired": false
       },
       {
@@ -220751,6 +220768,326 @@
           "reason": "handoff",
           "nextAction": "Follow exec.quality.routes for remaining alert ingress and native Quality authority; verified the internal queue and SSR on the pushed candidate."
         }
+      },
+      {
+        "id": "cutover.quality.detail-history",
+        "goalId": "G4",
+        "owner": "quality",
+        "workflowIds": [],
+        "kind": "integration",
+        "title": "Cut over Quality detail and cancellation history reads",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-quality/src/adapters/quality_http.rs",
+          "tests/integration/quality/rust-quality-http.test.rs",
+          "tests/unit/quality/native-quality-transport.test.ts",
+          "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route.ts"
+        ],
+        "resources": [
+          "path:cutover.quality.detail-history"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "b9aa35d98247e23b5714495182b2cbd65a3b71be",
+        "implementedCommit": "fdd77c5f0282ba2f908a84eca661174c8594f43d",
+        "lastPushedSha": "fdd77c5f0282ba2f908a84eca661174c8594f43d",
+        "checks": [
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api",
+            "result": "passed",
+            "sourceSha": "fdd77c5f0282ba2f908a84eca661174c8594f43d"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-quality --test quality_http",
+            "result": "passed",
+            "sourceSha": "fdd77c5f0282ba2f908a84eca661174c8594f43d",
+            "tests": 8
+          },
+          {
+            "command": "bunx vitest run workspace-supervisor native-quality-transport native-quality-evidence-consumer",
+            "result": "passed",
+            "sourceSha": "fdd77c5f0282ba2f908a84eca661174c8594f43d",
+            "tests": 30
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "fdd77c5f0282ba2f908a84eca661174c8594f43d"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "fdd77c5f0282ba2f908a84eca661174c8594f43d",
+            "suites": 2425
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "fdd77c5f0282ba2f908a84eca661174c8594f43d"
+          },
+          {
+            "command": "dev-https:quality-detail-history-current-selection",
+            "result": "passed",
+            "sourceSha": "fdd77c5f0282ba2f908a84eca661174c8594f43d",
+            "getDetail": 200,
+            "headDetail": 200,
+            "getHistory": 200,
+            "headHistory": 200,
+            "headLength": 0,
+            "aliasDetail": 200,
+            "aliasHistory": 200,
+            "encodedHistory": 200,
+            "emptyQuerySeparator": 200,
+            "options": 204,
+            "allow": [
+              "GET",
+              "HEAD",
+              "OPTIONS",
+              "POST"
+            ],
+            "historyRows": 2,
+            "badCursors": 422,
+            "staleCursor": 409,
+            "emptyContinuation": 503,
+            "anon": 401,
+            "wrongCompany": 403,
+            "staleAssignmentRevision": 409,
+            "rawNextDetail": 404,
+            "rawNextHistory": 404,
+            "ssrHoldPage": 200,
+            "privateDetailCore": 200
+          },
+          {
+            "command": "dev-https:quality-adjacent-routes",
+            "result": "passed",
+            "sourceSha": "fdd77c5f0282ba2f908a84eca661174c8594f43d",
+            "alerts": 503,
+            "specificationsGet": 405,
+            "readPlanGet": 405,
+            "missingHold": 404
+          },
+          {
+            "command": "dev-health:gateway-console-private-production",
+            "result": "passed",
+            "sourceSha": "fdd77c5f0282ba2f908a84eca661174c8594f43d",
+            "gateway": 200,
+            "console": 200,
+            "privateProduction": 200,
+            "retiredConsole": 404
+          },
+          {
+            "command": "bun run architecture:check",
+            "result": "failed",
+            "sourceSha": "fdd77c5f0282ba2f908a84eca661174c8594f43d",
+            "detail": "Existing owner-private imports and legacy presentation runtime composition in untouched paths."
+          },
+          {
+            "command": "bun run docs:check",
+            "result": "failed",
+            "sourceSha": "fdd77c5f0282ba2f908a84eca661174c8594f43d",
+            "detail": "Existing capability-delivery-matrix.md is stale."
+          },
+          {
+            "command": "retirement:next-routes:quality-detail-history",
+            "result": "passed",
+            "sourceSha": "fdd77c5f0282ba2f908a84eca661174c8594f43d",
+            "before": 1414,
+            "after": 1414,
+            "publicNativeMethodPathsCutOver": 4,
+            "nextDispatchBranchesRetired": 2,
+            "nextRouteFilesDeleted": 0,
+            "sharedMilestone": "cutover.quality.detail-history and cutover.quality.detail-history-ingress"
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route.ts",
+            "removalTaskId": "exec.quality.routes",
+            "removalCondition": "Port the remaining POST owner authority including attachments and cancellation, and preserve the three reserved GET responses and Allow semantics before deleting the catch-all and re-exports."
+          },
+          {
+            "path": "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/quality/[id]/screen.tsx",
+            "removalTaskId": "exec.quality.routes.2",
+            "removalCondition": "Move raw attachment evidence execution to the native owner evidence route. The typed SSR detail-core client stays a presentation consumer."
+          }
+        ],
+        "blocker": "handoff",
+        "nextAction": "Continue exec.quality.routes. Direct Axum detail/history GET and HEAD and Next branch retirement are already verified; next move POST branches and named legacy GET responses together with exact command and projection parity.",
+        "handoff": {
+          "runId": "run-goal-quality-detail",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T08:39:50.921Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Continue exec.quality.routes. Direct Axum detail/history GET and HEAD and Next branch retirement are already verified; next move POST branches and named legacy GET responses together with exact command and projection parity."
+        },
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
+      },
+      {
+        "id": "cutover.quality.detail-history-ingress",
+        "goalId": "G4",
+        "owner": "quality",
+        "workflowIds": [],
+        "kind": "integration",
+        "title": "Cut over Quality detail and cancellation history reads",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "scripts/local/native-cutover-routes.ts",
+          "scripts/local/native-api-proxy.ts",
+          "scripts/local/workspace-gateway-runtime.ts",
+          "scripts/local/compiled-workspace-gateway.ts",
+          "tests/unit/shared.testing/workspace-supervisor.test.ts",
+          "src/composition/src/quality.rs"
+        ],
+        "resources": [
+          "path:cutover.quality.detail-history-ingress"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "b9aa35d98247e23b5714495182b2cbd65a3b71be",
+        "implementedCommit": "fdd77c5f0282ba2f908a84eca661174c8594f43d",
+        "lastPushedSha": "fdd77c5f0282ba2f908a84eca661174c8594f43d",
+        "checks": [
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api",
+            "result": "passed",
+            "sourceSha": "fdd77c5f0282ba2f908a84eca661174c8594f43d"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-quality --test quality_http",
+            "result": "passed",
+            "sourceSha": "fdd77c5f0282ba2f908a84eca661174c8594f43d",
+            "tests": 8
+          },
+          {
+            "command": "bunx vitest run workspace-supervisor native-quality-transport native-quality-evidence-consumer",
+            "result": "passed",
+            "sourceSha": "fdd77c5f0282ba2f908a84eca661174c8594f43d",
+            "tests": 30
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "fdd77c5f0282ba2f908a84eca661174c8594f43d"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "fdd77c5f0282ba2f908a84eca661174c8594f43d",
+            "suites": 2425
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "fdd77c5f0282ba2f908a84eca661174c8594f43d"
+          },
+          {
+            "command": "dev-https:quality-detail-history-current-selection",
+            "result": "passed",
+            "sourceSha": "fdd77c5f0282ba2f908a84eca661174c8594f43d",
+            "getDetail": 200,
+            "headDetail": 200,
+            "getHistory": 200,
+            "headHistory": 200,
+            "headLength": 0,
+            "aliasDetail": 200,
+            "aliasHistory": 200,
+            "encodedHistory": 200,
+            "emptyQuerySeparator": 200,
+            "options": 204,
+            "allow": [
+              "GET",
+              "HEAD",
+              "OPTIONS",
+              "POST"
+            ],
+            "historyRows": 2,
+            "badCursors": 422,
+            "staleCursor": 409,
+            "emptyContinuation": 503,
+            "anon": 401,
+            "wrongCompany": 403,
+            "staleAssignmentRevision": 409,
+            "rawNextDetail": 404,
+            "rawNextHistory": 404,
+            "ssrHoldPage": 200,
+            "privateDetailCore": 200
+          },
+          {
+            "command": "dev-https:quality-adjacent-routes",
+            "result": "passed",
+            "sourceSha": "fdd77c5f0282ba2f908a84eca661174c8594f43d",
+            "alerts": 503,
+            "specificationsGet": 405,
+            "readPlanGet": 405,
+            "missingHold": 404
+          },
+          {
+            "command": "dev-health:gateway-console-private-production",
+            "result": "passed",
+            "sourceSha": "fdd77c5f0282ba2f908a84eca661174c8594f43d",
+            "gateway": 200,
+            "console": 200,
+            "privateProduction": 200,
+            "retiredConsole": 404
+          },
+          {
+            "command": "bun run architecture:check",
+            "result": "failed",
+            "sourceSha": "fdd77c5f0282ba2f908a84eca661174c8594f43d",
+            "detail": "Existing owner-private imports and legacy presentation runtime composition in untouched paths."
+          },
+          {
+            "command": "bun run docs:check",
+            "result": "failed",
+            "sourceSha": "fdd77c5f0282ba2f908a84eca661174c8594f43d",
+            "detail": "Existing capability-delivery-matrix.md is stale."
+          },
+          {
+            "command": "retirement:next-routes:quality-detail-history",
+            "result": "passed",
+            "sourceSha": "fdd77c5f0282ba2f908a84eca661174c8594f43d",
+            "before": 1414,
+            "after": 1414,
+            "publicNativeMethodPathsCutOver": 4,
+            "nextDispatchBranchesRetired": 2,
+            "nextRouteFilesDeleted": 0,
+            "sharedMilestone": "cutover.quality.detail-history and cutover.quality.detail-history-ingress"
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route.ts",
+            "removalTaskId": "exec.quality.routes",
+            "removalCondition": "Port the remaining POST owner authority including attachments and cancellation, and preserve the three reserved GET responses and Allow semantics before deleting the catch-all and re-exports."
+          },
+          {
+            "path": "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/quality/[id]/screen.tsx",
+            "removalTaskId": "exec.quality.routes.2",
+            "removalCondition": "Move raw attachment evidence execution to the native owner evidence route. The typed SSR detail-core client stays a presentation consumer."
+          }
+        ],
+        "blocker": "handoff",
+        "nextAction": "Continue exec.quality.routes. Direct Axum detail/history GET and HEAD and Next branch retirement are already verified; next move POST branches and named legacy GET responses together with exact command and projection parity.",
+        "handoff": {
+          "runId": "run-goal-quality-detail",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T08:39:51.230Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Continue exec.quality.routes. Direct Axum detail/history GET and HEAD and Next branch retirement are already verified; next move POST branches and named legacy GET responses together with exact command and projection parity."
+        },
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       }
     ],
     "migrationProgress": {
@@ -220772,8 +221109,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 205,
-    "updatedAt": "2026-11-27T08:23:44.498Z",
+    "lastCoordinatorGeneration": 206,
+    "updatedAt": "2026-11-27T08:39:51.389Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
