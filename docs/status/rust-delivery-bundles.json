@@ -9257,18 +9257,10 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15404,
+    "revision": 15440,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
-    "coordinator": {
-      "runId": "run-20261127-g",
-      "agentId": "lead",
-      "startedAt": "2026-11-27T03:13:17.680Z",
-      "heartbeatAt": "2026-11-27T03:13:17.680Z",
-      "expiresAt": "2026-11-27T03:43:17.680Z",
-      "generation": 195,
-      "tokenHash": "20918b22e445476d5968e9d0c2a4538acfe319015633999eba500ce067a4c770"
-    },
+    "coordinator": null,
     "coordinationPolicy": {
       "singleCheckout": true,
       "coordinatorOnlyTrackedWrites": true,
@@ -209284,7 +209276,7 @@
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "ready_for_integration",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -209317,12 +209309,12 @@
         "retainedLegacy": [],
         "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261126-e",
-          "agentId": "lead",
-          "at": "2026-11-26T08:29:53.419Z",
-          "previousStatus": "ready_for_integration",
+          "runId": "run-20261127-codex-api",
+          "agentId": "hy4-records",
+          "at": "2026-11-27T04:08:07.692Z",
+          "previousStatus": "integrating",
           "reason": "handoff",
-          "nextAction": "Native registry execution committed 070a4c45; mount/config verification and deletion of registry routes pending. Four non-registry records routes restored to HEAD."
+          "nextAction": "Verify native registry and context same public paths against real sessions after expanded boot, enumerate supported module literals to preserve /records/search, then retire four wrappers and four shared routes together. Provisional deletion patch and source-only test retained in ignored lead scratch; restored tracked files."
         },
         "scopeRefinementRequired": false,
         "id": "exec.records.registry",
@@ -209337,7 +209329,7 @@
           "owner:records",
           "route:records"
         ],
-        "nextAction": "Native registry execution committed 070a4c45; mount/config verification and deletion of registry routes pending. Four non-registry records routes restored to HEAD."
+        "nextAction": "Verify native registry and context same public paths against real sessions after expanded boot, enumerate supported module literals to preserve /records/search, then retire four wrappers and four shared routes together. Provisional deletion patch and source-only test retained in ignored lead scratch; restored tracked files."
       },
       {
         "goalId": "G4",
@@ -209467,7 +209459,7 @@
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "ready_for_integration",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -209505,12 +209497,12 @@
         "retainedLegacy": [],
         "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261126-e",
-          "agentId": "lead",
-          "at": "2026-11-26T08:29:54.637Z",
-          "previousStatus": "ready_for_integration",
+          "runId": "run-20261127-codex-api",
+          "agentId": "hy4-directory",
+          "at": "2026-11-27T04:10:33.407Z",
+          "previousStatus": "integrating",
           "reason": "handoff",
-          "nextAction": "Native holding-directory owner slice committed 070a4c45; TS authority restored. Mount HoldingDirectoryAuthority before route deletion."
+          "nextAction": "Bind HoldingDirectoryAuthority with HoldingWorkAuthorizer and correct assignment scope/binding, mount exact host targets and prove live parity. Worker TS/Rust byte oracle passed 2 isolated tests; draft awaits registration and native parity gate."
         },
         "scopeRefinementRequired": false,
         "id": "exec.organization.people-directory",
@@ -209526,7 +209518,7 @@
           "owner:organization",
           "route:people-directory"
         ],
-        "nextAction": "Native holding-directory owner slice committed 070a4c45; TS authority restored. Mount HoldingDirectoryAuthority before route deletion."
+        "nextAction": "Bind HoldingDirectoryAuthority with HoldingWorkAuthorizer and correct assignment scope/binding, mount exact host targets and prove live parity. Worker TS/Rust byte oracle passed 2 isolated tests; draft awaits registration and native parity gate."
       },
       {
         "goalId": "G4",
@@ -215127,7 +215119,7 @@
         "goalId": "G4",
         "owner": "operations",
         "kind": "migration",
-        "status": "ready_for_integration",
+        "status": "blocked",
         "title": "Switch the routine-template detail GET to the mounted native detail route.",
         "scope": "Switch the routine-template detail GET to the mounted native detail route. Use the mounted native transport, fail closed, and delete only the retired TS authority.",
         "workflowIds": [],
@@ -215148,7 +215140,7 @@
         "resources": [
           "cutover:operations"
         ],
-        "nextAction": "Routine detail GET and presenter use native transport; presentation-context wire and TS authority retained for other subpaths.",
+        "nextAction": "Operations and Records TS suites passed 26 cases at 5dc1f4951 with current wrappers. Configure exact list/detail GET and HEAD/OPTIONS parity, prove real sessions, preserve longer retained GET and POST branches.",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "1ce263c83320df9948ad7a570e4e867d02f3efed",
@@ -215178,12 +215170,12 @@
         "retainedLegacy": [],
         "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261126-i",
-          "agentId": "w4-operations.routine-detail",
-          "at": "2026-11-26T14:54:42.537Z",
-          "previousStatus": "ready_for_integration",
+          "runId": "run-20261127-codex-api",
+          "agentId": "hy4-operations",
+          "at": "2026-11-27T04:09:11.727Z",
+          "previousStatus": "integrating",
           "reason": "handoff",
-          "nextAction": "Routine detail GET and presenter use native transport; presentation-context wire and TS authority retained for other subpaths."
+          "nextAction": "Operations and Records TS suites passed 26 cases at 5dc1f4951 with current wrappers. Configure exact list/detail GET and HEAD/OPTIONS parity, prove real sessions, preserve longer retained GET and POST branches."
         },
         "scopeRefinementRequired": false
       },
@@ -216268,25 +216260,25 @@
       {
         "goalId": "G3",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
-        "claim": {
-          "runId": "run-20261127-g",
-          "agentId": "worker-a",
-          "claimedAt": "2026-11-27T03:33:14.660Z",
-          "heartbeatAt": "2026-11-27T03:33:14.660Z",
-          "expiresAt": "2026-11-27T04:03:14.660Z",
-          "generation": 195
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261127-codex-api",
+          "agentId": "deepseek-existing",
+          "at": "2026-11-27T04:09:10.396Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Bind Account security keys in expanded dev startup, validate normal Account auth and invitations/security parity, then retire four app wrappers and two shared routes. DeepSeek unit evidence: 38 tests."
+        },
         "scopeRefinementRequired": false,
         "id": "cutover.identity.account-routes",
         "owner": "identity_access",
@@ -216302,30 +216294,30 @@
           "owner:identity_access",
           "route:account"
         ],
-        "nextAction": "Audit account-invitations, account/security, preferences and time-preference; implement missing Axum owner handlers with real SQL, add parity tests, and report exact mount/delete lists"
+        "nextAction": "Bind Account security keys in expanded dev startup, validate normal Account auth and invitations/security parity, then retire four app wrappers and two shared routes. DeepSeek unit evidence: 38 tests."
       },
       {
         "goalId": "G3",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
-        "claim": {
-          "runId": "run-20261127-g",
-          "agentId": "worker-b",
-          "claimedAt": "2026-11-27T03:33:14.925Z",
-          "heartbeatAt": "2026-11-27T03:33:14.925Z",
-          "expiresAt": "2026-11-27T04:03:14.925Z",
-          "generation": 195
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261127-codex-api",
+          "agentId": "deepseek-existing",
+          "at": "2026-11-27T04:09:10.825Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Review forecast WIP: distinguish unknown Holding 404 from a valid Holding with missing target config 503. Verify executive/operations/forecast native mount on ERPX internal before removal. DeepSeek unit evidence: 18 tests."
+        },
         "scopeRefinementRequired": false,
         "id": "cutover.platform.admin-routes",
         "owner": "platform_administration",
@@ -216340,30 +216332,30 @@
           "owner:platform_administration",
           "route:platform-admin"
         ],
-        "nextAction": "Audit platform operations, executive, billing forecast and billing target; move real reads/writes to Axum owner handlers and report exact mount/delete lists"
+        "nextAction": "Review forecast WIP: distinguish unknown Holding 404 from a valid Holding with missing target config 503. Verify executive/operations/forecast native mount on ERPX internal before removal. DeepSeek unit evidence: 18 tests."
       },
       {
         "goalId": "G3",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
-        "claim": {
-          "runId": "run-20261127-g",
-          "agentId": "worker-c",
-          "claimedAt": "2026-11-27T03:33:18.532Z",
-          "heartbeatAt": "2026-11-27T03:33:18.532Z",
-          "expiresAt": "2026-11-27T04:03:18.532Z",
-          "generation": 195
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261127-codex-api",
+          "agentId": "deepseek-existing",
+          "at": "2026-11-27T04:09:11.427Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "After expanded Axum startup verify feed and collaboration on three Holding hosts before retirement. Keep stories GET until owner implementation exists. DeepSeek unit evidence: 126 tests."
+        },
         "scopeRefinementRequired": false,
         "id": "cutover.collaboration.apps-routes",
         "owner": "collaboration",
@@ -216380,7 +216372,7 @@
           "owner:collaboration",
           "route:apps-social"
         ],
-        "nextAction": "Remove TS feed fallback, verify/native-implement collaboration, feed and stories Axum handlers with real SQL, add parity tests, and report exact mount/delete lists"
+        "nextAction": "After expanded Axum startup verify feed and collaboration on three Holding hosts before retirement. Keep stories GET until owner implementation exists. DeepSeek unit evidence: 126 tests."
       },
       {
         "goalId": "G3",
@@ -216435,6 +216427,253 @@
           "route:workplace-shared"
         ],
         "nextAction": "Verify native session context with an authenticated Holding browser; continue next native-complete route family"
+      },
+      {
+        "id": "cutover.runtime.method-aware-dev-gateway",
+        "owner": "runtime",
+        "title": "Route selected method and path templates to Axum from the development gateway",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "scripts/local/native-api-proxy.ts",
+          "scripts/local/workspace-gateway-runtime.ts",
+          "tests/unit/shared.testing/workspace-supervisor.test.ts"
+        ],
+        "resources": [
+          "resource:gateway"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "4073f31fb4ca2f5f16ddf9f7649752f79c6e2452",
+        "implementedCommit": "5dc1f49515a59527e8ebfd9e58923e7833bb4ad5",
+        "lastPushedSha": "5dc1f49515a59527e8ebfd9e58923e7833bb4ad5",
+        "checks": [
+          {
+            "command": "bun scripts/testing/test.ts unit --suite=shared.testing.workspace-supervisor.unit (13 cases)",
+            "result": "passed",
+            "sourceSha": "5dc1f49515a59527e8ebfd9e58923e7833bb4ad5"
+          },
+          {
+            "command": "bun run lint (three gateway files)",
+            "result": "passed",
+            "sourceSha": "5dc1f49515a59527e8ebfd9e58923e7833bb4ad5"
+          },
+          {
+            "command": "bun run test:catalogue (33 modules, 2425 suites)",
+            "result": "passed",
+            "sourceSha": "5dc1f49515a59527e8ebfd9e58923e7833bb4ad5"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "5dc1f49515a59527e8ebfd9e58923e7833bb4ad5"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261127-codex-api",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T04:05:35.901Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Bind to first verified business route and record retirement delta."
+        },
+        "nextAction": "Bind to first verified business route and record retirement delta."
+      },
+      {
+        "id": "cutover.runtime.multi-holding-router-assembly",
+        "owner": "runtime",
+        "title": "Restore Axum startup for the expanded development Holding matrix",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/private_development_api.rs",
+          "packages/server-commerce/src/public/quality_receipt_origin_read.rs",
+          "packages/server-commerce/src/public/records_request_page_source.rs"
+        ],
+        "resources": [
+          "resource:composition"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "38296e49a7fcbc1d864a9cdee638552fcd8d7355",
+        "implementedCommit": "168ed4a222ebb8bfc251144e08f8b18b0fe84cca",
+        "lastPushedSha": "168ed4a222ebb8bfc251144e08f8b18b0fe84cca",
+        "checks": [
+          {
+            "command": "cargo test --locked -p erpx-server-commerce --test quality_receipt_origin_read --test commerce_currency_read",
+            "result": "passed",
+            "sourceSha": "168ed4a222ebb8bfc251144e08f8b18b0fe84cca",
+            "detail": "13 cases; reader isolation by exact host/slug"
+          },
+          {
+            "command": "cargo build --locked -p erpx-service --features private-development-api --bin erpx-server",
+            "result": "passed",
+            "sourceSha": "168ed4a222ebb8bfc251144e08f8b18b0fe84cca",
+            "detail": "Private dev binary built"
+          },
+          {
+            "command": "Expanded dev startup at 127.0.0.1:3197",
+            "result": "passed",
+            "sourceSha": "168ed4a222ebb8bfc251144e08f8b18b0fe84cca",
+            "detail": "Three configured Holdings; HTTP /api/health 200"
+          },
+          {
+            "command": "Expanded dev startup at 127.0.0.1:3198",
+            "result": "passed",
+            "sourceSha": "168ed4a222ebb8bfc251144e08f8b18b0fe84cca",
+            "detail": "Detached active development process; HTTP /api/health 200"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "168ed4a222ebb8bfc251144e08f8b18b0fe84cca",
+            "detail": "33 modules and 2425 suites"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "168ed4a222ebb8bfc251144e08f8b18b0fe84cca",
+            "detail": "Clean whitespace check"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261127-codex-api",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T04:27:45.536Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Expanded Axum native dev health 200 on three Holding config. Preserve current routes until authenticated gateway parity; Acme Chrome reaches Account sign-in."
+        },
+        "nextAction": "Expanded Axum native dev health 200 on three Holding config. Preserve current routes until authenticated gateway parity; Acme Chrome reaches Account sign-in."
+      },
+      {
+        "id": "cutover.records.module-authority-gate",
+        "owner": "records",
+        "title": "Pin the real native Records IAM denial and its zero-write behavior",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "tests/integration/shared.records/rust-record-write-postgres.test.rs"
+        ],
+        "resources": [
+          "route:records"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "5dc1f49515a59527e8ebfd9e58923e7833bb4ad5",
+        "implementedCommit": "38296e49a7fcbc1d864a9cdee638552fcd8d7355",
+        "lastPushedSha": "38296e49a7fcbc1d864a9cdee638552fcd8d7355",
+        "checks": [
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=shared.records.rust-record-write-postgres.integration",
+            "result": "failed",
+            "sourceSha": "5dc1f49515a59527e8ebfd9e58923e7833bb4ad5",
+            "detail": "6/7; IAM unavailable-module denial reached before prior owner assertion"
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=shared.records.rust-record-write-postgres.integration",
+            "result": "passed",
+            "sourceSha": "38296e49a7fcbc1d864a9cdee638552fcd8d7355",
+            "detail": "7/7; verifies Forbidden, current IAM code and zero rows after denial"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261127-codex-api",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T04:15:23.339Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "PostgreSQL proof passed 7/7. Finish real-session gateway parity and route retirement with exec.records.registry."
+        },
+        "nextAction": "PostgreSQL proof passed 7/7. Finish real-session gateway parity and route retirement with exec.records.registry."
+      },
+      {
+        "id": "cutover.commerce.multi-holding-readers",
+        "owner": "commerce",
+        "title": "Bind Commerce route readers separately for each Holding in one Axum router",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-commerce/src/adapters/quality_receipt_origin_read.rs",
+          "packages/server-commerce/src/adapters/records_request_page_source.rs",
+          "tests/unit/commerce/rust-quality-receipt-origin-read.test.rs",
+          "tests/unit/commerce/rust-commerce-currency-read.test.rs"
+        ],
+        "resources": [
+          "route:commerce-multi-holding-readers"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "38296e49a7fcbc1d864a9cdee638552fcd8d7355",
+        "implementedCommit": "168ed4a222ebb8bfc251144e08f8b18b0fe84cca",
+        "lastPushedSha": "168ed4a222ebb8bfc251144e08f8b18b0fe84cca",
+        "checks": [
+          {
+            "command": "cargo test --locked -p erpx-server-commerce --test quality_receipt_origin_read --test commerce_currency_read",
+            "result": "passed",
+            "sourceSha": "168ed4a222ebb8bfc251144e08f8b18b0fe84cca",
+            "detail": "13 cases; reader isolation by exact host/slug"
+          },
+          {
+            "command": "cargo build --locked -p erpx-service --features private-development-api --bin erpx-server",
+            "result": "passed",
+            "sourceSha": "168ed4a222ebb8bfc251144e08f8b18b0fe84cca",
+            "detail": "Private dev binary built"
+          },
+          {
+            "command": "Expanded dev startup at 127.0.0.1:3197",
+            "result": "passed",
+            "sourceSha": "168ed4a222ebb8bfc251144e08f8b18b0fe84cca",
+            "detail": "Three configured Holdings; HTTP /api/health 200"
+          },
+          {
+            "command": "Expanded dev startup at 127.0.0.1:3198",
+            "result": "passed",
+            "sourceSha": "168ed4a222ebb8bfc251144e08f8b18b0fe84cca",
+            "detail": "Detached active development process; HTTP /api/health 200"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "168ed4a222ebb8bfc251144e08f8b18b0fe84cca",
+            "detail": "33 modules and 2425 suites"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "168ed4a222ebb8bfc251144e08f8b18b0fe84cca",
+            "detail": "Clean whitespace check"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261127-codex-api",
+          "agentId": "hy4-commerce",
+          "at": "2026-11-27T04:27:46.079Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Expanded Axum native dev health 200 on three Holding config. Preserve current routes until authenticated gateway parity; Acme Chrome reaches Account sign-in."
+        },
+        "nextAction": "Expanded Axum native dev health 200 on three Holding config. Preserve current routes until authenticated gateway parity; Acme Chrome reaches Account sign-in."
       }
     ],
     "migrationProgress": {
@@ -216447,17 +216686,17 @@
       "migratedPackets": 370,
       "statusCounts": {
         "pending": 14,
-        "in_progress": 3,
-        "ready_for_integration": 146,
+        "in_progress": 0,
+        "ready_for_integration": 143,
         "integrating": 0,
         "migrated": 370,
-        "blocked": 1915,
+        "blocked": 1921,
         "deferred": 2,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 195,
-    "updatedAt": "2026-11-27T03:39:45.894Z",
+    "lastCoordinatorGeneration": 196,
+    "updatedAt": "2026-11-27T04:27:46.450Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
@@ -216492,10 +216731,10 @@
       }
     },
     "lastRecovery": {
-      "previousRunId": "run-20261127-f",
-      "runId": "run-20261127-g",
-      "at": "2026-11-27T03:13:17.681Z",
-      "reason": "Previous run lease expired; tree clean; dev services reconciled",
+      "previousRunId": "run-20261127-g",
+      "runId": "run-20261127-codex-api",
+      "at": "2026-11-27T03:57:41.748Z",
+      "reason": "DeepSeek confirmed coordinator and delegated writers stopped, WIP reviewed at pushed 4073f31fb; preserve remaining CSS and ignored dev runtime WIP",
       "wipReviewed": true,
       "previousRunStopped": true
     },
