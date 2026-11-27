@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15559,
+    "revision": 15593,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": null,
@@ -217641,21 +217641,83 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": "e8311c3a1512c00df2c4fc97102c48adab0abb66",
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
+        "baseSha": "7529a86204883ddb6606e9b143837243053d5553",
+        "implementedCommit": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+        "lastPushedSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+        "checks": [
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api; disposable and live Axum startup",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-records --lib --test record_registry_http (72 owner tests and 9 HTTP tests)",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed"
+          },
+          {
+            "command": "cargo test --locked -p erpx-service --features private-development-api --test records_write_postgres -- --test-threads=1 (7 passed on separately leased dev test databases)",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed"
+          },
+          {
+            "command": "Vitest Records route/proxy and workspace-supervisor suites (23 tests)",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit -p tests/config/tsconfig.json",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed"
+          },
+          {
+            "command": "bun run structure:check",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed"
+          },
+          {
+            "command": "bun run test:catalogue (33 modules, 2425 suites)",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed"
+          },
+          {
+            "command": "Acme public HTTPS normal SSO: POST mention 201 with private data envelope, canonical and Apps alias, optional key, two concurrent same-key calls and replay, different input conflict, source scope and origin denial, OPTIONS 204 and unsupported GET 405",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed"
+          },
+          {
+            "command": "Acme dev PostgreSQL READ ONLY proof: exactly one mention with Control-owned display name; one receipt, audit and outbox; zero rejected receipts",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed"
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/suggestions/route.ts",
+            "removalTaskId": "cutover.records.registry-social-actions",
+            "removalCondition": "Use the native evidence projection plus byte-compatible SHA-256 to generate the suggestion, verify a 201 replay and remove the Next route."
+          },
+          {
+            "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/suggestions/[suggestionId]/route.ts",
+            "removalTaskId": "cutover.records.registry-social-actions",
+            "removalCondition": "Move apply/reject and their current field/source versions to one native Holding transaction; verify former 200 data and stale conflict before removing the route."
+          },
+          {
+            "path": "packages/server-records/src/application/records.ts",
+            "removalTaskId": "cutover.records.registry-social-actions",
+            "removalCondition": "Remove requestSuggestion and decideSuggestion orchestration and related interfaces after existing API callers and the command/audit oracle switch to native."
+          }
+        ],
         "blocker": "handoff",
         "handoff": {
-          "runId": "run-goal-records-operations-tail-01",
-          "agentId": "hy4-records-social",
-          "at": "2026-11-27T05:35:23.571Z",
+          "runId": "run-goal-schedule-state",
+          "agentId": "hy4-records-mention-retire",
+          "at": "2026-11-27T06:23:02.124Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Review parked HY4 owner input/policy draft in .scratch/dev/rust-migration/parked/records-social-goal. Replace hand-implemented digest with standard SHA-256 and wire mention before suggestions in the authorized Rust PostgreSQL unit. HY4 rustfmt parse and diff checks passed. No ingress/runtime retirement claimed."
+          "nextAction": "Mention cutover is verified and pushed. Port POST suggestion request (201) and POST suggestion decision (200) next. In packages/server-records/src/application/records.ts compare the retained requestSuggestion/decideSuggestion rules, use standard SHA-256 with legacy ordered JSON for provenance/current values, recheck each readable source version for apply, then run records_write_postgres and real Acme request/apply/reject/changed-source assertions before retiring both route families."
         },
-        "nextAction": "Review parked HY4 owner input/policy draft in .scratch/dev/rust-migration/parked/records-social-goal. Replace hand-implemented digest with standard SHA-256 and wire mention before suggestions in the authorized Rust PostgreSQL unit. HY4 rustfmt parse and diff checks passed. No ingress/runtime retirement claimed."
+        "nextAction": "Mention cutover is verified and pushed. Port POST suggestion request (201) and POST suggestion decision (200) next. In packages/server-records/src/application/records.ts compare the retained requestSuggestion/decideSuggestion rules, use standard SHA-256 with legacy ordered JSON for provenance/current values, recheck each readable source version for apply, then run records_write_postgres and real Acme request/apply/reject/changed-source assertions before retiring both route families."
       },
       {
         "id": "cutover.runtime.routine-command-ingress",
@@ -218146,7 +218208,24 @@
         "allowedPaths": [
           "packages/server-projects/src/adapters/purchases.ts",
           "packages/server-projects/src/adapters/optional-project-options.ts",
-          "packages/server-projects/src/adapters/routine-project-options.ts"
+          "packages/server-projects/src/adapters/routine-project-options.ts",
+          "packages/server-projects/src/adapters/native_lane_27/domain.rs",
+          "packages/server-projects/src/adapters/native_lane_27/http.rs",
+          "packages/server-projects/src/adapters/native_lane_27/postgres.rs",
+          "packages/server-projects/src/public/native_lane_27.rs",
+          "packages/server-projects/src/public/routine-project-options.ts",
+          "packages/server-projects/src/public/optional-project-options.ts",
+          "packages/server-projects/package.json",
+          "packages/server-work_projection/src/adapters/staff-page.ts",
+          "packages/server-work_projection/src/adapters/presentation-context-queries.ts",
+          "packages/server-operations/src/adapters/work-routine-presentation.ts",
+          "packages/feature-operations/src/adapters/server/native-routines-read.ts",
+          "src/composition/src/native_lane_mounts.rs",
+          "src/composition/src/routine_commands.rs",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/routine-templates/screen.tsx",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/routine-templates/[id]/screen.tsx",
+          "tests/integration/commercial/provider-legacy-grants.test.ts",
+          "tests/unit/operations/task-worker-display.test.ts"
         ],
         "resources": [
           "path:cutover.operations.routine-ssr-dependencies"
@@ -218181,14 +218260,18 @@
         "retainedLegacy": [],
         "blocker": "handoff",
         "handoff": {
-          "runId": "run-goal-records-operations-tail-01",
-          "agentId": "codex-lead",
-          "at": "2026-11-27T05:53:11.302Z",
+          "runId": "run-goal-schedule-state",
+          "agentId": "hy4-routines-ssr",
+          "at": "2026-11-27T06:21:32.191Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Replace Projects picker/purchase authority with a native composed read. The interim guard resolver keeps current SSR working and executes the same ordered guards atomically. Local Finance/Operations loopback and Acme Brand scopes verified."
+          "nextAction": "HY4 audited project picker and purchase controls. Routine list/detail currently call staff-page routineProjectOptions plus presentation-context queries. Replace both with an authorized native read using Projects lane-27 visibility and Commercial history/strict scheduled capability checks. Retire the routine-only adapter plus public export as callers and oracle move; purchases.ts still owns other Projects flows."
         },
-        "nextAction": "Replace Projects picker/purchase authority with a native composed read. The interim guard resolver keeps current SSR working and executes the same ordered guards atomically. Local Finance/Operations loopback and Acme Brand scopes verified."
+        "nextAction": "HY4 audited project picker and purchase controls. Routine list/detail currently call staff-page routineProjectOptions plus presentation-context queries. Replace both with an authorized native read using Projects lane-27 visibility and Commercial history/strict scheduled capability checks. Retire the routine-only adapter plus public export as callers and oracle move; purchases.ts still owns other Projects flows.",
+        "deliverables": [
+          "Native current Holding and Company-scoped routine picker and purchase controls for canonical list and detail SSR; verify no duplicate TypeScript permission or SQL execution.",
+          "Remove routine-only Projects adapter and public export after moving the production caller and the legacy-grant oracle."
+        ]
       },
       {
         "id": "cutover.operations.routine-schedule-state",
@@ -218210,20 +218293,92 @@
         "resources": [
           "path:cutover.operations.routine-schedule-state"
         ],
-        "status": "ready_for_integration",
+        "status": "migrated",
         "claim": null,
-        "baseSha": "402a1fb5af3215b2b9d0393223c7c013bf0f7799",
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "baseSha": "9174c8dabfcd6618b5c2237a5d47d40eda4467f7",
+        "implementedCommit": "7529a86204883ddb6606e9b143837243053d5553",
+        "lastPushedSha": "7529a86204883ddb6606e9b143837243053d5553",
         "checks": [
           {
             "command": "Acme native Axum loopback resume/pause/end and same-key replays against synthetic schedule (6 HTTP 200)",
             "sourceSha": "402a1fb5af3215b2b9d0393223c7c013bf0f7799",
             "result": "passed"
+          },
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api; candidate Axum native startup on 3197 and dev 3198",
+            "sourceSha": "7529a86204883ddb6606e9b143837243053d5553",
+            "result": "passed"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-operations --test routine_run_http (8 tests)",
+            "sourceSha": "7529a86204883ddb6606e9b143837243053d5553",
+            "result": "passed"
+          },
+          {
+            "command": "Vitest Operations route/detail and workspace supervisor (21 tests; retired alias fails with JSON 503 when native upstream stops)",
+            "sourceSha": "7529a86204883ddb6606e9b143837243053d5553",
+            "result": "passed"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit -p tests/config/tsconfig.json",
+            "sourceSha": "7529a86204883ddb6606e9b143837243053d5553",
+            "result": "passed"
+          },
+          {
+            "command": "bun run structure:check",
+            "sourceSha": "7529a86204883ddb6606e9b143837243053d5553",
+            "result": "passed"
+          },
+          {
+            "command": "bun run test:catalogue (33 modules, 2425 suites)",
+            "sourceSha": "7529a86204883ddb6606e9b143837243053d5553",
+            "result": "passed"
+          },
+          {
+            "command": "Acme public HTTPS SSO and Axum resume/pause/end and 3 same-key replays; alias, rejected scope/origin/anonymous, stale revision and CAS, reverse-compatible method and unknown action guards",
+            "sourceSha": "7529a86204883ddb6606e9b143837243053d5553",
+            "result": "passed"
+          },
+          {
+            "command": "Authenticated public Acme canonical routine detail SSR with explicit Company displayed fixture title and version after Next handler deletion",
+            "sourceSha": "7529a86204883ddb6606e9b143837243053d5553",
+            "result": "passed"
+          },
+          {
+            "command": "Acme dev PostgreSQL READ ONLY trace: 3 distinct receipts/audits/outbox events; resume lineage 1; ended v4; open pauses 0; stale write receipts 0",
+            "sourceSha": "7529a86204883ddb6606e9b143837243053d5553",
+            "result": "passed"
+          },
+          {
+            "command": "retirement:next-routes",
+            "sourceSha": "7529a86204883ddb6606e9b143837243053d5553",
+            "result": "passed",
+            "before": 1423,
+            "after": 1420,
+            "appBefore": 1196,
+            "appAfter": 1194,
+            "sharedBefore": 227,
+            "sharedAfter": 226,
+            "methodPathDelta": 3,
+            "removedBranches": 3,
+            "removedMethodExports": 2,
+            "deletedFiles": 3,
+            "deletedHelpers": 1
           }
         ],
-        "retainedLegacy": [],
-        "blocker": "handoff",
+        "retainedLegacy": [
+          {
+            "path": "packages/server-projects/src/adapters/purchases.ts",
+            "removalTaskId": "cutover.operations.routine-ssr-dependencies",
+            "removalCondition": "Replace Projects purchase and picker dependencies with an authorized composed native read and reverify SSR."
+          },
+          {
+            "path": "packages/server-operations/src/adapters/routines.ts",
+            "removalTaskId": "retire.operations.routines",
+            "removalCondition": "Replace remaining Operations legacy read oracles with native contract and retire the remaining adapter."
+          }
+        ],
+        "blocker": null,
         "handoff": {
           "runId": "run-goal-records-operations-tail-01",
           "agentId": "codex-lead",
@@ -218232,7 +218387,12 @@
           "reason": "handoff",
           "nextAction": "Start with verified native pause/resume/end. Add method/path matcher and assert unsupported methods/OPTIONS, verify via public gateway on a fresh fixture, then delete the three sibling route files and the final TypeScript routine command transport."
         },
-        "nextAction": "Start with verified native pause/resume/end. Add method/path matcher and assert unsupported methods/OPTIONS, verify via public gateway on a fresh fixture, then delete the three sibling route files and the final TypeScript routine command transport."
+        "nextAction": "Cutover milestone closed: public Acme Axum 3 POST pairs, 3 dispatch branches, 3 Next route files plus 1 TS transport helper removed; 1423 to 1420. The two tasks share one count. Continue Records mention and the Operations SSR Projects dependency. Global docs and architecture checks retain their prior failures; G5 pending.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "cutover.operations.routine-ssr-list-authority",
@@ -218325,6 +218485,365 @@
           "routeAuthority": true,
           "presenterParity": true
         }
+      },
+      {
+        "id": "cutover.runtime.routine-schedule-state-ingress",
+        "owner": "operations",
+        "title": "Bind the routine-schedule HTTP family to Axum",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [
+          "cutover.operations.routine-template-retained"
+        ],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "scripts/local/native-cutover-routes.ts",
+          "scripts/local/workspace-gateway-runtime.ts",
+          "scripts/local/compiled-workspace-gateway.ts",
+          "packages/server-operations/src/adapters/routine_commands_http.rs",
+          "tests/unit/operations/rust-routine-run-http.test.rs",
+          "tests/unit/operations/native-routines-route.test.ts",
+          "tests/unit/shared.testing/workspace-supervisor.test.ts",
+          "packages/feature-apps/package.json",
+          "packages/server-operations/package.json",
+          "packages/server-work_projection/src/domain/staff-api.ts",
+          "apps/launcher/turbo.json",
+          "apps/launcher/src/app/globals.css",
+          "apps/compat/src/app/globals.css",
+          "tests/catalogue/suite-manifest.json"
+        ],
+        "resources": [
+          "path:cutover.runtime.routine-schedule-state-ingress",
+          "build:heavy",
+          "service:dev-postgres-browser"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": "9174c8dabfcd6618b5c2237a5d47d40eda4467f7",
+        "implementedCommit": "7529a86204883ddb6606e9b143837243053d5553",
+        "lastPushedSha": "7529a86204883ddb6606e9b143837243053d5553",
+        "checks": [
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api; candidate Axum native startup on 3197 and dev 3198",
+            "sourceSha": "7529a86204883ddb6606e9b143837243053d5553",
+            "result": "passed"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-operations --test routine_run_http (8 tests)",
+            "sourceSha": "7529a86204883ddb6606e9b143837243053d5553",
+            "result": "passed"
+          },
+          {
+            "command": "Vitest Operations route/detail and workspace supervisor (21 tests; retired alias fails with JSON 503 when native upstream stops)",
+            "sourceSha": "7529a86204883ddb6606e9b143837243053d5553",
+            "result": "passed"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit -p tests/config/tsconfig.json",
+            "sourceSha": "7529a86204883ddb6606e9b143837243053d5553",
+            "result": "passed"
+          },
+          {
+            "command": "bun run structure:check",
+            "sourceSha": "7529a86204883ddb6606e9b143837243053d5553",
+            "result": "passed"
+          },
+          {
+            "command": "bun run test:catalogue (33 modules, 2425 suites)",
+            "sourceSha": "7529a86204883ddb6606e9b143837243053d5553",
+            "result": "passed"
+          },
+          {
+            "command": "Acme public HTTPS SSO and Axum resume/pause/end and 3 same-key replays; alias, rejected scope/origin/anonymous, stale revision and CAS, reverse-compatible method and unknown action guards",
+            "sourceSha": "7529a86204883ddb6606e9b143837243053d5553",
+            "result": "passed"
+          },
+          {
+            "command": "Authenticated public Acme canonical routine detail SSR with explicit Company displayed fixture title and version after Next handler deletion",
+            "sourceSha": "7529a86204883ddb6606e9b143837243053d5553",
+            "result": "passed"
+          },
+          {
+            "command": "Acme dev PostgreSQL READ ONLY trace: 3 distinct receipts/audits/outbox events; resume lineage 1; ended v4; open pauses 0; stale write receipts 0",
+            "sourceSha": "7529a86204883ddb6606e9b143837243053d5553",
+            "result": "passed"
+          },
+          {
+            "command": "retirement:next-routes:operations-schedule-state-shared-milestone",
+            "sourceSha": "7529a86204883ddb6606e9b143837243053d5553",
+            "result": "passed",
+            "before": 1423,
+            "after": 1420,
+            "appBefore": 1196,
+            "appAfter": 1194,
+            "sharedBefore": 227,
+            "sharedAfter": 226,
+            "methodPathDelta": 3,
+            "removedBranches": 3,
+            "removedMethodExports": 2,
+            "deletedFiles": 3,
+            "deletedHelpers": 1,
+            "note": "Same source checkpoint recorded under cutover.operations.routine-schedule-state; apply the route delta only once."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-projects/src/adapters/purchases.ts",
+            "removalTaskId": "cutover.operations.routine-ssr-dependencies",
+            "removalCondition": "Replace Projects purchase and picker dependencies with an authorized composed native read and reverify SSR."
+          },
+          {
+            "path": "packages/server-operations/src/adapters/routines.ts",
+            "removalTaskId": "retire.operations.routines",
+            "removalCondition": "Replace remaining Operations legacy read oracles with native contract and retire the remaining adapter."
+          }
+        ],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Cutover milestone closed: public Acme Axum 3 POST pairs, 3 dispatch branches, 3 Next route files plus 1 TS transport helper removed; 1423 to 1420. The two tasks share one count. Continue Records mention and the Operations SSR Projects dependency. Global docs and architecture checks retain their prior failures; G5 pending.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
+      },
+      {
+        "id": "cutover.identity-access.records-mention-facts",
+        "owner": "identity_access",
+        "title": "Provide native Identity facts for the Records mention command",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [
+          "cutover.records.registry-record-actions"
+        ],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/adapters/records_principal_search.rs",
+          "tests/unit/identity_access/records-principal-search.test.rs"
+        ],
+        "resources": [
+          "path:cutover.identity-access.records-mention-facts"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": "7529a86204883ddb6606e9b143837243053d5553",
+        "implementedCommit": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+        "lastPushedSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+        "checks": [
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api; disposable and live Axum startup",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-records --lib --test record_registry_http (72 owner tests and 9 HTTP tests)",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed"
+          },
+          {
+            "command": "cargo test --locked -p erpx-service --features private-development-api --test records_write_postgres -- --test-threads=1 (7 passed on separately leased dev test databases)",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed"
+          },
+          {
+            "command": "Vitest Records route/proxy and workspace-supervisor suites (23 tests)",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit -p tests/config/tsconfig.json",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed"
+          },
+          {
+            "command": "bun run structure:check",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed"
+          },
+          {
+            "command": "bun run test:catalogue (33 modules, 2425 suites)",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed"
+          },
+          {
+            "command": "Acme public HTTPS normal SSO: POST mention 201 with private data envelope, canonical and Apps alias, optional key, two concurrent same-key calls and replay, different input conflict, source scope and origin denial, OPTIONS 204 and unsupported GET 405",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed"
+          },
+          {
+            "command": "Acme dev PostgreSQL READ ONLY proof: exactly one mention with Control-owned display name; one receipt, audit and outbox; zero rejected receipts",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed"
+          },
+          {
+            "command": "retirement:next-routes:records-mention-shared-milestone",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed",
+            "before": 1420,
+            "after": 1418,
+            "appBefore": 1194,
+            "appAfter": 1193,
+            "sharedBefore": 226,
+            "sharedAfter": 225,
+            "methodPathDelta": 1,
+            "removedBranches": 1,
+            "removedMethodExports": 1,
+            "deletedFiles": 2,
+            "note": "The same two retired route files are counted only under cutover.runtime.records-mention-ingress."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Acme public Records mentions now reach Axum 201. One POST method+path and dispatch branch migrated, two Next files deleted, total 1420 to 1418; duplicate evidence under the Identity facts task shares the count. Complete the two retained suggestions operations next; G5 remains pending.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
+      },
+      {
+        "id": "cutover.runtime.records-mention-ingress",
+        "owner": "records",
+        "title": "Cut over the Records mention command and verified presenter data",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [
+          "cutover.records.registry-record-actions"
+        ],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/records.rs",
+          "src/composition/src/records_command.rs",
+          "src/composition/src/private_development_api.rs",
+          "packages/server-records/src/adapters/record_context.rs",
+          "packages/server-records/src/public/record_context.rs",
+          "scripts/local/native-cutover-routes.ts",
+          "scripts/local/workspace-gateway-runtime.ts",
+          "scripts/local/compiled-workspace-gateway.ts",
+          "scripts/local/holding-gateway.ts",
+          "tests/unit/shared.records/rust-record-registry-http.test.rs",
+          "tests/integration/shared.records/rust-record-write-postgres.test.rs",
+          "tests/unit/shared.testing/workspace-supervisor.test.ts",
+          "packages/workplace/package.json",
+          "packages/server-records/src/domain/records.ts",
+          "packages/server-records/src/application/records.ts",
+          "packages/server-records/src/adapters/records.ts",
+          "packages/server-records/src/public/records.ts",
+          "packages/server-identity_access/src/adapters/records-records-facts.ts",
+          "packages/server-identity_access/src/adapters/records-records-owned-facts.ts",
+          "apps/compat/src/app/globals.css",
+          "tests/catalogue/suite-manifest.json",
+          "packages/server-identity_access/src/public/mod.rs",
+          "tests/unit/records/records-registry-routes-pure-transport.test.ts"
+        ],
+        "resources": [
+          "path:cutover.runtime.records-mention-ingress",
+          "build:heavy",
+          "service:dev-postgres-browser"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": "7529a86204883ddb6606e9b143837243053d5553",
+        "implementedCommit": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+        "lastPushedSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+        "checks": [
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api; disposable and live Axum startup",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-records --lib --test record_registry_http (72 owner tests and 9 HTTP tests)",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed"
+          },
+          {
+            "command": "cargo test --locked -p erpx-service --features private-development-api --test records_write_postgres -- --test-threads=1 (7 passed on separately leased dev test databases)",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed"
+          },
+          {
+            "command": "Vitest Records route/proxy and workspace-supervisor suites (23 tests)",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit -p tests/config/tsconfig.json",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed"
+          },
+          {
+            "command": "bun run structure:check",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed"
+          },
+          {
+            "command": "bun run test:catalogue (33 modules, 2425 suites)",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed"
+          },
+          {
+            "command": "Acme public HTTPS normal SSO: POST mention 201 with private data envelope, canonical and Apps alias, optional key, two concurrent same-key calls and replay, different input conflict, source scope and origin denial, OPTIONS 204 and unsupported GET 405",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed"
+          },
+          {
+            "command": "Acme dev PostgreSQL READ ONLY proof: exactly one mention with Control-owned display name; one receipt, audit and outbox; zero rejected receipts",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed"
+          },
+          {
+            "command": "retirement:next-routes",
+            "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+            "result": "passed",
+            "before": 1420,
+            "after": 1418,
+            "appBefore": 1194,
+            "appAfter": 1193,
+            "sharedBefore": 226,
+            "sharedAfter": 225,
+            "methodPathDelta": 1,
+            "removedBranches": 1,
+            "removedMethodExports": 1,
+            "deletedFiles": 2
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/suggestions/route.ts",
+            "removalTaskId": "cutover.records.registry-social-actions",
+            "removalCondition": "Use the native evidence projection plus byte-compatible SHA-256 to generate the suggestion, verify a 201 replay and remove the Next route."
+          },
+          {
+            "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/suggestions/[suggestionId]/route.ts",
+            "removalTaskId": "cutover.records.registry-social-actions",
+            "removalCondition": "Move apply/reject and their current field/source versions to one native Holding transaction; verify former 200 data and stale conflict before removing the route."
+          },
+          {
+            "path": "packages/server-records/src/application/records.ts",
+            "removalTaskId": "cutover.records.registry-social-actions",
+            "removalCondition": "Remove requestSuggestion and decideSuggestion orchestration and related interfaces after existing API callers and the command/audit oracle switch to native."
+          }
+        ],
+        "blocker": null,
+        "handoff": {
+          "runId": "run-goal-schedule-state",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T06:10:42.885Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Reviewed lead WIP; add public Identity re-exports and the existing Records retirement oracle test to the claimed paths before candidate verification."
+        },
+        "nextAction": "Acme public Records mentions now reach Axum 201. One POST method+path and dispatch branch migrated, two Next files deleted, total 1420 to 1418; duplicate evidence under the Identity facts task shares the count. Complete the two retained suggestions operations next; G5 remains pending.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       }
     ],
     "migrationProgress": {
@@ -218346,8 +218865,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 198,
-    "updatedAt": "2026-11-27T05:53:11.808Z",
+    "lastCoordinatorGeneration": 199,
+    "updatedAt": "2026-11-27T06:23:02.300Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
