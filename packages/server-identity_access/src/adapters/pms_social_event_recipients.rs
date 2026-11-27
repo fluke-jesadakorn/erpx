@@ -115,19 +115,65 @@ pub async fn pms_social_source_readable(
         .bind(assignment_id)
         .fetch_one(connection)
         .await
-        .map_err(|error| {
-            let persistence = PersistenceError::from(error);
-            let failure = if persistence.retryable() {
-                FailureKind::Conflict
-            } else {
-                FailureKind::Unavailable
-            };
-            BusinessError::new(
-                failure,
-                "IAM_PMS_SOCIAL_SOURCE_UNAVAILABLE",
-                "The hotel work access could not be verified.",
-            )
-        })
+        .map_err(source_read_failed)
+}
+
+/// A conversation's linked Hotel rows and its audience lineage must be
+/// readable under one current assignment of this viewer.
+pub async fn pms_social_conversation_readable(
+    connection: &mut PgConnection,
+    company_id: &str,
+    user_id: &str,
+    source_ids: &[String],
+    branch_id: Option<&str>,
+    department_id: Option<&str>,
+) -> Result<bool, BusinessError> {
+    if source_ids.is_empty() {
+        return Ok(true);
+    }
+    let sql = format!(
+        "SELECT EXISTS(
+           SELECT 1 FROM assignments a
+           WHERE a.user_id=$1 AND a.company_id=$2
+             AND ($4::text IS NULL AND $5::text IS NULL
+               OR $5 IS NOT NULL AND a.scope_kind='department' AND a.scope_node_id=$5
+               OR $5 IS NULL AND $4 IS NOT NULL AND (
+                 a.scope_kind='holding' OR a.scope_kind='branch' AND a.scope_node_id=$4
+                 OR a.scope_kind='department' AND EXISTS(
+                   SELECT 1 FROM organization_nodes n WHERE n.id=a.scope_node_id
+                     AND n.company_id=a.company_id AND n.branch_id=$4)))
+             AND NOT EXISTS(
+               SELECT 1 FROM unnest($3::text[]) source(id)
+               WHERE NOT EXISTS(SELECT 1 FROM ({PMS_SOURCES_SQL}) pr
+                 WHERE pr.id=source.id AND pr.company_id=a.company_id AND {readable}
+               )
+             )
+         )",
+        readable = pms_source_readable_sql(ViewerBinding::RecipientAssignment),
+    );
+    sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+        .bind(user_id)
+        .bind(company_id)
+        .bind(source_ids)
+        .bind(branch_id)
+        .bind(department_id)
+        .fetch_one(connection)
+        .await
+        .map_err(source_read_failed)
+}
+
+fn source_read_failed(error: sqlx::Error) -> BusinessError {
+    let persistence = PersistenceError::from(error);
+    let failure = if persistence.retryable() {
+        FailureKind::Conflict
+    } else {
+        FailureKind::Unavailable
+    };
+    BusinessError::new(
+        failure,
+        "IAM_PMS_SOCIAL_SOURCE_UNAVAILABLE",
+        "The hotel work access could not be verified.",
+    )
 }
 
 fn read_failed(error: sqlx::Error) -> BusinessError {

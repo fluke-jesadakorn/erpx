@@ -20,13 +20,14 @@ import type {
   socialPresentation,
 } from '@erpx/server-collaboration/adapters/social-home';
 
-/** The full SSR page payload. Both the native reader and the retained query
- *  produce this exact shape so the presenter never sees a partial native row. */
+/** The full SSR page payload. The native reader supplies the complete aggregate
+ *  so the presenter never merges it with another authority. */
 export type SocialPageData = {
   posts: HomePost[];
   milestones: HomePost[];
   options: Awaited<ReturnType<typeof socialAudienceOptions>>;
   moderate: boolean;
+  sourceOnly: boolean;
   presentation: Awaited<ReturnType<typeof socialPresentation>> | undefined;
   initialDay: unknown;
   post: HomePost | null;

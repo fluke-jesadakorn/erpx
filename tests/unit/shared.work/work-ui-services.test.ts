@@ -10,12 +10,13 @@ import {createStorefrontIconService} from "@erpx/server-work_projection/applicat
 import {createPageLayoutService,type PageLayoutUnit} from "@erpx/server-work_projection/application/page-layouts";
 import {createFlowSettingsHubQuery,type FlowSettingsHubPorts} from "@erpx/server-work_projection/application/flow-settings-hub";
 import {createRequestAdministrationQuery,type RequestAdministrationPorts} from "@erpx/server-records/application/request-administration";
-import {createSocialPageQuery,type SocialPagePorts} from "@erpx/server-collaboration/application/social-page";
 import {createBusinessDocumentBrandQuery,type BusinessDocumentBrandPorts} from "@erpx/server-brand/application/business-document";
 import type {WorkContext,AccountAccessContext} from "@erpx/server-identity_access/public/authorization";
 import type {ActiveWorkSelection} from "@erpx/server-work_projection/domain/work-role-store";
 import type {WorkspaceHoldingChoice} from "@erpx/feature-work_projection/lib/workspace-choice";
 import {ApiError} from "@erpx/server-runtime/public/http";
+import {nativeSocialPageDataSSR} from "@erpx/server-collaboration/public/native-social-page";
+import * as nativeHttp from "@erpx/server-runtime/public/native-http";
 function only<T>(values:Partial<T>):T {return new Proxy(values,{get(target,name){if(name==="then")return undefined;if(name in target)return Reflect.get(target,name);throw Error(`Unexpected port ${String(name)}`);}}) as T;}
 const actor={userId:"user",sessionId:"session",companyId:"company",holdingId:"holding",holdingSlug:"acme",role:"owner",assignmentId:"assignment",scope:{kind:"holding",holdingSlug:"acme"}} as unknown as WorkContext;
 const error=(status:number,code:string,message:string)=>new ApiError(status,code,message);
@@ -147,18 +148,40 @@ it("denies request administration before reading request or route data", async (
   const app = createRequestAdministrationQuery(only<RequestAdministrationPorts>({ prepare: async () => undefined, owner: async () => false }));
   expect(await app("private-request")).toBeNull(); expect(await app()).toBeNull();
 });
+const nativeSocialActor = { ...actor, authority: { sessionId: "session", revision: 1, assignmentVersion: 2 } };
+const socialHeaders = new Headers({ host: "acme.example.test", cookie: "session=fixture" });
+const socialOptions = { branches: [], audiences: [], projects: [] };
+
 it("keeps single-post Home queries separate from feeds and personal schedule", async () => {
-  const post = only<Awaited<ReturnType<SocialPagePorts["post"]>>>({ id: "post" });
-  const result = await createSocialPageQuery(only<SocialPagePorts>({ prepare: async () => undefined, post: async id => { expect(id).toBe("post"); return post; }, audience: async () => only<Awaited<ReturnType<SocialPagePorts["audience"]>>>({ branches: [], audiences: [], projects: [] }), moderate: async () => false }))({ beta: false }, { postId: "post" });
-  expect(result.posts).toHaveLength(1); expect(result.posts[0]).toBe(post); expect(result.post).toBe(post); expect(result.milestones).toEqual([]); expect(result.initialDay).toBeUndefined();
+  vi.stubEnv("ERPX_NATIVE_COLLABORATION_CONFIG", JSON.stringify({ privateBaseUrl: "http://127.0.0.1:3105", timeoutMs: 1000 }));
+  const post = { id: "post" };
+  const request = vi.spyOn(nativeHttp, "nativeRequest").mockResolvedValue(Response.json({ data: {
+    posts: [post], post, milestones: [], options: socialOptions, moderate: false, sourceOnly: false, initialDay: null,
+  } }));
+  try {
+    await expect(nativeSocialPageDataSSR(nativeSocialActor, { postId: post.id, skipDay: true, skipMilestones: true }, socialHeaders))
+      .resolves.toMatchObject({ posts: [post], post, milestones: [], initialDay: null });
+    const url = request.mock.calls[0]![0];
+    expect(url.pathname).toBe("/api/v1/holdings/acme/page");
+    expect(Object.fromEntries(url.searchParams)).toEqual({ postId: "post", skipDay: "1", skipMilestones: "1" });
+    expect(request).toHaveBeenCalledOnce();
+  } finally { request.mockRestore(); vi.unstubAllEnvs(); }
 });
+
 it("recovers Home personal-summary failure without hiding either feed stream", async () => {
-  const feed = vi.fn<SocialPagePorts["feed"]>(async () => []);
-  const result = await createSocialPageQuery(only<SocialPagePorts>({ prepare: async () => undefined, seed: async () => { throw Error("Schedule unavailable"); }, feed, audience: async () => only<Awaited<ReturnType<SocialPagePorts["audience"]>>>({ branches: [], audiences: [], projects: [] }), moderate: async () => true }))({ beta: false }, { tag: "team" });
-  expect(await result.initialDay).toBeNull();
-  expect(feed.mock.calls.map(([filter]) => filter)).toEqual([{ limit: 8, stream: "conversations", tag: "team" }, { limit: 8, stream: "milestones", tag: "team" }]);
-  expect(result.moderate).toBe(true);
+  vi.stubEnv("ERPX_NATIVE_COLLABORATION_CONFIG", JSON.stringify({ privateBaseUrl: "http://127.0.0.1:3105", timeoutMs: 1000 }));
+  const posts = [{ id: "conversation" }], milestones = [{ id: "milestone" }];
+  const request = vi.spyOn(nativeHttp, "nativeRequest").mockResolvedValue(Response.json({ data: {
+    posts, milestones, options: socialOptions, moderate: true, sourceOnly: false, initialDay: null, post: null,
+  } }));
+  try {
+    await expect(nativeSocialPageDataSSR(nativeSocialActor, { tag: "team" }, socialHeaders))
+      .resolves.toMatchObject({ posts, milestones, initialDay: null, moderate: true });
+    expect(Object.fromEntries(request.mock.calls[0]![0].searchParams)).toEqual({ tag: "team" });
+    expect(request).toHaveBeenCalledOnce();
+  } finally { request.mockRestore(); vi.unstubAllEnvs(); }
 });
+
 it("resolves the document's recorded Branch before applying requested print mode", async () => {
   const document = vi.fn<BusinessDocumentBrandPorts["document"]>(async () => only<Awaited<ReturnType<BusinessDocumentBrandPorts["document"]>>>({ mode: "both" }));
   const recordBranch = vi.fn<BusinessDocumentBrandPorts["recordBranch"]>(async () => "recorded-branch");
@@ -192,10 +215,6 @@ it("retains a specifically requested healthy routing record instead of requiring
   const issues = await createRequestAdministrationQuery(only<RequestAdministrationPorts>({ prepare: async () => undefined, owner: async () => true, detail }))("selected-service");
   expect(detail).toHaveBeenNthCalledWith(1, "selected-service"); expect(detail).toHaveBeenNthCalledWith(2, "selected-service");
   expect(issues?.[0].request).toBe(request); expect(issues?.[0].route).toBeNull();
-});
-it('loads only the exact included conversation and minimal command context without Social discovery or Work snapshots',async()=>{
- const post=only<Awaited<ReturnType<SocialPagePorts['post']>>>({id:'actual-included-post'}),audience=vi.fn<SocialPagePorts['audience']>(),moderate=vi.fn<SocialPagePorts['moderate']>(),feed=vi.fn<SocialPagePorts['feed']>(),seed=vi.fn<SocialPagePorts['seed']>(),presentation=vi.fn<NonNullable<SocialPagePorts['presentation']>>();
- const result=await createSocialPageQuery({prepare:async()=>{},post:async id=>{expect(id).toBe(post.id);return post;},audience,moderate,feed,seed,presentation})({beta:false},{postId:post.id,sourceOnly:true});expect(result.posts).toHaveLength(1);expect(result.posts[0]).toBe(post);expect(result.options).toEqual({branches:[],audiences:[],projects:[]});expect(result.moderate).toBe(false);expect(result.initialDay).toBeUndefined();for(const read of [audience,moderate,feed,seed])expect(read).not.toHaveBeenCalled();expect(presentation).toHaveBeenCalledOnce();
 });
 
 

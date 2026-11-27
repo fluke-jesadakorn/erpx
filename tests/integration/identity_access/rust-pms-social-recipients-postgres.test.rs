@@ -6,7 +6,7 @@
 mod fixture;
 
 use erpx_server_identity_access::public::pms_social_event_recipients::{
-    pms_social_recipients, pms_social_source_readable,
+    pms_social_conversation_readable, pms_social_recipients, pms_social_source_readable,
 };
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
@@ -183,5 +183,34 @@ async fn feed_body_and_preview_use_their_respective_assignment_scopes() {
         assert!(!pms_social_source_readable(&mut connection, "another-company", "reservation", "user-manager", None).await.unwrap());
         assert!(!pms_social_source_readable(&mut connection, "company", "reservation", "user-inactive", None).await.unwrap());
         assert!(!pms_social_source_readable(&mut connection, "company", "reservation", "user-expired", None).await.unwrap());
+    }).await;
+}
+
+#[tokio::test]
+async fn a_conversation_does_not_combine_permissions_from_separate_assignments() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let mut connection = pool.raw().acquire().await.unwrap();
+        sqlx::query(
+            "INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind)
+             VALUES ('split-reader','split-user','reader','[]','company',0,9000000000000,1,'holding'),
+                    ('split-tasker','split-user','tasker','[]','company',0,9000000000000,1,'holding')",
+        ).execute(&mut *connection).await.unwrap();
+        for id in ["reservation", "task"] {
+            assert!(pms_social_source_readable(&mut connection, "company", id, "split-user", None).await.unwrap());
+        }
+        let sources = ["reservation".to_owned(), "task".to_owned()];
+        assert!(!pms_social_conversation_readable(
+            &mut connection, "company", "split-user", &sources, Some("branch-1"), None,
+        ).await.unwrap());
+        assert!(pms_social_conversation_readable(
+            &mut connection, "company", "user-branch-manager", &sources, Some("branch-1"), None,
+        ).await.unwrap());
+        assert!(!pms_social_conversation_readable(
+            &mut connection, "company", "user-branch-manager", &sources, Some("branch-2"), None,
+        ).await.unwrap());
+        assert!(!pms_social_conversation_readable(
+            &mut connection, "company", "user-branch-manager", &sources, Some("branch-1"), Some("private-department"),
+        ).await.unwrap());
     }).await;
 }

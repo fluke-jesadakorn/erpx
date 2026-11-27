@@ -352,7 +352,7 @@ const object = (value: unknown): value is Record<string, unknown> =>
  *  into a partial native payload merged with retained TypeScript state. */
 function asPage(value: unknown): SocialPageData {
   if (!object(value)) return failed();
-  const { posts, milestones, options, moderate, presentation, post } = value;
+  const { posts, milestones, options, moderate, sourceOnly, presentation, post } = value;
   if (
     !Array.isArray(posts) ||
     !Array.isArray(milestones) ||
@@ -360,7 +360,8 @@ function asPage(value: unknown): SocialPageData {
     !Array.isArray(options.branches) ||
     !Array.isArray(options.audiences) ||
     !Array.isArray(options.projects) ||
-    typeof moderate !== 'boolean'
+    typeof moderate !== 'boolean' ||
+    (sourceOnly !== undefined && typeof sourceOnly !== 'boolean')
   )
     return failed();
   for (const row of [...posts, ...milestones])
@@ -386,6 +387,7 @@ function asPage(value: unknown): SocialPageData {
     milestones: milestones as HomePost[],
     options: options as SocialPageData['options'],
     moderate,
+    sourceOnly: sourceOnly === true,
     presentation: (presentation ?? undefined) as SocialPageData['presentation'],
     initialDay: value.initialDay,
     post: (post ?? null) as HomePost | null,

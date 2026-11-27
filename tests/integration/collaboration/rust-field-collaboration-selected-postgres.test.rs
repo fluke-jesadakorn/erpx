@@ -3633,3 +3633,163 @@ async fn field_reservation_alert_source_refuses_lost_savepoint_locks() {
   let source=read_field_reservation_alerts(&mut tx,FieldReservationAlertPhase::Expiring,now,now+86_400_000,(String::new(),String::new())).await.unwrap();source.require_current(&mut tx).await.unwrap();sqlx::query("ROLLBACK TO SAVEPOINT alert_locks").execute(&mut *tx).await.unwrap();assert!(source.require_current(&mut tx).await.is_err());tx.rollback().await.unwrap();
  }).await;
 }
+
+#[cfg(feature = "private-development-api")]
+#[tokio::test]
+async fn native_social_page_admits_only_the_exact_paid_source_thread_under_current_iam() {
+    use axum::{body::Body, http::Request};
+    use erpx_server_collaboration::public::social_http::social_router;
+    use erpx_service::collaboration::{SocialBackend, SocialConfiguration, SocialService, social_target};
+    use erpx_service::finance_journal_detail_http::FinanceJournalReadScopeHeaders;
+    use tower::ServiceExt;
+
+    facts::account::with_system(|system| async move {
+        let p = facts::review::setup_with_finance(system, false).await;
+        let clock = p.system.scenario.clock.clone();
+        let db = p.system.holdings[0].raw();
+        sqlx::raw_sql(
+            r#"
+            INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status)
+            VALUES ('hotel-branch','branch','hotel','Hotel branch','company','company','hotel-branch','active');
+            INSERT INTO pms_properties(id,company_id,branch_id,name,business_date,state,config_json,version,created_by,updated_at)
+            VALUES ('hotel','company','hotel-branch','Synthetic Phuket Hotel','2026-11-26','open','{}',1,'fixture-a',1);
+            INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at)
+            VALUES ('hotel-task','hotel','task','{"state":"pending"}',1,1),
+                   ('hotel-folio','hotel','guest_account','{"state":"open"}',1,1);
+            INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status)
+            VALUES ('*','native_hotel_social_reader','Hotel Social reader',false,1,'active'),
+                   ('*','native_finance_social_reader','Finance history reader',false,1,'active');
+            INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)
+            VALUES ('*','native_hotel_social_reader',1,'["pms.read","pms.housekeeping"]','[]','["holding"]','fixture',1),
+                   ('*','native_finance_social_reader',1,'["finance.read","finance.approve","module.finance.read","pms.reports"]','[]','["holding"]','fixture',1);
+            UPDATE assignments SET role='native_hotel_social_reader',modules_json='["pms"]',valid_from=0
+            WHERE id='finance-fixture-b';
+            UPDATE assignments SET role='native_finance_social_reader',valid_from=0 WHERE id='finance-fixture-a';
+            INSERT INTO social_posts(id,author_id,author_name,company_id,body,audience_kind,purpose,created_at,updated_at)
+            VALUES ('hotel-handoff','fixture-a','Maker','company','Exact Hotel handoff text','participants','handover',1,1),
+                   ('finance-folio','fixture-b','Reviewer','company','Finance retained Hotel text','company','update',1,1),
+                   ('ordinary-post','fixture-a','Maker','company','Ordinary private Work','company','update',1,1);
+            INSERT INTO social_post_participants(post_id,user_id)
+            VALUES ('hotel-handoff','fixture-b');
+            INSERT INTO social_post_sources(post_id,ordinal,source_kind,source_id)
+            VALUES ('hotel-handoff',0,'pms_record','hotel-task'),
+                   ('finance-folio',0,'pms_record','hotel-folio');
+            INSERT INTO social_comments(id,post_id,author_id,author_name,body,created_at,updated_at)
+            VALUES ('hotel-reply','hotel-handoff','fixture-a','Maker','Checked the handoff',2,2);
+            "#,
+        ).execute(db).await.unwrap();
+
+        let backend = SocialBackend::new(
+            Arc::new(facts::account::fixture::account::policy()),
+            Arc::new(FinanceJournalReadScopeHeaders),
+            Arc::new(SocialService::new(
+                p.authorizer.clone(),
+                SocialConfiguration::new(HoldingId::new("h001").unwrap(), CompanyId::new("company").unwrap()),
+                clock.clone(),
+            )),
+        );
+        let router = social_router(vec![social_target(
+            "acme.example.test".into(), "acme".into(), "https://acme.example.test".into(),
+            Arc::new(backend),
+        )]).unwrap();
+        let reader = format!("__Host-erpx-product={}", p.reviewer_token.expose());
+        let finance = format!("__Host-erpx-product={}", p.maker_token.expose());
+        let request = |cookie: &str, assignment: &str, version: &str, query: &str| {
+            let request = Request::builder()
+                .uri(format!("/api/v1/holdings/acme/page?skipDay=1&skipMilestones=1{query}"))
+                .header("host", "acme.example.test")
+                .header("cookie", cookie)
+                .header("x-erpx-context-company", "company")
+                .header("x-erpx-context-assignment", assignment)
+                .header("x-erpx-context-assignment-version", version)
+                .header("x-erpx-context-revision", "7")
+                .body(Body::empty()).unwrap();
+            let router = router.clone();
+            async move {
+                let response = router.oneshot(request).await.unwrap();
+                let status = response.status().as_u16();
+                let payload: serde_json::Value = serde_json::from_slice(
+                    &axum::body::to_bytes(response.into_body(), 1024 * 1024).await.unwrap(),
+                ).unwrap();
+                (status, payload)
+            }
+        };
+        let current = |query| request(&reader, "finance-fixture-b", "3", query);
+        let (status, denied) = current("&postId=hotel-handoff").await;
+        assert_eq!(status, 404, "{denied}");
+        assert_eq!(denied["error"]["code"], "POST_NOT_FOUND");
+        let set_grant = |package: &'static str, state: &'static str| {
+            let now = clock.now().get();
+            async move {
+                const IMAGE: &str = "SELECT jsonb_build_object('companyId',company_id,'packageId',package_id,
+                  'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,
+                  'version',version,'reason',reason,'evidence',evidence)
+                  FROM company_package_grants WHERE company_id='company' AND package_id=$1";
+                let mut tx = db.begin().await.unwrap();
+                let before: Option<serde_json::Value> =
+                    sqlx::query_scalar(IMAGE).bind(package).fetch_optional(&mut *tx).await.unwrap();
+                sqlx::query(
+                    "INSERT INTO company_package_grants (company_id,package_id,package_version,state,starts_at,ends_at,version,reason,evidence,updated_at)
+                     VALUES ('company',$1,1,$2,0,$3,1,'Synthetic purchase','synthetic evidence',$4)
+                     ON CONFLICT (company_id,package_id) DO UPDATE SET state=excluded.state,
+                       version=company_package_grants.version+1,updated_at=excluded.updated_at",
+                ).bind(package).bind(state).bind(now + 60_000).bind(now).execute(&mut *tx).await.unwrap();
+                let after: serde_json::Value =
+                    sqlx::query_scalar(IMAGE).bind(package).fetch_one(&mut *tx).await.unwrap();
+                sqlx::query(
+                    "INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at)
+                     VALUES($1,'company',$2,'fixture-a','synthetic-request',$3,$4,$5)",
+                ).bind(uuid::Uuid::new_v4().to_string()).bind(package).bind(before).bind(after)
+                 .bind(now).execute(&mut *tx).await.unwrap();
+                tx.commit().await.unwrap();
+            }
+        };
+        set_grant("pms", "active").await;
+
+        let (status, response) = current("&postId=hotel-handoff").await;
+        assert_eq!(status, 200, "{response}");
+        let page = &response["data"];
+        assert_eq!(page["sourceOnly"], true);
+        assert_eq!(page["options"], json!({"branches": [], "audiences": [], "projects": []}));
+        assert_eq!(page["moderate"], false);
+        assert_eq!(page["post"]["body"], "Exact Hotel handoff text");
+        assert_eq!(page["post"]["comments"][0]["body"], "Checked the handoff");
+        assert_eq!(page["post"]["linkedSources"][0]["href"], "/pms/housekeeping?property=hotel&record=hotel-task&task=hotel-task");
+        assert_eq!(page["post"]["purchase"]["newWork"], true);
+        assert_eq!(current("").await.0, 403);
+        assert_eq!(current("&postId=ordinary-post&sourceOnly=1").await.0, 404);
+        assert_eq!(request(&reader, "finance-fixture-b", "4", "&postId=hotel-handoff").await.0, 409);
+
+        set_grant("pms", "draining").await;
+        let (status, drained) = current("&postId=hotel-handoff").await;
+        assert_eq!(status, 200, "{drained}");
+        assert_eq!(drained["data"]["post"]["purchase"]["newWork"], false);
+        assert_eq!(drained["data"]["post"]["purchase"]["settleExisting"], true);
+        assert_eq!(drained["data"]["post"]["purchase"]["history"], true);
+        assert_eq!(drained["data"]["post"]["purchase"]["createTask"], false);
+
+        set_grant("pms", "inactive").await;
+        let (status, retired) = current("&postId=hotel-handoff").await;
+        assert_eq!(status, 200, "{retired}");
+        assert_eq!(retired["data"]["post"]["purchase"]["history"], true);
+        assert_eq!(retired["data"]["post"]["purchase"]["settleExisting"], false);
+        set_grant("finance", "active").await;
+        let (status, folio) = request(&finance, "finance-fixture-a", "3", "&postId=finance-folio").await;
+        assert_eq!(status, 200, "{folio}");
+        assert_eq!(folio["data"]["sourceOnly"], true);
+        assert_eq!(folio["data"]["post"]["purchase"]["history"], true);
+        assert_eq!(folio["data"]["post"]["purchase"]["settleExisting"], false);
+        assert_eq!(folio["data"]["post"]["purchase"]["newWork"], false);
+        assert_eq!(folio["data"]["post"]["linkedSources"][0]["available"], false);
+        assert_eq!(request(&finance, "finance-fixture-a", "3", "&postId=hotel-handoff").await.0, 404);
+
+        set_grant("work", "active").await;
+        set_grant("work-social", "active").await;
+        let (status, restricted) = current("&postId=hotel-handoff").await;
+        assert_eq!(status, 404, "{restricted}");
+        sqlx::query("UPDATE assignments SET revoked_at=$1,version=4 WHERE id='finance-fixture-b'")
+            .bind(clock.now().get()).execute(db).await.unwrap();
+        let (status, revoked) = current("&postId=hotel-handoff").await;
+        assert!(![200, 500].contains(&status), "{revoked}");
+    }).await;
+}

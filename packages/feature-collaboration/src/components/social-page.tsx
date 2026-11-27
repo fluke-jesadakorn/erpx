@@ -14,7 +14,6 @@ import type { SocialPageData } from "@erpx/server-collaboration/public/native-so
 import { publicScope, type WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { RecordDocumentPanel } from "@erpx/feature-files/components/record-document-panel";
-import {socialPostSourceOnly} from '@erpx/server-collaboration/public/product-entry';
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { preferredAccountLanguage } from "@erpx/server-identity_access/public/account-preference-snapshot";
 export async function SocialPage({
@@ -29,8 +28,8 @@ export async function SocialPage({
 }) {
   const base = workspaceBase(publicScope(actor));
   const contextKey = homeContextKey(actor);
-  const sourceOnly=!!postId&&await socialPostSourceOnly(actor,postId);
-  const data = measureReadPhase("home_feed", () => socialPageData(actor, { postId, tag, skipDay: true, skipMilestones: true,sourceOnly }));
+  const data = measureReadPhase("home_feed", () => socialPageData(actor, { postId, tag, skipDay: true, skipMilestones: true }));
+  const sourceOnly = !!postId && (await data).sourceOnly;
   return <HomeContextBoundary key={contextKey} contextKey={contextKey}>
   <SocialHomeShell base={base} name={actor.name} single={!!postId} sourceOnly={sourceOnly} calendarEnabled={!actor.beta} language={await preferredAccountLanguage("en")}
     contextKey={contextKey} canRequestLegal={hasPermission(actor, "legal.create")}>

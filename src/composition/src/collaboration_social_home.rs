@@ -17,8 +17,9 @@ use erpx_server_commercial::public::capability_decision::{
 };
 use erpx_server_commercial::public::purchases::CapabilityPurpose;
 use erpx_server_identity_access::public::{
-    DeviceProof, effective_authority::WorkPermissionRequirement,
-    pms_social_event_recipients::pms_social_source_readable,
+    DeviceProof,
+    effective_authority::WorkPermissionRequirement,
+    pms_social_event_recipients::{pms_social_conversation_readable, pms_social_source_readable},
 };
 use erpx_server_operations::public::record_source::{SocialTaskSource, read_social_task_source};
 use erpx_server_organization::public::organization_nodes::{
@@ -55,12 +56,17 @@ impl<C: Clock + Send + Sync + 'static> SocialService<C> {
                 BusinessError::invalid("SOCIAL_THREAD_REQUIRED", "Choose a conversation.").into(),
             );
         }
-        let permission = if input.source_only {
-            WorkPermissionRequirement::AnyOf(vec!["records.read".into(), "pms.read".into()])
+        let direct_thread = input.post_id.is_some();
+        let permission = if direct_thread {
+            WorkPermissionRequirement::AnyOf(vec![
+                "records.read".into(),
+                "pms.read".into(),
+                "finance.read".into(),
+            ])
         } else {
             "records.read".into()
         };
-        let module = (!input.source_only).then(|| "collaboration".into());
+        let module = (!direct_thread).then(|| "collaboration".into());
         let holding = self.configuration.holding.clone();
         let company = selection.company_id.clone();
         let clock = self.clock.clone();
@@ -120,13 +126,11 @@ async fn present_page(
         ]))
     });
     let purchase =
-        PagePurchase::load(connection, &company, now, &context, input.source_only).await?;
+        PagePurchase::load(connection, &company, now, &context, input.post_id.is_some()).await?;
     let name = display_name(connection, &company, current.user_id().as_str()).await;
     let ai_name =
         erpx_server_agent::public::providers::social_ai_display_name(connection, &company).await?;
     let scope = social_scope(current, &company, name, now, false)?;
-    let options =
-        audience_options(connection, current, &scope, &purchase, input.source_only).await?;
     let mut records = SocialRecordsPort {
         actor: crate::records::records_actor(current)?,
         now,
@@ -136,9 +140,11 @@ async fn present_page(
         purchase,
         ai_name,
         reading_origin: false,
-        source_only: input.source_only,
+        direct_thread: input.post_id.is_some(),
+        require_source_only: input.source_only,
+        source_only: false,
     };
-    let mut unit = PgSocialUnit::read_only(connection, scope, &mut records);
+    let mut unit = PgSocialUnit::read_only(connection, scope.clone(), &mut records);
     let posts = match input.post_id.as_deref() {
         Some(post_id) => {
             unit.home_posts(SocialHomeSelection::Thread { post_id }, &mut policy)
@@ -166,11 +172,20 @@ async fn present_page(
         .await?
     };
     let post = input.post_id.and_then(|_| posts.first().cloned());
+    let options = audience_options(
+        connection,
+        current,
+        &scope,
+        &policy.purchase,
+        policy.source_only,
+    )
+    .await?;
     Ok(SocialPageData {
         posts,
         milestones,
         options,
-        moderate: !input.source_only
+        source_only: policy.source_only,
+        moderate: !policy.source_only
             && current.has_permission("manage_erpx.access")
             && current.selection().assignment().scope_kind == WorkScopeKind::Holding,
         presentation: Some(SocialPresentationData {
@@ -278,6 +293,7 @@ fn digest(input: &Value) -> String {
     format!("{:x}", Sha256::digest(input.to_string().as_bytes()))
 }
 
+#[derive(Clone)]
 struct PagePurchase {
     work: bool,
     projects: bool,
@@ -318,23 +334,23 @@ impl PagePurchase {
         company: &CompanyId,
         now: i64,
         context: &str,
-        source_only: bool,
+        inspect_thread: bool,
     ) -> Result<Self, Error> {
         use PackageEnforcementMode::{Disabled, Enforced};
         let work = enforcement("ERPX_APPS_PACKAGE_ENFORCEMENT")?;
         let projects = enforcement("ERPX_PROJECTS_PACKAGE_ENFORCEMENT")?;
         let pms = enforcement("ERPX_PMS_PACKAGE_ENFORCEMENT")?;
         let mut page = Self {
-            work: source_only || work == Enforced,
-            projects: source_only || projects == Enforced,
-            pms: source_only || pms == Enforced,
+            work: work == Enforced,
+            projects: projects == Enforced,
+            pms: pms == Enforced,
             // This native read lives on the private development and OASIS adapters.
             // If run with production policy, an unbound release fails closed.
             release: std::env::var("NODE_ENV").ok().as_deref() != Some("production"),
             revision: String::new(),
             access: BTreeMap::new(),
         };
-        if source_only || [work, projects, pms].iter().any(|mode| *mode != Disabled) {
+        if inspect_thread || [work, projects, pms].iter().any(|mode| *mode != Disabled) {
             let catalogue = current_package_catalogue()?;
             let facts = PgCapabilityDecisionReader::new(company.clone(), connection, &catalogue)
                 .facts()
@@ -368,6 +384,15 @@ impl PagePurchase {
             page.revision = digest(&json!([page.access["work.social"].revision, context]));
         }
         Ok(page)
+    }
+
+    fn enforce_source_history(&self) -> Self {
+        Self {
+            work: true,
+            projects: true,
+            pms: true,
+            ..self.clone()
+        }
     }
 
     fn allows(&self, capability: &str, purpose: CapabilityPurpose) -> bool {
@@ -448,6 +473,8 @@ struct PagePolicy<'a> {
     purchase: PagePurchase,
     ai_name: String,
     reading_origin: bool,
+    direct_thread: bool,
+    require_source_only: bool,
     source_only: bool,
 }
 
@@ -460,6 +487,24 @@ impl PagePolicy<'_> {
     ) -> Result<Option<Vec<LinkedSource>>, Error> {
         let company = scope.company_id.as_str();
         let user = scope.user_id.as_str();
+        let pms_ids = candidate
+            .sources
+            .iter()
+            .filter(|source| source.kind == "pms_record")
+            .map(|source| source.id.clone())
+            .collect::<Vec<_>>();
+        if !pms_social_conversation_readable(
+            connection,
+            company,
+            user,
+            &pms_ids,
+            candidate.branch_id.as_deref(),
+            candidate.department_id.as_deref(),
+        )
+        .await?
+        {
+            return Ok(None);
+        }
         let mut result = Vec::with_capacity(candidate.sources.len());
         for source in &candidate.sources {
             result.push(match source.kind.as_str() {
@@ -494,28 +539,36 @@ impl PagePolicy<'_> {
                     else {
                         return Ok(None);
                     };
-                    if !pms_social_source_readable(connection, company, &source.id, user, None)
-                        .await?
-                    {
-                        return Ok(None);
-                    }
                     LinkedSource::Pms(Box::new(hotel))
                 }
                 _ => return Ok(None),
             });
+        }
+        if candidate.purpose == "handover"
+            && result.iter().any(|source| match source {
+                LinkedSource::Project {
+                    handover_reader, ..
+                } => !handover_reader,
+                LinkedSource::Task(task) => {
+                    task.as_ref().is_none_or(|task| !task.handover_participant)
+                }
+                LinkedSource::Pms(_) => false,
+            })
+        {
+            return Ok(None);
         }
         Ok(Some(result))
     }
 
     fn admitted(
         &self,
+        purchase: &PagePurchase,
         candidate: &SocialHomeCandidate,
         project_audience: bool,
         sources: &[LinkedSource],
         purpose: CapabilityPurpose,
         card: bool,
     ) -> bool {
-        let purchase = &self.purchase;
         if purchase.projects {
             if candidate.audience_kind.as_deref() == Some("project")
                 && (!project_audience || !purchase.project_granted(self.current, purpose))
@@ -754,17 +807,44 @@ impl SocialHomePolicy for PagePolicy<'_> {
             let Some(sources) = self.sources(connection, scope, candidate).await? else {
                 return Ok(None);
             };
-            // A caller asking for a source-only shell still needs an actual
-            // native source plus the independent original purchase/reader gate.
-            if self.source_only
-                && !self.reading_origin
-                && (candidate.kind == "system"
-                    || self.purchase.allows("work.social", History)
-                    || !sources.iter().any(LinkedSource::included))
-            {
-                return Ok(None);
+            // Classify the exact selected thread before loading its text or comments.
+            // Linked body access and purchase remain tied to this Company and assignment.
+            if self.direct_thread && !self.reading_origin {
+                if candidate.kind != "system"
+                    && !self.purchase.allows("work.social", History)
+                    && sources.iter().any(LinkedSource::included)
+                {
+                    let source_purchase = self.purchase.enforce_source_history();
+                    if self.admitted(
+                        &source_purchase,
+                        candidate,
+                        project.is_some(),
+                        &sources,
+                        History,
+                        false,
+                    ) {
+                        self.purchase = source_purchase;
+                        self.source_only = true;
+                    }
+                }
+                let normal_read = self.current.has_permission("records.read")
+                    && self
+                        .current
+                        .modules()
+                        .iter()
+                        .any(|module| module == "collaboration");
+                if !self.source_only && (self.require_source_only || !normal_read) {
+                    return Ok(None);
+                }
             }
-            if !self.admitted(candidate, project.is_some(), &sources, History, false) {
+            if !self.admitted(
+                &self.purchase,
+                candidate,
+                project.is_some(),
+                &sources,
+                History,
+                false,
+            ) {
                 return Ok(None);
             }
             let mut additions = SocialHomeAdditions {
@@ -817,6 +897,7 @@ impl SocialHomePolicy for PagePolicy<'_> {
             if self.purchase.work || self.purchase.projects || self.purchase.pms {
                 let allow = |purpose| {
                     self.admitted(
+                        &self.purchase,
                         candidate,
                         candidate.audience_kind.as_deref() == Some("project"),
                         &sources,

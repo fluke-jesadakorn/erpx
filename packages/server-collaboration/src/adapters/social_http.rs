@@ -92,6 +92,7 @@ pub struct SocialPageData {
     pub posts: Vec<Value>,
     pub milestones: Vec<Value>,
     pub options: SocialAudienceOptionsData,
+    pub source_only: bool,
     pub moderate: bool,
     pub presentation: Option<SocialPresentationData>,
     pub initial_day: Option<Value>,
@@ -1167,6 +1168,7 @@ mod tests {
                         audiences: vec![],
                         projects: vec![],
                     },
+                    source_only: request.source_only,
                     moderate: false,
                     presentation: Some(SocialPresentationData {
                         context: "home-token".into(),
@@ -1470,6 +1472,7 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert_eq!(value["data"]["posts"][0]["id"], "post-1");
         assert_eq!(value["data"]["options"]["branches"], serde_json::json!([]));
+        assert_eq!(value["data"]["sourceOnly"], false);
         assert_eq!(value["data"]["moderate"], false);
         assert_eq!(value["data"]["presentation"]["context"], "home-token");
         assert!(value["data"]["presentation"].get("purchase").is_none());

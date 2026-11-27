@@ -506,6 +506,24 @@ describe('Native aggregate Social page request', () => {
   });
  });
 
+ test('uses the native source-only decision for a direct thread without requesting the mode', async () => {
+  vi.stubEnv('ERPX_NATIVE_COLLABORATION_CONFIG', JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:3105', timeoutMs: 1000 }));
+  const transport = await import('@erpx/server-runtime/public/native-http');
+  const post = { id: 'hotel-post', body: 'Hotel handoff' };
+  const options = { branches: [], audiences: [], projects: [] };
+  const request = vi.spyOn(transport, 'nativeRequest').mockResolvedValue(Response.json({ data: {
+   posts: [post], milestones: [], options, moderate: false, sourceOnly: true, post,
+  } }));
+  const { nativeSocialPageDataSSR } = await import('@erpx/server-collaboration/public/native-social-page');
+  const selected = { ...actor, authority: { sessionId: 'fictional-session', revision: 4, assignmentVersion: 7 } };
+  const incoming = new Headers({ host: 'holding.example.test', cookie: 'session=fictional' });
+  await expect(nativeSocialPageDataSSR(selected, { postId: post.id }, incoming))
+   .resolves.toMatchObject({ sourceOnly: true, posts: [post], post, options });
+  const url = request.mock.calls[0]![0];
+  expect(url.searchParams.get('postId')).toBe(post.id);
+  expect(url.searchParams.has('sourceOnly')).toBe(false);
+ });
+
  test('refuses to infer Company or role from the incoming headers when the rendered authority is missing', async () => {
   vi.stubEnv('ERPX_NATIVE_COLLABORATION_CONFIG', JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:3105', timeoutMs: 1000 }));
   const incoming = new Headers({ host: 'holding.example.test', 'x-erpx-context-company': 'stale-company' });

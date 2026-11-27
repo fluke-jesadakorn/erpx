@@ -1,1 +1,1 @@
-export {socialPostProductSourceEntry,socialPostSourceOnly} from '@erpx/server-collaboration/adapters/product-entry';
+export {socialPostProductSourceEntry} from '@erpx/server-collaboration/adapters/product-entry';

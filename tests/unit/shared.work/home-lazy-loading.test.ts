@@ -4,7 +4,6 @@ import { expect, it, vi } from "vitest";
 import { HomeDay } from "@erpx/feature-work_projection/components/home/home-day";
 import { HandoverLauncher, PlanLauncher } from "@erpx/feature-work_projection/components/home/tool-launchers";
 import { DeferredRegion } from "@erpx/feature-work_projection/components/home/deferred-region";
-import { createSocialPageQuery } from "@erpx/server-collaboration/application/social-page";
 vi.stubGlobal("React", React);
 const imports = vi.hoisted(() => ({ day: vi.fn(), handover: vi.fn(), plan: vi.fn() }));
 vi.mock("@erpx/feature-people_payroll/components/self-service/home", () => { imports.day(); return { MyDayCard: () => "Eager day" }; });
@@ -22,14 +21,6 @@ it("server renders launchers and reserved space without invoking lazy imports or
   expect(markup).toContain('data-active="false"'); expect(markup).toContain("min-height:260px");
   expect(markup).not.toContain("Eager"); expect(secondary).not.toHaveBeenCalled();
   for (const imported of Object.values(imports)) expect(imported).not.toHaveBeenCalled();
-});
-it("starts the first feed and audience read together while Home defers My day and milestones", async () => {
-  const feed = vi.fn(async () => []), audience = vi.fn(async () => ({ branches: [], projects: [], audiences: [] }));
-  const seed = vi.fn(), post = vi.fn();
-  const query = createSocialPageQuery({ prepare: async () => {}, feed, audience, seed, post, moderate: async () => false });
-  expect(await query({ beta: false }, { tag: "team", skipDay: true, skipMilestones: true })).toMatchObject({ posts: [], milestones: [] });
-  expect(feed).toHaveBeenCalledExactlyOnceWith({ limit: 8, stream: "conversations", tag: "team" });
-  expect(audience).toHaveBeenCalledTimes(1); expect(seed).not.toHaveBeenCalled(); expect(post).not.toHaveBeenCalled();
 });
 it('renders the exact included conversation shell with Apps recovery and no Work discovery or queue chrome',async()=>{
  const {SocialHomeShell}=await import('@erpx/feature-collaboration/components/social-home-shell');vi.stubEnv('ERPX_PRODUCT_ROUTING','enabled');vi.stubEnv('ERPX_PRODUCT_SSO','enabled');vi.stubEnv('ERPX_PRODUCT_ENVIRONMENT','development');vi.stubEnv('ERPX_ENVIRONMENT','local');
