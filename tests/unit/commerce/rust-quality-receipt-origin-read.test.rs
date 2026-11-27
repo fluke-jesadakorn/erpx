@@ -5,6 +5,7 @@
 use erpx_server_commerce::public::quality_receipt_origin_read::{
     QualityReceiptOriginFacts, QualityReceiptOriginRead, QualityReceiptOriginReadFuture,
     QualityReceiptOriginReadTarget, quality_receipt_origin_read_router,
+    quality_receipt_origin_read_router_for_targets,
 };
 use erpx_server_runtime::public::http_support::serve;
 use std::collections::BTreeMap;
@@ -87,11 +88,21 @@ async fn serve_probe(
 }
 
 fn request(host: &str, company: &str, branch: Option<&str>, line: &str) -> String {
+    request_for(host, "acme", company, branch, line)
+}
+
+fn request_for(
+    host: &str,
+    slug: &str,
+    company: &str,
+    branch: Option<&str>,
+    line: &str,
+) -> String {
     let branch_line = branch
         .map(|value| format!("x-erpx-context-branch: {value}\r\n"))
         .unwrap_or_default();
     format!(
-        "GET /api/v1/holdings/acme/commerce/quality-receipt-origin HTTP/1.1\r\n\
+        "GET /api/v1/holdings/{slug}/commerce/quality-receipt-origin HTTP/1.1\r\n\
          Host: {host}\r\n\
          Accept: application/json\r\n\
          Connection: close\r\n\
@@ -210,6 +221,92 @@ async fn invalid_line_fails_closed() {
     assert_eq!(body["error"]["code"], "QUALITY_RECEIPT_ORIGIN_READ_REQUEST_INVALID");
 }
 
+#[tokio::test]
+async fn same_path_on_distinct_holding_hosts_uses_distinct_readers() {
+    let key = (
+        "company".to_owned(),
+        Some("branch".to_owned()),
+        "line".to_owned(),
+    );
+
+    let acme_seen = Arc::new(Mutex::new(Vec::new()));
+    let mut acme_origins = BTreeMap::new();
+    let mut acme_facts = facts();
+    acme_facts.order_id = "order-acme".into();
+    acme_origins.insert(key.clone(), acme_facts);
+    let acme: Arc<dyn QualityReceiptOriginRead> = Arc::new(Probe {
+        origins: acme_origins,
+        seen: acme_seen.clone(),
+    });
+
+    let northstar_seen = Arc::new(Mutex::new(Vec::new()));
+    let mut northstar_origins = BTreeMap::new();
+    let mut northstar_facts = facts();
+    northstar_facts.order_id = "order-northstar".into();
+    northstar_origins.insert(key.clone(), northstar_facts);
+    let northstar: Arc<dyn QualityReceiptOriginRead> = Arc::new(Probe {
+        origins: northstar_origins,
+        seen: northstar_seen.clone(),
+    });
+
+    let target = |host: &str| QualityReceiptOriginReadTarget {
+        host: host.into(),
+        holding_slug: "acme".into(),
+    };
+    let router = quality_receipt_origin_read_router_for_targets(vec![
+        (target("acme.example.test"), acme),
+        (target("northstar.example.test"), northstar),
+    ])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = std::net::SocketAddr::from(([127, 0, 0, 1], listener.local_addr().unwrap().port()));
+    let server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+
+    let (status, body) = http(
+        addr,
+        request("acme.example.test", "company", Some("branch"), "line"),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(body["origin"]["orderId"], "order-acme");
+
+    let (status, body) = http(
+        addr,
+        request("northstar.example.test", "company", Some("branch"), "line"),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(body["origin"]["orderId"], "order-northstar");
+
+    assert_eq!(*acme_seen.lock().unwrap(), vec![key.clone()]);
+    assert_eq!(*northstar_seen.lock().unwrap(), vec![key]);
+
+    let (status, body) = http(
+        addr,
+        request("attacker.example.test", "company", Some("branch"), "line"),
+    )
+    .await;
+    assert_eq!(status, 404);
+    assert_eq!(body["error"]["code"], "NOT_FOUND");
+
+    let (status, body) = http(
+        addr,
+        request_for(
+            "acme.example.test",
+            "other",
+            "company",
+            Some("branch"),
+            "line",
+        ),
+    )
+    .await;
+    server.abort();
+    assert_eq!(status, 404);
+    assert_eq!(body["error"]["code"], "NOT_FOUND");
+}
+
 #[test]
 fn configuration_requires_exact_distinct_holdings() {
     let probe = Arc::new(Probe {
@@ -219,4 +316,22 @@ fn configuration_requires_exact_distinct_holdings() {
     assert!(quality_receipt_origin_read_router(probe.clone(), vec![target()]).is_ok());
     assert!(quality_receipt_origin_read_router(probe.clone(), vec![target(), target()]).is_err());
     assert!(quality_receipt_origin_read_router(probe.clone(), vec![]).is_err());
+    assert!(quality_receipt_origin_read_router_for_targets(vec![(target(), probe.clone())]).is_ok());
+    assert!(quality_receipt_origin_read_router_for_targets(vec![
+        (target(), probe.clone()),
+        (target(), probe.clone()),
+    ])
+    .is_err());
+    assert!(quality_receipt_origin_read_router_for_targets(vec![
+        (target(), probe.clone()),
+        (
+            QualityReceiptOriginReadTarget {
+                host: "northstar.example.test".into(),
+                holding_slug: "acme".into(),
+            },
+            probe.clone(),
+        ),
+    ])
+    .is_ok());
+    assert!(quality_receipt_origin_read_router_for_targets(vec![]).is_err());
 }

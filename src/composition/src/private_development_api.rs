@@ -3429,17 +3429,17 @@ async fn assemble_checked(
         let mut pos_day_close_targets = Vec::new();
         let mut member_profile_targets = Vec::new();
         let mut wf1a7_targets: Vec<(String, String, String)> = Vec::new();
-        let mut runtime_native_routers: Vec<Router> = Vec::new();
+        let mut runtime_native_targets = Vec::new();
         let mut runtime_company_pools: std::collections::BTreeMap<
             String,
             erpx_server_runtime::public::postgres::DatabasePool,
         > = std::collections::BTreeMap::new();
-        let mut crm_native_routers: Vec<Router> = Vec::new();
+        let mut crm_native_targets = Vec::new();
         let mut crm_company_pools: std::collections::BTreeMap<
             String,
             erpx_server_runtime::public::postgres::DatabasePool,
         > = std::collections::BTreeMap::new();
-        let mut inventory_native_routers: Vec<Router> = Vec::new();
+        let mut inventory_native_targets = Vec::new();
         let mut inventory_company_pools: std::collections::BTreeMap<
             String,
             erpx_server_runtime::public::postgres::DatabasePool,
@@ -3452,13 +3452,16 @@ async fn assemble_checked(
             String,
             erpx_server_runtime::public::postgres::DatabasePool,
         > = std::collections::BTreeMap::new();
-        let mut commerce_native_routers: Vec<Router> = Vec::new();
-        let mut records_native_routers: Vec<Router> = Vec::new();
+        let mut commerce_owner_write_targets = Vec::new();
+        let mut commerce_receipt_origin_targets = Vec::new();
+        let mut commerce_currency_targets = Vec::new();
+        let mut commerce_warehouse_targets = Vec::new();
+        let mut records_native_targets = Vec::new();
         let mut records_company_pools: std::collections::BTreeMap<
             String,
             erpx_server_runtime::public::postgres::DatabasePool,
         > = std::collections::BTreeMap::new();
-        let mut procurement_native_routers: Vec<Router> = Vec::new();
+        let mut procurement_native_targets = Vec::new();
         let mut procurement_company_pools: std::collections::BTreeMap<
             String,
             erpx_server_runtime::public::postgres::DatabasePool,
@@ -3470,25 +3473,29 @@ async fn assemble_checked(
             erpx_server_runtime::public::postgres::DatabasePool,
         > = std::collections::BTreeMap::new();
         let mut work_cursor_targets: Vec<(String, String, String)> = Vec::new();
-        let mut executive_evidence_routers: Vec<Router> = Vec::new();
-        let mut commercial_native_routers: Vec<Router> = Vec::new();
-        let mut pos_native_routers: Vec<Router> = Vec::new();
+        let mut executive_evidence_targets = Vec::new();
+        let mut commercial_grant_save_targets = Vec::new();
+        let mut commercial_owner_write_targets = Vec::new();
+        let mut commercial_owner_read_targets = Vec::new();
+        let mut pos_native_targets = Vec::new();
         let mut pos_owner_write_company_pools: std::collections::BTreeMap<
             String,
             erpx_server_runtime::public::postgres::DatabasePool,
         > = std::collections::BTreeMap::new();
-        let mut organization_native_routers: Vec<Router> = Vec::new();
+        let mut organization_native_targets = Vec::new();
         let mut organization_owner_write_company_pools: std::collections::BTreeMap<
             String,
             erpx_server_runtime::public::postgres::DatabasePool,
         > = std::collections::BTreeMap::new();
-        let mut ecommerce_native_routers: Vec<Router> = Vec::new();
-        let mut marketing_native_routers: Vec<Router> = Vec::new();
+        let mut ecommerce_native_targets = Vec::new();
+        let mut marketing_native_targets = Vec::new();
         let mut marketing_company_pools: std::collections::BTreeMap<
             String,
             erpx_server_runtime::public::postgres::DatabasePool,
         > = std::collections::BTreeMap::new();
-        let mut control_native_routers: Vec<Router> = Vec::new();
+        let mut engineering_enrollment_targets = Vec::new();
+        let mut engineering_verification_targets = Vec::new();
+        let mut email_delivery_targets = Vec::new();
         let mut admin_owner_targets: Vec<(String, String, String, bool)> = Vec::new();
         let mut manage_owner_targets: Vec<(String, String, String, bool)> = Vec::new();
         // Private development assembly: scheduled predicates admit locally and
@@ -4098,6 +4105,282 @@ async fn assemble_checked(
                 )
                 .map_err(|_| "PRIVATE_API_OPERATIONS_CONFIGURATION_INVALID")?,
             );
+            #[cfg(feature = "existing-business")]
+            {
+                work_cursor_targets.push((
+                    holding.host.clone(),
+                    holding.registration.slug.clone(),
+                    format!("https://{}", holding.host),
+                ));
+                admin_owner_targets.push((
+                    holding.host.clone(),
+                    holding.registration.slug.clone(),
+                    format!("https://{}", holding.host),
+                    false,
+                ));
+                manage_owner_targets.push((
+                    holding.host.clone(),
+                    holding.registration.slug.clone(),
+                    format!("https://{}", holding.host),
+                    false,
+                ));
+                agent_quota_targets.push((
+                    holding.host.clone(),
+                    holding.registration.slug.clone(),
+                    format!("https://{}", holding.host),
+                ));
+                agent_owner_targets.push((
+                    holding.host.clone(),
+                    holding.registration.slug.clone(),
+                    format!("https://{}", holding.host),
+                    false,
+                ));
+                wf1a7_targets.push((
+                    holding.host.clone(),
+                    holding.registration.slug.clone(),
+                    format!("https://{}", holding.host),
+                ));
+                records_native_targets.push(
+                    erpx_server_records::public::native_command_http::NativeCommandHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::records_wave2::RecordsNativeBackend::new(
+                            pools[i + 1].clone(),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    },
+                );
+                procurement_native_targets.push(
+                    erpx_server_procurement::public::native_command_http::NativeCommandHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::procurement_wave2::ProcurementNativeBackend::new(
+                            pools[i + 1].clone(),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    },
+                );
+                executive_evidence_targets.push(
+                    erpx_server_runtime::public::executive_evidence::ExecutiveEvidenceHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(
+                            crate::executive_evidence_wave2::ExecutiveEvidenceBackend::new(
+                                pools[i + 1].clone(),
+                                holding.registration.holding_id.clone(),
+                                Arc::new(SharedClock(clock.clone())),
+                            ),
+                        ),
+                    },
+                );
+                ecommerce_native_targets.push(
+                    erpx_server_ecommerce::public::wave2_http::CheckoutWave2HttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::ecommerce_wave2::CheckoutWave2Backend::new(
+                            pools[i + 1].clone(),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    },
+                );
+                marketing_native_targets.push(
+                    erpx_server_marketing::public::native_command_http::NativeCommandHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(
+                            crate::marketing_wave2_native::MarketingNativeBackend::new(
+                                pools[i + 1].clone(),
+                                pools[0].clone(),
+                                Arc::new(SharedClock(clock.clone())),
+                            ),
+                        ),
+                    },
+                );
+                if !marketing_lead_command_targets.iter().any(|target| {
+                    target.host == holding.host && target.holding_slug == holding.registration.slug
+                }) {
+                    marketing_lead_command_targets.push(
+                        erpx_server_marketing::public::lead_candidate_command_http::MarketingLeadCommandHttpTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            origin: format!("https://{}", holding.host),
+                            backend: Arc::new(crate::marketing_wave2::MarketingWave2Backend::new(pools[i + 1].clone(), Arc::new(SharedClock(clock.clone())))),
+                        },
+                    );
+                }
+                engineering_enrollment_targets.push(
+                    erpx_server_platform_administration::public::engineering_enrollment_http::EngineeringEnrollmentHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::platform_administration_wave2::EngineeringEnrollmentBackend::new(pools[0].clone(), Arc::new(SharedClock(clock.clone())))),
+                    },
+                );
+                engineering_verification_targets.push(
+                    erpx_server_platform_administration::public::native_engineering_verification_read_http::EngineeringVerificationReadHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::platform_administration_wave2::EngineeringVerificationReadBackend::new(pools[0].clone())),
+                    },
+                );
+                email_delivery_targets.push(
+                    erpx_server_manage_erpx::public::email_delivery_http::EmailDeliveryHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::manage_erpx_wave2::EmailDeliveryBackend::new(
+                            pools[0].clone(),
+                        )),
+                    },
+                );
+                commercial_grant_save_targets.push(
+                    erpx_server_commercial::public::wave2_http::GrantSaveHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::commercial_wave2::GrantSaveBackend::new(
+                            pools[i + 1].clone(),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    },
+                );
+                commercial_owner_write_targets.push(
+                    erpx_server_commercial::public::owner_write_http::OwnerWriteTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(
+                            crate::commercial_owner_write::CommercialOwnerWriteBackend::new(
+                                pools[i + 1].clone(),
+                                Arc::new(SharedClock(clock.clone())),
+                            ),
+                        ),
+                    },
+                );
+                commercial_owner_read_targets.push(
+                    erpx_server_commercial::public::owner_read_http::OwnerReadTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::commercial_owner_read::CommercialOwnerReadBackend),
+                    },
+                );
+                pos_native_targets.push(
+                    erpx_server_pos::public::owner_writes_http::PosOwnerWriteTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::pos_owner_writes::PosOwnerWriteBackendImpl::new(
+                            Arc::new(crate::pos_owner_writes::PosOwnerWriteCompanyExecutor::new(
+                                pools[i + 1].clone(),
+                            )),
+                        )),
+                    },
+                );
+                organization_native_targets.push(
+                    erpx_server_organization::public::organization_owner_write::OrganizationOwnerWriteTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::organization_owner_write::OrganizationOwnerWriteBackendImpl::new(pools[i + 1].clone(), Arc::new(SharedClock(clock.clone())))),
+                    },
+                );
+                commerce_owner_write_targets.push(
+                    erpx_server_commerce::public::owner_write_http::OwnerWriteTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(
+                            crate::commerce_owner_write::CommerceOwnerWriteBackend::new(
+                                pools[i + 1].clone(),
+                                Arc::new(SharedClock(clock.clone())),
+                            ),
+                        ),
+                    },
+                );
+                {
+                    use erpx_server_commerce::public::quality_receipt_origin_read::{
+                        PgQualityReceiptOriginRead, QualityReceiptOriginRead,
+                        QualityReceiptOriginReadTarget,
+                    };
+                    let reader: Arc<dyn QualityReceiptOriginRead> =
+                        Arc::new(PgQualityReceiptOriginRead::new(pools[i + 1].clone()));
+                    commerce_receipt_origin_targets.push((
+                        QualityReceiptOriginReadTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                        },
+                        reader,
+                    ));
+                }
+                {
+                    use erpx_server_commerce::public::records_request_page_source::{
+                        CommerceCurrencyRead, CommerceCurrencyReadTarget, PgCommerceCurrencyRead,
+                    };
+                    let reader: Arc<dyn CommerceCurrencyRead> =
+                        Arc::new(PgCommerceCurrencyRead::new(pools[i + 1].clone()));
+                    commerce_currency_targets.push((
+                        CommerceCurrencyReadTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                        },
+                        reader,
+                    ));
+                }
+                commerce_warehouse_targets.push(
+                    erpx_server_commerce::public::wave2_http::WarehouseSaveHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::commerce_wave2::WarehouseSaveBackend::new(
+                            pools[i + 1].clone(),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    },
+                );
+                inventory_native_targets.push(
+                    erpx_server_inventory::public::native_command_http::NativeCommandHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::inventory_wave2::InventoryNativeBackend::new(
+                            pools[i + 1].clone(),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    },
+                );
+                crm_native_targets.push(
+                    erpx_server_crm::public::native_command_http::NativeCommandHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::crm_wave2_native::CrmNativeBackend::new(
+                            pools[i + 1].clone(),
+                            pools[0].clone(),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    },
+                );
+                runtime_native_targets.push(
+                    erpx_server_runtime::public::native_command_http::NativeCommandHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::runtime_wave2_native::RuntimeNativeBackend::new(
+                            pools[i + 1].clone(),
+                            pools[0].clone(),
+                            Arc::new(SharedClock(clock.clone())),
+                            runtime_policy.clone(),
+                        )),
+                    },
+                );
+            }
             for company in companies {
                 if !config
                     .finance_journal_reads
@@ -4440,325 +4723,14 @@ async fn assemble_checked(
                         .insert(company.as_str().to_owned(), pools[i + 1].clone());
                     records_company_pools
                         .insert(company.as_str().to_owned(), pools[i + 1].clone());
-                    records_native_routers.push(
-                        crate::records_wave2::records_wave2_native_router(
-                            holding.host.clone(),
-                            holding.registration.slug.clone(),
-                            format!("https://{}", holding.host),
-                            Arc::new(crate::records_wave2::RecordsNativeBackend::new(
-                                pools[i + 1].clone(),
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
-                        )
-                        .map_err(|_| "PRIVATE_API_RECORDS_NATIVE_CONFIGURATION_INVALID")?,
-                    );
                     procurement_company_pools
                         .insert(company.as_str().to_owned(), pools[i + 1].clone());
-                    procurement_native_routers.push(
-                        crate::procurement_wave2::procurement_wave2_native_router(
-                            holding.host.clone(),
-                            holding.registration.slug.clone(),
-                            format!("https://{}", holding.host),
-                            Arc::new(
-                                crate::procurement_wave2::ProcurementNativeBackend::new(
-                                    pools[i + 1].clone(),
-                                    Arc::new(SharedClock(clock.clone())),
-                                ),
-                            ),
-                        )
-                        .map_err(|_| "PRIVATE_API_PROCUREMENT_NATIVE_CONFIGURATION_INVALID")?,
-                    );
                     agent_pools.insert(
                         holding.registration.slug.clone(),
                         pools[i + 1].clone(),
                     );
-                    work_cursor_targets.push((
-                        holding.host.clone(),
-                        holding.registration.slug.clone(),
-                        format!("https://{}", holding.host),
-                    ));
-                    executive_evidence_routers.push(
-                        crate::executive_evidence_wave2::executive_evidence_router(
-                            holding.host.clone(),
-                            holding.registration.slug.clone(),
-                            format!("https://{}", holding.host),
-                            Arc::new(
-                                crate::executive_evidence_wave2::ExecutiveEvidenceBackend::new(
-                                    pools[i + 1].clone(),
-                                    holding.registration.holding_id.clone(),
-                                    Arc::new(SharedClock(clock.clone())),
-                                ),
-                            ),
-                        )
-                        .map_err(|_| "PRIVATE_API_EXECUTIVE_EVIDENCE_CONFIGURATION_INVALID")?,
-                    );
-                    ecommerce_native_routers.push(
-                        crate::ecommerce_wave2::ecommerce_checkout_wave2_composed_router(
-                            holding.host.clone(),
-                            holding.registration.slug.clone(),
-                            format!("https://{}", holding.host),
-                            Arc::new(crate::ecommerce_wave2::CheckoutWave2Backend::new(
-                                pools[i + 1].clone(),
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
-                        )
-                        .map_err(|_| "PRIVATE_API_ECOMMERCE_WAVE2_CONFIGURATION_INVALID")?,
-                    );
-                    marketing_native_routers.push(
-                        crate::marketing_wave2_native::marketing_native_router(
-                            holding.host.clone(),
-                            holding.registration.slug.clone(),
-                            format!("https://{}", holding.host),
-                            Arc::new(
-                                crate::marketing_wave2_native::MarketingNativeBackend::new(
-                                    pools[i + 1].clone(),
-                                    pools[0].clone(),
-                                    Arc::new(SharedClock(clock.clone())),
-                                ),
-                            ),
-                        )
-                        .map_err(|_| "PRIVATE_API_MARKETING_NATIVE_CONFIGURATION_INVALID")?,
-                    );
                     marketing_company_pools
                         .insert(company.as_str().to_owned(), pools[i + 1].clone());
-                    marketing_native_routers.push(
-                        crate::marketing_wave2::marketing_wave2_router(
-                            holding.host.clone(),
-                            holding.registration.slug.clone(),
-                            format!("https://{}", holding.host),
-                            Arc::new(crate::marketing_wave2::MarketingWave2Backend::new(
-                                pools[i + 1].clone(),
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
-                        )
-                        .map_err(|_| "PRIVATE_API_MARKETING_WAVE2_CONFIGURATION_INVALID")?,
-                    );
-                    control_native_routers.push(
-                        crate::platform_administration_wave2::engineering_enrollment_router(
-                            holding.host.clone(),
-                            holding.registration.slug.clone(),
-                            format!("https://{}", holding.host),
-                            Arc::new(
-                                crate::platform_administration_wave2::EngineeringEnrollmentBackend::new(
-                                    pools[0].clone(),
-                                    Arc::new(SharedClock(clock.clone())),
-                                ),
-                            ),
-                        )
-                        .map_err(|_| "PRIVATE_API_PLATFORM_ADMIN_CONFIGURATION_INVALID")?,
-                    );
-                    control_native_routers.push(
-                        crate::platform_administration_wave2::engineering_verification_read_router(
-                            holding.host.clone(),
-                            holding.registration.slug.clone(),
-                            format!("https://{}", holding.host),
-                            pools[0].clone(),
-                        )
-                        .map_err(|_| "PRIVATE_API_PLATFORM_ADMIN_CONFIGURATION_INVALID")?,
-                    );
-                    control_native_routers.push(
-                        crate::manage_erpx_wave2::email_delivery_router(
-                            holding.host.clone(),
-                            holding.registration.slug.clone(),
-                            format!("https://{}", holding.host),
-                            Arc::new(crate::manage_erpx_wave2::EmailDeliveryBackend::new(
-                                pools[0].clone(),
-                            )),
-                        )
-                        .map_err(|_| "PRIVATE_API_MANAGE_ERPX_CONFIGURATION_INVALID")?,
-                    );
-                    admin_owner_targets.push((
-                        holding.host.clone(),
-                        holding.registration.slug.clone(),
-                        format!("https://{}", holding.host),
-                        false,
-                    ));
-                    manage_owner_targets.push((
-                        holding.host.clone(),
-                        holding.registration.slug.clone(),
-                        format!("https://{}", holding.host),
-                        false,
-                    ));
-                    commercial_native_routers.push(
-                        crate::commercial_wave2::commercial_grant_save_wave2_router(
-                            holding.host.clone(),
-                            holding.registration.slug.clone(),
-                            format!("https://{}", holding.host),
-                            Arc::new(crate::commercial_wave2::GrantSaveBackend::new(
-                                pools[i + 1].clone(),
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
-                        )
-                        .map_err(|_| "PRIVATE_API_COMMERCIAL_WAVE2_CONFIGURATION_INVALID")?,
-                    );
-                    commercial_native_routers.push(
-                        crate::commercial_owner_write::commercial_owner_write_composed_router(
-                            holding.host.clone(),
-                            holding.registration.slug.clone(),
-                            format!("https://{}", holding.host),
-                            Arc::new(
-                                crate::commercial_owner_write::CommercialOwnerWriteBackend::new(
-                                    pools[i + 1].clone(),
-                                    Arc::new(SharedClock(clock.clone())),
-                                ),
-                            ),
-                        )
-                        .map_err(|_| "PRIVATE_API_COMMERCIAL_OWNER_WRITE_CONFIGURATION_INVALID")?,
-                    );
-                    commercial_native_routers.push(
-                        crate::commercial_owner_read::commercial_owner_read_composed_router(
-                            holding.host.clone(),
-                            holding.registration.slug.clone(),
-                            format!("https://{}", holding.host),
-                        )
-                        .map_err(|_| "PRIVATE_API_COMMERCIAL_OWNER_READ_CONFIGURATION_INVALID")?,
-                    );
-                    pos_native_routers.push(
-                        crate::pos_owner_writes::pos_owner_write_browser_router(
-                            Arc::new(crate::pos_owner_writes::PosOwnerWriteCompanyExecutor::new(
-                                pools[i + 1].clone(),
-                            )),
-                            vec![(
-                                holding.host.clone(),
-                                holding.registration.slug.clone(),
-                                format!("https://{}", holding.host),
-                            )],
-                        )
-                        .map_err(|_| "PRIVATE_API_POS_OWNER_WRITE_CONFIGURATION_INVALID")?,
-                    );
-                    organization_native_routers.push(
-                        crate::organization_owner_write::organization_owner_write_browser_router(
-                            Arc::new(
-                                crate::organization_owner_write::OrganizationOwnerWriteBackendImpl::new(
-                                    pools[i + 1].clone(),
-                                    Arc::new(SharedClock(clock.clone())),
-                                ),
-                            ),
-                            vec![(
-                                holding.host.clone(),
-                                holding.registration.slug.clone(),
-                                format!("https://{}", holding.host),
-                            )],
-                        )
-                        .map_err(|_| "PRIVATE_API_ORGANIZATION_OWNER_WRITE_CONFIGURATION_INVALID")?,
-                    );
-                    agent_quota_targets.push((
-                        holding.host.clone(),
-                        holding.registration.slug.clone(),
-                        format!("https://{}", holding.host),
-                    ));
-                    agent_owner_targets.push((
-                        holding.host.clone(),
-                        holding.registration.slug.clone(),
-                        format!("https://{}", holding.host),
-                        false,
-                    ));
-                    commerce_native_routers.push(
-                        crate::commerce_owner_write::commerce_owner_write_composed_router(
-                            holding.host.clone(),
-                            holding.registration.slug.clone(),
-                            format!("https://{}", holding.host),
-                            Arc::new(
-                                crate::commerce_owner_write::CommerceOwnerWriteBackend::new(
-                                    pools[i + 1].clone(),
-                                    Arc::new(SharedClock(clock.clone())),
-                                ),
-                            ),
-                        )
-                        .map_err(|_| "PRIVATE_API_COMMERCE_OWNER_WRITE_CONFIGURATION_INVALID")?,
-                    );
-                    commerce_native_routers.push(
-                        erpx_server_commerce::public::quality_receipt_origin_read::quality_receipt_origin_read_router(
-                            Arc::new(
-                                erpx_server_commerce::public::quality_receipt_origin_read::PgQualityReceiptOriginRead::new(
-                                    pools[i + 1].clone(),
-                                ),
-                            ),
-                            vec![
-                                erpx_server_commerce::public::quality_receipt_origin_read::QualityReceiptOriginReadTarget {
-                                    host: holding.host.clone(),
-                                    holding_slug: holding.registration.slug.clone(),
-                                },
-                            ],
-                        )
-                        .map_err(|_| "PRIVATE_API_QUALITY_RECEIPT_ORIGIN_READ_CONFIGURATION_INVALID")?,
-                    );
-                    commerce_native_routers.push(
-                        erpx_server_commerce::public::records_request_page_source::commerce_currency_read_router(
-                            Arc::new(
-                                erpx_server_commerce::public::records_request_page_source::PgCommerceCurrencyRead::new(
-                                    pools[i + 1].clone(),
-                                ),
-                            ),
-                            vec![
-                                erpx_server_commerce::public::records_request_page_source::CommerceCurrencyReadTarget {
-                                    host: holding.host.clone(),
-                                    holding_slug: holding.registration.slug.clone(),
-                                },
-                            ],
-                        )
-                        .map_err(|_| "PRIVATE_API_COMMERCE_CURRENCY_READ_CONFIGURATION_INVALID")?,
-                    );
-                    commerce_native_routers.push(
-                        crate::commerce_wave2::commerce_warehouse_save_composed_router(
-                            holding.host.clone(),
-                            holding.registration.slug.clone(),
-                            format!("https://{}", holding.host),
-                            Arc::new(crate::commerce_wave2::WarehouseSaveBackend::new(
-                                pools[i + 1].clone(),
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
-                        )
-                        .map_err(|_| "PRIVATE_API_COMMERCE_WAVE2_CONFIGURATION_INVALID")?,
-                    );
-                    inventory_native_routers.push(
-                        crate::inventory_wave2::inventory_wave2_native_router(
-                            holding.host.clone(),
-                            holding.registration.slug.clone(),
-                            format!("https://{}", holding.host),
-                            Arc::new(
-                                crate::inventory_wave2::InventoryNativeBackend::new(
-                                    pools[i + 1].clone(),
-                                    Arc::new(SharedClock(clock.clone())),
-                                ),
-                            ),
-                        )
-                        .map_err(|_| "PRIVATE_API_INVENTORY_NATIVE_CONFIGURATION_INVALID")?,
-                    );
-                    crm_native_routers.push(
-                        crate::crm_wave2_native::crm_native_router(
-                            holding.host.clone(),
-                            holding.registration.slug.clone(),
-                            format!("https://{}", holding.host),
-                            Arc::new(crate::crm_wave2_native::CrmNativeBackend::new(
-                                pools[i + 1].clone(),
-                                pools[0].clone(),
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
-                        )
-                        .map_err(|_| "PRIVATE_API_CRM_NATIVE_CONFIGURATION_INVALID")?,
-                    );
-                    runtime_native_routers.push(
-                        crate::runtime_wave2_native::runtime_native_router(
-                            holding.host.clone(),
-                            holding.registration.slug.clone(),
-                            format!("https://{}", holding.host),
-                            Arc::new(
-                                crate::runtime_wave2_native::RuntimeNativeBackend::new(
-                                    pools[i + 1].clone(),
-                                    pools[0].clone(),
-                                    Arc::new(SharedClock(clock.clone())),
-                                    runtime_policy.clone(),
-                                ),
-                            ),
-                        )
-                        .map_err(|_| "PRIVATE_API_RUNTIME_NATIVE_CONFIGURATION_INVALID")?,
-                    );
-                    wf1a7_targets.push((
-                        holding.host.clone(),
-                        holding.registration.slug.clone(),
-                        format!("https://{}", holding.host),
-                    ));
                     collaboration_work_targets.push(
                         erpx_server_collaboration::public::collaboration_work_http::CollaborationWorkHttpTarget {
                             host: holding.host.clone(),
@@ -7742,17 +7714,56 @@ async fn assemble_checked(
             )
             .map_err(|_| "PRIVATE_API_HOLDING_NOTIFICATION_STATEMENT_CONFIGURATION_INVALID")?,
         );
-        for runtime_router in runtime_native_routers {
-            router = router.merge(runtime_router);
+        if !runtime_native_targets.is_empty() {
+            router = router.merge(
+                erpx_server_runtime::public::native_command_http::native_command_router(
+                    runtime_native_targets,
+                )
+                .map_err(|_| "PRIVATE_API_RUNTIME_NATIVE_CONFIGURATION_INVALID")?,
+            );
         }
-        for crm_router in crm_native_routers {
-            router = router.merge(crm_router);
+        if !crm_native_targets.is_empty() {
+            router = router.merge(
+                erpx_server_crm::public::native_command_http::native_command_router(
+                    crm_native_targets,
+                )
+                .map_err(|_| "PRIVATE_API_CRM_NATIVE_CONFIGURATION_INVALID")?,
+            );
         }
-        for inventory_router in inventory_native_routers {
-            router = router.merge(inventory_router);
+        if !inventory_native_targets.is_empty() {
+            router = router.merge(
+                erpx_server_inventory::public::native_command_http::native_command_router(
+                    inventory_native_targets,
+                )
+                .map_err(|_| "PRIVATE_API_INVENTORY_NATIVE_CONFIGURATION_INVALID")?,
+            );
         }
-        for commerce_router in commerce_native_routers {
-            router = router.merge(commerce_router);
+        if !commerce_owner_write_targets.is_empty() {
+            router = router
+                .merge(
+                    erpx_server_commerce::public::owner_write_http::commerce_owner_write_router(
+                        commerce_owner_write_targets,
+                    )
+                    .map_err(|_| "PRIVATE_API_COMMERCE_OWNER_WRITE_CONFIGURATION_INVALID")?,
+                )
+                .merge(
+                    erpx_server_commerce::public::quality_receipt_origin_read::quality_receipt_origin_read_router_for_targets(
+                        commerce_receipt_origin_targets,
+                    )
+                    .map_err(|_| "PRIVATE_API_QUALITY_RECEIPT_ORIGIN_READ_CONFIGURATION_INVALID")?,
+                )
+                .merge(
+                    erpx_server_commerce::public::records_request_page_source::commerce_currency_read_router_for_targets(
+                        commerce_currency_targets,
+                    )
+                    .map_err(|_| "PRIVATE_API_COMMERCE_CURRENCY_READ_CONFIGURATION_INVALID")?,
+                )
+                .merge(
+                    erpx_server_commerce::public::wave2_http::commerce_warehouse_save_router(
+                        commerce_warehouse_targets,
+                    )
+                    .map_err(|_| "PRIVATE_API_COMMERCE_WAVE2_CONFIGURATION_INVALID")?,
+                );
         }
         // System workers address native commands by Company id. Discover each
         // registered Holding's real Companies from its own owner table so the
@@ -7776,8 +7787,13 @@ async fn assemble_checked(
                     .or_insert_with(|| pools[i + 1].clone());
             }
         }
-        for records_router in records_native_routers {
-            router = router.merge(records_router);
+        if !records_native_targets.is_empty() {
+            router = router.merge(
+                erpx_server_records::public::native_command_http::native_command_router(
+                    records_native_targets,
+                )
+                .map_err(|_| "PRIVATE_API_RECORDS_NATIVE_CONFIGURATION_INVALID")?,
+            );
         }
         if !records_company_pools.is_empty() {
             let records_companies: Vec<String> = records_company_pools.keys().cloned().collect();
@@ -7796,8 +7812,13 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_RECORDS_NATIVE_CONFIGURATION_INVALID")?,
             );
         }
-        for procurement_router in procurement_native_routers {
-            router = router.merge(procurement_router);
+        if !procurement_native_targets.is_empty() {
+            router = router.merge(
+                erpx_server_procurement::public::native_command_http::native_command_router(
+                    procurement_native_targets,
+                )
+                .map_err(|_| "PRIVATE_API_PROCUREMENT_NATIVE_CONFIGURATION_INVALID")?,
+            );
         }
         if !procurement_company_pools.is_empty() {
             let procurement_companies: Vec<String> =
@@ -7821,17 +7842,19 @@ async fn assemble_checked(
             let quota_backend = Arc::new(crate::agent_wave2::AgentQuotaBackend::new(
                 agent_pools.clone(),
             ));
-            for (host, slug, origin) in agent_quota_targets {
-                router = router.merge(
-                    crate::agent_wave2::agent_quota_router(
-                        host,
-                        slug,
-                        origin,
-                        quota_backend.clone(),
-                    )
+            let targets = agent_quota_targets
+                .into_iter()
+                .map(|(host, holding_slug, origin)| erpx_server_agent::public::quota_http::AgentQuotaHttpTarget {
+                    host,
+                    holding_slug,
+                    origin,
+                    backend: quota_backend.clone(),
+                })
+                .collect();
+            router = router.merge(
+                erpx_server_agent::public::quota_http::agent_quota_http_router(targets)
                     .map_err(|_| "PRIVATE_API_AGENT_QUOTA_CONFIGURATION_INVALID")?,
-                );
-            }
+            );
             let owner_backend = Arc::new(crate::agent_wave2::AgentOwnerWriteBackend::new(
                 agent_pools.clone(),
                 pools[0].clone(),
@@ -7845,17 +7868,19 @@ async fn assemble_checked(
             let cursor_backend = Arc::new(
                 crate::work_projection_wave2::HomeReadCursorBackend::new(agent_pools.clone()),
             );
-            for (host, slug, origin) in work_cursor_targets {
-                router = router.merge(
-                    crate::work_projection_wave2::home_read_cursor_router(
-                        host,
-                        slug,
-                        origin,
-                        cursor_backend.clone(),
-                    )
+            let targets = work_cursor_targets
+                .into_iter()
+                .map(|(host, holding_slug, origin)| erpx_server_work_projection::public::home_read_cursor_http::HomeReadCursorHttpTarget {
+                    host,
+                    holding_slug,
+                    origin,
+                    backend: cursor_backend.clone(),
+                })
+                .collect();
+            router = router.merge(
+                erpx_server_work_projection::public::home_read_cursor_http::home_read_cursor_http_router(targets)
                     .map_err(|_| "PRIVATE_API_WORK_CURSOR_CONFIGURATION_INVALID")?,
-                );
-            }
+            );
         }
         // Work calendar commands are owner-wide: mount the command router for
         // every registered Holding, bound to that Holding's own write pool.
@@ -7894,17 +7919,53 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_WORK_OWNER_WRITE_CONFIGURATION_INVALID")?,
             );
         }
-        for evidence_router in executive_evidence_routers {
-            router = router.merge(evidence_router);
+        if !executive_evidence_targets.is_empty() {
+            router = router.merge(
+                erpx_server_runtime::public::executive_evidence::executive_evidence_http_router(
+                    executive_evidence_targets,
+                )
+                .map_err(|_| "PRIVATE_API_EXECUTIVE_EVIDENCE_CONFIGURATION_INVALID")?,
+            );
         }
-        for commercial_router in commercial_native_routers {
-            router = router.merge(commercial_router);
+        if !commercial_grant_save_targets.is_empty() {
+            router = router.merge(
+                erpx_server_commercial::public::wave2_http::commercial_grant_save_router(
+                    commercial_grant_save_targets,
+                )
+                .map_err(|_| "PRIVATE_API_COMMERCIAL_WAVE2_CONFIGURATION_INVALID")?,
+            );
         }
-        for ecommerce_router in ecommerce_native_routers {
-            router = router.merge(ecommerce_router);
+        if !commercial_owner_write_targets.is_empty() {
+            router = router.merge(
+                erpx_server_commercial::public::owner_write_http::commercial_owner_write_router(
+                    commercial_owner_write_targets,
+                )
+                .map_err(|_| "PRIVATE_API_COMMERCIAL_OWNER_WRITE_CONFIGURATION_INVALID")?,
+            );
         }
-        for marketing_router in marketing_native_routers {
-            router = router.merge(marketing_router);
+        if !commercial_owner_read_targets.is_empty() {
+            router = router.merge(
+                erpx_server_commercial::public::owner_read_http::commercial_owner_read_router(
+                    commercial_owner_read_targets,
+                )
+                .map_err(|_| "PRIVATE_API_COMMERCIAL_OWNER_READ_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !ecommerce_native_targets.is_empty() {
+            router = router.merge(
+                erpx_server_ecommerce::public::wave2_http::ecommerce_checkout_wave2_router(
+                    ecommerce_native_targets,
+                )
+                .map_err(|_| "PRIVATE_API_ECOMMERCE_WAVE2_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !marketing_native_targets.is_empty() {
+            router = router.merge(
+                erpx_server_marketing::public::native_command_http::native_command_router(
+                    marketing_native_targets,
+                )
+                .map_err(|_| "PRIVATE_API_MARKETING_NATIVE_CONFIGURATION_INVALID")?,
+            );
         }
         if !marketing_company_pools.is_empty() {
             let marketing_companies: Vec<String> =
@@ -7925,8 +7986,29 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_MARKETING_NATIVE_CONFIGURATION_INVALID")?,
             );
         }
-        for control_router in control_native_routers {
-            router = router.merge(control_router);
+        if !engineering_enrollment_targets.is_empty() {
+            router = router.merge(
+                erpx_server_platform_administration::public::engineering_enrollment_http::engineering_enrollment_http_router(
+                    engineering_enrollment_targets,
+                )
+                .map_err(|_| "PRIVATE_API_PLATFORM_ADMIN_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !engineering_verification_targets.is_empty() {
+            router = router.merge(
+                erpx_server_platform_administration::public::native_engineering_verification_read_http::engineering_verification_read_http_router(
+                    engineering_verification_targets,
+                )
+                .map_err(|_| "PRIVATE_API_PLATFORM_ADMIN_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !email_delivery_targets.is_empty() {
+            router = router.merge(
+                erpx_server_manage_erpx::public::email_delivery_http::email_delivery_http_router(
+                    email_delivery_targets,
+                )
+                .map_err(|_| "PRIVATE_API_MANAGE_ERPX_CONFIGURATION_INVALID")?,
+            );
         }
         if !agent_pools.is_empty() {
             let admin_owner_backend = Arc::new(
@@ -7999,11 +8081,21 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_ORGANIZATION_OWNER_WRITE_CONFIGURATION_INVALID")?,
             );
         }
-        for organization_router in organization_native_routers {
-            router = router.merge(organization_router);
+        if !organization_native_targets.is_empty() {
+            router = router.merge(
+                erpx_server_organization::public::organization_owner_write::organization_owner_write_router(
+                    organization_native_targets,
+                )
+                .map_err(|_| "PRIVATE_API_ORGANIZATION_OWNER_WRITE_CONFIGURATION_INVALID")?,
+            );
         }
-        for pos_router in pos_native_routers {
-            router = router.merge(pos_router);
+        if !pos_native_targets.is_empty() {
+            router = router.merge(
+                erpx_server_pos::public::owner_writes_http::pos_owner_write_router(
+                    pos_native_targets,
+                )
+                .map_err(|_| "PRIVATE_API_POS_OWNER_WRITE_CONFIGURATION_INVALID")?,
+            );
         }
         }
         if !company_money_pools.is_empty() {

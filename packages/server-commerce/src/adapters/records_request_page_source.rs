@@ -251,21 +251,19 @@ fn bounded(body: serde_json::Value) -> Response {
     response
 }
 
-/// Build the native read router. The lead mounts it alongside the other
-/// Commerce owner routers; no new TS SQL or business rule is introduced here.
-pub fn commerce_currency_read_router(
-    reader: Arc<dyn CommerceCurrencyRead>,
-    targets: Vec<CommerceCurrencyReadTarget>,
+/// Build the native read router with one distinct Commerce-owned reader per
+/// exact Holding target. Routing keys on `(host, holding_slug)`, so two
+/// Holdings sharing the same holding path still resolve to separate readers
+/// and cannot observe each other's currency facts.
+pub fn commerce_currency_read_router_for_targets(
+    targets: Vec<(CommerceCurrencyReadTarget, Arc<dyn CommerceCurrencyRead>)>,
 ) -> Result<Router, BusinessError> {
     let mut configured = BTreeMap::new();
-    for target in targets {
+    for (target, reader) in targets {
         if target.host.is_empty()
             || !valid_slug(&target.holding_slug)
             || configured
-                .insert(
-                    (target.host.clone(), target.holding_slug.clone()),
-                    reader.clone(),
-                )
+                .insert((target.host.clone(), target.holding_slug.clone()), reader)
                 .is_some()
         {
             return Err(configuration_invalid());
@@ -282,6 +280,21 @@ pub fn commerce_currency_read_router(
         .with_state(Arc::new(CommerceCurrencyReadState {
             targets: configured,
         })))
+}
+
+/// Backward-compatible single-reader constructor. Every registered target
+/// resolves to the same reader; new multi-Holding bindings should use
+/// `commerce_currency_read_router_for_targets` so each Holding owns its reader.
+pub fn commerce_currency_read_router(
+    reader: Arc<dyn CommerceCurrencyRead>,
+    targets: Vec<CommerceCurrencyReadTarget>,
+) -> Result<Router, BusinessError> {
+    commerce_currency_read_router_for_targets(
+        targets
+            .into_iter()
+            .map(|target| (target, reader.clone()))
+            .collect(),
+    )
 }
 
 async fn current(
