@@ -110,8 +110,10 @@ if(verify){
   if(manifest.schema==='erpx-oasis-demo-release/v1'){
    await buildWorkspaceReleaseTool(snapshot,join(release,'stage'),'stage',sourceFingerprint);
    manifest.stage=await releaseArtifactReference(release,'stage',{role:'stage',runtimeFingerprint:sourceFingerprint});
-   const target=join(snapshot,'target');
-   const native=Bun.spawn(['cargo','build','--release','--locked','--no-default-features','--features','private-development-api','-p','erpx-service','--bin','erpx-server'],{cwd:snapshot,env:{...process.env,CARGO_TARGET_DIR:target},stdin:'ignore',stdout:'inherit',stderr:'inherit'});
+   // Cargo checks the same frozen checkout and shares its ignored cache across
+   // application rebuilds. The final source and Git checks still gate packaging.
+   const target=join(root,'.runtime/workspace-release-rust/oasis');
+   const native=Bun.spawn(['cargo','build','--release','--locked','--no-default-features','--features','private-development-api','-p','erpx-service','--bin','erpx-server'],{cwd:root,env:{...process.env,CARGO_TARGET_DIR:target},stdin:'ignore',stdout:'inherit',stderr:'inherit'});
    if(await native.exited!==0)throw new Error('OASIS_NATIVE_RELEASE_BUILD_FAILED');
    await mkdir(join(release,'native'),{mode:0o700});
    await cp(join(target,'release/erpx-server'),join(release,'native/erpx-server'),{mode:constants.COPYFILE_FICLONE});

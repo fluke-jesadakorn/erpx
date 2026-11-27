@@ -1664,14 +1664,11 @@ pub(crate) fn parse_decimal_units(value: &str, scale: u32) -> Result<Option<i64>
     if units > MAX_SAFE_INTEGER {
         return Ok(None);
     }
-    let padded = format!(
-        "{:0<width$}",
-        &fraction[..fraction.len().min(scale as usize)],
-        width = scale as usize
-    );
-    for byte in padded.bytes() {
-        units += i128::from(byte - b'0');
-    }
+    let digits = &fraction[..fraction.len().min(scale as usize)];
+    let fractional_units = digits
+        .bytes()
+        .fold(0_i128, |amount, digit| amount * 10 + i128::from(digit - b'0'));
+    units += fractional_units * 10_i128.pow(scale - digits.len() as u32);
     if units > MAX_SAFE_INTEGER {
         return Ok(None);
     }

@@ -1033,6 +1033,53 @@ async fn save_creates_priced_quote_and_cas_updates_in_one_serializable_unit() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn oasis_kitchen_quote_keeps_fractional_measurement_and_document_number() {
+    use erpx_server_commerce::public::order::OrderKind;
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        sqlx::query(
+            "INSERT INTO commerce_products(id,company_id,sku,name,unit,price_minor,item_type) VALUES \
+             ('cabinets','company','CABINETS','Walnut base cabinets','set',1850000,'stock'), \
+             ('quartz','company','QUARTZ','Quartz countertop','m',750000,'stock'), \
+             ('fit','company','FIT','Kitchen fitting','job',1200000,'service')",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let mut draft = save_command(
+            "oasis-kitchen-draft-create", None, OrderKind::Quote, "party-1", Some("warehouse-1"),
+            "2026-12-01", "2026-12-15", "18500", 0, None,
+        );
+        draft.input.lines = [("cabinets", "2", "18500"), ("quartz", "2.4", "7500"), ("fit", "1", "12000")]
+            .into_iter().map(|(product, quantity, price)| SaveOrderLineInput {
+                product_id: product.into(), quantity: quantity.into(), price: price.into(), tax_bps: 0,
+            }).collect();
+        let created = run_save(&pool, creator(), draft.clone()).await.unwrap();
+        let read = |id: String| {
+            let pool = pool.clone();
+            async move {
+                sqlx::query_as::<_, (String, i64, i64, i64)>(
+                    "SELECT o.number,o.subtotal_minor,o.tax_minor,l.quantity_milli FROM commerce_orders o \
+                     JOIN commerce_order_lines l ON l.order_id=o.id AND l.product_id='quartz' WHERE o.id=$1",
+                ).bind(id).fetch_one(pool.raw()).await.unwrap()
+            }
+        };
+        let before = read(created.id.clone()).await;
+        assert!(before.0.starts_with("QT-"));
+        assert_eq!((before.1, before.2, before.3), (6_700_000, 0, 2_400));
+        draft.key = CommandKey::new("oasis-kitchen-draft-edit").unwrap();
+        draft.order_id = Some(RecordId::new(&created.id).unwrap());
+        draft.input.expected_version = Some(created.version);
+        draft.input.lines[0].quantity = "3".into();
+        let edited = run_save(&pool, creator(), draft).await.unwrap();
+        assert_eq!(edited.id, created.id);
+        assert_eq!(edited.version, created.version + 1);
+        assert_eq!(read(edited.id).await, (before.0, 8_550_000, 0, 2_400));
+    })
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn save_price_list_and_master_guards_fail_closed() {
     use erpx_server_commerce::public::order::OrderKind;
     fixture::with_database(4, |pool| async move {
