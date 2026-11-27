@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16104,
+    "revision": 16111,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": null,
@@ -223781,11 +223781,11 @@
         "title": "Bind the native aggregate Social read for the shared Holding Feed",
         "dependsOn": [],
         "requiredPorts": [],
-        "status": "blocked",
+        "status": "ready_for_integration",
         "claim": null,
         "baseSha": "451d2a079885475c9aa55163dee98471e23f1f3a",
-        "implementedCommit": "4489f344d6df6211d6142f05a0e7b2c50d32b37a",
-        "lastPushedSha": "4489f344d6df6211d6142f05a0e7b2c50d32b37a",
+        "implementedCommit": "d797ab8105f71953df0a8c4ee12a460c46d445e8",
+        "lastPushedSha": "d797ab8105f71953df0a8c4ee12a460c46d445e8",
         "checks": [
           {
             "command": "vitest run --config tests/config/vitest.unit.config.mts tests/unit/collaboration/collaboration-services.test.ts tests/unit/shared.ui/apps-launcher.test.ts",
@@ -223872,13 +223872,51 @@
             "result": "passed",
             "sourceSha": "4489f344d6df6211d6142f05a0e7b2c50d32b37a",
             "details": "Optimized native binary passed the isolated Admin browser test and was started as the public Development private backend."
+          },
+          {
+            "command": "Actual signed Holding session Axum Social router and PostgreSQL",
+            "result": "passed",
+            "sourceSha": "d797ab8105f71953df0a8c4ee12a460c46d445e8",
+            "details": "One authenticated source-playback integration passed with actual migrated Control/Holding databases. Paid PMS direct thread and active, draining, retained History effects, unpaid/ordinary/stranger path concealment, Finance-only retained guest-account history, stale assignment and revocation."
+          },
+          {
+            "command": "Native PMS IAM, Social PostgreSQL and Social HTTP tests",
+            "result": "passed",
+            "sourceSha": "d797ab8105f71953df0a8c4ee12a460c46d445e8",
+            "details": "15 passed, including the same current assignment for Hotel source set and conversation lineage, separate assignments cannot combine, actual branch/department checks, visible card and handover receipt."
+          },
+          {
+            "command": "Native Social HTTP page owner unit tests",
+            "result": "passed",
+            "sourceSha": "d797ab8105f71953df0a8c4ee12a460c46d445e8",
+            "details": "5 passed. Exact registered Holding, flag decoding, aggregate response and fail-closed transport."
+          },
+          {
+            "command": "Apps, Collaboration and shared-work Vitest",
+            "result": "passed",
+            "sourceSha": "d797ab8105f71953df0a8c4ee12a460c46d445e8",
+            "details": "195 passed including retained registered test names now driven by native HTTP transport and deferred personal summary. Full application/test TypeScript typecheck and layout checks passed."
+          },
+          {
+            "command": "Optimized native build and exact public Admin Chrome",
+            "result": "passed",
+            "sourceSha": "d797ab8105f71953df0a8c4ee12a460c46d445e8",
+            "details": "The optimized Axum candidate started on the same development private port. Normal Account sign-in, Feed at /apps/home, 15 Apps tiles and GitHub catalogue HTTP 200. Exact native unsigned Admin route returned 401 and an unregistered host 404. Fresh final health 200 development, Admin, OASIS and the existing private production service."
+          },
+          {
+            "command": "retirement:ts-statements:collaboration-selected-page",
+            "result": "passed",
+            "sourceSha": "d797ab8105f71953df0a8c4ee12a460c46d445e8",
+            "details": "Deleted packages/server-collaboration/src/adapters/social-page.ts and application/social-page.ts and their package exports. Removed the selected page's direct assignments SELECT. Remaining preselection and owner-specific readers are explicitly tracked.",
+            "before": 229,
+            "after": 228
           }
         ],
         "retainedLegacy": [
           {
-            "path": "packages/server-collaboration/src/adapters/social-page.ts",
+            "path": "packages/server-collaboration/src/adapters/product-entry.ts",
             "removalTaskId": "cutover.collaboration.rich-home-native-ssr",
-            "removalCondition": "The exact registered Holding GET page is mounted, its full presenter and browser fixtures pass, and scope-correct Axum is the only page authority."
+            "removalCondition": "Port product-workspace candidate-only admission for an eligible assignment before selection. Retain current Account proof, exact assignment version, Company and scope, and same native source purchase policy without selecting or minting authority. Verify PMS and Projects role candidates before removing the TypeScript candidate predicate."
           },
           {
             "path": "packages/server-collaboration/src/adapters/social-home.ts",
@@ -223908,12 +223946,12 @@
         ],
         "blocker": "handoff",
         "handoff": {
-          "runId": "oasis-admin-feed-composition-20261127",
+          "runId": "oasis-native-selected-thread-20261127",
           "agentId": "codex",
-          "at": "2026-11-27T15:50:00.883Z",
-          "previousStatus": "in_progress",
+          "at": "2026-11-27T16:10:08.471Z",
+          "previousStatus": "ready_for_integration",
           "reason": "handoff",
-          "nextAction": "Port the retained PMS source-only integration test and entry probe to the exact mounted native route, re-prove source purchase and request-context parity, then delete the retained TypeScript page backend and oracle."
+          "nextAction": "Selected Social page is native-only and deployed. Port product-workspace candidate admission through CurrentAccountWorkRoles::eligible and the native source/history rights checks without writing a work selection. Verify unselected eligible PMS and Projects candidates with Account proof and current assignment/version before retiring the TypeScript candidate predicate."
         },
         "resources": [
           "collaboration-rich-home-native-ssr"
@@ -223951,14 +223989,29 @@
           "packages/server-organization/src/adapters/postgres_organization_nodes.rs",
           "packages/server-organization/src/public/organization_nodes.rs",
           "packages/server-agent/src/adapters/provider_postgres.rs",
-          "packages/server-agent/src/public/providers.rs"
+          "packages/server-agent/src/public/providers.rs",
+          "packages/feature-collaboration/src/components/social-page.tsx",
+          "packages/server-collaboration/src/public/social-page.ts",
+          "packages/server-collaboration/src/adapters/product-entry.ts",
+          "packages/server-collaboration/src/public/product-entry.ts",
+          "packages/server-collaboration/src/application/social-page.ts",
+          "packages/server-collaboration/package.json",
+          "tests/unit/shared.work/home-lazy-loading.test.ts",
+          "tests/unit/shared.work/work-ui-services.test.ts",
+          "tests/integration/pms/pms.test.ts",
+          "tests/integration/collaboration/rust-field-collaboration-selected-postgres.test.rs"
         ],
         "scope": "The existing full SocialPage aggregate for a normal signed-in Holding session, including the initial thread, tag, audience/composer options, moderation, and document context. Preserve normal OASIS and CRM paths.",
         "deliverables": [
           "Bind complete Axum aggregate presentation and mount it through the exact registered Holding routes",
           "Verify the new Admin Holding root reaches real Feed after normal SSO and retained Social contracts still pass"
         ],
-        "nextAction": "Port the retained PMS source-only integration test and entry probe to the exact mounted native route, re-prove source purchase and request-context parity, then delete the retained TypeScript page backend and oracle."
+        "nextAction": "Selected Social page is native-only and deployed. Port product-workspace candidate admission through CurrentAccountWorkRoles::eligible and the native source/history rights checks without writing a work selection. Verify unselected eligible PMS and Projects candidates with Account proof and current assignment/version before retiring the TypeScript candidate predicate.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "ux.apps.stable-switcher",
@@ -224113,16 +224166,16 @@
       "statusCounts": {
         "pending": 14,
         "in_progress": 0,
-        "ready_for_integration": 160,
+        "ready_for_integration": 161,
         "integrating": 0,
         "migrated": 370,
-        "blocked": 1926,
+        "blocked": 1925,
         "deferred": 2,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 217,
-    "updatedAt": "2026-11-27T15:50:01.178Z",
+    "lastCoordinatorGeneration": 218,
+    "updatedAt": "2026-11-27T16:10:08.633Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
