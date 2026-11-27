@@ -139,7 +139,7 @@
         "evidenceFlows": [
           "field-service-initial-count-native"
         ],
-        "acceptanceBoundary": "Bounded Count entry/selection/lifecycle/Flow/Finance proof; default runtime/writer withdrawal and exact-candidate integration remain items12\u201315/18."
+        "acceptanceBoundary": "Bounded Count entry/selection/lifecycle/Flow/Finance proof; default runtime/writer withdrawal and exact-candidate integration remain items12–15/18."
       },
       {
         "number": 10,
@@ -342,7 +342,7 @@
           "src/composition/src/service_initial_physical_stock_read.rs",
           "src/composition/src/service_initial_physical_stock_flow.rs"
         ],
-        "current": "PR5 native Service Count create/lifecycle/Flow and generic GET/SSR; required writer/fallback retirement and native projection partition qualified. PR12 normal-auth setup\u2192postedCount evidence supplements it.",
+        "current": "PR5 native Service Count create/lifecycle/Flow and generic GET/SSR; required writer/fallback retirement and native projection partition qualified. PR12 normal-auth setup→postedCount evidence supplements it.",
         "withdrawal": "Retain only named generic non-Service count and shared ProductEntry/source-policy readers, with persisted Service family exclusion."
       },
       {
@@ -698,7 +698,7 @@
           "writeFootprint": "Field Order/event, start timestamp, Support projection, notice and Workflow effects",
           "authorityAndIsolation": "Current selected actor, module, Company/scope and purpose-specific purchase/source witnesses; no selector grants authority.",
           "isolationStatus": "BLOCKED for owner delivery: HTTP dispatch is native-only in the candidate, but remaining public/internal legacy readers/writers, jobs and complete frozen browser journeys have not all been retired/qualified.",
-          "withdrawalFence": "Retain dispatched\u2192in_visit rules and current actor; fence legacy start with exact retry.",
+          "withdrawalFence": "Retain dispatched→in_visit rules and current actor; fence legacy start with exact retry.",
           "status": "qualified bounded opt-in; no owner cutover",
           "commandOperation": "field.order.start"
         },
@@ -756,7 +756,7 @@
           "writeFootprint": "Field Order/event, Support projection, notice and Workflow receipt/audit/outbox",
           "authorityAndIsolation": "Current selected actor, module, Company/scope and purpose-specific purchase/source witnesses; no selector grants authority.",
           "isolationStatus": "BLOCKED for owner delivery: HTTP dispatch is native-only in the candidate, but remaining public/internal legacy readers/writers, jobs and complete frozen browser journeys have not all been retired/qualified.",
-          "withdrawalFence": "Retain exception\u2192in_visit semantics and current actor; fence legacy resume.",
+          "withdrawalFence": "Retain exception→in_visit semantics and current actor; fence legacy resume.",
           "status": "qualified bounded opt-in; no owner cutover",
           "commandOperation": "field.order.resume"
         },
@@ -2270,7 +2270,7 @@
         },
         "legacyRemoved": [
           "Field-only attachment-purchases/attachment-read/attachments-policy-facts/attachments-service-facts adapter/public pairs and exports",
-          "Files\u2194Field unused TypeScript workspace dependencies",
+          "Files↔Field unused TypeScript workspace dependencies",
           "Optional native transport selector wrappers, presenter/client ID-selector props and selector APIs"
         ],
         "legacyRemovalStatus": "Removed from the TS build/runtime graph; actual persisted markers fence direct and alternate legacy reads inside owned units. Non-Field shared consumers remain.",
@@ -2388,7 +2388,7 @@
           "frontend": "Native-only Service reads; pure shared presentation validator; full typecheck and292 focused cases pass. Bounded normal-auth functional browser journeys qualify; coldField16/releaseSSR remain open.",
           "retestReason": "Real same-database ports exposed deferred/final cleanup bugs; affected cases rerun after each composition correction. Unchanged unrelated evidence reused.",
           "postRemoval": "Seven registered same-lease native live/historical cases plus historicalhelper1 pass;94-case oracle/UI suite, app/test typecheck, targetedESLint, compositionClippy andarchitecture/structure pass. Functional browser receipt/source reconciliation qualifies; no wholecleanjourney claim.",
-          "browser": "Normal SSO multi-actor preparation\u2192postedCount with600/600 journal and6projectionreceipts; separateconfirm-existing unchangedmapping+Supplyinactive. Functional qualification only; colddevHMRhydration remainsField16."
+          "browser": "Normal SSO multi-actor preparation→postedCount with600/600 journal and6projectionreceipts; separateconfirm-existing unchangedmapping+Supplyinactive. Functional qualification only; colddevHMRhydration remainsField16."
         },
         "legacyRemoved": [
           "Commerce Service mapping/Stock workspace/master implementations and unused transaction bridge",
@@ -2531,7 +2531,7 @@
       "id": "holding-product-entry-native-session",
       "kind": "entry-evidence",
       "status": "flow-complete",
-      "scope": "Normal native session rootchooser and genuine Company/role\u2192existing FieldService ownerlanding; notnativeApps/list or fullIdentitymigration",
+      "scope": "Normal native session rootchooser and genuine Company/role→existing FieldService ownerlanding; notnativeApps/list or fullIdentitymigration",
       "sourceIdentity": "71adc86a55674997a6aba6ebf682a3ecfae594eb",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry holding-product-entry-native-session)",
       "durableContractRefs": []
@@ -2585,7 +2585,7 @@
       "id": "field-service-visit-start",
       "kind": "business-flow-evidence",
       "status": "flow-complete",
-      "scope": "ActualSchedule\u2192Dispatch\u2192Start nativeactions withtypedownerafterimages,currentauthority/HR/settlement andnativeeventreadback",
+      "scope": "ActualSchedule→Dispatch→Start nativeactions withtypedownerafterimages,currentauthority/HR/settlement andnativeeventreadback",
       "sourceIdentity": "ca05ec43dedfc456989916a261e5bb1a8672dcc1",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry field-service-visit-start)",
       "durableContractRefs": []
@@ -2594,7 +2594,7 @@
       "id": "field-service-visit-complete",
       "kind": "business-flow-evidence",
       "status": "flow-complete",
-      "scope": "Actual Complete visit drawer\u2192native owner transaction\u2192typed immutable completion confirmation; release remaining reservations and enforce posted cost journals",
+      "scope": "Actual Complete visit drawer→native owner transaction→typed immutable completion confirmation; release remaining reservations and enforce posted cost journals",
       "sourceIdentity": "dcecbe8105cde770431ca328743075b9d6f00e69",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry field-service-visit-complete)",
       "durableContractRefs": []
@@ -2603,7 +2603,7 @@
       "id": "field-service-visit-exception-resume",
       "kind": "business-flow-evidence",
       "status": "flow-complete",
-      "scope": "ActualException\u2192Resume drawers use nativeatomicService/Support/Collaboration/Workflow andkey-onlyimmutableconfirmation",
+      "scope": "ActualException→Resume drawers use nativeatomicService/Support/Collaboration/Workflow andkey-onlyimmutableconfirmation",
       "sourceIdentity": "57a5e6ae8a52e4310d2eb2e88a45c6a2ccde6e4d",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry field-service-visit-exception-resume)",
       "durableContractRefs": []
@@ -2612,7 +2612,7 @@
       "id": "field-service-order-cancel",
       "kind": "business-flow-evidence",
       "status": "flow-complete",
-      "scope": "ActualCancel drawer\u2192Rustatomiccancellation/reservationrelease\u2192receipt-boundnativeconfirmation",
+      "scope": "ActualCancel drawer→Rustatomiccancellation/reservationrelease→receipt-boundnativeconfirmation",
       "sourceIdentity": "0caa110c35f1eeec8294a145b5970a81aec85244",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry field-service-order-cancel)",
       "durableContractRefs": []
@@ -2639,7 +2639,7 @@
       "id": "field-service-raw-physical-scope-interop",
       "kind": "interop-evidence",
       "status": "interop-complete",
-      "scope": "Actual210bytebranch/dept/Customer/selectedAsset together: Agreementcreate\u2192genuineReview\u2192Request+existingticketOrder/replays/readbacks\u2192nativeSchedule/Reserve/Dispatch/Start\u2192Issue/nativeproof\u2192genuineFinancecostworkspace/post/replay. No historicaltransition substitution.",
+      "scope": "Actual210bytebranch/dept/Customer/selectedAsset together: Agreementcreate→genuineReview→Request+existingticketOrder/replays/readbacks→nativeSchedule/Reserve/Dispatch/Start→Issue/nativeproof→genuineFinancecostworkspace/post/replay. No historicaltransition substitution.",
       "sourceIdentity": "e3953e3e731a62cc83ed6ed88075c5f58b8e0359",
       "evidenceRef": ".scratch/dev/sol-terra-pilot/execution-state.json (completedFlows entry field-service-raw-physical-scope-interop)",
       "durableContractRefs": []
@@ -2806,7 +2806,7 @@
       "effects": "One posted Countv4/source/line/stock/ledger; 2000milli/600minor; one nonopening posted journal with debit Inventory1200=600 and credit variance5400=600; distinct canonical maker/reviewer. Each of22 command receipts has one command-owned audit and outbox effect; total audit rows25 include other activity.",
       "retry": "Two native201 observations with identical body/key/context hashes; first committed reply dropped, second delivered; one Count create effect.",
       "durationMs": 57568,
-      "durationBoundary": "Bounded fresh setup\u2192Count browser journey, not full Field bundle or labor/finish estimate.",
+      "durationBoundary": "Bounded fresh setup→Count browser journey, not full Field bundle or labor/finish estimate.",
       "limitations": [
         "Integrated run retains intentional response-loss503 and10ERR_ABORTED navigation events; not clean Company-entry acceptance. Fresh final posted readback has zero page/console/request errors.",
         "Default native selection, legacy HTTP/internal/jobs fences, Files/Records, full six Field workflows and exact candidate gates remain open.",
@@ -3956,7 +3956,7 @@
         "platform-native-holdings"
       ],
       "sourceRef": "packages/server-platform_administration/src/public/platform-operations.ts",
-      "gap": "Closed against the registered read/inspection scope. Browser verified desktop and mobile on the erpx-internal Manage ERPX page: Operational health (3 customers, 0 pending/dead/claimed with billing/jobs heartbeats), per-Holding operations (acme/northstar healthy; erpx unavailable with the actionable 'Holding database or operational tables are unavailable' state), schema migration status per Holding, Holding lifecycle and Customer Holdings (Acme Group \u00b7 Acme Corporation) from the persisted control-plane snapshot. Registered platform-operations.test.ts 8/8 (provisioning/activation, control summary, unavailable Holding state) and engineering-recovery.test.ts 1/1 (encrypted isolated snapshot/restore and compatible rollback) pass; typecheck and structure pass. Customer Holding migration commands are covered by platform_administration/feature-migration-runs; other mutation workflows remain tracked separately."
+      "gap": "Closed against the registered read/inspection scope. Browser verified desktop and mobile on the erpx-internal Manage ERPX page: Operational health (3 customers, 0 pending/dead/claimed with billing/jobs heartbeats), per-Holding operations (acme/northstar healthy; erpx unavailable with the actionable 'Holding database or operational tables are unavailable' state), schema migration status per Holding, Holding lifecycle and Customer Holdings (Acme Group · Acme Corporation) from the persisted control-plane snapshot. Registered platform-operations.test.ts 8/8 (provisioning/activation, control summary, unavailable Holding state) and engineering-recovery.test.ts 1/1 (encrypted isolated snapshot/restore and compatible rollback) pass; typecheck and structure pass. Customer Holding migration commands are covered by platform_administration/feature-migration-runs; other mutation workflows remain tracked separately."
     },
     {
       "id": "platform_administration/feature-connectors",
@@ -3982,7 +3982,7 @@
         "platform-native-operations"
       ],
       "sourceRef": "ops/macos/erpxctl.py",
-      "gap": "Closed against the registered read/inspection scope. Browser verified desktop and mobile on the erpx-internal Manage ERPX page: Operational health (3 customers, 0 pending/dead/claimed with billing/jobs heartbeats), per-Holding operations (acme/northstar healthy; erpx unavailable with the actionable 'Holding database or operational tables are unavailable' state), schema migration status per Holding, Holding lifecycle and Customer Holdings (Acme Group \u00b7 Acme Corporation) from the persisted control-plane snapshot. Registered platform-operations.test.ts 8/8 (provisioning/activation, control summary, unavailable Holding state) and engineering-recovery.test.ts 1/1 (encrypted isolated snapshot/restore and compatible rollback) pass; typecheck and structure pass. Infrastructure mutation commands remain retained and are outside the registered read/inspection workflow."
+      "gap": "Closed against the registered read/inspection scope. Browser verified desktop and mobile on the erpx-internal Manage ERPX page: Operational health (3 customers, 0 pending/dead/claimed with billing/jobs heartbeats), per-Holding operations (acme/northstar healthy; erpx unavailable with the actionable 'Holding database or operational tables are unavailable' state), schema migration status per Holding, Holding lifecycle and Customer Holdings (Acme Group · Acme Corporation) from the persisted control-plane snapshot. Registered platform-operations.test.ts 8/8 (provisioning/activation, control summary, unavailable Holding state) and engineering-recovery.test.ts 1/1 (encrypted isolated snapshot/restore and compatible rollback) pass; typecheck and structure pass. Infrastructure mutation commands remain retained and are outside the registered read/inspection workflow."
     },
     {
       "id": "platform_administration/feature-backup-recovery",
@@ -4023,7 +4023,7 @@
         "platform-native-migration-run"
       ],
       "sourceRef": "packages/server-platform_administration/src/public/platform-operations.ts",
-      "gap": "Closed. Native platform migration run is browser verified from erpx-management: 412\u2192412 with pending 0; platform_migration_runs receipt succeeded for h001, replay returns the same run id with one row; holding migration rows retained. h003 remains excluded from managed Holding databases by existing design."
+      "gap": "Closed. Native platform migration run is browser verified from erpx-management: 412→412 with pending 0; platform_migration_runs receipt succeeded for h001, replay returns the same run id with one row; holding migration rows retained. h003 remains excluded from managed Holding databases by existing design."
     },
     {
       "id": "platform_administration/feature-temporary-access",
@@ -4845,7 +4845,7 @@
         "maintenance-native-http"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Closed. Work and preventive-plan detail/history reads run on the native Maintenance owner and are browser verified in the keyed workspace: the maintenance list rendered AST-ACCEPT \u00b7 Forklift inspection, the work detail drawer showed the immutable history \u201cVersion 1 \u00b7 open \u00b7 Opened for acceptance\u201d, and the plan detail drawer showed the \u201cactivate\u201d history on plan-acceptance. The native router is mounted through maintenanceCompanies and the existing-business feature; create/downtime/completion/blocked-work remain separate partial workflows."
+      "gap": "Closed. Work and preventive-plan detail/history reads run on the native Maintenance owner and are browser verified in the keyed workspace: the maintenance list rendered AST-ACCEPT · Forklift inspection, the work detail drawer showed the immutable history “Version 1 · open · Opened for acceptance”, and the plan detail drawer showed the “activate” history on plan-acceptance. The native router is mounted through maintenanceCompanies and the existing-business feature; create/downtime/completion/blocked-work remain separate partial workflows."
     },
     {
       "id": "operations/feature-exception-queue",
@@ -4943,7 +4943,7 @@
         "operations-native-route-cutover"
       ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "Closed. The Operations summary is rendered from the native queue read and browser verified: the page showed `1 active \u00b7 0 awaiting review \u00b7 0 escalated \u00b7 0 past target` while the exception was open and `0 active` after it was cancelled, with the source-area count `pos-ops \u00b7 1` during the open state. No separate summary write operation exists in this scope."
+      "gap": "Closed. The Operations summary is rendered from the native queue read and browser verified: the page showed `1 active · 0 awaiting review · 0 escalated · 0 past target` while the exception was open and `0 active` after it was cancelled, with the source-area count `pos-ops · 1` during the open state. No separate summary write operation exists in this scope."
     },
     {
       "id": "procurement/requisitions",
@@ -5037,7 +5037,7 @@
         "quality-http"
       ],
       "sourceRef": "packages/server-quality/src/public/quality.ts",
-      "gap": "Historical native slice. Native Quality workspace/detail is mounted and browser verified: the hold detail at /supply/inventory-quality/quality/quality-hold-acceptance/overview shows Inspection history 1 record \u00b7 pass \u00b7 Recorded by usr_nisa \u00b7 Visual inspection passed \u00b7 Reviewed hold version 2. Specification/measurement setup belongs to the separate inspections/setup workflows and remains retained there. Spec save/activate and measurement writes are now native too; attachment-bearing inspections and notification handoff remain retained in the inspections workflow. Correction at e208578b4: Quality workspace/detail still reads TypeScript and overlays native results or returns the legacy result. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
+      "gap": "Historical native slice. Native Quality workspace/detail is mounted and browser verified: the hold detail at /supply/inventory-quality/quality/quality-hold-acceptance/overview shows Inspection history 1 record · pass · Recorded by usr_nisa · Visual inspection passed · Reviewed hold version 2. Specification/measurement setup belongs to the separate inspections/setup workflows and remains retained there. Spec save/activate and measurement writes are now native too; attachment-bearing inspections and notification handoff remain retained in the inspections workflow. Correction at e208578b4: Quality workspace/detail still reads TypeScript and overlays native results or returns the legacy result. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
     },
     {
       "id": "quality/release-gates",
@@ -5175,7 +5175,7 @@
         "people-payroll-native-summary"
       ],
       "sourceRef": "packages/server-people_payroll/src/public/people-payroll.ts",
-      "gap": "Closed. Native posted payroll summary is mounted and browser verified: /people/people/payroll/dashboard shows Posted payroll by pay month with 2026-11 \u00b7 USD \u00b7 1 run \u00b7 1 person \u00b7 gross 1000.00 \u00b7 deductions 100.00 \u00b7 employer 200.00 \u00b7 net 900.00 from the posted payroll run/item."
+      "gap": "Closed. Native posted payroll summary is mounted and browser verified: /people/people/payroll/dashboard shows Posted payroll by pay month with 2026-11 · USD · 1 run · 1 person · gross 1000.00 · deductions 100.00 · employer 200.00 · net 900.00 from the posted payroll run/item."
     },
     {
       "id": "people_payroll/feature-leave-requests",
@@ -5264,7 +5264,7 @@
         "crm-native-pipeline-http"
       ],
       "sourceRef": "packages/server-crm/src/public/crm.ts",
-      "gap": "Native CRM command transport is mounted and browser verified for lead reassign/disqualify/reopen and opportunity link-quote/negotiate/win/lose/reopen, with CAS events, receipts, audit/outbox and Collaboration lead notification. Lead create/qualify, opportunity win-pms and the Marketing\u2192Sales handoff remain retained/fail-closed; read directory/entitlement ports still present Owner unavailable."
+      "gap": "Native CRM command transport is mounted and browser verified for lead reassign/disqualify/reopen and opportunity link-quote/negotiate/win/lose/reopen, with CAS events, receipts, audit/outbox and Collaboration lead notification. Lead create/qualify, opportunity win-pms and the Marketing→Sales handoff remain retained/fail-closed; read directory/entitlement ports still present Owner unavailable."
     },
     {
       "id": "crm/feature-sales-handoff",
@@ -5402,7 +5402,7 @@
         "manufacturing-native-bom-http"
       ],
       "sourceRef": "packages/server-manufacturing/src/public/production.ts",
-      "gap": "Closed for the registered native BOM/formula register slice. The BOM target now mounts for the configured operations Company, the owner/router accepts the registered development Holding port, the private API boundary admits the GET specifications path, and the client accepts the same port-bearing Holding origin. Browser verified desktop and mobile at /manufacturing?company=acme-co: the native \"BOM and routing register\" renders Acme desk assembly \u00b7 approved \u00b7 bom \u00b7 version 1 from the native owner. The production console draft/approve controls remain retained and are tracked by the production workflows; this closure covers the registered specification register slice."
+      "gap": "Closed for the registered native BOM/formula register slice. The BOM target now mounts for the configured operations Company, the owner/router accepts the registered development Holding port, the private API boundary admits the GET specifications path, and the client accepts the same port-bearing Holding origin. Browser verified desktop and mobile at /manufacturing?company=acme-co: the native \"BOM and routing register\" renders Acme desk assembly · approved · bom · version 1 from the native owner. The production console draft/approve controls remain retained and are tracked by the production workflows; this closure covers the registered specification register slice."
     },
     {
       "id": "manufacturing/feature-labor-output",
@@ -6760,7 +6760,7 @@
   ],
   "executionPlan": {
     "generatedAt": "2026-11-10T22:40:10+07:00",
-    "sourceHead": "b9b2f147a759300de65507727fe4eb81493adf81",
+    "sourceHead": "447cf3841b76b669f9b98dc404d8f47eb64e9798",
     "interpretation": "Model-neutral migration-first execution. Implementation progress is independent of strict owner/workflow qualification. Inventory is not implementation; unqualified does not mean no Rust code. The seven surface owners are outside the 41-owner denominator. Historical evidence remains scoped to its original source.",
     "ownerTotals": {
       "brand": {
@@ -9166,6 +9166,12 @@
           "bundleChecklistTotal": 18
         },
         "acceptance": false
+      },
+      {
+        "at": "2026-11-27T19:04:52.713Z",
+        "commit": "447cf3841b76b669f9b98dc404d8f47eb64e9798",
+        "bundles": [],
+        "evidence": "Retired 58 Next route files (20 shared handlers, 38 app re-exports): seven platform Admin routes, six Field Service handlers, seven Support/service-team handlers. Added exact holding gateway paths, cleaned generated manifests, and fixed the billing forecast unknown-Holding response. Field Service readback client remains a tracked follow-up."
       }
     ],
     "historicalExecutionPlans": [
@@ -9257,15 +9263,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16220,
+    "revision": 16238,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261128-route",
       "agentId": "lead",
       "startedAt": "2026-11-27T18:37:24.221Z",
-      "heartbeatAt": "2026-11-27T18:50:01.988Z",
-      "expiresAt": "2026-11-27T19:20:01.988Z",
+      "heartbeatAt": "2026-11-27T19:04:59.145Z",
+      "expiresAt": "2026-11-27T19:34:59.145Z",
       "generation": 225,
       "tokenHash": "32082f670a6f8aac8b5cfee007842097505e0fb379d299c9043b25f7aa71813e"
     },
@@ -225054,7 +225060,9 @@
         "title": "Retire Field Service Next API routes after native cutover",
         "scope": "Delete the Field Service and service-team Next route handlers and every app re-export after the already-mounted native Axum routes are proven to execute the read/command and return the payload. Preserve the exact response envelope in the client or a presentation helper, not in a Next backend route. Gateway persistence is lead-owned; the worker proves with exact ERPX_DEV_NATIVE_PATHS entries.",
         "workflowIds": [],
-        "dependsOn": [],
+        "dependsOn": [
+          "cutover.nextapi.field-service-client"
+        ],
         "requiredPorts": [],
         "allowedPaths": [
           "packages/feature-service/src/**",
@@ -225066,29 +225074,22 @@
           "route:field-service",
           "owner:field_service"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261128-route",
-          "agentId": "hy4-field",
-          "claimedAt": "2026-11-27T18:41:40.319Z",
-          "heartbeatAt": "2026-11-27T18:50:01.988Z",
-          "expiresAt": "2026-11-27T19:20:01.988Z",
-          "generation": 225
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Delete the Field Service Next handlers and app re-exports; move route-import tests to the native transport and prove the exact gateway entries.",
+        "blocker": "handoff",
+        "nextAction": "After the client fix is migrated and pushed, re-verify the Field Service browser confirmation and close this route-retirement task.",
         "handoff": {
           "runId": "run-20261128-route",
           "agentId": "hy4-field",
-          "at": "2026-11-27T18:41:40.018Z",
-          "previousStatus": "in_progress",
-          "reason": "released with work preserved",
-          "nextAction": "Delete the Field Service/service-team Next handlers and app re-exports; move route-import tests to the native transport and prove the exact gateway entries."
+          "at": "2026-11-27T19:03:33.766Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked on cutover.nextapi.field-service-client: native-reserve-command still uses retired GET query readbacks"
         },
         "scopeRefinementRequired": false
       },
@@ -225114,31 +225115,58 @@
           "route:support",
           "owner:support"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261128-route",
-          "agentId": "hy4-support",
-          "claimedAt": "2026-11-27T18:41:40.801Z",
-          "heartbeatAt": "2026-11-27T18:50:01.988Z",
-          "expiresAt": "2026-11-27T19:20:01.988Z",
-          "generation": 225
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "9249b9c18a8fc95b405ee51574898ed07958ff4a",
+        "lastPushedSha": "447cf3841b76b669f9b98dc404d8f47eb64e9798",
+        "checks": [
+          {
+            "command": "retirement:next-routes bun scripts/testing/api-cutover.ts count",
+            "result": "passed",
+            "sourceSha": "9249b9c18a8fc95b405ee51574898ed07958ff4a",
+            "before": 1364,
+            "after": 1306
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "9249b9c18a8fc95b405ee51574898ed07958ff4a"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "9249b9c18a8fc95b405ee51574898ed07958ff4a"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "9249b9c18a8fc95b405ee51574898ed07958ff4a"
+          },
+          {
+            "command": "bunx vitest run --config tests/config/vitest.unit.config.mts tests/unit/support/support-services.test.ts",
+            "result": "passed",
+            "sourceSha": "9249b9c18a8fc95b405ee51574898ed07958ff4a",
+            "details": "50/50 focused support route-gone, gateway and native payload tests pass"
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Delete the Support and service-team Next handlers and app re-exports; move route-import tests to the native transport and prove the exact gateway entries.",
+        "nextAction": "Support route retirement integrated; continue the next native route family",
         "handoff": {
           "runId": "run-20261128-route",
           "agentId": "hy4-support",
-          "at": "2026-11-27T18:41:40.473Z",
+          "at": "2026-11-27T19:04:32.394Z",
           "previousStatus": "in_progress",
           "reason": "released with work preserved",
-          "nextAction": "Delete the Support Next handlers and app re-exports; move route-import tests to the native transport and prove the exact gateway entries."
+          "nextAction": "Delete the Support and service-team Next handlers and app re-exports; move route-import tests to the native transport and prove the exact gateway entries."
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "cutover.nextapi.admin-platform",
@@ -225172,24 +225200,58 @@
           "route:admin-platform",
           "owner:platform_administration"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261128-route",
-          "agentId": "hy4-admin",
-          "claimedAt": "2026-11-27T18:42:58.556Z",
-          "heartbeatAt": "2026-11-27T18:50:01.988Z",
-          "expiresAt": "2026-11-27T19:20:01.988Z",
-          "generation": 225
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "014c6088ed7bf6e7bcb492a9aa152c59bba0ce98",
+        "lastPushedSha": "447cf3841b76b669f9b98dc404d8f47eb64e9798",
+        "checks": [
+          {
+            "command": "retirement:next-routes bun scripts/testing/api-cutover.ts count",
+            "result": "passed",
+            "sourceSha": "014c6088ed7bf6e7bcb492a9aa152c59bba0ce98",
+            "before": 1364,
+            "after": 1343
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "014c6088ed7bf6e7bcb492a9aa152c59bba0ce98"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "014c6088ed7bf6e7bcb492a9aa152c59bba0ce98"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "014c6088ed7bf6e7bcb492a9aa152c59bba0ce98"
+          },
+          {
+            "command": "bunx vitest run --config tests/config/vitest.unit.config.mts tests/unit/platform_administration/native-platform-administration-transport.test.ts",
+            "result": "passed",
+            "sourceSha": "014c6088ed7bf6e7bcb492a9aa152c59bba0ce98",
+            "details": "19/19 focused transport, route-gone, gateway-entry and native payload tests pass"
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Delete the seven native-ready platform Admin handlers and app re-exports; update route-import tests and prove the exact gateway entries.",
-        "handoff": null,
-        "scopeRefinementRequired": false
+        "nextAction": "Admin route retirement integrated; continue the next native route family",
+        "handoff": {
+          "runId": "run-20261128-route",
+          "agentId": "hy4-admin",
+          "at": "2026-11-27T19:04:26.008Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Delete the seven native-ready platform Admin handlers and app re-exports; update route-import tests and prove the exact gateway entries."
+        },
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "cutover.nextapi.sales-native",
@@ -225220,8 +225282,15 @@
           "route:sales-native",
           "owner:sales"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261128-route",
+          "agentId": "hy4-sales",
+          "claimedAt": "2026-11-27T19:03:42.358Z",
+          "heartbeatAt": "2026-11-27T19:04:59.145Z",
+          "expiresAt": "2026-11-27T19:34:59.145Z",
+          "generation": 225
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -225275,8 +225344,15 @@
           "route:records-pms-transfers",
           "owner:records"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261128-route",
+          "agentId": "hy4-records",
+          "claimedAt": "2026-11-27T19:03:42.514Z",
+          "heartbeatAt": "2026-11-27T19:04:59.145Z",
+          "expiresAt": "2026-11-27T19:34:59.145Z",
+          "generation": 225
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -225284,6 +225360,43 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Delete the three native-ready route families and app re-exports; update tests and prove the checked-in gateway entries.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "cutover.nextapi.field-service-client",
+        "goalId": "G4",
+        "owner": "field_service",
+        "kind": "migration",
+        "title": "Fix Field Service native readback client after route retirement",
+        "scope": "Replace the retired GET /field-service?native<Key>=... readback selectors in packages/feature-field_service with direct native public readback paths under /api/v1/holdings/{holding}/field-service/... . Preserve the existing receipt and evidence validation and the browser confirmation behavior. Do not modify Rust, gateway code, docs/status, root manifests, or any path outside the feature-field_service owner package and its tests.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-field_service/src/**",
+          "tests/unit/field_service/**"
+        ],
+        "resources": [
+          "route:field-service-client",
+          "owner:field_service"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261128-route",
+          "agentId": "hy4-field-client",
+          "claimedAt": "2026-11-27T19:03:34.065Z",
+          "heartbeatAt": "2026-11-27T19:04:59.145Z",
+          "expiresAt": "2026-11-27T19:34:59.145Z",
+          "generation": 225
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Replace the GET query readbacks with direct native public readback paths, preserve confirmation validation, add focused tests, commit and push.",
         "handoff": null,
         "scopeRefinementRequired": false
       }
@@ -225294,53 +225407,26 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2483,
-      "migratedPackets": 371,
+      "totalPackets": 2484,
+      "migratedPackets": 373,
       "statusCounts": {
-        "pending": 16,
+        "pending": 14,
         "in_progress": 3,
         "ready_for_integration": 165,
         "integrating": 0,
-        "migrated": 371,
-        "blocked": 1926,
+        "migrated": 373,
+        "blocked": 1927,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 225,
-    "updatedAt": "2026-11-27T18:50:01.992Z",
+    "updatedAt": "2026-11-27T19:04:59.149Z",
     "handoff": {
-      "fromRun": "run-20261121-a",
-      "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
-      "remoteVerifiedAt": "HEAD==origin==cfc105b0990deb5889c24472a78d5f50e23f1e2d; tree clean after coordinator close commit",
-      "summary": "Continued retirement-first slices with coordinator run-20261120-k. Authoritative KPI re-measured at 1832 (baseline 2894, target 0). Closed bounded native-authority slices: customer-return handoff notice, identity-access notifications (payroll advance/correction statements + native access-review worker), payroll-decision explicit notice, customer-portal notice, company-acceptance notices, law-source notice, test-only inventory-count notices, inventory-transit notice, native staff-task alert worker, social-task origin binding, workflow invoicing notice, the workflow next-action notice, staff-policy notifications via a company-keyed system transport, roster notifications (3 writers) through native roster coverage + explicit statements, the 4 legal-reminder notice writers via a holding-keyed system transport with fragment-input native generators, the 5 social-text mention/topic/reply writers via dedicated native statement generators, both customer-portal and support-ticket attachment access audit events, the POS attachment content-read event, the 3 legal destruction source/ledger/event writers, the 3 legal portal attachment binding writers, the 3 expense attachment withdrawal/revocation writers, the 3 document derivative writers, the beta upload expiry writer, the 2 legal portal access-event writers, the 4 legal portal attachment staging writers, the customer portal action writer, the 3 release acceptance event writers, the customer receipt issuance writer, the 4 legal portal draft/staging writers (completing legal-portal-repository.ts), the legal file preservation writer, the legal retention execution authorization writer, the finance hotel account creation writer, the payroll bank observation ignore writer, the 5 legal feature writers (dynamic table via table_name transport), the 5 legal approval writers, the 4 legal executed-copy review writers, the 6 legal signing/reference writers, the 3 legal trust/processing writers, the legal access event writer, the 2 legal document access-event writers (citation/knowledge), the 7 legal governance writers, the 7 legal retention writers, the 7 legal operations writers, the 11 legal document writers, the 10 legal law-corpus writers, the 11 legal service writers, the 14 legal destruction-worker writers, the 14 legal portal writers, the 2 residual legal access/event writers, the legal envelope-expiry writer (holding-keyed fragment transport), the 3 finance book-adjustment writers, the 3 finance planning/report writers, the 3 finance journal-reversal writers, the 4 finance tax-identity writers, the 2 finance due-draft writers, the 4 finance intercompany-pair writers, the 3 payroll advance-deduction writers, the 3 payroll final-pay cancellation writers, the 2 payroll expense-draft writers, the 3 finance sales-defaults writers, the 2 payroll statutory-profile writers, the 2 finance accounting-profile writers, the 2 finance hospitality tax-document writers, the 2 finance PMS-import writers, the 2 finance journal-planning writers, the finance invoice line-version writer, the finance expansion review-file writer, the finance/commerce journal-line base-carry writer, the finance/payroll remittance-match writer, the finance/POS party writer, the finance/payroll other-remittance match writer, the 3 finance group-edition writers, the finance company-tool writer, the 2 finance payroll-owner writers, the 2 finance due-draft worker writers, the finance supplier-bill draft-void writer, 3 people/payroll writers (employee, payslip, expense-payment cancel), 3 more (leave evidence manifest, 2 calendar prep-task writes), 2 more (statutory remittance, staff level assignment), and 9 workflow command-assertion cleanup writers, then 4 more, then 17 more via async guards conversion, then 5 more in async callbacks, then 8 more (3 flatMap + 5 dynamic IN), then 8 more (key/guard/flatMap async), then 2 more (customer-portal, layout wrappers), then 6 more (agent, executive, guided-intake, approval, evaluation), then 5 more (records-request 2, pms 1, pos 2), then 5 more (collab agent/ai 5), then 4 more (people-eval-ai, beta, manufacturing 2, workflow commands), then 4 more (assets×2, legal, marketing) via native workflow_command_assertion_clear, 2 organization-channel statements, and 2 legal backfill attachment statements, and 2 beta AI reservation-expiry statements, and 2 legacy leave statements, and 2 project-worker starter statements, and 3 beta onboarding statements, and 2 organization relocation statements, and 3 hire handoff statements, and 3 organization node-channel statements (also repaired a malformed handoff adapter from the prior commit), 1 messaging backfill statement, 4 legal job-health statements, 5 finance collection statements, 5 finance calculation-engine statements, 5 finance intercompany statements, 5 finance starter statements, and 3 organization draft-placement statements, and 6 orphan customer-authority write statements deleted (no callers, native owns commands), and the last command_assertions writer moved to native-owned SQL contract (KPI command_assertions=0). Each recorded native statement/worker authority, full SQL parity, TS writer+barrel deletion, tagged oracle fixtures with removalTaskId/removalCondition, and before/after KPI checks. Verified cargo check/test, both typechecks, targeted unit suites, ledger validate, non-force push and remote SHA. Native finance reporting statement package/event + year closing generators added. Native inbox event/delivery/notice/target statements added. Native accrual schedule/journal/run/event generators added. Two remaining orphan 1-write helpers deleted (marketing crm reservation touch, runtime holding binding effects). Native PMS finance fact statements added (party/invoice/payment/allocation/bank-match). Native finance book opening/rule/dimension statements added. Native finance withholding assessment/line/document statements added. Native Thai document sequence/issue/event/change statements added. Native Thai document and billing correction statements added. Native finance asset/event/disposal/depreciation statements added. Native finance instrument edition/run/bank-match statements added. Native finance refund obligation/instruction/payment statements added. Native withholding remittance package/remittance/bank-match statements added. Native asset-policy SQL contract (11 statements) added; sync repository signature preserved. Native business-contract SQL contract (9 statements) added. Native bank automation CSV/import/match-group/target statements added. Native tax-register entry/correction/statutory-package/calculation-run statements added. Native group-ownership SQL contract (10 statements) added. Native commerce-facts SQL contract (10 statements) added. Native consolidation SQL contract (13 statements incl dynamic fragment) added. Native POS core-facts SQL contract (11 statements) added. Native company-money SQL contract (7 statements) added. Native finance-AI SQL contract (17 statements) added. Native expense-effects SQL contract (6 statements) added. Native main-finance SQL contract (49 statements) added; finance owner almost fully retired. Finance owner KPI writer count is now 0 (all finance SQL literals native-owned). Native technology-provisioning SQL contract (15 literals / 14 KPI writes) added; people_payroll owner started. Native leave self-service SQL contract (15 statements) added. Native people-evaluation SQL contract (16 statements) added. Native people-roster SQL contract (21 statements) added. Native people-lifecycle SQL contract (25 statements) added. Native main people-payroll SQL contract (44 KPI writes) added. People payroll owner KPI writer count is now 0 (all 118 remaining SQL literals native-owned via 24 file contracts).",
-      "lastKpi": 994,
-      "statusCounts": {
-        "pending": 25,
-        "in_progress": 1,
-        "ready_for_integration": 0,
-        "integrating": 0,
-        "migrated": 304,
-        "blocked": 91,
-        "deferred": 1,
-        "done": 51
-      },
-      "nextGoal": "Continue coordinator run-20261120-k. Remaining legal writes (31) are mostly company-less workers/jobs and command-assertion cleanup that need either a system-context native transport or native worker replacement; finance/people_payroll/collaboration/files packets remain. A1/full acceptance deferred; no staging/production.",
-      "nextCommands": [
-        "bun scripts/testing/rust-migration-work.ts status --json  # confirm coordinator run-20261120-k, heartbeat fresh",
-        "git grep -I -o -E \"INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET\" HEAD -- \":(glob)packages/server-*/src/**/*.ts\" | wc -l  # currently 1489",
-        "cargo check -p erpx-service --features existing-business,private-development-api && cargo test -p erpx-server-collaboration --lib notification_statement",
-        "bunx tsc --noEmit && bunx tsc --noEmit --project tests/config/tsconfig.json",
-        "bun scripts/testing/rust-migration-work.ts validate  # must be {\"valid\": true}"
-      ],
-      "ownerKpi": {
-        "finance": 0,
-        "people_payroll": 0,
-        "collaboration": 88,
-        "files": 85,
-        "legal": 18,
-        "workflow": 69
-      }
+      "fromRun": "run-20261128-route",
+      "verifiedPushedCheckpoint": "447cf3841b76b669f9b98dc404d8f47eb64e9798",
+      "remoteVerifiedAt": "HEAD==origin==447cf3841b76b669f9b98dc404d8f47eb64e9798",
+      "summary": "Retired 58 Next route files (20 shared handlers, 38 app re-exports): seven platform Admin routes, six Field Service handlers, seven Support/service-team handlers. Added exact holding gateway paths, cleaned generated manifests, and fixed the billing forecast unknown-Holding response. Field Service readback client remains a tracked follow-up."
     },
     "lastRecovery": {
       "previousRunId": "run-20261127-g",
@@ -225350,7 +225436,7 @@
       "wipReviewed": true,
       "previousRunStopped": true
     },
-    "lastPushedSha": "b14495f3201d47f709608357b1990b8b366a9d4e",
+    "lastPushedSha": "447cf3841b76b669f9b98dc404d8f47eb64e9798",
     "lastKpi": 1942,
     "statusCounts": {
       "done": 51,
@@ -225361,5 +225447,5 @@
       "deferred": 1
     }
   },
-  "lastPushedSha": "8a08591a108f22bd17f7bd5daee6479472d10b62"
+  "lastPushedSha": "447cf3841b76b669f9b98dc404d8f47eb64e9798"
 }

@@ -1,4 +1,9 @@
 import {afterEach,describe,expect,test} from 'vitest';
+import {existsSync,readFileSync} from 'node:fs';
+import {resolve} from 'node:path';
+import {nativeApiPath} from '../../../scripts/local/native-api-proxy';
+import {expandNativeApiPaths,loadNativeApiPaths} from '../../../scripts/local/native-api-paths';
+import {activeHoldingHosts} from '../../../packages/contracts/src/holding-hosts';
 import {createPriceListApplication,type PriceListRepository,type PriceListMutation} from "@erpx/server-sales/application/price-lists";
 import {createFollowupApplication,type FollowupRepository} from "@erpx/server-sales/application/followups";
 import {createSalesCustomerApplication,type SalesCustomerRepository} from "@erpx/server-sales/application/customers";
@@ -505,4 +510,62 @@ test('final-root Sales projections reuse the one owner fixed SQL for notices and
  expect(root.commerce_customer_notifications).toBe(owner.commerce_customer_notifications);
  expect(root.customer_followups).toBe(owner.customer_followups);
  expect(Object.keys(root)).toEqual(['commerce_customer_notifications','customer_contact_note_history','customer_contact_notes','customer_followup_events','customer_followups']);
+});
+
+describe('Sales/CRM native route retirement',()=>{
+ const root=resolve(__dirname,'../../..');
+ const read=(path:string)=>readFileSync(resolve(root,path),'utf8');
+ const salesApi='packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]';
+ const appApi=(app:string)=>`apps/${app}/src/app/api/v1/holdings/[holdingSlug]`;
+ const retired=[
+  `${salesApi}/customers/route.ts`,`${salesApi}/crm/activities/route.ts`,`${salesApi}/customer-duplicates/route.ts`,`${salesApi}/customer-notes/route.ts`,`${salesApi}/customer-identity/route.ts`,
+  ...['sales','compat'].flatMap(app=>['customers','crm/activities','customer-duplicates','customer-notes','customer-identity'].map(path=>`${appApi(app)}/${path}/route.ts`)),
+ ];
+ test('the five shared handlers and all ten app re-exports are deleted',()=>{
+  expect(retired).toHaveLength(15);
+  for(const path of retired) expect(existsSync(resolve(root,path)),path).toBe(false);
+ });
+ const native=[
+  ['GET','customers'],['GET','crm/activities'],['POST','crm/activities'],
+  ['GET','customer-duplicates'],['POST','customer-duplicates'],
+  ['GET','customer-notes'],['POST','customer-notes'],
+  ['GET','customer-identity'],['POST','customer-identity'],
+ ] as const;
+ const config=loadNativeApiPaths(resolve(root,'scripts/local/native-api-paths.json'));
+ const hosts=activeHoldingHosts();
+ const environment={NODE_ENV:'test' as const,ERPX_DEV_NATIVE_PATHS:expandNativeApiPaths(config,hosts).paths};
+ test('the checked-in gateway holds exact method/path entries and no wildcard substitute',()=>{
+  const paths=config.holdingPaths??[],prefixes=config.holdingPrefixes??[];
+  for(const [method,path] of native) expect(paths).toContainEqual({method,path});
+  expect(paths.filter(entry=>native.some(([method,path])=>method===entry.method&&path===entry.path))).toHaveLength(native.length);
+  for(const [,path] of native) expect(prefixes).not.toContain(path);
+ });
+ test('nativeApiPath accepts each registered holding route and rejects neighbours',()=>{
+  for(const host of hosts) for(const [method,path] of native){
+   const base=`/api/v1/holdings/${host.holdingSlug}/${path}`;
+   expect(nativeApiPath(environment,`${base}?cursor=next`,host.hostname,method),`${host.hostname} ${method} ${base}`).toBe(true);
+   expect(nativeApiPath(environment,base,host.hostname,'PUT')).toBe(false);
+   expect(nativeApiPath(environment,`${base}/extra`,host.hostname,method)).toBe(false);
+   expect(nativeApiPath(environment,base,'unregistered.example.test',method)).toBe(false);
+  }
+ });
+ test('each native route and method is registered in Rust and executes SQL, not a plan',()=>{
+  const owners=[
+   {adapter:'packages/server-customer_360/src/adapters/directory_http.rs',routes:[['"/api/v1/holdings/{holding_slug}/customers"','get(read_directory)']],composition:'src/composition/src/customer_360.rs',markers:['CustomerDirectoryHttpBackend','directory_page','execute_with_sources_deferred','sqlx::PgConnection']},
+   {adapter:'packages/server-crm/src/adapters/activity_workspace_http.rs',routes:[['"/api/v1/holdings/{holding_slug}/crm/activities"','get(read_workspace)']],composition:'src/composition/src/crm_activity_workspace.rs',markers:['CrmActivityWorkspaceHttpBackend','execute_with_sources_deferred','sqlx::query']},
+   {adapter:'packages/server-crm/src/adapters/activities_http.rs',routes:[['"/api/v1/holdings/{holding_slug}/crm/activities"','post(create_activity)'],['"/api/v1/holdings/{holding_slug}/crm/activities/{activity_id}/changes"','post(change_activity)']],composition:'src/composition/src/crm.rs',markers:['CrmActivityCommandHttpBackend','execute_with_sources_deferred','sqlx::']},
+   {adapter:'packages/server-customer_authority/src/adapters/duplicates_http.rs',routes:[['"/api/v1/holdings/{holding_slug}/customer-duplicates"','get(read).post(command)']],composition:'src/composition/src/customer_authority.rs',markers:['CustomerDuplicateHttpBackend','duplicate_review_workspace','execute_with_sources_deferred']},
+   {adapter:'packages/server-customer_authority/src/adapters/identity_http.rs',routes:[['"/api/v1/holdings/{holding_slug}/customer-identity"','get(read).post(command)']],composition:'src/composition/src/customer_authority.rs',markers:['CustomerIdentityHttpBackend','identity_workspace','execute_with_sources_deferred']},
+   {adapter:'packages/server-customer_360/src/adapters/notes_http.rs',routes:[['"/api/v1/holdings/{holding_slug}/customer-notes"','get(read).post(command)']],composition:'src/composition/src/customer_360_notes.rs',markers:['CustomerNotesHttpBackend','sqlx::query','INSERT INTO customer_contact_notes']},
+  ];
+  const composition=new Map<string,string>();
+  for(const owner of owners){
+   const source=read(owner.adapter);
+   for(const [path,method] of owner.routes){expect(source,path).toContain(path);expect(source,method).toContain(method);}
+   expect(source).not.toMatch(/plan[_-]?only|native[_-]?plan/i);
+   if(!composition.has(owner.composition)) composition.set(owner.composition,read(owner.composition));
+   const assembled=composition.get(owner.composition)!;
+   for(const marker of owner.markers) expect(assembled,marker).toContain(marker);
+  }
+ });
 });

@@ -1,4 +1,9 @@
+import {existsSync,readFileSync} from 'node:fs';
+import {fileURLToPath} from 'node:url';
+import {holdingHosts} from '@erpx/contracts/holding-hosts';
 import {describe,it,expect,vi} from 'vitest';
+import {expandNativeApiPaths,loadNativeApiPaths} from '../../../scripts/local/native-api-paths';
+import {nativeApiPath} from '../../../scripts/local/native-api-proxy';
 vi.mock('next/headers',()=>({headers:async()=>new Headers()}));
 import {
   createNativePmsClient,
@@ -329,5 +334,43 @@ describe('native PMS report transport',()=>{
    const client=createNativePmsClient(JSON.parse(config()),transport);
    await expect(client.report(incoming(),reportActor,{view:'range',holdingSlug:'acme',property:'property-1',from:'2026-11-01',to:'2026-11-02',branchSlug:'north'})).rejects.toMatchObject({code:'NATIVE_PMS_RESPONSE_INVALID'});
   }
+ });
+});
+
+describe('PMS reports Next route retirement',()=>{
+ const read=(file:string)=>readFileSync(fileURLToPath(new URL(`../../../${file}`,import.meta.url)),'utf8');
+ const checkedIn=loadNativeApiPaths(fileURLToPath(new URL('../../../scripts/local/native-api-paths.json',import.meta.url)));
+ const environment={NODE_ENV:'test' as const,ERPX_DEV_NATIVE_PATHS:expandNativeApiPaths(checkedIn,holdingHosts).paths};
+
+ it('keeps the shared GET handler and both app re-exports unresolvable',()=>{
+  for(const file of [
+   'packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/reports/route.ts',
+   'apps/pms/src/app/api/v1/holdings/[holdingSlug]/pms/reports/route.ts',
+   'apps/compat/src/app/api/v1/holdings/[holdingSlug]/pms/reports/route.ts',
+  ]) expect(existsSync(fileURLToPath(new URL(`../../../${file}`,import.meta.url))),file).toBe(false);
+  expect(existsSync(fileURLToPath(new URL('../../../packages/server-pms/src/adapters/report_http.rs',import.meta.url)))).toBe(true);
+ });
+
+ it('matches the checked-in reports prefix on every registered Holding',()=>{
+  expect(checkedIn.holdingPrefixes).toContain('pms/reports');
+  for(const {hostname,holdingSlug} of holdingHosts){
+   const url=`/api/v1/holdings/${holdingSlug}/pms/reports?view=range&property=property-1&from=2026-11-01&to=2026-11-02`;
+   expect(nativeApiPath(environment,url,hostname,'GET'),hostname).toBe(true);
+   expect(nativeApiPath(environment,url,'unregistered.example.test','GET')).toBe(false);
+  }
+ });
+
+ it('executes PMS SQL in the native handler and leaves the browser {data} envelope intact',()=>{
+  const http=read('packages/server-pms/src/adapters/report_http.rs');
+  expect(http).toContain('/api/v1/holdings/{holding_slug}/pms/reports/{report}');
+  expect(http).toContain('/api/v1/holdings/{holding_slug}/pms/reports');
+  expect(http).toContain('PmsReportKind::parse(view)');
+  expect(http).toContain('use sqlx::{PgConnection, Row, postgres::PgRow};');
+  expect(http).toContain('.fetch_all(&mut *c)');
+  expect(http).toContain('.fetch_one(&mut *c)');
+  expect(http).toContain('serde_json::json!({"data": self.data, "context": self.context})');
+  const client=read('packages/feature-pms/src/components/range-reports.tsx');
+  expect(client).toContain('return json.data;');
+  expect(client).not.toContain('canonicalDestinationLinks');
  });
 });

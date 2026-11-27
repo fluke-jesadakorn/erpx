@@ -1,18 +1,20 @@
 {
   "version": 1,
   "planRef": "docs/production-plan.md#rust-migration-current",
-  "sourceSha": "7bebafd004103bd021247ca36dfa4c9a56c4743a",
-  "generatedAt": "2026-11-27T18:50:32.076Z",
+  "sourceSha": "447cf3841b76b669f9b98dc404d8f47eb64e9798",
+  "generatedAt": "2026-11-27T19:04:41.918Z",
   "interpretation": "Scout snapshot across the 250 shared/package API handlers. deleteReady is strict: exact native route/method, Rust SQL execution, no TS SQL/fallback, gateway entry, and a route-gone/native-payload test. The current cutover wave and subsequent Rust read ports must update this register.",
   "counts": {
     "handlers": 250,
-    "readyToDelete": 7,
-    "R1-native": 34,
+    "retired": 20,
+    "remaining": 230,
+    "deleteReady": 0,
+    "catchAlls": 56,
+    "R1-native": 21,
     "R2-native-exec": 7,
     "R3-ts-read": 173,
-    "R4-transport": 13,
-    "R5-provider": 23,
-    "catchAlls": 56
+    "R4-transport": 6,
+    "R5-provider": 23
   },
   "lanes": [
     {
@@ -279,7 +281,8 @@
         "Add tests asserting the Next catch-all returns 404 while each native owner route returns the payload.",
         "Delete the three app re-export files (apps/compat, apps/sales, apps/finance), then delete this handler file."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L01",
@@ -403,7 +406,8 @@
         "Make every native branch fail closed when unconfigured and delete TS adapters/barrels plus their oracles after tests are migrated to native seeding.",
         "Add a route-matrix test asserting Next 404 and native payload for every former subpath, delete the three app re-exports, then delete this file."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L01",
@@ -462,7 +466,8 @@
         "Port listPayments and statements reads to native SQL-executing routes and remove the TS purchasedFinanceRead/financeReadService dependencies from this path.",
         "Establish the gateway entry for GET /finance, add a test asserting Next 404 plus native payload parity, delete the two app re-exports, then delete this handler file."
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L02",
@@ -508,7 +513,8 @@
         "remove TS SQL/business fallback",
         "add gateway entry and cutover test, then delete handler and app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L02",
@@ -537,7 +543,8 @@
         "remove TS SQL/business fallback",
         "add gateway entry and cutover test, then delete handler and app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L02",
@@ -565,7 +572,8 @@
         "remove TS SQL/business fallback",
         "add gateway entry and cutover test, then delete handler and app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L02",
@@ -593,7 +601,8 @@
         "remove TS SQL/business fallback",
         "add gateway entry and cutover test, then delete handler and app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L02",
@@ -631,7 +640,8 @@
         "remove TS SQL/business fallback",
         "add gateway entry and cutover test, then delete handler and app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L02",
@@ -676,7 +686,8 @@
         "remove TS SQL/business fallback",
         "add gateway entry and cutover test, then delete handler and app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L02",
@@ -741,7 +752,8 @@
         "replace unit tests that import this Next handler with native-route payload tests",
         "delete handler and app re-exports after browser POST caller is pointed at native gateway path"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L02",
@@ -770,7 +782,8 @@
         "remove TS SQL/business fallback",
         "add gateway entry and cutover test, then delete handler and app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L02",
@@ -859,7 +872,8 @@
         "remove TS SQL/business fallback",
         "add gateway entry and cutover test, then delete handler and app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L02",
@@ -909,7 +923,8 @@
         "remove TS SQL/business fallback",
         "add gateway entry and cutover test, then delete handler and app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L02",
@@ -939,7 +954,8 @@
         "remove TS SQL/business fallback",
         "add gateway entry and cutover test, then delete handler and app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L02",
@@ -968,7 +984,8 @@
         "remove TS SQL/business fallback",
         "add gateway entry and cutover test, then delete handler and app re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L02",
@@ -1009,7 +1026,8 @@
         "remove TS SQL/business fallback",
         "add gateway entry and cutover test, then delete handler and app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L02",
@@ -1039,7 +1057,8 @@
         "remove TS SQL/business fallback",
         "add gateway entry and cutover test, then delete handler and app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L02",
@@ -1068,7 +1087,8 @@
         "remove TS SQL/business fallback",
         "add gateway entry and cutover test, then delete handler and app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L02",
@@ -1097,7 +1117,8 @@
         "remove TS SQL/business fallback",
         "add gateway entry and cutover test, then delete handler and app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L02",
@@ -1126,7 +1147,8 @@
         "remove TS SQL/business fallback",
         "add gateway entry and cutover test, then delete handler and app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L02",
@@ -1155,7 +1177,8 @@
         "remove TS SQL/business fallback",
         "add gateway entry and cutover test, then delete handler and app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L02",
@@ -1185,7 +1208,8 @@
         "remove TS SQL/business fallback",
         "add gateway entry and cutover test, then delete handler and app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L02",
@@ -1216,7 +1240,8 @@
         "remove TS SQL/business fallback",
         "add gateway entry and cutover test, then delete handler and app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L02",
@@ -1246,7 +1271,8 @@
         "remove TS SQL/business fallback",
         "add gateway entry and cutover test, then delete handler and app re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L02",
@@ -1275,7 +1301,8 @@
         "remove TS SQL/business fallback",
         "add gateway entry and cutover test, then delete handler and app re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L02",
@@ -1304,7 +1331,8 @@
         "remove TS SQL/business fallback",
         "add gateway entry and cutover test, then delete handler and app re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L02",
@@ -1359,7 +1387,8 @@
         "remove TS SQL/business fallback",
         "add gateway entry and cutover test, then delete handler and app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L02",
@@ -1388,7 +1417,8 @@
         "remove TS SQL/business fallback",
         "add gateway entry and cutover test, then delete handler and app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L03",
@@ -1436,7 +1466,8 @@
         "Move the purchased-read admission into the native owner and delete the TS SQL fallback",
         "Add gateway entry, then delete handler and both app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L03",
@@ -1475,7 +1506,8 @@
         "Move purchase admission into the Rust owner",
         "Add gateway entry, switch browser callers, then delete handler and app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L03",
@@ -1522,7 +1554,8 @@
         "Switch GET to the native detail owner and remove TS SQL/admission",
         "Add gateway entry, update callers, delete handler and app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L03",
@@ -1567,7 +1600,8 @@
         "Add exact-host gateway entry and switch policy caller to native path",
         "Delete handler and app re-exports after a route-gone/payload test lands"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L03",
@@ -1605,7 +1639,8 @@
         "Move GET callers to native reads",
         "Delete catch-all only after every subpath and method is native"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L03",
@@ -1633,7 +1668,8 @@
         "Add gateway entry and port the integration/e2e assertions to it",
         "Only then delete handler and app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L03",
@@ -1661,7 +1697,8 @@
         "Move browser callers and tests to native path",
         "Delete handler and app re-exports after parity"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L03",
@@ -1714,7 +1751,8 @@
         "Add a Rust owner HTTP integration test plus a route-gone assertion",
         "Delete handler and app re-exports only after the gateway owns all accepted subpaths"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L03",
@@ -1768,7 +1806,8 @@
         "Switch landedCostDetail off nativeInventoryReadAll and delete the TS batch binding",
         "Add gateway entry, move callers, then delete catch-all and app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L03",
@@ -1834,7 +1873,8 @@
         "Remove TS fallbacks and plan-only execution for pricing/order reads",
         "Add gateway entries per subpath, move all four app callers, then delete the catch-all"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L03",
@@ -1890,7 +1930,8 @@
         "Move pmsCommand writes to a Rust owner-write route that executes SQL",
         "Add gateway entry, switch three app callers, then delete handler and re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L03",
@@ -1946,7 +1987,8 @@
         "Add native reads for counts list/detail/options and gateway entries",
         "Delete the catch-all and all three app re-exports only when every subpath/method is native"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L03",
@@ -1978,7 +2020,8 @@
         "Prove attachment/PUT transport parity and move Front screens",
         "Only then delete the catch-all and its three app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L03",
@@ -2018,7 +2061,8 @@
         "Move remaining TS SQL branches and update browser command clients",
         "Delete catch-all and app re-exports after full parity"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L03",
@@ -2065,7 +2109,8 @@
         "Remove TS SQL reads/writes and keep the native profile writer",
         "Add gateway entries, update callers, then delete catch-all and app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L03",
@@ -2093,7 +2138,8 @@
         "Add gateway entry and port setup-command browser tests",
         "Delete handler and app re-exports after parity"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L03",
@@ -2154,7 +2200,8 @@
         "Add gateway entries for each native target and update browser command clients",
         "Delete handler and app re-exports once no multiplexed TS branch remains"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L04",
@@ -2207,7 +2254,8 @@
         "remove nativeRecordSearch transport only after gateway rewrites /records/search to /records/native-search",
         "add gateway entry and native-route parity test before removal"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L04",
@@ -2251,7 +2299,8 @@
         "implement native sanitization attestation command with exact generic route",
         "add gateway entry and native-route parity test before removal"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L04",
@@ -2296,7 +2345,8 @@
         "mount/alias native upload content route under the public path and remove TS URL rewriting",
         "add gateway entry and native-route parity test before removal"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L04",
@@ -2351,7 +2401,8 @@
         "implement native link-existing command and generic link read for all owners",
         "add gateway entry and native-route parity test before removal"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L04",
@@ -2432,7 +2483,8 @@
         "implement native generic reserve-file route at the public path and remove TS fallback",
         "add gateway entry and native-route parity test before removal"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L04",
@@ -2504,7 +2556,8 @@
         "make native bind the only authority, delete TS bind fallback and TS manifest reshaping",
         "add gateway entry and native-route parity test before removal"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L04",
@@ -2594,7 +2647,8 @@
         "add generic native POST /attachment-sets, remove ERPX_NATIVE_ATTACHMENT_READ_CONFIG gate and TS list/create fallbacks",
         "add gateway entry and native-route parity test before removal"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L04",
@@ -2667,7 +2721,8 @@
         "implement native generic /uploads reservation route and remove TS legacy policy/fallback",
         "add gateway entry and native-route parity test before removal"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L04",
@@ -2741,7 +2796,8 @@
         "mount native generic upload-content route and prove content/checksum/scan parity before deletion",
         "add gateway entry and native-route parity test before removal"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L04",
@@ -2786,7 +2842,8 @@
         "implement native derivative/publication command and route",
         "add gateway entry and native-route parity test before removal"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L04",
@@ -2840,7 +2897,8 @@
         "prove native byte/header parity and add an exact /attachments/{id}/content gateway path before deleting",
         "add gateway entry and native-route parity test before removal"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L04",
@@ -2920,7 +2978,8 @@
         "make native content route the sole authority for every owner and prove stream parity",
         "add gateway entry and native-route parity test before removal"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L04",
@@ -2999,7 +3058,8 @@
         "make native generic status read unconditional and delete TS fallback",
         "add gateway entry and native-route parity test before removal"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L04",
@@ -3071,7 +3131,8 @@
         "add gateway entry and native client parity, then delete TS bridges and re-exports",
         "add gateway entry and native-route parity test before removal"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L05",
@@ -3109,7 +3170,8 @@
         "Add native Platform page-layout route/rewrite or repoint callers to holding page-layout route",
         "Delete TS page-layout service SQL and handler"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L05",
@@ -3156,7 +3218,8 @@
         "Prove native assignment selection parity including cookie and revision semantics",
         "Repoint browser callers, add gateway entry, then delete handler"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L05",
@@ -3183,7 +3246,8 @@
       "deletionPlan": [
         "Provide native provider-context route with session/cookie parity before deletion"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L05",
@@ -3229,7 +3293,8 @@
         "Add gateway entry for POST path and a native-route payload test",
         "Delete handler and re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L05",
@@ -3265,7 +3330,8 @@
         "Delete handler and both app re-exports",
         "Keep zod request validation only if the native route does not already enforce it"
       ],
-      "estimatedEffort": "small"
+      "estimatedEffort": "small",
+      "status": "retired"
     },
     {
       "lane": "L05",
@@ -3300,7 +3366,8 @@
         "Add gateway entry and native payload/route-absence test",
         "Delete handler and both app re-exports"
       ],
-      "estimatedEffort": "small"
+      "estimatedEffort": "small",
+      "status": "retired"
     },
     {
       "lane": "L05",
@@ -3335,7 +3402,8 @@
         "Add gateway entry and native payload/route-absence test",
         "Delete handler and both app re-exports"
       ],
-      "estimatedEffort": "small"
+      "estimatedEffort": "small",
+      "status": "retired"
     },
     {
       "lane": "L05",
@@ -3404,7 +3472,8 @@
         "Port remaining Commercial subpaths and GET to native routes",
         "Only then delete the catch-all and re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L05",
@@ -3472,7 +3541,8 @@
       "deletionPlan": [
         "Port IAM read surface to native, then delete catch-all and re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L05",
@@ -3509,7 +3579,8 @@
         "Add a gateway rewrite to the native holding forecast route with holdingId",
         "Repoint next-month-forecast.tsx and add route-absence test, then delete handler and re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L05",
@@ -3554,7 +3625,8 @@
         "Add gateway entry and route-absence test",
         "Delete handler and both app re-exports"
       ],
-      "estimatedEffort": "small"
+      "estimatedEffort": "small",
+      "status": "retired"
     },
     {
       "lane": "L05",
@@ -3599,7 +3671,8 @@
       "deletionPlan": [
         "Port all platform Billing subpaths to native before deleting catch-all"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L05",
@@ -3624,7 +3697,8 @@
       "deletionPlan": [
         "Provide native platform target read that executes SQL in Rust before deletion"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L05",
@@ -3658,7 +3732,8 @@
       "deletionPlan": [
         "Port platform usage projection to Rust and repoint usage-console.tsx"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L05",
@@ -3693,7 +3768,8 @@
         "Add gateway entry and native payload/route-absence test (including metric source query)",
         "Delete handler and both app re-exports"
       ],
-      "estimatedEffort": "small"
+      "estimatedEffort": "small",
+      "status": "retired"
     },
     {
       "lane": "L05",
@@ -3728,7 +3804,8 @@
       "deletionPlan": [
         "Port remaining Beta surface to native before deleting catch-all"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L05",
@@ -3774,7 +3851,8 @@
         "Add gateway rewrite for PATCH to native POST or move browser callers to POST",
         "Prove every catch-all subpath is native, then delete handler and re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L05",
@@ -3827,7 +3905,8 @@
       "deletionPlan": [
         "Port all remaining technology subpaths to native routes before deleting catch-all"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L05",
@@ -3853,7 +3932,8 @@
       "deletionPlan": [
         "Implement native feature-catalogue read/write before deletion"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L05",
@@ -3899,7 +3979,8 @@
         "Add gateway entry and route-absence test",
         "Delete handler and both app re-exports"
       ],
-      "estimatedEffort": "small"
+      "estimatedEffort": "small",
+      "status": "retired"
     },
     {
       "lane": "L05",
@@ -3944,7 +4025,8 @@
       "deletionPlan": [
         "Make native agents read cover the full workspace payload, remove TS overlay, then delete handler"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L05",
@@ -3969,7 +4051,8 @@
       "deletionPlan": [
         "Provide native holding usage read with scope-aware projection before deletion"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L05",
@@ -3995,7 +4078,8 @@
       "deletionPlan": [
         "Port authority overview, appointments, flows and decisions to native before deleting catch-all"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L05",
@@ -4020,7 +4104,8 @@
       "deletionPlan": [
         "Add native flow preview route before deletion"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L05",
@@ -4066,7 +4151,8 @@
         "Add gateway entries for base and wildcard paths with runIdempotency and command routing checks",
         "Delete catch-all handler and both app re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "retired"
     },
     {
       "lane": "L05",
@@ -4101,7 +4187,8 @@
       "deletionPlan": [
         "Move holding_owner authority check into the native forecast service, add gateway entry and route-absence test, then delete"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L05",
@@ -4144,7 +4231,8 @@
       "deletionPlan": [
         "Port target and cost-review commands to native, then delete catch-all and re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L05",
@@ -4178,7 +4266,8 @@
       "deletionPlan": [
         "Implement native target period read and authority check before deletion"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L05",
@@ -4213,7 +4302,8 @@
       "deletionPlan": [
         "Port release acceptance commands and reads to native before deleting catch-all"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L05",
@@ -4247,7 +4337,8 @@
       "deletionPlan": [
         "Provide native readiness aggregation before deletion"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L05",
@@ -4273,7 +4364,8 @@
       "deletionPlan": [
         "Implement native Stripe webhook with signature proof and owner SQL execution before retirement"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L06",
@@ -4328,7 +4420,8 @@
         "add gateway rewrite /beta -> /feed and /stories",
         "delete handler and launcher re-export with a retirement test"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L06",
@@ -4368,7 +4461,8 @@
         "replace TS read-model merge with native payload",
         "delete handler and two re-exports after gateway/retirement test"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L06",
@@ -4405,7 +4499,8 @@
         "add retirement test for Next 404 and native receipt",
         "delete handler and two re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L06",
@@ -4442,7 +4537,8 @@
         "add retirement test",
         "delete handler and two re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L06",
@@ -4469,7 +4565,8 @@
         "port createAiDraft and its receipt contract to a native route before deleting",
         "delete handler and re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L06",
@@ -4516,7 +4613,8 @@
         "retire remaining betaHandler post actions",
         "delete handler and two re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L06",
@@ -4543,7 +4641,8 @@
         "port post-to-task command to a native owner route",
         "delete handler and re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L06",
@@ -4570,7 +4669,8 @@
         "port task-source read to native owner route",
         "delete handler and re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L06",
@@ -4607,7 +4707,8 @@
         "add retirement test",
         "delete handler and two re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L06",
@@ -4670,7 +4771,8 @@
         "remove TS fallback branches",
         "wire public /inbox/* to native and delete handler/re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L06",
@@ -4708,7 +4810,8 @@
         "remove TS publish fallback",
         "wire /handover to native and delete handler/re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L06",
@@ -4736,7 +4839,8 @@
         "port handover acknowledgement read/write to a native route",
         "delete handler and re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L06",
@@ -4783,7 +4887,8 @@
         "remove command-plan TS execution bridge",
         "wire public /operations to native and delete handler/re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L06",
@@ -4848,7 +4953,8 @@
         "add retirement test across all subpaths",
         "delete catch-all and two re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L06",
@@ -4886,7 +4992,8 @@
         "wire public /stories to native",
         "delete handler and re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L06",
@@ -4922,7 +5029,8 @@
         "add retirement test",
         "delete handler and two re-exports"
       ],
-      "estimatedEffort": "small"
+      "estimatedEffort": "small",
+      "status": "present"
     },
     {
       "lane": "L06",
@@ -4961,7 +5069,8 @@
         "wire /staff/* to native",
         "delete catch-all and two re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L06",
@@ -5007,7 +5116,8 @@
         "wire /approvals/* to native",
         "delete catch-all and two re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L06",
@@ -5064,7 +5174,8 @@
         "remove TS messaging fallbacks and files adapters",
         "wire /messaging/* to native and delete catch-all/re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L06",
@@ -5092,7 +5203,8 @@
         "port daily-plan read/save to a native owner route",
         "delete handler and re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L06",
@@ -5131,7 +5243,8 @@
         "wire /executive/* to native",
         "delete catch-all and two re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L06",
@@ -5169,7 +5282,8 @@
         "add retirement test",
         "delete handler and two re-exports"
       ],
-      "estimatedEffort": "small"
+      "estimatedEffort": "small",
+      "status": "present"
     },
     {
       "lane": "L06",
@@ -5209,7 +5323,8 @@
         "keep native rate-limit authority",
         "delete handler and re-exports with a provider-parity test"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L07",
@@ -5254,7 +5369,8 @@
         "Register a route-gone + native-payload test, then delete the shared handler and both app re-exports.",
         "Retire the now-unused canonicalDestinationLinks wrapper on this path only if no other consumer needs it."
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L07",
@@ -5300,7 +5416,8 @@
         "Switch the GET handler and any SSR consumers to that route, add gateway entries, then delete the shared handler and both app re-exports.",
         "Delete the dead packages/server-sales/src/adapters/followups.ts read branch once no consumer remains."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L07",
@@ -5355,7 +5472,8 @@
         "Move callers to the native slice, remove the TS fallback branch, add gateway entries.",
         "Delete the shared handler and both app re-exports after a route-gone test is registered."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L07",
@@ -5429,7 +5547,8 @@
         "Move create/identity/remaining opportunity commands to native routes including real SQL execution for identity changes.",
         "Add holding-host gateway entries and a route-gone test, then delete the shared handler and app re-exports."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L07",
@@ -5487,7 +5606,8 @@
         "Register a route-gone test that asserts native payload and context/shape, then delete the shared handler and both app re-exports.",
         "Retain canonicalDestinationLinks on the gateway if client hrefs must stay identical."
       ],
-      "estimatedEffort": "small"
+      "estimatedEffort": "small",
+      "status": "present"
     },
     {
       "lane": "L07",
@@ -5525,7 +5645,8 @@
         "Add public Holding-host GET/POST gateway entries to the native duplicates router with cookie/Idempotency-Key forwarding.",
         "Register a route-gone + native-payload test, then delete the shared handler and both app re-exports."
       ],
-      "estimatedEffort": "small"
+      "estimatedEffort": "small",
+      "status": "present"
     },
     {
       "lane": "L07",
@@ -5563,7 +5684,8 @@
         "Add public Holding-host GET/POST gateway entries to notes_http.rs with cookie/context and Idempotency-Key forwarding.",
         "Register a route-gone test asserting native notes payload and validation errors, then delete the shared handler and both app re-exports."
       ],
-      "estimatedEffort": "small"
+      "estimatedEffort": "small",
+      "status": "present"
     },
     {
       "lane": "L07",
@@ -5601,7 +5723,8 @@
         "Add public Holding-host GET/POST gateway entries to identity_http.rs with cookie/Idempotency-Key forwarding.",
         "Register a route-gone + native-payload test, then delete the shared handler and both app re-exports."
       ],
-      "estimatedEffort": "small"
+      "estimatedEffort": "small",
+      "status": "present"
     },
     {
       "lane": "L07",
@@ -5680,7 +5803,8 @@
         "Move the remaining campaign/handoff/public-form commands to native routes; remove the TS fallback branch.",
         "Add holding-host gateway entries and a route-gone test, then delete the shared handler and both app re-exports."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L07",
@@ -5762,7 +5886,8 @@
         "Add public Holding-host GET/POST gateway entries including the app-owned sources GET contract.",
         "Register a route-gone test, then delete the shared handler and both app re-exports (keep app GET override only if still required)."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L07",
@@ -5802,7 +5927,8 @@
         "Add public Holding-host gateway GET /reports/crm-marketing mapped to the native route.",
         "Register a route-gone test, then delete the shared handler and both app re-exports."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L08",
@@ -5845,7 +5971,8 @@
         "delete this handler and apps/service re-export",
         "retain native-parts-setup bridge only if another consumer still needs it"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "retired"
     },
     {
       "lane": "L08",
@@ -5899,7 +6026,8 @@
         "delete this handler and both app re-exports",
         "retain feature-field_service native-parts-setup bridge for other Field consumers"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "retired"
     },
     {
       "lane": "L08",
@@ -5969,7 +6097,8 @@
         "delete this handler and both app re-exports",
         "keep native-initial-count bridge only for any remaining non-deleted consumer"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "retired"
     },
     {
       "lane": "L08",
@@ -6011,7 +6140,8 @@
         "add Rust parity + route-gone test",
         "delete this handler and apps/service re-export"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "retired"
     },
     {
       "lane": "L08",
@@ -6096,7 +6226,8 @@
         "delete this handler and both app re-exports",
         "keep native-parts-setup bridge only for remaining non-deleted consumers"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "retired"
     },
     {
       "lane": "L08",
@@ -6220,7 +6351,8 @@
         "retire native-reserve.test.ts route imports and add Rust parity + route-gone test",
         "delete this handler, native-reserve.ts/native-part-reservation.ts if orphaned, and both app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "retired"
     },
     {
       "lane": "L08",
@@ -6271,7 +6403,8 @@
         "replace support-services.test.ts route load with Rust parity + route-gone test",
         "delete this handler and both app re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "retired"
     },
     {
       "lane": "L08",
@@ -6330,7 +6463,8 @@
         "replace support-services.test.ts route load with Rust parity + route-gone test",
         "delete this handler and both app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "retired"
     },
     {
       "lane": "L08",
@@ -6398,7 +6532,8 @@
         "delete this handler and both app re-exports",
         "keep native-support-ticket-portal bridge only if another consumer needs it"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "retired"
     },
     {
       "lane": "L08",
@@ -6448,7 +6583,8 @@
         "replace support-services.test.ts route load with Rust parity + route-gone test",
         "delete this handler and both app re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "retired"
     },
     {
       "lane": "L08",
@@ -6499,7 +6635,8 @@
         "replace support-services.test.ts route load with Rust parity + route-gone test",
         "delete this handler and both app re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "retired"
     },
     {
       "lane": "L08",
@@ -6551,7 +6688,8 @@
         "add Rust parity + route-gone test",
         "delete this handler and both app re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "retired"
     },
     {
       "lane": "L08",
@@ -6592,7 +6730,8 @@
         "add Rust parity + route-gone test",
         "delete this handler and both app re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "retired"
     },
     {
       "lane": "L09",
@@ -6625,7 +6764,8 @@
         "Rewrite integration/UAT tests to prove the Next route 404s and the native route returns the payload.",
         "Then delete this handler, both app re-exports, and the dead TS portal request adapters."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L09",
@@ -6657,7 +6797,8 @@
         "Port ORIGIN_FORBIDDEN, Idempotency-Key and expectedVersion conflict behavior.",
         "Rewrite tests to assert Next 404 plus native payload, then delete the handler and both re-exports."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L09",
@@ -6835,7 +6976,8 @@
         "Convert integration/UAT tests to assert Next 404 plus native payload per subpath.",
         "Only then delete the catch-all handler, both re-exports and the dead server-legal TS adapters."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L10",
@@ -6867,7 +7009,8 @@
         "Remove nativePmsReadAll/nativePmsReadFirst owner-plan bridges and TS fallbacks",
         "Rewire feature-pms browser clients to Rust/gateway, delete feature-booking handler and both app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L10",
@@ -6915,7 +7058,8 @@
         "Move TS seed/flow-assign logic into the native owner",
         "Cut over browser client to gateway/Rust, then delete catch-all handler and both app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L10",
@@ -6996,7 +7140,8 @@
         "Move images/upload and Stripe connect callback to dedicated native/provider routes",
         "Cut over browser clients, then delete catch-all handler and both app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L10",
@@ -7034,7 +7179,8 @@
         "Rewire browser callers to gateway/native, remove nativePosWorkspaceEligible fallback",
         "Delete handler and both app re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L10",
@@ -7061,7 +7207,8 @@
         "Port charts/accounts/periods/rates/mapping/warehouses/products commands to Rust owner HTTP routes with real SQL",
         "Rewire startup-command client and delete handler plus both app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L10",
@@ -7087,7 +7234,8 @@
         "Add a native POS startup prerequisites/mapping/workspace read with real SQL and payload parity",
         "Rewire startup-command client and delete handler plus both app re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L10",
@@ -7115,7 +7263,8 @@
         "Implement native Stripe webhook ingress with signature verification and owner SQL effects",
         "Prove provider parity then delete handler and both app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L10",
@@ -7153,7 +7302,8 @@
         "Port POST payment creation to a Rust route with real SQL and Stripe parity",
         "Rewire browser clients, remove mixed GET/POST handler and both app re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L10",
@@ -7191,7 +7341,8 @@
         "Add Rust GET import batches and route preview/approve/apply through nativePmsImportCommand",
         "Rewire browser clients, then delete handler and both app re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L10",
@@ -7217,7 +7368,8 @@
         "Port staff booking change command to Rust with real SQL",
         "Rewire browser clients, then delete handler and both app re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L10",
@@ -7243,7 +7395,8 @@
         "Port staffBookingSearch to a Rust owner read route executing SQL itself",
         "Rewire browser clients, then delete handler and both app re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L10",
@@ -7269,7 +7422,8 @@
         "Port Stripe refund request/approve/recover to Rust with real SQL and provider parity",
         "Rewire browser clients, then delete handler and both app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L10",
@@ -7314,7 +7468,8 @@
         "Rewire POST to native-refund-command and delete the TS refund writer paths",
         "Rewire browser clients to gateway/native, then delete handler and both app re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L10",
@@ -7361,7 +7516,8 @@
         "Add a retirement test asserting the Next route file cannot resolve and the native reports/{view} route returns the payload",
         "Delete handler and both app re-exports; confirm range-reports.tsx reaches Rust via gateway"
       ],
-      "estimatedEffort": "small"
+      "estimatedEffort": "small",
+      "status": "present"
     },
     {
       "lane": "L11",
@@ -7405,7 +7561,8 @@
         "Add a route-absent/native-payload regression test",
         "Delete handler, both app re-exports and update capability-delivery/business-acceptance registers"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L11",
@@ -7449,7 +7606,8 @@
         "Rewrite tests/unit/assets/native-assets-transport.test.ts:180 to assert native cutover instead of route source",
         "Delete handler and both app re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L11",
@@ -7491,7 +7649,8 @@
         "Update native-assets-transport and capability-delivery assertions",
         "Delete handler and both app re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L11",
@@ -7522,7 +7681,8 @@
         "Rewrite the source-asserting tests",
         "Delete catch-all handler and both app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L11",
@@ -7552,7 +7712,8 @@
         "Verify or add exact host|method|template gateway entries for GET and POST",
         "Rewrite source-asserting tests and delete handler plus both app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L11",
@@ -7616,7 +7777,8 @@
         "Add per-path gateway entries and route-absent/native-payload tests",
         "Delete catch-all handler only after full coverage, then remove both app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L11",
@@ -7657,7 +7819,8 @@
         "Add a test asserting the Next route file is gone and the native POST returns the same receipt",
         "Delete handler and both app re-exports"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L11",
@@ -7688,7 +7851,8 @@
         "Rewrite direct route-evaluating tests and add route-absent/native-payload coverage",
         "Delete handler and both app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L12",
@@ -7727,7 +7891,8 @@
         "Switch Forms browser/SSR callers to the native path and delete the handler plus both app re-exports",
         "Retire the TS public-submission and marketing-public-form adapters"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L12",
@@ -7755,7 +7920,8 @@
         "Add a gateway entry for account host POST /api/v1/join",
         "Switch the join form caller and delete the handler plus app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L12",
@@ -7794,7 +7960,8 @@
         "Delete the handler and both app re-exports",
         "Replace the delegation test with a native-route payload test"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L12",
@@ -7833,7 +8000,8 @@
         "Delete the handler and both app re-exports",
         "Replace the delegation test with a native-route payload test"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L12",
@@ -7907,7 +8075,8 @@
         "Extend the gateway entries from the Oasis demo host to registered dev hosts",
         "Delete the handler and app re-export, then prove native payloads for each subpath"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L12",
@@ -7936,7 +8105,8 @@
         "Mount the native router and add a gateway entry for the Account host",
         "Switch QuickAccessShelf endpoints and delete the handler plus app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L12",
@@ -8006,7 +8176,8 @@
         "Add per-subpath gateway entries for account/admin hosts",
         "Switch feature-iam callers and delete the catch-all plus app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L12",
@@ -8044,7 +8215,8 @@
         "Expose a single native path for GET/PATCH and add gateway entries",
         "Delete the handler, app re-exports and TS commandPorts adapter"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L12",
@@ -8081,7 +8253,8 @@
         "Add a gateway entry for account host POST /api/legal-portal/enroll",
         "Delete the handler, app re-exports and TS email/rate-limit branch"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L12",
@@ -8134,7 +8307,8 @@
         "Add a gateway entry for the Account host POST /api/customer-portal/enroll",
         "Switch the enrollment component and delete the handler plus app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L12",
@@ -8162,7 +8336,8 @@
         "Mount it in composition and add a gateway entry for the Portal host",
         "Switch the preview links and delete the handler plus app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L12",
@@ -8199,7 +8374,8 @@
         "Bind the native support ticket-portal config in dev startup",
         "Delete the handler and app re-exports, then add a native-route payload test"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L12",
@@ -8228,7 +8404,8 @@
         "Mount in composition and add a gateway entry for the Portal host",
         "Switch the portal page endpoint and delete the handler plus app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L12",
@@ -8267,7 +8444,8 @@
         "Mount in composition and add a gateway entry for the Portal host",
         "Switch portal page/action callers and delete the handler plus app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L12",
@@ -8306,7 +8484,8 @@
         "Add gateway entries for the Portal host and bind native attachment command config",
         "Switch attachment UI/URLs and delete the catch-all plus app re-exports"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -8381,7 +8560,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -8456,7 +8636,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -8531,7 +8712,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -8606,7 +8788,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -8681,7 +8864,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -8756,7 +8940,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -8831,7 +9016,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -8906,7 +9092,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -8981,7 +9168,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -9056,7 +9244,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -9131,7 +9320,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -9206,7 +9396,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -9281,7 +9472,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -9356,7 +9548,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -9431,7 +9624,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -9506,7 +9700,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -9581,7 +9776,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -9656,7 +9852,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -9731,7 +9928,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -9806,7 +10004,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -9881,7 +10080,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -9956,7 +10156,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -10031,7 +10232,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -10106,7 +10308,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -10181,7 +10384,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -10256,7 +10460,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -10331,7 +10536,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -10406,7 +10612,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -10481,7 +10688,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -10556,7 +10764,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -10631,7 +10840,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L13",
@@ -10706,7 +10916,8 @@
         "Delete all 16 app route files and, only then, the shared account-switcher adapter/public exports; apps/compat has no copies to remove.",
         "Update docs/contracts/next/identity-access.md:121 and route-table.md:21-22."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L14",
@@ -10763,7 +10974,8 @@
         "delete handler, then delete app re-exports from lanes.json consumers",
         "delete dead server adapter/helper only after no other consumer references it"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L14",
@@ -10831,7 +11043,8 @@
         "delete handler, then delete app re-exports from lanes.json consumers",
         "delete dead server adapter/helper only after no other consumer references it"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L14",
@@ -10893,7 +11106,8 @@
         "delete handler, then delete app re-exports from lanes.json consumers",
         "delete dead server adapter/helper only after no other consumer references it"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L14",
@@ -10928,7 +11142,8 @@
         "delete handler, then delete app re-exports from lanes.json consumers",
         "delete dead server adapter/helper only after no other consumer references it"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L14",
@@ -10989,7 +11204,8 @@
         "delete handler, then delete app re-exports from lanes.json consumers",
         "delete dead server adapter/helper only after no other consumer references it"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L14",
@@ -11033,7 +11249,8 @@
         "delete handler, then delete app re-exports from lanes.json consumers",
         "delete dead server adapter/helper only after no other consumer references it"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L14",
@@ -11077,7 +11294,8 @@
         "delete handler, then delete app re-exports from lanes.json consumers",
         "delete dead server adapter/helper only after no other consumer references it"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L14",
@@ -11130,7 +11348,8 @@
         "delete handler, then delete app re-exports from lanes.json consumers",
         "delete dead server adapter/helper only after no other consumer references it"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L14",
@@ -11183,7 +11402,8 @@
         "delete handler, then delete app re-exports from lanes.json consumers",
         "delete dead server adapter/helper only after no other consumer references it"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L14",
@@ -11252,7 +11472,8 @@
         "delete handler, then delete app re-exports from lanes.json consumers",
         "delete dead server adapter/helper only after no other consumer references it"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L14",
@@ -11307,7 +11528,8 @@
         "delete handler, then delete app re-exports from lanes.json consumers",
         "delete dead server adapter/helper only after no other consumer references it"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L14",
@@ -11356,7 +11578,8 @@
         "delete handler, then delete app re-exports from lanes.json consumers",
         "delete dead server adapter/helper only after no other consumer references it"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L14",
@@ -11402,7 +11625,8 @@
         "delete handler, then delete app re-exports from lanes.json consumers",
         "delete dead server adapter/helper only after no other consumer references it"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L14",
@@ -11448,7 +11672,8 @@
         "delete handler, then delete app re-exports from lanes.json consumers",
         "delete dead server adapter/helper only after no other consumer references it"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L14",
@@ -11483,7 +11708,8 @@
         "delete handler, then delete app re-exports from lanes.json consumers",
         "delete dead server adapter/helper only after no other consumer references it"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L14",
@@ -11517,7 +11743,8 @@
         "delete handler, then delete app re-exports from lanes.json consumers",
         "delete dead server adapter/helper only after no other consumer references it"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L14",
@@ -11579,7 +11806,8 @@
         "delete handler, then delete app re-exports from lanes.json consumers",
         "delete dead server adapter/helper only after no other consumer references it"
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L14",
@@ -11625,7 +11853,8 @@
         "delete handler, then delete app re-exports from lanes.json consumers",
         "delete dead server adapter/helper only after no other consumer references it"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L14",
@@ -11662,7 +11891,8 @@
         "delete handler, then delete app re-exports from lanes.json consumers",
         "delete dead server adapter/helper only after no other consumer references it"
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L15",
@@ -11731,7 +11961,8 @@
         "Add a native parity test, then delete the package handler, all 22 app re-exports and update account-preferences-provider.tsx.",
         "Retire now-dead helpers only after tests stop importing the Next route."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L15",
@@ -11777,7 +12008,8 @@
         "Add native parity tests for platform/holding/branch/department branches and cookie behavior.",
         "Delete the package handler, 18 app re-exports and update context-switch-provider.tsx and product-host policy tests."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L15",
@@ -11823,7 +12055,8 @@
         "Prove parity for 401/403/409/422/503 and the {data,context} shape with an e2e test that hits the gateway, not the private service.",
         "Update onboarding-form.tsx if the public path or error envelope changes, then delete the package handler and apps/compat re-export."
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L15",
@@ -11881,7 +12114,8 @@
         "Add public and loopback gateway entries for /api/health and keep exact host admission from proxy.ts.",
         "Add parity tests for degraded/ready payloads and update runbooks, then delete the package handler and 22 app re-exports."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L15",
@@ -11946,7 +12180,8 @@
         "Add a public gateway catch-all entry with identical host/origin/cookie policy and e2e login/logout/session tests.",
         "Only then delete the package catch-all and its five app re-exports; do not delete individual gateway paths earlier."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L15",
@@ -12004,7 +12239,8 @@
         "Add public and loopback gateway entries and update the foundation tests that currently expect the migration-inventory body.",
         "Add parity tests for stale heartbeat and maintenance flag, then delete the package handler and 22 app re-exports."
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L15",
@@ -12034,7 +12270,8 @@
         "Add a public gateway entry for the forms and booking Holding hosts and prove byte-for-byte parity plus 404/503 cases.",
         "Update attachment-client.ts URL builder and all page/test assertions, then delete the package handler and three app re-exports."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L16",
@@ -12097,7 +12334,8 @@
         "Add a native parity test covering options, prepare, idempotency replay and mock-AI path.",
         "Delete the TS handler, guided-intake TS facts/writers that become dead, all 17 app re-exports and update workspace-assistant-content.tsx."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L16",
@@ -12160,7 +12398,8 @@
         "Add parity tests for GET page/workspace modes and POST ask with idempotency key and mock provider.",
         "Delete the TS handler, 17 app re-exports and update workspace-assistant-content.tsx."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L16",
@@ -12200,7 +12439,8 @@
         "Port or retire the remaining organization/commerce/pos/identity/finance setup facts into that owner route.",
         "Add parity test, add gateway entry, then delete the TS handler and 3 app re-exports and update setup-guide.tsx."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L16",
@@ -12259,7 +12499,8 @@
         "Port the calendar layer SQL and command application into the Rust work-projection owner so no TS prepare/bind remains.",
         "Add native parity tests for each subpath and error code, add gateway entries, then delete the catch-all, the sibling calendar/route.ts, 15 app re-exports and update the browser callers."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L16",
@@ -12310,7 +12551,8 @@
         "Mount per Holding, add gateway entries and port the affected e2e/integration assertions to native.",
         "Delete the TS handler, redundant TS calendar adapters, 15 app re-exports and update calendar-workspace.tsx."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L16",
@@ -12359,7 +12601,8 @@
         "Prove public media content/signature/scan semantics with native tests before any TS content path is removed.",
         "Add gateway entry and parity test, then delete the TS handler, its 15 app re-exports and update attachment-client.ts."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L16",
@@ -12408,7 +12651,8 @@
         "Prove the native public content route byte-for-byte with existing PMS/forms consumers.",
         "Add gateway entries for GET/POST, native parity tests, then delete TS handler, 15 app re-exports and update attachment-client.ts."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L16",
@@ -12449,7 +12693,8 @@
         "Prove native revocation plus 404/410 content behavior against the public route.",
         "Add gateway entry/parity test, delete TS handler and 15 app re-exports, update attachment-client.ts."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L16",
@@ -12490,7 +12735,8 @@
         "Prove native approval -> public content readback with signature/sanitization semantics.",
         "Add gateway entry/parity test, delete TS handler and 15 app re-exports, update attachment-client.ts."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L16",
@@ -12572,7 +12818,8 @@
         "Add gateway entries for GET/POST on the exact public path and a native parity test for all subpaths.",
         "Delete the TS handler and its 3 app re-exports and update staff-work-controls.tsx/project-editor-command.ts."
       ],
-      "estimatedEffort": "medium"
+      "estimatedEffort": "medium",
+      "status": "present"
     },
     {
       "lane": "L16",
@@ -12632,7 +12879,8 @@
         "Replace all nativeRecordsStatement fragments and the TS detail-read SELECTs with owner-side execution.",
         "Add native parity tests for list/detail/save/action/AI and gateway entries, then delete the catch-all, 15 app re-exports and update the browser callers."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L16",
@@ -12682,7 +12930,8 @@
         "Port RequestPreviewPeoplePayrollFacts into the Rust Records owner.",
         "Add gateway entry/parity test, delete TS handler, 15 app re-exports and update request-controls-content.tsx."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L16",
@@ -12746,7 +12995,8 @@
         "Add native parity tests for subscribe/preferences/remove and gateway entries for GET/POST/DELETE.",
         "Delete the TS handler, web-push TS writers that become dead, 17 app re-exports and update push-client.ts/push-settings.tsx."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L16",
@@ -12788,7 +13038,8 @@
         "Prove session invalidation parity with normal Account session sign-in.",
         "Add gateway entry/parity test, delete TS handler, 15 app re-exports and update push-client.ts."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     },
     {
       "lane": "L16",
@@ -12845,7 +13096,21 @@
         "Eliminate the requireFlowAccess/resolveFlow/assignFlowPrimary TS fallback so native denials fail closed.",
         "Add native parity tests across journal/invoice/stock_count and remaining kinds, gateway entries, then delete the TS handler and 3 app re-exports and update flow-panel.tsx."
       ],
-      "estimatedEffort": "large"
+      "estimatedEffort": "large",
+      "status": "present"
     }
-  ]
+  ],
+  "routeFiles": {
+    "current": 1306,
+    "app": 1108,
+    "handlers": 198,
+    "baseline": {
+      "app": 1146,
+      "handlers": 218,
+      "total": 1364
+    },
+    "retired": 58,
+    "retiredApp": 38,
+    "retiredHandlers": 20
+  }
 }
