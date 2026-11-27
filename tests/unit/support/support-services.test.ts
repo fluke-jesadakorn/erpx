@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { nativeApiPath } from "../../../scripts/local/native-api-proxy";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { createValidateServiceScope } from "@erpx/server-support/application/service-access";
 import { createServiceTeamHandlers, createResolveServiceTeam } from "@erpx/server-support/application/service-teams";
@@ -86,7 +89,6 @@ it('staff current-owner reads recheck after delayed original JSON before publish
 async function supportRoute(file:string,ports:Record<string,unknown>){const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL('../../../'+file,import.meta.url),'utf8'),tree=ts.createSourceFile(file,source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),body=tree.statements.filter(node=>!ts.isImportDeclaration(node)).map(node=>node.getText(tree)).join('\n'),emitted=ts.transpileModule(body,{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React}}).outputText,exports:Record<string,unknown>={};new Function('exports',...Object.keys(ports),emitted)(exports,...Object.values(ports));return exports;}
 function nativeSupportPagePorts(data:unknown,evidence:unknown={items:[]}){vi.stubEnv('ERPX_NATIVE_SUPPORT_READ_CONFIG','test-support-read');class TestApiError extends Error{readonly status:number;readonly code:string;constructor(status:number,code:string,message:string){super(message);this.status=status;this.code=code;}}return{ApiError:TestApiError,headers:async()=>new Headers(),createNativeSupportReader:()=>({detail:async()=>data,evidence:async()=>evidence})};}
 afterEach(()=>vi.unstubAllEnvs());
-it('the actual closed staff route delegates each strict owner command to the native portal client',async()=>{const {ApiError,errorResponse}=await import('@erpx/server-runtime/public/http'),{boundedBody}=await import('@erpx/server-legal/public/legal/body'),workspace=vi.fn(async()=>portalView()),binding=vi.fn(async()=>portalView()),prepare=vi.fn(async()=>({id:'support-portal-command',status:'draft',version:1})),decide=vi.fn(async()=>({id:'binding',status:'approved',version:2})),respond=vi.fn(async()=>({id:'reply',status:'published',version:1,bindingId:'binding',message:'Actual response',publishedAt:1})),factory=vi.fn(()=>({workspace,binding,prepare,decide,respond}));vi.stubEnv('ERPX_NATIVE_SUPPORT_TICKET_PORTAL_CONFIG','test-portal');const route=await supportRoute("packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/ticket-portal/[[...path]]/route.ts",{ApiError,errorResponse,boundedBody,requestPublicOrigin:(request:Request)=>new URL(request.url).origin,requireWorkContext:async()=>actor,supportTicketPortalSelectionSchema,createNativeSupportTicketPortal:factory}),get=route.GET as (r:Request,c:{params:Promise<{holdingSlug:string;path?:string[]}>})=>Promise<Response>,post=route.POST as typeof get,ctx=(path:string[]=[])=>({params:Promise.resolve({holdingSlug:'acme',path})}),request=(body:unknown,headers:Record<string,string>={'Origin':'https://helpdesk.test','Idempotency-Key':'command'})=>new Request('https://helpdesk.test/api/owner',{method:'POST',headers,body:JSON.stringify(body)});expect((await get(new Request('https://helpdesk.test/api/owner?ticketId=ticket'),ctx())).status).toBe(200);expect(workspace).toHaveBeenCalledWith(expect.any(Headers),'acme','?ticketId=ticket');expect((await get(new Request('https://helpdesk.test/api/owner'),ctx(['binding']))).status).toBe(200);expect(binding).toHaveBeenCalledWith(expect.any(Headers),'acme','binding');expect((await post(request(portalPrepare),ctx())).status).toBe(201);expect(prepare).toHaveBeenCalledWith(expect.any(Headers),'acme',JSON.stringify(portalPrepare),'command');expect((await post(request({expectedVersion:1,action:'approve',reason:'Actual independent review'}),ctx(['binding','decisions']))).status).toBe(200);expect((await post(request({expectedBindingVersion:2,expectedResponseVersion:0,message:'Actual response',reason:'Actual independent publication'}),ctx(['binding','responses']))).status).toBe(200);expect(decide).toHaveBeenCalledOnce();expect(respond).toHaveBeenCalledOnce();for(const path of [['binding','other'],['binding','responses','extra'],['binding']])expect((await post(request({}),ctx(path))).status).toBe(404);expect((await get(new Request('https://helpdesk.test/api/owner?ticketId=a&ticketId=b'),ctx())).status).toBe(404);expect((await post(request(portalPrepare,{'Origin':'https://foreign.test','Idempotency-Key':'command'}),ctx())).status).toBe(403);expect((await post(request(portalPrepare,{'Origin':'https://helpdesk.test'}),ctx())).status).toBe(422);expect(prepare).toHaveBeenCalledOnce();});
 it('dedicated staff pages use only the named owner SSR read and exact empty parallel slots',async()=>{const view=portalView(),read=vi.fn(async()=>view),Component=()=>null,ports={React,requireWorkContext:async()=>actor,supportTicketPortalWorkspace:read,supportTicketPortalSelectionSchema,publicScope:(value:WorkContext)=>value,workspaceBase:()=>portalBase,SupportTicketPortalSetup:Component},root=await supportRoute("packages/feature-support/src/routes/holdings/[holdingSlug]/customers-sales/customers/service/portal/page.tsx",ports),Page=root.default as (p:{params:Promise<{holdingSlug:string}>;searchParams:Promise<Record<string,string>>})=>Promise<React.ReactElement>;await Page({params:Promise.resolve({holdingSlug:'acme'}),searchParams:Promise.resolve({ticketId:'ticket'})});expect(read).toHaveBeenCalledWith(actor,{ticketId:'ticket'});for(const path of ["packages/feature-support/src/routes/holdings/[holdingSlug]/@record/customers-sales/customers/service/portal/page.tsx","packages/feature-support/src/routes/holdings/[holdingSlug]/@record/customers-sales/customers/service/portal/[bindingId]/page.tsx"]){const slot=await supportRoute(path,{});expect((slot.default as ()=>null)()).toBeNull();}});
 
 async function actualSupportPortalSubmit(){const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL("../../../packages/feature-support/src/components/ticket-portal.tsx",import.meta.url),'utf8'),tree=ts.createSourceFile('actual-support-portal.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),component=tree.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='SupportTicketPortalSetup');if(!component||!ts.isFunctionDeclaration(component)||!component.body)throw Error('Original Support owner required');const submit=component.body.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='submit');let drawer:import('typescript').JsxElement|undefined;const visit=(node:import('typescript').Node)=>{if(ts.isJsxElement(node)&&node.openingElement.tagName.getText(tree)==='DraftFormDrawer')drawer=node;ts.forEachChild(node,visit);};visit(component);if(!submit||!drawer)throw Error('Original submit/drawer required');const c=supportPortalBrowser(),view=portalView(),commands=createSupportPortalCommands(()=>c.source),state={busy:false,uncertain:false,error:'',notice:null as {owner:string;text:string;bindingId:string}|null,open:true,refreshed:null as unknown},fields:Record<string,string>={customerName:portalPrepare.customerName,email:portalPrepare.email,subject:portalPrepare.subject,summary:portalPrepare.summary,reason:portalPrepare.reason},revision={current:0},setter=(key:keyof typeof state)=>(value:unknown)=>Object.assign(state,{[key]:value}),compile=(text:string)=>ts.transpileModule(text,{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React}}).outputText;
@@ -111,113 +113,6 @@ it('an unavailable Service destination leaves the original case and owner explan
 it.each([{orderId:null},{managed:false}])('the original missing/other-source case never asks for a guessed Service destination %#',async options=>{const c=await actualServiceTicketHandoff(readableServiceVisit,options),html=await c.render();expect(c.read).not.toHaveBeenCalled();expect(html).toContain('Original Service intake');expect(html).not.toContain('Open Field Service visit');});
 it('unexpected owner destination failures propagate instead of silently claiming that the visit is unavailable',async()=>{const failure=new Error('Original owner database unavailable'),c=await actualServiceTicketHandoff(null,{fail:failure});await expect(c.render()).rejects.toBe(failure);expect(c.read).toHaveBeenCalledExactlyOnceWith(actor,{kind:'field_service_order',id:c.nativeId});});
 
-// The five Support command routes are native-only. Missing configuration is a
-// closed 503 with no retained TypeScript writer call; GET reads keep their
-// current owner readers because native reads are a separate migration.
-describe("Support command routes require their native configuration", () => {
-    const commandHeaders = {'Origin': 'https://helpdesk.test', 'Idempotency-Key': 'command-key'};
-    const context = {params: Promise.resolve({holdingSlug: 'acme'})};
-    const post = (route: Record<string, unknown>, body: unknown = {action: 'start', id: 'ticket', expectedVersion: 1, reason: 'Current review'}, headers: Record<string, string> = commandHeaders) => (route.POST as (r: Request, c: typeof context) => Promise<Response>)(new Request('https://helpdesk.test/api/owner', {method: 'POST', headers, body: JSON.stringify(body)}), context);
-    const get = (route: Record<string, unknown>, url = 'https://helpdesk.test/api/owner') => (route.GET as (r: Request, c: typeof context) => Promise<Response>)(new Request(url), context);
-    const runtime = async () => {
-        const {ApiError, errorResponse} = await import('@erpx/server-runtime/public/http');
-        return {ApiError, errorResponse, canonicalDestinationLinks: <T>(value: T) => value, requestPublicOrigin: (request: Request) => new URL(request.url).origin, requireWorkContext: vi.fn(async () => actor)};
-    };
-    const writer = (result: unknown = {id: 'native', version: 2}) => {
-        const write = vi.fn(async () => result), factory = vi.fn(() => write);
-        return {factory, write};
-    };
-    afterEach(() => vi.unstubAllEnvs());
-
-    it("ticket POST closes without ERPX_NATIVE_SUPPORT_TICKET_CONFIG and never calls a retained writer", async () => {
-        const base = await runtime(), legacy = vi.fn(), native = writer();
-        const route = await supportRoute("packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/route.ts", {...base, supportWorkspace: legacy, supportRecipients: legacy, supportDetail: legacy, createNativeSupportTicketWriter: native.factory, createNativeSupportEvidenceWriter: vi.fn()});
-        const response = await post(route, {kind: 'general', title: 'Printer offline', issue: 'The front desk printer is offline.'});
-        expect(response.status).toBe(503);
-        expect(await response.json()).toMatchObject({error: {code: 'NATIVE_SUPPORT_UNAVAILABLE'}});
-        expect(native.factory).not.toHaveBeenCalled();
-        expect(legacy).not.toHaveBeenCalled();
-        expect(base.requireWorkContext).toHaveBeenCalledWith('acme');
-    });
-
-    it("ticket and evidence commands select their exact native writer without a TypeScript fallback", async () => {
-        vi.stubEnv('ERPX_NATIVE_SUPPORT_TICKET_CONFIG', 'ticket-config');
-        vi.stubEnv('ERPX_NATIVE_SUPPORT_EVIDENCE_CONFIG', undefined);
-        const base = await runtime(), legacy = vi.fn(), ticket = writer({id: 'ticket', version: 2}), evidence = writer({id: 'ticket', version: 3});
-        const route = await supportRoute("packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/route.ts", {...base, supportWorkspace: legacy, supportRecipients: legacy, supportDetail: legacy, createNativeSupportTicketWriter: ticket.factory, createNativeSupportEvidenceWriter: evidence.factory});
-        const refused = await post(route, {action: 'bind-evidence', id: 'ticket', expectedVersion: 1, attachmentSetIds: ['set'], reason: 'Reviewed private evidence'});
-        expect(refused.status).toBe(503);
-        expect(await refused.json()).toMatchObject({error: {code: 'NATIVE_SUPPORT_EVIDENCE_UNAVAILABLE'}});
-        expect(ticket.factory).not.toHaveBeenCalled();
-        expect(evidence.factory).not.toHaveBeenCalled();
-        expect(legacy).not.toHaveBeenCalled();
-        const body = {kind: 'general', title: 'Printer offline', issue: 'The front desk printer is offline.'}, created = await post(route, body);
-        expect(created.status).toBe(200);
-        expect(ticket.factory).toHaveBeenCalledWith('ticket-config');
-        expect(ticket.write).toHaveBeenCalledWith(expect.anything(), 'acme', JSON.stringify(body), 'command-key');
-        vi.stubEnv('ERPX_NATIVE_SUPPORT_EVIDENCE_CONFIG', 'evidence-config');
-        const bound = await post(route, {action: 'bind-evidence', id: 'ticket', expectedVersion: 1, attachmentSetIds: ['set'], reason: 'Reviewed private evidence'});
-        expect(bound.status).toBe(200);
-        expect(evidence.factory).toHaveBeenCalledWith('evidence-config');
-        expect(legacy).not.toHaveBeenCalled();
-    });
-
-    it("SLA POST closes without ERPX_NATIVE_SUPPORT_SLA_CONFIG", async () => {
-        const base = await runtime(), legacy = vi.fn(), native = writer();
-        const route = await supportRoute("packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/sla/route.ts", {...base, supportSlaWorkspace: legacy, createNativeSupportSlaWriter: native.factory});
-        const response = await post(route, {action: 'create-policy', name: 'Working time', policy: {}, reason: 'Proposed target'});
-        expect(response.status).toBe(503);
-        expect(await response.json()).toMatchObject({error: {code: 'NATIVE_SUPPORT_SLA_UNAVAILABLE'}});
-        expect(native.factory).not.toHaveBeenCalled();
-        expect(legacy).not.toHaveBeenCalled();
-        vi.stubEnv('ERPX_NATIVE_SUPPORT_SLA_CONFIG', 'sla-config');
-        const created = await post(route, {action: 'create-policy', name: 'Working time', policy: {}, reason: 'Proposed target'});
-        expect(created.status).toBe(200);
-        expect(native.factory).toHaveBeenCalledWith('sla-config');
-    });
-
-    it("incident POST closes without ERPX_NATIVE_SUPPORT_INCIDENT_CONFIG", async () => {
-        const base = await runtime(), legacy = vi.fn(), native = writer();
-        const route = await supportRoute("packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/incidents/route.ts", {...base, incidentWorkspace: legacy, incidentDetail: legacy, createNativeSupportIncidentWriter: native.factory});
-        const response = await post(route, {action: 'create', ticketId: 'ticket', ticketVersion: 1, title: 'Shared fault', impact: 'Several customers', severity: 'high', ownerId: 'agent', dueDate: '2026-09-27'});
-        expect(response.status).toBe(503);
-        expect(await response.json()).toMatchObject({error: {code: 'NATIVE_SUPPORT_INCIDENT_UNAVAILABLE'}});
-        expect(native.factory).not.toHaveBeenCalled();
-        expect(legacy).not.toHaveBeenCalled();
-        vi.stubEnv('ERPX_NATIVE_SUPPORT_INCIDENT_CONFIG', 'incident-config');
-        expect((await post(route, {action: 'create'})).status).toBe(200);
-        expect(native.factory).toHaveBeenCalledWith('incident-config');
-    });
-
-    it("session POST closes without ERPX_NATIVE_SUPPORT_SESSION_CONFIG", async () => {
-        const base = await runtime(), legacy = vi.fn(), native = writer();
-        const route = await supportRoute("packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/sessions/route.ts", {...base, supportSessionWorkspace: legacy, supportSessionDetail: legacy, createNativeSupportSessionWriter: native.factory});
-        const response = await post(route, {ticketId: 'ticket', ticketVersion: 1, requestedFor: 'agent', expiresAt: Date.now() + 60_000, reason: 'Temporary context'});
-        expect(response.status).toBe(503);
-        expect(await response.json()).toMatchObject({error: {code: 'NATIVE_SUPPORT_SESSION_UNAVAILABLE'}});
-        expect(native.factory).not.toHaveBeenCalled();
-        expect(legacy).not.toHaveBeenCalled();
-        vi.stubEnv('ERPX_NATIVE_SUPPORT_SESSION_CONFIG', 'session-config');
-        expect((await post(route, {action: 'approve', id: 'session', expectedVersion: 1, reason: 'Reviewed'})).status).toBe(200);
-        expect(native.factory).toHaveBeenCalledWith('session-config');
-    });
-
-    it("GET requires the native read configuration and never calls a retained reader", async () => {
-        const base = await runtime(), legacy = vi.fn(), native = writer(), workspace = vi.fn(async () => ({items: []})), reader = vi.fn(() => ({workspace, detail: vi.fn(), recipients: vi.fn()}));
-        const route = await supportRoute("packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/route.ts", {...base, createNativeSupportTicketWriter: native.factory, createNativeSupportEvidenceWriter: vi.fn(), createNativeSupportReader: reader});
-        const refused = await get(route);
-        expect(refused.status).toBe(503);
-        expect(await refused.json()).toMatchObject({error: {code: 'NATIVE_SUPPORT_READ_UNAVAILABLE'}});
-        expect(reader).not.toHaveBeenCalled();
-        expect(legacy).not.toHaveBeenCalled();
-        vi.stubEnv('ERPX_NATIVE_SUPPORT_READ_CONFIG', 'read-config');
-        const response = await get(route);
-        expect(response.status).toBe(200);
-        expect(reader).toHaveBeenCalledWith('read-config');
-        expect(workspace).toHaveBeenCalledWith(expect.anything(), 'acme');
-        expect(native.factory).not.toHaveBeenCalled();
-    });
-});
 
 it('the Support landing presenter reads only the native workspace and preserves filters, source choice and fail-closed configuration', async () => {
     const workspace = {
@@ -511,4 +406,135 @@ it('keeps one parameterized assignment-access witness for the Support ticket and
   AND iam_role_allows(g.role,g.company_id,'support.read') AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=t.branch_id OR g.scope_kind='department' AND g.scope_node_id=t.department_id))`;
     expect(ticket.sql).toBe(originalTicket);
     expect(incident.sql).toBe(originalIncident);
+});
+
+// Retired Next API surface: the route files and app re-exports must not
+// resolve; the exact public paths must be carried by native ApiPath entries;
+// the native Axum owners and their SQL adapters keep every retired branch.
+describe('retired Support Next API routes', () => {
+    const retirementRoot = resolve(__dirname, '../../..');
+    const readSource = (path: string) => readFileSync(resolve(retirementRoot, path), 'utf8');
+    const flatSource = (path: string) => readSource(path).replace(/\s+/g, ' ');
+    const retiredSegments = [
+        'support',
+        'support/sessions',
+        'support/sla',
+        'support/incidents',
+        'support/ticket-portal/[[...path]]',
+        'service-teams/[[...path]]',
+        'service-teams/preview',
+    ] as const;
+    const packageRoutes = 'packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]';
+    const appRoutes = (app: string) => `apps/${app}/src/app/api/v1/holdings/[holdingSlug]`;
+    const retiredFiles = [
+        ...retiredSegments.map(segment => `${packageRoutes}/${segment}/route.ts`),
+        ...(['support', 'compat'] as const).flatMap(app =>
+            retiredSegments.map(segment => `${appRoutes(app)}/${segment}/route.ts`)),
+    ] as const;
+    const host = 'acme.jesadakorn.com';
+    const gatewayEntries = [
+        `${host}|GET|/api/v1/holdings/{holdingSlug}/support`,
+        `${host}|POST|/api/v1/holdings/{holdingSlug}/support`,
+        `${host}|POST|/api/v1/holdings/{holdingSlug}/support/evidence`,
+        `${host}|GET|/api/v1/holdings/{holdingSlug}/support/sessions`,
+        `${host}|POST|/api/v1/holdings/{holdingSlug}/support/sessions`,
+        `${host}|GET|/api/v1/holdings/{holdingSlug}/support/incidents`,
+        `${host}|POST|/api/v1/holdings/{holdingSlug}/support/incidents`,
+        `${host}|GET|/api/v1/holdings/{holdingSlug}/support/sla`,
+        `${host}|POST|/api/v1/holdings/{holdingSlug}/support/sla`,
+        `${host}|GET|/api/v1/holdings/{holdingSlug}/support/ticket-portal`,
+        `${host}|POST|/api/v1/holdings/{holdingSlug}/support/ticket-portal`,
+        `${host}|GET|/api/v1/holdings/{holdingSlug}/support/ticket-portal/{bindingId}`,
+        `${host}|POST|/api/v1/holdings/{holdingSlug}/support/ticket-portal/{bindingId}/decisions`,
+        `${host}|POST|/api/v1/holdings/{holdingSlug}/support/ticket-portal/{bindingId}/responses`,
+        `${host}|GET|/api/v1/holdings/{holdingSlug}/service-teams`,
+        `${host}|POST|/api/v1/holdings/{holdingSlug}/service-teams`,
+        `${host}|POST|/api/v1/holdings/{holdingSlug}/service-teams/preview`,
+        `${host}|POST|/api/v1/holdings/{holdingSlug}/service-teams/{id}`,
+    ] as const;
+    const environment = {
+        NODE_ENV: 'test' as const,
+        ERPX_DEV_NATIVE_PATHS: gatewayEntries.join(','),
+    };
+
+    it('no longer resolves any retired handler or app re-export', () => {
+        expect(retiredFiles).toHaveLength(21);
+        for (const file of retiredFiles) expect(existsSync(resolve(retirementRoot, file)), file).toBe(false);
+    });
+
+    it('publishes exact native gateway entries accepted by nativeApiPath', () => {
+        for (const entry of gatewayEntries) expect(entry.split('|')).toHaveLength(3);
+        const cases = [
+            ['/api/v1/holdings/acme/support?id=ticket-1', 'GET'],
+            ['/api/v1/holdings/acme/support?orderId=order-1', 'GET'],
+            ['/api/v1/holdings/acme/support', 'POST'],
+            ['/api/v1/holdings/acme/support/evidence', 'POST'],
+            ['/api/v1/holdings/acme/support/sessions?id=session-1', 'GET'],
+            ['/api/v1/holdings/acme/support/sessions', 'POST'],
+            ['/api/v1/holdings/acme/support/incidents?id=incident-1', 'GET'],
+            ['/api/v1/holdings/acme/support/incidents', 'POST'],
+            ['/api/v1/holdings/acme/support/sla', 'GET'],
+            ['/api/v1/holdings/acme/support/sla', 'POST'],
+            ['/api/v1/holdings/acme/support/ticket-portal?ticketId=ticket-1', 'GET'],
+            ['/api/v1/holdings/acme/support/ticket-portal', 'POST'],
+            ['/api/v1/holdings/acme/support/ticket-portal/binding-1', 'GET'],
+            ['/api/v1/holdings/acme/support/ticket-portal/binding-1/decisions', 'POST'],
+            ['/api/v1/holdings/acme/support/ticket-portal/binding-1/responses', 'POST'],
+            ['/api/v1/holdings/acme/service-teams', 'GET'],
+            ['/api/v1/holdings/acme/service-teams', 'POST'],
+            ['/api/v1/holdings/acme/service-teams/preview', 'POST'],
+            ['/api/v1/holdings/acme/service-teams/team-1', 'POST'],
+        ] as const;
+        expect(cases.length).toBeGreaterThanOrEqual(gatewayEntries.length);
+        for (const [url, method] of cases)
+            expect(nativeApiPath(environment, url, host, method), `${method} ${url}`).toBe(true);
+
+        expect(nativeApiPath(environment, '/api/v1/holdings/acme/support', 'other.jesadakorn.com', 'GET')).toBe(false);
+        expect(nativeApiPath(environment, '/api/v1/holdings/acme/support', host, 'DELETE')).toBe(false);
+        expect(nativeApiPath(environment, '/api/v1/holdings/acme/support/extra', host, 'GET')).toBe(false);
+        expect(nativeApiPath(environment, '/api/v1/holdings/acme/service-teams/team-1/preview', host, 'POST')).toBe(false);
+        expect(nativeApiPath(environment, '/api/v1/holdings/acme/support/evidence', host, 'GET')).toBe(false);
+    });
+
+    it('keeps the native Axum routes and SQL-owning adapters for every retired branch', () => {
+        for (const [file, route, method] of [
+            ['src/composition/src/support_read_http.rs', '/api/v1/holdings/{holding_slug}/support', 'get(read_ticket::<C>)'],
+            ['src/composition/src/support_read_http.rs', '/api/v1/holdings/{holding_slug}/support/incidents', 'get(read_incidents::<C>)'],
+            ['src/composition/src/support_read_http.rs', '/api/v1/holdings/{holding_slug}/support/sla', 'get(read_sla::<C>)'],
+            ['src/composition/src/support_read_http.rs', '/api/v1/holdings/{holding_slug}/support/sessions', 'get(read_sessions::<C>)'],
+            ['src/composition/src/support_session_http.rs', '/api/v1/holdings/{holding_slug}/support/sessions', 'post(post_session::<C>)'],
+            ['src/composition/src/support_ticket_http.rs', '/api/v1/holdings/{holding_slug}/support', 'post(post_ticket::<C>)'],
+            ['src/composition/src/support_sla_http.rs', '/api/v1/holdings/{holding_slug}/support/sla', 'post(post_sla::<C>)'],
+            ['src/composition/src/support_incident_http.rs', '/api/v1/holdings/{holding_slug}/support/incidents', 'post(post_incident::<C>)'],
+            ['src/composition/src/support_evidence_http.rs', '/api/v1/holdings/{holding_slug}/support/evidence', 'post(post_evidence::<C>)'],
+            ['packages/server-support/src/adapters/ticket_portal_http.rs', '/api/v1/holdings/{holding_slug}/support/ticket-portal', 'get(staff_workspace).post(prepare)'],
+            ['packages/server-support/src/adapters/ticket_portal_http.rs', '/api/v1/holdings/{holding_slug}/support/ticket-portal/{binding_id}', 'get(staff_binding_workspace)'],
+            ['packages/server-support/src/adapters/ticket_portal_http.rs', '/api/v1/holdings/{holding_slug}/support/ticket-portal/{binding_id}/decisions', 'post(decide)'],
+            ['packages/server-support/src/adapters/ticket_portal_http.rs', '/api/v1/holdings/{holding_slug}/support/ticket-portal/{binding_id}/responses', 'post(respond)'],
+            ['packages/server-support/src/adapters/service_teams_http.rs', '/api/v1/holdings/{holding_slug}/service-teams', 'get(options).post(save_create)'],
+            ['packages/server-support/src/adapters/service_teams_http.rs', '/api/v1/holdings/{holding_slug}/service-teams/preview', 'post(preview_create)'],
+            ['packages/server-support/src/adapters/service_teams_http.rs', '/api/v1/holdings/{holding_slug}/service-teams/{id}', 'post(save_update)'],
+        ] as const)
+            expect(flatSource(file), `${file} ${method} ${route}`).toContain(`"${route}", ${method}`);
+
+        for (const file of [
+            'packages/server-support/src/adapters/support_ticket_read.rs',
+            'packages/server-support/src/adapters/support_auxiliary.rs',
+            'packages/server-support/src/adapters/service_teams_pg.rs',
+            'packages/server-support/src/adapters/ticket_portal_pg.rs',
+        ] as const) expect(readSource(file), file).toMatch(/sqlx::query|query_as|query_scalar|PgPool/);
+    });
+
+    it('preserves the native {data} envelope without a Next presenter route', () => {
+        expect(readSource('packages/server-support/src/adapters/support_http.rs')).toContain('json!({"data": value})');
+        for (const file of [
+            'packages/feature-support/src/components/support-console.tsx',
+            'packages/feature-support/src/components/support-session-console.tsx',
+            'packages/feature-support/src/components/support-incident-console.tsx',
+        ] as const) expect(readSource(file), file).toContain('result.data.id');
+
+        const evidence = readSource('packages/feature-support/src/components/support-evidence-console.tsx');
+        expect(evidence).toContain('`/api/v1${base}/support/evidence`');
+        expect(evidence).not.toContain('`/api/v1${base}/support`');
+    });
 });

@@ -66,7 +66,7 @@ export function SupportEvidenceConsole({
     setBusy(true);
     setError("");
     try {
-      const response = await workFetch(`/api/v1${base}/support`, {
+      const response = await workFetch(`/api/v1${base}/support/evidence`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -103,7 +103,7 @@ export function SupportEvidenceConsole({
     if (revokeKey.current?.input !== fingerprint)
       revokeKey.current = { input: fingerprint, key: crypto.randomUUID() };
     try {
-      const response = await workFetch(`/api/v1${base}/support`, {
+      const response = await workFetch(`/api/v1${base}/support/evidence`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

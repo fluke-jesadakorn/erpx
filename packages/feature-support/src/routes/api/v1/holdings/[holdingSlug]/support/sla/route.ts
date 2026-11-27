@@ -1,7 +1,0 @@
-import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
-import {requireWorkContext} from "@erpx/server-identity_access/public/authorization";
-import {requestPublicOrigin} from "@erpx/server-manage_erpx/public/public-origin";
-import {ApiError,errorResponse} from "@erpx/server-runtime/public/http";
-import {createNativeSupportSlaWriter} from '../../../../../../../adapters/server/native-support-sla';
-type Context={params:Promise<{holdingSlug:string}>};
-export async function POST(r:Request,c:Context){try{if(r.headers.get('origin')&&r.headers.get('origin')!==requestPublicOrigin(r))throw new ApiError(403,'ORIGIN_FORBIDDEN','Use the application origin.');const key=r.headers.get('Idempotency-Key');if(!key)throw new ApiError(422,'COMMAND_KEY_REQUIRED','Idempotency-Key is required.');const slug=(await c.params).holdingSlug,body=await r.text();let input:unknown;try{input=JSON.parse(body);}catch{throw new ApiError(422,'INVALID_JSON','Provide an SLA command.');}if(!input||typeof input!=='object')throw new ApiError(422,'COMMAND_REQUIRED','Provide an SLA command.');await requireWorkContext(slug);const config=process.env.ERPX_NATIVE_SUPPORT_SLA_CONFIG;if(!config)throw new ApiError(503,'NATIVE_SUPPORT_SLA_UNAVAILABLE','The native Support SLA writer is unavailable.');const data=await createNativeSupportSlaWriter(config)(r.headers,slug,body,key);return Response.json(canonicalDestinationLinks({data}),{headers:{'Cache-Control':'private, no-store'}});}catch(e){return errorResponse(e);}}
