@@ -1,4 +1,5 @@
 import 'server-only';
+import { headers } from 'next/headers';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import { nativeRequest } from '@erpx/server-runtime/public/native-http';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
@@ -71,6 +72,21 @@ export async function nativeCrmCaseEventHistory(actor: WorkContext, leadId: stri
     throw new ApiError(422, 'CRM_HISTORY_LEAD_INVALID', 'Choose one bounded CRM lead.');
   }
   const url = new URL(`/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/crm/case-events?${new URLSearchParams({ leadId })}`, config.privateBaseUrl);
+  const cookie = (await headers()).get('cookie');
+  if (!cookie) throw new ApiError(401, 'UNAUTHENTICATED', 'Sign in to read CRM history.');
+  const context: Record<string, string> = {
+    'x-erpx-context-company': actor.companyId,
+    'x-erpx-context-holding': actor.holdingId,
+  };
+  if (actor.authority) {
+    context['x-erpx-context-assignment'] = actor.assignmentId;
+    context['x-erpx-context-revision'] = String(actor.authority.revision);
+    context['x-erpx-context-assignment-version'] = String(actor.authority.assignmentVersion);
+  }
+  if (actor.scope.kind !== 'holding' && actor.scope.branchSlug)
+    context['x-erpx-workspace-branch'] = actor.scope.branchSlug;
+  if (actor.scope.kind === 'department')
+    context['x-erpx-workspace-department'] = actor.scope.departmentSlug;
   let response: Response;
   try {
     response = await nativeRequest(url, {
@@ -78,10 +94,10 @@ export async function nativeCrmCaseEventHistory(actor: WorkContext, leadId: stri
       headers: {
         host: new URL(holding.origin).host,
         origin: holding.origin,
+        cookie,
         accept: 'application/json',
         'cache-control': 'no-cache',
-        'x-erpx-context-company': holding.companyId,
-        'x-erpx-context-holding': holding.holdingId,
+        ...context,
       },
     }, config.timeoutMs);
   } catch { return unavailable(); }
