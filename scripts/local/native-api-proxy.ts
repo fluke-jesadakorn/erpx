@@ -80,7 +80,7 @@ export async function nativeSessionContext(base: URL, req: IncomingMessage): Pro
     "x-erpx-workspace-branch": text("branchSlug"),
     "x-erpx-workspace-department": text("departmentSlug"),
   };
-  return Object.fromEntries(Object.entries(headers).filter(([, item]) => item !== undefined));
+  return Object.fromEntries(Object.entries(headers).filter(([, item]) => item !== undefined)) as Record<string, string>;
 }
 
 export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.ProcessEnv; req: IncomingMessage; res: ServerResponse }): Promise<void> {
@@ -91,7 +91,7 @@ export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.
       host: base.hostname,
       port: Number(base.port || 80),
       method: req.method,
-      path: nativeApiRewrite(environment ?? {}, req.url ?? "/"),
+      path: nativeApiRewrite(environment ?? process.env, req.url ?? "/"),
       headers: { ...stripInternalHeaders(req.headers), ...context },
     }, response => {
       res.writeHead(response.statusCode ?? 502, response.headers);

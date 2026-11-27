@@ -306,9 +306,9 @@ it('routes /api to the native service, strips browser context and resolves sessi
  const {startCompiledWorkspaceGateway}=await import('../../../scripts/local/compiled-workspace-gateway');
  const {stripInternalHeaders,nativeApiPath}=await import('../../../scripts/local/native-api-proxy');
  expect(stripInternalHeaders({host:'finance.fixture.invalid',cookie:'a=1','x-erpx-context-company':'evil','x-forwarded-for':'1.2.3.4','x-keep':'ok'})).toEqual({host:'finance.fixture.invalid',cookie:'a=1','x-keep':'ok'});
- expect(nativeApiPath({ERPX_DEV_NATIVE_PATHS:'finance.fixture.invalid|/api/a,/api/b'},'/api/a/x','finance.fixture.invalid')).toBe(true);
- expect(nativeApiPath({ERPX_DEV_NATIVE_PATHS:'finance.fixture.invalid|/api/a,/api/b'},'/api/a/x','other.fixture.invalid')).toBe(false);
- expect(nativeApiPath({ERPX_DEV_NATIVE_PATHS:'finance.fixture.invalid|/api/a,/api/b'},'/api/b','other.fixture.invalid')).toBe(true);
+ expect(nativeApiPath({NODE_ENV:'test',ERPX_DEV_NATIVE_PATHS:'finance.fixture.invalid|/api/a,/api/b'},'/api/a/x','finance.fixture.invalid')).toBe(true);
+ expect(nativeApiPath({NODE_ENV:'test',ERPX_DEV_NATIVE_PATHS:'finance.fixture.invalid|/api/a,/api/b'},'/api/a/x','other.fixture.invalid')).toBe(false);
+ expect(nativeApiPath({NODE_ENV:'test',ERPX_DEV_NATIVE_PATHS:'finance.fixture.invalid|/api/a,/api/b'},'/api/b','other.fixture.invalid')).toBe(true);
  const seen:Array<{path:string;company:string|undefined;user:string|undefined;modules:string|undefined;requested:string|undefined}>=[];
  const api=createServer((req,res)=>{
   if((req.url??'').startsWith('/internal/session-context')){
