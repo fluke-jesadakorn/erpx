@@ -140,3 +140,78 @@ async fn service_stock_branches_match_active_company_branch_picker_and_detect_dr
   })).await;assert!(result.is_err());
  }).await;
 }
+
+#[tokio::test]
+async fn holding_address_requires_the_registered_host_and_returns_current_company_lineage() {
+    use erpx_server_organization::public::{HoldingAddressTarget, holding_address_router};
+    use erpx_server_runtime::public::http_support::serve;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::{TcpListener, TcpStream};
+
+    fixture::with_database(2, |pool| async move {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let files = load_migrations(root, MigrationTrack::HoldingWrite).await.unwrap();
+        migrate_database(&pool, MigrationTrack::HoldingWrite, &files).await.unwrap();
+        sqlx::raw_sql(
+            "INSERT INTO organization_nodes
+             (id,kind,slug,display_name,parent_id,company_id,branch_id,status) VALUES
+             ('company','company','acme-co','Acme',NULL,'company',NULL,'active'),
+             ('branch','branch','bangkok','Bangkok','company','company','branch','active'),
+             ('nested','department','kitchens','Kitchens','branch','company','branch','active'),
+             ('direct','department','accounting','Accounting','company','company',NULL,'active'),
+             ('other','company','other-co','Other',NULL,'other',NULL,'active'),
+             ('duplicate','department','bangkok','Conflicting department','other','other',NULL,'active'),
+             ('closed','branch','closed','Closed','company','company','closed','suspended')",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+
+        let router = holding_address_router(vec![HoldingAddressTarget {
+            host: "acme.example.test".into(),
+            holding_slug: "acme".into(),
+            holding_id: HoldingId::new("h001").unwrap(),
+            pool,
+        }])
+        .unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let server_address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { serve(listener, router).await.unwrap() });
+
+        for (host, holding, query, status, branch, department) in [
+            ("acme.example.test", "acme", "company=acme-co", 200, None, None),
+            ("acme.example.test", "acme", "company=company", 200, None, None),
+            ("acme.example.test", "acme", "company=acme-co&workspace=bangkok", 200, Some("bangkok"), None),
+            ("acme.example.test", "acme", "company=acme-co&workspace=accounting", 200, None, Some("accounting")),
+            ("acme.example.test", "acme", "company=acme-co&department=kitchens&branch=bangkok", 200, Some("bangkok"), Some("kitchens")),
+            ("acme.example.test", "acme", "workspace=bangkok", 200, Some("bangkok"), None),
+            ("acme.example.test", "acme", "company=other-co&branch=bangkok&department=kitchens", 404, None, None),
+            ("acme.example.test", "acme", "company=acme-co&workspace=closed", 404, None, None),
+            ("acme.example.test", "acme", "company=acme-co&workspace=kitchens", 404, None, None),
+            ("acme.example.test", "acme", "company=acme-co&branch=bangkok&workspace=bangkok", 404, None, None),
+            ("acme.example.test", "acme", "company=acme-co&company=other-co", 404, None, None),
+            ("acme.example.test", "acme", "", 404, None, None),
+            ("acme.example.test", "northstar", "company=acme-co", 404, None, None),
+            ("northstar.example.test", "acme", "company=acme-co", 404, None, None),
+        ] {
+            let mut socket = TcpStream::connect(server_address).await.unwrap();
+            let path = format!("/internal/organization/holdings/{holding}/workspace-address?{query}");
+            socket.write_all(format!("GET {path} HTTP/1.0\r\nHost: {host}\r\nX-Forwarded-Host: acme.example.test\r\n\r\n").as_bytes()).await.unwrap();
+            let mut response = String::new();
+            socket.read_to_string(&mut response).await.unwrap();
+            let (headers, body) = response.split_once("\r\n\r\n").unwrap();
+            assert!(headers.lines().next().unwrap().contains(&format!(" {status} ")), "{path}: {headers}");
+            assert!(headers.to_ascii_lowercase().contains("cache-control: private, no-store"));
+            let body: serde_json::Value = serde_json::from_str(body).unwrap();
+            if status == 200 {
+                assert_eq!(body["data"]["companyId"], "company");
+                assert_eq!(body["data"]["companySlug"], "acme-co");
+                assert_eq!(body["data"]["branchSlug"].as_str(), branch);
+                assert_eq!(body["data"]["departmentSlug"].as_str(), department);
+            } else {
+                assert_eq!(body["error"]["code"], "WORKSPACE_NOT_FOUND");
+            }
+        }
+        server.abort();
+    }).await;
+}

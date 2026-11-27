@@ -10,11 +10,11 @@ pub use crate::adapters::postgres_authority_seats::{
 pub use crate::adapters::postgres_hierarchy::PgOrganizationReader;
 pub use crate::adapters::postgres_hierarchy::lock_hierarchy_sources;
 pub use crate::application::hierarchy::{
-    OrganizationReadFuture, OrganizationReadPort, read_company_context, resolve_workspace,
+    OrganizationReadFuture, OrganizationReadPort, read_company_context, resolve_holding_address, resolve_workspace,
 };
 pub use crate::domain::authority_seats::HrAuthoritySeat;
 pub use crate::domain::hierarchy::{
-    CompanyContext, HierarchyLineage, NodeKind, NodeStatus, OrganizationNode, WorkspaceRouteQuery,
+    CompanyContext, HierarchyLineage, HoldingAddressQuery, NodeKind, NodeStatus, OrganizationNode, WorkspaceRouteQuery,
     company_context,
 };
 
@@ -61,3 +61,7 @@ pub mod native_lane_23;
 pub mod native_lane_24;
 pub mod native_draft_read;
 pub mod native_acceptance_read;
+
+pub use crate::adapters::native_holding_address_http::{
+    HoldingAddressTarget, holding_address_router,
+};

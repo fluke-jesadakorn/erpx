@@ -203,3 +203,39 @@ impl WorkspaceRouteQuery {
         self.branch_slug.is_none() && self.department_slug.is_none() && self.company.is_none()
     }
 }
+
+/// Named structural selectors for a URL. A single local segment can name a
+/// branch or a Company-level department. Nested departments require their branch.
+#[derive(Clone, Debug)]
+pub struct HoldingAddressQuery {
+    pub(crate) primary: WorkspaceRouteQuery,
+    pub(crate) direct_department: Option<WorkspaceRouteQuery>,
+}
+
+impl HoldingAddressQuery {
+    pub fn new(
+        company: Option<String>,
+        workspace: Option<String>,
+        branch: Option<String>,
+        department: Option<String>,
+    ) -> Result<Self, BusinessError> {
+        if let Some(workspace) = workspace {
+            if branch.is_some() || department.is_some() {
+                return Err(workspace_missing());
+            }
+            return Ok(Self {
+                primary: WorkspaceRouteQuery::new(Some(workspace.clone()), None, company.clone())?,
+                direct_department: Some(WorkspaceRouteQuery::new(None, Some(workspace), company)?),
+            });
+        }
+
+        let primary = WorkspaceRouteQuery::new(branch, department, company)?;
+        if primary.is_empty() {
+            return Err(workspace_missing());
+        }
+        Ok(Self {
+            primary,
+            direct_department: None,
+        })
+    }
+}

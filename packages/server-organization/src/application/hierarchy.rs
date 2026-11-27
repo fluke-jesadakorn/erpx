@@ -1,5 +1,6 @@
 use crate::domain::hierarchy::{
-    CompanyContext, HierarchyLineage, WorkspaceRouteQuery, company_context, workspace_missing,
+    CompanyContext, HierarchyLineage, HoldingAddressQuery, WorkspaceRouteQuery, company_context,
+    workspace_missing,
 };
 use erpx_server_shared::public::{BusinessError, CompanyId, HoldingId};
 use std::{future::Future, pin::Pin};
@@ -52,4 +53,19 @@ pub async fn read_company_context<P: OrganizationReadPort + ?Sized>(
         return Err(workspace_missing().into());
     }
     company_context(holding, lineage).map_err(Into::into)
+}
+
+pub async fn resolve_holding_address<P: OrganizationReadPort + ?Sized>(
+    port: &mut P,
+    query: &HoldingAddressQuery,
+) -> Result<CompanyContext, P::Error> {
+    if let Some(context) = resolve_workspace(port, &query.primary).await? {
+        return Ok(context);
+    }
+    if let Some(department) = &query.direct_department
+        && let Some(context) = resolve_workspace(port, department).await?
+    {
+        return Ok(context);
+    }
+    Err(workspace_missing().into())
 }

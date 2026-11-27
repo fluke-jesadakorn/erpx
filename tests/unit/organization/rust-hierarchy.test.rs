@@ -190,3 +190,18 @@ fn explicit_company_ids_and_slugs_cannot_be_interchanged(){
  assert!(!id.matches(&other));
  let wrong_slug=WorkspaceRouteQuery::for_company_slug(Some("branch".into()),Some("department".into()),"company".into()).unwrap();assert!(!wrong_slug.matches(&own));
 }
+
+#[test]
+fn holding_address_rejects_missing_or_conflicting_structural_selectors() {
+    assert!(HoldingAddressQuery::new(None, None, None, None).is_err());
+    assert!(
+        HoldingAddressQuery::new(
+            Some("company".into()),
+            Some("branch".into()),
+            Some("branch".into()),
+            None,
+        )
+        .is_err()
+    );
+    assert!(HoldingAddressQuery::new(Some("company".into()), None, None, None).is_ok());
+}
