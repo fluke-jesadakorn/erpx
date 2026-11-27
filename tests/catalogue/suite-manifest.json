@@ -52542,7 +52542,8 @@
       ],
       "files": [
         "tests/unit/identity_access/account-invitation-list-native.test.ts",
-        "tests/unit/identity_access/native-session-list-transport.test.ts"
+        "tests/unit/identity_access/native-session-list-transport.test.ts",
+        "tests/unit/identity_access/native-iam-account-session-probe.test.ts"
       ],
       "fixture": "none",
       "requires": {
