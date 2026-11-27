@@ -294,10 +294,12 @@ const server = createServer(async (req, res) => {
         if (cutover === "routine-templates" || cutover === "routine-schedules") nativeApiError(res, 503, "NATIVE_ROUTINES_UNAVAILABLE", "The native Operations routine read is unavailable.");
         else if (cutover === "routine-command") nativeApiError(res, 503, "NATIVE_ROUTINES_UNAVAILABLE", "The native Operations routine command is unavailable.");
         else if (cutover === "plugins") nativeApiError(res, 503, "PLUGINS_UNAVAILABLE", "The native plugin catalogue is unavailable.");
+        else if (cutover === "social") nativeApiError(res, 503, "NATIVE_SOCIAL_UNAVAILABLE", "The native Feed is unavailable.");
         else if (cutover === "quality-read" || cutover === "quality-command" || cutover === "quality-missing") nativeQualityUnavailable(res);
         else nativeApiError(res, 503, "NATIVE_RECORD_REGISTRY_UNAVAILABLE", "The native Records registry is unavailable.");
       } else {
         await proxyNativeApi({ base: nativeBase, environment, req, res, url: nativeUrl, workspace: cutover && scoped ? scoped.workspace : undefined,
+          contextGuard: cutover === "social" || cutover === "plugins" ? cutover : undefined,
           requiresSession: (cutover === "routine-templates" || cutover === "routine-schedules") && ["GET", "HEAD"].includes(req.method ?? ""),
           recordAction: cutover === "record-action", routineCommand: cutover === "routine-command", qualityRead: cutover === "quality-read", qualityCommand: cutover === "quality-command", qualityMissing: cutover === "quality-missing" });
       }

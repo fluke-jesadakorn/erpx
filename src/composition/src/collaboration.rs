@@ -508,18 +508,14 @@ impl<C: Clock + Send + Sync + 'static> SocialService<C> {
         kind: SocialReadKind,
     ) -> Result<SocialHttpReadReply, Error> {
         let holding = self.configuration.holding.clone();
-        let company = self.configuration.company.clone();
+        let company = selection.company_id.clone();
         let clock = self.clock.clone();
-        let expected = company.clone();
         self.authorizer
             .execute_with_sources_deferred(
                 host,
                 proof,
                 move || {
                     let mut request = selection;
-                    if request.company_id != expected {
-                        return Err(scope_error());
-                    }
                     request.mutation = false;
                     Ok(request)
                 },
@@ -594,18 +590,14 @@ impl<C: Clock + Send + Sync + 'static> SocialService<C> {
         limit: usize,
     ) -> Result<SocialCommentsData, Error> {
         let holding = self.configuration.holding.clone();
-        let company = self.configuration.company.clone();
+        let company = selection.company_id.clone();
         let clock = self.clock.clone();
-        let expected = company.clone();
         self.authorizer
             .execute_with_sources_deferred(
                 host,
                 proof,
                 move || {
                     let mut request = selection;
-                    if request.company_id != expected {
-                        return Err(scope_error());
-                    }
                     request.mutation = false;
                     Ok(request)
                 },
@@ -653,18 +645,14 @@ impl<C: Clock + Send + Sync + 'static> SocialService<C> {
         post_id: String,
     ) -> Result<Vec<erpx_server_collaboration::public::social::RevisionRow>, Error> {
         let holding = self.configuration.holding.clone();
-        let company = self.configuration.company.clone();
+        let company = selection.company_id.clone();
         let clock = self.clock.clone();
-        let expected = company.clone();
         self.authorizer
             .execute_with_sources_deferred(
                 host,
                 proof,
                 move || {
                     let mut request = selection;
-                    if request.company_id != expected {
-                        return Err(scope_error());
-                    }
                     request.mutation = false;
                     Ok(request)
                 },
@@ -710,18 +698,14 @@ impl<C: Clock + Send + Sync + 'static> SocialService<C> {
         now_body: serde_json::Value,
     ) -> Result<erpx_server_collaboration::public::social::Receipt, Error> {
         let holding = self.configuration.holding.clone();
-        let company = self.configuration.company.clone();
+        let company = selection.company_id.clone();
         let clock = self.clock.clone();
-        let expected = company.clone();
         self.authorizer
             .execute_with_sources_deferred(
                 host,
                 proof,
                 move || {
                     let mut request = selection;
-                    if request.company_id != expected {
-                        return Err(scope_error());
-                    }
                     request.mutation = true;
                     Ok(request)
                 },
@@ -797,6 +781,8 @@ impl<C: Clock + Send + Sync + 'static> SocialBackend<C> {
         let context = CapturedHoldingMutation::capture(headers, branch, department);
         let selection = if mutation {
             context.resolve()?
+        } else if headers.contains_key("x-erpx-context-company") {
+            context.resolve_rendered_read()?
         } else {
             context.resolve_read(self.service.company().clone())?
         };

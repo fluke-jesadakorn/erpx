@@ -217,6 +217,7 @@ export async function startCompiledWorkspaceGateway(routing: CompiledGatewayRout
         return;
       }
       void proxyNativeApi({ base: new URL(`http://127.0.0.1:${target.port}`), environment: process.env, req, res,
+        contextGuard: cutover === 'social' || cutover === 'plugins' ? cutover : undefined,
         url: cutover && scoped ? scoped.url : url, workspace: cutover && scoped ? scoped.workspace : undefined,
         requiresSession: (cutover === 'routine-templates' || cutover === 'routine-schedules') && ['GET', 'HEAD'].includes(req.method ?? ''),
         recordAction: cutover === 'record-action', routineCommand: cutover === 'routine-command', qualityRead: cutover === 'quality-read',
