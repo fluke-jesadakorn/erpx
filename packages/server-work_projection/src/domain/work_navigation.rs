@@ -47,10 +47,10 @@ pub struct WorkNavigationFact {
     pub work_view_availability: WorkViewAvailabilityFact,
 }
 
-/// Mirrors `compareWork` when every fact lacks `dueAt` (the native read has no
-/// due-date fact): newest first, then the `type:id:actionKind` key.
+/// Earliest due date first, then latest update and the stable record key.
 fn compare_work(a: &WorkItemFact, b: &WorkItemFact) -> Ordering {
-    b.updated_at.cmp(&a.updated_at).then_with(|| {
+    let due = |item: &WorkItemFact| item.presentation.as_ref().and_then(|row| row.due_at).unwrap_or(i64::MAX);
+    due(a).cmp(&due(b)).then_with(|| b.updated_at.cmp(&a.updated_at)).then_with(|| {
         let left = format!(
             "{}:{}:{}",
             a.kind,
@@ -79,8 +79,10 @@ pub fn work_attention(items: &[WorkItemFact], incomplete: bool) -> WorkAttention
         .filter(|item| is_my_action(item))
         .cloned()
         .collect::<Vec<_>>();
-    attention.sort_by(compare_work);
     let total = attention.len();
+    attention.retain(|item| item.presentation.is_some());
+    let incomplete = incomplete || attention.len() != total;
+    attention.sort_by(compare_work);
     let waiting = merged.iter().filter(|item| waits_with_others(item)).count();
     WorkAttentionFact {
         items: attention.into_iter().take(3).collect(),
@@ -95,9 +97,8 @@ pub fn work_navigation(facts: WorkNavigationFacts<'_>) -> WorkNavigationFact {
     let items = merge_work_items(&facts.snapshot.items);
     let incomplete =
         !facts.unavailable_sources.is_empty() || !facts.capabilities.unavailable.is_empty();
-    let work = if !facts.unavailable_sources.is_empty()
-        || (facts.include_attention && !facts.capabilities.unavailable.is_empty())
-    {
+    let attention = facts.include_attention.then(|| work_attention(&items, incomplete));
+    let work = if !facts.unavailable_sources.is_empty() || attention.as_ref().is_some_and(|value| value.incomplete) {
         None
     } else {
         Some(items.iter().filter(|item| is_my_action(item)).count())
@@ -105,9 +106,7 @@ pub fn work_navigation(facts: WorkNavigationFacts<'_>) -> WorkNavigationFact {
     WorkNavigationFact {
         home: facts.home_unread,
         work,
-        attention: facts
-            .include_attention
-            .then(|| work_attention(&items, incomplete)),
+        attention,
         work_view_availability: WorkViewAvailabilityFact {
             team: facts.capabilities.team_queue
                 || items
@@ -132,8 +131,35 @@ mod tests {
             relationships: Vec::new(),
             updated_at,
             source_id: None,
+            presentation: Some(crate::domain::work_card_availability::WorkItemPresentation {
+                title: id.to_owned(),
+                detail: "Task details".into(),
+                status: "open".into(),
+                due_at: None,
+                responsible_queue: "Owner".into(),
+                next_action: "Review".into(),
+                blocker: None,
+            }),
             href: format!("/tasks/{id}"),
         }
+    }
+
+    #[test]
+    fn prioritizes_dated_owner_cards_and_marks_compact_only_actions_incomplete() {
+        let mut soon = item("soon", 1, WorkQueue::Todo);
+        soon.presentation.as_mut().unwrap().due_at = Some(100);
+        let mut later = item("later", 20, WorkQueue::Todo);
+        later.presentation.as_mut().unwrap().due_at = Some(200);
+        let undated = item("undated", 30, WorkQueue::Todo);
+        let mut compact = item("compact", 50, WorkQueue::Todo);
+        compact.presentation = None;
+        let attention = work_attention(&[later, compact, undated, soon], false);
+        assert_eq!(
+            attention.items.iter().map(|item| item.id.as_str()).collect::<Vec<_>>(),
+            vec!["soon", "later", "undated"]
+        );
+        assert_eq!(attention.total, 4);
+        assert!(attention.incomplete);
     }
 
     fn snapshot() -> WorkSnapshotFact {

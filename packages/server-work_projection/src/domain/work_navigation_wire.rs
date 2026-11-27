@@ -1,9 +1,7 @@
 //! Exact `NavigationSnapshot` serialization from native owner facts.
 //!
-//! `read_native_work_navigation` executes the owner SQL and returns compact
-//! authorization facts. This module renders the wire value the retained Next
-//! route produced. Presentation-only `WorkItem` fields are supplied by the
-//! caller's owner read; this module never synthesizes them.
+//! Renders the browser contract from authorized Work facts and owner-provided
+//! presentations.
 
 use crate::domain::work_card_availability::WorkQueue;
 use crate::domain::work_navigation::{WorkAttentionFact, WorkNavigationFact};
@@ -17,42 +15,46 @@ fn queue_name(queue: WorkQueue) -> &'static str {
     }
 }
 
-/// Renders the native attention rows with the retained `WorkItem` field names.
-/// Presentation-only fields (`title`, `detail`, `status`, `flow`) are supplied
-/// by the caller's owner presentation read, never synthesized here.
+/// Renders the browser field names from the owner fields carried by each item.
 pub fn attention_items_json(attention: Option<&WorkAttentionFact>) -> Vec<Value> {
     attention
         .map(|value| {
             value
                 .items
                 .iter()
-                .map(|item| {
-                    json!({
-                        "id": item.id,
+                .take(3)
+                .filter_map(|item| {
+                    let card = item.presentation.as_ref()?;
+                    let mut view = json!({
+                        "id": item.source_id.as_ref().unwrap_or(&item.id),
                         "type": item.kind,
-                        "queue": queue_name(item.queue),
-                        "canAct": item.can_act,
-                        "actionKind": item.action_kind,
-                        "relationships": item.relationships,
-                        "updatedAt": item.updated_at,
-                        "sourceId": item.source_id,
+                        "title": card.title,
+                        "detail": card.detail,
                         "href": item.href,
-                    })
+                        "status": card.status,
+                        "updatedAt": item.updated_at,
+                        "queue": queue_name(item.queue),
+                        "responsibleQueue": card.responsible_queue,
+                        "nextAction": card.next_action,
+                        "dueAt": card.due_at,
+                        "blocker": card.blocker,
+                        "relationships": item.relationships,
+                    });
+                    if let Some(can_act) = item.can_act {
+                        view["canAct"] = json!(can_act);
+                    }
+                    if let Some(kind) = &item.action_kind {
+                        view["actionKind"] = json!(kind);
+                    }
+                    Some(view)
                 })
                 .collect()
         })
         .unwrap_or_default()
 }
 
-/// Renders `{home,work,attention,workViewAvailability,snapshotAt}` exactly as
-/// the browser `NavigationSnapshot` contract. `attention_items` are already
-/// authorized full `WorkItem` values; `attention` facts control count, waiting
-/// and incompleteness.
-pub fn navigation_snapshot_json(
-    fact: &WorkNavigationFact,
-    now: i64,
-    attention_items: Vec<Value>,
-) -> Value {
+/// Renders the browser envelope using the cards selected by the owner.
+pub fn navigation_snapshot_json(fact: &WorkNavigationFact, now: i64) -> Value {
     let mut map = Map::new();
     map.insert("home".to_owned(), json!(fact.home));
     map.insert("work".to_owned(), json!(fact.work));
@@ -64,12 +66,10 @@ pub fn navigation_snapshot_json(
         }),
     );
     if let Some(value) = &fact.attention {
-        let mut items = attention_items;
-        items.truncate(3);
         map.insert(
             "attention".to_owned(),
             json!({
-                "items": items,
+                "items": attention_items_json(Some(value)),
                 "total": value.total,
                 "waiting": value.waiting,
                 "incomplete": value.incomplete,
@@ -98,7 +98,16 @@ mod tests {
             action_kind: None,
             relationships: Vec::new(),
             updated_at: 1,
-            source_id: None,
+            source_id: Some("task-1".into()),
+            presentation: Some(crate::domain::work_card_availability::WorkItemPresentation {
+                title: "Task".into(),
+                detail: "Task details".into(),
+                status: "open".into(),
+                due_at: Some(2000),
+                responsible_queue: "Owner".into(),
+                next_action: "Review".into(),
+                blocker: None,
+            }),
             href: "/work/task-1".into(),
         };
         let snapshot = WorkSnapshotFact {
@@ -121,18 +130,19 @@ mod tests {
                 incomplete: false,
             })
         );
-        let wire = navigation_snapshot_json(
-            &fact,
-            1700000000000,
-            vec![json!({"id": "task-1", "title": "Task", "href": "/work/task-1"})],
-        );
+        let wire = navigation_snapshot_json(&fact, 1700000000000);
         assert_eq!(
             wire,
             json!({
                 "home": 4,
                 "work": 1,
                 "attention": {
-                    "items": [{"id": "task-1", "title": "Task", "href": "/work/task-1"}],
+                    "items": [{
+                        "id": "task-1", "title": "Task", "type": "staff_task", "href": "/work/task-1",
+                        "detail": "Task details", "status": "open", "updatedAt": 1, "queue": "todo",
+                        "responsibleQueue": "Owner", "nextAction": "Review", "dueAt": 2000,
+                        "blocker": null, "relationships": [], "canAct": true
+                    }],
                     "total": 1,
                     "waiting": 0,
                     "incomplete": false
@@ -154,7 +164,7 @@ mod tests {
             include_attention: false,
             routing_attention: false,
         });
-        let wire = navigation_snapshot_json(&fact, 1, vec![]);
+        let wire = navigation_snapshot_json(&fact, 1);
         assert_eq!(wire.as_object().unwrap().len(), 3);
         assert_eq!(wire["work"], 0);
         assert!(wire.get("attention").is_none());

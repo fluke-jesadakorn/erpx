@@ -13,6 +13,7 @@ import {randomUUID} from "node:crypto";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import type {FlowView} from "@erpx/feature-shared/lib/flow";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
+import {policyRead} from "@erpx/server-identity_access/public/iam-read-snapshot";
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import {workContextGuards,financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {commercePackageEnforcementMode,checkPurchasedCapability,readPurchasedAccesses,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from "@erpx/server-commercial/public/purchase-command-boundary";
@@ -41,7 +42,14 @@ async function current(database:SqlDatabase,actor:Actor,key:string,permission:st
 
 /** Count management is supply.counts; shared Stock posting/reservation facts
  * consumed by POS, Hotel, Sales or Manufacturing do not acquire this gate. */
-export async function countSourceAccess(database:SqlDatabase,actor:Actor,id?:string){
+export function countSourceAccess(database: SqlDatabase, actor: Actor, id?: string) {
+  const key = JSON.stringify(["inventory-count-source-access", actor.companyId, actor.userId,
+    actor.assignmentId, actor.role, actor.branchId, actor.departmentId,
+    actor.authority?.revision, actor.authority?.assignmentVersion, id]);
+  return policyRead(database, key, () => readCountSourceAccess(database, actor, id));
+}
+
+async function readCountSourceAccess(database:SqlDatabase,actor:Actor,id?:string){
  if(id&&await serviceInitialPhysicalStockCountMarked(database,id)){await requireServiceInitialPhysicalStockHistory(database,actor as WorkContext,id);const all=await readPurchasedAccesses(database,'enforced',actor.companyId,serviceInitialPhysicalStockCapabilities);return {newWork:serviceInitialPhysicalStockCapabilities.every(cap=>all[cap].newWork),settleExisting:serviceInitialPhysicalStockCapabilities.every(cap=>all[cap].settleExisting),history:true,revision:all[serviceInitialPhysicalStockCapabilities[0]].revision};}
  if(id&&await posInitialPhysicalStockCountMarked(database,id)){await requirePosInitialPhysicalStockHistory(database,actor as WorkContext,id);const all=await readPurchasedAccesses(database,'enforced',actor.companyId,posInitialPhysicalStockCapabilities);return {newWork:posInitialPhysicalStockCapabilities.every(cap=>all[cap].newWork),settleExisting:posInitialPhysicalStockCapabilities.every(cap=>all[cap].settleExisting),history:true,revision:all[posInitialPhysicalStockCapabilities[0]].revision};}
  if(id&&await manufacturingInitialPhysicalStockCountMarked(database,id)){

@@ -17,7 +17,7 @@ use crate::application::work_navigation::{
 };
 use erpx_server_collaboration::public::staff_facts::unread_home_count;
 use erpx_server_identity_access::public::account_inbound_http::{
-    holding_mutation_request, parse_inbound_account_request, unique_request_header,
+    CapturedHoldingMutation, holding_mutation_request, parse_inbound_account_request, unique_request_header,
 };
 use erpx_server_identity_access::public::effective_authority::{
     AuthorizedWorkContext, HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
@@ -29,7 +29,7 @@ use erpx_server_identity_access::public::{DeviceProof, RequestAudience};
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
-    BusinessError, CompanyId, FailureKind, HoldingId, TimestampMillis,
+    BusinessError, FailureKind, HoldingId, TimestampMillis,
 };
 use sha2::{Digest, Sha256};
 use sqlx::PgConnection;
@@ -144,18 +144,9 @@ impl WorkNavigationBackend {
                 holding_mutation_request(headers, branch, department)?,
             ));
         }
-        let company = unique_request_header(headers, "x-erpx-context-company")?
-            .ok_or_else(scope_error)?;
-        Ok((
-            inbound.into_proof(),
-            HoldingWorkspaceRequest {
-                company_id: CompanyId::new(company)?,
-                branch_slug: branch,
-                department_slug: department,
-                expected: None,
-                mutation,
-            },
-        ))
+        let selection = CapturedHoldingMutation::capture(headers, branch, department)
+            .resolve_rendered_read()?;
+        Ok((inbound.into_proof(), selection))
     }
 }
 
@@ -278,6 +269,8 @@ impl WorkNavigationHttpBackend for WorkNavigationBackend {
                                 workspace.branch_slug.as_deref(),
                                 workspace.department_slug.as_deref(),
                             );
+                            let can_prepare_inventory = workspace.department_id.is_none()
+                                && current.has_permission("inventory.prepare");
                             let mut port = PgWorkNavigation { connection };
                             read_navigation(
                                 &mut port,
@@ -288,14 +281,13 @@ impl WorkNavigationHttpBackend for WorkNavigationBackend {
                                 current,
                                 NavigationFacts {
                                     workspace_base: &base,
-                                    // Conservative owner facts: the retained
-                                    // Beta/Inventory/Expense gates are supplied
-                                    // by the lead's composition configuration.
-                                    beta: false,
+                                    beta: current.beta(),
                                     inventory: InventoryPreparation {
-                                        can_prepare_counts: false,
-                                        can_prepare_transfers: false,
+                                        can_prepare_counts: can_prepare_inventory,
+                                        can_prepare_transfers: can_prepare_inventory,
                                     },
+                                    // Native expense creation admission and cross-owner
+                                    // workflow routing must be wired before GET cutover.
                                     expense_available: true,
                                     routing_attention: false,
                                 },

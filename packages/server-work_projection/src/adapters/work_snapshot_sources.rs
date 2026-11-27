@@ -4,7 +4,7 @@
 //! only translate the existing public owner contracts into the shared
 //! availability fact; they perform no SQL, authority or command work.
 
-use crate::domain::work_card_availability::{WorkItemFact, WorkQueue};
+use crate::domain::work_card_availability::{WorkItemFact, WorkItemPresentation, WorkQueue};
 use erpx_server_benefits::public::workspace::BenefitElectionRow;
 use erpx_server_collaboration::public::collaboration_work::ActionWork;
 use erpx_server_customer_authority::public::duplicates::DuplicateReviewRow;
@@ -49,6 +49,7 @@ fn item(
         relationships: Vec::new(),
         updated_at,
         source_id: Some(id.to_owned()),
+        presentation: None,
         href: if href.is_empty() {
             format!("/{prefix}/{id}")
         } else {
@@ -256,6 +257,7 @@ pub fn projected_work_items(rows: &[ProjectedWorkRow]) -> Vec<WorkItemFact> {
             relationships: Vec::new(),
             updated_at: row.updated_at,
             source_id: Some(row.source_id.clone()),
+            presentation: None,
             href: format!("/work/{}", row.id),
         })
         .collect()
@@ -294,6 +296,23 @@ pub fn maintenance_items(
                 relationships,
                 updated_at: row.updated_at,
                 source_id: Some(row.id.clone()),
+                presentation: Some(WorkItemPresentation {
+                    title: format!("{} · {}", row.asset_code, row.title),
+                    detail: format!("{} · {} priority", row.asset_name, row.priority),
+                    status: row.status.clone(),
+                    due_at: row.scheduled_at.filter(|value| *value != 0),
+                    responsible_queue: "Assigned maintenance owner".into(),
+                    next_action: match row.status.as_str() {
+                        "blocked" => "Resolve blocker and resume",
+                        "in_progress" => "Record completion evidence",
+                        _ => "Schedule or start work",
+                    }.into(),
+                    blocker: if row.owner_eligible > 0 {
+                        row.blocked_reason.clone()
+                    } else {
+                        Some("Assigned maintenance owner is no longer eligible; reviewer reassignment is required".into())
+                    },
+                }),
                 href: format!("/maintenance/{}", row.id),
             }
         })
@@ -341,6 +360,21 @@ pub fn preventive_plan_items(
                 relationships,
                 updated_at: row.updated_at,
                 source_id: Some(row.id.clone()),
+                presentation: Some(WorkItemPresentation {
+                    title: format!("{} · {}", row.asset_code, row.title),
+                    detail: format!("Preventive · every {} days · {}", row.interval_days, row.time_zone),
+                    status: row.status.clone(),
+                    due_at: Some(row.next_due_at),
+                    responsible_queue: "Preventive maintenance owner".into(),
+                    next_action: match row.status.as_str() {
+                        "active" => "Generate due work",
+                        "cancelled" => "No further action",
+                        _ => "Review and activate preventive plan",
+                    }.into(),
+                    blocker: (row.owner_eligible == 0).then(|| {
+                        "Assigned maintenance owner is no longer eligible; pause and reassign the plan".into()
+                    }),
+                }),
                 href: format!("/maintenance/plans/{}", row.id),
             }
         })
@@ -384,6 +418,7 @@ pub fn legal_work_items(
                 }],
                 updated_at: row.updated_at,
                 source_id: Some(row.id.clone()),
+                presentation: None,
                 href: format!("/legal?record={}", row.id),
             }
         })
@@ -474,6 +509,7 @@ pub fn quality_hold_items(
                 relationships,
                 updated_at: row.updated_at,
                 source_id: Some(row.id.clone()),
+                presentation: None,
                 href: format!("/quality/{}", row.id),
             }
         })
@@ -512,6 +548,7 @@ pub fn learning_assignment_items(
                 }],
                 updated_at: row.updated_at,
                 source_id: Some(row.id.clone()),
+                presentation: None,
                 href: format!("/learning/{}", row.id),
             }
         })
@@ -544,6 +581,7 @@ pub fn marketing_candidate_items(
                 }],
                 updated_at: row.updated_at,
                 source_id: Some(row.id.clone()),
+                presentation: None,
                 href: format!("/marketing/{}", row.id),
             }
         })
@@ -596,6 +634,7 @@ pub fn organization_change_items(
                 }],
                 updated_at: change.updated_at,
                 source_id: Some(change.id.clone()),
+                presentation: None,
                 href,
             }
         })
@@ -638,6 +677,24 @@ pub fn organization_workspace_change_items(
                 }],
                 updated_at: change.updated_at,
                 source_id: Some(change.id.clone()),
+                presentation: Some(WorkItemPresentation {
+                    title: format!("{} {}: {}", change.action, change.node_kind, change.display_name),
+                    detail: change.review_reason.clone().unwrap_or_else(|| change.reason.clone()),
+                    status: change.state.clone(),
+                    due_at: None,
+                    responsible_queue: if completed { "Company HR" } else if change.state == "submitted" {
+                        "Independent Company HR administrator"
+                    } else { "Requester" }.into(),
+                    next_action: if completed { "Read the retained decision history" } else if review {
+                        "Review the proposed organization change"
+                    } else if correct {
+                        "Correct and submit the organization change"
+                    } else {
+                        "Wait for independent Company HR review"
+                    }.into(),
+                    blocker: (change.state == "submitted" && !review)
+                        .then(|| "An independent Company HR administrator must review this request.".into()),
+                }),
                 href: format!(
                     "/people/organization?view=legacy&company={company_id}&tab=changes&changeId={}#organization-change-{}",
                     change.id, change.id
@@ -695,6 +752,7 @@ pub fn benefit_election_items(
                 },
                 updated_at: election.updated_at,
                 source_id: Some(election.id.clone()),
+                presentation: None,
                 href: format!("/benefits/{}", election.id),
             }
         })
@@ -746,6 +804,7 @@ pub fn customer_duplicate_items(
                 }],
                 updated_at: row.updated_at,
                 source_id: Some(row.id.clone()),
+                presentation: None,
                 href: format!("/customer-duplicates/{}", row.id),
             }
         })
@@ -1479,6 +1538,7 @@ mod tests {
                 relationships: vec!["assigned".into()],
                 updated_at: 0,
                 source_id: Some("ticket-1".into()),
+                presentation: None,
                 href: "/support/ticket-1".into(),
             }
         );

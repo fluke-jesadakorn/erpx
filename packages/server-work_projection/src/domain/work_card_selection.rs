@@ -79,6 +79,7 @@ mod tests {
                 relationships: Vec::new(),
                 updated_at: 1,
                 source_id: None,
+                presentation: None,
                 href: "/expenses/approval-1".into(),
             }],
         };

@@ -104,6 +104,15 @@ async fn composes_native_navigation_with_explicit_unknown_sources() {
                             assert!(attention.incomplete);
                             assert!(!attention.items.is_empty());
                             assert!(attention.total >= attention.items.len());
+                            let cards = erpx_server_work_projection::public::work_navigation_http::attention_items_json(Some(&attention));
+                            let maintenance = cards.iter().find(|row| row["id"] == "work").expect("real Maintenance card");
+                            assert_eq!(maintenance["type"], "maintenance_work");
+                            assert_eq!(maintenance["href"], "/maintenance/work");
+                            assert_eq!(maintenance["status"], "in_progress");
+                            assert!(maintenance["title"].as_str().unwrap().starts_with("SYNTHETIC · PRIVATE_TITLE"));
+                            assert_eq!(maintenance["detail"], "PRIVATE_ASSET · normal priority");
+                            assert_eq!(maintenance["nextAction"], "Record completion evidence");
+                            assert!(cards.iter().all(|card| card["title"].is_string() && card["status"].is_string()));
                             assert!(full.work.is_none());
                             assert!(full.work_view_availability.routing);
 

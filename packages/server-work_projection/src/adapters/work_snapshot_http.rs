@@ -405,6 +405,7 @@ mod tests {
                 relationships: vec!["assigned".into()],
                 updated_at: 1,
                 source_id: Some("work".into()),
+                presentation: None,
                 href: "/maintenance/work".into(),
             }],
             unavailable_sources: vec!["supportWork"],

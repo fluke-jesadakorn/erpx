@@ -72,16 +72,13 @@ pub async fn read_native_work_navigation(
     }))
 }
 
-/// Executes the owner SQL reader on the caller's retained unit and renders the
-/// exact browser `NavigationSnapshot`. Presentation-only attention items are
-/// supplied by the caller's owner read; the owner never synthesizes them.
+/// Executes the owner SQL reader and renders the selected navigation cards.
 pub async fn read_work_navigation_snapshot(
     connection: &mut PgConnection,
     current: &AuthorizedWorkContext,
     request: NativeWorkNavigationRequest,
     now: TimestampMillis,
-    attention_items: Vec<Value>,
 ) -> Result<Value, Error> {
     let fact = read_native_work_navigation(connection, current, request, now).await?;
-    Ok(navigation_snapshot_json(&fact, now.get(), attention_items))
+    Ok(navigation_snapshot_json(&fact, now.get()))
 }

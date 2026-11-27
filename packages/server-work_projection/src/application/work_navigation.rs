@@ -5,7 +5,7 @@
 //! validates command facts and composes the exact browser wire value.
 use crate::adapters::work_navigation_read::NativeWorkNavigationRequest;
 use crate::domain::navigation_wire::canonical_envelope;
-use crate::domain::work_navigation_wire::{attention_items_json, navigation_snapshot_json};
+use crate::domain::work_navigation_wire::navigation_snapshot_json;
 use crate::adapters::work_capability_probes::InventoryPreparation;
 use erpx_server_identity_access::public::effective_authority::AuthorizedWorkContext;
 use erpx_server_shared::public::{BusinessError, TimestampMillis};
@@ -130,11 +130,9 @@ pub async fn read_navigation<P: WorkNavigationPort>(
             query.now,
         )
         .await?;
-    let attention = attention_items_json(snapshot.attention.as_ref());
     Ok(canonical_envelope(navigation_snapshot_json(
         &snapshot,
         query.now.get(),
-        attention,
     )))
 }
 
@@ -189,6 +187,7 @@ mod tests {
                 relationships: Vec::new(),
                 updated_at: 1,
                 source_id: None,
+                presentation: None,
                 href: "/support/ticket-1".into(),
             };
             let snapshot = WorkSnapshotFact { items: vec![item] };

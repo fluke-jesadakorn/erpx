@@ -16,6 +16,18 @@ pub enum WorkQueue {
     Completed,
 }
 
+/// Fields the owning read provides for the Work attention card.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct WorkItemPresentation {
+    pub title: String,
+    pub detail: String,
+    pub status: String,
+    pub due_at: Option<i64>,
+    pub responsible_queue: String,
+    pub next_action: String,
+    pub blocker: Option<String>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WorkItemFact {
     pub id: String,
@@ -26,6 +38,7 @@ pub struct WorkItemFact {
     pub relationships: Vec<String>,
     pub updated_at: i64,
     pub source_id: Option<String>,
+    pub presentation: Option<WorkItemPresentation>,
     pub href: String,
 }
 
@@ -276,6 +289,7 @@ mod tests {
             relationships: Vec::new(),
             updated_at: 1,
             source_id: None,
+            presentation: None,
             href: format!("/work/{id}"),
         }
     }
