@@ -1,7 +1,24 @@
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 vi.mock('server-only', () => ({}));
+
+/** Mutable request facts so each case can pin the incoming host/cookie. */
+const io = vi.hoisted(() => ({ host: 'acme.jesadakorn.com' as string | null, cookie: '__Host-erpx-product=session' as string | null }));
+vi.mock('next/headers', () => ({
+  headers: async () => new Headers(io.host === null ? {} : {
+    host: io.host,
+    ...(io.cookie ? { cookie: io.cookie } : {}),
+  }),
+}));
+vi.mock('@erpx/server-runtime/public/http', () => ({
+  ApiError: class ApiError extends Error {
+    constructor(readonly status: number, readonly code: string, message: string) {
+      super(message);
+      this.name = 'ApiError';
+    }
+  },
+}));
 
 import { PP_RD18_HR_PEOPLE_PROJ_SQL } from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r18-sources';
 import { assignmentsProjectionCompact } from '../../../packages/server-identity_access/src/adapters/assignment-projection-source';
@@ -67,5 +84,113 @@ describe('native Maintenance owner-option read parity', () => {
     expect(http).not.toContain('SELECT ');
     const mod = await read('postgres.rs');
     expect(mod.match(/sqlx::query\(/g)).toHaveLength(1);
+  });
+});
+
+/** The TypeScript transport is a strict projection of the mounted native GET:
+ * it prepares no SQL, carries no repository fallback, forwards only the current
+ * Holding/session/CAS and closes every failure. No `people` SELECT remains to
+ * fall back to, so `prepare` must never be reachable on this path. */
+describe('native Maintenance owner-option transport', () => {
+  const key = 'ERPX_NATIVE_MAINTENANCE_CONFIG';
+  const config = (overrides: Record<string, unknown> = {}) => JSON.stringify({
+    privateBaseUrl: 'http://127.0.0.1:44992',
+    timeoutMs: 1000,
+    holdings: [{ origin: 'https://acme.jesadakorn.com', holdingSlug: 'acme', holdingId: 'h001' }],
+    ...overrides,
+  });
+  const actor = (overrides: Record<string, unknown> = {}) => ({
+    userId: 'user', holdingId: 'h001', holdingSlug: 'acme', companyId: 'company',
+    branchId: null, departmentId: null, assignmentId: 'assignment',
+    authority: { revision: 7, assignmentVersion: 3 },
+    iam: { permissions: ['records.read', 'records.write'] },
+    ...overrides,
+  }) as unknown as import('@erpx/server-identity_access/public/authorization').WorkContext;
+  const ok = (data: unknown) => new Response(JSON.stringify({ data }), {
+    status: 200, headers: { 'content-type': 'application/json' },
+  });
+  const load = () => import('../../../packages/server-maintenance/src/adapters/native-owner-options-read');
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    process.env[key] = config();
+    io.host = 'acme.jesadakorn.com';
+    io.cookie = '__Host-erpx-product=session';
+  });
+  afterEach(() => { fetchSpy?.mockRestore(); delete process.env[key]; });
+
+  it('reads owner options from the native endpoint only, forwarding the current context', async () => {
+    fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      ok([{ id: 'u1', name: 'Owner One' }, { id: 'u2', name: 'Owner Two' }]),
+    );
+    const { maintenanceOwnerOptions } = await load();
+    expect(await maintenanceOwnerOptions(actor())).toEqual([
+      { id: 'u1', name: 'Owner One' }, { id: 'u2', name: 'Owner Two' },
+    ]);
+    const [url, init] = fetchSpy.mock.calls[0];
+    expect(String(url)).toBe('http://127.0.0.1:44992/api/v1/holdings/acme/maintenance/owner-options');
+    expect(init).toMatchObject({ method: 'GET', redirect: 'error', cache: 'no-store' });
+    const h = new Headers(init?.headers as HeadersInit);
+    expect(h.get('host')).toBe('acme.jesadakorn.com');
+    expect(h.get('cookie')).toBe('__Host-erpx-product=session');
+    expect(h.get('x-erpx-context-company')).toBe('company');
+    expect(h.get('x-erpx-context-assignment')).toBe('assignment');
+    expect(h.get('x-erpx-context-revision')).toBe('7');
+    expect(h.get('x-erpx-context-assignment-version')).toBe('3');
+  });
+
+  const failures: [string, () => void, Record<string, unknown>, string][] = [
+    ['missing configuration', () => { delete process.env[key]; }, {}, 'NATIVE_MAINTENANCE_OWNER_OPTIONS_UNAVAILABLE'],
+    ['insecure native base URL', () => { process.env[key] = config({ privateBaseUrl: 'http://10.0.0.1:44992' }); }, {}, 'NATIVE_MAINTENANCE_CONFIG_INVALID'],
+    ['changed host', () => { io.host = 'evil.example.com'; }, {}, 'WORK_CONTEXT_CHANGED'],
+    ['changed holding', () => {}, { holdingId: 'other' }, 'WORK_CONTEXT_CHANGED'],
+    ['missing authority', () => {}, { authority: null }, 'WORK_CONTEXT_CHANGED'],
+    ['missing company scope', () => {}, { companyId: '' }, 'NATIVE_MAINTENANCE_OWNER_OPTIONS_RESPONSE_INVALID'],
+    ['oversized cookie', () => { io.cookie = 'x'.repeat(9000); }, {}, 'NATIVE_MAINTENANCE_READ_COOKIE_LIMIT'],
+  ];
+  for (const [label, arrange, overrides, code] of failures) {
+    it(`fails closed for ${label} before any fetch`, async () => {
+      arrange();
+      fetchSpy = vi.spyOn(globalThis, 'fetch');
+      const { maintenanceOwnerOptions } = await load();
+      await expect(maintenanceOwnerOptions(actor(overrides))).rejects.toMatchObject({ status: expect.any(Number), code });
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+  }
+
+  it('closes a non-ok, wrong-content-type or failed fetch without a fallback', async () => {
+    const { maintenanceOwnerOptions } = await load();
+    fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 503, headers: { 'content-type': 'application/json' } }));
+    await expect(maintenanceOwnerOptions(actor())).rejects.toMatchObject({ code: 'NATIVE_MAINTENANCE_OWNER_OPTIONS_UNAVAILABLE' });
+    fetchSpy.mockResolvedValue(new Response(JSON.stringify({ data: [] }), { status: 200, headers: { 'content-type': 'text/plain' } }));
+    await expect(maintenanceOwnerOptions(actor())).rejects.toMatchObject({ code: 'NATIVE_MAINTENANCE_OWNER_OPTIONS_UNAVAILABLE' });
+    fetchSpy.mockRejectedValue(new Error('network'));
+    await expect(maintenanceOwnerOptions(actor())).rejects.toMatchObject({ code: 'NATIVE_MAINTENANCE_OWNER_OPTIONS_UNAVAILABLE' });
+  });
+
+  it('rejects malformed or unbounded payloads instead of projecting them', async () => {
+    const { maintenanceOwnerOptions } = await load();
+    for (const body of [
+      { rows: [] },
+      { data: [{ id: 'u1', name: 'Owner', extra: 1 }] },
+      { data: [{ id: '', name: 'Owner' }] },
+      { data: Array.from({ length: 1001 }, () => ({ id: 'u1', name: 'Owner' })) },
+    ]) {
+      fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(ok(body));
+      await expect(maintenanceOwnerOptions(actor())).rejects.toMatchObject({ code: 'NATIVE_MAINTENANCE_OWNER_OPTIONS_RESPONSE_INVALID' });
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('keeps the TS transport SQL-free and on the native route', async () => {
+    const source = await readFile(new URL(
+      '../../../packages/server-maintenance/src/adapters/native-owner-options-read.ts', import.meta.url,
+    ), 'utf8');
+    expect(source).not.toMatch(/\b(?:SELECT|INSERT|UPDATE|DELETE|prepare)\b/i);
+    expect(source).toContain('/maintenance/owner-options');
+    const pub = await readFile(new URL(
+      '../../../packages/server-maintenance/src/public/asset-maintenance.ts', import.meta.url,
+    ), 'utf8');
+    expect(pub).toContain('maintenanceOwnerOptions');
   });
 });
