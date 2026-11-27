@@ -9192,6 +9192,14 @@
           "integrate.organization.holding-ui-address"
         ],
         "evidence": "Pushed the frozen Acme Company-first URL cutover e18a76d1c38ed20789454afee8d46ad900b3b55d2e2a1d151fbb3406e8758a5e as 4c1e26e976ce0edff3953e4b6837f06a12f7ab8b (17 paths, 293 insertions / 55 deletions; base 9e5f29ab). Company is the first path segment for every Product and approved Plugin; private Organization workspace-address reads run on loopback, the legacy workspaceRouteCompany adapter/export is removed, and the purchased-capability predicate parentheses are balanced. Re-ran routing 30/30, both TypeScript projects, structure, and git diff check in a clean worktree at the pushed commit; the worker's native cargo check/build and Acme 200 / Northstar 404 lookup receipts pass. Normal Account SSO Chromium reached /acme-co/bangkok/apps 200 and Sales, Finance, People, Supply, Assets, Projects, Recruit, Learn, POS, PMS, Legal and Manufacturing 200; uninstalled /acme-co/site-measurement returned 404. Support and Service reached origin 200 but the browser waits timed out; remaining signed apps are still being checked. The identity_access integration harness did not run: REQUIRED_TEST_CASES_NOT_EXECUTED plus a Vitest code.charCodeAt runner error. This is not a pass. No staging or production service was restarted; full acceptance remains deferred."
+      },
+      {
+        "at": "2026-11-27T19:47:40.846Z",
+        "commit": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
+        "bundles": [
+          "integrate.organization.holding-ui-address"
+        ],
+        "evidence": "Final Acme company-first browser evidence at frozen code SHA 4c1e26e976ce0edff3953e4b6837f06a12f7ab8b. Normal Account SSO Chromium returned 200 for all 15 registered Products (apps, POS, PMS, Finance, People, Sales, Supply, Assets, Projects, Recruit, Learn, Support, Service, Legal, Manufacturing) and for Company Admin /acme-co/admin/brand/identity; Sales 200, uninstalled site-measurement 404, and an alternate non-installed Plugin 404. Support and Service now return 200 in both authenticated HTTP and browser context after the shared gateway restart. The approved Plugin registry is empty, so real installed Plugin verification is the only external product item still unresolved. Full acceptance is not promoted and no staging or production service was changed."
       }
     ],
     "historicalExecutionPlans": [
@@ -9283,15 +9291,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16291,
+    "revision": 16293,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261128-route",
       "agentId": "lead",
       "startedAt": "2026-11-27T18:37:24.221Z",
-      "heartbeatAt": "2026-11-27T19:45:15.254Z",
-      "expiresAt": "2026-11-27T20:15:15.254Z",
+      "heartbeatAt": "2026-11-27T19:47:40.606Z",
+      "expiresAt": "2026-11-27T20:17:40.606Z",
       "generation": 225,
       "tokenHash": "32082f670a6f8aac8b5cfee007842097505e0fb379d299c9043b25f7aa71813e"
     },
@@ -225696,12 +225704,12 @@
           "runId": "run-20261128-route",
           "agentId": "codex-oasis-holding-address",
           "claimedAt": "2026-11-27T19:26:06.018Z",
-          "heartbeatAt": "2026-11-27T19:45:15.254Z",
-          "expiresAt": "2026-11-27T20:15:15.254Z",
+          "heartbeatAt": "2026-11-27T19:47:40.606Z",
+          "expiresAt": "2026-11-27T20:17:40.606Z",
           "generation": 225
         },
         "baseSha": "7e0d0db108612bf1caae014d0d6f60c208b427db",
-        "implementedCommit": null,
+        "implementedCommit": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
         "lastPushedSha": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
         "checks": [
           {
@@ -225733,9 +225741,9 @@
           },
           {
             "command": "Chromium normal Account SSO Acme probe",
-            "result": "partial",
+            "result": "passed",
             "sourceSha": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
-            "details": "Company root, Sales, Finance, People, Supply, Assets, Projects, Recruit, Learn, POS, PMS, Legal and Manufacturing 200; uninstalled site-measurement 404. Support/Service origin 200 but browser waits timed out."
+            "details": "All 15 registered Products (apps, POS, PMS, Finance, People, Sales, Supply, Assets, Projects, Recruit, Learn, Support, Service, Legal, Manufacturing) and Company Admin /acme-co/admin/brand/identity returned 200 after normal Account SSO. Sales 200; uninstalled site-measurement 404; alternate non-installed Plugin 404."
           },
           {
             "command": "integration identity_access harness",
@@ -225746,7 +225754,7 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Code is pushed at 4c1e26e. Keep the claim while remaining signed apps are checked: Support/Service reached origin 200 but browser waits timed out, the identity_access integration harness still errors REQUIRED_TEST_CASES_NOT_EXECUTED, and full acceptance stays deferred. The claimed inventory 42601 adapter has no pushed change; reproduce it before closing if product entry still fails. Do not edit the cutover paths unless a verified regression requires it.",
+        "nextAction": "Final Acme browser evidence is recorded at frozen code SHA 4c1e26e: all 15 registered Products and Company Admin return 200, Support/Service 200, Sales 200, uninstalled site-measurement 404, and an alternate non-installed Plugin 404. The only external product item still unresolved is real installed Plugin verification because the approved registry is empty; the identity_access integration harness reporter still errors REQUIRED_TEST_CASES_NOT_EXECUTED. Keep the claim and do not promote full acceptance.",
         "handoff": {
           "runId": "run-20261128-route",
           "agentId": "lead",
@@ -225780,7 +225788,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Native owner read and the Company-first URL cutover are pushed at 4c1e26e; closure follows the integration task's remaining signed-app browser checks and the identity harness runner error.",
+        "nextAction": "All 15 registered Products and Company Admin return 200 under normal Account SSO at 4c1e26e; only external installed-Plugin verification remains because the approved registry is empty. Full acceptance stays deferred.",
         "handoff": null,
         "scopeRefinementRequired": false,
         "aggregate": true
@@ -225898,12 +225906,12 @@
       }
     },
     "lastCoordinatorGeneration": 225,
-    "updatedAt": "2026-11-27T19:45:56.460Z",
+    "updatedAt": "2026-11-27T19:47:40.846Z",
     "handoff": {
       "fromRun": "run-20261128-route",
       "verifiedPushedCheckpoint": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
-      "remoteVerifiedAt": "HEAD==origin==4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
-      "summary": "Company-first Holding URL cutover pushed; worker keeps the integration claim for remaining signed-app browser verification and the identity harness runner error."
+      "remoteVerifiedAt": "origin/codex/rust-backend-migration contains 4c1e26e976ce0edff3953e4b6837f06a12f7ab8b (verified before this evidence commit)",
+      "summary": "All 15 registered Acme Products and Company Admin pass normal-SSO browser checks at 4c1e26e. Real installed Plugin verification remains external because the approved registry is empty; full acceptance stays deferred."
     },
     "lastRecovery": {
       "previousRunId": "run-20261127-g",
