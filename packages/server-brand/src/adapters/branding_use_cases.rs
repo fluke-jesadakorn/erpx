@@ -637,6 +637,7 @@ pub trait BrandingPresentationPorts {
 
     fn actor(&self) -> &BrandActor;
     fn authorize(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send;
+    fn authorize_workspace(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send;
     fn profile(
         &mut self,
         scope_kind: BrandScopeKind,
@@ -675,7 +676,7 @@ pub async fn resolve_workspace_brand<P: BrandingPresentationPorts>(
     ports: &mut P,
     context: &BrandPresentationContext,
 ) -> Result<WorkspaceBrand, P::Error> {
-    ports.authorize().await?;
+    ports.authorize_workspace().await?;
     let actor = ports.actor().clone();
     let branch_id = selected_branch(ports.actor()).map(str::to_owned);
     if let Some(branch_id) = branch_id

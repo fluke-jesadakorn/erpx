@@ -67,6 +67,29 @@ pub(crate) async fn authorize(
             .into());
         }
     }
+    authorize_current_assignment(connection, actor, now, permission).await?;
+    if owner {
+        actor.require_permission("company.owner")?;
+    }
+    Ok(())
+}
+
+pub(crate) async fn authorize_workspace_brand(
+    connection: &mut PgConnection,
+    actor: &BrandActor,
+    now: i64,
+) -> Result<(), BrandError> {
+    let permission = "records.read";
+    actor.require_permission(permission)?;
+    authorize_current_assignment(connection, actor, now, permission).await
+}
+
+async fn authorize_current_assignment(
+    connection: &mut PgConnection,
+    actor: &BrandActor,
+    now: i64,
+    permission: &str,
+) -> Result<(), BrandError> {
     let current: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM assignments g WHERE g.id=$1 AND g.user_id=$2 AND g.role=$3 \
          AND g.company_id=$4 AND iam_assignment_active(g.id,$5) \
@@ -83,9 +106,6 @@ pub(crate) async fn authorize(
     .await?;
     if !current {
         return Err(authority_changed().into());
-    }
-    if owner {
-        actor.require_permission("company.owner")?;
     }
     Ok(())
 }

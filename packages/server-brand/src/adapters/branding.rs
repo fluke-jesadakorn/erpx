@@ -1,7 +1,7 @@
 //! PostgreSQL Branding commands and reads. Every method runs on the caller's
 //! serializable Holding transaction and keeps the retained guard, receipt,
 //! audit and outbox evidence in that same unit.
-use crate::adapters::identity::{authorize, read_active_brand_identity};
+use crate::adapters::identity::{authorize, authorize_workspace_brand, read_active_brand_identity};
 use crate::adapters::branding_use_cases::{
     BrandRecordKind, BrandingMutation, BrandingMutationAction, BrandingPorts,
     BrandingPresentationPorts, resolve_record_branch,
@@ -899,6 +899,12 @@ impl BrandingPresentationPorts for PgBranding<'_> {
         &mut self,
     ) -> impl std::future::Future<Output = Result<(), Self::Error>> + Send {
         self.authorize_inner(false, false)
+    }
+
+    fn authorize_workspace(
+        &mut self,
+    ) -> impl std::future::Future<Output = Result<(), Self::Error>> + Send {
+        authorize_workspace_brand(self.connection, self.actor, self.now)
     }
 
     fn profile(
