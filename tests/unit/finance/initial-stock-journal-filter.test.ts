@@ -46,15 +46,13 @@ describe('native initial-stock journal filter',()=>{
   expect(match![1]).toBe(sha(expected));
  });
  it('pins the production scheduled-rollout filter instead of dev TRUE',()=>{
-  const previous=process.env.NODE_ENV;
+  vi.stubEnv('NODE_ENV','production');
   try{
-   process.env.NODE_ENV='production';
    const expected=initialPhysicalStockFinanceJournalFilter('workspace_records','records_search_actor.now_ms');
    expect(expected).toContain('company_feature_rollouts');
    expect(pinned('ROW_FILTER_PRODUCTION_SQL')).toBe(trimLineEnds(expected));
   }finally{
-   if(previous===undefined)delete process.env.NODE_ENV;
-   else process.env.NODE_ENV=previous;
+   vi.unstubAllEnvs();
   }
  });
  it('keeps the owner port bind-free and mode-exact',()=>{
