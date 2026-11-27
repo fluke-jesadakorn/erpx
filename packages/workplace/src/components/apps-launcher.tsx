@@ -7,7 +7,7 @@ import { Dialog } from "@erpx/ui/components/dialog";
 import { TextInput } from "@erpx/ui/components/input";
 import { InlineNotice } from "@erpx/ui/components/foundation";
 import { CompanyPluginCatalogue } from "./company-plugin-catalogue";
-import { emptyAppsMemory, readAppsMemory, writeAppsMemory, restoreAppsSelection, rememberAppsLaunch, visibleApps, recentApps, type AppsCompany, type AppsWorkspace, type AppsMemory } from "@erpx/feature-work_projection/lib/apps-launcher";
+import { emptyAppsMemory, readAppsMemory, writeAppsMemory, restoreAppsSelection, rememberAppsLaunch, visibleApps, recentApps, saveFeedScroll, takeFeedScroll, type FeedScrollPosition, type AppsCompany, type AppsWorkspace, type AppsMemory } from "@erpx/feature-work_projection/lib/apps-launcher";
 import styles from "./apps-launcher.module.css";
 
 const launcherHash = "#apps";
@@ -45,6 +45,7 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
   const grid = useRef<HTMLDivElement>(null);
   const initialized = useRef<string | null>(null);
   const launched = useRef(false);
+  const feedScroll = useRef<FeedScrollPosition | null>(null);
   const flight = useRef<{ layer: HTMLElement; animation: Animation } | null>(null);
   const current = restoreAppsSelection(companies, memory);
   const company = companies.find(item => item.id === current.memory.companyId);
@@ -95,8 +96,52 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
     };
   }, []);
 
+  useEffect(() => {
+    if (entry || currentProductId !== "apps" || !currentCompanyId || !currentWorkspaceId) return;
+    const companyId = currentCompanyId, workspaceId = currentWorkspaceId;
+    let stop: (() => void) | undefined;
+    function restore() {
+      if (window.location.hash || primaryLauncherTrigger() !== trigger.current) return;
+      const route = window.location.pathname + window.location.search;
+      let position: FeedScrollPosition | null;
+      try { position = takeFeedScroll(window.sessionStorage, { accountId, companyId, workspaceId, route }); }
+      catch { return; }
+      if (!position) return;
+      const { x, y } = position;
+      const input = ["wheel", "touchstart", "pointerdown", "keydown"];
+      const observer = new ResizeObserver(apply);
+      const timeout = window.setTimeout(clear, 2000);
+      function apply() {
+        if (window.location.pathname + window.location.search !== route) return clear();
+        if (Math.abs(window.scrollX - x) > 1 || Math.abs(window.scrollY - y) > 1)
+          window.scrollTo({ left: x, top: y, behavior: "instant" });
+      }
+      function clear() {
+        window.clearTimeout(timeout);
+        observer.disconnect();
+        window.removeEventListener("scroll", apply);
+        for (const event of input) window.removeEventListener(event, clear);
+      }
+      stop?.();
+      stop = clear;
+      observer.observe(document.body);
+      window.addEventListener("scroll", apply, { passive: true });
+      for (const event of input) window.addEventListener(event, clear, { passive: true });
+      apply();
+    }
+    restore();
+    window.addEventListener("pageshow", restore);
+    return () => {
+      stop?.();
+      window.removeEventListener("pageshow", restore);
+    };
+  }, [accountId, entry, currentCompanyId, currentWorkspaceId, currentProductId]);
+
   function showHere() {
-    if (window.location.hash !== launcherHash) window.history.pushState({ erpxAppsLauncher: true }, "", launcherHash);
+    if (window.location.hash !== launcherHash) {
+      feedScroll.current = { x: window.scrollX, y: window.scrollY };
+      window.history.pushState({ erpxAppsLauncher: true }, "", launcherHash);
+    }
     setOpen(true);
   }
 
@@ -139,7 +184,18 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
     const tile = event.currentTarget;
     const href = tile.href;
     const returningToPage = window.location.hash === launcherHash;
-    const navigate = () => returningToPage ? window.location.replace(href) : window.location.assign(href);
+    const navigate = () => {
+      if (currentProductId === "apps" && currentCompanyId && currentWorkspaceId && feedScroll.current) {
+        try {
+          saveFeedScroll(window.sessionStorage, {
+            accountId, companyId: currentCompanyId, workspaceId: currentWorkspaceId,
+            route: window.location.pathname + window.location.search,
+          }, feedScroll.current);
+        } catch { /* Optional storage. */ }
+      }
+      if (returningToPage) window.location.replace(href);
+      else window.location.assign(href);
+    };
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || !tile.animate) {
       navigate();
       return;

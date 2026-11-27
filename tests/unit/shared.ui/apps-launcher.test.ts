@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { appsMemoryKey, buildAppsCompanies, emptyAppsMemory, feedEntryHref, readAppsMemory, recentApps, rememberAppsLaunch, restoreAppsSelection, selectAppsCompany, visibleApps, writeAppsMemory, type AppsEntry, type AppsMemory } from "@erpx/feature-work_projection/lib/apps-launcher";
+import { appsMemoryKey, buildAppsCompanies, emptyAppsMemory, feedEntryHref, readAppsMemory, recentApps, rememberAppsLaunch, restoreAppsSelection, saveFeedScroll, takeFeedScroll, selectAppsCompany, visibleApps, writeAppsMemory, type AppsEntry, type AppsMemory } from "@erpx/feature-work_projection/lib/apps-launcher";
 import type { HoldingWorkspaceScope } from "@erpx/feature-work_projection/lib/workspace";
 
 const companyScope: HoldingWorkspaceScope = { kind: "holding", holdingSlug: "group" };
@@ -10,7 +10,7 @@ function entry(companyId = "c1", scope = companyScope, productId = "apps") {
     ...(scope.kind === "department" ? { branch: "Bangkok / Operations" } : {}), productId, label: productId, href: `https://${productId}.example/sso/start?companyId=${companyId}&area=${scope.kind}` };
 }
 const products: AppsEntry[] = Array.from({ length: 15 }, (_, index) => ({ productId: `app${index}`, label: `App ${index}`, href: `https://app${index}.example/sso/start` }));
-function storage() { const values = new Map<string, string>(); return { values, getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); } }; }
+function storage() { const values = new Map<string, string>(); return { values, getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); }, removeItem: (key: string) => { values.delete(key); } }; }
 const companies = () => buildAppsCompanies([entry(), entry("c1", branchScope), entry("c1", departmentScope), entry("c2")], []);
 
 describe("Apps company and workspace projection", () => {
@@ -170,5 +170,29 @@ describe('Central account workspace memory across product hosts', () => {
     const result = restoreAppsSelection(companies(), { ...emptyAppsMemory(), ...hint });
     expect(result.invalid).toBe('company');
     expect(result.memory.companyId).toBeNull();
+  });
+});
+
+describe("Feed scroll after switching apps", () => {
+  const feed = { accountId: "account-one", companyId: "company-one", workspaceId: "showroom", route: "/apps/home?tag=kitchen" };
+
+  it("restores once in the same account, workspace and filtered Feed", () => {
+    const session = storage();
+    saveFeedScroll(session, feed, { x: 0, y: 360 });
+    expect(takeFeedScroll(session, { ...feed, accountId: "account-two" })).toBeNull();
+    expect(takeFeedScroll(session, { ...feed, companyId: "company-two" })).toBeNull();
+    expect(takeFeedScroll(session, { ...feed, workspaceId: "design" })).toBeNull();
+    expect(takeFeedScroll(session, { ...feed, route: "/apps/home" })).toBeNull();
+    expect(takeFeedScroll(session, feed)).toEqual({ x: 0, y: 360 });
+    expect(takeFeedScroll(session, feed)).toBeNull();
+  });
+
+  it("discards a corrupt position", () => {
+    const session = storage();
+    saveFeedScroll(session, feed, { x: 0, y: 360 });
+    const key = [...session.values.keys()][0]!;
+    session.setItem(key, '{"x":0,"y":"unknown"}');
+    expect(takeFeedScroll(session, feed)).toBeNull();
+    expect(session.getItem(key)).toBeNull();
   });
 });

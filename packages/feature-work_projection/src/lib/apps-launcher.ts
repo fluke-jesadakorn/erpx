@@ -107,3 +107,31 @@ export function recentApps(apps: readonly AppsEntry[], recent: readonly string[]
 export function rememberAppsLaunch(memory: AppsMemory, companyId: string, productId: string): AppsMemory {
   return { ...memory, recent: { ...memory.recent, [companyId]: [productId, ...(memory.recent[companyId] ?? []).filter(id => id !== productId)].slice(0, 30) } };
 }
+
+export type FeedScrollScope = {
+  accountId: string; companyId: string; workspaceId: string; route: string;
+};
+export type FeedScrollPosition = { x: number; y: number };
+const feedScrollKey = (scope: FeedScrollScope) =>
+  `erpx:apps-feed-scroll:v1:${JSON.stringify([scope.accountId, scope.companyId, scope.workspaceId, scope.route])}`;
+
+export function saveFeedScroll(
+  storage: Pick<Storage, "setItem">, scope: FeedScrollScope, position: FeedScrollPosition,
+) {
+  storage.setItem(feedScrollKey(scope), JSON.stringify(position));
+}
+
+export function takeFeedScroll(
+  storage: Pick<Storage, "getItem" | "removeItem">, scope: FeedScrollScope,
+): FeedScrollPosition | null {
+  const key = feedScrollKey(scope);
+  const raw = storage.getItem(key);
+  if (raw === null) return null;
+  storage.removeItem(key);
+  try {
+    const position = JSON.parse(raw) as FeedScrollPosition | null;
+    if (position && Number.isFinite(position.x) && Number.isFinite(position.y) && position.y >= 0)
+      return { x: position.x, y: position.y };
+  } catch { /* Discard corrupted position data. */ }
+  return null;
+}
