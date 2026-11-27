@@ -596,8 +596,8 @@ fn specification_json(value: &QualitySpecification) -> Value {
     })
 }
 
-fn metric(metric: &QualityMetric) -> Value {
-    json!({
+fn metric(metric: &QualityMetric, include_bound_aliases: bool) -> Value {
+    let mut encoded = json!({
         "id": metric.id,
         "specId": metric.spec_id,
         "code": metric.code,
@@ -605,10 +605,36 @@ fn metric(metric: &QualityMetric) -> Value {
         "unit": metric.unit,
         "minimum": metric.minimum,
         "maximum": metric.maximum,
-        "minimumValue": metric.minimum,
-        "maximumValue": metric.maximum,
         "ordinal": metric.ordinal,
-    })
+    });
+    if include_bound_aliases {
+        encoded["minimumValue"] = json!(metric.minimum);
+        encoded["maximumValue"] = json!(metric.maximum);
+    }
+    encoded
+}
+
+#[cfg(test)]
+#[test]
+fn workspace_metric_preserves_canonical_bounds_and_private_aliases() {
+    let row = QualityMetric {
+        id: "metric".into(),
+        spec_id: Some("spec".into()),
+        code: "temperature".into(),
+        label: "Temperature".into(),
+        unit: "C".into(),
+        minimum: Some("2.5".into()),
+        maximum: None,
+        ordinal: 1,
+    };
+    let public = metric(&row, false);
+    assert_eq!(public["minimum"], "2.5");
+    assert!(public["maximum"].is_null());
+    assert!(public.get("minimumValue").is_none());
+    assert!(public.get("maximumValue").is_none());
+    let private = metric(&row, true);
+    assert_eq!(private["minimumValue"], public["minimum"]);
+    assert_eq!(private.get("maximumValue"), public.get("maximum"));
 }
 
 fn inspection(row: &QualityInspection) -> Value {
@@ -706,7 +732,7 @@ fn alert_queue_row(row: &QualityAlertRow) -> Value {
     })
 }
 
-fn workspace(value: &QualityWorkspace) -> Value {
+fn workspace(value: &QualityWorkspace, public_transport: bool) -> Value {
     json!({
         "data": {
             "holds": value.holds.iter().map(|row| hold_json(&row.hold, &row.product, row.decision, row.next_action)).collect::<Vec<_>>(),
@@ -714,7 +740,7 @@ fn workspace(value: &QualityWorkspace) -> Value {
             "lots": value.lots.iter().map(lot_json).collect::<Vec<_>>(),
             "products": value.products.iter().map(product_json).collect::<Vec<_>>(),
             "specifications": value.specifications.iter().map(specification_json).collect::<Vec<_>>(),
-            "specMetrics": value.specification_metrics.iter().map(metric).collect::<Vec<_>>(),
+            "specMetrics": value.specification_metrics.iter().map(|row| metric(row, !public_transport)).collect::<Vec<_>>(),
             "canHold": value.can_hold,
             "canManageSpecs": value.can_manage_specs,
         }
@@ -729,7 +755,7 @@ fn detail(value: &QualityDetail) -> Value {
             "measurements": value.measurements.iter().map(measurement).collect::<Vec<_>>(),
             "cancellations": value.cancellations.iter().map(cancellation).collect::<Vec<_>>(),
             "dispositions": value.dispositions.iter().map(disposition).collect::<Vec<_>>(),
-            "specMetrics": value.spec_metrics.iter().map(metric).collect::<Vec<_>>(),
+            "specMetrics": value.spec_metrics.iter().map(|row| metric(row, true)).collect::<Vec<_>>(),
             "alerts": value.alerts.iter().map(alert).collect::<Vec<_>>(),
         }
     })
@@ -741,7 +767,7 @@ fn detail_core(value: &QualityDetailCore) -> Value {
         "inspections": value.inspections.iter().map(inspection).collect::<Vec<_>>(),
         "measurements": value.measurements.iter().map(measurement).collect::<Vec<_>>(),
         "dispositions": value.dispositions.iter().map(disposition).collect::<Vec<_>>(),
-        "specMetrics": value.spec_metrics.iter().map(metric).collect::<Vec<_>>(),
+        "specMetrics": value.spec_metrics.iter().map(|row| metric(row, true)).collect::<Vec<_>>(),
         "alerts": value.alerts.iter().map(alert).collect::<Vec<_>>(),
         "cancellationHistory": "paged",
     }})
@@ -1031,6 +1057,10 @@ async fn read_workspace(
     Path(slug): Path<String>,
     request: Request,
 ) -> Response {
+    // The former Next relay emitted the canonical bounds without the aliases
+    // retained on private owner reads.
+    let public_transport = request.headers().get("x-erpx-api-transport")
+        .is_some_and(|value| value == "public");
     let result = async move {
         let target = target(&state, request.headers(), &slug)?;
         target
@@ -1045,7 +1075,7 @@ async fn read_workspace(
     }
     .await;
     match result {
-        Ok(QualityHttpReadReply::Workspace(data)) => bounded(workspace(&data)),
+        Ok(QualityHttpReadReply::Workspace(data)) => bounded(workspace(&data, public_transport)),
         Ok(QualityHttpReadReply::Detail(_)) => error_response(missing()),
         Err(error) => error_response(error),
     }

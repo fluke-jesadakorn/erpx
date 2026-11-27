@@ -2,7 +2,7 @@ import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/desti
 import {requireWorkContext} from "@erpx/server-identity_access/public/authorization";
 import {requestPublicOrigin} from "@erpx/server-manage_erpx/public/public-origin";
 import {ApiError,errorResponse} from "@erpx/server-runtime/public/http";
-import {nativeQualityAvailable,nativeQualityCancellationHistory,nativeQualityDetail,nativeQualityWorkspace,nativeQualitySaveSpecification,nativeQualityTransitionSpecification,nativeQualityInspect,nativeQualityHoldCreate,nativeQualityRelease,nativeQualityDisposition,nativeQualityAcknowledgeAlert} from "@erpx/feature-quality/public/native-quality";
+import {nativeQualityAvailable,nativeQualityCancellationHistory,nativeQualityDetail,nativeQualitySaveSpecification,nativeQualityTransitionSpecification,nativeQualityInspect,nativeQualityHoldCreate,nativeQualityRelease,nativeQualityDisposition,nativeQualityAcknowledgeAlert} from "@erpx/feature-quality/public/native-quality";
 import {ownedNativeQualityCancel} from "@erpx/feature-quality/public/native-quality";
 type Context={params:Promise<{holdingSlug:string;path?:string[]}>};
 function unavailable():never{throw new ApiError(503,'NATIVE_QUALITY_UNAVAILABLE','The native Quality service is unavailable.');}
@@ -14,7 +14,7 @@ function historyCursor(request:Request){
   if(before===null||head===null||revision===null||!/^(?:0|-?[1-9][0-9]*)$/.test(before)||!/^[1-9][0-9]*$/.test(head)||!Number.isSafeInteger(Number(before))||!Number.isSafeInteger(Number(head))||!/^qch1:[0-9a-f]{64}$/.test(revision))throw new ApiError(422,'QUALITY_HISTORY_CURSOR_INVALID','Reload Quality cancellation history.');
   return {before:Number(before),head:Number(head),revision};
 }
-export async function GET(request:Request,context:Context){try{const {holdingSlug,path=[]}=await context.params;await requireWorkContext(holdingSlug);if(path.length>2)throw new ApiError(404,'NOT_FOUND','Quality route not found.');
+export async function GET(request:Request,context:Context){try{const {holdingSlug,path=[]}=await context.params;await requireWorkContext(holdingSlug);if(path.length===0||path.length>2)throw new ApiError(404,'NOT_FOUND','Quality route not found.');
   if(path.length===2){
     if(path[1]!=='cancellations')throw new ApiError(404,'NOT_FOUND','Quality route not found.');
     if(!nativeQualityAvailable())throw new ApiError(503,'NATIVE_QUALITY_UNAVAILABLE','The native Quality service is unavailable.');
@@ -22,14 +22,8 @@ export async function GET(request:Request,context:Context){try{const {holdingSlu
     if(!page)throw new ApiError(503,'NATIVE_QUALITY_UNAVAILABLE','The native Quality service is unavailable.');
     return Response.json(canonicalDestinationLinks({data:page}),{headers:{'Cache-Control':'private, no-store'}});
   }
-  if(path.length){
-    if(!nativeQualityAvailable())unavailable();
-    const native=await nativeQualityDetail(holdingSlug,path[0]);
-    if(!native)unavailable();
-    return Response.json(canonicalDestinationLinks({data:native}),{headers:{'Cache-Control':'private, no-store'}});
-  }
   if(!nativeQualityAvailable())unavailable();
-  const native=await nativeQualityWorkspace(holdingSlug);
+  const native=await nativeQualityDetail(holdingSlug,path[0]);
   if(!native)unavailable();
   return Response.json(canonicalDestinationLinks({data:native}),{headers:{'Cache-Control':'private, no-store'}});
 }catch(error){return errorResponse(error);}}

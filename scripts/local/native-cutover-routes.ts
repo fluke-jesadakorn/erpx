@@ -15,11 +15,12 @@ export function normalizeHoldingNativePath(url: string, holdingSlug: string): { 
 }
 
 /** Native Holding operations and paths reserved for private SSR. */
-export function holdingNativeCutoverPath(url: string, holdingSlug: string, method: string | undefined): "records" | "record-action" | "routine-templates" | "routine-schedules" | "routine-command" | "routine-editor-private" | undefined {
+export function holdingNativeCutoverPath(url: string, holdingSlug: string, method: string | undefined): "records" | "record-action" | "routine-templates" | "routine-schedules" | "routine-command" | "routine-editor-private" | "quality-workspace" | undefined {
   const [path] = url.split("?", 1);
   const prefix = `/api/v1/holdings/${holdingSlug}/`;
   if (!path?.startsWith(prefix)) return;
   const [owner, segment, ...tail] = path.slice(prefix.length).split("/");
+  if (owner === "quality" && segment === undefined && (method === "GET" || method === "HEAD")) return "quality-workspace";
   if (owner === "routine-template-editor-context" && segment === undefined) return "routine-editor-private";
   if (owner === "routine-templates" || owner === "routine-schedules") {
     try {

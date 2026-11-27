@@ -11,7 +11,9 @@ use erpx_server_commercial::public::purchases::{
 };
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
-    account_inbound_http::parse_inbound_account_request,
+    account_inbound_http::{
+        CapturedHoldingMutation, parse_inbound_account_request, unique_request_header,
+    },
     effective_authority::{
         AuthorizedWorkContext, HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
         WorkAuthorizationRequest,
@@ -1304,7 +1306,17 @@ impl<C: Clock + Send + Sync + 'static> QualityHttpBackend for QualityBackend<C> 
         request: QualityHttpReadRequest<'a>,
     ) -> QualityHttpFuture<'a, QualityHttpReadReply> {
         Box::pin(async move {
-            let (proof, selection) = self.context(request.headers)?;
+            let (proof, mut selection) = self.context(request.headers)?;
+            if request.id.is_none()
+                && unique_request_header(request.headers, "x-erpx-api-transport")? == Some("public")
+            {
+                selection = CapturedHoldingMutation::capture(
+                    request.headers,
+                    selection.branch_slug,
+                    selection.department_slug,
+                )
+                .resolve_rendered_read()?;
+            }
             if let Some(id) = request.id {
                 self.service
                     .detail(request.host, proof, move || Ok(selection), id.to_owned())

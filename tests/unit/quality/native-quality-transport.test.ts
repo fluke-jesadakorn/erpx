@@ -3,6 +3,7 @@ vi.mock('server-only',()=>({}));
 import {createNativeQualityReader} from '../../../packages/feature-quality/src/adapters/server/native-quality';
 import {qualityHistorySessionKey,mergeQualityHistory,beginQualityHistoryRequest,finishQualityHistoryRequest} from '../../../packages/feature-quality/src/lib/quality-cancellation-history';
 import {QualityCancellationHistory} from '../../../packages/feature-quality/src/components/quality-cancellation-history';
+import {canonicalDestinationLinks} from '@erpx/feature-work_projection/lib/destination-links';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44991',
@@ -259,4 +260,18 @@ describe('native Quality transport',()=>{
     '')).rejects.toMatchObject({code:'COMMAND_KEY_REQUIRED'});
   expect(transport).not.toHaveBeenCalled();
  });
+
+ it('keeps the canonical workspace wire exact and free of destination presentation',async()=>{
+  const wire={data:workspace};
+  const transport=vi.fn().mockResolvedValue(ok(wire));
+  const client=createNativeQualityReader(config(),transport);
+  const result=await client.workspace(incoming(),'acme');
+  expect(Object.keys(result).sort()).toEqual(['canHold','canManageSpecs','holds','lots','products','specMetrics','specifications','stock']);
+  expect(canonicalDestinationLinks(wire)).toEqual(wire);
+  const [method,url,headers,body]=transport.mock.calls[0];
+  expect(method).toBe('GET');expect(url.pathname).toBe('/api/v1/holdings/acme/quality');
+  expect(url.search).toBe('');expect(headers.get('host')).toBe('acme.example.com');
+  expect(body).toBeUndefined();
+ });
+
 });

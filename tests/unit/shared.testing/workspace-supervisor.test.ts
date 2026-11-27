@@ -56,9 +56,9 @@ async function free(port: number) {
     socket.once('error', () => { socket.destroy(); done(); });
   });
 }
-function get(port: number, host: string, path = '/') {
+function get(port: number, host: string, path = '/', headers: Record<string, string> = {}) {
   return new Promise<{ status: number; body: string }>((done, reject) => {
-    const req = request({ host: '127.0.0.1', port, path, headers: { Host: host }, agent: false }, res => {
+    const req = request({ host: '127.0.0.1', port, path, headers: { ...headers, Host: host }, agent: false }, res => {
       let body = ''; res.on('data', chunk => body += chunk); res.once('end', () => done({ status: res.statusCode!, body }));
     }); req.once('error', reject); req.end();
   });
@@ -337,6 +337,11 @@ it('routes /api to the native service, strips browser context and resolves sessi
   });
   expect(response).toEqual({status:200,body:'{"native":true}'});
   expect(seen).toEqual([{path:'/api/v1/holdings/acme/finance/journals',company:'native-company',user:'native-user',modules:'finance.read,work.read',requested:undefined,transport:'public'}]);
+  const quality = '/api/v1/holdings/acme/quality';
+  expect((await get(3104, 'finance.fixture.invalid', quality)).status).toBe(401);
+  expect(await get(3104, 'finance.fixture.invalid', quality, {Cookie: 'erpx_session=fixture'}))
+    .toEqual({status:200, body:'{"native":true}'});
+  expect(seen.at(-1)).toMatchObject({path: quality, company: 'native-company', transport: 'public'});
   const page=await new Promise<{status:number;body:string}>((done,reject)=>{
    const req=request({host:'127.0.0.1',port:3104,path:'/page',headers:{Host:'finance.fixture.invalid'},agent:false},res=>{
     const chunks:Buffer[]=[];res.on('data',chunk=>chunks.push(Buffer.from(chunk)));res.once('end',()=>done({status:res.statusCode??0,body:Buffer.concat(chunks).toString()}));
@@ -375,7 +380,7 @@ it('routes retired Holding entries and their transport aliases directly to Axum'
     const host = 'acme.jesadakorn.com';
     gateway = await startWorkspaceGateway({ root, node: process.execPath, port: 3104, preview: false, fallback: null,
       environment: { NODE_ENV: 'development', ERPX_ENVIRONMENT: 'local', ERPX_PRODUCT_ENVIRONMENT: 'development', ERPX_HOLDING_ROUTING: 'enabled', ERPX_DEV_NATIVE_API: `http://127.0.0.1:${address.port}` },
-      settings: () => ({ version: 1, activeApps: ['apps'], maxApps: 1, idleMinutes: 10, bundlers: {}, defaultBundler: 'webpack' }),
+      settings: () => ({ version: 1, activeApps: ['apps', 'supply'], maxApps: 1, idleMinutes: 10, bundlers: {}, defaultBundler: 'webpack' }),
     });
     const path = '/api/v1/holdings/acme/records/case?cursor=a%2Fb';
     expect(await get(3104, host, path)).toEqual({ status: 200, body: path });
@@ -426,6 +431,19 @@ it('routes retired Holding entries and their transport aliases directly to Axum'
     expect(holdingNativeCutoverPath(routines + '/template-1/unknown', 'acme', 'POST')).toBe('routine-command');
     expect(holdingNativeCutoverPath(routines + '/template-1/schedules/%2F', 'acme', 'POST')).toBeUndefined();
     expect(holdingNativeCutoverPath(`${routines}/template-1/schedules`, 'acme', 'GET')).toBe('routine-templates');
+    const quality = '/api/v1/holdings/acme/quality';
+    expect(holdingNativeCutoverPath(`${quality}?view=workspace`, 'acme', 'GET')).toBe('quality-workspace');
+    expect(holdingNativeCutoverPath(quality, 'acme', 'HEAD')).toBe('quality-workspace');
+    for (const method of ['POST', 'DELETE', 'OPTIONS'])
+      expect(holdingNativeCutoverPath(quality, 'acme', method)).toBeUndefined();
+    for (const suffix of ['/alerts', '/hold-1', '/hold-1/cancellations'])
+      expect(holdingNativeCutoverPath(quality + suffix, 'acme', 'GET')).toBeUndefined();
+    expect((await get(3104, host, quality)).status).toBe(401);
+    const scopedQuality = quality.replace('/acme/', '/acme/branches/bangkok/departments/ops/');
+    const qualityHeaders = { Cookie: 'erpx_session=fixture', 'x-erpx-workspace-branch': 'forged' };
+    expect(await get(3104, host, `/__erpx/supply${scopedQuality}`, qualityHeaders)).toEqual({
+      status: 200, body: JSON.stringify({ path: quality, branch: 'bangkok', department: 'ops' }),
+    });
     for (const [method, tail] of [
       ['GET', 'support/record'],
       ['HEAD', 'support/record'],
@@ -443,6 +461,9 @@ it('routes retired Holding entries and their transport aliases directly to Axum'
       'support/record/references/extra', 'support/record/detail'])
       expect(holdingNativeCutoverPath(`/api/v1/holdings/acme/records/${tail}`, 'acme', 'GET')).toBeUndefined();
     await new Promise<void>(done => upstream.close(() => done()));
+    const qualityUnavailable = await get(3104, host, quality, qualityHeaders);
+    expect(qualityUnavailable.status).toBe(503);
+    expect(JSON.parse(qualityUnavailable.body)).toMatchObject({error: {code: 'NATIVE_QUALITY_UNAVAILABLE'}});
     const suggestions = '/api/v1/holdings/acme/records/support/record/suggestions';
     for (const [path, code] of [
       [`${schedules}/pause`, 'NATIVE_ROUTINES_UNAVAILABLE'],

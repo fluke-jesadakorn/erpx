@@ -14,7 +14,7 @@ import {holdingRoutingEnabled,holdingHostForHost,holdingPathMatches,contributorE
 import {holdingGatewayApp,holdingGatewayLocation} from './holding-gateway';
 import { consoleWorkspaceCutoverBlockers } from "./console-workspace-cutover";
 import {consoleRetirementResult,developmentConsoleRetired} from '@erpx/contracts/console-retirement';
-import { nativeApiBase, nativeApiError, nativeApiPath, proxyNativeApi } from "./native-api-proxy";
+import { nativeApiBase, nativeApiError, nativeApiPath, nativeQualityUnavailable, proxyNativeApi } from "./native-api-proxy";
 import { holdingNativeCutoverPath, normalizeHoldingNativePath } from "./native-cutover-routes";
 
 /** Optional local budget; isolated fixtures always retain their declared cap. */
@@ -286,11 +286,12 @@ const server = createServer(async (req, res) => {
       if (!nativeBase) {
         if (cutover === "routine-templates" || cutover === "routine-schedules") nativeApiError(res, 503, "NATIVE_ROUTINES_UNAVAILABLE", "The native Operations routine read is unavailable.");
         else if (cutover === "routine-command") nativeApiError(res, 503, "NATIVE_ROUTINES_UNAVAILABLE", "The native Operations routine command is unavailable.");
+        else if (cutover === "quality-workspace") nativeQualityUnavailable(res);
         else nativeApiError(res, 503, "NATIVE_RECORD_REGISTRY_UNAVAILABLE", "The native Records registry is unavailable.");
       } else {
         await proxyNativeApi({ base: nativeBase, environment, req, res, url: nativeUrl, workspace: cutover && scoped ? scoped.workspace : undefined,
           requiresSession: (cutover === "routine-templates" || cutover === "routine-schedules") && ["GET", "HEAD"].includes(req.method ?? ""),
-          recordAction: cutover === "record-action", routineCommand: cutover === "routine-command" });
+          recordAction: cutover === "record-action", routineCommand: cutover === "routine-command", qualityWorkspace: cutover === "quality-workspace" });
       }
     } catch (error) { failed(res, error); }
     return;

@@ -53,7 +53,7 @@ export async function startCompiledWorkspaceGateway(routing: CompiledGatewayRout
       void proxyNativeApi({ base: new URL(`http://127.0.0.1:${target.port}`), environment: process.env, req, res,
         url: cutover && scoped ? scoped.url : url, workspace: cutover && scoped ? scoped.workspace : undefined,
         requiresSession: (cutover === 'routine-templates' || cutover === 'routine-schedules') && ['GET', 'HEAD'].includes(req.method ?? ''),
-        recordAction: cutover === 'record-action', routineCommand: cutover === 'routine-command' }).catch(() => unavailable(res));
+        recordAction: cutover === 'record-action', routineCommand: cutover === 'routine-command', qualityWorkspace: cutover === 'quality-workspace' }).catch(() => unavailable(res));
       return;
     }
     // Host/Origin, cookie headers, path/query and multipart/RSC/SSE bodies pass unchanged.
