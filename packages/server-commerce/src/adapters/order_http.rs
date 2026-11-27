@@ -125,6 +125,13 @@ pub trait CommerceOrderHttpBackend: Send + Sync {
         &'a self,
         request: CommerceOrderHttpRequest<'a>,
     ) -> CommerceOrderHttpFuture<'a, CommerceOrderHttpResponse>;
+    fn editor_options<'a>(
+        &'a self,
+        _host: &'a str,
+        _headers: &'a HeaderMap,
+    ) -> CommerceOrderHttpFuture<'a, CommerceOrderHttpResponse> {
+        Box::pin(async { Err(missing()) })
+    }
 }
 
 pub struct CommerceOrderHttpTarget {
@@ -1219,6 +1226,10 @@ pub fn commerce_order_http_router_with_origin_policy_and_sales_delivery(
             post(save_create_handler),
         )
         .route(
+            "/api/v1/holdings/{holding_slug}/commerce/editor-options",
+            get(editor_options_handler),
+        )
+        .route(
             "/api/v1/holdings/{holding_slug}/commerce/orders/{order_id}",
             get(detail_handler).post(save_update_handler),
         )
@@ -1235,6 +1246,33 @@ pub fn commerce_order_http_router_with_origin_policy_and_sales_delivery(
             post(command_plan_handler),
         )
         .with_state(Arc::new(state)))
+}
+
+async fn editor_options_handler(
+    State(state): State<Arc<CommerceOrderHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let (parts, _) = request.into_parts();
+    if parts.uri.query().is_some() {
+        return error_response(request_invalid());
+    }
+    let target = match state.target(&parts.headers, &slug) {
+        Ok(target) => target,
+        Err(error) => return error_response(error),
+    };
+    if target.host != "oasisdreamhouse-demo.jesadakorn.com" || slug != "oasis-demo" {
+        return error_response(missing());
+    }
+    match target
+        .target
+        .backend
+        .editor_options(target.host, &parts.headers)
+        .await
+    {
+        Ok(response) => bounded(response.value()),
+        Err(error) => error_response(error),
+    }
 }
 
 async fn detail_handler(

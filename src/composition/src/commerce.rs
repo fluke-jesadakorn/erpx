@@ -794,6 +794,82 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
             .await
     }
 
+    async fn editor_options<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+    ) -> Result<CommerceOrderHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input, false),
+                Self::access(),
+                CommerceSources { money: false },
+                move |connection, current| {
+                    let holding = holding.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.sales")?;
+                        let actor = commerce_actor(current)?;
+                        let branch = actor.branch_id.as_ref().map(|value| value.as_str());
+                        let data: Option<Value> = sqlx::query_scalar(
+                            "SELECT jsonb_build_object(
+                              'currency', d.currency,
+                              'parties', COALESCE((SELECT jsonb_agg(p) FROM (
+                                SELECT id,name,kind,status,currency FROM finance_parties
+                                WHERE company_id=$1 AND currency=d.currency AND kind='customer'
+                                  AND status='active' AND person_id IS NULL ORDER BY name,id LIMIT 250
+                              ) p), '[]'::jsonb),
+                              'products', COALESCE((SELECT jsonb_agg(p) FROM (
+                                SELECT id,sku,name,status,item_type,price_minor,tax_bps FROM commerce_products
+                                WHERE company_id=$1 AND status='active' ORDER BY sku,id LIMIT 250
+                              ) p), '[]'::jsonb),
+                              'warehouses', COALESCE((SELECT jsonb_agg(w) FROM (
+                                SELECT id,name,status FROM commerce_warehouses
+                                WHERE company_id=$1 AND status='active' AND ($2::text IS NULL OR branch_id=$2)
+                                ORDER BY name,id LIMIT 250
+                              ) w), '[]'::jsonb),
+                              'nodes', '[]'::jsonb,
+                              'priceLists', COALESCE((SELECT jsonb_agg(l) FROM (
+                                SELECT id,name,customer_id,valid_from,valid_until FROM sales_price_lists
+                                WHERE company_id=$1 AND status='active'
+                                ORDER BY customer_id NULLS LAST,name,id LIMIT 250
+                              ) l), '[]'::jsonb),
+                              'priceListItems', COALESCE((SELECT jsonb_agg(i) FROM (
+                                SELECT i.price_list_id,i.product_id,i.price_minor,i.tax_bps
+                                FROM sales_price_list_items i JOIN sales_price_lists l ON l.id=i.price_list_id
+                                WHERE l.company_id=$1 AND l.status='active'
+                                ORDER BY i.price_list_id,i.ordinal LIMIT 2000
+                              ) i), '[]'::jsonb)
+                            ) FROM finance_sales_defaults d
+                            JOIN finance_charts c ON c.id=d.chart_id AND c.company_id=$1 AND c.status='active'
+                            WHERE d.company_id=$1 AND d.status='approved'
+                            ORDER BY d.created_at DESC,d.id LIMIT 1",
+                        )
+                        .bind(actor.company_id.as_str())
+                        .bind(branch)
+                        .fetch_optional(connection)
+                        .await?;
+                        let data = data.ok_or_else(|| BusinessError::new(
+                            FailureKind::Conflict,
+                            "COMMERCE_SETUP_REQUIRED",
+                            "Prepare and independently approve service Sales posting defaults.",
+                        ))?;
+                        Ok(CommerceOrderHttpResponse { data, context: context(current) })
+                    })
+                },
+            )
+            .await
+    }
+
     pub async fn transition<Input>(
         &self,
         host: &str,
@@ -1621,6 +1697,20 @@ impl<C: Clock + Send + Sync + 'static> CommerceBackend<C> {
 }
 
 impl<C: Clock + Send + Sync + 'static> CommerceOrderHttpBackend for CommerceBackend<C> {
+    fn editor_options<'a>(
+        &'a self,
+        host: &'a str,
+        headers: &'a HeaderMap,
+    ) -> CommerceOrderHttpFuture<'a, CommerceOrderHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(headers)?;
+            self.service
+                .editor_options(host, proof, move || selection?.resolve_rendered_read())
+                .await
+                .map_err(business)
+        })
+    }
+
     fn execute<'a>(
         &'a self,
         request: CommerceOrderHttpRequest<'a>,

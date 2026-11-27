@@ -2,6 +2,7 @@ import 'server-only';
 import { headers } from 'next/headers';
 import { oasisDemoStagingEnabled } from '@erpx/contracts/holding-hosts';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
+import type { SalesEditorOptions } from '@erpx/server-commerce/public/sales-editor';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import { holdingResources } from '@erpx/server-runtime/public/runtime';
 import { commerceEntrypointFacts } from '@erpx/server-commerce/public/entrypoint-facts';
@@ -130,6 +131,17 @@ export async function nativeCommerceOrderPage(
   try {
     const context = nativeCommerceOrdersPageContext(actor);
     return await native.detail(await headers(), context, id, readInput(context));
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function nativeSalesEditorOptions(actor: WorkContext): Promise<SalesEditorOptions> {
+  const native = client();
+  if (!native) throw new ApiError(503, 'NATIVE_COMMERCE_ORDER_UNAVAILABLE', 'The native Commerce order service is unavailable.');
+  try {
+    const context = nativeCommerceOrdersPageContext(actor);
+    return await native.editorOptions(await headers(), context, readInput(context));
   } catch (error) {
     return fail(error);
   }

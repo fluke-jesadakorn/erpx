@@ -701,7 +701,7 @@ function transportCall(
   holdings: Map<string, { holdingId: string; holdingSlug: string }>,
   incoming: Pick<Headers, 'get'>,
   input: NativeCommerceOrdersReadInput,
-  section: 'orders' | 'purchase-orders',
+  section: 'orders' | 'purchase-orders' | 'editor-options',
   path: string,
   method: 'GET' | 'POST',
   body: string | undefined,
@@ -923,7 +923,7 @@ export function createNativeCommerceOrdersClient(
     incoming: Pick<Headers, 'get'>,
     actor: NativeCommerceOrdersPageContext,
     input: NativeCommerceOrdersReadInput,
-    section: 'orders' | 'purchase-orders',
+    section: 'orders' | 'purchase-orders' | 'editor-options',
     path: string,
     method: 'GET' | 'POST',
     body: string | undefined,
@@ -952,6 +952,41 @@ export function createNativeCommerceOrdersClient(
     return boundedJson(response);
   };
   return {
+    async editorOptions(
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeCommerceOrdersPageContext,
+      input: NativeCommerceOrdersReadInput,
+    ) {
+      const value = await run(incoming, actor, input, 'editor-options', '', 'GET', undefined, undefined);
+      if (!exact(value, ['data', 'context'])) return failure('NATIVE_COMMERCE_ORDER_RESPONSE_INVALID');
+      context(value.context, actor, input);
+      const data = value.data;
+      if (!exact(data, ['currency', 'parties', 'products', 'warehouses', 'nodes', 'priceLists', 'priceListItems'])
+        || !text(data.currency, 3)
+        || !Array.isArray(data.nodes) || data.nodes.length
+        || !Array.isArray(data.parties) || !data.parties.every(p => exact(p, ['id', 'name', 'kind', 'status', 'currency'])
+          && identifier(p.id) && text(p.name) && p.kind === 'customer' && p.status === 'active' && p.currency === data.currency)
+        || !Array.isArray(data.products) || !data.products.every(p => exact(p, ['id', 'sku', 'name', 'status', 'item_type', 'price_minor', 'tax_bps'])
+          && identifier(p.id) && text(p.sku) && text(p.name) && p.status === 'active'
+          && (p.item_type === 'service' || p.item_type === 'stock') && integer(p.price_minor) && integer(p.tax_bps))
+        || !Array.isArray(data.warehouses) || !data.warehouses.every(w => exact(w, ['id', 'name', 'status'])
+          && identifier(w.id) && text(w.name) && w.status === 'active')
+        || !Array.isArray(data.priceLists) || !data.priceLists.every(l => exact(l, ['id', 'name', 'customer_id', 'valid_from', 'valid_until'])
+          && identifier(l.id) && text(l.name) && (l.customer_id === null || identifier(l.customer_id)) && text(l.valid_from) && text(l.valid_until))
+        || !Array.isArray(data.priceListItems) || !data.priceListItems.every(i => exact(i, ['price_list_id', 'product_id', 'price_minor', 'tax_bps'])
+          && identifier(i.price_list_id) && identifier(i.product_id) && integer(i.price_minor) && integer(i.tax_bps))) {
+        return failure('NATIVE_COMMERCE_ORDER_RESPONSE_INVALID');
+      }
+      return {
+        currency: data.currency,
+        parties: data.parties,
+        products: data.products,
+        warehouses: data.warehouses,
+        nodes: [] as [],
+        priceLists: data.priceLists,
+        priceListItems: data.priceListItems,
+      };
+    },
     async detail(
       incoming: Pick<Headers, 'get'>,
       actor: NativeCommerceOrdersPageContext,

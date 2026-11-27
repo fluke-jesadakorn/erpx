@@ -29,7 +29,7 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 import { pricingWorkspace } from "@erpx/server-sales/public/sales-pricing";
 import { salesToday } from "@erpx/server-sales/public/sales-customers";
 import { nativeSalesDocuments } from "@erpx/feature-sales/public/native-sales-documents-page";
-import { nativeCommerceOrderPage } from "@erpx/feature-sales/public/native-commerce-orders-page";
+import { nativeCommerceOrderPage, nativeSalesEditorOptions } from "@erpx/feature-sales/public/native-commerce-orders-page";
 import { nativeCrmPipeline } from "@erpx/feature-sales/public/native-crm-pipeline-page";
 import { HubEmpty, HubPagination, HubSegments } from "@erpx/feature-sales/components/customers/hub-shell";
 import { HubCreate, HubCursor, HubFilters, HubTable, hubPage } from "@erpx/feature-sales/components/customers/hub-list";
@@ -89,7 +89,9 @@ export async function SalesDocumentsView({ actor, base, query }: { actor: WorkCo
     documentLines = nativeDetail?.lines ?? detail?.lines;
   if (documentOrder && documentOrder.kind !== kind) throw new ApiError(404, "ORDER_NOT_FOUND", "Sales document is not available in this view.");
   const readiness=await salesPostingDocumentReadiness(actor,kind),selected=query.new==="1"||!!editing;
-  const options:SalesEditorOptions=selected&&readiness.ready&&hasPermission(actor,"commerce.sales")&&purchase?.newWork!==false?await salesEditorOptions(actor,kind):{products:[],parties:[],warehouses:[],nodes:[],priceLists:[],priceListItems:[],currency:""};
+  const options:SalesEditorOptions=selected&&readiness.ready&&hasPermission(actor,"commerce.sales")&&purchase?.newWork!==false
+    ? await (demo ? nativeSalesEditorOptions(actor) : salesEditorOptions(actor,kind))
+    : {products:[],parties:[],warehouses:[],nodes:[],priceLists:[],priceListItems:[],currency:""};
   const editorPurchase=readiness.ready?purchase:purchase?{...purchase,newWork:false}:{newWork:false,settleExisting:false,history:true,revision:"sales-posting-required",convertNewWork:false,stockNewWork:false,stockSettleExisting:false,financeSettleExisting:false,receivingSettleExisting:false};
   const editorOrder=documentOrder?Object.fromEntries(["id","version","party_id","price_list_id","warehouse_id","discount_reason","order_date","due_date","note"].map(field=>[field,(documentOrder as Record<string,string|number|null>)[field]??null])) as Record<string,string|number|null>:undefined,editorLines=documentLines?.map(line=>Object.fromEntries(["product_id","quantity_milli","price_minor","tax_bps"].map(field=>[field,(line as Record<string,string|number|null>)[field]??null])) as Record<string,string|number|null>);
   return <CommerceEnvironment purchase={purchase}>

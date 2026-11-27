@@ -27,7 +27,7 @@ import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext, type WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {commerceOverview,commercePermissions} from '@erpx/server-commerce/public/commerce';
 import { nativeInventoryReceiptFromHeaders } from "@erpx/feature-inventory/lib/native-availability";
-import { nativeCommerceOrderPage, type NativeCommerceOrderDocument } from "@erpx/feature-sales/public/native-commerce-orders-page";
+import { nativeCommerceOrderPage, nativeSalesEditorOptions, type NativeCommerceOrderDocument } from "@erpx/feature-sales/public/native-commerce-orders-page";
 import { nativeSalesDocuments } from "@erpx/feature-sales/public/native-sales-documents-page";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { workProjectionPresentationQueries } from "@erpx/server-work_projection/public/presentation-queries";
@@ -69,7 +69,7 @@ async function OasisSalesDocument({
     presentation.activeCompanyIdentity(actor.companyId),
     presentation.resolveWorkspaceBrand(actor),
     printing ? undefined : commercePurchaseControls(actor, { type: "order", id: order.id }),
-    !printing && permissions.sales && order.state === "draft" ? salesEditorOptions(actor, order.kind) : undefined,
+    !printing && permissions.sales && order.state === "draft" ? nativeSalesEditorOptions(actor) : undefined,
   ]);
   const customer = salesDocuments?.items.find((item) => item.id === order.id)?.party_name;
   if (!customer || !company?.display_name) {

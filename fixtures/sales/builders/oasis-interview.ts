@@ -36,6 +36,7 @@ export async function seedOasisInterview(db: SqlDatabase, input: {
   const id = (kind: string) => `oasis-demo-${kind}-${run}`;
   const now = Date.now(), customerId = id("customer"), warehouseId = id("warehouse");
   const accountId = id("account"), contactId = id("contact");
+  const priceListId = id("prices");
   const items = oasisKitchen.items.map(item => ({ ...item, productId: id(item.sku.toLowerCase()) }));
   const cases = [
     { title: oasisKitchen.title, leadId: id("lead") },
@@ -51,6 +52,15 @@ export async function seedOasisInterview(db: SqlDatabase, input: {
       .bind(warehouseId, companyId, branchId),
     ...items.map(item => db.prepare("INSERT INTO commerce_products(id,company_id,sku,name,unit,item_type,price_minor,tax_bps) VALUES(?,?,?,?,?,?,?,0)")
       .bind(item.productId, companyId, item.sku, item.name, item.unit, item.itemType, item.priceMinor)),
+    ...(staging ? [
+      db.prepare("INSERT INTO sales_price_lists(id,company_id,name,currency,customer_id,valid_from,valid_until,created_by,prepared_by,created_at,updated_at) VALUES(?,?,'Phuket Kitchen Demo Rates','THB',?,?,?,?,?,?,?)")
+        .bind(priceListId, companyId, customerId, new Date(now - 86_400_000).toISOString().slice(0, 10),
+          new Date(now + 180 * 86_400_000).toISOString().slice(0, 10), salespersonId, salespersonId, now, now),
+      ...items.map((item, i) => db.prepare("INSERT INTO sales_price_list_items(id,price_list_id,product_id,price_minor,tax_bps,ordinal) VALUES(?,?,?,?,0,?)")
+        .bind(id(`price-${i}`), priceListId, item.productId, item.priceMinor, i)),
+      db.prepare("UPDATE sales_price_lists SET status='active',approved_by=?,approval_reason='Fictional interview rates',activated_at=?,updated_at=?,version=2 WHERE id=?")
+        .bind(managerId, now, now, priceListId),
+    ] : []),
     db.prepare("UPDATE finance_accounts SET is_control=1,control_kind='receivable' WHERE id=? AND company_id=?")
       .bind(finance.receivable, companyId),
     db.prepare("INSERT INTO finance_sales_defaults(id,company_id,chart_id,currency,receivable_account_id,revenue_account_id,tax_account_id,status,reason,created_by,reviewed_by,review_reason,version,created_at,updated_at) VALUES(?,?,?,'THB',?,?,?,'approved',?,?,?, ?,2,?,?)")
