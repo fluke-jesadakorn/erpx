@@ -371,6 +371,8 @@ it('routes retired Holding entries and their transport aliases directly to Axum'
     const path = '/api/v1/holdings/acme/records/case?cursor=a%2Fb';
     expect(await get(3104, host, path)).toEqual({ status: 200, body: path });
     expect(await get(3104, host, `/__erpx/apps${path}`)).toEqual({ status: 200, body: path });
+    const record = '/api/v1/holdings/acme/records/support/rec%3Asupport';
+    expect(await get(3104, host, `/__erpx/apps${record}?view=mention`)).toEqual({ status: 200, body: record });
     expect((await get(3104, host, `/__erpx/sales${path}`)).status).toBe(404);
     expect((await get(3104, host, path.replace('/acme/', '/northstar/'))).status).toBe(404);
     const routines = '/api/v1/holdings/acme/routine-templates';
@@ -392,7 +394,17 @@ it('routes retired Holding entries and their transport aliases directly to Axum'
     expect(holdingNativeCutoverPath(routines, 'acme', 'HEAD')).toBe('routine-templates');
     expect(holdingNativeCutoverPath(routines, 'acme', 'POST')).toBeUndefined();
     expect(holdingNativeCutoverPath(`${routines}/template-1/schedules`, 'acme', 'GET')).toBeUndefined();
-    for (const tail of ['search', 'native-search', '%73earch', 'support/record', 'support%2Frecord'])
+    for (const [method, tail] of [
+      ['GET', 'support/record'],
+      ['HEAD', 'support/record'],
+      ['PATCH', 'support/record'],
+      ['DELETE', 'support/record'],
+      ['POST', 'support/record/references'],
+      ['POST', 'support/record/transition'],
+    ] as const)
+      expect(holdingNativeCutoverPath(`/api/v1/holdings/acme/records/${tail}`, 'acme', method)).toBe('record-action');
+    for (const tail of ['search', 'native-search', '%73earch', 'support%2Frecord', 'support/%2F', 'support/record/mentions',
+      'support/record/suggestions', 'support/record/references/extra', 'support/record/detail'])
       expect(holdingNativeCutoverPath(`/api/v1/holdings/acme/records/${tail}`, 'acme', 'GET')).toBeUndefined();
   } finally {
     await gateway?.close();

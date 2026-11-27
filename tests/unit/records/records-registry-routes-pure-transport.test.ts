@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { nativeApiPath } from '../../../scripts/local/native-api-proxy';
 
 const root = resolve(__dirname, '../../..');
@@ -8,17 +8,11 @@ const directory =
   'packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records';
 const read = (path: string) => readFileSync(resolve(root, path), 'utf8');
 
-// The three retained registry routes whose authority moved to the Rust axum registry.
-const routes = [
-  `${directory}/[module]/[id]/route.ts`,
-  `${directory}/[module]/[id]/references/route.ts`,
-  `${directory}/[module]/[id]/transition/route.ts`,
-] as const;
-
-// Collection GET/POST transport is retired; the browser reaches axum directly.
-const retired = [
-  `${directory}/[module]/route.ts`,
-  'apps/compat/src/app/api/v1/holdings/[holdingSlug]/records/[module]/route.ts',
+const registryPaths = [
+  '[module]/route',
+  '[module]/[id]/route',
+  '[module]/[id]/references/route',
+  '[module]/[id]/transition/route',
 ] as const;
 
 // These three have no native axum target and keep their HEAD TS owner implementation.
@@ -27,87 +21,6 @@ const retained = [
   [`${directory}/[module]/[id]/suggestions/route.ts`, 'requestSuggestion'],
   [`${directory}/[module]/[id]/suggestions/[suggestionId]/route.ts`, 'decideSuggestion'],
 ] as const;
-
-const calls = vi.hoisted(() => ({ proxy: [] as unknown[][] }));
-
-vi.mock('@erpx/server-records/public/native-record-registry', () => ({
-  proxyNativeRecordRegistry: vi.fn(async (...args: unknown[]) => {
-    calls.proxy.push(args);
-    return new Response(JSON.stringify({ data: {}, context: {} }), {
-      status: 200,
-      headers: { 'content-type': 'application/json' },
-    });
-  }),
-}));
-
-import {
-  DELETE,
-  GET as GET_RECORD,
-  PATCH,
-} from '@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/route';
-import { POST as POST_REFERENCE } from '@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/references/route';
-import { POST as POST_TRANSITION } from '@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/transition/route';
-
-const request = () =>
-  new Request('https://acme.jesadakorn.com/api/v1/holdings/acme/records/operations?section=overview', {
-    method: 'POST',
-    headers: { host: 'acme.jesadakorn.com', 'content-type': 'application/json' },
-    body: '{}',
-  });
-const context = (extra: Record<string, string> = {}) =>
-  ({ params: Promise.resolve({ holdingSlug: 'acme', module: 'operations', id: 'rec-1', suggestionId: 's-1', ...extra }) }) as never;
-
-beforeEach(() => {
-  calls.proxy.length = 0;
-});
-
-describe('registry routes are pure axum transport', () => {
-  it('contains no owner SQL, schema, work-context or payload reshaping', () => {
-    const forbidden = [
-      /SELECT\s/i,
-      /INSERT\s+INTO/i,
-      /UPDATE\s+\w+\s+SET/i,
-      /DELETE\s+FROM/i,
-      /\.prepare\(/,
-      'requireWorkContext',
-      'canonicalDestinationLinks',
-      'safeParse',
-      '@erpx/server-records/public/records',
-      '@erpx/server-records/adapters/records',
-      'createNativeRecordRegistryClient',
-      'createNativeRecordContextClient',
-      'nativeRecordRegistryAvailable',
-      'requestPublicOrigin',
-      'errorResponse',
-      'ApiError',
-    ];
-    for (const path of routes) {
-      const source = read(path);
-      for (const token of forbidden) {
-        expect(source, `${path} contains ${String(token)}`).not.toMatch(
-          typeof token === 'string' ? new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')) : token,
-        );
-      }
-      expect(source).toContain('@erpx/server-records/public/native-record-registry');
-    }
-  });
-
-  it('delegates each native handler to one exact axum call', async () => {
-    const req = request();
-    await GET_RECORD(req, context());
-    await PATCH(req, context());
-    await DELETE(req, context());
-    await POST_REFERENCE(req, context());
-    await POST_TRANSITION(req, context());
-    expect(calls.proxy).toEqual([
-      [req, 'acme', { method: 'GET', parts: ['operations', 'rec-1'] }],
-      [req, 'acme', { method: 'PATCH', parts: ['operations', 'rec-1'], body: true }],
-      [req, 'acme', { method: 'DELETE', parts: ['operations', 'rec-1'], query: true }],
-      [req, 'acme', { method: 'POST', parts: ['operations', 'rec-1', 'references'], body: true }],
-      [req, 'acme', { method: 'POST', parts: ['operations', 'rec-1', 'transition'], body: true }],
-    ]);
-  });
-});
 
 describe('routes without a native target keep their HEAD TS implementation', () => {
   it('calls the owner through requireWorkContext instead of failing closed', () => {
@@ -142,7 +55,7 @@ describe('axum mount and method-surface parity for the four delegated families',
     const source = read('packages/server-records/src/adapters/record_registry_http.rs');
     const start = source.indexOf('pub fn records_registry_http_router');
     const end = source.indexOf('with_state(Arc::new(RecordsRegistryHttpState', start);
-    return source.slice(start, end).replace(/\s+/g, ' ');
+    return source.slice(start, end).replace(/\s+/g, ' ').replace(/\s+\./g, '.');
   };
 
   it('registers exactly the four axum path families with the delegated methods', () => {
@@ -150,41 +63,26 @@ describe('axum mount and method-surface parity for the four delegated families',
     expect(axum.match(/\.route\(/g)).toHaveLength(4);
     for (const [path, methods] of [
       ['/api/v1/holdings/{holding_slug}/records/{module_id}', 'get(read_registry).post(create_record).options(collection_options)'],
-      ['/api/v1/holdings/{holding_slug}/records/{module_id}/{record_id}', 'patch(update_record).delete(delete_record)'],
-      ['/api/v1/holdings/{holding_slug}/records/{module_id}/{record_id}/references', 'post(add_reference)'],
-      ['/api/v1/holdings/{holding_slug}/records/{module_id}/{record_id}/transition', 'post(transition_record)'],
+      ['/api/v1/holdings/{holding_slug}/records/{module_id}/{record_id}', 'patch(update_record).delete(delete_record).options(record_options)'],
+      ['/api/v1/holdings/{holding_slug}/records/{module_id}/{record_id}/references', 'post(add_reference).options(command_options)'],
+      ['/api/v1/holdings/{holding_slug}/records/{module_id}/{record_id}/transition', 'post(transition_record).options(command_options)'],
     ] as const)
       expect(axum, `${path} method surface`).toContain(`"${path}", ${methods}`);
   });
 
-  it('keeps HEAD derived on the retained Next routes and on axum', () => {
-    for (const path of routes) {
-      const source = read(path);
-      expect(source, `${path} must not add a HEAD handler`).not.toMatch(/export\s+(?:async\s+)?function\s+HEAD\b/);
-      expect(source, `${path} must not add an OPTIONS handler`).not.toMatch(/export\s+(?:async\s+)?function\s+OPTIONS\b/);
-    }
-    const axum = axumRouter();
-    expect(axum).not.toContain('head(');
+  it('keeps HEAD derived by the native Records context route', () => {
+    const context = read('packages/server-records/src/adapters/record_context_http.rs');
+    expect(context).toContain('get(read_context)');
+    expect(context).not.toContain('.head(');
   });
 
-  it('pins the retired collection OPTIONS to 204 with the Next Allow surface', () => {
-    const axum = axumRouter();
-    expect(axum.match(/\.options\(/g)).toHaveLength(1);
-    expect(axum).toContain('get(read_registry).post(create_record).options(collection_options)');
-    const source = read('packages/server-records/src/adapters/record_registry_http.rs');
-    const start = source.indexOf('async fn collection_options');
-    expect(start).toBeGreaterThan(-1);
-    const handler = source.slice(start, source.indexOf('\n}', start));
-    expect(handler).toContain('StatusCode::NO_CONTENT');
-    expect(handler).toContain('header::ALLOW');
-    expect(handler).toContain('"GET, HEAD, OPTIONS, POST"');
-  });
-
-  it('retired collection route files and package export cannot resolve', () => {
-    for (const path of retired) expect(existsSync(resolve(root, path)), path).toBe(false);
+  it('retired route files and package exports cannot resolve', () => {
     const exports = JSON.parse(read('packages/workplace/package.json')).exports as Record<string, string>;
-    expect(exports['./routes/api/v1/holdings/[holdingSlug]/records/[module]/route']).toBeUndefined();
-    expect(exports['./routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/route']).toBeDefined();
+    for (const path of registryPaths) {
+      expect(existsSync(resolve(root, directory, path + '.ts')), path).toBe(false);
+      expect(existsSync(resolve(root, 'apps/compat/src/app/api/v1/holdings/[holdingSlug]/records', path + '.ts')), path).toBe(false);
+      expect(exports['./routes/api/v1/holdings/[holdingSlug]/records/' + path]).toBeUndefined();
+    }
   });
 });
 

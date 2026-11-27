@@ -13,8 +13,7 @@ use crate::domain::record_write::{
 };
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
-    StatusCode, body::to_bytes, header, routing::get, routing::patch, routing::post,
-    serde_json,
+    StatusCode, body::to_bytes, header, routing::get, routing::patch, routing::post, serde_json,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
 use serde_json::Value;
@@ -159,8 +158,13 @@ fn status(kind: FailureKind) -> StatusCode {
     }
 }
 fn error_response(error: BusinessError) -> Response {
+    let status = if error.code == "REQUEST_TOO_LARGE" {
+        StatusCode::PAYLOAD_TOO_LARGE
+    } else {
+        status(error.kind)
+    };
     (
-        status(error.kind),
+        status,
         Json(serde_json::json!({"error":{"code":error.code,"message":error.message}})),
     )
         .into_response()
@@ -300,11 +304,41 @@ async fn ensure_empty_body(request: Request) -> Result<(), BusinessError> {
 /// Keep that contract on the native entry so browser preflights do not change.
 /// Axum's `get` already serves HEAD with the body removed.
 async fn collection_options() -> Response {
+    options_response("GET, HEAD, OPTIONS, POST")
+}
+
+async fn record_options() -> Response {
+    options_response("DELETE, GET, HEAD, OPTIONS, PATCH")
+}
+
+async fn command_options() -> Response {
+    options_response("OPTIONS, POST")
+}
+
+async fn read_action_body<T: serde::de::DeserializeOwned>(
+    request: Request,
+) -> Result<T, BusinessError> {
+    let public = request
+        .headers()
+        .get("x-erpx-api-transport")
+        .is_some_and(|value| value == "public");
+    let bytes = to_bytes(request.into_body(), 64 * 1024)
+        .await
+        .map_err(|_| {
+            if public {
+                BusinessError::invalid("REQUEST_TOO_LARGE", "This record is too large.")
+            } else {
+                malformed()
+            }
+        })?;
+    serde_json::from_slice(&bytes).map_err(|_| malformed())
+}
+
+fn options_response(allow: &'static str) -> Response {
     let mut response = StatusCode::NO_CONTENT.into_response();
-    response.headers_mut().insert(
-        header::ALLOW,
-        HeaderValue::from_static("GET, HEAD, OPTIONS, POST"),
-    );
+    response
+        .headers_mut()
+        .insert(header::ALLOW, HeaderValue::from_static(allow));
     response
 }
 
@@ -326,19 +360,23 @@ pub fn records_registry_http_router(
     Ok(Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/records/{module_id}",
-            get(read_registry).post(create_record).options(collection_options),
+            get(read_registry)
+                .post(create_record)
+                .options(collection_options),
         )
         .route(
             "/api/v1/holdings/{holding_slug}/records/{module_id}/{record_id}",
-            patch(update_record).delete(delete_record),
+            patch(update_record)
+                .delete(delete_record)
+                .options(record_options),
         )
         .route(
             "/api/v1/holdings/{holding_slug}/records/{module_id}/{record_id}/references",
-            post(add_reference),
+            post(add_reference).options(command_options),
         )
         .route(
             "/api/v1/holdings/{holding_slug}/records/{module_id}/{record_id}/transition",
-            post(transition_record),
+            post(transition_record).options(command_options),
         )
         .with_state(Arc::new(RecordsRegistryHttpState {
             targets: configured,
@@ -556,11 +594,7 @@ async fn add_reference(
         if !valid_module(&module_id) || !crate::domain::record_context::valid_id(&record_id) {
             return Err(missing());
         }
-        let bytes = to_bytes(request.into_body(), 64 * 1024)
-            .await
-            .map_err(|_| malformed())?;
-        let input: ReferenceRecordInput =
-            serde_json::from_slice(&bytes).map_err(|_| malformed())?;
+        let input: ReferenceRecordInput = read_action_body(request).await?;
         target
             .backend
             .execute(RecordsRegistryHttpRequest {
@@ -628,11 +662,7 @@ async fn transition_record(
         if !valid_module(&module_id) || !crate::domain::record_context::valid_id(&record_id) {
             return Err(missing());
         }
-        let bytes = to_bytes(request.into_body(), 64 * 1024)
-            .await
-            .map_err(|_| malformed())?;
-        let input: TransitionRecordInput =
-            serde_json::from_slice(&bytes).map_err(|_| malformed())?;
+        let input: TransitionRecordInput = read_action_body(request).await?;
         target
             .backend
             .execute(RecordsRegistryHttpRequest {
@@ -700,10 +730,7 @@ async fn update_record(
         if !valid_module(&module_id) || !crate::domain::record_context::valid_id(&record_id) {
             return Err(missing());
         }
-        let bytes = to_bytes(request.into_body(), 64 * 1024)
-            .await
-            .map_err(|_| malformed())?;
-        let input: UpdateRecordInput = serde_json::from_slice(&bytes).map_err(|_| malformed())?;
+        let input: UpdateRecordInput = read_action_body(request).await?;
         target
             .backend
             .execute(RecordsRegistryHttpRequest {

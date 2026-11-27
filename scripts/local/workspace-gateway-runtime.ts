@@ -281,7 +281,7 @@ const server = createServer(async (req, res) => {
         if (cutover === "routine-templates") nativeApiError(res, 503, "NATIVE_ROUTINES_UNAVAILABLE", "The native Operations routine read is unavailable.");
         else nativeApiError(res, 503, "NATIVE_RECORD_REGISTRY_UNAVAILABLE", "The native Records registry is unavailable.");
       } else {
-        await proxyNativeApi({ base: nativeBase, environment, req, res, url: nativeUrl, requiresSession: cutover === "routine-templates" });
+        await proxyNativeApi({ base: nativeBase, environment, req, res, url: nativeUrl, requiresSession: cutover === "routine-templates", recordAction: cutover === "record-action" });
       }
     } catch (error) { failed(res, error); }
     return;

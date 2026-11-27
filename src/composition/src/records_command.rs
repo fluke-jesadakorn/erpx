@@ -415,7 +415,7 @@ struct ArchiveEffects<'a, C> {
     module_id: &'a str,
     record_id: &'a str,
     input: &'a ArchiveRecordInput,
-    prepared: Option<i64>,
+    prepared: Option<(i64, i64)>,
 }
 
 impl<C: Clock + Sync> PgOwnerCommandEffects for ArchiveEffects<'_, C> {
@@ -453,7 +453,7 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for ArchiveEffects<'_, C> {
         .await?;
         let version = row.ok_or_else(record_not_found)?;
         validate_archive(self.module_id, self.input, version)?;
-        self.prepared = Some(version);
+        self.prepared = Some((version, self.clock.now().get()));
         Ok(WorkflowOutput {
             version: self.input.expected_version,
             result: CommandJson::from_serializable(&serde_json::json!({ "id": self.record_id }))?,
@@ -467,13 +467,12 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for ArchiveEffects<'_, C> {
         current: &CommandActor,
         _: &WorkflowRequest,
     ) -> Result<(), Error> {
-        let version = self.prepared.ok_or_else(unavailable)?;
-        let now = self.clock.now().get();
+        let (version, archived_at) = self.prepared.ok_or_else(unavailable)?;
         let changed = sqlx::query(
             "UPDATE workspace_records SET archived_at=$1,version=version+1,updated_by=$2,updated_at=$1 \
              WHERE module_id=$3 AND id=$4 AND company_id=$5 AND version=$6 AND archived_at IS NULL",
         )
-        .bind(now)
+        .bind(archived_at)
         .bind(current.user_id.as_str())
         .bind(self.module_id)
         .bind(self.record_id)
@@ -493,7 +492,7 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for ArchiveEffects<'_, C> {
         current: &CommandActor,
         _: &WorkflowRequest,
     ) -> Result<(), Error> {
-        let version = self.prepared.ok_or_else(unavailable)?;
+        let (version, expected_archived_at) = self.prepared.ok_or_else(unavailable)?;
         let row: Option<(Option<i64>, i64, String)> = sqlx::query_as(
             "SELECT archived_at,version,updated_by FROM workspace_records \
              WHERE module_id=$1 AND id=$2 AND company_id=$3",
@@ -506,7 +505,7 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for ArchiveEffects<'_, C> {
         let Some((archived_at, current_version, updated_by)) = row else {
             return Err(record_not_found().into());
         };
-        if archived_at != Some(self.clock.now().get())
+        if archived_at != Some(expected_archived_at)
             || current_version != version + 1
             || updated_by != current.user_id.as_str()
         {

@@ -121,9 +121,27 @@ export async function nativeSessionContext(base: URL, req: IncomingMessage, url 
   return Object.fromEntries(Object.entries(headers).filter(([, item]) => item !== undefined)) as Record<string, string>;
 }
 
-export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.ProcessEnv; req: IncomingMessage; res: ServerResponse; url?: string; requiresSession?: boolean }): Promise<void> {
-  const { base, environment, req, res, requiresSession } = options;
+const recordContextAssertions = [
+  "x-erpx-context-company",
+  "x-erpx-context-assignment",
+  "x-erpx-context-revision",
+  "x-erpx-context-assignment-version",
+  "x-erpx-workspace-branch",
+  "x-erpx-workspace-department",
+] as const;
+const recordRequestHeaders = ["origin", "content-type", "idempotency-key", ...recordContextAssertions];
+
+export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.ProcessEnv; req: IncomingMessage; res: ServerResponse; url?: string; requiresSession?: boolean; recordAction?: boolean }): Promise<void> {
+  const { base, environment, req, res, requiresSession, recordAction } = options;
   const url = options.url ?? req.url ?? "/";
+  const queryStart = url.indexOf("?");
+  if (recordAction && (Buffer.byteLength(req.headers.cookie ?? "") > 8192 ||
+      recordRequestHeaders.some(name => Buffer.byteLength(String(req.headers[name] ?? "")) > 1024))) {
+    return nativeApiError(res, 503, "NATIVE_RECORD_REGISTRY_UNAVAILABLE", "The native Records registry service is unavailable.");
+  }
+  if (recordAction && queryStart !== -1 && url.length - queryStart > 4096)
+    return nativeApiError(res, 422, "RECORDS_REGISTRY_REQUEST_INVALID", "Choose a bounded Records query.");
+  const target = recordAction && queryStart !== -1 && req.method !== "DELETE" ? url.slice(0, queryStart) : url;
   if (requiresSession && !req.headers.cookie) return nativeApiError(res, 401, "UNAUTHENTICATED", "Sign in to continue.");
   let context: Record<string, string> = {};
   try {
@@ -138,19 +156,31 @@ export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.
       return nativeApiError(res, 503, "NATIVE_ROUTINES_UNAVAILABLE", "The native Operations routine read is unavailable.");
     }
   }
+  if (recordAction && ["POST", "PATCH", "DELETE"].includes(req.method ?? "") &&
+      recordContextAssertions.some(name => req.headers[name] !== undefined && req.headers[name] !== context[name])) {
+    return nativeApiError(res, 409, "WORK_CONTEXT_CHANGED", "The work context changed.");
+  }
   await new Promise<void>(done => {
     const upstream = httpRequest({
       host: base.hostname,
       port: Number(base.port || 80),
       method: req.method,
-      path: nativeApiRewrite(environment ?? process.env, url),
+      path: nativeApiRewrite(environment ?? process.env, target),
       headers: { ...stripInternalHeaders(req.headers), ...context, "x-erpx-api-transport": "public" },
     }, response => {
       res.writeHead(response.statusCode ?? 502, response.headers);
       response.pipe(res);
       response.once("end", done); response.once("error", () => { res.destroy(); done(); });
     });
-    upstream.once("error", () => { if (!res.headersSent) res.writeHead(502, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "private, no-store" }); res.end("Bad Gateway\n"); done(); });
+    upstream.once("error", () => {
+      if (res.headersSent) res.destroy();
+      else if (recordAction) nativeApiError(res, 503, "NATIVE_RECORD_REGISTRY_UNAVAILABLE", "The native Records registry service is unavailable.");
+      else {
+        res.writeHead(502, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "private, no-store" });
+        res.end("Bad Gateway\n");
+      }
+      done();
+    });
     req.pipe(upstream);
   });
 }

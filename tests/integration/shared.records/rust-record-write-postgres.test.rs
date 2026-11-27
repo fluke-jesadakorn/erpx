@@ -19,6 +19,7 @@ use erpx_service::records::{RecordsBackend, RecordsConfiguration, RecordsService
 use erpx_service::records_command::RecordsCommandService;
 use serde_json::json;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicI64, Ordering};
 
 #[derive(Clone)]
 struct TestClock(Arc<review::account::fixture::MutableClock>);
@@ -551,7 +552,26 @@ async fn updates_record_fields_with_version_cas_receipt_audit_outbox_and_replay(
 #[tokio::test]
 async fn archives_record_with_version_cas_receipt_audit_outbox_and_replay() {
     review::account::with_system(|system| async move {
-        let (p, service, _) = records_setup(system).await;
+        struct AdvancingClock(AtomicI64);
+        impl Clock for AdvancingClock {
+            fn now(&self) -> erpx_server_shared::public::TimestampMillis {
+                erpx_server_shared::public::TimestampMillis::new(
+                    self.0.fetch_add(1, Ordering::Relaxed),
+                )
+            }
+        }
+
+        let (p, _, _) = records_setup(system).await;
+        let service = RecordsCommandService::new(
+            p.authorizer.clone(),
+            RecordsConfiguration::new(
+                HoldingId::new("h001").unwrap(),
+                CompanyId::new("company").unwrap(),
+            ),
+            Arc::new(AdvancingClock(AtomicI64::new(
+                p.system.scenario.clock.now().get(),
+            ))),
+        );
         let pool = &p.system.holdings[0];
         let id = "rec-support-records:archive-seed".to_owned();
         service

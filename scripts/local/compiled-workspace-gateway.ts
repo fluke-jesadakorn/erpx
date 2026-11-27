@@ -3,6 +3,7 @@ import { PassThrough, type Duplex } from 'node:stream';
 import { hasPortListener } from './port-listeners';
 import { appIds } from '@erpx/contracts/apps';
 import { proxyNativeApi, stripInternalHeaders } from './native-api-proxy';
+import { holdingNativeCutoverPath } from './native-cutover-routes';
 
 export type CompiledGatewayRouting = { schema: 'erpx-compiled-routing/v1'; hosts: Record<string,string>; ports: Record<string,number>; api?: number };
 /** External release orchestration owns processes. This transport never starts jobs or replays requests. */
@@ -40,7 +41,10 @@ export async function startCompiledWorkspaceGateway(routing: CompiledGatewayRout
     const target = selected(req);
     if (!target) {res.writeHead(421,{'Cache-Control':'no-store'});res.end();return;}
     if (target.native) {
-      void proxyNativeApi({ base: new URL(`http://127.0.0.1:${target.port}`), environment: process.env, req, res }).catch(() => unavailable(res));
+      const url = req.url ?? '/';
+      const holdingSlug = /^\/api\/v1\/holdings\/([a-z0-9-]+)\//.exec(url)?.[1];
+      const recordAction = holdingSlug !== undefined && holdingNativeCutoverPath(url, holdingSlug, req.method) === 'record-action';
+      void proxyNativeApi({ base: new URL(`http://127.0.0.1:${target.port}`), environment: process.env, req, res, recordAction }).catch(() => unavailable(res));
       return;
     }
     // Host/Origin, cookie headers, path/query and multipart/RSC/SSE bodies pass unchanged.

@@ -1,599 +1,97 @@
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { createServer } from 'node:http';
+import { expect, it } from 'vitest';
+import { proxyNativeApi } from '../../../scripts/local/native-api-proxy';
 
-const state = vi.hoisted(() => ({
-  actor: {
-    userId: 'actor',
-    holdingId: 'h001',
-    companyId: 'company',
-    branchId: null,
-    departmentId: null,
-    assignmentId: 'assignment-actor',
-    role: 'operations_manager',
-    assignmentScope: 'holding',
-    scope: { kind: 'holding', holdingSlug: 'acme' },
-    modules: ['operations'],
-    authority: { revision: 9, assignmentVersion: 3 },
-    iam: { permissions: ['records.read'] },
-  },
-  available: true,
-  update: vi.fn(),
-  archive: vi.fn(),
-  reference: vi.fn(),
-  context: vi.fn(),
-  transition: vi.fn(),
-  retainedGet: vi.fn(),
-  retainedUpdate: vi.fn(),
-  retainedArchive: vi.fn(),
-  retainedReference: vi.fn(),
-  retainedTransition: vi.fn(),
-  retainedContext: vi.fn(),
-}));
+const endpoint = '/api/v1/holdings/acme/records/support/rec-1';
+const actorContext = {
+  userId: 'current-user',
+  companyId: 'current-company',
+  assignmentId: 'current-assignment',
+  revision: 7,
+  assignmentVersion: 3,
+};
 
-vi.mock('@erpx/server-identity_access/public/authorization', () => ({
-  requireWorkContext: async () => state.actor,
-}));
-vi.mock('@erpx/server-manage_erpx/public/public-origin', () => ({
-  requestPublicOrigin: () => 'https://acme.example.com',
-}));
-vi.mock('@erpx/server-records/adapters/records', () => ({
-  createRecord: vi.fn(),
-  createRecordSchema: { safeParse: (value: unknown) => ({ success: true, data: value }) },
-  getRecord: state.retainedGet,
-  updateRecord: state.retainedUpdate,
-  updateRecordSchema: { safeParse: (value: unknown) => ({ success: true, data: value }) },
-  archiveRecord: state.retainedArchive,
-  addReference: state.retainedReference,
-  addReferenceSchema: { safeParse: (value: unknown) => ({ success: true, data: value }) },
-  transitionRecord: state.retainedTransition,
-  transitionSchema: { safeParse: (value: unknown) => ({ success: true, data: value }) },
-  recordContext: state.retainedContext,
-}));
-vi.mock('@erpx/server-records/public/native-record-context', () => ({
-  createNativeRecordContextClient: () => ({ context: state.context }),
-  nativeRecordContextConfiguration: () => ({}),
-  nativeRecordContextFailure: () => undefined,
-}));
-vi.mock('@erpx/server-records/public/native-record-registry', () => ({
-  nativeRecordRegistryAvailable: () => state.available,
-  nativeRecordRegistryConfiguration: () => ({}),
-  createNativeRecordRegistryClient: () => ({
-    update: state.update,
-    archive: state.archive,
-    reference: state.reference,
-    transition: state.transition,
-  }),
-  nativeRecordRegistryFailure: (error: unknown) =>
-    error instanceof Error
-      ? {
-          status: 503,
-          code: 'NATIVE_RECORD_REGISTRY_UNAVAILABLE',
-          message: 'The native Records registry reader is unavailable.',
-        }
-      : undefined,
-}));
-
-import { GET as GET_RECORD, PATCH, DELETE } from '@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/route';
-import { POST as POST_REFERENCE } from '@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/references/route';
-import { POST as POST_TRANSITION } from '@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/transition/route';
-
-beforeEach(() => {
-  vi.clearAllMocks();
-  state.available = true;
-  process.env.ERPX_NATIVE_RECORDS_CONFIG = '{}';
-  state.retainedGet.mockResolvedValue({ id: 'retained' });
-});
-afterEach(() => {
-  delete process.env.ERPX_NATIVE_RECORDS_CONFIG;
-});
-
-it('reads the ordinary record detail only through the native context reader', async () => {
-  const recordContext = {
-    record: { id: 'rec-1', version: 2 },
-    references: [],
-    backlinks: [],
-    mentions: [],
-    suggestions: [],
-    history: [],
-  };
-  state.context.mockResolvedValue(recordContext);
-  const response = await GET_RECORD(
-    new Request('https://acme.example.com/api/v1/holdings/acme/records/operations/rec-1'),
-    { params: Promise.resolve({ holdingSlug: 'acme', module: 'operations', id: 'rec-1' }) },
-  );
-  expect(response.status).toBe(200);
-  expect((await response.json()).data).toEqual(recordContext);
-  expect(state.context).toHaveBeenCalledWith(
-    expect.any(Headers),
-    expect.objectContaining({ holdingId: 'h001', companyId: 'company' }),
-    { holdingSlug: 'acme', moduleId: 'operations', recordId: 'rec-1' },
-  );
-  expect(state.retainedContext).not.toHaveBeenCalled();
-});
-
-it('projects the mention view from the native context without the retained TS reader', async () => {
-  state.context.mockResolvedValue({
-    record: {
-      moduleId: 'operations',
-      id: 'rec-1',
-      sectionId: 'overview',
-      title: 'Mentioned record',
-      description: 'A description',
-      status: 'approved',
-      fields: [
-        { key: 'total', label: 'Total', type: 'number', value: 3, options: ['a'] },
-      ],
-      version: 4,
-      createdBy: 'actor',
-      updatedAt: 7,
-    },
-    references: [],
-    backlinks: [],
-    mentions: [],
-    suggestions: [],
-    history: [],
+async function listen(server: ReturnType<typeof createServer>) {
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
   });
-  const response = await GET_RECORD(
-    new Request('https://acme.example.com/api/v1/holdings/acme/records/operations/rec-1?view=mention'),
-    { params: Promise.resolve({ holdingSlug: 'acme', module: 'operations', id: 'rec-1' }) },
-  );
-  expect(response.status).toBe(200);
-  expect((await response.json()).data).toEqual({
-    record: {
-      title: 'Mentioned record',
-      description: 'A description',
-      status: 'approved',
-      version: 4,
-      fields: [{ key: 'total', label: 'Total', value: 3 }],
-    },
-  });
-  expect(state.context).toHaveBeenCalledWith(
-    expect.any(Headers),
-    expect.objectContaining({ holdingId: 'h001' }),
-    { holdingSlug: 'acme', moduleId: 'operations', recordId: 'rec-1' },
-  );
-});
+  const address = server.address();
+  if (!address || typeof address === 'string') throw Error('Expected a test TCP listener');
+  return new URL(`http://127.0.0.1:${address.port}`);
+}
 
-it('fails the record detail closed with 503 instead of running retained SQL when native configuration is absent', async () => {
-  delete process.env.ERPX_NATIVE_RECORDS_CONFIG;
-  const response = await GET_RECORD(
-    new Request('https://acme.example.com/api/v1/holdings/acme/records/operations/rec-1'),
-    { params: Promise.resolve({ holdingSlug: 'acme', module: 'operations', id: 'rec-1' }) },
-  );
-  expect(response.status).toBe(503);
-  expect((await response.json()).error.code).toBe('NATIVE_RECORD_CONTEXT_UNAVAILABLE');
-  expect(state.context).not.toHaveBeenCalled();
-  expect(state.retainedContext).not.toHaveBeenCalled();
-});
-
-it('uses native update for support with the current authority and never reads the retained writer', async () => {
-  const record = {
-    moduleId: 'support',
-    id: 'rec-support-records:http-1',
-    sectionId: 'tickets',
-    title: 'Native record',
-    description: '',
-    status: 'draft',
-    fields: [{ key: 'priority', label: 'Priority', type: 'text', value: 'low' }],
-    version: 2,
-    createdBy: 'actor',
-    updatedAt: 2,
-  };
-  state.update.mockResolvedValue(record);
-  const request = (key: string | null = 'records:http-update-1') =>
-    new Request(
-      'https://acme.example.com/api/v1/holdings/acme/records/support/rec-support-records:http-1',
-      {
-        method: 'PATCH',
-        headers: {
-          origin: 'https://acme.example.com',
-          'content-type': 'application/json',
-          ...(key ? { 'idempotency-key': key } : {}),
-        },
-        body: JSON.stringify({ expectedVersion: 1, fields: { priority: 'low' } }),
-      },
-    );
-  const response = await PATCH(request(), {
-    params: Promise.resolve({
-      holdingSlug: 'acme',
-      module: 'support',
-      id: 'rec-support-records:http-1',
-    }),
+async function close(server: ReturnType<typeof createServer>) {
+  await new Promise<void>((resolve, reject) => {
+    server.close(error => error ? reject(error) : resolve());
+    server.closeAllConnections();
   });
-  expect(response.status).toBe(200);
-  expect(state.update).toHaveBeenCalledWith(
-    expect.any(Headers),
-    expect.objectContaining({
-      userId: 'actor',
-      holdingId: 'h001',
-      companyId: 'company',
-      branchSlug: null,
-      departmentSlug: null,
-    }),
-    {
-      holdingSlug: 'acme',
-      moduleId: 'support',
-      recordId: 'rec-support-records:http-1',
-      expectedVersion: 1,
-      fields: { priority: 'low' },
-    },
-    'records:http-update-1',
-  );
-  expect(state.retainedGet).not.toHaveBeenCalled();
-  expect(state.retainedUpdate).not.toHaveBeenCalled();
-  expect((await response.json()).data).toEqual(record);
-  const missing = await PATCH(request(null), {
-    params: Promise.resolve({
-      holdingSlug: 'acme',
-      module: 'support',
-      id: 'rec-support-records:http-1',
-    }),
-  });
-  expect(missing.status).toBe(422);
-  expect((await missing.json()).error.code).toBe('IDEMPOTENCY_KEY_REQUIRED');
-  expect(state.update).toHaveBeenCalledTimes(1);
-});
+}
 
-it('uses native update for every module and fails closed when configuration is absent', async () => {
-  const updated = {
-    moduleId: 'operations',
-    id: 'rec-1',
-    sectionId: 'overview',
-    title: 'Native record',
-    description: '',
-    status: 'draft',
-    fields: [{ key: 'total', label: 'Total', type: 'number', value: 3 }],
-    version: 2,
-    createdBy: 'actor',
-    updatedAt: 2,
-  };
-  state.update.mockResolvedValue(updated);
-  const params = {
-    params: Promise.resolve({ holdingSlug: 'acme', module: 'operations', id: 'rec-1' }),
-  };
-  const make = (key: string) =>
-    new Request('https://acme.example.com/api/v1/holdings/acme/records/operations/rec-1', {
-      method: 'PATCH',
-      headers: {
-        origin: 'https://acme.example.com',
-        'idempotency-key': key,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({ expectedVersion: 1, fields: { total: 3 } }),
+it('forwards the native reply and binds commands to the verified selection', async () => {
+  const commands: Array<{method?: string; path?: string; user?: string | string[]; body: string}> = [];
+  const owner = createServer((req, res) => {
+    if (req.url?.startsWith('/internal/session-context?')) {
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ data: actorContext }));
+      return;
+    }
+    let body = '';
+    req.setEncoding('utf8').on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      commands.push({ method: req.method, path: req.url, user: req.headers['x-erpx-context-user'], body });
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'private, no-store' });
+      res.end(JSON.stringify({ data: { id: 'rec-1' }, context: actorContext }));
     });
-  const response = await PATCH(make('records:http-update-ops'), params);
-  expect(response.status).toBe(200);
-  expect(state.update).toHaveBeenCalledWith(
-    expect.any(Headers),
-    expect.objectContaining({ userId: 'actor', holdingSlug: 'acme' }),
-    {
-      holdingSlug: 'acme',
-      moduleId: 'operations',
-      recordId: 'rec-1',
-      expectedVersion: 1,
-      fields: { total: 3 },
-    },
-    'records:http-update-ops',
-  );
-  expect(state.retainedGet).not.toHaveBeenCalled();
-  expect(state.retainedUpdate).not.toHaveBeenCalled();
-  delete process.env.ERPX_NATIVE_RECORDS_CONFIG;
-  const closed = await PATCH(make('records:http-update-closed'), params);
-  expect(closed.status).toBe(503);
-  expect((await closed.json()).error.code).toBe('NATIVE_RECORD_REGISTRY_UNAVAILABLE');
-  expect(state.update).toHaveBeenCalledTimes(1);
-});
+  });
+  const base = await listen(owner);
+  const gateway = createServer((req, res) => void proxyNativeApi({ base, req, res, recordAction: true }));
+  try {
+    const ingress = await listen(gateway);
+    const headers = { cookie: 'session=fixture', 'x-erpx-context-user': 'untrusted-user' };
+    const response = await fetch(new URL(endpoint + '?view=mention', ingress), { headers });
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+    expect(await response.json()).toEqual({ data: { id: 'rec-1' }, context: actorContext });
 
-it('uses native archive for support with the current authority and never reads the retained writer', async () => {
-  const archived = {
-    id: 'rec-support-records:http-1',
-    moduleId: 'support',
-    archived: true,
-  };
-  state.archive.mockResolvedValue(archived);
-  const request = (key: string | null = 'records:http-archive-1') =>
-    new Request(
-      'https://acme.example.com/api/v1/holdings/acme/records/support/rec-support-records:http-1?expectedVersion=1',
-      {
-        method: 'DELETE',
-        headers: {
-          origin: 'https://acme.example.com',
-          ...(key ? { 'idempotency-key': key } : {}),
-        },
-      },
-    );
-  const response = await DELETE(request(), {
-    params: Promise.resolve({
-      holdingSlug: 'acme',
-      module: 'support',
-      id: 'rec-support-records:http-1',
-    }),
-  });
-  expect(response.status).toBe(200);
-  expect(state.archive).toHaveBeenCalledWith(
-    expect.any(Headers),
-    expect.objectContaining({
-      userId: 'actor',
-      holdingId: 'h001',
-      companyId: 'company',
-      branchSlug: null,
-      departmentSlug: null,
-    }),
-    {
-      holdingSlug: 'acme',
-      moduleId: 'support',
-      recordId: 'rec-support-records:http-1',
-      expectedVersion: 1,
-    },
-    'records:http-archive-1',
-  );
-  expect(state.retainedGet).not.toHaveBeenCalled();
-  expect(state.retainedArchive).not.toHaveBeenCalled();
-  expect((await response.json()).data).toEqual(archived);
-  const missing = await DELETE(request(null), {
-    params: Promise.resolve({
-      holdingSlug: 'acme',
-      module: 'support',
-      id: 'rec-support-records:http-1',
-    }),
-  });
-  expect(missing.status).toBe(422);
-  expect((await missing.json()).error.code).toBe('IDEMPOTENCY_KEY_REQUIRED');
-  expect(state.archive).toHaveBeenCalledTimes(1);
-});
+    const stale = await fetch(new URL(endpoint, ingress), {
+      method: 'PATCH', headers: { ...headers, 'x-erpx-context-revision': '6' }, body: '{}',
+    });
+    expect(stale.status).toBe(409);
+    expect(await stale.json()).toMatchObject({ error: { code: 'WORK_CONTEXT_CHANGED' } });
 
-it('uses native archive for every module and fails closed when configuration is absent', async () => {
-  state.archive.mockResolvedValue({ id: 'rec-1', moduleId: 'operations', archived: true });
-  const params = {
-    params: Promise.resolve({ holdingSlug: 'acme', module: 'operations', id: 'rec-1' }),
-  };
-  const make = (key: string) =>
-    new Request(
-      'https://acme.example.com/api/v1/holdings/acme/records/operations/rec-1?expectedVersion=2',
-      { method: 'DELETE', headers: { origin: 'https://acme.example.com', 'idempotency-key': key } },
-    );
-  const response = await DELETE(make('records:http-archive-ops'), params);
-  expect(response.status).toBe(200);
-  expect(state.archive).toHaveBeenCalledWith(
-    expect.any(Headers),
-    expect.objectContaining({ userId: 'actor', holdingSlug: 'acme' }),
-    { holdingSlug: 'acme', moduleId: 'operations', recordId: 'rec-1', expectedVersion: 2 },
-    'records:http-archive-ops',
-  );
-  expect(state.retainedArchive).not.toHaveBeenCalled();
-  delete process.env.ERPX_NATIVE_RECORDS_CONFIG;
-  const closed = await DELETE(make('records:http-archive-closed'), params);
-  expect(closed.status).toBe(503);
-  expect((await closed.json()).error.code).toBe('NATIVE_RECORD_REGISTRY_UNAVAILABLE');
-  expect(state.archive).toHaveBeenCalledTimes(1);
-});
+    for (const [method, suffix, body] of [
+      ['PATCH', '?ignored=1', '{}'],
+      ['POST', '/references', '{}'],
+      ['POST', '/transition', '{}'],
+      ['DELETE', '?expectedVersion=2', undefined],
+    ] as const) {
+      const result = await fetch(new URL(endpoint + suffix, ingress), {
+        method, headers: { ...headers, 'x-erpx-context-revision': '7' }, body,
+      });
+      expect(result.status).toBe(200);
+      await result.arrayBuffer();
+    }
 
-it('uses native reference for support then reads the updated native context', async () => {
-  const recordContext = {
-    record: { id: 'rec-support-records:host', version: 1 },
-    references: [],
-    backlinks: [],
-    mentions: [],
-    suggestions: [],
-    history: [],
-  };
-  state.reference.mockResolvedValue({
-    id: 'rec-support-records:host',
-    moduleId: 'support',
-  });
-  state.context.mockResolvedValue(recordContext);
-  const request = (key: string | null = 'records:http-reference-1') =>
-    new Request(
-      'https://acme.example.com/api/v1/holdings/acme/records/support/rec-support-records:host/references',
-      {
-        method: 'POST',
-        headers: {
-          origin: 'https://acme.example.com',
-          'content-type': 'application/json',
-          ...(key ? { 'idempotency-key': key } : {}),
-        },
-        body: JSON.stringify({
-          targetModule: 'support',
-          targetId: 'rec-support-records:target',
-          kind: 'dependsOn',
-        }),
-      },
-    );
-  const response = await POST_REFERENCE(request(), {
-    params: Promise.resolve({
-      holdingSlug: 'acme',
-      module: 'support',
-      id: 'rec-support-records:host',
-    }),
-  });
-  expect(response.status).toBe(201);
-  expect(state.reference).toHaveBeenCalledWith(
-    expect.any(Headers),
-    expect.objectContaining({
-      userId: 'actor',
-      holdingId: 'h001',
-      companyId: 'company',
-      branchSlug: null,
-      departmentSlug: null,
-    }),
-    {
-      holdingSlug: 'acme',
-      moduleId: 'support',
-      recordId: 'rec-support-records:host',
-      targetModule: 'support',
-      targetId: 'rec-support-records:target',
-      kind: 'dependsOn',
-    },
-    'records:http-reference-1',
-  );
-  expect(state.context).toHaveBeenCalledWith(
-    expect.any(Headers),
-    expect.objectContaining({ holdingId: 'h001', companyId: 'company' }),
-    {
-      holdingSlug: 'acme',
-      moduleId: 'support',
-      recordId: 'rec-support-records:host',
-    },
-  );
-  expect(state.retainedReference).not.toHaveBeenCalled();
-  expect((await response.json()).data).toEqual(recordContext);
-  const missing = await POST_REFERENCE(request(null), {
-    params: Promise.resolve({
-      holdingSlug: 'acme',
-      module: 'support',
-      id: 'rec-support-records:host',
-    }),
-  });
-  expect(missing.status).toBe(422);
-  expect((await missing.json()).error.code).toBe('IDEMPOTENCY_KEY_REQUIRED');
-  expect(state.reference).toHaveBeenCalledTimes(1);
-});
+    expect(commands).toEqual([
+      { method: 'GET', path: endpoint, user: 'current-user', body: '' },
+      { method: 'PATCH', path: endpoint, user: 'current-user', body: '{}' },
+      { method: 'POST', path: endpoint + '/references', user: 'current-user', body: '{}' },
+      { method: 'POST', path: endpoint + '/transition', user: 'current-user', body: '{}' },
+      { method: 'DELETE', path: endpoint + '?expectedVersion=2', user: 'current-user', body: '' },
+    ]);
 
-it('keeps the retained reference path outside the bounded support module', async () => {
-  const retained = { record: { id: 'rec-1' }, references: [] };
-  state.retainedReference.mockResolvedValue(retained);
-  const response = await POST_REFERENCE(
-    new Request(
-      'https://acme.example.com/api/v1/holdings/acme/records/operations/rec-1/references',
-      {
-        method: 'POST',
-        headers: {
-          origin: 'https://acme.example.com',
-          'idempotency-key': 'records:http-retained-reference',
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          targetModule: 'operations',
-          targetId: 'rec-2',
-          kind: 'blocks',
-        }),
-      },
-    ),
-    {
-      params: Promise.resolve({
-        holdingSlug: 'acme',
-        module: 'operations',
-        id: 'rec-1',
-      }),
-    },
-  );
-  expect(response.status).toBe(201);
-  expect(state.retainedReference).toHaveBeenCalledWith(
-    state.actor,
-    'operations',
-    'rec-1',
-    { targetModule: 'operations', targetId: 'rec-2', kind: 'blocks' },
-    'records:http-retained-reference',
-  );
-  expect(state.reference).not.toHaveBeenCalled();
-  expect(state.context).not.toHaveBeenCalled();
-  expect((await response.json()).data).toEqual(retained);
-});
+    const unbounded = await fetch(new URL(endpoint + '?q=' + 'x'.repeat(4096), ingress), { headers });
+    expect(unbounded.status).toBe(422);
+    await unbounded.arrayBuffer();
+    expect(commands).toHaveLength(5);
 
-it('uses native transition for support with the current authority and never reads the retained writer', async () => {
-  const transitioned = {
-    moduleId: 'support',
-    id: 'rec-support-records:host',
-    sectionId: 'tickets',
-    title: 'Native record',
-    description: '',
-    status: 'in_review',
-    fields: [{ key: 'priority', label: 'Priority', type: 'text', value: 'high' }],
-    version: 2,
-    createdBy: 'actor',
-    updatedAt: 2,
-  };
-  state.transition.mockResolvedValue(transitioned);
-  const request = (key: string | null = 'records:http-transition-1') =>
-    new Request(
-      'https://acme.example.com/api/v1/holdings/acme/records/support/rec-support-records:host/transition',
-      {
-        method: 'POST',
-        headers: {
-          origin: 'https://acme.example.com',
-          'content-type': 'application/json',
-          ...(key ? { 'idempotency-key': key } : {}),
-        },
-        body: JSON.stringify({ expectedVersion: 1, action: 'submit', note: 'Ready' }),
-      },
-    );
-  const response = await POST_TRANSITION(request(), {
-    params: Promise.resolve({
-      holdingSlug: 'acme',
-      module: 'support',
-      id: 'rec-support-records:host',
-    }),
-  });
-  expect(response.status).toBe(200);
-  expect(state.transition).toHaveBeenCalledWith(
-    expect.any(Headers),
-    expect.objectContaining({
-      userId: 'actor',
-      holdingId: 'h001',
-      companyId: 'company',
-      branchSlug: null,
-      departmentSlug: null,
-    }),
-    {
-      holdingSlug: 'acme',
-      moduleId: 'support',
-      recordId: 'rec-support-records:host',
-      expectedVersion: 1,
-      action: 'submit',
-      note: 'Ready',
-    },
-    'records:http-transition-1',
-  );
-  expect(state.retainedTransition).not.toHaveBeenCalled();
-  expect((await response.json()).data).toEqual(transitioned);
-  const missing = await POST_TRANSITION(request(null), {
-    params: Promise.resolve({
-      holdingSlug: 'acme',
-      module: 'support',
-      id: 'rec-support-records:host',
-    }),
-  });
-  expect(missing.status).toBe(422);
-  expect((await missing.json()).error.code).toBe('COMMAND_KEY_REQUIRED');
-  expect(state.transition).toHaveBeenCalledTimes(1);
-});
-
-it('keeps the retained transition path outside the bounded support module', async () => {
-  const retained = {
-    moduleId: 'operations',
-    id: 'rec-1',
-    status: 'in_review',
-    version: 2,
-  };
-  state.retainedTransition.mockResolvedValue(retained);
-  const response = await POST_TRANSITION(
-    new Request(
-      'https://acme.example.com/api/v1/holdings/acme/records/operations/rec-1/transition',
-      {
-        method: 'POST',
-        headers: {
-          origin: 'https://acme.example.com',
-          'idempotency-key': 'records:http-retained-transition',
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({ expectedVersion: 1, action: 'submit', note: '' }),
-      },
-    ),
-    {
-      params: Promise.resolve({
-        holdingSlug: 'acme',
-        module: 'operations',
-        id: 'rec-1',
-      }),
-    },
-  );
-  expect(response.status).toBe(200);
-  expect(state.retainedTransition).toHaveBeenCalledWith(
-    state.actor,
-    'operations',
-    'rec-1',
-    { expectedVersion: 1, action: 'submit', note: '' },
-    'records:http-retained-transition',
-  );
-  expect(state.transition).not.toHaveBeenCalled();
-  expect((await response.json()).data).toEqual(retained);
+    await close(owner);
+    const unavailable = await fetch(new URL(endpoint, ingress), { method: 'DELETE' });
+    expect(unavailable.status).toBe(503);
+    expect(await unavailable.json()).toMatchObject({ error: { code: 'NATIVE_RECORD_REGISTRY_UNAVAILABLE' } });
+    expect(commands).toHaveLength(5);
+  } finally {
+    await close(gateway);
+    if (owner.listening) await close(owner);
+  }
 });
