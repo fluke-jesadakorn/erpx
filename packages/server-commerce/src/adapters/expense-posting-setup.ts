@@ -29,8 +29,7 @@ import {manufacturingPostingDocumentState} from '@erpx/server-commerce/adapters/
 import {expensePostingSetupSchema,type ExpensePostingSetupInput,type ExpensePostingSetupView,type ExpensePostingSetupResult} from '@erpx/server-commerce/domain/expense-posting-setup';
 import type {CommercePostingSetupConfiguration} from '@erpx/server-commerce/domain/posting-setup';
 import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
-import { COMMERCE_EXPENSE_RECEIPT_IMAGE_SQL } from "./guarded-source-dedupe-sql";
-import { nativeCommerceReadFirst, RD_EXPENSE_SETTINGS_IMAGE, RD_EXPENSE_RECEIPT_IMAGE } from './native-commerce-read';
+import { nativeCommerceReadFirst, RD_EXPENSE_SETTINGS_IMAGE, RD_EXPENSE_RECEIPT_IMAGE, RD_EXPENSE_RECEIPT_SOURCE_IMAGE } from './native-commerce-read';
 const operation='commerce.expense-posting-setup.initialize',capabilities=['people.directory','people.expenses'] as const;
 const columns={chartId:'chart_id',currency:'currency',receivableAccountId:'receivable_account_id',payableAccountId:'payable_account_id',revenueAccountId:'revenue_account_id',inventoryAccountId:'inventory_account_id',clearingAccountId:'clearing_account_id',cogsAccountId:'cogs_account_id',inputTaxAccountId:'input_tax_account_id',outputTaxAccountId:'output_tax_account_id',cashAccountId:'cash_account_id'} as const;
 const fields=Object.keys(columns) as (keyof typeof columns)[];
@@ -87,9 +86,9 @@ export async function initializeExpensePostingSetup(actor:WorkContext,raw:unknow
   }
   const created=await state(database,actor.companyId),createdFinance=await expensePostingFinanceState(database,actor);
   if(before.image!==created.image||finance.image!==createdFinance.image||(receipt?!isDeepStrictEqual(before.mapping,created.mapping):!matches(created.mapping,input,actor.companyId))||(!!receipt||!!finance.defaults)&&!isDeepStrictEqual(finance.service,createdFinance.service))throw changed();
-  const expectedReceipt=await database.prepare(COMMERCE_EXPENSE_RECEIPT_IMAGE_SQL).bind(key).first<string>('image');if(!expectedReceipt||receipt&&receipt!==expectedReceipt)throw changed();
+  const expectedReceipt=await nativeCommerceReadFirst<string>(RD_EXPENSE_RECEIPT_SOURCE_IMAGE,[key],database);if(!expectedReceipt||receipt&&receipt!==expectedReceipt)throw changed();
   await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]));await flushFinanceDeferredEffects(database);
-  const finalSource=await state(database,actor.companyId),finalFinance=await expensePostingFinanceState(database,actor);if(!isDeepStrictEqual(created,finalSource)||createdFinance.image!==finalFinance.image||!isDeepStrictEqual(createdFinance.service,await expensePostingEffectiveService(database,actor))||expectedReceipt!==await database.prepare(COMMERCE_EXPENSE_RECEIPT_IMAGE_SQL).bind(key).first<string>('image'))throw changed();
+  const finalSource=await state(database,actor.companyId),finalFinance=await expensePostingFinanceState(database,actor);if(!isDeepStrictEqual(created,finalSource)||createdFinance.image!==finalFinance.image||!isDeepStrictEqual(createdFinance.service,await expensePostingEffectiveService(database,actor))||expectedReceipt!==await nativeCommerceReadFirst<string>(RD_EXPENSE_RECEIPT_SOURCE_IMAGE,[key],database))throw changed();
   if(identity(current)!==identity(await requireExpensePostingFinanceAuthority(database,actor)))throw new ApiError(409,'EXPENSE_POSTING_CONTEXT_CHANGED','The original Company Finance authority changed.');
   for(const capability of capabilities)await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability,purpose});return result;
  });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}

@@ -26,6 +26,7 @@ export const RD_MFG_EXISTING_SETTINGS_IMAGE = 'commerce_rd_mfg_existing_settings
 /** Allow-listed r30 posting-setup receipt-image reads resolved by the mounted owner command-plan route. */
 export const RD_EXPENSE_RECEIPT_IMAGE = 'commerce_rd_expense_receipt_image';
 export const RD_MFG_EXISTING_RECEIPT_IMAGE = 'commerce_rd_mfg_existing_receipt_image';
+export const RD_EXPENSE_RECEIPT_SOURCE_IMAGE = 'commerce_rd_expense_receipt_source_image';
 
 /** Allow-listed r26 attachment source-image reads resolved by the mounted owner command-plan route. */
 export const RD_SUPPORT_ORDER_SOURCE_IMAGE = 'commerce_rd_support_order_source_image';

@@ -14,7 +14,6 @@ import { readFileSync } from 'node:fs';
 import {
   COMMERCE_ACTIVE_WAREHOUSES_SQL,
   COMMERCE_BILLING_TEST_SOURCE_KEY_SQL,
-  COMMERCE_EXPENSE_RECEIPT_IMAGE_SQL,
   COMMERCE_MASTER_SOURCE_SQL,
   COMMERCE_MFG_INITIALIZED_GUARD_SQL,
   COMMERCE_OWN_RECEIPT_SOURCE_SQL,
@@ -233,9 +232,10 @@ describe('commerce read-tail r11 warehouse/product guard dedupe', () => {
       expect(value.replace(/\t/g, ' '), name).toBe(literal);
       expect(shared.replace(/\t/g, ' ').split(literal).length - 1, name).toBe(1);
     }
-    // Pre-existing posting constants, nine r11 literals, three r13 guards and
-    // three r14 projection-guard literals added to this shared file.
-    expect(shared.split('SELECT').length - 1).toBe(18);
+    // Pre-existing posting constants, nine r11 literals, two r13 guards and
+    // three r14 projection-guard literals added to this shared file; the
+    // command-id receipt image moved to the native owner registry.
+    expect(shared.split('SELECT').length - 1).toBe(17);
   });
 
   it('backs every call site with its shared constant or a native read kind', async () => {
@@ -330,13 +330,6 @@ describe('commerce read-tail r13 posting/flow guard dedupe', () => {
       value: COMMERCE_FLOW_PARENT_SQL,
       literal: `SELECT f.order_id FROM commerce_fulfillments f JOIN (${financeProjectionSources.finance_journals}) j ON j.id=f.journal_id WHERE j.id=? AND j.company_id=?`,
       file: 'workflow-flow-routing-facts.ts',
-      prepares: 2,
-    },
-    {
-      name: 'COMMERCE_EXPENSE_RECEIPT_IMAGE_SQL',
-      value: COMMERCE_EXPENSE_RECEIPT_IMAGE_SQL,
-      literal: 'SELECT to_jsonb(r)::text image FROM command_receipts r WHERE r.command_id=?',
-      file: 'expense-posting-setup.ts',
       prepares: 2,
     },
     {
@@ -470,7 +463,7 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
         `export const ${kind} = '${wire}';`,
       );
     }
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 65);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 66);');
     expect(plans).toContain('fn schema_ready_probes_keep_their_exact_literals()');
     expect(readFileSync(adapters('read-tail-r15-dedupe-sql.ts'), 'utf8')).not.toContain('to_regclass');
   });
@@ -507,7 +500,7 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
     expect(plans).toContain(`"${sql}"`);
     expect(plans).toContain('kind: RD_LEGACY_ATTACHMENT_SCOPE,');
     expect(plans).toContain('fn legacy_attachment_scope_keeps_its_exact_literal()');
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 65);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 66);');
     expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
       "export const RD_LEGACY_ATTACHMENT_SCOPE = 'commerce_rd_legacy_attachment_scope';",
     );

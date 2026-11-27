@@ -296,6 +296,17 @@ const READ_EXPENSE_RECEIPT_IMAGE: NativeCommerceReadStatement = NativeCommerceRe
     bind_count: 5,
 };
 
+/// Native successor of the Expense command-id receipt image guard. The caller
+/// binds `[command_id]`; the short `r.command_id=?` predicate stays byte-for-byte.
+pub const RD_EXPENSE_RECEIPT_SOURCE_IMAGE: &str = "commerce_rd_expense_receipt_source_image";
+const SQL_EXPENSE_RECEIPT_SOURCE_IMAGE: &str =
+    "SELECT to_jsonb(r)::text image FROM command_receipts r WHERE r.command_id=?";
+const READ_EXPENSE_RECEIPT_SOURCE_IMAGE: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_EXPENSE_RECEIPT_SOURCE_IMAGE,
+    sql: SQL_EXPENSE_RECEIPT_SOURCE_IMAGE,
+    bind_count: 1,
+};
+
 /// Native successor of the r30 existing Manufacturing receipt-image read. The
 /// caller binds `[operation, record_id, company_id, command_id, command_id]`;
 /// the nullable command predicate and ordering stay byte-for-byte.
@@ -855,6 +866,7 @@ const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_EXPENSE_SETTINGS_IMAGE,
     READ_MFG_EXISTING_SETTINGS_IMAGE,
     READ_EXPENSE_RECEIPT_IMAGE,
+    READ_EXPENSE_RECEIPT_SOURCE_IMAGE,
     READ_MFG_EXISTING_RECEIPT_IMAGE,
     READ_SUPPORT_ORDER_SOURCE_IMAGE,
     READ_CRM_ORDER_SOURCE_IMAGE,
@@ -942,6 +954,11 @@ mod tests {
                 1usize,
             ),
             (RD_EXPENSE_RECEIPT_IMAGE, SQL_EXPENSE_RECEIPT_IMAGE, 5usize),
+            (
+                RD_EXPENSE_RECEIPT_SOURCE_IMAGE,
+                SQL_EXPENSE_RECEIPT_SOURCE_IMAGE,
+                1usize,
+            ),
             (
                 RD_MFG_EXISTING_RECEIPT_IMAGE,
                 SQL_MFG_EXISTING_RECEIPT_IMAGE,
@@ -1106,7 +1123,7 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), bind_count);
         }
-        assert_eq!(STATEMENTS.len(), 65);
+        assert_eq!(STATEMENTS.len(), 66);
     }
 
     /// The order source-id lookup keeps its exact projection and single bind.
@@ -1574,6 +1591,23 @@ mod tests {
             assert!(!statement.sql.contains(';'));
             assert!(!statement.sql.contains("FOR UPDATE"));
         }
+    }
+
+    /// The command-id receipt image guard keeps its retired literal and its
+    /// single `command_id` bind; it stays a distinct kind from the five-bind
+    /// full receipt-image read.
+    #[test]
+    fn expense_receipt_source_image_keeps_its_exact_literal() {
+        let statement = read_statement(RD_EXPENSE_RECEIPT_SOURCE_IMAGE)
+            .expect("expense receipt source image read");
+        assert_eq!(
+            statement.sql,
+            "SELECT to_jsonb(r)::text image FROM command_receipts r WHERE r.command_id=?"
+        );
+        assert_eq!(statement.bind_count, 1);
+        assert_eq!(statement.sql.matches('?').count(), 1);
+        assert!(statement.sql.starts_with("SELECT "));
+        assert!(!statement.sql.contains(';'));
     }
 
     /// The two r28 selectors share a head but differ in predicate and order;

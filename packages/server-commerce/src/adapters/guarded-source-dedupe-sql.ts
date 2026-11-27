@@ -21,7 +21,6 @@ export const commerceReturnsPointSql = (columns: string, tail: string) => `SELEC
 
 export const COMMERCE_POSTING_ABSENT_SQL = 'NOT EXISTS(SELECT 1 FROM commerce_settings WHERE company_id=?)';
 export const COMMERCE_RECEIPT_GUARD_SQL = commandReceiptsGuardSql("command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?");
-export const COMMERCE_EXPENSE_RECEIPT_IMAGE_SQL = 'SELECT to_jsonb(r)::text image FROM command_receipts r WHERE r.command_id=?';
 export const COMMERCE_MFG_INITIALIZED_GUARD_SQL = commandReceiptsGuardSql("operation='commerce.manufacturing-posting-setup.initialize' AND record_id=? AND authority_json::jsonb->>'companyId'=?");
 export const COMMERCE_POSTING_RECEIPT_RECORD_GUARD_SQL = commandReceiptsGuardSql("command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?");
 export const COMMERCE_PRODUCT_ACTIVE_VERSION_GUARD_SQL = "EXISTS(SELECT 1 FROM commerce_products WHERE id=? AND version=? AND status='active')";

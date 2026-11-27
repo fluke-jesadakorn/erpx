@@ -46,7 +46,7 @@ describe('commerce read-tail r18 native settings kinds', () => {
     }
     // r18 added these 3 settings kinds; r19 added 6 product kinds and r20
     // added 5 warehouse kinds, so the mounted registry now holds 20.
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 65);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 66);');
     expect(plans).toContain('READ_SETTINGS_BY_COMPANY,');
     expect(plans).toContain('READ_CURRENCY_BY_COMPANY,');
     expect(plans).toContain('READ_POSTING_MAPPING_STATE,');
@@ -104,7 +104,7 @@ describe('commerce read-tail r18 native settings kinds', () => {
     expect(authority).toContain('LOCK TABLE commerce_settings IN SHARE MODE');
   });
 
-  it('pins the owner TypeScript SELECT KPI at 339 (before 341)', () => {
+  it('pins the owner TypeScript SELECT KPI at 338 (before 339)', () => {
     const src = resolve(root, 'packages/server-commerce/src');
     let total = 0;
     const walk = (dir: string) => {
@@ -115,7 +115,7 @@ describe('commerce read-tail r18 native settings kinds', () => {
       }
     };
     walk(src);
-    expect(total).toBe(339);
+    expect(total).toBe(338);
     expect(authority.match(/SELECT /g) ?? []).toHaveLength(0);
   });
 });

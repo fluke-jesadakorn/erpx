@@ -97,7 +97,7 @@ describe('Commerce r27 settings-image family native cutover', () => {
       expect(plans).toContain(`"${site.sql}"`);
       expect(plans).toContain(`kind: ${constant},`);
     }
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 65);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 66);');
     expect(plans).toContain('fn posting_setup_settings_image_reads_keep_their_exact_literals()');
     expect(sha(FAMILY.map((site) => site.sql).join('\n'))).toBe('b41fa29dda25eb56b97ddf900caf59512e1d12211e5bca16954a5f844d2706a8');
   });
@@ -117,8 +117,8 @@ describe('Commerce r27 settings-image family native cutover', () => {
     expect(read('supply-package-sources.ts')).toContain('LOCK TABLE commerce_orders,commerce_order_lines,commerce_fulfillments,commerce_fulfillment_lines,commerce_returns,commerce_return_lines,commerce_warehouses,commerce_products,commerce_goods_valuations,commerce_invoice_goods_carrying IN SHARE MODE');
   });
 
-  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 339 (before 341)', () => {
-    expect(count(src, /SELECT /g)).toBe(339);
+  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 338 (before 339)', () => {
+    expect(count(src, /SELECT /g)).toBe(338);
     expect((read('expense-posting-setup.ts').match(/SELECT /g) ?? []).length).toBe(0);
     expect((read('manufacturing-existing-posting-setup.ts').match(/SELECT /g) ?? []).length).toBe(0);
   });
@@ -166,7 +166,7 @@ describe('Commerce r30 receipt-image family native cutover', () => {
     // Neighbouring locks, guards and settings-image reads stay live.
     expect(read('expense-posting-setup.ts')).toContain('LOCK TABLE command_receipts,commerce_settings IN SHARE ROW EXCLUSIVE MODE');
     expect(read('manufacturing-existing-posting-setup.ts')).toContain('LOCK TABLE command_receipts IN SHARE ROW EXCLUSIVE MODE');
-    expect(read('expense-posting-setup.ts')).toContain('COMMERCE_EXPENSE_RECEIPT_IMAGE_SQL');
+    expect(read('expense-posting-setup.ts')).toContain('nativeCommerceReadFirst<string>(RD_EXPENSE_RECEIPT_SOURCE_IMAGE,[key],database)');
     expect(read('manufacturing-existing-posting-setup.ts')).toContain('nativeCommerceReadFirst<string>(RD_MFG_EXISTING_SETTINGS_IMAGE, [actor.companyId], database)');
   });
 
@@ -186,14 +186,58 @@ describe('Commerce r30 receipt-image family native cutover', () => {
     }
     // Distinct kinds: the two different tails are never semantically merged.
     expect(sha(R30_EXPENSE_TAIL)).not.toBe(sha(R30_MFG_TAIL));
-    expect((plans.match(/to_jsonb\(r\)::text image FROM command_receipts r WHERE r\.(command_id|operation)=\?/g) ?? []).length).toBe(2);
+    expect((plans.match(/const SQL_(EXPENSE_RECEIPT_IMAGE|MFG_EXISTING_RECEIPT_IMAGE|EXPENSE_RECEIPT_SOURCE_IMAGE): &str =\s*"SELECT to_jsonb\(r\)::text image FROM command_receipts r WHERE /g) ?? []).length).toBe(3);
     expect(plans).toContain('fn posting_setup_receipt_image_reads_keep_their_exact_literals()');
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 65);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 66);');
   });
 
-  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 339 (before 341)', () => {
-    expect(count(src, /SELECT /g)).toBe(339);
+  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 338 (before 339)', () => {
+    expect(count(src, /SELECT /g)).toBe(338);
     expect(count(src, /to_jsonb\(r\)::text image FROM command_receipts r WHERE r\.command_id=\? AND r\.operation=\?/g)).toBe(0);
     expect(count(src, /to_jsonb\(r\)::text image FROM command_receipts r WHERE r\.operation=\? AND r\.record_id=\?/g)).toBe(0);
+  });
+});
+
+/** Next cut of the same renderer family: the short command-id receipt image
+ * guard that pinned the Expense post-execution stability recheck. Both call
+ * sites delegate to one native kind with the identical literal and `[key]`. */
+describe('Commerce r31 command-id receipt image guard native cutover', () => {
+  const SQL = 'SELECT to_jsonb(r)::text image FROM command_receipts r WHERE r.command_id=?';
+  const KIND = 'commerce_rd_expense_receipt_source_image';
+  const CALL = 'nativeCommerceReadFirst<string>(RD_EXPENSE_RECEIPT_SOURCE_IMAGE,[key],database)';
+
+  test('both stability rechecks delegate to the native owner read', () => {
+    const text = read('expense-posting-setup.ts');
+    expect((text.split(CALL).length - 1)).toBe(2);
+    expect(text).not.toContain(SQL);
+    expect(text).not.toContain('COMMERCE_EXPENSE_RECEIPT_IMAGE_SQL');
+    expect(read('guarded-source-dedupe-sql.ts')).not.toContain(SQL);
+    expect(read('guarded-source-dedupe-sql.ts')).not.toContain('COMMERCE_EXPENSE_RECEIPT_IMAGE_SQL');
+    expect(read('native-commerce-read.ts')).toContain(`export const RD_EXPENSE_RECEIPT_SOURCE_IMAGE = '${KIND}';`);
+    expect(read('native-commerce-read.ts')).not.toContain('SELECT ');
+    // The post-execution guard order is unchanged: both reads still bracket
+    // the deferred-effect flush and use the same command key.
+    expect(norm(text)).toContain(norm('if(!expectedReceipt||receipt&&receipt!==expectedReceipt)throw changed();'));
+    expect(norm(text)).toContain(norm('expectedReceipt!==await nativeCommerceReadFirst<string>(RD_EXPENSE_RECEIPT_SOURCE_IMAGE,[key],database)'));
+  });
+
+  test('the retired literal and its single command_id bind are owned byte-for-byte', () => {
+    expect(sha(SQL)).toBe('4c63ad37b45f3622db21b76d3b9608d62a3756f407b5733d47adcca68c6f9f90');
+    const plans = read('native_commerce_read_sql.rs');
+    expect(plans).toContain(`pub const RD_EXPENSE_RECEIPT_SOURCE_IMAGE: &str = "${KIND}";`);
+    expect(plans).toContain(`"${SQL}"`);
+    expect(plans).toContain('kind: RD_EXPENSE_RECEIPT_SOURCE_IMAGE,');
+    expect(plans).toMatch(/\(\s*RD_EXPENSE_RECEIPT_SOURCE_IMAGE,\s*SQL_EXPENSE_RECEIPT_SOURCE_IMAGE,\s*1usize,?\s*\)/);
+    expect(plans).toContain('fn expense_receipt_source_image_keeps_its_exact_literal()');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 66);');
+    expect((SQL.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((SQL.match(/\?/g) ?? []).length).toBe(1);
+    expect(SQL).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|;/);
+  });
+
+  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 338 (before 339)', () => {
+    expect(count(src, /SELECT /g)).toBe(338);
+    expect(count(src, /to_jsonb\(r\)::text image FROM command_receipts r WHERE r\.command_id=\?/g)).toBe(0);
+    expect((read('expense-posting-setup.ts').match(/SELECT /g) ?? []).length).toBe(0);
   });
 });
