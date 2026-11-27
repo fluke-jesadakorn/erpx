@@ -15,7 +15,9 @@ export function holdingHostForSlug(slug: string) { return hosts.holdingHostForSl
 export function holdingOrigin(slug: string) { return hosts.holdingOrigin(slug, originProfile()); }
 export function holdingAudience(host: string | null | undefined) { return hosts.holdingAudience(host, originProfile()); }
 export function companyAddressRouting(holdingSlug:string) {
-  const setting=process.env.ERPX_COMPANY_ADDRESS_ROUTING;
+  const setting=typeof window==='undefined'
+    ? process.env.ERPX_COMPANY_ADDRESS_ROUTING
+    : process.env.NEXT_PUBLIC_ERPX_COMPANY_ADDRESS_ROUTING;
   return setting==='enabled'||setting===holdingSlug;
 }
 export function parseHoldingRoute(holdingSlug: string, pathname: string) { return hosts.parseHoldingRoute(holdingSlug, pathname, originProfile(), companyAddressRouting(holdingSlug)); }

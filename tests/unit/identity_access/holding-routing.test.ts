@@ -142,6 +142,21 @@ it('round-trips Company paths and preserves the business hierarchy in the URL',(
   }
 });
 
+it('keeps the configured Company address when the browser opens a quotation',()=>{
+  vi.stubEnv('ERPX_COMPANY_ADDRESS_ROUTING',undefined);
+  vi.stubEnv('NEXT_PUBLIC_ERPX_COMPANY_ADDRESS_ROUTING','acme');
+  vi.stubGlobal('window',{});
+  try {
+    const href='/holdings/acme/branches/bangkok/customers-sales/sales/documents/quote/quote-1/overview';
+    expect(productNavigationHref(href,{audience:'sales',holdingSlug:'acme',companySlug:'acme-co'})).toEqual({
+      href:'https://acme.jesadakorn.com/acme-co/bangkok/sales/documents/quote/quote-1/overview',
+      handoff:false,
+    });
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});
+
 it('preserves the Company page address in the Holding sign-in continuation',()=>{
   vi.stubEnv('ERPX_COMPANY_ADDRESS_ROUTING','acme');
   try {
