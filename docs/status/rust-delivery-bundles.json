@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15373,
+    "revision": 15378,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261127-f",
       "agentId": "lead",
       "startedAt": "2026-11-27T02:03:29.663Z",
-      "heartbeatAt": "2026-11-27T02:18:31.749Z",
-      "expiresAt": "2026-11-27T02:48:31.749Z",
+      "heartbeatAt": "2026-11-27T02:21:12.274Z",
+      "expiresAt": "2026-11-27T02:51:12.274Z",
       "generation": 194,
       "tokenHash": "2136d35f96e5dbde2109a42dc96f779f8467e46d2a31c4e5274930bdb3a6a99e"
     },
@@ -209993,7 +209993,7 @@
         "goalId": "G4",
         "owner": "collaboration",
         "kind": "migration",
-        "status": "ready_for_integration",
+        "status": "integrating",
         "title": "collaboration push route native execution",
         "scope": "Port one bounded push settings operation (settings read, subscription registration, preferences or device removal) to the Collaboration owner with domain/application/adapters/http, real Rust SQL execution and CQRS separation. Remove the TypeScript authority for that operation and prepare the exact route deletion packet.",
         "workflowIds": [],
@@ -210009,7 +210009,14 @@
           "route:push"
         ],
         "nextAction": "Push settings GET is native; subscribe/preferences/delete writes remain TS.",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261127-f",
+          "agentId": "worker-push",
+          "claimedAt": "2026-11-27T02:21:12.469Z",
+          "heartbeatAt": "2026-11-27T02:21:12.469Z",
+          "expiresAt": "2026-11-27T02:51:12.469Z",
+          "generation": 194
+        },
         "baseSha": null,
         "implementedCommit": "e703e5f9c7652c137184e16ca2ea59e8f6a67979",
         "lastPushedSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
@@ -210041,7 +210048,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261127-c",
           "agentId": "lead",
@@ -210083,7 +210090,7 @@
         "goalId": "G4",
         "owner": "platform_administration",
         "kind": "migration",
-        "status": "ready_for_integration",
+        "status": "integrating",
         "title": "platform/admin feature routes native execution",
         "scope": "Inventory the feature-admin route package (32 shared handlers). Port one bounded admin or platform read/command family to Rust domain/application/adapters/http with real PostgreSQL execution, remove the TS authority for that family, and prepare the exact route-deletion packet. Do not touch other owners' server crates.",
         "workflowIds": [],
@@ -210099,7 +210106,14 @@
           "route:admin"
         ],
         "nextAction": "Native Platform usage read committed and mounted; cut the feature-admin usage route and retire the TS projection after moving consumers.",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261127-f",
+          "agentId": "worker-admin",
+          "claimedAt": "2026-11-27T02:21:12.672Z",
+          "heartbeatAt": "2026-11-27T02:21:12.672Z",
+          "expiresAt": "2026-11-27T02:51:12.672Z",
+          "generation": 194
+        },
         "baseSha": null,
         "implementedCommit": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
         "lastPushedSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
@@ -210126,7 +210140,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261126-g",
           "agentId": "lead",
@@ -213504,7 +213518,7 @@
         "goalId": "G4",
         "owner": "identity_access",
         "kind": "migration",
-        "status": "ready_for_integration",
+        "status": "integrating",
         "title": "feature-identity_access routes native execution",
         "scope": "Inventory feature-identity_access routes and port one bounded read/command to Rust with real SQL execution and complete payload parity.",
         "workflowIds": [],
@@ -213520,7 +213534,14 @@
           "route:identity_access-feature"
         ],
         "nextAction": "Native IAM session list compiled/tested and mounted; IAM catch-all cutover pending.",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261127-f",
+          "agentId": "worker-identity",
+          "claimedAt": "2026-11-27T02:21:13.043Z",
+          "heartbeatAt": "2026-11-27T02:21:13.043Z",
+          "expiresAt": "2026-11-27T02:51:13.043Z",
+          "generation": 194
+        },
         "baseSha": null,
         "implementedCommit": "3cbd0350c675ab420131cdd1870ed5d73c07a224",
         "lastPushedSha": "3cbd0350c675ab420131cdd1870ed5d73c07a224",
@@ -213552,7 +213573,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261126-i",
           "agentId": "lead",
@@ -213707,7 +213728,7 @@
         "goalId": "G4",
         "owner": "procurement",
         "kind": "migration",
-        "status": "ready_for_integration",
+        "status": "integrating",
         "title": "feature-procurement routes native execution",
         "scope": "Inventory feature-procurement routes and port one bounded read/command to Rust with real SQL execution and complete payload parity.",
         "workflowIds": [],
@@ -213723,7 +213744,14 @@
           "route:procurement-feature"
         ],
         "nextAction": "Native supplier-bill detail compiled/tested; composition backend and route cutover pending.",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261127-f",
+          "agentId": "worker-procurement",
+          "claimedAt": "2026-11-27T02:21:12.859Z",
+          "heartbeatAt": "2026-11-27T02:21:12.859Z",
+          "expiresAt": "2026-11-27T02:51:12.859Z",
+          "generation": 194
+        },
         "baseSha": null,
         "implementedCommit": "3cbd0350c675ab420131cdd1870ed5d73c07a224",
         "lastPushedSha": "3cbd0350c675ab420131cdd1870ed5d73c07a224",
@@ -213755,7 +213783,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261126-i",
           "agentId": "lead",
@@ -216181,8 +216209,8 @@
       "statusCounts": {
         "pending": 14,
         "in_progress": 0,
-        "ready_for_integration": 146,
-        "integrating": 0,
+        "ready_for_integration": 142,
+        "integrating": 4,
         "migrated": 369,
         "blocked": 1915,
         "deferred": 2,
@@ -216190,7 +216218,7 @@
       }
     },
     "lastCoordinatorGeneration": 194,
-    "updatedAt": "2026-11-27T02:18:31.753Z",
+    "updatedAt": "2026-11-27T02:21:13.047Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
