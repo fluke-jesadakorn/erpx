@@ -14,7 +14,7 @@ struct Registry {
     versions: Vec<PluginPin>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PluginPin {
     pub id: String,

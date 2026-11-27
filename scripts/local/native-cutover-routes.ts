@@ -36,6 +36,7 @@ const oasisSalesRoutes: Readonly<Record<string, readonly string[]>> = {
   'commerce/orders': write,
   'reports/sales-crm': read,
   'feed': readWrite,
+  'plugins': readWrite,
 };
 
 /** Public methods of the walkthrough. Private SSR transport is never exposed here. */
@@ -110,11 +111,12 @@ export function respondToHoldingQualityMethod(res: ServerResponse, method: strin
 }
 
 /** Native Holding operations and paths reserved for private SSR. */
-export function holdingNativeCutoverPath(url: string, holdingSlug: string, method: string | undefined): "records" | "record-action" | "routine-templates" | "routine-schedules" | "routine-command" | "routine-editor-private" | "quality-read" | "quality-command" | "quality-missing" | undefined {
+export function holdingNativeCutoverPath(url: string, holdingSlug: string, method: string | undefined): "records" | "record-action" | "routine-templates" | "routine-schedules" | "routine-command" | "routine-editor-private" | "quality-read" | "quality-command" | "quality-missing" | "plugins" | undefined {
   const [path] = url.split("?", 1);
   const prefix = `/api/v1/holdings/${holdingSlug}/`;
   if (!path?.startsWith(prefix)) return;
   const [owner, segment, ...tail] = path.slice(prefix.length).split("/");
+  if (owner === "plugins" && segment === undefined) return "plugins";
   if (owner === "quality" && method === "POST" && segment === "specifications" && tail.length <= 1) {
     try {
       if (tail.length === 0 || validId(tail[0]!)) return "quality-command";

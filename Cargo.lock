@@ -838,7 +838,9 @@ dependencies = [
  "icu_collator",
  "icu_collator_data",
  "icu_locale",
+ "reqwest",
  "ring",
+ "rustls",
  "ryu-js",
  "serde",
  "serde_json",
@@ -848,6 +850,7 @@ dependencies = [
  "ts-rs",
  "utoipa",
  "uuid",
+ "webpki-roots",
 ]
 
 [[package]]

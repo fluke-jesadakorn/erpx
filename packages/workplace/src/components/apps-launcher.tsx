@@ -6,6 +6,7 @@ import { Button } from "@erpx/ui/components/button";
 import { Dialog } from "@erpx/ui/components/dialog";
 import { TextInput } from "@erpx/ui/components/input";
 import { InlineNotice } from "@erpx/ui/components/foundation";
+import { CompanyPluginCatalogue } from "./company-plugin-catalogue";
 import { emptyAppsMemory, readAppsMemory, writeAppsMemory, restoreAppsSelection, rememberAppsLaunch, visibleApps, type AppsCompany, type AppsWorkspace, type AppsMemory } from "@erpx/feature-work_projection/lib/apps-launcher";
 import styles from "./apps-launcher.module.css";
 
@@ -165,6 +166,8 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
             })}</div>
             {!apps.length && <p role="status">{workspace.apps.length ? t("ไม่พบแอปที่ค้นหา", "No matching apps.") : t("ยังไม่มีแอปที่เข้าใช้ได้ในพื้นที่นี้", "No apps are available in this workspace.")}</p>}
             {(workspace.adminHref || workspace.managementHref) && <div className={styles.administration}>{[[workspace.adminHref, t("ดูแลบริษัท", "Company administration")], [workspace.managementHref, "ERPX Management"]].map(([href, label]) => href && <a key={href} data-product-switch href={href} onClick={() => remember()}><Settings size={18} aria-hidden="true" />{label}<ArrowUpRight size={16} aria-hidden="true" /></a>)}</div>}
+            {workspace.id === currentWorkspaceId && company && company.id === currentCompanyId && !entry && <CompanyPluginCatalogue
+              key={`${company.id}:${workspace.id}`} api={`/api/v1${workspace.id}/plugins`} language={language} />}
           </>}
           {provider && <a data-product-switch href={provider.href}>{t("พื้นที่ผู้ให้บริการ", "Provider administration")} · {provider.role}</a>}
           {existingWorkspaces.map(item => <a key={item.href} data-product-switch href={item.href}>{item.holding}</a>)}

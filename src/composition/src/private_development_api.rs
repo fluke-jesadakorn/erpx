@@ -8286,6 +8286,23 @@ async fn assemble_checked(
             );
         }
         #[cfg(feature = "existing-business")]
+        if !config.holdings.is_empty() {
+            let targets = config.holdings.iter().enumerate().map(|(i, holding)| {
+                let authorizer = HoldingWorkAuthorizer::new(
+                    pools[0].clone(), pools[i + 1].clone(),
+                    holding.registration.holding_id.clone(),
+                    (*config.policy).clone(), clock.clone(), config.holdings_registry.clone(),
+                ).map_err(|_| "PRIVATE_API_PLUGIN_AUTHORITY_INVALID")?;
+                Ok(((holding.host.clone(), holding.registration.slug.clone()), Arc::new(authorizer)))
+            }).collect::<Result<BTreeMap<_, _>, &'static str>>()?;
+            let token = std::env::var("ERPX_GITHUB_PLUGIN_TOKEN").ok();
+            let catalogue = erpx_server_commercial::public::company_plugins::GithubPluginCatalogue::new(token.as_deref())
+                .map_err(|_| "PRIVATE_API_PLUGIN_CATALOGUE_INVALID")?;
+            router = router.merge(crate::company_plugins::plugin_router(crate::company_plugins::PluginRouterState {
+                targets, catalogue, policy: config.policy.clone(), scopes: Arc::new(FinanceJournalReadScopeHeaders),
+            }));
+        }
+        #[cfg(feature = "existing-business")]
         {
             let entries = config
                 .holdings
@@ -12892,6 +12909,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         &axum::http::Method::GET | &axum::http::Method::HEAD | &axum::http::Method::POST
     ) && match path.split('/').collect::<Vec<_>>().as_slice() {
         ["", "api", "v1", "holdings", _, "feed"]
+        | ["", "api", "v1", "holdings", _, "plugins"]
         | ["", "api", "v1", "holdings", _, "posts", _, "comments"] =>
             state.policy.holdings.iter().any(|holding| holding.host == host),
         _ => false,

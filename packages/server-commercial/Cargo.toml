@@ -23,6 +23,9 @@ sha2.workspace = true
 hex.workspace = true
 base64.workspace = true
 ring.workspace = true
+reqwest.workspace = true
+rustls.workspace = true
+webpki-roots.workspace = true
 ryu-js.workspace = true
 ts-rs = { workspace = true, optional = true }
 utoipa = { workspace = true, optional = true }
@@ -105,6 +108,10 @@ path = "../../tests/integration/commercial/rust-owner-read-postgres.test.rs"
 [[test]]
 name = "native_read_parity_postgres"
 path = "../../tests/integration/commercial/rust-native-read-parity-postgres.test.rs"
+
+[[test]]
+name = "company_plugins_postgres"
+path = "../../tests/integration/commercial/rust-company-plugins-postgres.test.rs"
 
 [lints]
 workspace = true

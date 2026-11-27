@@ -88,6 +88,8 @@ pub mod collaboration_wf1a7;
 #[cfg(feature = "existing-business")]
 pub mod company_money;
 #[cfg(feature = "existing-business")]
+mod company_plugins;
+#[cfg(feature = "existing-business")]
 pub mod finance_owner_write;
 #[cfg(feature = "existing-business")]
 pub mod commerce;

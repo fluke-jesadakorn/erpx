@@ -293,6 +293,7 @@ const server = createServer(async (req, res) => {
       if (!nativeBase) {
         if (cutover === "routine-templates" || cutover === "routine-schedules") nativeApiError(res, 503, "NATIVE_ROUTINES_UNAVAILABLE", "The native Operations routine read is unavailable.");
         else if (cutover === "routine-command") nativeApiError(res, 503, "NATIVE_ROUTINES_UNAVAILABLE", "The native Operations routine command is unavailable.");
+        else if (cutover === "plugins") nativeApiError(res, 503, "PLUGINS_UNAVAILABLE", "The native plugin catalogue is unavailable.");
         else if (cutover === "quality-read" || cutover === "quality-command" || cutover === "quality-missing") nativeQualityUnavailable(res);
         else nativeApiError(res, 503, "NATIVE_RECORD_REGISTRY_UNAVAILABLE", "The native Records registry is unavailable.");
       } else {
