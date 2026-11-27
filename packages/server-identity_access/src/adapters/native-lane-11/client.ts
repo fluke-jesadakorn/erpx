@@ -1,6 +1,7 @@
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { ApiError } from "@erpx/server-runtime/public/http";
+import { nativeRequest } from "@erpx/server-runtime/public/native-http";
 
 /**
  * Strict private transport for the native lane 11 person-identity reads.
@@ -242,25 +243,23 @@ async function post(
   path: string,
   body: unknown,
 ): Promise<unknown> {
-  const headers = new Headers({
-    host: holding.host,
-    accept: "application/json",
-    "content-type": "application/json",
-    "cache-control": "no-cache",
-    "x-erpx-context-company": companyId,
-  });
   let response: Response;
   try {
-    response = await fetch(
-      `${config.base}/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/identity-access/${path}`,
+    response = await nativeRequest(
+      new URL(`/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/identity-access/${path}`, config.base),
       {
         method: "POST",
-        headers,
+        headers: {
+          host: holding.host,
+          origin: holding.origin,
+          accept: "application/json",
+          "content-type": "application/json",
+          "cache-control": "no-cache",
+          "x-erpx-context-company": companyId,
+        },
         body: JSON.stringify(body),
-        cache: "no-store",
-        redirect: "error",
-        signal: AbortSignal.timeout(config.timeoutMs),
       },
+      config.timeoutMs,
     );
   } catch {
     return unavailable();

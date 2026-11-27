@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import { afterEach, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+const { nativeRequest } = vi.hoisted(() => ({ nativeRequest: vi.fn() }));
+vi.mock("@erpx/server-runtime/public/native-http", () => ({ nativeRequest }));
 
 import {
   nativeIdentityIds,
@@ -62,34 +64,38 @@ const rolePayload = {
 afterEach(() => {
   setNativeLane11ForTest(undefined);
   vi.unstubAllEnvs();
-  vi.unstubAllGlobals();
+  nativeRequest.mockReset();
 });
 
-function stubFetch(payload: unknown, status = 200) {
+function stubTransport(payload: unknown, status = 200) {
   const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify(payload), { status }));
-  vi.stubGlobal("fetch", fetchMock);
+  nativeRequest.mockImplementation((url: URL, init: { headers: Record<string, string> }) =>
+    fetchMock(url.href, { ...init, headers: new Headers(init.headers) }),
+  );
   return fetchMock;
 }
 
 it("reads native identity ids from the WorkContext-selected Holding with the pinned shape", async () => {
   vi.stubEnv("ERPX_NATIVE_IDENTITY_ACCESS_LANE_11_CONFIG", config());
-  const fetchMock = stubFetch(identityIdsPayload);
+  const fetchMock = stubTransport(identityIdsPayload);
 
   expect(await nativeIdentityIds(actor, ["user"])).toEqual(["user", "alias"]);
   expect(fetchMock).toHaveBeenCalledExactlyOnceWith(
     "http://127.0.0.1:3198/api/v1/holdings/acme/identity-access/person/identity-ids",
-    expect.objectContaining({ method: "POST", cache: "no-store" }),
+    expect.objectContaining({ method: "POST" }),
   );
   const init = fetchMock.mock.calls[0][1] as RequestInit;
   const headers = init.headers as Headers;
+  expect(nativeRequest).toHaveBeenCalledTimes(1);
   expect(headers.get("host")).toBe("acme.jesadakorn.com");
+  expect(headers.get("origin")).toBe("https://acme.jesadakorn.com");
   expect(headers.get("x-erpx-context-company")).toBe("acme:co");
   expect(JSON.parse(String(init.body))).toEqual({ ids: ["user"] });
 });
 
 it("selects each of the three registered Holdings and never a first-holding default", async () => {
   vi.stubEnv("ERPX_NATIVE_IDENTITY_ACCESS_LANE_11_CONFIG", config());
-  const fetchMock = stubFetch(identityIdsPayload);
+  const fetchMock = stubTransport(identityIdsPayload);
   const cases = [
     [{ holdingId: "h002", holdingSlug: "northstar", companyId: "northstar:co" }, "northstar", "northstar.jesadakorn.com"],
     [{ holdingId: "h003", holdingSlug: "erpx", companyId: "erpx:co" }, "erpx", "erpx-internal.jesadakorn.com"],
@@ -105,7 +111,7 @@ it("selects each of the three registered Holdings and never a first-holding defa
 
 it("fails closed on an unknown WorkContext target without issuing a request", async () => {
   vi.stubEnv("ERPX_NATIVE_IDENTITY_ACCESS_LANE_11_CONFIG", config());
-  const fetchMock = stubFetch(identityIdsPayload);
+  const fetchMock = stubTransport(identityIdsPayload);
   await expect(nativeIdentityIds({ ...actor, holdingId: "h999" }, ["user"])).rejects.toMatchObject({ status: 503 });
   await expect(nativeIdentityIds({ ...actor, holdingSlug: "unknown" }, ["user"])).rejects.toMatchObject({ status: 503 });
   await expect(nativeIdentityIds({ ...actor, holdingId: "h002" }, ["user"])).rejects.toMatchObject({ status: 503 });
@@ -117,7 +123,7 @@ it("rejects a configured company-pin mismatch and malformed configuration", asyn
     "ERPX_NATIVE_IDENTITY_ACCESS_LANE_11_CONFIG",
     config([{ ...holding("h001", "acme", "acme.jesadakorn.com"), companyId: "different:co" }]),
   );
-  const fetchMock = stubFetch(identityIdsPayload);
+  const fetchMock = stubTransport(identityIdsPayload);
   await expect(nativeIdentityIds(actor, ["user"])).rejects.toMatchObject({ status: 409 });
   expect(fetchMock).not.toHaveBeenCalled();
 
@@ -130,7 +136,7 @@ it("rejects a configured company-pin mismatch and malformed configuration", asyn
 
 it("reads native principals and forwards the snapshot flag", async () => {
   vi.stubEnv("ERPX_NATIVE_IDENTITY_ACCESS_LANE_11_CONFIG", config());
-  const fetchMock = stubFetch(principalsPayload);
+  const fetchMock = stubTransport(principalsPayload);
   const result = await nativePrincipals(actor, ["old", "self"], true);
   expect([...result]).toEqual([
     ["old", "new"],
@@ -178,7 +184,7 @@ it("resolves a unique legacy Company to its configured Holding", async () => {
       { ...holding("h002", "northstar", "northstar.jesadakorn.com"), companyId: "northstar:co" },
     ]),
   );
-  const fetchMock = stubFetch(identityIdsPayload);
+  const fetchMock = stubTransport(identityIdsPayload);
   expect(await personIdentityIds({} as never, "northstar:co", ["user"])).toEqual(["user", "alias"]);
   expect(fetchMock.mock.calls[0][0]).toBe(
     "http://127.0.0.1:3198/api/v1/holdings/northstar/identity-access/person/identity-ids",
@@ -196,7 +202,7 @@ it("fails closed for an unknown or ambiguous legacy Company", async () => {
       { ...holding("h002", "northstar", "northstar.jesadakorn.com"), companyId: "acme:co" },
     ]),
   );
-  const fetchMock = stubFetch(identityIdsPayload);
+  const fetchMock = stubTransport(identityIdsPayload);
   await expect(personIdentityIds({} as never, "unknown:co", ["user"])).rejects.toMatchObject({ status: 503 });
   await expect(personIdentityIds({} as never, "acme:co", ["user"])).rejects.toMatchObject({ status: 503 });
   expect(fetchMock).not.toHaveBeenCalled();
@@ -210,7 +216,7 @@ it("prefers the WorkContext actor over the legacy Company", async () => {
       { ...holding("h002", "northstar", "northstar.jesadakorn.com"), companyId: "northstar:co" },
     ]),
   );
-  const fetchMock = stubFetch(identityIdsPayload);
+  const fetchMock = stubTransport(identityIdsPayload);
   const northstarActor: NativeLane11Actor = {
     holdingId: "h002",
     holdingSlug: "northstar",
@@ -232,21 +238,10 @@ it("fails closed without configuration, on malformed replies and on native rejec
   await expect(personIdentityIds({} as never, "acme:co", ["user"])).rejects.toMatchObject({ status: 503 });
 
   vi.stubEnv("ERPX_NATIVE_IDENTITY_ACCESS_LANE_11_CONFIG", config());
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockResolvedValue(new Response(JSON.stringify({ identityIds: ["user", 7] }), { status: 200 })),
-  );
+  stubTransport({ identityIds: ["user", 7] });
   await expect(nativeIdentityIds(actor, ["user"])).rejects.toMatchObject({ status: 503 });
 
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({ error: { code: "IDENTITY_ACCESS_NATIVE_LANE_11_REQUEST_INVALID", message: "bad" } }),
-        { status: 422 },
-      ),
-    ),
-  );
+  stubTransport({ error: { code: "IDENTITY_ACCESS_NATIVE_LANE_11_REQUEST_INVALID", message: "bad" } }, 422);
   await expect(nativePrincipals(actor, ["old"], false)).rejects.toMatchObject({
     status: 422,
     code: "IDENTITY_ACCESS_NATIVE_LANE_11_REQUEST_INVALID",
@@ -256,7 +251,7 @@ it("fails closed without configuration, on malformed replies and on native rejec
 
 it("reads all four directory kinds from the WorkContext-selected Holding", async () => {
   vi.stubEnv("ERPX_NATIVE_IDENTITY_ACCESS_LANE_11_CONFIG", config());
-  const fetchMock = stubFetch({ rows: [{ id: "conn-1", name: "Directory" }] });
+  const fetchMock = stubTransport({ rows: [{ id: "conn-1", name: "Directory" }] });
   for (const kind of ["connections", "groups", "previews", "identities"] as const) {
     expect(await nativeDirectoryConfig(actor, kind, kind === "connections")).toEqual([
       { id: "conn-1", name: "Directory" },
@@ -279,7 +274,7 @@ it("resolves legacy directory reads by a unique configured Company and fails clo
       { ...holding("h002", "northstar", "northstar.jesadakorn.com"), companyId: "northstar:co" },
     ]),
   );
-  const fetchMock = stubFetch({ rows: [{ id: "grp-1" }] });
+  const fetchMock = stubTransport({ rows: [{ id: "grp-1" }] });
   expect(await nativeDirectoryConfig(undefined, "groups", false, "northstar:co")).toEqual([
     { id: "grp-1" },
   ]);
@@ -294,10 +289,7 @@ it("resolves legacy directory reads by a unique configured Company and fails clo
 
 it("validates directory replies and rejects unknown read kinds", async () => {
   vi.stubEnv("ERPX_NATIVE_IDENTITY_ACCESS_LANE_11_CONFIG", config());
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockImplementation(async () => new Response(JSON.stringify({ rows: [{ id: 1 }] }), { status: 200 })),
-  );
+  stubTransport({ rows: [{ id: 1 }] });
   await expect(nativeDirectoryConfig(actor, "connections", true)).rejects.toMatchObject({ status: 503 });
   await expect(nativeDirectoryConfig(actor, "not-a-kind" as never, true)).rejects.toMatchObject({ status: 422 });
 });
@@ -323,7 +315,7 @@ it("pins the rendered directory SQL oracles shared with the Rust owner", () => {
 
 it("reads published roles from the WorkContext-selected Holding", async () => {
   vi.stubEnv("ERPX_NATIVE_IDENTITY_ACCESS_LANE_11_CONFIG", config());
-  const fetchMock = stubFetch({ role: rolePayload });
+  const fetchMock = stubTransport({ role: rolePayload });
   expect(await nativeRole(actor, "employee")).toEqual(rolePayload);
   expect(fetchMock.mock.calls[0][0]).toBe(
     "http://127.0.0.1:3198/api/v1/holdings/acme/identity-access/role/employee",
@@ -336,7 +328,7 @@ it("reads published roles from the WorkContext-selected Holding", async () => {
 
 it("reads a bounded role list and the published role ids, failing closed on bad replies", async () => {
   vi.stubEnv("ERPX_NATIVE_IDENTITY_ACCESS_LANE_11_CONFIG", config());
-  const fetchMock = stubFetch({ roles: [rolePayload, rolePayload], ids: ["employee"] });
+  const fetchMock = stubTransport({ roles: [rolePayload, rolePayload], ids: ["employee"] });
   expect(await nativeRoles(actor, ["employee", "employee"])).toEqual([rolePayload]);
   expect(fetchMock.mock.calls[0][0]).toBe(
     "http://127.0.0.1:3198/api/v1/holdings/acme/identity-access/roles",
@@ -349,10 +341,7 @@ it("reads a bounded role list and the published role ids, failing closed on bad 
     "http://127.0.0.1:3198/api/v1/holdings/acme/identity-access/role-ids",
   );
 
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockImplementation(async () => new Response(JSON.stringify({ role: { ...rolePayload, permissions: "bad" } }), { status: 200 })),
-  );
+  stubTransport({ role: { ...rolePayload, permissions: "bad" } });
   await expect(nativeRole(actor, "employee")).rejects.toMatchObject({ status: 503 });
   await expect(nativeRole(actor, "")).rejects.toMatchObject({ status: 422 });
 });
@@ -365,7 +354,7 @@ it("resolves legacy published-role reads by a unique configured Company", async 
       { ...holding("h002", "northstar", "northstar.jesadakorn.com"), companyId: "northstar:co" },
     ]),
   );
-  const fetchMock = stubFetch({ role: null });
+  const fetchMock = stubTransport({ role: null });
   expect(await nativeRole(undefined, "employee", "northstar:co")).toBeNull();
   expect(fetchMock.mock.calls[0][0]).toBe(
     "http://127.0.0.1:3198/api/v1/holdings/northstar/identity-access/role/employee",

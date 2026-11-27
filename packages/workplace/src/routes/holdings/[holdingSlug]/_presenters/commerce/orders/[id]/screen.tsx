@@ -9,7 +9,7 @@ import { commercePresentationQueries } from "@erpx/server-commerce/public/presen
 import { ActionLink as UiActionLink } from "@erpx/ui/components/foundation";
 import { Table, TableFrame } from "@erpx/ui/components/foundation";
 import { TimeText } from "@erpx/feature-people_payroll/components/time/time-preference-context";
-import { BusinessDocumentBranding } from "@erpx/feature-brand/components/business-document";
+import { BusinessDocumentBranding, BusinessDocumentHeader } from "@erpx/feature-brand/components/business-document";
 import {
   FeaturePage,
   FeatureTabs,
@@ -24,10 +24,13 @@ import { WorkReturn } from "@erpx/feature-records/components/loaders/workplace--
 import { minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
-import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
+import { publicScope, requireWorkContext, type WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {commerceOverview,commercePermissions} from '@erpx/server-commerce/public/commerce';
 import { nativeInventoryReceiptFromHeaders } from "@erpx/feature-inventory/lib/native-availability";
-import { nativeCommerceOrderPage } from "@erpx/feature-sales/public/native-commerce-orders-page";
+import { nativeCommerceOrderPage, type NativeCommerceOrderDocument } from "@erpx/feature-sales/public/native-commerce-orders-page";
+import { nativeSalesDocuments } from "@erpx/feature-sales/public/native-sales-documents-page";
+import { ApiError } from "@erpx/server-runtime/public/http";
+import { workProjectionPresentationQueries } from "@erpx/server-work_projection/public/presentation-queries";
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {salesEditorOptions,type SalesEditorOptions} from "@erpx/server-commerce/public/sales-editor";
 
@@ -44,6 +47,85 @@ import { LandedCostCreateForm } from "@erpx/feature-records/components/loaders/m
 import { RecordDocumentPanel } from "@erpx/feature-records/components/loaders/attachments--record-document-panel";
 import { Card } from "@erpx/ui/components/foundation";
 export const dynamic = "force-dynamic";
+
+async function OasisSalesDocument({
+  actor,
+  base,
+  document,
+  printing,
+}: {
+  actor: WorkContext;
+  base: string;
+  document: NativeCommerceOrderDocument;
+  printing: boolean;
+}) {
+  const { order, lines } = document;
+  const isQuote = order.kind === "quote";
+  const title = isQuote ? "Quotation" : "Sales order";
+  const permissions = commercePermissions(actor);
+  const presentation = await workProjectionPresentationQueries(actor.holdingId);
+  const [salesDocuments, company, workspaceBrand, purchase, options] = await Promise.all([
+    nativeSalesDocuments(actor, order.kind, { q: order.number }),
+    presentation.activeCompanyIdentity(actor.companyId),
+    presentation.resolveWorkspaceBrand(actor),
+    printing ? undefined : commercePurchaseControls(actor, { type: "order", id: order.id }),
+    !printing && permissions.sales && order.state === "draft" ? salesEditorOptions(actor, order.kind) : undefined,
+  ]);
+  const customer = salesDocuments?.items.find((item) => item.id === order.id)?.party_name;
+  if (!customer || !company?.display_name) {
+    throw new ApiError(503, "NATIVE_SALES_DOCUMENT_UNAVAILABLE", "The Sales document details are unavailable.");
+  }
+  const amounts = new Intl.NumberFormat("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const format = (minor: number) => amounts.format(minor / 100);
+  const independentApprover = permissions.approve && order.created_by !== actor.userId;
+  return <CommerceEnvironment purchase={purchase}>
+    <FeaturePage className="ui-page-content" data-source="live" data-print-document={printing || undefined}>
+      <BusinessDocumentHeader
+        brand={{ mode: "holding", companyName: company.display_name, branchName: null, holding: workspaceBrand, branch: null }}
+        title={title}
+        reference={order.number}
+        printing={printing}
+      />
+      {!printing && <Link className="back-link" href={canonicalUiHref(`${base}/customers-sales/sales/documents/${order.kind}`)}>
+        ← Back to {isQuote ? "quotations" : "sales orders"}
+      </Link>}
+      <header className="ui-section-header">
+        <div>
+          <p className="eyebrow">{title}</p>
+          <h1>{order.number}</h1>
+          <p>{customer} · Issued {order.order_date} · Required {order.due_date}</p>
+        </div>
+        <StatusBadge appearance="standard" status={isQuote && order.state === "confirmed" ? "approved" : order.state} />
+      </header>
+      <p>Interview demo · Fictional customer and prices</p>
+      <TableFrame appearance="standard" label="Document items">
+        <Table>
+          <thead>
+            <tr><th>Item</th><th>Quantity</th><th>Unit price ({order.currency})</th><th>Subtotal ({order.currency})</th></tr>
+          </thead>
+          <tbody>
+            {lines.map((line) => (
+              <tr key={line.id}>
+                <td>{line.description}</td>
+                <td>{line.quantity_milli / 1000} {line.unit}</td>
+                <td>{format(line.price_minor)}</td>
+                <td>{format(line.subtotal_minor)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      </TableFrame>
+      <p><strong>Total {order.currency} {format(order.subtotal_minor + order.tax_minor)}</strong> · Tax {format(order.tax_minor)}</p>
+      {order.note && <p>{order.note}</p>}
+      {!printing && order.source_id && <Link href={canonicalUiHref(`${base}/customers-sales/sales/documents/quote/${encodeURIComponent(order.source_id)}`)}>
+        Source quotation
+      </Link>}
+      {!printing && isQuote && permissions.sales && <OrderActions base={base} order={order} canApprove={independentApprover} canCancel={independentApprover} />}
+      {options && purchase?.newWork !== false && <OrderEditor base={base} options={options} kind={order.kind} order={order} lines={lines} />}
+    </FeaturePage>
+  </CommerceEnvironment>;
+}
+
 export default async function OrderPage({
   params,
   searchParams,
@@ -56,13 +138,16 @@ export default async function OrderPage({
   const printing = query.print === "1";
   const actor = await requireWorkContext(holdingSlug);
   const base = workspaceBase(publicScope(actor));
-  const demo = oasisDemoStagingEnabled(process.env);
   const readNative = () => nativeCommerceOrderPage(actor, id).catch((error) =>
     pageError(error, holdingSlug),
   );
-  const demoOrder = demo ? await readNative() : undefined;
+  if (oasisDemoStagingEnabled(process.env)) {
+    const document = await readNative();
+    if (!document) throw new ApiError(503, "NATIVE_COMMERCE_ORDER_UNAVAILABLE", "The native Commerce order service is unavailable.");
+    return <OasisSalesDocument actor={actor} base={base} document={document} printing={printing} />;
+  }
   const data = await getOrder(actor, id).catch((error) => pageError(error, holdingSlug));
-  const nativeOrder = demo ? demoOrder : data.order.kind === "purchase" ? undefined : await readNative();
+  const nativeOrder = data.order.kind === "purchase" ? undefined : await readNative();
   const order = nativeOrder ? { ...data.order, ...nativeOrder.order } : data.order;
   const lines = nativeOrder ? nativeOrder.lines : data.lines;
   const nativeActor =
