@@ -228,3 +228,82 @@ pub fn wf1a7_company_router(
         .collect();
     erpx_server_collaboration::public::wf1a7_http::owner_write_company_router(pairs)
 }
+
+/// Holding-scoped system backend for the workbook/job workers. The caller
+/// sends `x-erpx-context-holding`; each Holding keeps its own serializable
+/// unit so a background write can never land in another Holding.
+pub struct Wf1a7HoldingSystemBackend {
+    pools: std::collections::BTreeMap<String, erpx_server_runtime::public::postgres::DatabasePool>,
+}
+
+impl Wf1a7HoldingSystemBackend {
+    pub fn new(
+        pools: std::collections::BTreeMap<String, erpx_server_runtime::public::postgres::DatabasePool>,
+    ) -> Self {
+        Self { pools }
+    }
+}
+
+impl OwnerWriteBackend for Wf1a7HoldingSystemBackend {
+    fn statement<'a>(&'a self, request: OwnerWriteRequest<'a>) -> OwnerWriteFuture<'a> {
+        Box::pin(async move {
+            let holding = request
+                .headers
+                .get(header::HeaderName::from_static("x-erpx-context-holding"))
+                .and_then(|value| value.to_str().ok())
+                .filter(|value| !value.is_empty())
+                .ok_or_else(invalid)?
+                .to_owned();
+            let company = request
+                .headers
+                .get(header::HeaderName::from_static("x-erpx-context-company"))
+                .and_then(|value| value.to_str().ok())
+                .filter(|value| !value.is_empty())
+                .unwrap_or("owner-system")
+                .to_owned();
+            let pool = self.pools.get(&holding).cloned().ok_or_else(unavailable)?;
+            let kind = request.command.kind.clone();
+            let values = request.command.values.clone();
+            let now = request.command.now;
+            let key = request.key.to_owned();
+            let predicate = request.command.predicate.clone();
+            let target = request.command.target.clone();
+            use erpx_server_runtime::public::postgres::{
+                PgUnitOfWork, TransactionOptions,
+            };
+            PgUnitOfWork::new(pool)
+                .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                    let company = company.clone();
+                    let kind = kind.clone();
+                    let values = values.clone();
+                    let key = key.clone();
+                    let predicate = predicate.clone();
+                    let target = target.clone();
+                    Box::pin(async move {
+                        execute_on_unit(
+                            connection,
+                            &company,
+                            &kind,
+                            values,
+                            now,
+                            &key,
+                            predicate.as_deref(),
+                            target.as_deref(),
+                        )
+                        .await
+                        .map_err(PgTransactionError::Business)
+                    })
+                })
+                .await
+                .map_err(business)
+        })
+    }
+}
+
+/// Mount the private system owner-write route with one Holding pool per target.
+pub fn wf1a7_holding_system_router(
+    pools: std::collections::BTreeMap<String, erpx_server_runtime::public::postgres::DatabasePool>,
+) -> Router {
+    let backend: Arc<dyn OwnerWriteBackend> = Arc::new(Wf1a7HoldingSystemBackend::new(pools));
+    erpx_server_collaboration::public::wf1a7_http::owner_write_system_router(backend)
+}

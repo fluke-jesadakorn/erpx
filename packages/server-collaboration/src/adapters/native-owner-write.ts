@@ -1,5 +1,6 @@
 import 'server-only';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { currentHoldingId } from '@erpx/server-runtime/public/runtime/holding-scope';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import type { SqlDatabase, SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 
@@ -107,10 +108,12 @@ export async function nativeOwnerWriteSystemUnscoped(
   fragments?: OwnerWriteFragments,
 ): Promise<SqlStatement> {
   const config = configuration();
+  const holding = currentHoldingId();
   const headers = new Headers({
     'content-type': 'application/json',
     'x-erpx-context-company': 'owner-system',
     'idempotency-key': key,
+    ...(holding ? { 'x-erpx-context-holding': holding } : {}),
   });
   let response: Response;
   try {

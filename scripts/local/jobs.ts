@@ -43,7 +43,7 @@ let billingRunning: Promise<void> | null = null;
 function billingPulseWork() {
  if(stopping || billingRunning)return;
  billingRunning=(async()=>{if(!await maintenance(env.ERPX_DATA_DIR))await billingWork(env);})()
-  .catch(error=>console.error(JSON.stringify({event:'billing_iteration_failed',code:error instanceof Error?error.message:String(error)}))).finally(()=>{billingRunning=null;});
+  .catch(error=>console.error(JSON.stringify({event:'billing_iteration_failed',code:error instanceof Error?error.message:String(error),stack:error instanceof Error?(error.stack??'').split('\n').slice(0,5):[]}))).finally(()=>{billingRunning=null;});
 }
 const billingPulse=setInterval(billingPulseWork,30000);
 billingPulseWork();

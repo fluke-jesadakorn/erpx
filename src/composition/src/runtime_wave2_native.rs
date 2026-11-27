@@ -193,6 +193,7 @@ impl<C: Clock + Send + Sync + 'static> NativeCommandHttpBackend for RuntimeNativ
                     .unwrap_or_else(|| self.holding.clone())
             };
             let company_label = caller.company_id.clone();
+            let is_control = scope == "control";
             let write_command = command.clone();
             let write_key = key.clone();
             let policy = self.policy.clone();
@@ -253,7 +254,12 @@ impl<C: Clock + Send + Sync + 'static> NativeCommandHttpBackend for RuntimeNativ
                             rows,
                         };
                         drop(repository);
-                        ledger(connection, &caller, &kind, &write_key, now, outcome.rows).await?;
+                        // Control-scoped infrastructure writes have no Holding
+                        // receipt/audit/outbox ledger; that ledger lives only
+                        // in Holding databases.
+                        if !is_control {
+                            ledger(connection, &caller, &kind, &write_key, now, outcome.rows).await?;
+                        }
                         Ok((outcome.rows, json!({"kind": kind, "rows": outcome.rows})))
                     })
                 })

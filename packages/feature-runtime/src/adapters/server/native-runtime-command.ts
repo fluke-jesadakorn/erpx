@@ -1,6 +1,7 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { currentHoldingId } from '@erpx/server-runtime/public/runtime/holding-scope';
 import { nativeRequest } from '@erpx/server-runtime/public/native-http';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import type { SqlResult, SqlStatement } from '@erpx/server-runtime/public/runtime/types';
@@ -75,7 +76,6 @@ async function post(url: URL, headers: Record<string, string>, body: string, tim
   try { response = await nativeRequest(url, { method: 'POST', headers, body }, timeoutMs); }
   catch { return unavailable(); }
   if (response.status !== 200 || response.headers.get('content-type')?.split(';')[0]?.trim() !== 'application/json') {
-    void response.body?.cancel().catch(() => undefined);
     if (response.status >= 400 && response.status < 500) {
       const payload = await response.json().catch((): unknown => null);
       const err = record(payload) ? (payload as Reply).error : undefined;
@@ -115,10 +115,12 @@ export async function RUNTIME_NATIVECommandSystem(
 ): Promise<NativeRuntimeResult> {
   const config = configuration();
   if (!identifier(kind) || !/^[A-Za-z0-9:_.-]{8,180}$/.test(key)) return unavailable();
+  const scoped = currentHoldingId();
   const resolved =
     identifier(companyId)
       ? companyId
-      : config.holdings.find(item => values.some(value => value === item.companyId))?.companyId ??
+      : config.holdings.find(item => item.holdingId === scoped)?.companyId ??
+        config.holdings.find(item => values.some(value => value === item.companyId))?.companyId ??
         (config.holdings.length === 1 ? config.holdings[0]!.companyId : undefined);
   const holding = config.holdings.find(h => h.companyId === resolved);
   if (!holding || !resolved) return unavailable();

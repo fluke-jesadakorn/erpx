@@ -475,11 +475,13 @@ fn statement(kind: &str) -> Option<(&'static str, usize)> {
         WF_NATIVE_PAYROLL_STATUTORY_DECISION_EFFECTS_17 => ("INSERT INTO decision_evidence(id,command_id,record_id,action,actor_id,assignment_id,reviewed_version,input_digest,created_at) VALUES(?,?,?,?,?,?,?,?,?)", 9),
         WF_NATIVE_PEOPLE_EVALUATION_FACTS_18 => ("INSERT INTO decision_evidence(id,command_id,record_id,action,actor_id,assignment_id,reviewed_version,input_digest,created_at) VALUES(?,?,?,?,?,?,?,?,?)", 9),
         WF_NATIVE_PEOPLE_LIFECYCLE_AUDIT_EFFECTS_19 => ("INSERT INTO audit_events(id,command_id,actor_id,assignment_id,action,record_type,record_id,record_version,purpose,created_at,authority_json) VALUES(?,?,?,?,?,'people_lifecycle',?,?,?,?,(SELECT authority_json FROM command_receipts WHERE command_id=?))", 10),
-        WF_NATIVE_RUNTIME_JOB_EFFECTS_20 => ("UPDATE outbox_events SET lease_token=?,claim_until=?,attempts=attempts+1
-    WHERE id=(SELECT e.id FROM outbox_events e WHERE e.processed_at IS NULL AND e.dead_letter_at IS NULL
+        WF_NATIVE_RUNTIME_JOB_EFFECTS_20 => ("WITH candidates AS MATERIALIZED (
+    SELECT e.id FROM outbox_events e WHERE e.processed_at IS NULL AND e.dead_letter_at IS NULL
       AND e.next_attempt_at<=? AND (e.claim_until IS NULL OR e.claim_until<?)
-      AND NOT erpx_native_outbox_owned(e)
-      ORDER BY e.created_at,e.id FOR UPDATE OF e SKIP LOCKED LIMIT 1)
+      ORDER BY e.created_at,e.id FOR UPDATE OF e SKIP LOCKED LIMIT 50)
+    UPDATE outbox_events SET lease_token=?,claim_until=?,attempts=attempts+1
+    WHERE id=(SELECT c.id FROM candidates c JOIN outbox_events e ON e.id=c.id
+      WHERE NOT erpx_native_outbox_owned(e) LIMIT 1)
     RETURNING id,event_type,aggregate_id,aggregate_version,payload_json,attempts,lease_token", 4),
         WF_NATIVE_RUNTIME_JOB_EFFECTS_21 => ("UPDATE outbox_events SET claim_until=? WHERE id=? AND lease_token=? AND processed_at IS NULL", 3),
         WF_NATIVE_RUNTIME_JOB_EFFECTS_22 => ("UPDATE outbox_events SET processed_at=?,published_at=?,claim_until=NULL,lease_token=NULL,last_error=NULL WHERE id=? AND lease_token=?", 4),

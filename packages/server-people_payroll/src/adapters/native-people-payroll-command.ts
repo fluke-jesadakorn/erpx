@@ -1,6 +1,7 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { currentHoldingId } from '@erpx/server-runtime/public/runtime/holding-scope';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import type { SqlResult, SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 
@@ -120,7 +121,6 @@ async function post(url: URL, headers: Record<string, string>, body: string, tim
     return unavailable();
   }
   if (response.status !== 200 || response.headers.get('content-type')?.split(';')[0]?.trim() !== 'application/json') {
-    void response.body?.cancel().catch(() => undefined);
     if (response.status >= 400 && response.status < 500) {
       const payload = await response.json().catch((): unknown => null);
       const error = record(payload) ? (payload as Reply).error : undefined;
@@ -172,10 +172,12 @@ export async function nativePpCommandSystem(
   // System/worker call sites that lack an explicit Company still bind the same
   // Company id positionally; recover it from the command values. A command with
   // no recoverable Company stays fail-closed instead of guessing a Holding.
+  const scoped = currentHoldingId();
   const resolved =
     identifier(companyId)
       ? companyId
-      : config.holdings.find((item) => values.some((value) => value === item.companyId))?.companyId ??
+      : config.holdings.find((item) => item.holdingId === scoped)?.companyId ??
+        config.holdings.find((item) => values.some((value) => value === item.companyId))?.companyId ??
         (config.holdings.length === 1 ? config.holdings[0]!.companyId : undefined);
   if (!resolved) return unavailable();
   const holding = config.holdings.find(item => item.companyId === resolved);

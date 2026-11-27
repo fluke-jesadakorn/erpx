@@ -7721,6 +7721,28 @@ async fn assemble_checked(
         for commerce_router in commerce_native_routers {
             router = router.merge(commerce_router);
         }
+        // System workers address native commands by Company id. Discover each
+        // registered Holding's real Companies from its own owner table so the
+        // company-keyed routes cover every Holding, not only the finance subset.
+        for (i, _) in config.holdings.iter().enumerate() {
+            let companies: Vec<String> = sqlx::query_scalar(
+                "SELECT id FROM organization_nodes WHERE kind='company' ORDER BY id",
+            )
+            .fetch_all(pools[i + 1].raw())
+            .await
+            .map_err(|_| "PRIVATE_API_COMPANY_DISCOVERY_FAILED")?;
+            for company in companies {
+                people_payroll_native_companies
+                    .entry(company.clone())
+                    .or_insert_with(|| pools[i + 1].clone());
+                records_company_pools
+                    .entry(company.clone())
+                    .or_insert_with(|| pools[i + 1].clone());
+                runtime_company_pools
+                    .entry(company)
+                    .or_insert_with(|| pools[i + 1].clone());
+            }
+        }
         for records_router in records_native_routers {
             router = router.merge(records_router);
         }
@@ -8010,6 +8032,21 @@ async fn assemble_checked(
                         .map_err(|_| "PRIVATE_API_COLLABORATION_OWNER_WRITE_COMPANY_CONFIGURATION_INVALID")?,
                 );
             }
+            router = router.merge(
+                crate::collaboration_wf1a7::wf1a7_holding_system_router(
+                    config
+                        .holdings
+                        .iter()
+                        .enumerate()
+                        .map(|(i, holding)| {
+                            (
+                                holding.registration.holding_id.as_str().to_owned(),
+                                pools[i + 1].clone(),
+                            )
+                        })
+                        .collect(),
+                ),
+            );
         }
         #[cfg(feature = "existing-business")]
         if !collaboration_inbox_targets.is_empty() {
@@ -8645,14 +8682,17 @@ async fn assemble_checked(
             );
         }
         if !people_payroll_native_companies.is_empty() {
+            let backend: Arc<dyn erpx_server_people_payroll::public::native_command_http::NativeCommandHttpBackend> =
+                Arc::new(crate::people_commands::PeopleCommandBackend::new(
+                    people_payroll_native_companies.clone(),
+                ));
             router = router.merge(
                 erpx_server_people_payroll::public::native_command_http::native_command_company_router(
-                    vec![(
-                        "people-payroll".to_owned(),
-                        Arc::new(crate::people_commands::PeopleCommandBackend::new(
-                            people_payroll_native_companies.clone(),
-                        )) as Arc<dyn erpx_server_people_payroll::public::native_command_http::NativeCommandHttpBackend>,
-                    )],
+                    people_payroll_native_companies
+                        .keys()
+                        .cloned()
+                        .map(|company| (company, backend.clone()))
+                        .collect(),
                 )
                 .map_err(|_| "PRIVATE_API_PEOPLE_PAYROLL_NATIVE_CONFIGURATION_INVALID")?,
             );
@@ -10345,7 +10385,8 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             || path.starts_with("/api/v1/holdings/")
                 && path.ends_with("/assets/read-plan")
             || path.ends_with("/pos/owner-write")
-            || path.ends_with("/organization/owner-write"));
+            || path.ends_with("/organization/owner-write")
+            || path.ends_with("/system/collaboration/owner-write"));
     if state.policy.audience(host).is_none()
         && !(host == state.loopback
             && (matches!(request.uri().path(), "/api/health" | "/api/ready") || loopback_system_command))

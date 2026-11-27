@@ -20,6 +20,7 @@ import {runtimeBetaSlotActive} from "@erpx/server-manage_erpx/public/runtime-act
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { holdingBindingsSql } from '../read-tail-sql';
+import { withHolding } from '@erpx/server-runtime/public/runtime/holding-scope';
 
 const exec = promisify(execFile);
 
@@ -28,6 +29,9 @@ export async function claimJob(db: SqlDatabase, now = Date.now(), excludedSource
   return runtimeJobEffects(db,excludedSourceSql,holdingId).claim(randomUUID(),now+90_000,now,now);
 }
 export async function runOne(env: JobEnv, holdingId: string, handler = project, excludedSourceSql?: string): Promise<boolean> {
+  return withHolding(holdingId, () => runOneInHolding(env, holdingId, handler, excludedSourceSql));
+}
+async function runOneInHolding(env: JobEnv, holdingId: string, handler = project, excludedSourceSql?: string): Promise<boolean> {
   const { write } = registeredResources(env, holdingId), row = await claimJob(write, Date.now(), excludedSourceSql, holdingId);
   if (!row) return false;
   const renewal = setInterval(() => {
@@ -59,7 +63,7 @@ export async function directoryWork(env: JobEnv) {
   }
 }
 export async function posQueueWork(env: JobEnv) {
- for(const slot of await activeSlots(env))await (await import("@erpx/server-pos/public/pos-stripe")).drainPos(registeredResources(env,slot.id).write as PostgresDatabase,slot.id);
+ for(const slot of await activeSlots(env))await withHolding(slot.id, async () => (await import("@erpx/server-pos/public/pos-stripe")).drainPos(registeredResources(env,slot.id).write as PostgresDatabase,slot.id));
 }
 export async function scheduledWork(env: JobEnv) {
   for (const slot of await activeSlots(env)) if (!slot.beta) await drainPeopleLifecycle(registeredResources(env,slot.id).write as PostgresDatabase);
@@ -72,7 +76,7 @@ export async function scheduledWork(env: JobEnv) {
       await payroll.drainPayrollScheduledPreviews(write);
     }
     if (!slot.beta) await (await import("@erpx/server-people_payroll/public/people-roster")).escalateRosterCoverage(write);
-    try { await (await import("@erpx/server-people_payroll/public/leave-self-service")).runLeaveAccruals(write,new Date().toISOString().slice(0,10)); } catch (error) { console.warn(JSON.stringify({event:'leave_accruals_failed',holdingId:slot.id,code:error instanceof Error?error.message:String(error)})); }
+    try { await withHolding(slot.id, async () => (await import("@erpx/server-people_payroll/public/leave-self-service")).runLeaveAccruals(write,new Date().toISOString().slice(0,10))); } catch (error) { console.warn(JSON.stringify({event:'leave_accruals_failed',holdingId:slot.id,code:error instanceof Error?error.message:String(error)})); }
     // Inventory Sales/Manufacturing reservation alert notices are owned by the
     // native inventory_reservation_alerts worker; no TS writer remains.
     // Quality due-soon/overdue escalation and notice routing are owned by the
@@ -97,17 +101,17 @@ export async function scheduledWork(env: JobEnv) {
     // Optional AI/agent drains must not abort the rest of a Holding sweep when
     // their native transport is not yet configured; each failure is named.
     for (const [event, task] of [
-      ["request_ai_failed", () => drainRequestAi(write, env)],
+      ["request_ai_failed", () => withHolding(slot.id, () => drainRequestAi(write, env))],
       ...(!slot.beta ? [[
         "evaluation_ai_failed",
-        async () => (await import("@erpx/server-people_payroll/public/people-evaluation-ai")).drainEvaluationAi(write, env),
+        async () => withHolding(slot.id, async () => (await import("@erpx/server-people_payroll/public/people-evaluation-ai")).drainEvaluationAi(write, env)),
       ]] : []),
       ...(!slot.beta ? [[
         "finance_ai_failed",
-        async () => { const ai = await import("@erpx/server-finance/public/finance-ai"); await ai.scanFinanceAi(write, env); await ai.drainFinanceAi(write, env); },
+        async () => withHolding(slot.id, async () => { const ai = await import("@erpx/server-finance/public/finance-ai"); await ai.scanFinanceAi(write, env); await ai.drainFinanceAi(write, env); }),
       ]] : []),
-      ["executive_generation_failed", async () => (await import("@erpx/server-runtime/public/executive/generation")).drainExecutiveGeneration(write, env)],
-      ["social_agent_failed", () => drainSocialAgent(write, env, undefined, undefined, files, slot.id)],
+      ["executive_generation_failed", async () => withHolding(slot.id, async () => (await import("@erpx/server-runtime/public/executive/generation")).drainExecutiveGeneration(write, env))],
+      ["social_agent_failed", () => withHolding(slot.id, () => drainSocialAgent(write, env, undefined, undefined, files, slot.id))],
     ] as [string, () => Promise<unknown>][]) {
       try { await task(); } catch (error) {
         console.warn(JSON.stringify({event, holdingId:slot.id, code:error instanceof Error?error.message:String(error)}));
@@ -150,7 +154,13 @@ export async function billingWork(env: JobEnv) {
       console.warn(JSON.stringify({event:"usage_projection_failed",code:error instanceof Error?error.name:"ProjectionError"}));
     }
   }
-  await nativeRuntimeStatement('runtime_stmt_19', { companyId: '', now: Date.now(), actor: undefined }).bind(Date.now()).run();
+  const heartbeatHolding = (await activeSlots(env))[0]?.id;
+  if (heartbeatHolding)
+    await withHolding(heartbeatHolding, () =>
+      nativeRuntimeStatement('runtime_stmt_19', { companyId: '', now: Date.now(), actor: undefined })
+        .bind(Date.now())
+        .run(),
+    );
 }
 
 let attachmentCleanupAt = 0;
@@ -180,6 +190,7 @@ export async function attachmentWork(env: JobEnv) {
 export async function pmsWork(env: JobEnv) {
  const holdingOrigins=holdingRoutingEnabled(process.env)?{holdingOrigins:Object.fromEntries(activeHoldingHosts().map(host=>[host.holdingSlug,`https://${host.hostname}`]))}:{};
  for (const slot of await activeSlots(env)) if (!slot.beta) {
+  await withHolding(slot.id, async () => {
    const db=registeredResources(env,slot.id).write as PostgresDatabase;
    await (await import("../../../../../packages/server-pms/src/public/pms")).drainPms(db);
    await (await import("@erpx/server-pms/public/pms-booking")).drainBookingPayments(db,{...holdingOrigins,secret:String(env.BETTER_AUTH_SECRET),origin:applicationOrigin("booking",String(env.ERPX_PUBLIC_ORIGIN))!,apiKey:typeof env.RESEND_API_KEY==='string'?env.RESEND_API_KEY:undefined,from:typeof env.RESEND_FROM==='string'?env.RESEND_FROM:undefined});
@@ -189,6 +200,7 @@ export async function pmsWork(env: JobEnv) {
      const {simulationBookingEmailProvider}=await import("@erpx/server-pms/public/simulation-email");
      await booking.deliverBookingEmails(db,{...holdingOrigins,secret: String(env.BETTER_AUTH_SECRET),origin: applicationOrigin("booking",String(env.ERPX_PUBLIC_ORIGIN))!,apiKey:typeof env.RESEND_API_KEY === "string" ? env.RESEND_API_KEY : undefined,from:typeof env.RESEND_FROM === "string" ? env.RESEND_FROM : undefined},simulationBookingEmailProvider(env));
    }
+  });
  }
 
 }

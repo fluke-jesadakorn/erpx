@@ -7,7 +7,8 @@ export function runtimeJobEffects(db: SqlDatabase, excludedSourceSql?: string, h
   const scope = holdingId ? { holdingId } : undefined;
   return {
     claim(token: string, until: number, readyAt: number, expiredAt: number) {
-      return nativeWorkflowWrite('wf_native_runtime_job_effects_20', [token, until, readyAt, expiredAt]).withContext(scope ?? {}).first<RuntimePendingEvent>();
+      // Bind order matches the owner CTE: eligibility window first, then the lease.
+      return nativeWorkflowWrite('wf_native_runtime_job_effects_20', [readyAt, expiredAt, token, until]).withContext(scope ?? {}).first<RuntimePendingEvent>();
     },
     renew(until: number, id: string, token: string) { return nativeWorkflowWrite('wf_native_runtime_job_effects_21', [until, id, token]).withContext(scope ?? {}).run(); },
     complete(processedAt: number, publishedAt: number, id: string, token: string) { return nativeWorkflowWrite('wf_native_runtime_job_effects_22', [processedAt, publishedAt, id, token]).withContext(scope ?? {}).run(); },
