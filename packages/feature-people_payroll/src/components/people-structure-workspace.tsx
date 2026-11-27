@@ -366,6 +366,9 @@ export function PeopleStructureWorkspace({
 }) {
   const query = useSearchParams(),
     router = useRouter();
+  const routeSearch = query.get("q") ?? "";
+  const [search, setSearch] = useState(routeSearch);
+  useEffect(() => setSearch(routeSearch), [routeSearch]);
   const archived = people.canManage && query.get("status") === "archived";
   const data = projectedDirectory(
     { ...people.data, people: archived ? people.archivedPeople : people.data.people },
@@ -398,7 +401,7 @@ export function PeopleStructureWorkspace({
         : { kind: "company", id: people.currentCompanyId };
   const context = contextFor(data, unit),
     detailContext = selection ? contextFor(data, selection) : null;
-  const term = (query.get("q") ?? "").trim().toLocaleLowerCase();
+  const term = search.trim().toLocaleLowerCase();
   const overview = !term && ["company", "branch"].includes(unit.kind);
   const summary = unitOverview(data, unit, archived);
   const summaryUnits = overview ? summary.children : term ? [
@@ -463,6 +466,16 @@ export function PeopleStructureWorkspace({
         : null;
   const backgroundInert = !!moveOpen || detailOpen || settingsOpen;
   const [pendingPeopleNavigation,setPendingPeopleNavigation]=useState<(()=>void)|null>(null);
+  function updateSearch(value: string) {
+    setSearch(value);
+    // The authorized directory is already loaded. Filter locally while keeping
+    // the visible Holding URL and the other workspace filters intact.
+    const url = new URL(window.location.href);
+    if (value) url.searchParams.set("q", value);
+    else url.searchParams.delete("q");
+    window.history.replaceState(null, "", url);
+  }
+
   function update(patch: Record<string, string | null>, replace = false) {
     const params = new URLSearchParams(query);
     for (const [key, value] of Object.entries(patch))
@@ -861,8 +874,8 @@ export function PeopleStructureWorkspace({
             type="search"
             aria-label="Search people, positions, and units"
             placeholder="Search people, positions, and units"
-            value={query.get("q") ?? ""}
-            onChange={(event) => update({ q: event.target.value || null }, true)}
+            value={search}
+            onChange={(event) => updateSearch(event.target.value)}
           />
         </div>
         <div className={styles.topActions}>
