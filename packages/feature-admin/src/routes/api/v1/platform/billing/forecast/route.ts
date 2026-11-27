@@ -17,8 +17,7 @@ export async function GET(request: Request) {
       throw new ApiError(503, "NATIVE_BILLING_UNAVAILABLE", "The native Billing forecast is not configured.");
     const client = createNativeBillingClient(nativeBillingConfiguration(raw));
     const holding = client.holding(holdingId);
-    if (!holding)
-      throw new ApiError(503, "NATIVE_BILLING_UNAVAILABLE", "The native Billing Holding target is not configured.");
+    if (!holding) throw new ApiError(404, "NOT_FOUND", "Customer Holding not found.");
     const actor: NativeBillingPageContext = {
       userId: platform.userId,
       holdingId,

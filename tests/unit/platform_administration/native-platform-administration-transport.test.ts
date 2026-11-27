@@ -819,6 +819,11 @@ describe('native platform admin GET route parity', () => {
       );
       expect(reserved.status).toBe(422);
       expect((await reserved.json()).error.code).toBe('HOLDING_REQUIRED');
+      const unknown = await forecastGet(
+        new Request('http://erpx-internal.example.test/api/v1/platform/billing/forecast?holdingId=h999'),
+      );
+      expect(unknown.status).toBe(404);
+      expect((await unknown.json()).error.code).toBe('NOT_FOUND');
     } finally {
       if (previous === undefined) delete process.env.ERPX_NATIVE_BILLING_CONFIG;
       else process.env.ERPX_NATIVE_BILLING_CONFIG = previous;
