@@ -271,7 +271,7 @@ describe('Rust owner execution and payload parity pins', () => {
     expect(sql).not.toContain('include_str!');
     const composition = read('src/composition/src/records.rs');
     expect(composition).toContain('impl<C: Clock + Send + Sync + \'static> RecordsRegistryHttpBackend for RecordsBackend<C>');
-    expect(composition).toContain('PgRecordRegistry::new(connection)');
+    expect(composition).toContain('PgRecordRegistry::in_authorized_work(connection)');
     expect(composition).toContain('record_registry_page(');
     expect(composition).toContain('RecordsRegistryHttpResponse {');
   });
