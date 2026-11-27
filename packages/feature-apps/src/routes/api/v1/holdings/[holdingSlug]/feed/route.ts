@@ -2,34 +2,31 @@ import type { RouteContext } from "@erpx/contracts/next-routes";
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
-import { createPostSchema, feedFilterSchema, listFeed } from "@erpx/server-collaboration/public/social";
-import { nativeCreatePost, nativeFeed, nativeSocialAvailable } from "@erpx/server-collaboration/public/native-social-page";
+import { createPostSchema, feedFilterSchema } from "@erpx/server-collaboration/public/social";
+import { nativeCreatePost, nativeFeed } from "@erpx/server-collaboration/public/native-social-page";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request, context: RouteContext<"/api/v1/holdings/[holdingSlug]/feed">) {
   try {
     const { holdingSlug } = await context.params;
-    const actor = await requireWorkContext(holdingSlug);
+    await requireWorkContext(holdingSlug);
     const search = new URL(request.url).searchParams;
     const requested = search.get("filter") ?? "all";
     const filter = feedFilterSchema.safeParse(requested);
     if (!filter.success) throw new ApiError(422, "INVALID_FILTER", "Choose a valid feed filter.");
-    if (nativeSocialAvailable()) {
-      const page = (await nativeFeed(request, holdingSlug, filter.data, search.get("cursor") ?? undefined)) as {
-        items?: unknown;
-        nextCursor?: string | null;
-        hasMore?: boolean;
-      };
-      return Response.json(
-        canonicalDestinationLinks({
-          data: page.items ?? [],
-          hasMore: page.hasMore ?? false,
-          nextCursor: page.nextCursor ?? null,
-        }),
-      );
-    }
-    return Response.json(canonicalDestinationLinks({ data: await listFeed(actor.holdingId, actor, filter.data) }));
+    const page = (await nativeFeed(request, holdingSlug, filter.data, search.get("cursor") ?? undefined)) as {
+      items?: unknown;
+      nextCursor?: string | null;
+      hasMore?: boolean;
+    };
+    return Response.json(
+      canonicalDestinationLinks({
+        data: page.items ?? [],
+        hasMore: page.hasMore ?? false,
+        nextCursor: page.nextCursor ?? null,
+      }),
+    );
   } catch (error) { return errorResponse(error); }
 }
 
@@ -40,13 +37,7 @@ export async function POST(request: Request, context: RouteContext<"/api/v1/hold
     if (!commandId) throw new ApiError(422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required.");
     const parsed = createPostSchema.safeParse(await request.json());
     if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid update.");
-    const actor = await requireWorkContext(holdingSlug);
-    if (!nativeSocialAvailable())
-      throw new ApiError(
-        503,
-        "NATIVE_SOCIAL_UNAVAILABLE",
-        "The native Social service is unavailable.",
-      );
+    await requireWorkContext(holdingSlug);
     return Response.json(
       canonicalDestinationLinks({
         data: await nativeCreatePost(request, holdingSlug, parsed.data, commandId),

@@ -3,9 +3,9 @@
 //! `GET /internal/session-context?holding={slug}` is served on the private API.
 //! It accepts only the inbound Cookie/Host/Origin, resolves the current Account
 //! session and selected work role through the existing owner ports, and returns
-//! exactly the six private context headers the gateway must inject. It never
-//! runs a new SQL plan, never executes TypeScript, and never trusts a supplied
-//! context header.
+//! the private context values the gateway injects as headers. It never runs a
+//! new SQL plan, never executes TypeScript, and never trusts a supplied context
+//! header.
 
 use super::application::RouteFuture;
 use super::assignments_active::{
@@ -113,7 +113,12 @@ impl SessionContextService {
                 .and_then(|value| value.as_str())
                 .ok_or_else(work_context_changed)?
                 .to_owned();
-            let (branch_slug, department_slug) = data
+            let user_id = data
+                .get("userId")
+                .and_then(|value| value.as_str())
+                .ok_or_else(work_context_changed)?
+                .to_owned();
+            let (branch_slug, department_slug, modules) = data
                 .get("options")
                 .and_then(|value| value.as_array())
                 .and_then(|options| {
@@ -125,6 +130,15 @@ impl SessionContextService {
                     })
                 })
                 .map(|option| {
+                    let modules = option
+                        .get("modules")
+                        .and_then(|value| value.as_array())
+                        .and_then(|values| {
+                            values
+                                .iter()
+                                .map(|value| value.as_str().map(str::to_owned))
+                                .collect::<Option<Vec<_>>>()
+                        });
                     (
                         option
                             .get("branchSlug")
@@ -134,9 +148,11 @@ impl SessionContextService {
                             .get("departmentSlug")
                             .and_then(|value| value.as_str())
                             .map(str::to_owned),
+                        modules,
                     )
                 })
-                .unwrap_or((None, None));
+                .unwrap_or((None, None, None));
+            let modules = modules.ok_or_else(work_context_changed)?;
             Ok(SessionContext {
                 company_id,
                 assignment_id,
@@ -144,12 +160,14 @@ impl SessionContextService {
                 assignment_version,
                 branch_slug,
                 department_slug,
+                user_id,
+                modules,
             })
         })
     }
 }
 
-/// The exact six values the gateway injects as private headers.
+/// The exact private context values the gateway injects as headers.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SessionContext {
     pub company_id: String,
@@ -158,6 +176,8 @@ pub struct SessionContext {
     pub assignment_version: i64,
     pub branch_slug: Option<String>,
     pub department_slug: Option<String>,
+    pub user_id: String,
+    pub modules: Vec<String>,
 }
 
 impl SessionContext {
@@ -169,6 +189,8 @@ impl SessionContext {
             "assignmentVersion": self.assignment_version,
             "branchSlug": self.branch_slug,
             "departmentSlug": self.department_slug,
+            "userId": self.user_id,
+            "modules": self.modules,
         })
     }
 }
@@ -442,7 +464,7 @@ mod tests {
                         role: "ledger_reader".into(),
                         company_id: "company-1".into(),
                         branch_id: None,
-                        modules: Vec::new(),
+                        modules: vec!["work.get".into(), "finance.read".into()],
                         scope_kind: crate::domain::work_context::WorkScopeKind::Branch,
                         scope_node_id: None,
                         label: "Ledger reader".into(),
@@ -539,9 +561,12 @@ mod tests {
                 "assignmentVersion": 3,
                 "branchSlug": "bangkok",
                 "departmentSlug": null,
+                "userId": "alpha",
+                "modules": ["work.get", "finance.read"],
             })
         );
-        assert_eq!(body["data"].as_object().unwrap().len(), 6);
+        assert_eq!(body["data"]["modules"], json!(["work.get", "finance.read"]));
+        assert_eq!(body["data"].as_object().unwrap().len(), 8);
         assert!(headers.contains("cache-control: private, no-store"));
         assert_eq!(sessions.load(Ordering::SeqCst), 1);
     }

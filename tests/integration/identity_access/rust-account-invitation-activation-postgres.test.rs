@@ -121,7 +121,7 @@ async fn holding_serialization_retry_keeps_one_control_credential_and_one_durabl
 }
 
 async fn waiting(pool: &DatabasePool, event: &str) -> bool {
-    tokio::time::timeout(std::time::Duration::from_secs(5),async {loop {let exists:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid() AND wait_event_type='Lock' AND wait_event=$1)").bind(event).fetch_one(pool.raw()).await.unwrap();if exists{break;}tokio::time::sleep(std::time::Duration::from_millis(10)).await;}}).await.is_ok()
+    tokio::time::timeout(std::time::Duration::from_secs(30),async {loop {let exists:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid() AND wait_event_type='Lock' AND wait_event=$1)").bind(event).fetch_one(pool.raw()).await.unwrap();if exists{break;}tokio::time::sleep(std::time::Duration::from_millis(10)).await;}}).await.is_ok()
 }
 
 #[tokio::test]

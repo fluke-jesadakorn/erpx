@@ -1,7 +1,46 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { readFileSync } from 'node:fs';
 vi.mock('server-only', () => ({}));
+vi.mock('next/headers', () => ({
+  headers: async () =>
+    new Headers({
+      host: 'erpx-internal.example.test',
+      cookie: '__Host-erpx-product=session',
+      origin: 'https://erpx-internal.example.test',
+    }),
+}));
+vi.mock('@erpx/server-identity_access/public/authorization', () => ({
+  requireManageErpxContext: async () => ({
+    work: {
+      userId: 'operator', holdingId: 'h003', holdingSlug: 'erpx', companyId: 'erpx',
+      branchId: null, departmentId: null, assignmentId: 'work-assignment',
+      authority: { revision: 7, assignmentVersion: 3 },
+      modules: ['manage_erpx'], iam: { permissions: ['manage_erpx.access'] },
+    },
+    platform: {
+      userId: 'operator', assignmentId: 'platform-assignment', role: 'platform_admin',
+      modules: ['manage_erpx'],
+    },
+  }),
+}));
+vi.mock('@erpx/server-runtime/public/app-native-sources', () => ({
+  customerHoldingBindingExists: vi.fn(async () => true),
+}));
+vi.mock('@erpx/server-billing/public/native-billing', () => ({
+  nativeBillingConfiguration: (raw: string) => JSON.parse(raw),
+  nativeBillingFailure: () => undefined,
+  createNativeBillingClient: () => ({
+    holding: (id: string) => (id === 'h001' ? { holdingSlug: 'acme' } : undefined),
+    forecast: async () => ({
+      generatedAt: 10, forecastMonth: '2026-10', sourceMonth: '2026-09',
+      model: 'seat_what_if', price: null, priceEffectiveForMonth: false,
+      seats: { count: 282, observedAt: 1 },
+      storage: { originalBytes: 1_000_000_000, observedAt: 1, coverage: 'measured' },
+    }),
+  }),
+}));
 import {
   createNativePlatformAdminClient,
   nativePlatformAdminConfiguration,
@@ -10,6 +49,9 @@ import {
   type NativePlatformAdminActor,
 } from '../../../packages/feature-platform_administration/src/adapters/server/native-platform-administration';
 import { platformAdminActor, nativePlatformAdminAvailable, nativePlatformMigrate, nativePlatformOperationsForPresentation, nativePlatformExecutiveForPresentation, nativePlatformExecutiveSourcesForPresentation } from '../../../packages/feature-platform_administration/src/lib/native-platform-administration';
+import { GET as operationsGet } from '@erpx/feature-admin/routes/api/v1/platform/operations/route';
+import { GET as executiveGet } from '@erpx/feature-admin/routes/api/v1/platform/executive/route';
+import { GET as forecastGet } from '@erpx/feature-admin/routes/api/v1/platform/billing/forecast/route';
 
 const config = (overrides: Record<string, unknown> = {}) =>
   JSON.stringify({
@@ -663,6 +705,123 @@ describe('native Platform Executive transport through the canonical owner helper
       else process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG = short;
       if (long === undefined) delete process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
       else process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG = long;
+    }
+  });
+});
+
+/** The Next GET handlers are transports over the mounted Axum owner routers;
+ *  they must return the owner payload unchanged and never execute owner SQL. */
+describe('native platform admin GET route parity', () => {
+  const source = (path: string) =>
+    readFileSync(new URL(`../../../packages/feature-admin/src/routes/api/v1/platform/${path}`, import.meta.url), 'utf8');
+
+  it('returns the complete native operations snapshot with only the owner call', async () => {
+    const paths: string[] = [];
+    const server = createServer((request, response) => {
+      paths.push(request.url ?? '');
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ data: snapshot, context }));
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const short = process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+    const long = process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+    try {
+      delete process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+      process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG = config({
+        privateBaseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+        timeoutMs: 1000,
+      });
+      const response = await operationsGet();
+      expect(response.status).toBe(200);
+      expect(response.headers.get('Cache-Control')).toBe('private, no-store');
+      const body = await response.json();
+      expect(Object.keys(body)).toEqual(['data']);
+      expect(body.data).toEqual(snapshot.operations);
+      expect(body.data).not.toHaveProperty('provisioning');
+      expect(paths).toEqual(['/api/v1/platform/operations']);
+      expect(source('operations/route.ts')).not.toMatch(/runtimeEnv|\.query\(|\bSELECT\b|\bINSERT\b|\bUPDATE\b/);
+    } finally {
+      if (short === undefined) delete process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+      else process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG = short;
+      if (long === undefined) delete process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+      else process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG = long;
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it('returns the native executive snapshot or sources by query with no owner SQL', async () => {
+    const paths: string[] = [];
+    const server = createServer((request, response) => {
+      paths.push(request.url ?? '');
+      const data = (request.url ?? '').includes('metric=') ? executiveSourcesData : executiveSnapshotData;
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ data, context }));
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const short = process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+    const long = process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+    try {
+      delete process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+      process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG = config({
+        privateBaseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+        timeoutMs: 1000,
+      });
+      const snapshotResponse = await executiveGet(
+        new Request('http://erpx-internal.example.test/api/v1/platform/executive?from=2026-06-01&to=2026-06-30'),
+      );
+      expect(snapshotResponse.status).toBe(200);
+      expect(snapshotResponse.headers.get('Cache-Control')).toBe('private, no-store');
+      expect((await snapshotResponse.json()).data).toEqual(executiveSnapshotData);
+      const sourcesResponse = await executiveGet(
+        new Request('http://erpx-internal.example.test/api/v1/platform/executive?metric=failed-provisioning&group=2026-06&from=2026-06-01&to=2026-06-30&page=2'),
+      );
+      expect(sourcesResponse.status).toBe(200);
+      expect((await sourcesResponse.json()).data).toEqual(executiveSourcesData);
+      const invalid = await executiveGet(
+        new Request('http://erpx-internal.example.test/api/v1/platform/executive?metric=unsupported'),
+      );
+      expect(invalid.status).toBe(422);
+      expect((await invalid.json()).error.code).toBe('PLATFORM_EXECUTIVE_SOURCE_INVALID');
+      expect(paths.some((path) => path.includes('page=2'))).toBe(true);
+      expect(source('executive/route.ts')).not.toMatch(/runtimeEnv|\.query\(|\bSELECT\b|\bINSERT\b|\bUPDATE\b/);
+    } finally {
+      if (short === undefined) delete process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+      else process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG = short;
+      if (long === undefined) delete process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+      else process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG = long;
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it('returns the exact native billing forecast payload without a TypeScript binding read', async () => {
+    const { customerHoldingBindingExists } = await import('@erpx/server-runtime/public/app-native-sources');
+    vi.mocked(customerHoldingBindingExists).mockClear();
+    const previous = process.env.ERPX_NATIVE_BILLING_CONFIG;
+    try {
+      process.env.ERPX_NATIVE_BILLING_CONFIG = '{}';
+      const response = await forecastGet(
+        new Request('http://erpx-internal.example.test/api/v1/platform/billing/forecast?holdingId=h001'),
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get('Cache-Control')).toBe('private, no-store');
+      const body = await response.json();
+      expect(Object.keys(body)).toEqual(['data']);
+      expect(body.data).toEqual({
+        generatedAt: 10, forecastMonth: '2026-10', sourceMonth: '2026-09',
+        model: 'seat_what_if', price: null, priceEffectiveForMonth: false,
+        seats: { count: 282, observedAt: 1 },
+        storage: { originalBytes: 1_000_000_000, observedAt: 1, coverage: 'measured' },
+      });
+      expect(customerHoldingBindingExists).not.toHaveBeenCalled();
+      expect(source('billing/forecast/route.ts')).not.toMatch(/customerHoldingBindingExists|runtimeEnv|\.query\(|\bSELECT\b/);
+      const reserved = await forecastGet(
+        new Request('http://erpx-internal.example.test/api/v1/platform/billing/forecast?holdingId=h003'),
+      );
+      expect(reserved.status).toBe(422);
+      expect((await reserved.json()).error.code).toBe('HOLDING_REQUIRED');
+    } finally {
+      if (previous === undefined) delete process.env.ERPX_NATIVE_BILLING_CONFIG;
+      else process.env.ERPX_NATIVE_BILLING_CONFIG = previous;
     }
   });
 });

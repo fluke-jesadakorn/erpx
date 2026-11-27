@@ -9,7 +9,7 @@ use erpx_server_collaboration::public::social_http::{
     SocialHttpCommandRequest, SocialHttpCommentsRequest, SocialHttpFuture, SocialHttpReadReply,
     SocialHttpReadRequest, SocialHttpRevisionsRequest, SocialHttpState, SocialHttpTarget,
     SocialReadKind, SocialThreadData, ThreadQuery, cancel_comment_upload, cancel_edit_upload,
-    comment_action, create_comment_upload, create_edit_upload, create_post, read_feed,
+    comment_action, create_comment_upload, create_edit_upload, create_post, create_story, read_feed,
     read_post_comments, read_post_revisions, read_thread, set_reaction,
 };
 use erpx_server_runtime::public::http_support::{
@@ -457,4 +457,64 @@ async fn invalid_filters_cursors_and_owner_failures_are_stable() {
     let (status, value) = reply(response).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
     assert_eq!(value["error"]["code"], "AUDIENCE_FORBIDDEN");
+}
+
+/// Pin the response envelope of the two native routes that replace the
+/// TypeScript feed/story handlers. The field set is the one the Next transport
+/// forwards unchanged after `canonicalDestinationLinks`.
+#[tokio::test]
+async fn feed_and_story_wire_shape_match_the_retired_next_transport() {
+    let probe = Arc::new(Probe::default());
+    let state = state(probe.clone());
+
+    let response = read_feed(
+        State(state.clone()),
+        Path("acme".into()),
+        Query(feed_query(None, None, None)),
+        request("GET", "", false),
+    )
+    .await;
+    let (status, value) = reply(response).await;
+    assert_eq!(status, StatusCode::OK);
+    let item = &value["data"]["items"][0];
+    for field in [
+        "id",
+        "kind",
+        "authorId",
+        "authorName",
+        "body",
+        "audience",
+        "version",
+        "createdAt",
+        "appreciationCount",
+        "commentCount",
+        "appreciated",
+        "followed",
+        "topics",
+        "comments",
+    ] {
+        assert!(item.get(field).is_some(), "feed field {field} is missing");
+    }
+    assert_eq!(value["data"]["hasMore"], true);
+    assert_eq!(value["data"]["nextCursor"], "10:post-1");
+    assert_eq!(
+        probe.reads.lock().unwrap().as_slice(),
+        ["feed|acme.example.test|acme"]
+    );
+
+    let response = create_story(
+        State(state),
+        Path("acme".into()),
+        request(
+            "POST",
+            r#"{"title":"Story","body":"Body","theme":"sage","audience":"holding"}"#,
+            true,
+        ),
+    )
+    .await;
+    let (status, value) = reply(response).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(value["data"]["id"], "post-key");
+    assert_eq!(value["data"]["status"], "published");
+    assert!(probe.commands.lock().unwrap()[0].contains("CreateStory"));
 }

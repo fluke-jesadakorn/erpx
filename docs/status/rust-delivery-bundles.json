@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15399,
+    "revision": 15404,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -216381,6 +216381,60 @@
           "route:apps-social"
         ],
         "nextAction": "Remove TS feed fallback, verify/native-implement collaboration, feed and stories Axum handlers with real SQL, add parity tests, and report exact mount/delete lists"
+      },
+      {
+        "goalId": "G3",
+        "kind": "migration",
+        "status": "migrated",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "7d45763a209c8b19f192e5466d6db581a7ee47a7",
+        "lastPushedSha": "7d45763a209c8b19f192e5466d6db581a7ee47a7",
+        "checks": [
+          {
+            "command": "bun scripts/testing/test.ts unit --suite=shared.testing.workspace-supervisor.unit",
+            "result": "passed",
+            "sourceSha": "7d45763a209c8b19f192e5466d6db581a7ee47a7",
+            "note": "12 tests: gateway API routing, header stripping, loopback context"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "7d45763a209c8b19f192e5466d6db581a7ee47a7"
+          },
+          {
+            "command": "retirement:next-routes",
+            "result": "passed",
+            "before": 1468,
+            "after": 1434,
+            "sourceSha": "7d45763a209c8b19f192e5466d6db581a7ee47a7",
+            "note": "34 Next API route files retired: navigation and work-card preferences, package handlers plus app re-exports"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false,
+        "id": "cutover.workplace.nav-preferences",
+        "owner": "work_projection",
+        "title": "Native navigation and work-card preference cutover",
+        "allowedPaths": [
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/navigation/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/work/card-preferences/**",
+          "scripts/local/native-api-proxy.ts",
+          "scripts/local/workspace-gateway-runtime.ts",
+          "scripts/local/compiled-workspace-gateway.ts",
+          "scripts/testing/api-cutover.ts",
+          "tests/unit/shared.testing/workspace-supervisor.test.ts"
+        ],
+        "resources": [
+          "owner:work_projection",
+          "route:workplace-shared"
+        ],
+        "nextAction": "Verify native session context with an authenticated Holding browser; continue next native-complete route family"
       }
     ],
     "migrationProgress": {
@@ -216389,21 +216443,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2449,
-      "migratedPackets": 369,
+      "totalPackets": 2450,
+      "migratedPackets": 370,
       "statusCounts": {
         "pending": 14,
         "in_progress": 3,
         "ready_for_integration": 146,
         "integrating": 0,
-        "migrated": 369,
+        "migrated": 370,
         "blocked": 1915,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 195,
-    "updatedAt": "2026-11-27T03:33:18.539Z",
+    "updatedAt": "2026-11-27T03:39:45.894Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",

@@ -7,9 +7,8 @@ import { ApiError, errorResponse, boundedCommandBody } from "@erpx/server-runtim
 import {
   nativeFieldCollaborationCommand,
   collaborationExport,
-  collaborationWorkspace,
 } from "@erpx/server-collaboration/public/collaboration-work";
-import { nativeCollaborationAvailable, nativeCollaborationCommand, nativeCollaborationWorkspace } from "@erpx/server-collaboration/public/native-collaboration-page";
+import { nativeCollaborationCommand, nativeCollaborationWorkspace } from "@erpx/server-collaboration/public/native-collaboration-page";
 function failure(e:unknown){return errorResponse(e instanceof NativePartsSetupError?new ApiError(e.status,e.code,e.message):e);}
 type C = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };
@@ -18,6 +17,8 @@ export async function GET(r: Request, c: C) {
     const a = await requireWorkContext((await c.params).holdingSlug);
     if (new URL(r.url).searchParams.get("format") === "csv") {
       if(a.modules.includes('field_service'))throw new ApiError(503,'NATIVE_FIELD_EXPORT_UNAVAILABLE','A complete native collaboration export is not available.');
+      // Retained CSV presentation reader: the native workspace port answers JSON
+      // only. This branch is a separate export format, not a workspace fallback.
       const result = await collaborationExport(a);
       return new Response(result.content, {
         headers: {
@@ -28,19 +29,16 @@ export async function GET(r: Request, c: C) {
         },
       });
     }
-    let data:CollaborationWorkReadModel=await collaborationWorkspace(a);
-    if(nativeCollaborationAvailable()){
-      const native=await nativeCollaborationWorkspace(r,(await c.params).holdingSlug);
-      if(!native)throw new ApiError(503,'NATIVE_COLLABORATION_RESPONSE_INVALID','Collaboration workspace unavailable.');
-      data={
-        relations:(native.relations??[]) as CollaborationWorkReadModel['relations'],
-        cards:(native.cards??[]) as CollaborationWorkReadModel['cards'],
-        people:(native.people??[]) as CollaborationWorkReadModel['people'],
-        sourceTypes:(native.sourceTypes??[]) as CollaborationWorkReadModel['sourceTypes'],
-        canWrite:native.access?.canWrite===true,
-        canReview:native.access?.canReview===true,
-      };
-    }
+    const native=await nativeCollaborationWorkspace(r,(await c.params).holdingSlug);
+    if(!native)throw new ApiError(503,'NATIVE_COLLABORATION_RESPONSE_INVALID','Collaboration workspace unavailable.');
+    let data:CollaborationWorkReadModel={
+      relations:(native.relations??[]) as CollaborationWorkReadModel['relations'],
+      cards:(native.cards??[]) as CollaborationWorkReadModel['cards'],
+      people:(native.people??[]) as CollaborationWorkReadModel['people'],
+      sourceTypes:(native.sourceTypes??[]) as CollaborationWorkReadModel['sourceTypes'],
+      canWrite:native.access?.canWrite===true,
+      canReview:native.access?.canReview===true,
+    };
     if(a.modules.includes('field_service')){
       const native=await nativeFieldCollaboration(r.headers,a.holdingSlug,nativeActorContext(a),'GET');
       if(!validFieldCollaborationReadModel(native))throw new ApiError(503,'NATIVE_FIELD_COLLABORATION_RESPONSE_INVALID','Field collaboration is unavailable.');
@@ -78,11 +76,8 @@ export async function POST(r: Request, c: C) {
       const data=await nativeFieldCollaboration(r.headers,a.holdingSlug,nativeActorContext(a),'POST',body,key);
       return Response.json(canonicalDestinationLinks({data}),{headers});
     }
-    if(nativeCollaborationAvailable()){
-      const data=await nativeCollaborationCommand(r,(await c.params).holdingSlug,body,key);
-      return Response.json(canonicalDestinationLinks({data}),{headers});
-    }
-    throw new ApiError(503,'NATIVE_COLLABORATION_UNAVAILABLE','The native Collaboration service is unavailable.');
+    const data=await nativeCollaborationCommand(r,(await c.params).holdingSlug,body,key);
+    return Response.json(canonicalDestinationLinks({data}),{headers});
   } catch (e) {
     return failure(e);
   }

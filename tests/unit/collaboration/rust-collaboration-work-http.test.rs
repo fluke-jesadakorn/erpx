@@ -251,3 +251,43 @@ async fn malformed_commands_and_missing_keys_never_reach_the_owner() {
     }
     assert!(probe.commands.lock().unwrap().is_empty());
 }
+
+/// The Next collaboration route now projects this exact envelope with no
+/// TypeScript workspace reader underneath it.
+#[tokio::test]
+async fn workspace_wire_shape_matches_the_retired_next_transport() {
+    let probe = Arc::new(Probe::default());
+    let state = state(probe.clone());
+    let response = read_workspace(
+        State(state.clone()),
+        Path("acme".into()),
+        Query(ReadQuery { format: None }),
+        request("GET", "", false),
+    )
+    .await;
+    let (status, value) = reply(response).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(value["data"]["access"]["canWrite"], true);
+    assert_eq!(value["data"]["access"]["canReview"], false);
+    assert_eq!(value["data"]["sourceTypes"], json!(["support_ticket"]));
+    for field in ["relations", "cards", "people", "sourceTypes", "access"] {
+        assert!(value["data"].get(field).is_some(), "workspace field {field} is missing");
+    }
+    assert_eq!(
+        probe.reads.lock().unwrap().as_slice(),
+        ["workspace|acme.example.test|acme"]
+    );
+
+    let response = read_workspace(
+        State(state),
+        Path("acme".into()),
+        Query(ReadQuery {
+            format: Some("csv".into()),
+        }),
+        request("GET", "", false),
+    )
+    .await;
+    let (status, value) = reply(response).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(value["error"]["code"], "NATIVE_COLLABORATION_EXPORT_UNAVAILABLE");
+}

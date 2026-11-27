@@ -1,3 +1,5 @@
+import {readFileSync} from 'node:fs';
+import {resolve} from 'node:path';
 import {afterEach,describe,expect,test,vi} from 'vitest';
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {BusinessRuleError} from "@erpx/server-shared/index";
@@ -431,5 +433,56 @@ describe('Native social feed, comment and revision read transport',()=>{
   process.env.ERPX_NATIVE_COLLABORATION_CONFIG=configuration;
   vi.stubGlobal('fetch',vi.fn(async()=>Response.json({error:{code:'SOCIAL_REVISIONS_PORT_UNAVAILABLE',message:'unavailable'}},{status:503})));
   await expect(nativePostRevisions(session(),'acme','post-1')).rejects.toMatchObject({code:'SOCIAL_REVISIONS_PORT_UNAVAILABLE',status:503});
+ });
+});
+
+describe('Apps API v1 native route cutover',()=>{
+ const root=resolve(process.cwd());
+ const read=(path:string)=>readFileSync(resolve(root,path),'utf8');
+ const routes='packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/';
+ afterEach(()=>{vi.unstubAllGlobals();delete process.env.ERPX_NATIVE_COLLABORATION_CONFIG;});
+
+ test('feed, collaboration and stories routes carry no TypeScript workspace/feed fallback',()=>{
+  const feed=read(routes+'feed/route.ts'),collab=read(routes+'collaboration/route.ts'),stories=read(routes+'stories/route.ts');
+  expect(feed).not.toContain('listFeed');
+  expect(feed).not.toContain('nativeSocialAvailable');
+  expect(feed).toContain('nativeFeed(request, holdingSlug');
+  expect(collab).not.toContain('collaborationWorkspace');
+  expect(collab).not.toContain('nativeCollaborationAvailable');
+  expect(collab).toContain('nativeCollaborationWorkspace(r,');
+  expect(stories).not.toContain('nativeSocialAvailable');
+  expect(stories).toContain('nativeCreateStory(request');
+  // No native GET /stories handler exists yet, so the TS reader stays authoritative.
+  expect(stories).toContain('listStories(actor.holdingId, actor)');
+ });
+
+ test('native routers are mounted and their owners execute SQL in Rust',()=>{
+  const social=read('packages/server-collaboration/src/adapters/social_http.rs');
+  const work=read('packages/server-collaboration/src/adapters/collaboration_work_http.rs');
+  const feedSql=read('packages/server-collaboration/src/adapters/social.rs');
+  const workSql=read('packages/server-collaboration/src/adapters/collaboration_work_pg.rs');
+  const mount=read('src/composition/src/private_development_api.rs');
+  expect(social).toContain('"/api/v1/holdings/{holding_slug}/feed"');
+  expect(social).toContain('"/api/v1/holdings/{holding_slug}/stories"');
+  expect(work).toContain('"/api/v1/holdings/{holding_slug}/collaboration"');
+  expect(feedSql).toContain('SELECT p.id,p.kind,p.author_id');
+  expect(workSql).toContain('SELECT a.version,a.role,a.modules_json');
+  expect(mount).toContain('social_http::social_router(social_targets)');
+  expect(mount).toContain('collaboration_work_router(');
+ });
+
+ test('native workspace and command transports preserve the owner wire shape and command key',async()=>{
+  process.env.ERPX_NATIVE_COLLABORATION_CONFIG=JSON.stringify({privateBaseUrl:'http://127.0.0.1:3105',timeoutMs:1000});
+  const calls:{url:string;init:RequestInit}[]=[];
+  vi.stubGlobal('fetch',vi.fn(async(url:string,init:RequestInit)=>{calls.push({url,init});return Response.json({data:{access:{canWrite:true,canReview:false},relations:[],cards:[],people:[],sourceTypes:['support_ticket']}});}));
+  const {nativeCollaborationWorkspace,nativeCollaborationCommand}=await import('@erpx/server-collaboration/public/native-collaboration-page');
+  const req=new Request('https://acme.jesadakorn.com/collaboration',{headers:{cookie:'session',origin:'https://acme.jesadakorn.com'}});
+  expect(await nativeCollaborationWorkspace(req,'acme')).toMatchObject({access:{canWrite:true},sourceTypes:['support_ticket']});
+  expect(calls[0]!.url).toBe('http://127.0.0.1:3105/api/v1/holdings/acme/collaboration');
+  expect(calls[0]!.init.method).toBe('GET');
+  const body='{"entity":"relation","sourceType":"support_ticket","sourceId":"a","targetType":"field_service_order","targetId":"b","relation":"related","reason":"Because"}';
+  expect(await nativeCollaborationCommand(req,'acme',body,'collab-key-0001')).toMatchObject({access:{canWrite:true}});
+  expect(calls[1]!.init.method).toBe('POST');
+  expect((calls[1]!.init.headers as Headers).get('idempotency-key')).toBe('collab-key-0001');
  });
 });
