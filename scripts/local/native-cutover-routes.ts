@@ -192,6 +192,7 @@ export function holdingNativeCutoverPath(url: string, holdingSlug: string, metho
   }
   if (owner === "routine-template-editor-context" && segment === undefined) return "native-private-read";
   if (owner === "sales" && segment === "price-list-workspace" && tail.length === 0) return "native-private-read";
+  if (owner === "people-payroll" && segment === "leave-policy-history" && tail.length === 0) return "native-private-read";
   if (owner === "routine-templates" || owner === "routine-schedules") {
     try {
       if (segment !== undefined && !validId(segment)) return;

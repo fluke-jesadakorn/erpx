@@ -11,6 +11,7 @@ import type { WorkContext } from '@erpx/server-identity_access/public/authorizat
 type Holding = Readonly<{ origin: string; host: string; holdingSlug: string; holdingId: string }>;
 type Settings = Readonly<{ privateBaseUrl: string; timeoutMs: number; holdings: readonly Holding[] }>;
 type Row = Readonly<{ name: string; version: number; status: string }>;
+type HistoryRow = Readonly<{ title: string; version: number; actor: string; at: number; kind: string }>;
 
 const ENV = 'ERPX_NATIVE_PEOPLE_PAYROLL_LEAVE_POLICIES_CONFIG';
 const reservedPorts = new Set([3000, 3001, 3100, 3101, 3103, 5432, 5433, 5435, 8080]);
@@ -45,15 +46,17 @@ function configuration(raw = process.env[ENV]): Settings {
 }
 
 
-export async function nativeActiveLeavePolicySettings(
-  actor: WorkContext,
-  send: (url: URL, init: { method: string; headers: Record<string, string> }, timeoutMs: number) => Promise<Response> = nativeRequest,
-): Promise<Row[]> {
+type Sender = (url: URL, init: { method: string; headers: Record<string, string> }, timeoutMs: number) => Promise<Response>;
+
+/** Shared transport: resolve the registered Holding and carry only bounded
+ * identity headers. The capability is a fixed literal from this module, never
+ * caller input. No SQL and no fallback live in this transport. */
+async function get(actor: WorkContext, capability: string, send: Sender): Promise<Response> {
   const settings = configuration();
   if (!identifier(actor.holdingId) || !slug(actor.holdingSlug) || !identifier(actor.companyId)) return unavailable();
   const holding = settings.holdings.find((item) => item.holdingId === actor.holdingId && item.holdingSlug === actor.holdingSlug);
   if (!holding) return unavailable();
-  const url = new URL(`/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/people-payroll/active-leave-policies`, settings.privateBaseUrl);
+  const url = new URL(`/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/people-payroll/${capability}`, settings.privateBaseUrl);
   let response: Response;
   try {
     response = await send(url, {
@@ -77,10 +80,38 @@ export async function nativeActiveLeavePolicySettings(
     void response.body?.cancel().catch(() => undefined);
     return unavailable();
   }
+  return response;
+}
+
+export async function nativeActiveLeavePolicySettings(
+  actor: WorkContext,
+  send: Sender = nativeRequest,
+): Promise<Row[]> {
+  const response = await get(actor, 'active-leave-policies', send);
   const body: unknown = await response.json().catch((): unknown => null);
   if (!Array.isArray(body)) return unavailable();
   return body.map((item) => {
     if (!record(item) || !text(item.name) || !Number.isSafeInteger(item.version) || !text(item.status)) return unavailable();
     return { name: item.name, version: item.version as number, status: item.status };
+  });
+}
+
+export async function nativeLeavePolicySettingsHistory(
+  actor: WorkContext,
+  send: Sender = nativeRequest,
+): Promise<HistoryRow[]> {
+  const response = await get(actor, 'leave-policy-history', send);
+  const body: unknown = await response.json().catch((): unknown => null);
+  if (!Array.isArray(body)) return unavailable();
+  return body.map((item) => {
+    if (!record(item) || !text(item.title) || !Number.isSafeInteger(item.version)
+      || !text(item.actor) || !Number.isSafeInteger(item.at) || !text(item.kind)) return unavailable();
+    return {
+      title: item.title,
+      version: item.version as number,
+      actor: item.actor,
+      at: item.at as number,
+      kind: item.kind,
+    };
   });
 }

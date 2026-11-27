@@ -10,9 +10,14 @@ mod domain;
 mod http;
 mod postgres;
 
-pub use application::{LeavePolicyFuture, LeavePolicyRead, project, validate};
-pub use domain::{ActiveLeavePolicies, LeavePolicySetting, valid_id, valid_slug};
+pub use application::{
+    LeavePolicyFuture, LeavePolicyRead, project, project_history, validate, validate_history,
+};
+pub use domain::{
+    ActiveLeavePolicies, LeavePolicyHistory, LeavePolicyHistoryRow, LeavePolicySetting, valid_id,
+    valid_slug,
+};
 pub use http::{
     router, router_for_holdings, router_with_reader, router_with_readers,
 };
-pub use postgres::{PgLeavePolicyRead, SQL_ACTIVE_LEAVE_POLICIES};
+pub use postgres::{PgLeavePolicyRead, SQL_ACTIVE_LEAVE_POLICIES, SQL_LEAVE_POLICY_HISTORY};

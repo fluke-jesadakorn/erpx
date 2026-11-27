@@ -43,6 +43,41 @@ impl ActiveLeavePolicies {
     }
 }
 
+/// One row of `leave_policy_versions` projected by the migrated
+/// `leavePolicySettingsHistory` TS read. Fields are byte-identical to the TS
+/// `{ title, version, actor, at, kind }` shape.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LeavePolicyHistoryRow {
+    pub title: String,
+    pub version: i64,
+    pub actor: String,
+    pub at: i64,
+    pub kind: String,
+}
+
+/// Bounded query for the leave-policy history route. As with the active read,
+/// the Company is the only caller-supplied value and always travels as a bind.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LeavePolicyHistory {
+    pub company: String,
+}
+
+impl LeavePolicyHistory {
+    pub fn new(company: impl Into<String>) -> Self {
+        Self {
+            company: company.into(),
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), BusinessError> {
+        if valid_id(&self.company) {
+            Ok(())
+        } else {
+            Err(invalid())
+        }
+    }
+}
+
 pub fn invalid() -> BusinessError {
     BusinessError::invalid(
         "PEOPLE_PAYROLL_LANE10_REQUEST_INVALID",
@@ -104,5 +139,16 @@ mod tests {
     fn query_validation_fails_closed() {
         assert!(ActiveLeavePolicies::new("comp_1").validate().is_ok());
         assert!(ActiveLeavePolicies::new("bad id").validate().is_err());
+    }
+
+    #[test]
+    fn history_query_uses_the_same_company_bounds() {
+        assert!(LeavePolicyHistory::new("comp_1").validate().is_ok());
+        assert!(LeavePolicyHistory::new("bad id").validate().is_err());
+        assert!(
+            LeavePolicyHistory::new("x'; DROP TABLE leave_policy_versions --")
+                .validate()
+                .is_err()
+        );
     }
 }

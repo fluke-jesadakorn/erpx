@@ -2,8 +2,10 @@
 //! targets, Company scope, bounded request shape and error mapping are owned
 //! here; PostgreSQL execution lives in `postgres`. No TS SQL fallback remains.
 
-use super::application::{LeavePolicyRead, project, validate};
-use super::domain::{ActiveLeavePolicies, configuration_invalid, invalid, valid_id, valid_slug};
+use super::application::{LeavePolicyRead, project, project_history, validate, validate_history};
+use super::domain::{
+    ActiveLeavePolicies, LeavePolicyHistory, configuration_invalid, invalid, valid_id, valid_slug,
+};
 use super::postgres::PgLeavePolicyRead;
 use crate::adapters::native_lane_9::LaneTarget;
 use erpx_server_runtime::public::http_support::{
@@ -97,6 +99,10 @@ fn finish(
             "/api/v1/holdings/{holding_slug}/people-payroll/active-leave-policies",
             get(active_leave_policies),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/people-payroll/leave-policy-history",
+            get(leave_policy_history),
+        )
         .with_state(Arc::new(RouteState { targets: configured })))
 }
 
@@ -164,15 +170,45 @@ async fn active_leave_policies(
     }
 }
 
+async fn leave_policy_history(
+    State(state): State<Arc<RouteState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let headers = request.headers().clone();
+        let host = unique_header(&headers, header::HOST)?
+            .filter(|host| !host.is_empty())
+            .ok_or_else(missing)?;
+        let reader = state
+            .targets
+            .get(&(host.to_owned(), slug.clone()))
+            .ok_or_else(missing)?;
+        let company = unique_header(&headers, CONTEXT_COMPANY)?
+            .filter(|value| valid_id(value))
+            .ok_or_else(invalid)?;
+        let query = LeavePolicyHistory::new(company);
+        validate_history(&query)?;
+        let rows = reader.history(&query.company).await?;
+        project_history(rows)
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use super::super::application::LeavePolicyFuture;
-    use super::super::domain::{LeavePolicySetting, unavailable};
+    use super::super::domain::{LeavePolicyHistoryRow, LeavePolicySetting, unavailable};
     use erpx_server_runtime::public::http_support::serde_json::json;
 
     struct Probe {
         rows: Vec<LeavePolicySetting>,
+        history_rows: Vec<LeavePolicyHistoryRow>,
         fail: bool,
         seen: Arc<std::sync::Mutex<Vec<String>>>,
     }
@@ -181,6 +217,22 @@ mod tests {
         fn active<'a>(&'a self, company: &'a str) -> LeavePolicyFuture<'a, Vec<LeavePolicySetting>> {
             let seen = self.seen.clone();
             let rows = self.rows.clone();
+            let fail = self.fail;
+            Box::pin(async move {
+                seen.lock().unwrap().push(company.to_owned());
+                if fail {
+                    return Err(unavailable());
+                }
+                Ok(rows)
+            })
+        }
+
+        fn history<'a>(
+            &'a self,
+            company: &'a str,
+        ) -> LeavePolicyFuture<'a, Vec<LeavePolicyHistoryRow>> {
+            let seen = self.seen.clone();
+            let rows = self.history_rows.clone();
             let fail = self.fail;
             Box::pin(async move {
                 seen.lock().unwrap().push(company.to_owned());
@@ -200,10 +252,21 @@ mod tests {
         }]
     }
 
+    fn history_rows() -> Vec<LeavePolicyHistoryRow> {
+        vec![LeavePolicyHistoryRow {
+            title: "standard".into(),
+            version: 3,
+            actor: "u1".into(),
+            at: 1_700_000_000,
+            kind: "Leave policy".into(),
+        }]
+    }
+
     #[test]
     fn target_configuration_requires_distinct_exact_holdings() {
         let reader: Arc<dyn LeavePolicyRead> = Arc::new(Probe {
             rows: rows(),
+            history_rows: history_rows(),
             fail: false,
             seen: Arc::new(std::sync::Mutex::new(Vec::new())),
         });
@@ -249,11 +312,13 @@ mod tests {
         let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
         let probe: Arc<dyn LeavePolicyRead> = Arc::new(Probe {
             rows: rows(),
+            history_rows: history_rows(),
             fail: false,
             seen: seen.clone(),
         });
         let failing: Arc<dyn LeavePolicyRead> = Arc::new(Probe {
             rows: vec![],
+            history_rows: vec![],
             fail: true,
             seen: seen.clone(),
         });
@@ -309,6 +374,56 @@ mod tests {
         let (status, body) = http(addr, raw).await;
         assert_eq!(status, 503);
         assert_eq!(body["error"]["code"], "PEOPLE_PAYROLL_LANE10_READ_UNAVAILABLE");
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn history_route_scopes_company_and_returns_typed_rows() {
+        let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let probe: Arc<dyn LeavePolicyRead> = Arc::new(Probe {
+            rows: rows(),
+            history_rows: history_rows(),
+            fail: false,
+            seen: seen.clone(),
+        });
+        let router = router_with_reader(
+            probe,
+            vec![LaneTarget {
+                host: "acme.example.test".into(),
+                holding_slug: "acme".into(),
+            }],
+        )
+        .unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let _ = erpx_server_runtime::public::http_support::serve(listener, router).await;
+        });
+        let get = |path: &str, company: &str| {
+            format!(
+                "GET {path} HTTP/1.1\r\nHost: acme.example.test\r\nConnection: close\r\n\
+                 x-erpx-context-company: {company}\r\n\r\n"
+            )
+        };
+        let path = "/api/v1/holdings/acme/people-payroll/leave-policy-history";
+        let (status, body) = http(addr, get(path, "comp_1")).await;
+        assert_eq!(status, 200);
+        assert_eq!(
+            body,
+            json!([{
+                "title":"standard","version":3,"actor":"u1","at":1700000000,"kind":"Leave policy"
+            }])
+        );
+        let (status, _) = http(
+            addr,
+            get("/api/v1/holdings/other/people-payroll/leave-policy-history", "comp_1"),
+        )
+        .await;
+        assert_eq!(status, 404);
+        let (status, body) = http(addr, get(path, "bad id")).await;
+        assert_eq!(status, 422);
+        assert_eq!(body["error"]["code"], "PEOPLE_PAYROLL_LANE10_REQUEST_INVALID");
+        assert_eq!(seen.lock().unwrap().last().cloned(), Some("comp_1".to_owned()));
         server.abort();
     }
 }
