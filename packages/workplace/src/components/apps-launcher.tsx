@@ -13,11 +13,11 @@ import styles from "./apps-launcher.module.css";
 const launcherHash = "#apps";
 
 /** The tree previews choices. Only an authorized owner launch link changes context. */
-export function AppsLauncher({ companies, accountId, language, provider, existingWorkspaces = [], currentCompanyId, currentWorkspaceId, productLabel, workspaceLabel, entry = false, requireSelection=false }: {
+export function AppsLauncher({ companies, accountId, language, provider, existingWorkspaces = [], currentCompanyId, currentWorkspaceId, productLabel, workspaceLabel, entry = false }: {
   companies: AppsCompany[]; accountId: string; language: "th" | "en";
   provider?: { href: string; role: string } | null;
   existingWorkspaces?: { holding: string; href: string }[];
-  currentCompanyId?: string; currentWorkspaceId?: string; productLabel?: string; workspaceLabel?: string; entry?: boolean;requireSelection?:boolean;
+  currentCompanyId?: string; currentWorkspaceId?: string; productLabel?: string; workspaceLabel?: string; entry?: boolean;
 }) {
   const th = language === "th", t = (thai: string, english: string) => th ? thai : english;
   const [memory, setMemory] = useState<AppsMemory>(emptyAppsMemory);
@@ -37,7 +37,7 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
     if (initialized.current === accountId) return;
     initialized.current = accountId;
     let saved = emptyAppsMemory();
-    try { if(!requireSelection)saved = readAppsMemory(window.localStorage, accountId); } catch { /* Optional storage. */ }
+    try { saved = readAppsMemory(window.localStorage, accountId); } catch { /* Optional storage. */ }
     if (currentCompanyId && currentWorkspaceId) saved = { ...saved, companyId: currentCompanyId, workspaceId: currentWorkspaceId };
     const restored = restoreAppsSelection(companies, saved);
     setMemory(restored.memory);
@@ -50,11 +50,11 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
     }
     const area = companies.find(item => item.id === restored.memory.companyId)?.workspaces.find(item => item.id === restored.memory.workspaceId);
     const feed = area?.apps.find(app => app.productId === "apps");
-    if (entry && !requireSelection && !requested && !restored.invalid && feed) {
+    if (entry && !requested && !restored.invalid && feed) {
       // This href comes from the fresh server-authorized snapshot, never storage.
       window.location.assign(feed.href);
     } else if (entry || requested) setOpen(true);
-  }, [accountId, companies, currentCompanyId, currentWorkspaceId, entry,requireSelection]);
+  }, [accountId, companies, currentCompanyId, currentWorkspaceId, entry]);
 
   useEffect(() => {
     const sync = () => {

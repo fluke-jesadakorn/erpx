@@ -64,7 +64,7 @@ export default async function ProductEntryPage({ searchParams, applications = fa
   }
   return <ProductNavigationBoundary language={language}><div className={styles.shell}>
     <header className={styles.header}><AppsHomeLink className={styles.brand}><ProductBrand appearance="standard" variant="symbol" className={styles.mark} /><strong>{host === "apps" ? "ERPX Apps" : `ERPX ${product(host)?.label[language] ?? "Administration"}`}</strong></AppsHomeLink>
-      <span className={styles.context}/><ProductAccountTrigger/><nav className={styles.links}>{host === "apps" && <AppsLauncher key={session.user.id} accountId={session.user.id} language={language} entry requireSelection={holdingRoutingEnabled(process.env)} currentCompanyId={remembered?.companyId} currentWorkspaceId={remembered?.workspaceId}
+      <span className={styles.context}/><ProductAccountTrigger/><nav className={styles.links}>{host === "apps" && <AppsLauncher key={session.user.id} accountId={session.user.id} language={language} entry currentCompanyId={remembered?.companyId} currentWorkspaceId={remembered?.workspaceId}
         companies={launcherCompanies}
         provider={provider ? {href: configuredProductHandoff("admin", "/provider")!, role: provider.role} : null} existingWorkspaces={existingWorkspaces} />}<a data-product-switch href={new URL("/", configuredProductOrigin("account")!).href}>Account</a></nav></header>
     {host === "apps" ? <>
