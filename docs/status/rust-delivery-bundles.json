@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16041,
+    "revision": 16057,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": null,
@@ -223597,21 +223597,28 @@
           "packages/feature-billing/src/components/platform-invoice-print.module.css",
           "packages/workplace/src/routes/holdings/[holdingSlug]/erpx-management/billing/invoices/_entry.tsx",
           "packages/feature-billing/package.json",
-          "packages/contracts/src/apps.ts"
+          "packages/contracts/src/apps.ts",
+          "src/composition/src/billing.rs",
+          "packages/server-billing/src/adapters/billing_http.rs",
+          "packages/server-billing/src/adapters/native-billing.ts",
+          "tests/unit/billing/rust-billing-http.test.rs",
+          "tests/unit/billing/native-billing-transport.test.ts",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/layout.tsx",
+          "packages/contracts/src/holding-hosts.ts"
         ],
         "resources": [
           "dev-admin-host"
         ],
-        "nextAction": "With a development Platform Billing session, verify Sandbox invoice PDF and customer denial against the new h003 host before changing exact Account/native configuration and Cloudflare routing. Preserve the currently registered host until verified.",
+        "nextAction": "Complete cutover.collaboration.rich-home-native-ssr, rerun exact Admin canary SSO, Feed and PDF with both roles, then publish only the new hostname and confirm the previous host tombstone.",
         "workflowIds": [],
         "kind": "migration",
         "dependsOn": [],
         "requiredPorts": [],
         "status": "blocked",
         "claim": null,
-        "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
-        "implementedCommit": "d2995b7a4cb7bd99d892bd07423769a031bb053e",
-        "lastPushedSha": "6057a6380f49cfbf4014b76b0148f7af34960c5d",
+        "baseSha": "338e55bce5e3d9a6406973140bae5d19e1f6c8d3",
+        "implementedCommit": "e44d10bb0e3ffb504f4b9de3c336bed8b723788b",
+        "lastPushedSha": "e44d10bb0e3ffb504f4b9de3c336bed8b723788b",
         "checks": [
           {
             "command": "Billing presenter type check and workspace structure validation",
@@ -223622,17 +223629,42 @@
             "command": "Chrome central Account checked; no signed-in development Platform Billing identity available",
             "result": "blocked",
             "sourceSha": "6057a6380f49cfbf4014b76b0148f7af34960c5d"
+          },
+          {
+            "command": "Opened isolated Admin and Account with Next 16.4.6 and Axum release; exported a void THB 1,250 Sandbox invoice to a clean one-page A4 PDF",
+            "result": "passed",
+            "sourceSha": "f92d6603d770d02cd75ce4ec028b6a9dd03ae12b"
+          },
+          {
+            "command": "Development and exact Admin canary signed-in customer denied the same protected URL with HTTP 403",
+            "result": "passed",
+            "sourceSha": "05c1213234a5c060addd71c74b567aaeccac0cf8"
+          },
+          {
+            "command": "Native Billing exact customer selector tests, Cargo check and release build; TypeScript Billing transport tests",
+            "result": "passed",
+            "sourceSha": "08680c105b2cb4ca9e04d3e21f566fff332b5ce3"
+          },
+          {
+            "command": "Exact Admin loopback canary SSO, direct Apps with authorized tiles, invoice renderer and old-host generic 404",
+            "result": "passed",
+            "sourceSha": "f92d6603d770d02cd75ce4ec028b6a9dd03ae12b"
+          },
+          {
+            "command": "Exact Admin loopback root real Feed SSR received native aggregate HTTP 404, public Cloudflare switch withheld",
+            "result": "blocked",
+            "sourceSha": "f92d6603d770d02cd75ce4ec028b6a9dd03ae12b"
           }
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
         "handoff": {
-          "runId": "oasis-staging-20261127",
+          "runId": "oasis-admin-followup-20261127",
           "agentId": "codex",
-          "at": "2026-11-27T13:47:10.256Z",
+          "at": "2026-11-27T14:18:52.871Z",
           "previousStatus": "blocked",
           "reason": "handoff",
-          "nextAction": "With a development Platform Billing session, verify Sandbox invoice PDF and customer denial against the new h003 host before changing exact Account/native configuration and Cloudflare routing. Preserve the currently registered host until verified."
+          "nextAction": "Complete cutover.collaboration.rich-home-native-ssr, rerun exact Admin canary SSO, Feed and PDF with both roles, then publish only the new hostname and confirm the previous host tombstone."
         }
       },
       {
@@ -223721,6 +223753,43 @@
           "reason": "handoff",
           "nextAction": "Open the CRM card through Apps using a genuinely owner-approved externally submitted registry version."
         }
+      },
+      {
+        "id": "cutover.collaboration.rich-home-native-ssr",
+        "goalId": "G3",
+        "owner": "collaboration",
+        "workflowIds": [],
+        "kind": "migration",
+        "title": "Bind the native aggregate Social read for the shared Holding Feed",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "resources": [
+          "collaboration-rich-home-native-ssr"
+        ],
+        "allowedPaths": [
+          "packages/server-collaboration/src/adapters/social_http.rs",
+          "packages/server-collaboration/src/adapters/social-page.ts",
+          "packages/server-collaboration/src/public/native-social-page.ts",
+          "packages/server-collaboration/src/public/native-social-page-types.ts",
+          "src/composition/src/collaboration.rs",
+          "src/composition/src/private_development_api.rs",
+          "tests/unit/collaboration/collaboration-services.test.ts"
+        ],
+        "scope": "The existing full SocialPage aggregate for a normal signed-in Holding session, including the initial thread, tag, audience/composer options, moderation, and document context. Preserve normal OASIS and CRM paths.",
+        "deliverables": [
+          "Bind complete Axum aggregate presentation and mount it through the exact registered Holding routes",
+          "Verify the new Admin Holding root reaches real Feed after normal SSO and retained Social contracts still pass"
+        ],
+        "nextAction": "Trace GET /api/v1/holdings/{holding_slug}/page from nativeSocialPageDataSSR. The exact Admin canary received 404 and SocialHttpBackend::page remains unimplemented in composition. Compare the existing SocialPage projection and mount the full Rust contract."
       }
     ],
     "migrationProgress": {
@@ -223729,10 +223798,10 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2471,
+      "totalPackets": 2472,
       "migratedPackets": 370,
       "statusCounts": {
-        "pending": 14,
+        "pending": 15,
         "in_progress": 0,
         "ready_for_integration": 159,
         "integrating": 0,
@@ -223742,8 +223811,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 212,
-    "updatedAt": "2026-11-27T13:47:10.407Z",
+    "lastCoordinatorGeneration": 213,
+    "updatedAt": "2026-11-27T14:18:53.022Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
