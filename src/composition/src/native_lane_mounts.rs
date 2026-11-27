@@ -1092,6 +1092,31 @@ pub fn mount(
         ).map_err(|_| "PRIVATE_API_RECORDS_LANE35_OWNER_SCOPE_INVALID")?,
     );
 
+    // Work Projection calendar reads: owner SELECTs on the caller Holding.
+    router = router.merge(
+        erpx_server_work_projection::public::calendar_read_http::calendar_read_router(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    erpx_server_work_projection::public::calendar_read_http::CalendarReadHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(
+                            erpx_server_work_projection::public::calendar_read_http::PgCalendarReadBackend::new([(
+                                holding.registration.slug.clone(),
+                                pools[i + 1].clone(),
+                            )]),
+                        ),
+                    }
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_WORK_CALENDAR_READ_INVALID")?,
+    );
+
     // Workflow lane 32: inbox failed-metrics read.
     router = router.merge(
         erpx_server_workflow::public::native_lane_32::router_for_holdings(
