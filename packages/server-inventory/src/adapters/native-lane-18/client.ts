@@ -3,6 +3,7 @@ import { headers } from 'next/headers';
 import { createHash } from 'node:crypto';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { nativeRequest } from '@erpx/server-runtime/public/native-http';
 import type { SqlValueRow } from '@erpx/server-runtime/public/runtime/sql';
 
 /**
@@ -168,7 +169,7 @@ export async function readStockAvailability(
   const url = new URL(`/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/${ROUTE}`, config.privateBaseUrl);
   let response: Response;
   try {
-    response = await fetch(url, {
+    response = await nativeRequest(url, {
       method: 'GET',
       headers: {
         host: holding.host,
@@ -180,13 +181,9 @@ export async function readStockAvailability(
         'x-erpx-context-holding': holding.holdingId,
         ...(branch === null ? {} : { 'x-erpx-context-branch': branch }),
       },
-      cache: 'no-store',
-      redirect: 'error',
-      signal: AbortSignal.timeout(config.timeoutMs),
-    });
+    }, config.timeoutMs);
   } catch { return unavailable(); }
   if (response.status !== 200) {
-    void response.body?.cancel().catch(() => undefined);
     const payload = await response.json().catch((): unknown => null);
     const err = record(payload) ? (payload as { error?: { code?: string; message?: string } }).error : undefined;
     if (response.status >= 400 && response.status < 500) {

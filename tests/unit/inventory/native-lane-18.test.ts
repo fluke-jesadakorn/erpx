@@ -3,6 +3,8 @@ import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
+const nativeRequestMock=vi.hoisted(()=>vi.fn());
+vi.mock('@erpx/server-runtime/public/native-http',()=>({nativeRequest:nativeRequestMock}));
 const incomingHost = { value: 'acme.jesadakorn.com' as string | null };
 vi.mock('next/headers', () => ({ headers: async () => new Headers(incomingHost.value === null ? {} : { host: incomingHost.value }) }));
 import { PosReadInventoryFacts } from '../../../packages/server-inventory/src/adapters/pos-facts';
@@ -39,13 +41,12 @@ function configure() {
   process.env[envKey] = JSON.stringify(DEV_ENV_JSON);
 }
 
-function stubFetch(status: number, payload: unknown) {
+function stubTransport(status: number, payload: unknown) {
   const calls: { url: URL; headers: Record<string, string> }[] = [];
-  const fn = vi.fn(async (url: URL, init: RequestInit) => {
-    calls.push({ url, headers: Object.fromEntries(Object.entries(init.headers ?? {}).map(([k, v]) => [k, String(v)])) });
+  nativeRequestMock.mockImplementation(async (url: URL, init: {headers: Record<string,string>}) => {
+    calls.push({ url, headers: init.headers });
     return new Response(JSON.stringify(payload), { status, headers: { 'content-type': 'application/json' } });
   });
-  vi.stubGlobal('fetch', fn);
   return calls;
 }
 
@@ -54,7 +55,7 @@ describe('native Inventory lane-18 stock-availability contract', () => {
   afterEach(() => {
     if (original === undefined) delete process.env[envKey];
     else process.env[envKey] = original;
-    vi.unstubAllGlobals();
+    nativeRequestMock.mockReset();
   });
 
   it('retired the TypeScript SQL with no fallback', () => {
@@ -85,7 +86,7 @@ describe('native Inventory lane-18 stock-availability contract', () => {
   });
 
   it('selects the Holding from WorkContext and pins the response shape', async () => {
-    const calls = stubFetch(200, samplePayload);
+    const calls = stubTransport(200, samplePayload);
     const db = { prepare() { throw new Error('no SQL fallback'); } };
     const facts = PosReadInventoryFacts(db as never, acme);
     const rows = await facts.readInventoryActiveReservations1({ company: 'acme-co', branch: 'branch-2', branch2: 'branch-2' });
@@ -99,7 +100,7 @@ describe('native Inventory lane-18 stock-availability contract', () => {
   });
 
   it('routes a different registered Holding to its own host, slug and company', async () => {
-    const calls = stubFetch(200, { rows: [], count: 0 });
+    const calls = stubTransport(200, { rows: [], count: 0 });
     incomingHost.value = 'northstar.jesadakorn.com';
     await readStockAvailability(northstar, 'company-northstar', null);
     expect(calls[0]!.url.pathname).toBe('/api/v1/holdings/northstar/inventory/lane-18/stock-availability');
@@ -109,7 +110,7 @@ describe('native Inventory lane-18 stock-availability contract', () => {
   });
 
   it('has no first-Holding default: unknown or mismatched WorkContext fails closed', async () => {
-    const calls = stubFetch(200, samplePayload);
+    const calls = stubTransport(200, samplePayload);
     await expect(readStockAvailability(actor('h999', 'acme', 'acme-co'), 'acme-co', null)).rejects.toMatchObject({ status: 409, code: 'INVENTORY_LANE18_WORK_CONTEXT_CHANGED' });
     await expect(readStockAvailability(actor('h002', 'northstar', 'acme-co'), 'acme-co', null)).rejects.toMatchObject({ status: 409 });
     await expect(readStockAvailability(acme, 'company-northstar', null)).rejects.toMatchObject({ status: 409 });
@@ -117,7 +118,7 @@ describe('native Inventory lane-18 stock-availability contract', () => {
   });
 
   it('pins a legacy fact caller to the exact incoming Host', async () => {
-    const calls = stubFetch(200, { rows: [], count: 0 });
+    const calls = stubTransport(200, { rows: [], count: 0 });
     incomingHost.value = 'northstar.jesadakorn.com';
     await readStockAvailability(undefined, 'company-northstar', null);
     expect(calls[0]!.url.pathname).toBe('/api/v1/holdings/northstar/inventory/lane-18/stock-availability');
@@ -127,9 +128,9 @@ describe('native Inventory lane-18 stock-availability contract', () => {
   });
 
   it('fails closed when the native route is unavailable or the payload drifts', async () => {
-    stubFetch(503, 'down');
+    stubTransport(503, 'down');
     await expect(readStockAvailability(acme, 'acme-co', null)).rejects.toMatchObject({ status: 503, code: 'INVENTORY_LANE18_READ_UNAVAILABLE' });
-    stubFetch(200, { rows: [{ warehouse_id: 'w1' }], count: 1 });
+    stubTransport(200, { rows: [{ warehouse_id: 'w1' }], count: 1 });
     await expect(readStockAvailability(acme, 'acme-co', null)).rejects.toMatchObject({ status: 503 });
     delete process.env[envKey];
     await expect(readStockAvailability(acme, 'acme-co', null)).rejects.toMatchObject({ status: 503 });
