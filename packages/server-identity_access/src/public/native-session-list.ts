@@ -23,7 +23,9 @@ export type NativeSessionRow = {
 export type NativeSessionListActor = Readonly<{
   userId: string;
   holdingId: string | null;
-  companyId: string;
+  /** Account-level reads (for example the IAM catch-all probe) are unbound by
+   * Company; a registered Holding with a company binding still rejects them. */
+  companyId?: string;
   platform?: boolean;
 }>;
 
@@ -53,7 +55,7 @@ const TARGET_INVALID = 'NATIVE_IAM_SESSION_LIST_TARGET_INVALID';
 const UNAVAILABLE = 'NATIVE_IAM_SESSION_LIST_UNAVAILABLE';
 const RESPONSE_INVALID = 'NATIVE_IAM_SESSION_LIST_RESPONSE_INVALID';
 const REQUEST_INVALID = 'NATIVE_IAM_SESSION_LIST_REQUEST_INVALID';
-const MAX_ROWS = 500;
+const MAX_ROWS = 2000;
 
 const fail = (status: number, code: string, message: string): never => {
   throw new ApiError(status, code, message);
@@ -224,7 +226,11 @@ export function createNativeSessionListClient(
       actor: NativeSessionListActor | undefined,
       incoming?: Pick<Headers, 'get'>,
     ): Promise<NativeSessionRow[]> {
-      if (!actor || !id(actor.userId) || !id(actor.companyId))
+      if (
+        !actor ||
+        !id(actor.userId) ||
+        (actor.companyId !== undefined && !id(actor.companyId))
+      )
         return fail(422, REQUEST_INVALID, 'Use a bounded IAM actor.');
       const target = selectTarget(config, actor, incoming);
       const headers = new Headers({

@@ -57,9 +57,13 @@ describe('Identity access read-tail r20 shared read helpers', () => {
       expect((sqlSrc.match(new RegExp(`export const ${helper} =`, 'g')) ?? []).length, helper).toBe(1);
     }
     expect((sqlSrc.match(/\bsamePersonColumnSql\(/g) ?? []).length).toBe(1); // the r19 pg export
-    expect((apiSrc.match(/\bsessionByUserSql\(/g) ?? []).length).toBe(1);
+    // The session-by-user SELECT is retired from both call sites: the IAM
+    // service reads port and the account IAM catch-all probe now use the
+    // mounted native lane 45 session-list read. The helper survives only as
+    // the byte-identity oracle pinned by the Rust TS_ORACLE_SQL contract.
+    expect((apiSrc.match(/\bsessionByUserSql\(/g) ?? []).length).toBe(0);
     expect((apiSrc.match(/\bsessionExistsSql\(/g) ?? []).length).toBe(1);
-    expect((readsSrc.match(/\bsessionByUserSql\(/g) ?? []).length).toBe(1);
+    expect((readsSrc.match(/\bsessionByUserSql\(/g) ?? []).length).toBe(0);
     expect((peopleSrc.match(/\bsamePersonColumnSql\(/g) ?? []).length).toBe(1);
     expect((pushSrc.match(/\bsessionExistsSql\(/g) ?? []).length).toBe(1);
     for (const literal of [oracle.samePg.sql, oracle.sameQmark.sql]) {

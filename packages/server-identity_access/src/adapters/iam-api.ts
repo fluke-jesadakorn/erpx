@@ -1,6 +1,6 @@
 import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
 import { iamMfaProbeSql, iamReviewProbeSql } from './read-tail-family-r28';
-import { samePersonQuerySql, sessionByUserSql, sessionExistsSql } from "./iam-probe-sql";
+import { samePersonQuerySql, sessionExistsSql } from "./iam-probe-sql";
 import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import {identitySnapshotSources as manageerpxSnapshotSources} from '@erpx/server-manage_erpx/public/identity-snapshot-sources';
@@ -44,6 +44,7 @@ import {
 } from "@erpx/server-identity_access/public/iam-migrations";
 import { requireFreshMfa } from "@erpx/server-identity_access/public/iam-mfa";
 import {nativeAccountHttp} from "@erpx/server-identity_access/public/native-account-http";
+import { nativeIamSessionProbe } from './native-iam-session-probe';
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { iamCommand } from "@erpx/server-identity_access/public/iam-transactions";
 import { iamDb } from "@erpx/server-identity_access/public/iam-db";
@@ -169,13 +170,10 @@ export async function iamAccountApi(request: Request, path: string[]) {
             )
               .bind(actor.userId)
               .first()),
-            sessions: (
-              await env.CONTROL_DB.prepare(
-                sessionByUserSql(''),
-              )
-                .bind(actor.userId)
-                .all()
-            ).results,
+            sessions: await nativeIamSessionProbe(
+              { userId: actor.userId },
+              request.headers,
+            ),
             currentSessionId: actor.sessionId,
           },
         }),

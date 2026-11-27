@@ -66,6 +66,30 @@ describe('native IAM session-list transport', () => {
     expect(transport.mock.calls[0][1].pathname).toContain('/holdings/acme/');
   });
 
+  it('reads an unbound account actor by registered Host without a Company binding', async () => {
+    const transport = vi.fn().mockResolvedValue(ok({ data: [row] }));
+    const account = { userId: 'user-1', holdingId: null };
+    await expect(client(transport).read(account, incoming())).resolves.toEqual([row]);
+    expect(transport.mock.calls[0][1].pathname).toBe(
+      '/api/v1/holdings/acme/identity-access/session-list-read',
+    );
+    expect(transport.mock.calls[0][2].get('x-erpx-context-user')).toBe('user-1');
+    // A Holding that binds a Company still rejects a company-free actor.
+    const bound = createNativeSessionListClient(
+      nativeSessionListConfiguration(
+        JSON.stringify({
+          ...JSON.parse(raw),
+          holdings: [{ ...JSON.parse(raw).holdings[0], companyId: 'company-1' }],
+        }),
+      ),
+      transport,
+    );
+    expect(await codeOf(() => bound.read(account, incoming()))).toBe(
+      'WORK_CONTEXT_CHANGED',
+    );
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
+
   it('fails closed on unknown hosts, cross-holding actors and unregistered ids', async () => {
     const transport = vi.fn().mockResolvedValue(ok({ data: [row] }));
     expect(await codeOf(() => client(transport).read(actor, incoming('evil.example.com')))).toBe(

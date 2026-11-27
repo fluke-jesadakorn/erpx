@@ -484,6 +484,10 @@ pub struct DevelopmentApiConfiguration {
 
 impl DevelopmentApiConfiguration {
     /// Registered public product hosts, in configuration order.
+    pub(crate) fn account_host(&self) -> &str {
+        self.policy.account_host.as_str()
+    }
+
     pub(crate) fn product_hosts(&self) -> Vec<String> {
         self.policy
             .products

@@ -1497,25 +1497,34 @@ pub fn mount(
         .map_err(|_| "PRIVATE_API_BRAND_LANE40_INVALID")?,
     );
 
-    // Identity & Access lane 45: IAM session list read.
+    // Identity & Access lane 45: IAM session list read. The Account host reads
+    // the same Control session table, so it selects the first Holding slug on
+    // the Control pool while keeping an exact registered Host target.
+    let mut lane45_targets: Vec<_> = config
+        .holdings
+        .iter()
+        .map(|holding| {
+            (
+                erpx_server_identity_access::public::native_lane_45::LaneTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                },
+                pools[0].clone(),
+            )
+        })
+        .collect();
+    if let Some(first) = config.holdings.first() {
+        lane45_targets.push((
+            erpx_server_identity_access::public::native_lane_45::LaneTarget {
+                host: config.account_host().to_owned(),
+                holding_slug: first.registration.slug.clone(),
+            },
+            pools[0].clone(),
+        ));
+    }
     router = router.merge(
-        erpx_server_identity_access::public::native_lane_45::router_for_holdings(
-            config
-                .holdings
-                .iter()
-                .enumerate()
-                .map(|(i, holding)| {
-                    (
-                        erpx_server_identity_access::public::native_lane_45::LaneTarget {
-                            host: holding.host.clone(),
-                            holding_slug: holding.registration.slug.clone(),
-                        },
-                        pools[0].clone(),
-                    )
-                })
-                .collect(),
-        )
-        .map_err(|_| "PRIVATE_API_IDENTITY_LANE45_INVALID")?,
+        erpx_server_identity_access::public::native_lane_45::router_for_holdings(lane45_targets)
+            .map_err(|_| "PRIVATE_API_IDENTITY_LANE45_INVALID")?,
     );
 
     // Organization: native draft read.
