@@ -1,3 +1,4 @@
+import { oasisDemoStagingEnabled } from "@erpx/contracts/holding-hosts";
 import {followupProjectionScope,followupPurchasedAccess} from "@erpx/server-sales/adapters/followup-purchases";
 import {supportWorkspacePurchaseAccess} from '@erpx/server-support/public/support';
 import { commercialOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/commercial-owner-projection-sources";
@@ -37,8 +38,10 @@ function orderScope(actor: WorkContext, alias = "o") {
 }
 async function accessContext(actor: WorkContext) {
   const compatibility = legacyModuleCompatibility(actor, actor.modules).flatMap(proof => proof.modules);
-  const apps = process.env.NODE_ENV === "production" ? availableNavigationAppIds((await companyFeatureCatalogue(actor))
-    .map(entry => compatibility.includes(entry.id) ? { ...entry, permitted: true } : entry)) : undefined;
+  const apps = oasisDemoStagingEnabled(process.env)
+    ? ["crm", "sales"]
+    : process.env.NODE_ENV === "production" ? availableNavigationAppIds((await companyFeatureCatalogue(actor))
+      .map(entry => compatibility.includes(entry.id) ? { ...entry, permitted: true } : entry)) : undefined;
   const access = salesCustomerAccess(actor, apps), purchase = await supportWorkspacePurchaseAccess(actor);
   return { access: { ...access, support: access.support && purchase.history }, purchase };
 }

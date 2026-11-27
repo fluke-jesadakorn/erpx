@@ -37,6 +37,7 @@ if (import.meta.main || process.argv[1]?.endsWith('/stage/entry.mjs')) {
   const privateBaseUrl = `http://127.0.0.1:${oasisDemoRouting.api}`;
   const accountOrigin = `https://${oasisDemoAccountHost}`;
   const holdingOrigin = `https://${oasisDemoHolding.hostname}`;
+  const ownerApi = JSON.stringify({privateBaseUrl, timeoutMs:5000});
   const account = JSON.stringify({privateBaseUrl, timeoutMs:5000, accountOrigin, holdingOrigins:[holdingOrigin], originProfile:'oasis-demo-staging'});
   const holding = JSON.stringify({privateBaseUrl, timeoutMs:5000, holdings:[{origin:holdingOrigin, holdingId:oasisDemoHolding.holdingId, holdingSlug:oasisDemoHolding.holdingSlug}]});
   const holdingBinding = JSON.stringify({privateBaseUrl, timeoutMs:5000, origin:holdingOrigin,
@@ -49,6 +50,8 @@ if (import.meta.main || process.argv[1]?.endsWith('/stage/entry.mjs')) {
     ERPX_APP_PG_POOL_MAX:'2', ERPX_CONTROL_PG_POOL_MAX:'2', BETTER_AUTH_SECRET:runtime.BETTER_AUTH_SECRET,
     ERPX_NATIVE_RUNTIME_HOLDING_READ_CONFIG:holdingBinding,
     ERPX_NATIVE_ORGANIZATION_CONFIG:holding, ERPX_NATIVE_COMMERCIAL_OWNER_READ_CONFIG:holding,
+    ERPX_NATIVE_COMMERCE_OWNER_WRITE_CONFIG:holdingBinding, ERPX_NATIVE_WORKFLOW_WAVE3_CONFIG:ownerApi,
+    ERPX_NATIVE_FINANCE_COMPANY_MONEY_CONFIG:ownerApi,
     ERPX_NATIVE_ACCOUNT_SESSION_CONFIG:account, ERPX_NATIVE_FIELD_SERVICE_WORKSPACE_CONFIG:holding,
     ERPX_NATIVE_CRM_PIPELINE_CONFIG:holding, ERPX_NATIVE_CRM_ACTIVITY_WORKSPACE_CONFIG:holding,
     ERPX_NATIVE_SALES_DOCUMENTS_CONFIG:holding, ERPX_NATIVE_COMMERCE_ORDER_CONFIG:holding,

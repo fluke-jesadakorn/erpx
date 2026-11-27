@@ -1,4 +1,5 @@
 import 'server-only';
+import { oasisDemoStagingEnabled } from '@erpx/feature-runtime/lib/holding-hosts';
 import {moduleRegistry} from '@erpx/catalogue/module-registry';
 import {isReleaseModule} from '@erpx/feature-shared/lib/hospitality-rollout';
 import {legalProductionScope} from '@erpx/catalogue/production-scope';
@@ -37,5 +38,13 @@ function repository(write:SqlDatabase):FeatureAvailabilityRepository{return {eng
         }>().then(rows => rows.results),active: (companyId, moduleId) => write.prepare(`${PMS_ROLLOUT_ACTIVE_SQL} ${activeRolloutPredicate('f')}`).bind(companyId, moduleId).first()};}
 const availability=createFeatureAvailability({environment:()=>process.env.NODE_ENV,deployment:()=>process.env.ERPX_ENVIRONMENT,error:(status,code,message)=>new ApiError(status,code,message)});
 export function assertProductionFeatureRoute(db: SqlDatabase, companyId: string, destination: string, method: string) { return availability.assertProductionFeatureRoute(repository(db), companyId, destination, method); }
-export function assertProductionModuleEnabled(db: SqlDatabase, companyId: string, moduleId: string) { return availability.assertProductionModuleEnabled(repository(db), companyId, moduleId); }
+export async function assertProductionModuleEnabled(db: SqlDatabase, companyId: string, moduleId: string) {
+    const rollout = repository(db);
+    if (moduleId === 'sales' && oasisDemoStagingEnabled(process.env)) {
+        if (!await rollout.active(companyId, moduleId))
+            throw new ApiError(403, 'FEATURE_COMING_SOON', 'This Company has not activated the Sales demo pilot');
+        return;
+    }
+    return availability.assertProductionModuleEnabled(rollout, companyId, moduleId);
+}
 export function enabledProductionModules(db: SqlDatabase, companyId: string) { return availability.enabledProductionModules(repository(db), companyId); }
