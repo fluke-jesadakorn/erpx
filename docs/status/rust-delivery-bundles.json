@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15864,
+    "revision": 16041,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": null,
@@ -222466,6 +222466,1261 @@
           "routeAuthority": true,
           "presenterParity": true
         }
+      },
+      {
+        "id": "cutover.crm.oasis-link-quote",
+        "goalId": "G3",
+        "owner": "crm",
+        "workflowIds": [
+          "crm-feature-sales-handoff"
+        ],
+        "kind": "migration",
+        "title": "OASIS demo: route approved quotation linking through the native CRM command",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-sales/src/public/native-crm-command.ts",
+          "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/crm/route.ts",
+          "packages/server-crm/src/adapters/**",
+          "packages/server-crm/src/application/**",
+          "packages/server-crm/src/domain/**",
+          "tests/unit/crm/**",
+          "tests/integration/crm/**"
+        ],
+        "resources": [
+          "crm-oasis-link-quote"
+        ],
+        "status": "blocked",
+        "claim": null,
+        "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [
+          {
+            "command": "Vitest CRM native command transport",
+            "result": "passed",
+            "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+            "scope": "16 tests, link-quote native-only and existing transport dispatch"
+          },
+          {
+            "command": "cargo test -p erpx-server-crm --locked --test crm_pipeline_postgres -- --test-threads=3",
+            "result": "passed",
+            "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+            "scope": "27 tests with restricted fixture administrator and pinned Bun"
+          },
+          {
+            "command": "cargo test -p erpx-server-crm --locked --test crm_activity_http",
+            "result": "passed",
+            "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+            "scope": "4 tests"
+          },
+          {
+            "command": "isolated browser run 27a0515d3e06",
+            "result": "blocked",
+            "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+            "scope": "Next sign-in and health 503; Axum Account 200 and SSO 303 callback succeeded independently for both personas; assignments/active 404"
+          },
+          {
+            "command": "retirement:next-routes approved CRM quote link",
+            "result": "passed",
+            "before": 1,
+            "after": 0,
+            "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5"
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-crm/src/adapters/leads.ts",
+            "removalTaskId": "migrate.crm",
+            "removalCondition": "Other retained lead and opportunity branches require their own verified cutovers. The quote-link writer was removed."
+          }
+        ],
+        "blocker": "handoff",
+        "nextAction": "Bind Account and Sales to the isolated sample, verify assignments/active after SSO and replay the CRM browser sequence through the Axum linked-quote command.",
+        "handoff": {
+          "runId": "oasis-interview-20261127",
+          "agentId": "codex",
+          "at": "2026-11-27T10:19:51.734Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Bind Account and Sales to the isolated sample, verify assignments/active after SSO and replay the CRM browser sequence through the Axum linked-quote command."
+        }
+      },
+      {
+        "id": "cutover.commerce.oasis-quote-writes",
+        "goalId": "G3",
+        "owner": "commerce",
+        "workflowIds": [
+          "sales-quotes"
+        ],
+        "kind": "migration",
+        "title": "OASIS demo: enforce native quote draft and approval commands in the Next transport",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
+          "packages/feature-sales/src/public/native-commerce-orders-page.ts",
+          "tests/unit/sales/**"
+        ],
+        "resources": [
+          "commerce-oasis-quote-writes"
+        ],
+        "status": "blocked",
+        "claim": null,
+        "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [
+          {
+            "command": "Vitest native Commerce order and Sales documents transport",
+            "result": "passed",
+            "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+            "scope": "24 tests, fails closed on a quote when native is absent; preserves purchase selection"
+          },
+          {
+            "command": "cargo test -p erpx-server-commerce --locked --test order_postgres save_creates_priced_quote_and_cas_updates_in_one_serializable_unit -- --exact",
+            "result": "passed",
+            "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5"
+          },
+          {
+            "command": "cargo test -p erpx-server-commerce --locked --test order_postgres approve_discount_and_cancel_paths_preserve_independence_and_guards -- --exact",
+            "result": "passed",
+            "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5"
+          },
+          {
+            "command": "isolated browser run 27a0515d3e06",
+            "result": "blocked",
+            "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+            "scope": "Next sign-in 503 and Axum assignment route 404 after normal SSO"
+          },
+          {
+            "command": "retirement:next-routes quote draft and transition fallbacks",
+            "result": "passed",
+            "before": 2,
+            "after": 0,
+            "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5"
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-commerce/src/application/commerce.ts",
+            "removalTaskId": "migrate.commerce",
+            "removalCondition": "Owner saveOrder/transitionOrder still serve other Commerce orders and existing fixture callers. The Next quote draft/transition entrypoint requires Axum."
+          }
+        ],
+        "blocker": "handoff",
+        "nextAction": "Bind Account and Sales to the isolated sample, verify selected Sales roles and replay draft create/edit/submit/approve and print through the normal browser.",
+        "handoff": {
+          "runId": "oasis-interview-20261127",
+          "agentId": "codex",
+          "at": "2026-11-27T10:19:52.274Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Bind Account and Sales to the isolated sample, verify selected Sales roles and replay draft create/edit/submit/approve and print through the normal browser."
+        }
+      },
+      {
+        "id": "cutover.crm.oasis-sales-report",
+        "goalId": "G3",
+        "owner": "crm",
+        "workflowIds": [],
+        "kind": "migration",
+        "title": "Move the Sales CRM report and filter options to the native owner while preserving the report contracts.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-crm/src/**",
+          "packages/server-crm/Cargo.toml",
+          "packages/feature-sales/src/components/customers/sales-views.tsx",
+          "packages/feature-sales/src/public/native-crm-report.ts",
+          "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/reports/crm-marketing/route.ts",
+          "tests/unit/crm/**",
+          "tests/integration/crm/**"
+        ],
+        "resources": [
+          "cutover.crm.oasis-sales-report"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+        "implementedCommit": "b3a161c71ea4ac3f63f7ab9bc7c06281a59aa0c0",
+        "lastPushedSha": "b3a161c71ea4ac3f63f7ab9bc7c06281a59aa0c0",
+        "checks": [
+          {
+            "command": "CRM native HTTP report tests",
+            "result": "passed",
+            "sourceSha": "60b7954d144fbd07249b5b211f78b8fbd4991d3e",
+            "detail": "3 tests, exact scope, owner and date"
+          },
+          {
+            "command": "OASIS isolated browser Sales Reports",
+            "result": "passed",
+            "sourceSha": "f6c92d27611be9f9be8d9fd13a7fce85fe31a88d",
+            "detail": "Manager report displayed CRM analytics, from/to and Kitchen salesperson after normal Account SSO"
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/feature-sales/src/components/customers/sales-views.tsx",
+            "detail": "Uses the retained analytics readers for environments outside the isolated demo."
+          }
+        ],
+        "blocker": "handoff",
+        "nextAction": "Rehearse on the sealed candidate alongside Commerce editor options.",
+        "handoff": {
+          "runId": "oasis-staging-20261127",
+          "agentId": "report_worker",
+          "at": "2026-11-27T11:53:21.267Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Rehearse on the sealed candidate alongside Commerce editor options."
+        }
+      },
+      {
+        "id": "cutover.identity_access.oasis-work-selection",
+        "goalId": "G3",
+        "owner": "identity_access",
+        "workflowIds": [],
+        "kind": "migration",
+        "title": "Mount authenticated Rust company and assignment selection for the ERPX demo.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/**",
+          "src/composition/src/**",
+          "src/composition/Cargo.toml",
+          "tests/integration/identity_access/**",
+          "tests/unit/identity_access/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/assignments/active/route.ts",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/companies/active/route.ts",
+          "apps/account/src/app/api/v1/holdings/[holdingSlug]/assignments/active/route.ts",
+          "apps/account/src/app/api/v1/holdings/[holdingSlug]/companies/active/route.ts",
+          "apps/sales/src/app/api/v1/holdings/[holdingSlug]/assignments/active/route.ts",
+          "apps/sales/src/app/api/v1/holdings/[holdingSlug]/companies/active/route.ts",
+          "apps/launcher/src/app/api/v1/holdings/[holdingSlug]/assignments/active/route.ts",
+          "apps/launcher/src/app/api/v1/holdings/[holdingSlug]/companies/active/route.ts",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/assignments/active/route.ts",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/companies/active/route.ts"
+        ],
+        "resources": [
+          "cutover.identity_access.oasis-work-selection"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+        "implementedCommit": "b3a161c71ea4ac3f63f7ab9bc7c06281a59aa0c0",
+        "lastPushedSha": "b3a161c71ea4ac3f63f7ab9bc7c06281a59aa0c0",
+        "checks": [
+          {
+            "command": "vitest native Identity lane 11",
+            "result": "passed",
+            "sourceSha": "b3a161c71ea4ac3f63f7ab9bc7c06281a59aa0c0",
+            "detail": "19 tests including exact Holding Host and Origin"
+          },
+          {
+            "command": "OASIS isolated browser SSO and Sales pipeline",
+            "result": "passed",
+            "sourceSha": "f6c92d27611be9f9be8d9fd13a7fce85fe31a88d",
+            "detail": "Both independent fixture users signed in, selected roles, and rendered the seeded pipeline."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-identity_access/src/adapters",
+            "detail": "Shared out-of-scope identity and administration owner transports remain in the broader migration queue."
+          }
+        ],
+        "blocker": "handoff",
+        "nextAction": "Rehearse on the sealed candidate alongside Commerce editor options.",
+        "handoff": {
+          "runId": "oasis-staging-20261127",
+          "agentId": "codex",
+          "at": "2026-11-27T11:53:21.840Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Rehearse on the sealed candidate alongside Commerce editor options."
+        }
+      },
+      {
+        "id": "cutover.runtime.oasis-demo-release",
+        "goalId": "G4",
+        "owner": "runtime",
+        "workflowIds": [],
+        "kind": "migration",
+        "title": "Implement exact demo staging host routing and frozen runtime release wiring.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/contracts/src/holding-hosts.ts",
+          "packages/feature-runtime/src/lib/holding-hosts.ts",
+          "packages/feature-runtime/src/lib/product-hosts.ts",
+          "packages/native-sdk/src/session.ts",
+          "packages/server-runtime/src/adapters/runtime/env.ts",
+          "packages/workplace/src/proxy.ts",
+          "scripts/local/compiled-workspace-gateway.ts",
+          "scripts/local/workspace-release-gateway.ts",
+          "scripts/local/prepare-workspace-release.ts",
+          "scripts/local/workspace-release-manifest.ts",
+          "scripts/local/native-cutover-routes.ts",
+          "tests/unit/shared.testing/**",
+          "tests/unit/records/**",
+          "tests/unit/workspace/**",
+          "tests/unit/holding_routing/**",
+          "scripts/local/oasis-demo-release.ts",
+          "scripts/local/oasis-demo-stage.ts"
+        ],
+        "resources": [
+          "cutover.runtime.oasis-demo-release"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+        "implementedCommit": "ecb5c44b78b6133e46af52e6ce630714104f3a11",
+        "lastPushedSha": "6057a6380f49cfbf4014b76b0148f7af34960c5d",
+        "checks": [
+          {
+            "command": "Frozen Next standalone Apps, Sales, Account and optimized Axum, inventory verified",
+            "result": "passed",
+            "sourceSha": "ecb5c44b78b6133e46af52e6ce630714104f3a11"
+          },
+          {
+            "command": "Cloudflare public Holding and Account health 200, Chrome normal authentication and two-account Sales/CRM walkthrough",
+            "result": "passed",
+            "sourceSha": "ecb5c44b78b6133e46af52e6ce630714104f3a11"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Retain the published OASIS release for the interview. Re-run the external Chrome walkthrough before promoting another release.",
+        "handoff": {
+          "runId": "oasis-staging-20261127",
+          "agentId": "codex",
+          "at": "2026-11-27T13:47:07.763Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Retain the published OASIS release for the interview. Re-run the external Chrome walkthrough before promoting another release."
+        }
+      },
+      {
+        "id": "cutover.sales.oasis-browser-commands",
+        "goalId": "G3",
+        "owner": "sales",
+        "workflowIds": [],
+        "kind": "migration",
+        "title": "Send the ERPX demo CRM activities, qualification, quote linkage and quotation/conversion commands directly to typed Axum paths.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-crm/src/components/**",
+          "packages/feature-crm/src/lib/**",
+          "packages/feature-sales/src/public/native-crm-command.ts",
+          "packages/feature-sales/src/public/native-commerce-orders-page.ts",
+          "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/crm/route.ts",
+          "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/crm/activities/route.ts",
+          "packages/feature-commerce/src/components/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/commerce/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/commerce/orders/**",
+          "tests/unit/sales/**",
+          "tests/unit/commerce/**"
+        ],
+        "resources": [
+          "oasis-demo-sales-browser-commands"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+        "implementedCommit": "ecb5c44b78b6133e46af52e6ce630714104f3a11",
+        "lastPushedSha": "6057a6380f49cfbf4014b76b0148f7af34960c5d",
+        "checks": [
+          {
+            "command": "Public Chrome confirms quotation create, update, independent approval and CRM link through the Axum ingress",
+            "result": "passed",
+            "sourceSha": "ecb5c44b78b6133e46af52e6ce630714104f3a11"
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-commerce/src",
+            "removalTaskId": "migrate.commerce",
+            "removalCondition": "Retain non-pilot Commerce commands until ports and owner parity are complete."
+          }
+        ],
+        "blocker": "handoff",
+        "nextAction": "Retest affected Sales owners outside the OASIS pilot before removing shared-scope TS compatibility branches.",
+        "handoff": {
+          "runId": "oasis-staging-20261127",
+          "agentId": "sales_worker",
+          "at": "2026-11-27T13:47:09.309Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Retest affected Sales owners outside the OASIS pilot before removing shared-scope TS compatibility branches."
+        }
+      },
+      {
+        "id": "cutover.sales.oasis-demo-fixture",
+        "goalId": "G4",
+        "owner": "sales",
+        "workflowIds": [],
+        "kind": "integration",
+        "title": "Isolated OASIS synthetic Company and runtime inputs",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "scripts/seed/oasis-demo-staging.ts",
+          "fixtures/sales/builders/oasis-interview.ts",
+          "packages/feature-crm/package.json",
+          "packages/feature-sales/package.json",
+          "bun.lock",
+          "docs/research/oasis-dream-house-interview-2026-11-27.md"
+        ],
+        "resources": [
+          "oasis-demo-staging-database"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+        "implementedCommit": "e392ee2569332552feb19f47bbd45405fc578848",
+        "lastPushedSha": "e392ee2569332552feb19f47bbd45405fc578848",
+        "checks": [
+          {
+            "command": "OASIS isolated PostgreSQL fixture, native rehearsal and approved price list",
+            "result": "passed",
+            "sourceSha": "e392ee2569332552feb19f47bbd45405fc578848",
+            "detail": "Synthetic Holding, separate role accounts, untouched lead, write-denied reader, approved 3-item rates"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Validate the three registered prices in the quotation form before publishing the staging host.",
+        "handoff": {
+          "runId": "oasis-staging-20261127",
+          "agentId": "codex",
+          "at": "2026-11-27T11:58:01.604Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Validate the three registered prices in the quotation form before publishing the staging host."
+        }
+      },
+      {
+        "id": "cutover.identity_access.oasis-role-form",
+        "goalId": "G3",
+        "owner": "identity_access",
+        "workflowIds": [],
+        "kind": "migration",
+        "title": "Select the signed-in demo work role through Axum from the initial chooser",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/workplace/src/routes/choose-work-role/page.tsx",
+          "packages/workplace/src/routes/choose-work-role/native-role-form.tsx"
+        ],
+        "resources": [
+          "oasis-demo-role-chooser-presentation"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+        "implementedCommit": "60b7954d144fbd07249b5b211f78b8fbd4991d3e",
+        "lastPushedSha": "0c7a3c6206350135272503bcb282ff8b03fe4032",
+        "checks": [
+          {
+            "sourceSha": "60b7954d144fbd07249b5b211f78b8fbd4991d3e",
+            "command": "Normal Account sign-in and independent browser role selection",
+            "result": "passed",
+            "detail": "Two isolated role accounts entered the seeded Sales workspace using the actual SSO callback"
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "detail": "Shared Account and holding presentation remain in Next SSR"
+          }
+        ],
+        "blocker": "handoff",
+        "nextAction": "Rehearse the integrated OASIS staging release with both independent accounts and preserve the separate interview case.",
+        "handoff": {
+          "runId": "oasis-staging-20261127",
+          "agentId": "release_worker",
+          "at": "2026-11-27T12:05:15.621Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Rehearse the integrated OASIS staging release with both independent accounts and preserve the separate interview case."
+        }
+      },
+      {
+        "id": "cutover.runtime.oasis-snapshot-input",
+        "goalId": "G4",
+        "owner": "runtime",
+        "workflowIds": [],
+        "kind": "integration",
+        "title": "Preserve source routes named target in the immutable demo snapshot",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "scripts/local/workspace-copy-input.ts"
+        ],
+        "resources": [
+          "oasis-snapshot-input-filter"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+        "implementedCommit": "4f66ba30544bba60e613d0d2d9300299333d6958",
+        "lastPushedSha": "0c7a3c6206350135272503bcb282ff8b03fe4032",
+        "checks": [
+          {
+            "sourceSha": "4f66ba30544bba60e613d0d2d9300299333d6958",
+            "command": "Frozen source and complete standalone artifact inventory",
+            "result": "passed",
+            "detail": "Three standalone apps and native optimized binary sealed, including real target route files and contracts"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Rehearse the integrated OASIS staging release with both independent accounts and preserve the separate interview case.",
+        "handoff": {
+          "runId": "oasis-staging-20261127",
+          "agentId": "codex",
+          "at": "2026-11-27T12:05:17.978Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Rehearse the integrated OASIS staging release with both independent accounts and preserve the separate interview case."
+        }
+      },
+      {
+        "id": "cutover.commerce.oasis-decimal-quote",
+        "goalId": "G3",
+        "owner": "commerce",
+        "workflowIds": [],
+        "kind": "migration",
+        "title": "Preserve fractional quantities and money in native quotation drafts",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-commerce/src/domain/order.rs",
+          "tests/integration/commerce/rust-commerce-order-postgres.test.rs"
+        ],
+        "resources": [
+          "oasis-native-quote-decimals"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+        "implementedCommit": "517c92486f6cf1205530ff62220d189def0d3848",
+        "lastPushedSha": "0c7a3c6206350135272503bcb282ff8b03fe4032",
+        "checks": [
+          {
+            "sourceSha": "517c92486f6cf1205530ff62220d189def0d3848",
+            "command": "Exact kitchen arithmetic on migrated PostgreSQL",
+            "result": "passed",
+            "detail": "1/1: 2.4 m stored as 2400, 67,000 -> 85,500 THB, same document after edit"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Rehearse the integrated OASIS staging release with both independent accounts and preserve the separate interview case.",
+        "handoff": {
+          "runId": "oasis-staging-20261127",
+          "agentId": "codex",
+          "at": "2026-11-27T12:05:13.037Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Rehearse the integrated OASIS staging release with both independent accounts and preserve the separate interview case."
+        }
+      },
+      {
+        "id": "cutover.runtime.oasis-standalone-typechecks",
+        "goalId": "G4",
+        "owner": "runtime",
+        "workflowIds": [],
+        "kind": "integration",
+        "title": "Clear shared source type errors reached by the frozen demo applications",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-brand/src/components/brand-identity-console.tsx",
+          "packages/server-brand/src/adapters/brand-identity.ts",
+          "packages/feature-records/src/components/record-supplement.tsx",
+          "packages/feature-collaboration/src/adapters/server/native-handbook.ts",
+          "packages/feature-pms/src/adapters/server/native-pms.ts",
+          "packages/feature-quality/src/adapters/server/native-quality-context-read.ts",
+          "packages/feature-support/src/adapters/server/native-support-read.ts",
+          "packages/server-runtime/src/public/executive/native-connections.ts",
+          "packages/feature-brand/src/adapters/server/native-brand-identity.ts",
+          "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customer-followups/route.ts",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/stock-counts/[[...path]]/route.ts"
+        ],
+        "resources": [
+          "oasis-standalone-types"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+        "implementedCommit": "218209e7d8af0e924c7ad48daa7a947cab85be1b",
+        "lastPushedSha": "0c7a3c6206350135272503bcb282ff8b03fe4032",
+        "checks": [
+          {
+            "sourceSha": "218209e7d8af0e924c7ad48daa7a947cab85be1b",
+            "command": "Strict TypeScript 7 project checks",
+            "result": "passed",
+            "detail": "Actual Sales, Account, and Apps tsconfig checks pass"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Rehearse the integrated OASIS staging release with both independent accounts and preserve the separate interview case.",
+        "handoff": {
+          "runId": "oasis-staging-20261127",
+          "agentId": "release_worker",
+          "at": "2026-11-27T12:05:21.004Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Rehearse the integrated OASIS staging release with both independent accounts and preserve the separate interview case."
+        }
+      },
+      {
+        "id": "cutover.runtime.oasis-workflow-json-packaging",
+        "goalId": "G4",
+        "owner": "runtime",
+        "workflowIds": [],
+        "kind": "integration",
+        "title": "Bundle the checked-in Workflow assertion resource in standalone Next",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-workflow/src/adapters/native-command-assertion-sql.ts",
+          "packages/server-workflow/src/adapters/flow-planning-ports.ts"
+        ],
+        "resources": [
+          "oasis-workflow-runtime-json"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+        "implementedCommit": "c505efb1bbe1d4035a721d828b3cb0fe49e3d910",
+        "lastPushedSha": "0c7a3c6206350135272503bcb282ff8b03fe4032",
+        "checks": [
+          {
+            "sourceSha": "c505efb1bbe1d4035a721d828b3cb0fe49e3d910",
+            "command": "Frozen packages carry the native Workflow contracts",
+            "result": "passed",
+            "detail": "Three Next standalone artifacts packaged; missing runtime JSON path replaced by static JSON imports"
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "detail": "Shared Workflow presentation adapters remain server-side"
+          }
+        ],
+        "blocker": "handoff",
+        "nextAction": "Rehearse the integrated OASIS staging release with both independent accounts and preserve the separate interview case.",
+        "handoff": {
+          "runId": "oasis-staging-20261127",
+          "agentId": "codex",
+          "at": "2026-11-27T12:05:23.830Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Rehearse the integrated OASIS staging release with both independent accounts and preserve the separate interview case."
+        }
+      },
+      {
+        "id": "cutover.runtime.oasis-demo-shell",
+        "goalId": "G4",
+        "owner": "runtime",
+        "workflowIds": [],
+        "kind": "integration",
+        "title": "Render only the invited Sales and Apps navigation in OASIS staging",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/workplace/src/routes/holdings/[holdingSlug]/layout.tsx",
+          "packages/workplace/src/components/destination-index.tsx"
+        ],
+        "resources": [
+          "oasis-sales-standalone-shell"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+        "implementedCommit": "c505efb1bbe1d4035a721d828b3cb0fe49e3d910",
+        "lastPushedSha": "0c7a3c6206350135272503bcb282ff8b03fe4032",
+        "checks": [
+          {
+            "sourceSha": "c505efb1bbe1d4035a721d828b3cb0fe49e3d910",
+            "command": "Authenticated Sales shell and seeded Pipeline",
+            "result": "passed",
+            "detail": "Both roles saw Phuket Villa – Kitchen A under the synthetic company"
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "detail": "Existing apps outside the OASIS gateway remain available only through their own environment"
+          }
+        ],
+        "blocker": "handoff",
+        "nextAction": "Rehearse the integrated OASIS staging release with both independent accounts and preserve the separate interview case.",
+        "handoff": {
+          "runId": "oasis-staging-20261127",
+          "agentId": "codex",
+          "at": "2026-11-27T12:05:26.909Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Rehearse the integrated OASIS staging release with both independent accounts and preserve the separate interview case."
+        }
+      },
+      {
+        "id": "cutover.sales.oasis-pilot-admission",
+        "goalId": "G4",
+        "owner": "sales",
+        "workflowIds": [],
+        "kind": "integration",
+        "title": "Admit the isolated Sales pilot with real stage rollout and purchase gates",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-sales/src/adapters/customers.ts",
+          "packages/server-sales/package.json",
+          "packages/server-pms/src/adapters/feature-availability.ts"
+        ],
+        "resources": [
+          "oasis-sales-pilot-render-admission"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+        "implementedCommit": "f6c92d27611be9f9be8d9fd13a7fce85fe31a88d",
+        "lastPushedSha": "0c7a3c6206350135272503bcb282ff8b03fe4032",
+        "checks": [
+          {
+            "sourceSha": "f6c92d27611be9f9be8d9fd13a7fce85fe31a88d",
+            "command": "Authorized Sales pilot quotation list in browser",
+            "result": "passed",
+            "detail": "Normal Sales role could view quotations for exact synthetic company; native owner checks remained in place"
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "detail": "Production general availability and other pilot rules unchanged"
+          }
+        ],
+        "blocker": "handoff",
+        "nextAction": "Rehearse the integrated OASIS staging release with both independent accounts and preserve the separate interview case.",
+        "handoff": {
+          "runId": "oasis-staging-20261127",
+          "agentId": "codex",
+          "at": "2026-11-27T12:05:30.014Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Rehearse the integrated OASIS staging release with both independent accounts and preserve the separate interview case."
+        }
+      },
+      {
+        "id": "cutover.commerce.oasis-editor-options",
+        "goalId": "G3",
+        "owner": "commerce",
+        "workflowIds": [],
+        "kind": "migration",
+        "title": "Replace cross-database Sales quotation editor option reads with an authorized Axum read",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/commerce.rs",
+          "packages/server-commerce/src/adapters/order_http.rs",
+          "packages/server-commerce/src/adapters/order.rs",
+          "packages/server-commerce/src/public/order.rs",
+          "packages/server-commerce/src/adapters/sales-editor.ts",
+          "packages/feature-commerce/src/public/native-commerce-orders.ts",
+          "packages/feature-sales/src/components/customers/sales-views.tsx"
+        ],
+        "resources": [
+          "oasis-native-sales-editor-options"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+        "implementedCommit": "e392ee2569332552feb19f47bbd45405fc578848",
+        "lastPushedSha": "e392ee2569332552feb19f47bbd45405fc578848",
+        "checks": [
+          {
+            "command": "browser quote editor and Axum editor options",
+            "result": "passed",
+            "sourceSha": "e392ee2569332552feb19f47bbd45405fc578848"
+          },
+          {
+            "command": "quote create and draft update on standalone",
+            "result": "passed",
+            "sourceSha": "e392ee2569332552feb19f47bbd45405fc578848"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Retest the staged editor after the Feed-first release is sealed and verify the same saved THB quote.",
+        "handoff": {
+          "runId": "oasis-staging-20261127",
+          "agentId": "codex",
+          "at": "2026-11-27T13:23:55.273Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Retest the staged editor after the Feed-first release is sealed and verify the same saved THB quote."
+        }
+      },
+      {
+        "id": "cutover.runtime.oasis-next-security-patch",
+        "goalId": "G4",
+        "owner": "runtime",
+        "workflowIds": [],
+        "kind": "integration",
+        "title": "Build the exposed OASIS standalone candidate with a patched Next 16.4 release",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "package.json",
+          "bun.lock",
+          "scripts/local/prepare-next-development.ts",
+          "README.md",
+          "docs/production-plan.md"
+        ],
+        "resources": [
+          "oasis-security-patched-build"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+        "implementedCommit": "b78f9553379994b3540ddc37474927e3cb230bd9",
+        "lastPushedSha": "b78f9553379994b3540ddc37474927e3cb230bd9",
+        "checks": [
+          {
+            "command": "isolated Next 16.4.6 three-app release build",
+            "result": "passed",
+            "sourceSha": "b78f9553379994b3540ddc37474927e3cb230bd9"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Use the pinned Next 16.4.6 dependencies for all subsequent OASIS release builds.",
+        "handoff": {
+          "runId": "oasis-staging-20261127",
+          "agentId": "codex",
+          "at": "2026-11-27T13:23:55.916Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Use the pinned Next 16.4.6 dependencies for all subsequent OASIS release builds."
+        }
+      },
+      {
+        "id": "cutover.sales.oasis-print-page",
+        "goalId": "G3",
+        "owner": "sales",
+        "workflowIds": [],
+        "kind": "migration",
+        "title": "Print the authorized OASIS sales document independently of its Sales list drawer",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/sales/screen.tsx"
+        ],
+        "resources": [
+          "oasis-native-quotation-print"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+        "implementedCommit": "33d8429cab631abf4f3ab96fdd4a017c4cfbe2b7",
+        "lastPushedSha": "33d8429cab631abf4f3ab96fdd4a017c4cfbe2b7",
+        "checks": [
+          {
+            "command": "Chrome protected print route and one-page A4 PDF QT-2026-000004",
+            "result": "passed",
+            "sourceSha": "33d8429cab631abf4f3ab96fdd4a017c4cfbe2b7"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Recertify the print route in the combined public walkthrough.",
+        "handoff": {
+          "runId": "oasis-staging-20261127",
+          "agentId": "codex",
+          "at": "2026-11-27T13:23:55.596Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Recertify the print route in the combined public walkthrough."
+        }
+      },
+      {
+        "id": "cutover.crm.oasis-lead-presentation",
+        "goalId": "G3",
+        "owner": "crm",
+        "workflowIds": [],
+        "kind": "migration",
+        "title": "Load the OASIS lead workspace without the separate Support sources",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-crm/src/adapters/leads.ts",
+          "packages/server-crm/src/adapters/native-crm-history.ts",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/crm/[id]/screen.tsx"
+        ],
+        "resources": [
+          "oasis-lead-activity-presenter"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+        "implementedCommit": "ecb5c44b78b6133e46af52e6ce630714104f3a11",
+        "lastPushedSha": "6057a6380f49cfbf4014b76b0148f7af34960c5d",
+        "checks": [
+          {
+            "command": "Public Chrome displays measurement, qualification and approved CRM link with Company scope retained",
+            "result": "passed",
+            "sourceSha": "ecb5c44b78b6133e46af52e6ce630714104f3a11"
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-crm/src/adapters/leads.ts",
+            "removalTaskId": "migrate.crm",
+            "removalCondition": "Retain unrelated CRM and Support owner projections until mature native parity."
+          }
+        ],
+        "blocker": "handoff",
+        "nextAction": "Verify non-demo native CRM and retained Support history before widening the demo presentation policy.",
+        "handoff": {
+          "runId": "oasis-staging-20261127",
+          "agentId": "codex",
+          "at": "2026-11-27T13:47:08.385Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Verify non-demo native CRM and retained Support history before widening the demo presentation policy."
+        }
+      },
+      {
+        "id": "cutover.apps.holding-feed-home",
+        "goalId": "G4",
+        "owner": "apps",
+        "title": "Open the authorized Holding Feed and brand the full-screen Apps launcher",
+        "allowedPaths": [
+          "packages/workplace/src/entries/workspace.tsx",
+          "packages/workplace/src/components/apps-launcher.tsx",
+          "packages/workplace/src/components/apps-launcher.module.css",
+          "packages/workplace/src/components/office-product-menus.tsx",
+          "packages/feature-work_projection/src/lib/apps-launcher.ts",
+          "tests/unit/shared.ui/apps-launcher.test.ts",
+          "packages/server-work_projection/src/domain/product-landings.ts",
+          "tests/unit/shared.ui/product-launcher.test.ts"
+        ],
+        "resources": [
+          "holding-feed-home"
+        ],
+        "nextAction": "Verify existing Holding fixtures with real staff sessions before promoting the shared launcher across development and production.",
+        "workflowIds": [],
+        "kind": "migration",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+        "implementedCommit": "ecb5c44b78b6133e46af52e6ce630714104f3a11",
+        "lastPushedSha": "6057a6380f49cfbf4014b76b0148f7af34960c5d",
+        "checks": [
+          {
+            "command": "Shared launcher and landing Vitest regressions",
+            "result": "passed",
+            "sourceSha": "ecb5c44b78b6133e46af52e6ce630714104f3a11"
+          },
+          {
+            "command": "Public Chrome mobile/tablet, Apps tile animation, recent Sales, Back and Escape; local reduced-motion with the same release",
+            "result": "passed",
+            "sourceSha": "ecb5c44b78b6133e46af52e6ce630714104f3a11"
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-work_projection/src/adapters/product-launcher.ts",
+            "removalTaskId": "migrate.work_projection",
+            "removalCondition": "Retain authorized launch-choice server composition until its native owner adapter passes parity checks."
+          }
+        ],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "oasis-staging-20261127",
+          "agentId": "codex",
+          "at": "2026-11-27T13:47:08.688Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Verify existing Holding fixtures with real staff sessions before promoting the shared launcher across development and production."
+        }
+      },
+      {
+        "id": "cutover.collaboration.holding-feed-http",
+        "goalId": "G3",
+        "owner": "collaboration",
+        "title": "Cut the Feed and conversation HTTP surface over to Axum",
+        "allowedPaths": [
+          "packages/server-collaboration/src/adapters/social_http.rs",
+          "packages/server-collaboration/src/public/social_http.rs",
+          "packages/server-collaboration/src/public/native-social-page.ts",
+          "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/feed",
+          "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/comments",
+          "apps/launcher/src/app/api/v1/holdings/[holdingSlug]/feed",
+          "apps/launcher/src/app/api/v1/holdings/[holdingSlug]/posts/[id]/comments",
+          "scripts/local/holding-gateway.ts",
+          "src/composition/src/private_development_api.rs",
+          "scripts/local/workspace-gateway-runtime.ts",
+          "scripts/architecture/workspace-app-routes.json",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/home",
+          "src/composition/src/collaboration.rs",
+          "scripts/local/native-api-proxy.ts",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/feed",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/posts/[id]/comments",
+          "packages/feature-apps/package.json",
+          "tests/unit/collaboration/collaboration-services.test.ts"
+        ],
+        "resources": [
+          "holding-social-http"
+        ],
+        "nextAction": "Port the richer SocialPage SSR and beta/home consumers with filter, draft and source record parity before removing those Next handlers.",
+        "workflowIds": [],
+        "kind": "migration",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+        "implementedCommit": "6400a79749369fc2964be081666bd294ebead284",
+        "lastPushedSha": "6057a6380f49cfbf4014b76b0148f7af34960c5d",
+        "checks": [
+          {
+            "command": "Axum Feed scope and idempotency HTTP smoke; Chrome posts, replies and reloads against exact stage release",
+            "result": "passed",
+            "sourceSha": "ecb5c44b78b6133e46af52e6ce630714104f3a11"
+          },
+          {
+            "command": "Shared Collaboration regression suite and direct-gateway contracts",
+            "result": "passed",
+            "sourceSha": "ecb5c44b78b6133e46af52e6ce630714104f3a11"
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/feature-collaboration/src",
+            "removalTaskId": "migrate.collaboration",
+            "removalCondition": "Retain richer legacy SocialPage projections and draft commands until native parity."
+          }
+        ],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "oasis-staging-20261127",
+          "agentId": "codex",
+          "at": "2026-11-27T13:47:09.003Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Port the richer SocialPage SSR and beta/home consumers with filter, draft and source record parity before removing those Next handlers."
+        }
+      },
+      {
+        "id": "cutover.commercial.company-plugin-registry",
+        "goalId": "G4",
+        "owner": "commercial",
+        "title": "Add owner-approved plugin registry and Company installation lifecycle",
+        "allowedPaths": [
+          "CONTEXT.md",
+          "docs/adr/ADR-057-company-plugin-installation.md",
+          "contracts/plugins",
+          "packages/server-commercial/src/adapters/company_plugins.rs",
+          "packages/server-commercial/src/public/company_plugins.rs",
+          "migrations/postgres",
+          "packages/feature-apps/src/components/company-plugins",
+          "apps/launcher/src/app/holdings/[holdingSlug]/plugins",
+          "packages/server-commercial/src/domain/company_plugins.rs",
+          "packages/server-commercial/src/domain/mod.rs",
+          "packages/server-commercial/src/public/mod.rs",
+          "packages/server-commercial/src/adapters/mod.rs",
+          "packages/server-commercial/src/adapters/github_plugin_catalogue.rs",
+          "packages/server-commercial/Cargo.toml",
+          "Cargo.lock",
+          "src/composition/src/company_plugins.rs",
+          "src/composition/src/lib.rs",
+          "packages/workplace/src/components/company-plugin-catalogue.tsx",
+          "tests/integration/commercial/rust-company-plugins-postgres.test.rs",
+          "tests/catalogue/suite-manifest.json"
+        ],
+        "resources": [
+          "github-plugin-registry"
+        ],
+        "nextAction": "Wait for a real independent GitHub registry PR and owner review, then verify install, CRM card and withdrawal with two Companies.",
+        "workflowIds": [],
+        "kind": "migration",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "status": "blocked",
+        "claim": null,
+        "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+        "implementedCommit": "2f6b85b0fd5b8b9d23b75ef8154e3fb2f0078a07",
+        "lastPushedSha": "6057a6380f49cfbf4014b76b0148f7af34960c5d",
+        "checks": [
+          {
+            "command": "Verified protected GitHub plugin-registry branch exact commit with required code owner approval",
+            "result": "passed",
+            "sourceSha": "5770fc88a49978deceda3d5074548a2cd58ebf76"
+          },
+          {
+            "command": "Managed PostgreSQL Company isolation, withdraw/reinstall and stale-identity test",
+            "result": "passed",
+            "sourceSha": "2f6b85b0fd5b8b9d23b75ef8154e3fb2f0078a07"
+          },
+          {
+            "command": "Independent contributor registry pull request reviewed by the project owner",
+            "result": "blocked",
+            "sourceSha": "2f6b85b0fd5b8b9d23b75ef8154e3fb2f0078a07"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "oasis-staging-20261127",
+          "agentId": "codex",
+          "at": "2026-11-27T13:47:09.948Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Wait for a real independent GitHub registry PR and owner review, then verify install, CRM card and withdrawal with two Companies."
+        }
+      },
+      {
+        "id": "cutover.platform_administration.admin-billing-pdf",
+        "goalId": "G4",
+        "owner": "platform_administration",
+        "title": "Deliver the internal Admin Holding home and bill PDF",
+        "allowedPaths": [
+          "ops/macos/holding-development.md",
+          "docs/adr/ADR-051-holding-addresses-and-workspace-paths.md",
+          "packages/feature-billing/src/components/billing-console.tsx",
+          "packages/feature-billing/src/components/platform-invoice-print.tsx",
+          "packages/feature-billing/src/components/platform-invoice-print.module.css",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/erpx-management/billing/invoices/_entry.tsx",
+          "packages/feature-billing/package.json",
+          "packages/contracts/src/apps.ts"
+        ],
+        "resources": [
+          "dev-admin-host"
+        ],
+        "nextAction": "With a development Platform Billing session, verify Sandbox invoice PDF and customer denial against the new h003 host before changing exact Account/native configuration and Cloudflare routing. Preserve the currently registered host until verified.",
+        "workflowIds": [],
+        "kind": "migration",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "status": "blocked",
+        "claim": null,
+        "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+        "implementedCommit": "d2995b7a4cb7bd99d892bd07423769a031bb053e",
+        "lastPushedSha": "6057a6380f49cfbf4014b76b0148f7af34960c5d",
+        "checks": [
+          {
+            "command": "Billing presenter type check and workspace structure validation",
+            "result": "passed",
+            "sourceSha": "876589c139e0c452d79c2cae2d70e1c56ef44b69"
+          },
+          {
+            "command": "Chrome central Account checked; no signed-in development Platform Billing identity available",
+            "result": "blocked",
+            "sourceSha": "6057a6380f49cfbf4014b76b0148f7af34960c5d"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "oasis-staging-20261127",
+          "agentId": "codex",
+          "at": "2026-11-27T13:47:10.256Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "With a development Platform Billing session, verify Sandbox invoice PDF and customer denial against the new h003 host before changing exact Account/native configuration and Cloudflare routing. Preserve the currently registered host until verified."
+        }
+      },
+      {
+        "id": "cutover.runtime.oasis-feed-demo",
+        "goalId": "G4",
+        "owner": "runtime",
+        "title": "Deliver and rehearse the final Feed-first OASIS staging release",
+        "allowedPaths": [
+          "docs/research/oasis-dream-house-interview-2026-11-27.md",
+          "scripts/seed/oasis-demo-staging.ts"
+        ],
+        "resources": [
+          "oasis-final-rehearsal"
+        ],
+        "nextAction": "Use the ready interview lead on the public Holding and separate Chrome profiles for the seller and manager.",
+        "workflowIds": [],
+        "kind": "migration",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+        "implementedCommit": "ecb5c44b78b6133e46af52e6ce630714104f3a11",
+        "lastPushedSha": "6057a6380f49cfbf4014b76b0148f7af34960c5d",
+        "checks": [
+          {
+            "command": "Public Chrome web flow: schedule, complete, qualify, create, edit, reload, submit, approve, link and reopen",
+            "result": "passed",
+            "sourceSha": "ecb5c44b78b6133e46af52e6ce630714104f3a11"
+          },
+          {
+            "command": "Verified separate untouched initial lead; 63-second QT-2026-000004 clip and matching one-page PDF rendered from public staging",
+            "result": "passed",
+            "sourceSha": "ecb5c44b78b6133e46af52e6ce630714104f3a11"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "oasis-staging-20261127",
+          "agentId": "codex",
+          "at": "2026-11-27T13:47:08.081Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Use the ready interview lead on the public Holding and separate Chrome profiles for the seller and manager."
+        }
+      },
+      {
+        "id": "cutover.crm.plugin-site-measurement",
+        "goalId": "G4",
+        "owner": "crm",
+        "workflowIds": [],
+        "kind": "migration",
+        "title": "Project the CRM site measurement card from committed CRM events",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/crm_activity_workspace.rs",
+          "packages/server-crm/src/adapters/activity_workspace.rs",
+          "packages/server-crm/src/public/activity_workspace.rs",
+          "tests/integration/crm/rust-crm-activity-workspace-postgres.test.rs"
+        ],
+        "resources": [
+          "crm-site-measurement-plugin-projection"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
+        "implementedCommit": "2f6b85b0fd5b8b9d23b75ef8154e3fb2f0078a07",
+        "lastPushedSha": "6057a6380f49cfbf4014b76b0148f7af34960c5d",
+        "checks": [
+          {
+            "command": "Managed CRM PostgreSQL activity workspace suite 3/3 with current outbox version and Company/branch/author boundaries",
+            "result": "passed",
+            "sourceSha": "2f6b85b0fd5b8b9d23b75ef8154e3fb2f0078a07"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Open the CRM card through Apps using a genuinely owner-approved externally submitted registry version.",
+        "handoff": {
+          "runId": "oasis-staging-20261127",
+          "agentId": "codex",
+          "at": "2026-11-27T13:47:09.631Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Open the CRM card through Apps using a genuinely owner-approved externally submitted registry version."
+        }
       }
     ],
     "migrationProgress": {
@@ -222474,21 +223729,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2454,
+      "totalPackets": 2471,
       "migratedPackets": 370,
       "statusCounts": {
         "pending": 14,
         "in_progress": 0,
-        "ready_for_integration": 146,
+        "ready_for_integration": 159,
         "integrating": 0,
         "migrated": 370,
-        "blocked": 1922,
+        "blocked": 1926,
         "deferred": 2,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 210,
-    "updatedAt": "2026-11-27T09:37:54.407Z",
+    "lastCoordinatorGeneration": 212,
+    "updatedAt": "2026-11-27T13:47:10.407Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
