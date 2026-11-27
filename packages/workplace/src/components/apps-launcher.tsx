@@ -11,6 +11,11 @@ import { emptyAppsMemory, readAppsMemory, writeAppsMemory, restoreAppsSelection,
 import styles from "./apps-launcher.module.css";
 
 const launcherHash = "#apps";
+
+function primaryLauncherTrigger() {
+  return Array.from(document.querySelectorAll<HTMLButtonElement>("[data-apps-launcher-trigger]"))
+    .find(button => button.getClientRects().length && !button.closest("[hidden]"));
+}
 const appIcons = {
   apps: MessageCircle,
   sales: ShoppingBag,
@@ -73,12 +78,9 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
       flight.current?.layer.remove();
       flight.current = null;
       launched.current = false;
-      setOpen(window.location.hash === launcherHash);
+      setOpen(window.location.hash === launcherHash && primaryLauncherTrigger() === trigger.current);
     };
-    const show = () => {
-      if (window.location.hash !== launcherHash) window.history.pushState(null, "", launcherHash);
-      setOpen(true);
-    };
+    const show = () => { if (primaryLauncherTrigger() === trigger.current) showHere(); };
     const restore = (event: PageTransitionEvent) => { if (event.persisted) sync(); };
     window.addEventListener("erpx:open-apps", show);
     window.addEventListener("popstate", sync);
@@ -91,6 +93,11 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
       flight.current?.layer.remove();
     };
   }, []);
+
+  function showHere() {
+    if (window.location.hash !== launcherHash) window.history.pushState(null, "", launcherHash);
+    setOpen(true);
+  }
 
   function close() {
     if (window.location.hash === launcherHash) window.history.back();
@@ -149,7 +156,7 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
     ? history.flatMap(id => workspace.apps.find(app => app.productId === id) ?? []).slice(0, 4)
     : [];
   return <>
-    <Button ref={trigger} appearance="standard" variant="ghost" className={styles.trigger} data-apps-launcher-trigger aria-label={[t("แอป", "Apps"),workspaceLabel].filter(Boolean).join(" · ")} aria-haspopup="dialog" aria-expanded={open} onClick={() => window.dispatchEvent(new Event("erpx:open-apps"))}>
+    <Button ref={trigger} appearance="standard" variant="ghost" className={styles.trigger} data-apps-launcher-trigger aria-label={[t("แอป", "Apps"),workspaceLabel].filter(Boolean).join(" · ")} aria-haspopup="dialog" aria-expanded={open} onClick={showHere}>
       <Grid2X2 size={18} aria-hidden="true" /><span>{t("แอป", "Apps")}{workspaceLabel && <small>{productLabel && productLabel !== t("แอป", "Apps") ? `${productLabel} · ${workspaceLabel}` : workspaceLabel}</small>}</span><ChevronDown size={16} aria-hidden="true" />
     </Button>
     <Dialog appearance="standard" presentation="fullscreen" open={open} onClose={close} title={t("แอป", "Apps")} className={styles.modal} bodyClassName={styles.modalBody} finalFocus={() => trigger.current} closeLabel={t("ปิดแอป", "Close Apps")}>
