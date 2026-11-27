@@ -57,10 +57,12 @@ export async function workspaceGrantsForAccount(write: SqlDatabase, companyId: s
     return {rows,roles};
 }
 
-export async function requireAccountAccess(requested:HoldingWorkspaceScope|string,options:WorkspaceResolutionOptions={}):Promise<AccountAccessContext>{
+export async function requireAccountAccess(requested:HoldingWorkspaceScope|string,options:WorkspaceResolutionOptions={},approvedFormOrigin?:string):Promise<AccountAccessContext>{
  const {session,requestHeaders}=await currentSession();
  const scope=typeof requested==='string'?await requestedHoldingScope(requested):requested;
- return (await readNativeAccountContext(session,requestHeaders,scope,options,false)).access;
+ const incoming=new Headers(requestHeaders);
+ if(approvedFormOrigin)incoming.set('origin',approvedFormOrigin);
+ return (await readNativeAccountContext(session,incoming,scope,options,false)).access;
 }
 export async function requireWorkContext(requested: HoldingWorkspaceScope | string, options: WorkspaceResolutionOptions = {}): Promise<WorkContext> {
     try {

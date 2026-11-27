@@ -130,7 +130,8 @@ it("uses the normal versioned role service only for an explicit same-origin sele
   const response = await productWorkspaceRequest(post());
   expect(response.status).toBe(303);
   expect(new URL(response.headers.get("location")!).pathname).toBe("/launch");
-  expect(mocks.select).toHaveBeenCalledWith({}, expect.objectContaining({ userId: "user", companyId: "c2", assignmentId: "assignment", assignmentVersion: 1, revision: 3 }));
+  expect(mocks.select).toHaveBeenCalledWith({}, expect.objectContaining({ userId: "user", companyId: "c2", assignmentId: "assignment", assignmentVersion: 1, revision: 3 }), expect.any(Headers));
+  expect(mocks.access).toHaveBeenCalledWith({ kind: "holding", holdingSlug: "acme" }, { companyId: "c2" }, "https://finance-dev-erpx.jesadakorn.com");
   mocks.select.mockClear();
   expect((await productWorkspaceRequest(post({}, "https://attacker.invalid"))).status).toBe(403);
   expect(mocks.select).not.toHaveBeenCalled();
@@ -142,7 +143,8 @@ it("accepts opaque Origin only for a native same-origin document role navigation
     "sec-fetch-site": "same-origin", "sec-fetch-mode": "navigate", "sec-fetch-dest": "document",
   }));
   expect(response.status).toBe(303);
-  expect(mocks.select).toHaveBeenCalledWith({}, expect.objectContaining({ userId: "user", companyId: "c2", assignmentId: "assignment", assignmentVersion: 1, revision: 3 }));
+  expect(mocks.select).toHaveBeenCalledWith({}, expect.objectContaining({ userId: "user", companyId: "c2", assignmentId: "assignment", assignmentVersion: 1, revision: 3 }), expect.any(Headers));
+  expect(mocks.access).toHaveBeenCalledWith({ kind: "holding", holdingSlug: "acme" }, { companyId: "c2" }, "https://finance-dev-erpx.jesadakorn.com");
   mocks.select.mockClear();
   for (const metadata of [
     { "sec-fetch-site": "cross-site", "sec-fetch-mode": "navigate", "sec-fetch-dest": "document" },

@@ -47,10 +47,12 @@ import {developmentModuleAdmissionDeferred} from '@erpx/contracts/development-mo
 const responseHeaders = { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" };
 const formSchema = z.object({ companyId: z.string().min(1).max(128), next: z.string().min(1).max(2000),
   assignmentId: z.string().min(1).max(128), assignmentVersion: z.coerce.number().int().positive(), revision: z.coerce.number().int().nonnegative() }).strict();
-function service() {
+function service(approvedFormOrigin?: string) {
   return createProductWorkspace({
     commercialAdmissionDeferred:id=>developmentModuleAdmissionDeferred(id,process.env),
-    access: input => requireAccountAccess(input.scope, { companyId: input.companyId }),
+    access: input => approvedFormOrigin
+      ? requireAccountAccess(input.scope, { companyId: input.companyId }, approvedFormOrigin)
+      : requireAccountAccess(input.scope, { companyId: input.companyId }),
     modules: accountWorkModuleAccess,
     purchaseFacts: async access => readCompanyPurchaseFacts((await holdingResources(access.scope.holdingId)).write, access.scope.companyId),
     ready: async (access, moduleId) => {
@@ -161,7 +163,7 @@ export async function productWorkspaceRequest(request: Request) {
       const form = formSchema.parse(Object.fromEntries(values));
       input = productWorkspaceTarget(audience, form.companyId, form.next);
       if (!input) throw new ApiError(400, "INVALID_PRODUCT_WORKSPACE", "Select a valid product workspace.");
-      try { await service().choose(audience, input, form.assignmentId, form.revision, form.assignmentVersion); }
+      try { await service(origin).choose(audience, input, form.assignmentId, form.revision, form.assignmentVersion); }
       catch (error) {
         if (error instanceof ApiError && [403, 409].includes(error.status)) return NextResponse.redirect(
           new URL(productWorkRolePath(input, "access-changed"), origin), { status: 303, headers: responseHeaders });
