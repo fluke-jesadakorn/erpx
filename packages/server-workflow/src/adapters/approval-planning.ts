@@ -27,13 +27,12 @@ import {nativeWorkflowReadAll,nativeWorkflowReadFirst} from './native-workflow-r
 import {approvalInstancesStarWhereSql} from './approval-projection-sources';
 import {approverUnionProjectionSql} from './json-each-sources';
 import {tableExistsGuardSql} from './closed-projection-sources';
-/** Byte-identical prefix shared by the pending/blocked instance-state guards; callers keep their own literal state and bind order, emitted SQL is unchanged. */
-const approvalInstanceStateExistsPrefix = "EXISTS(SELECT 1 FROM approval_instances WHERE id=? AND version=? AND state='";
+import {fragments} from './read-fragments';
+/** Native-owned heads shared by the approval guards; callers keep their exact state tails and bind order. */
+const approvalInstanceStateExistsPrefix = fragments.approvalInstanceStatePrefix;
 const pendingInstanceExistsSql = `${approvalInstanceStateExistsPrefix}pending' AND current_step=?)`;
-/** Byte-identical span shared by the override/non-override approval-version guards; emitted SQL is unchanged. */
-const pendingInstanceAndStepSql = `${pendingInstanceExistsSql} AND EXISTS(SELECT 1 FROM approval_steps WHERE id=? AND `;
-/** Byte-identical negative-existence prefix shared by the legacy-route (guard16) and override-independent (guard36) approval-step guards; emitted SQL is unchanged. */
-const noApprovalStepExistsPrefix = "NOT EXISTS(SELECT 1 FROM approval_steps";
+const pendingInstanceAndStepSql = fragments.pendingInstanceAndStep;
+const noApprovalStepExistsPrefix = fragments.noApprovalStepExists;
 /** Byte-identical record/version EXISTS prefix shared by the legacy-record (guard17)
  * and route-version (guard49) guards; emitted SQL and bind order stay unchanged. */
 const approvalRecordVersionExists = (table: string, column: string, versionFirst = false) =>

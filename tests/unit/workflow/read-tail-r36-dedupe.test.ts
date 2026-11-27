@@ -6,7 +6,6 @@ import { nativeApprovalPlanningPorts } from '../../../packages/server-workflow/s
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-workflow/src');
-const prefix = "NOT EXISTS(SELECT 1 FROM approval_steps";
 const instancePrefix = "EXISTS(SELECT 1 FROM approval_instances WHERE id=? AND version=? AND state='";
 
 // Guards are built synchronously; no DB execution occurs.
@@ -35,12 +34,17 @@ describe('approval-step negative-existence prefix dedupe (r36)', () => {
     ]);
   });
 
-  it('keeps one shared prefix literal and no inline duplicates in callers', async () => {
-    const src = await readFile(new URL('../../../packages/server-workflow/src/adapters/approval-planning.ts', import.meta.url), 'utf8');
-    expect(src.match(/NOT EXISTS\(SELECT 1 FROM approval_steps/g)).toHaveLength(1);
-    expect(src).not.toContain("blocked') AND NOT EXISTS(SELECT 1 FROM approval_steps WHERE instance_id=?)");
-    expect(src).not.toContain("AND NOT EXISTS(SELECT 1 FROM approval_steps s WHERE");
-    expect(src).toContain(`${prefix}`);
+  it('keeps one shared prefix head in the native contract and no inline duplicates in callers', async () => {
+    const [caller, contract] = await Promise.all([
+      readFile(new URL('../../../packages/server-workflow/src/adapters/approval-planning.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../packages/server-workflow/src/workflow-read-fragments-sql.json', import.meta.url), 'utf8'),
+    ]);
+    const head = /NOT EXISTS\(SELECT 1 FROM approval_steps/g;
+    expect(caller.match(head) ?? []).toHaveLength(0);
+    expect(contract.match(head) ?? []).toHaveLength(1);
+    expect(caller).not.toContain("blocked') AND NOT EXISTS(SELECT 1 FROM approval_steps WHERE instance_id=?)");
+    expect(caller).not.toContain("AND NOT EXISTS(SELECT 1 FROM approval_steps s WHERE");
+    expect(caller).toContain('fragments.noApprovalStepExists');
   });
 
   it('retirement:ts-statements is strictly lower than the recorded 57 r35 baseline', async () => {

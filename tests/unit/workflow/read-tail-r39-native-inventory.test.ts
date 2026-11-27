@@ -90,7 +90,7 @@ describe('workflow inventory audit-history read tail (r39 native read cutover)',
     }
   });
 
-  it('retirement:ts-statements is 25 after the r40 native flow-event cut (26->25)', async () => {
+  it('retirement:ts-statements is 20 after the r54 guard-head fold (23->20)', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -100,6 +100,6 @@ describe('workflow inventory audit-history read tail (r39 native read cutover)',
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(25);
+    expect(total).toBe(20);
   });
 });
