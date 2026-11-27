@@ -5,12 +5,13 @@ function validId(segment: string): boolean {
 
 export type HoldingNativeWorkspace = { branch?: string; department?: string };
 
-function canonicalQualityHistory(url: string, prefix: string): string {
+function canonicalQualityAction(url: string, prefix: string): string {
   const match = /^quality\/([^/?]+)\/([^/?]+)(\?.*)?$/.exec(url.slice(prefix.length));
   if (!match?.[2]?.includes("%")) return url;
   try {
-    if (decodeURIComponent(match[2]) === "cancellations")
-      return `${prefix}quality/${match[1]}/cancellations${match[3] ?? ""}`;
+    const action = decodeURIComponent(match[2]);
+    if (action === "cancellations" || action === "acknowledge")
+      return `${prefix}quality/${match[1]}/${action}${match[3] ?? ""}`;
   } catch {
     return url;
   }
@@ -21,17 +22,24 @@ export function normalizeHoldingNativePath(url: string, holdingSlug: string): { 
   const prefix = `/api/v1/holdings/${holdingSlug}/`;
   if (!url.startsWith(prefix)) return { url };
   const scoped = /^(?:branches\/([a-z0-9_-]{1,128})\/(?:departments\/([a-z0-9_-]{1,128})\/)?|departments\/([a-z0-9_-]{1,128})\/)(.+)$/.exec(url.slice(prefix.length));
-  if (!scoped) return { url: canonicalQualityHistory(url, prefix) };
+  if (!scoped) return { url: canonicalQualityAction(url, prefix) };
   const [, branch, nestedDepartment, department, path] = scoped;
-  return { url: canonicalQualityHistory(prefix + path, prefix), workspace: { branch, department: nestedDepartment ?? department } };
+  return { url: canonicalQualityAction(prefix + path, prefix), workspace: { branch, department: nestedDepartment ?? department } };
 }
 
 /** Native Holding operations and paths reserved for private SSR. */
-export function holdingNativeCutoverPath(url: string, holdingSlug: string, method: string | undefined): "records" | "record-action" | "routine-templates" | "routine-schedules" | "routine-command" | "routine-editor-private" | "quality-read" | undefined {
+export function holdingNativeCutoverPath(url: string, holdingSlug: string, method: string | undefined): "records" | "record-action" | "routine-templates" | "routine-schedules" | "routine-command" | "routine-editor-private" | "quality-read" | "quality-command" | undefined {
   const [path] = url.split("?", 1);
   const prefix = `/api/v1/holdings/${holdingSlug}/`;
   if (!path?.startsWith(prefix)) return;
   const [owner, segment, ...tail] = path.slice(prefix.length).split("/");
+  if (owner === "quality" && method === "POST" && segment && tail.length === 1 && tail[0] === "acknowledge") {
+    try {
+      if (validId(segment)) return "quality-command";
+    } catch {
+      return;
+    }
+  }
   if (owner === "quality" && (method === "GET" || method === "HEAD")) {
     if (segment === undefined) return "quality-read";
     try {

@@ -1797,13 +1797,27 @@ async fn disposition_command(
 async fn acknowledge_alert(
     State(state): State<Arc<QualityHttpState>>,
     Path((slug, id)): Path<(String, String)>,
-    request: Request,
+    mut request: Request,
 ) -> Response {
+    let public = request.headers().get("x-erpx-api-transport").is_some_and(|value| value == "public");
+    // The former Next relay parsed JSON independently of the incoming media type.
+    if public {
+        request.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    }
     let result = async move {
-        let target = target(&state, request.headers(), &slug)?;
-        let parsed = parse_quality_command(request, target).await?;
-        let id = RecordId::new(id)?;
-        let command = parse_alert_acknowledge(&parsed.body, id.as_str(), parsed.key.clone())?;
+        let target = target(&state, request.headers(), &slug).map_err(error_response)?;
+        let parsed = parse_quality_command(request, target).await.map_err(|error| {
+            if public && error.code == "QUALITY_COMMAND_REQUIRED" {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error":{
+                    "code":"INTERNAL_ERROR","message":"The request could not be completed."
+                }}))).into_response()
+            } else {
+                error_response(error)
+            }
+        })?;
+        let id = RecordId::new(id).map_err(error_response)?;
+        let command = parse_alert_acknowledge(&parsed.body, id.as_str(), parsed.key.clone())
+            .map_err(error_response)?;
         target
             .backend
             .acknowledge(QualityHttpCommandRequest {
@@ -1815,11 +1829,12 @@ async fn acknowledge_alert(
                 key: &command.key,
             })
             .await
+            .map_err(error_response)
     }
     .await;
     match result {
         Ok(receipt) => bounded(alert_acknowledgement_receipt_json(&receipt)),
-        Err(error) => error_response(error),
+        Err(response) => response,
     }
 }
 

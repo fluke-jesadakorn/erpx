@@ -195,14 +195,23 @@ async fn call(
     headers: &[(&str, &str)],
     body: Value,
 ) -> (u16, Value) {
+    call_raw(address, path, headers, "application/json", &body.to_string()).await
+}
+
+async fn call_raw(
+    address: std::net::SocketAddr,
+    path: &str,
+    headers: &[(&str, &str)],
+    content_type: &str,
+    text: &str,
+) -> (u16, Value) {
     let mut request =
         format!("POST {path} HTTP/1.1\r\nHost: acme.example.test\r\nConnection: close\r\n");
     for (name, value) in headers {
         request.push_str(&format!("{name}: {value}\r\n"));
     }
-    let text = body.to_string();
     request.push_str(&format!(
-        "Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{text}",
+        "Content-Type: {content_type}\r\nContent-Length: {}\r\n\r\n{text}",
         text.len()
     ));
     let mut stream = TcpStream::connect(address).await.unwrap();
@@ -219,6 +228,23 @@ async fn call(
         .unwrap();
     let value = serde_json::from_str(body).unwrap_or(Value::Null);
     (status, value)
+}
+
+#[tokio::test]
+async fn public_acknowledgement_preserves_relay_json_behavior() {
+    let backend = Arc::new(Backend::new());
+    let (address, task) = start(backend.clone()).await;
+    let path = "/api/v1/holdings/acme/quality/alert-a/acknowledge";
+    let public = [("x-erpx-api-transport", "public"), ("idempotency-key", "ack-public")];
+    let (status, error) = call_raw(address, path, &public, "text/plain", "{").await;
+    assert_eq!(status, 500);
+    assert_eq!(error["error"]["code"], "INTERNAL_ERROR");
+    assert_eq!(backend.acknowledgements.load(Ordering::SeqCst), 0);
+    let body = r#"{"expectedVersion":1,"reason":"Independent review completed"}"#;
+    let (status, _) = call_raw(address, path, &public, "text/plain", body).await;
+    assert_eq!(status, 200);
+    assert_eq!(backend.acknowledgements.load(Ordering::SeqCst), 1);
+    task.abort();
 }
 
 #[tokio::test]

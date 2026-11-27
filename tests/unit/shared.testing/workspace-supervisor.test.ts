@@ -432,6 +432,9 @@ it('routes retired Holding entries and their transport aliases directly to Axum'
     expect(holdingNativeCutoverPath(routines + '/template-1/schedules/%2F', 'acme', 'POST')).toBeUndefined();
     expect(holdingNativeCutoverPath(`${routines}/template-1/schedules`, 'acme', 'GET')).toBe('routine-templates');
     const quality = '/api/v1/holdings/acme/quality';
+    expect(holdingNativeCutoverPath(quality + '/alert-1/acknowledge', 'acme', 'POST')).toBe('quality-command');
+    for (const suffix of ['/alert-1/acknowledge/extra', '/%2F/acknowledge', '/hold-1/cancel', '/specifications'])
+      expect(holdingNativeCutoverPath(quality + suffix, 'acme', 'POST')).toBeUndefined();
     for (const suffix of ['', '/hold-1', '/hold-1/cancellations']) {
       for (const method of ['GET', 'HEAD'])
         expect(holdingNativeCutoverPath(`${quality}${suffix}?view=workspace`, 'acme', method)).toBe('quality-read');
@@ -474,13 +477,14 @@ it('routes retired Holding entries and their transport aliases directly to Axum'
     expect(qualityUnavailable.status).toBe(503);
     expect(JSON.parse(qualityUnavailable.body)).toMatchObject({error: {code: 'NATIVE_QUALITY_UNAVAILABLE'}});
     const suggestions = '/api/v1/holdings/acme/records/support/record/suggestions';
-    for (const [path, code] of [
-      [`${schedules}/pause`, 'NATIVE_ROUTINES_UNAVAILABLE'],
-      [suggestions, 'NATIVE_RECORD_REGISTRY_UNAVAILABLE'],
-      [`${suggestions}/suggestion-1`, 'NATIVE_RECORD_REGISTRY_UNAVAILABLE'],
+    for (const [app, path, code] of [
+      ['apps', `${schedules}/pause`, 'NATIVE_ROUTINES_UNAVAILABLE'],
+      ['apps', suggestions, 'NATIVE_RECORD_REGISTRY_UNAVAILABLE'],
+      ['apps', `${suggestions}/suggestion-1`, 'NATIVE_RECORD_REGISTRY_UNAVAILABLE'],
+      ['supply', `${quality}/alert-1/acknowledge`, 'NATIVE_QUALITY_UNAVAILABLE'],
     ] as const) {
       const unavailable = await new Promise<{status: number; body: string}>((done, reject) => {
-        const req = request({host: '127.0.0.1', port: 3104, path: `/__erpx/apps${path}`,
+        const req = request({host: '127.0.0.1', port: 3104, path: `/__erpx/${app}${path}`,
           method: 'POST', headers: {Host: host, Cookie: 'erpx_session=fixture'}}, res => {
           let body = '';
           res.setEncoding('utf8');
