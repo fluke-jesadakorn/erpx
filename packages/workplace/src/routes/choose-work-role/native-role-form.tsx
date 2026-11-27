@@ -36,7 +36,8 @@ export default function NativeRoleForm({ endpoint, next, companyId, assignmentId
         }
         throw new Error('Native role selection failed');
       }
-      window.location.assign(target.href);
+      // The chooser is an intermediate step in launching the app.
+      window.location.replace(target.href);
     } catch {
       setError(th ? 'เลือกบทบาทไม่ได้ โปรดลองอีกครั้ง' : 'Could not select the work role. Try again.');
       setBusy(false);
