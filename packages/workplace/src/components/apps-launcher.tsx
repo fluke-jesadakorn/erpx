@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type MouseEvent } from "react";
-import { ArrowUpRight, Building2, ChevronDown, CircleHelp, FileText, GraduationCap, Grid2X2, MapPin, MessageCircle, Package, Settings, ShoppingBag, UsersRound, Wallet } from "lucide-react";
+import { ArrowUpRight, Building2, CalendarDays, ChevronDown, CircleHelp, ClipboardList, Factory, FileText, FolderKanban, GraduationCap, Grid2X2, Hotel, MapPin, MessageCircle, Package, Search, Settings, ShoppingBag, UsersRound, Wallet, Wrench } from "lucide-react";
 import { Button } from "@erpx/ui/components/button";
 import { Dialog } from "@erpx/ui/components/dialog";
 import { TextInput } from "@erpx/ui/components/input";
@@ -20,9 +20,17 @@ function primaryLauncherTrigger() {
 }
 const appIcons = {
   apps: MessageCircle,
+  assets: Building2,
+  booking: CalendarDays,
   sales: ShoppingBag,
   finance: Wallet,
+  forms: ClipboardList,
   people: UsersRound,
+  pms: Hotel,
+  pos: ShoppingBag,
+  projects: FolderKanban,
+  manufacturing: Factory,
+  service: Wrench,
   supply: Package,
   legal: FileText,
   learn: GraduationCap,
@@ -222,15 +230,15 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
     try { writeAppsMemory(window.localStorage, accountId, next); } catch { /* Optional storage. */ }
   }
 
-  function launch(event: MouseEvent<HTMLAnchorElement>, productId: string) {
+  function launch(event: MouseEvent<HTMLAnchorElement>, productId?: string) {
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
-    if (productId === activeProduct) {
+    if (productId && productId === activeProduct) {
       close();
       return;
     }
     if (launched.current) return;
-    remember(productId);
+    if (productId) remember(productId);
     launched.current = true;
     const tile = event.currentTarget;
     const href = tile.href;
@@ -258,14 +266,35 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
     layer.dataset.appsLaunchTransition = "";
     const source = Array.from(grid.current?.children ?? []).find(child => child.getAttribute("data-app-id") === productId) ?? tile;
     const appearance = window.getComputedStyle(source);
-    const color = appearance.getPropertyValue("--tile-color").trim();
-    if (color) layer.style.backgroundColor = color;
-    layer.style.backgroundImage = appearance.backgroundImage;
+    const sourceIsTile = source.hasAttribute("data-app-id") || source.hasAttribute("data-plugin-id");
+    layer.style.backgroundColor = sourceIsTile ? appearance.backgroundColor : appearance.getPropertyValue("--launcher-base");
+    layer.style.backgroundImage = sourceIsTile ? appearance.backgroundImage : "";
+    layer.style.color = sourceIsTile ? appearance.color : "#fff";
+    const artwork = document.createElement("div");
+    artwork.className = styles.flightArtwork;
+    const icon = source.querySelector("svg")?.cloneNode(true);
+    if (icon) {
+      const badge = document.createElement("span");
+      badge.className = styles.appIcon;
+      badge.append(icon);
+      artwork.append(badge);
+    }
+    const label = document.createElement("strong");
+    label.textContent = source.querySelector("strong")?.textContent ?? tile.textContent;
+    artwork.append(label);
+    layer.append(artwork);
     document.body.append(layer);
+    const x = window.innerWidth, y = window.innerHeight;
+    const tileShape = `inset(${rect.top}px ${x - rect.right}px ${y - rect.bottom}px ${rect.left}px round ${window.getComputedStyle(tile).borderRadius})`;
+    const timing = { duration: 260, easing: "cubic-bezier(.22,.76,.2,1)", fill: "forwards" } as const;
     const animation = layer.animate([
-      { transform: `translate3d(${rect.left}px,${rect.top}px,0) scale(${rect.width / window.innerWidth},${rect.height / window.innerHeight})`, borderRadius: "12px", opacity: 0.54 },
-      { transform: "translate3d(0,0,0) scale(1,1)", borderRadius: "0px", opacity: 1 },
-    ], { duration: 230, easing: "cubic-bezier(.22,.76,.2,1)", fill: "forwards" });
+      { clipPath: tileShape },
+      { clipPath: "inset(0px round 0px)" },
+    ], timing);
+    artwork.animate([
+      { transform: `translate(${rect.left + (rect.width - x) / 2}px, ${rect.top + (rect.height - y) / 2}px) scale(.75)`, opacity: 0 },
+      { transform: "translate(0, 0) scale(1)", opacity: 1 },
+    ], timing);
     flight.current = { layer, animation };
     animation.finished.then(() => { if (flight.current?.animation === animation) navigate(); }, () => {});
   }
@@ -278,19 +307,22 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
   const activeProduct = workspace?.id === currentWorkspaceId && company?.id === currentCompanyId ? currentProductId : undefined;
   const history = company ? current.memory.recent[company.id] ?? [] : [];
   const apps = workspace ? visibleApps(workspace.apps, appQuery) : [];
-  const recent = workspace && !appQuery.trim()
-    ? recentApps(workspace.apps, history, activeProduct)
-    : [];
+  const featuredPair = apps.length === 2 && apps[0].productId === "apps" && apps[1].productId === "sales";
+  const recent = workspace ? recentApps(workspace.apps, history, activeProduct) : [];
   return <>
     <Button ref={trigger} appearance="standard" variant="ghost" className={styles.trigger} data-apps-launcher-trigger aria-label={[t("แอป", "Apps"),workspaceLabel].filter(Boolean).join(" · ")} aria-haspopup="dialog" aria-expanded={open} onClick={showHere}>
       <Grid2X2 size={18} aria-hidden="true" /><span>{t("แอป", "Apps")}{workspaceLabel && <small>{productLabel && productLabel !== t("แอป", "Apps") ? `${productLabel} · ${workspaceLabel}` : workspaceLabel}</small>}</span><ChevronDown size={16} aria-hidden="true" />
     </Button>
     <Dialog appearance="standard" presentation="fullscreen" open={open} onClose={close} title={t("แอป", "Apps")} className={styles.modal} bodyClassName={styles.modalBody} finalFocus={() => trigger.current} closeLabel={t("ปิดแอป", "Close Apps")}>
       {(notice || current.invalid) && <InlineNotice tone="info">{t("พื้นที่ที่จำไว้ไม่อยู่ในสิทธิ์ปัจจุบันแล้ว กรุณาเลือกใหม่", "Your remembered workspace is no longer available. Choose again.")}</InlineNotice>}
-      {workspace && <Button className={styles.areaToggle} appearance="standard" variant="ghost" aria-expanded={showAreas} onClick={() => setShowAreas(!showAreas)}><MapPin size={17} aria-hidden="true" />{t("เปลี่ยนพื้นที่ทำงาน", "Change workspace")}</Button>}
       <div className={styles.panes} data-holding-slug={company?.holdingSlug}>
+        {workspace && <Button className={styles.areaToggle} appearance="standard" variant="ghost" aria-expanded={showAreas} onClick={() => setShowAreas(!showAreas)}><MapPin size={16} aria-hidden="true" />{t("เปลี่ยนพื้นที่ทำงาน", "Change workspace")}<ChevronDown size={15} aria-hidden="true" /></Button>}
         <nav className={styles.tree} data-mobile-hidden={!!workspace && !showAreas} aria-label={t("พื้นที่ทำงาน", "Workspaces")}>
-          <label className={styles.search}><span>{t("ค้นหาพื้นที่ทำงาน", "Search workspaces")}</span><TextInput data-autofocus={!workspace || undefined} appearance="standard" type="search" value={areaQuery} onChange={event => setAreaQuery(event.target.value)} /></label>
+          <h2>{t("พื้นที่ทำงาน", "Workspaces")}</h2>
+          <label className={styles.search}>
+            <Search size={16} aria-hidden="true" />
+            <TextInput aria-label={t("ค้นหาพื้นที่ทำงาน", "Search workspaces")} placeholder={t("ค้นหาพื้นที่ทำงาน", "Search workspaces")} data-autofocus={!workspace || undefined} appearance="standard" type="search" value={areaQuery} onChange={event => setAreaQuery(event.target.value)} />
+          </label>
           <ul>{holdings.map(holding => {
             const items = holding.companies.filter(item => matches(`${item.holding} ${item.label}`) || item.workspaces.some(area => matches(area.label)));
             if (!items.length) return null;
@@ -317,24 +349,32 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
         </nav>
         <section className={styles.results} aria-label={t("แอปที่เข้าใช้ได้", "Available apps")}>
           <div className={styles.resultsScroll}>
-          <div aria-live="polite"><h2>{workspace?.label && workspace.kind !== "holding" ? workspace.label : company?.label ?? t("เลือกพื้นที่ทำงาน", "Choose a workspace")}</h2>{workspace?.kind !== "holding" && company && <p className={styles.hint}>{company.label}</p>}</div>
+          <div className={styles.resultsHeader}>
+            <div aria-live="polite">
+              {company && company.holding !== (workspace?.label ?? company.label) && <p className={styles.hint}><Building2 size={15} aria-hidden="true" />{company.holding}</p>}
+              <h2>{workspace?.label && workspace.kind !== "holding" ? workspace.label : company?.label ?? t("เลือกพื้นที่ทำงาน", "Choose a workspace")}</h2>
+            </div>
+            {workspace && <label className={styles.search}>
+              <Search size={17} aria-hidden="true" />
+              <TextInput aria-label={t("ค้นหาแอปทั้งหมด", "Search all apps")} placeholder={t("ค้นหาแอปทั้งหมด", "Search all apps")} appearance="standard" type="search" value={appQuery} onChange={event => setAppQuery(event.target.value)} />
+            </label>}
+          </div>
           {workspace && <>
-            <label className={styles.search}><span>{t("ค้นหาแอปทั้งหมด", "Search all apps")}</span><TextInput appearance="standard" type="search" value={appQuery} onChange={event => setAppQuery(event.target.value)} /></label>
-            <div className={styles.grid} ref={grid}>{apps.map(app => {
+            <div className={styles.grid} data-featured-pair={featuredPair || undefined} ref={grid}>{apps.map(app => {
               const Icon = appIcons[app.productId as keyof typeof appIcons] ?? Grid2X2;
               const active = app.productId === activeProduct;
               const liveSales = open && !entry && app.productId === "sales" &&
                 workspace.id === currentWorkspaceId && company?.id === currentCompanyId;
               return <a data-product-switch={active ? undefined : ""} aria-current={active ? "location" : undefined} data-app-id={app.productId} className={styles.app} href={app.href} key={app.productId} onClick={event => launch(event, app.productId)}>
-                <span className={styles.appIcon}><Icon size={25} strokeWidth={1.7} aria-hidden="true" /></span><ArrowUpRight className={styles.openIcon} size={17} aria-hidden="true" />
+                <span className={styles.appIcon}><Icon size={27} strokeWidth={1.65} aria-hidden="true" /></span><ArrowUpRight className={styles.openIcon} size={18} aria-hidden="true" />
                 {liveSales && <QuotationApprovalCount base={workspace.id} language={language} />}
                 <strong>{app.label}</strong>{app.accessLabel && <small>{app.accessLabel}</small>}
               </a>;
             })}</div>
-            {!apps.length && <p role="status">{workspace.apps.length ? t("ไม่พบแอปที่ค้นหา", "No matching apps.") : t("ยังไม่มีแอปที่เข้าใช้ได้ในพื้นที่นี้", "No apps are available in this workspace.")}</p>}
+            {!apps.length && <p className={styles.emptyApps} role="status">{workspace.apps.length ? t("ไม่พบแอปที่ค้นหา", "No matching apps.") : t("ยังไม่มีแอปที่เข้าใช้ได้ในพื้นที่นี้", "No apps are available in this workspace.")}</p>}
             {(workspace.adminHref || workspace.managementHref) && <div className={styles.administration}>{[[workspace.adminHref, t("ดูแลบริษัท", "Company administration")], [workspace.managementHref, "ERPX Management"]].map(([href, label]) => href && <a key={href} data-product-switch href={href} onClick={() => remember()}><Settings size={18} aria-hidden="true" />{label}<ArrowUpRight size={16} aria-hidden="true" /></a>)}</div>}
             {workspace.id === currentWorkspaceId && company && company.id === currentCompanyId && !entry && <CompanyPluginCatalogue
-              key={`${company.id}:${workspace.id}`} api={`/api/v1${workspace.id}/plugins`} language={language} />}
+              key={`${company.id}:${workspace.id}`} api={`/api/v1${workspace.id}/plugins`} language={language} appQuery={appQuery} onLaunch={launch} />}
           </>}
           {provider && <a data-product-switch href={provider.href}>{t("พื้นที่ผู้ให้บริการ", "Provider administration")} · {provider.role}</a>}
           {existingWorkspaces.map(item => <a key={item.href} data-product-switch href={item.href}>{item.holding}</a>)}

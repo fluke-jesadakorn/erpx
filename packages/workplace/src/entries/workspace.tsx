@@ -56,8 +56,7 @@ export default async function ProductEntryPage({ searchParams, applications = fa
     choices.map(choice => ({...choice, label: choice.productId === "apps" ? (language === "th" ? "ฟีด" : "Feed") : product(choice.productId)!.label[language], accessLabel: productAccessLabel(choice, language)})),
     adminChoices,
   ).filter(company => !holding || company.holdingSlug === holding.holdingSlug) : [];
-  const saved = host === "apps" ? await savedAppsWorkspaceForPresentation(session.user.id) : null;
-  const remembered = saved && (!holding || saved.workspaceId === `/holdings/${holding.holdingSlug}` || saved.workspaceId.startsWith(`/holdings/${holding.holdingSlug}/`)) ? saved : null;
+  const remembered = host === "apps" ? await savedAppsWorkspaceForPresentation(session.user.id, holding?.holdingSlug) : null;
   if (host === "apps" && holding && (await searchParams)?.launcher !== "open") {
     const feed = feedEntryHref(launcherCompanies, remembered);
     if (feed) redirect(feed);
