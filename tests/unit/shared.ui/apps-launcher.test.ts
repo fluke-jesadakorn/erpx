@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { appsMemoryKey, buildAppsCompanies, emptyAppsMemory, readAppsMemory, rememberAppsLaunch, restoreAppsSelection, selectAppsCompany, visibleApps, writeAppsMemory, type AppsEntry, type AppsMemory } from "@erpx/feature-work_projection/lib/apps-launcher";
+import { appsMemoryKey, buildAppsCompanies, emptyAppsMemory, feedEntryHref, readAppsMemory, rememberAppsLaunch, restoreAppsSelection, selectAppsCompany, visibleApps, writeAppsMemory, type AppsEntry, type AppsMemory } from "@erpx/feature-work_projection/lib/apps-launcher";
 import type { HoldingWorkspaceScope } from "@erpx/feature-work_projection/lib/workspace";
 
 const companyScope: HoldingWorkspaceScope = { kind: "holding", holdingSlug: "group" };
@@ -46,6 +46,19 @@ describe("Apps company and workspace projection", () => {
   it("handles no available entries", () => {
     expect(buildAppsCompanies([], [])).toEqual([]);
     expect(restoreAppsSelection([], emptyAppsMemory()).memory).toEqual(emptyAppsMemory());
+  });
+  it("opens Feed directly for the one authorized workspace and requires a choice when there are several", () => {
+    const [one] = buildAppsCompanies([entry()], []);
+    expect(feedEntryHref([one], null)).toBe(one.workspaces[0].apps[0].href);
+    expect(feedEntryHref(companies(), null)).toBeUndefined();
+    expect(feedEntryHref(buildAppsCompanies([entry("c1", companyScope, "sales")], []), null)).toBeUndefined();
+  });
+  it("restores only the exact saved Company and Workspace, even when just one alternative remains", () => {
+    const all = companies();
+    const [one, two] = all;
+    const department = one.workspaces.find(area => area.kind === "department")!;
+    expect(feedEntryHref(all, { companyId: one.id, workspaceId: department.id })).toBe(department.apps[0].href);
+    expect(feedEntryHref([two], { companyId: one.id, workspaceId: department.id })).toBeUndefined();
   });
 });
 

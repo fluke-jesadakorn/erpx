@@ -41,6 +41,16 @@ export type AppsMemory = { version: 1; companyId: string | null; workspaceId: st
 export const emptyAppsMemory = (): AppsMemory => ({ version: 1, companyId: null, workspaceId: null, recent: {} });
 export const appsMemoryKey = (accountId: string) => `erpx:apps-launcher:v1:${encodeURIComponent(accountId)}`;
 
+export function feedEntryHref(companies: readonly AppsCompany[], saved: Pick<AppsMemory, "companyId" | "workspaceId"> | null) {
+  if (saved?.companyId || saved?.workspaceId) {
+    return companies.find(company => company.id === saved.companyId)?.workspaces
+      .find(workspace => workspace.id === saved.workspaceId)?.apps.find(app => app.productId === "apps")?.href;
+  }
+  const [company] = companies;
+  if (companies.length !== 1 || company.workspaces.length !== 1) return undefined;
+  return company.workspaces[0].apps.find(app => app.productId === "apps")?.href;
+}
+
 export function readAppsMemory(storage: Pick<Storage, "getItem">, accountId: string): AppsMemory {
   try {
     const value = JSON.parse(storage.getItem(appsMemoryKey(accountId)) ?? "null");

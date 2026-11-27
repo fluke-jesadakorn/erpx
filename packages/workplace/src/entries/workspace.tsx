@@ -20,7 +20,7 @@ import {ProductAccountTrigger} from '@erpx/workplace/components/product-account-
 import {AppsSidebar} from '@erpx/workplace/components/apps-sidebar';
 import { savedAppsWorkspaceForPresentation } from "@erpx/server-work_projection/public/workspace-entry-presentation-query";
 import {AppsLauncher} from '@erpx/workplace/components/apps-launcher';
-import {buildAppsCompanies} from '@erpx/feature-work_projection/lib/apps-launcher';
+import {buildAppsCompanies, feedEntryHref} from '@erpx/feature-work_projection/lib/apps-launcher';
 import {directProductEntryHref} from '../lib/product-entry';
 import styles from "@erpx/workplace/components/product-shell.module.css";
 
@@ -52,11 +52,20 @@ export default async function ProductEntryPage({ searchParams, applications = fa
   if (direct) redirect(direct);
   const nativeServiceEntry = host === "service" && holdingRoutingEnabled(process.env) && process.env.ERPX_NATIVE_FIELD_SERVICE_WORKSPACE_CONFIG !== undefined;
   const existingWorkspaces = !nativeServiceEntry && (host === "apps" || host === "admin" || choices.length === 0) ? await measureReadPhase("product_entry_recovery", existingWorkspaceLaunchChoices) : [];
-  const remembered = host === "apps"&&!holdingRoutingEnabled(process.env) ? await savedAppsWorkspaceForPresentation(session.user.id) : null;
+  const launcherCompanies = host === "apps" ? buildAppsCompanies(
+    choices.map(choice => ({...choice, label: choice.productId === "apps" ? (language === "th" ? "ฟีด" : "Feed") : product(choice.productId)!.label[language], accessLabel: productAccessLabel(choice, language)})),
+    adminChoices,
+  ).filter(company => !holding || company.holdingSlug === holding.holdingSlug) : [];
+  const saved = host === "apps" ? await savedAppsWorkspaceForPresentation(session.user.id) : null;
+  const remembered = saved && (!holding || saved.workspaceId === `/holdings/${holding.holdingSlug}` || saved.workspaceId.startsWith(`/holdings/${holding.holdingSlug}/`)) ? saved : null;
+  if (host === "apps" && holding && (await searchParams)?.launcher !== "open") {
+    const feed = feedEntryHref(launcherCompanies, remembered);
+    if (feed) redirect(feed);
+  }
   return <ProductNavigationBoundary language={language}><div className={styles.shell}>
     <header className={styles.header}><AppsHomeLink className={styles.brand}><ProductBrand appearance="standard" variant="symbol" className={styles.mark} /><strong>{host === "apps" ? "ERPX Apps" : `ERPX ${product(host)?.label[language] ?? "Administration"}`}</strong></AppsHomeLink>
       <span className={styles.context}/><ProductAccountTrigger/><nav className={styles.links}>{host === "apps" && <AppsLauncher key={session.user.id} accountId={session.user.id} language={language} entry requireSelection={holdingRoutingEnabled(process.env)} currentCompanyId={remembered?.companyId} currentWorkspaceId={remembered?.workspaceId}
-        companies={buildAppsCompanies(choices.map(choice => ({...choice, label: choice.productId === "apps" ? (language === "th" ? "ฟีด" : "Feed") : product(choice.productId)!.label[language], accessLabel: productAccessLabel(choice, language)})), adminChoices)}
+        companies={launcherCompanies}
         provider={provider ? {href: configuredProductHandoff("admin", "/provider")!, role: provider.role} : null} existingWorkspaces={existingWorkspaces} />}<a data-product-switch href={new URL("/", configuredProductOrigin("account")!).href}>Account</a></nav></header>
     {host === "apps" ? <>
       <PageContent as="main"><h1>{language === "th" ? "ฟีด" : "Feed"}</h1><p>{language === "th" ? "เลือกแอปและพื้นที่ทำงานจากแถบนำทางเพื่อเริ่มใช้งาน" : "Choose an app and workspace from the navigation to get started."}</p></PageContent>
