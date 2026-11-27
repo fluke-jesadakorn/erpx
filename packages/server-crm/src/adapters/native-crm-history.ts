@@ -1,5 +1,6 @@
 import 'server-only';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { nativeRequest } from '@erpx/server-runtime/public/native-http';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import type { Row } from '@erpx/server-commerce/public/commerce';
 
@@ -65,14 +66,14 @@ function row(value: unknown): Row {
 /** Read one lead's immutable case-event history from the native owner GET. */
 export async function nativeCrmCaseEventHistory(actor: WorkContext, leadId: string): Promise<Row[]> {
   const config = configuration();
-  const holding = config.holdings.find(h => h.holdingSlug === actor.holdingSlug && h.holdingId === actor.holdingId);
+  const holding = config.holdings.find(h => h.holdingSlug === actor.holdingSlug && h.holdingId === actor.holdingId && h.companyId === actor.companyId);
   if (!holding || typeof leadId !== 'string' || !leadId || leadId.length > 200 || /[\u0000-\u001f\u007f]/.test(leadId)) {
     throw new ApiError(422, 'CRM_HISTORY_LEAD_INVALID', 'Choose one bounded CRM lead.');
   }
   const url = new URL(`/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/crm/case-events?${new URLSearchParams({ leadId })}`, config.privateBaseUrl);
   let response: Response;
   try {
-    response = await fetch(url, {
+    response = await nativeRequest(url, {
       method: 'GET',
       headers: {
         host: new URL(holding.origin).host,
@@ -82,13 +83,9 @@ export async function nativeCrmCaseEventHistory(actor: WorkContext, leadId: stri
         'x-erpx-context-company': holding.companyId,
         'x-erpx-context-holding': holding.holdingId,
       },
-      cache: 'no-store',
-      redirect: 'error',
-      signal: AbortSignal.timeout(config.timeoutMs),
-    });
+    }, config.timeoutMs);
   } catch { return unavailable(); }
   if (response.status >= 400 && response.status < 500) {
-    void response.body?.cancel().catch(() => undefined);
     const payload = await response.json().catch((): unknown => null);
     const err = record(payload) ? (payload as { error?: { code?: string; message?: string } }).error : undefined;
     throw new ApiError(response.status, err?.code ?? 'CRM_NATIVE_HISTORY_FAILED', err?.message ?? 'The native CRM history read was rejected.');

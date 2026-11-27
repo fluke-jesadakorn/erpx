@@ -13,12 +13,13 @@ use crate::adapters::social::{FeedFilter, FeedPost};
 use crate::adapters::social_http_wire::decode_social_command;
 use crate::domain::social::{Change, FeedCursor, Receipt};
 use erpx_server_runtime::public::http_support::{
-    HeaderMap, Path, Query, Request, Response, Router, State, header,
+    HeaderMap, IntoResponse, Json, Path, Query, Request, Response, Router, State, StatusCode,
+    header,
     routing::{get, post},
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Arc};
 
 const DEFAULT_PAGE: usize = 50;
@@ -340,6 +341,10 @@ pub fn social_router(targets: Vec<SocialHttpTarget>) -> Result<Router, BusinessE
             get(read_post_comments).post(create_comment),
         )
         .route(
+            "/api/v1/holdings/{holding_slug}/posts/{post_id}/comments",
+            get(read_post_comments).post(create_comment),
+        )
+        .route(
             "/api/v1/holdings/{holding_slug}/feed/{post_id}/revisions",
             get(read_post_revisions),
         )
@@ -467,8 +472,19 @@ pub async fn read_feed(
     request: Request,
 ) -> Response {
     let headers = request.headers().clone();
+    let public = headers
+        .get("x-erpx-api-transport")
+        .is_some_and(|value| value == "public");
     let result = async {
         let target = target(&state, &headers, &slug)?;
+        let filter =
+            FeedFilter::parse(query.filter.as_deref().unwrap_or("all")).map_err(|error| {
+                if public {
+                    BusinessError::invalid("INVALID_FILTER", "Choose a valid feed filter.")
+                } else {
+                    error
+                }
+            })?;
         target
             .backend
             .read(SocialHttpReadRequest {
@@ -476,15 +492,19 @@ pub async fn read_feed(
                 holding_slug: &target.holding_slug,
                 headers: &headers,
                 kind: SocialReadKind::Feed {
-                    filter: FeedFilter::parse(query.filter.as_deref().unwrap_or("all"))?,
+                    filter,
                     cursor: cursor(query.cursor.as_deref())?,
-                    limit: read_limit(query.limit.as_deref())?,
+                    limit: read_limit(if public { None } else { query.limit.as_deref() })?,
                 },
             })
             .await
     }
     .await;
     match result {
+        Ok(SocialHttpReadReply::Feed(reply)) if public => (
+            [(header::CACHE_CONTROL, "private, no-store")],
+            Json(json!({"data": reply.items, "hasMore": reply.has_more, "nextCursor": reply.next_cursor})),
+        ).into_response(),
         Ok(SocialHttpReadReply::Feed(reply)) => bounded(*reply),
         Ok(_) => error_response(BusinessError::invalid(
             "SOCIAL_HTTP_RESPONSE_INVALID",
@@ -532,10 +552,15 @@ pub async fn read_post_comments(
     request: Request,
 ) -> Response {
     let headers = request.headers().clone();
+    let conversation = request.uri().path().split('/').nth(5) == Some("posts");
     let result = async {
         let target = target(&state, &headers, &slug)?;
         let cursor = cursor(query.cursor.as_deref())?;
-        let limit = read_limit(query.limit.as_deref())?;
+        let limit = read_limit(if conversation {
+            None
+        } else {
+            query.limit.as_deref()
+        })?;
         target
             .backend
             .comments_page(SocialHttpCommentsRequest {
@@ -550,6 +575,24 @@ pub async fn read_post_comments(
     }
     .await;
     match result {
+        Ok(reply) if conversation => {
+            let items = reply
+                .items
+                .into_iter()
+                .map(|row| {
+                    let rich_content = row.rich_content.clone();
+                    let mut item = json!(row);
+                    if let Some(fields) = item.as_object_mut() {
+                        fields.remove("rich_content_json");
+                        fields.insert("richContent".into(), rich_content.unwrap_or(Value::Null));
+                    }
+                    item
+                })
+                .collect::<Vec<_>>();
+            bounded(
+                json!({"items": items, "hasMore": reply.has_more, "nextCursor": reply.next_cursor}),
+            )
+        }
         Ok(reply) => bounded(reply),
         Err(error) => error_response(error),
     }
@@ -592,8 +635,10 @@ pub async fn read_page(
     let result = async {
         let target = target(&state, &headers, &slug)?;
         let skip_day = page_flag(query.skip_day.as_deref(), "SOCIAL_SKIP_DAY_INVALID")?;
-        let skip_milestones =
-            page_flag(query.skip_milestones.as_deref(), "SOCIAL_SKIP_MILESTONES_INVALID")?;
+        let skip_milestones = page_flag(
+            query.skip_milestones.as_deref(),
+            "SOCIAL_SKIP_MILESTONES_INVALID",
+        )?;
         let source_only = page_flag(query.source_only.as_deref(), "SOCIAL_SOURCE_ONLY_INVALID")?;
         target
             .backend
@@ -689,8 +734,15 @@ pub async fn create_post(
     request: Request,
 ) -> Response {
     let headers = request.headers().clone();
+    let public = headers
+        .get("x-erpx-api-transport")
+        .is_some_and(|value| value == "public");
     let prepared = prepare_command(state, slug, request, "social.post.publish", None, None).await;
-    command_response(prepared, headers).await
+    let mut response = command_response(prepared, headers).await;
+    if public && response.status() == StatusCode::OK {
+        *response.status_mut() = StatusCode::CREATED;
+    }
+    response
 }
 
 pub async fn create_story(
@@ -727,6 +779,7 @@ pub async fn create_comment(
     request: Request,
 ) -> Response {
     let headers = request.headers().clone();
+    let conversation = request.uri().path().split('/').nth(5) == Some("posts");
     let prepared = prepare_command(
         state,
         slug,
@@ -736,7 +789,11 @@ pub async fn create_comment(
         None,
     )
     .await;
-    command_response(prepared, headers).await
+    let mut response = command_response(prepared, headers).await;
+    if conversation && response.status() == StatusCode::OK {
+        *response.status_mut() = StatusCode::CREATED;
+    }
+    response
 }
 
 pub async fn comment_action(
@@ -1220,6 +1277,43 @@ mod tests {
         .await;
         assert_eq!(body(response).await.0, StatusCode::UNPROCESSABLE_ENTITY);
         assert_eq!(backend.reads.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn public_feed_preserves_the_existing_list_and_created_response() {
+        let state = http_state(make_target(Arc::new(FakeBackend::default())));
+        let mut request = get_request();
+        request
+            .headers_mut()
+            .insert("x-erpx-api-transport", "public".parse().unwrap());
+        let (status, value) = body(
+            read_feed(
+                State(state.clone()),
+                Path("acme".into()),
+                Query(query(None)),
+                request,
+            )
+            .await,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(value["data"][0]["id"], "post-1");
+        assert_eq!(value["nextCursor"], "10:post-1");
+        assert_eq!(value["hasMore"], true);
+        let mut request = post_request(
+            r#"{"body":"Hello","audience":"holding"}"#,
+            Some("https://acme.example.test"),
+            Some("social-key-0001"),
+        );
+        request
+            .headers_mut()
+            .insert("x-erpx-api-transport", "public".parse().unwrap());
+        assert_eq!(
+            body(create_post(State(state), Path("acme".into()), request).await)
+                .await
+                .0,
+            StatusCode::CREATED
+        );
     }
 
     #[tokio::test]

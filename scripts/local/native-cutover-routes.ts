@@ -35,6 +35,7 @@ const oasisSalesRoutes: Readonly<Record<string, readonly string[]>> = {
   'crm/leads': read,
   'commerce/orders': write,
   'reports/sales-crm': read,
+  'feed': readWrite,
 };
 
 /** Public methods of the walkthrough. Private SSR transport is never exposed here. */
@@ -52,6 +53,11 @@ export function oasisDemoNativeRoute(host: string, url: string): { url: string; 
   const route = canonical.slice(prefix.length);
   if (Object.hasOwn(oasisSalesRoutes, route)) return {...scoped, methods: oasisSalesRoutes[route]!,
     ...(route === 'assignments/active' || route === 'companies/active' ? {} : {workContext:true})};
+  const conversation = /^posts\/([^/]+)\/comments$/.exec(route);
+  if (conversation) {
+    try { if (!validId(conversation[1]!)) return; } catch { return; }
+    return {...scoped, methods: readWrite, workContext:true};
+  }
   const match = /^(crm\/activities|crm\/leads|commerce\/orders)\/([^/]+)(?:\/(changes|opportunity\/changes|transition))?$/.exec(route);
   if (!match) return;
   const [, owner, id, action] = match;

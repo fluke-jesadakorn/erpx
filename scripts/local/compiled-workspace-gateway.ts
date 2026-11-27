@@ -36,7 +36,7 @@ function unavailable(response: ServerResponse) {
   if (response.headersSent) {response.destroy();return;}
   response.writeHead(503, {'Cache-Control':'no-store','Content-Type':'text/plain; charset=utf-8'});response.end('Application unavailable.');
 }
-type OasisTarget = { status: 404 | 405 | 421; allow?: string } | { status: 307; location: string } |
+type OasisTarget = { status: 404 | 405 | 421; allow?: string } |
   { port: number; native: true; path: string; workspace?: HoldingNativeWorkspace; workContext?: true } | { port: number; native: false; path: string };
 
 export function selectOasisDemoTarget(host: string | undefined, url: string, method: string): OasisTarget {
@@ -55,7 +55,6 @@ export function selectOasisDemoTarget(host: string | undefined, url: string, met
   if (/^\/(?:api|internal|sso)(?:\/|$)/.test(path) || transport || /\/api(?:\/|$)/.test(path) && path.startsWith('/__erpx/')) return { status: 404 };
   if (method !== 'GET' && method !== 'HEAD') return { status: 405, allow: 'GET, HEAD' };
   if (account) return path.startsWith('/__erpx/') ? { status: 404 } : { port: oasisDemoRouting.ports.account, native: false, path: url };
-  if (path === '/') return { status: 307, location: '/sales' + url.slice(1) };
   const route = parseHoldingRoute(oasisDemoHolding.holdingSlug, path, 'oasis-demo-staging');
   let app = route?.app;
   if (['/launch', '/choose-work-role', '/account/continue'].includes(path)) {
@@ -137,7 +136,7 @@ async function proxyOasisDemo(req: IncomingMessage, res: ServerResponse) {
   catch { target = { status: 404 }; }
   if ('status' in target) {
     res.writeHead(target.status, { 'Cache-Control': 'private, no-store',
-      ...(target.status === 307 ? {Location: target.location} : target.allow ? {Allow: target.allow} : {}) });
+      ...(target.allow ? {Allow: target.allow} : {}) });
     res.end();
     return;
   }

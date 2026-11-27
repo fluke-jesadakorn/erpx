@@ -12887,6 +12887,15 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
+    let collaboration_feed = matches!(
+        request.method(),
+        &axum::http::Method::GET | &axum::http::Method::HEAD | &axum::http::Method::POST
+    ) && match path.split('/').collect::<Vec<_>>().as_slice() {
+        ["", "api", "v1", "holdings", _, "feed"]
+        | ["", "api", "v1", "holdings", _, "posts", _, "comments"] =>
+            state.policy.holdings.iter().any(|holding| holding.host == host),
+        _ => false,
+    };
     let crm_sales_report = state.oasis_demo_staging && host == OASIS_DEMO_HOLDING_HOST
         && request.method() == axum::http::Method::GET
         && request.uri().path() == "/api/v1/holdings/oasis-demo/reports/sales-crm"
@@ -13705,6 +13714,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || platform_operations
         || crm
         || crm_sales_report
+        || collaboration_feed
         || crm_command
         || crm_activity_command
         || crm_activity_workspace
@@ -13807,6 +13817,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             || field_inbox_state
             || field_evidence
             || field_collaboration_write
+            || collaboration_feed && request.method() == axum::http::Method::POST
             || field_operations
             || crm_command
             || marketing_command

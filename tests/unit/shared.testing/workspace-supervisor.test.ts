@@ -245,7 +245,8 @@ it('routes only the OASIS walkthrough APIs to Rust and rejects foreign hosts, te
   const target = (path: string, method = 'GET', host = holding) => selectOasisDemoTarget(host, path, method);
   expect(isOasisDemoRouting({schema:oasisDemoRouting.schema})).toBe(true);
   expect(isOasisDemoRouting({schema:oasisDemoRouting.schema, api:3101})).toBe(false);
-  expect(target('/')).toEqual({status:307, location:'/sales'});
+  expect(target('/')).toMatchObject({port:3289, native:false, path:'/'});
+  expect(target('/applications')).toMatchObject({port:3289, native:false, path:'/applications'});
   expect(target('/sales/sales/documents/quote')).toMatchObject({port:3288, native:false});
   expect(target('/__erpx/sales/_next/static/chunks/app.js')).toMatchObject({port:3288, native:false});
   expect(target('/launch?app=sales')).toMatchObject({port:3288, native:false});
@@ -259,6 +260,8 @@ it('routes only the OASIS walkthrough APIs to Rust and rejects foreign hosts, te
     [holding, 'POST', `${base}/commerce/orders`], [holding, 'POST', `${base}/commerce/orders/order-1`],
     [holding, 'GET', `${base}/commerce/orders/order-1`], [holding, 'POST', `${base}/commerce/orders/order-1/transition`],
     [holding, 'GET', `${base}/reports/sales-crm`],
+    [holding, 'GET', `${base}/feed`], [holding, 'POST', `${base}/feed`],
+    [holding, 'GET', `${base}/posts/post-1/comments`], [holding, 'POST', `${base}/posts/post-1/comments`],
   ]) expect(target(path!, method, host)).toMatchObject({port:3382, native:true, path});
   expect(target(`/__erpx/sales${base}/branches/phuket/departments/sales/crm/activities?x=a%2Fb`, 'POST')).toEqual({
     port:3382, native:true, path:`${base}/crm/activities?x=a%2Fb`, workspace:{branch:'phuket', department:'sales'}, workContext:true,

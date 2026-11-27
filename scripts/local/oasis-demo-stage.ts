@@ -63,6 +63,7 @@ if (import.meta.main || process.argv[1]?.endsWith('/stage/entry.mjs')) {
       holdings:[{holdingSlug:oasisDemoHolding.holdingSlug}]}),
     ERPX_NATIVE_COMMERCE_LANE14_CONFIG:holdingBinding,
     ERPX_NATIVE_ACCOUNT_SESSION_CONFIG:account, ERPX_NATIVE_FIELD_SERVICE_WORKSPACE_CONFIG:holding,
+    ERPX_NATIVE_CRM_CONFIG:companyServices,
     ERPX_NATIVE_CRM_PIPELINE_CONFIG:holding, ERPX_NATIVE_CRM_ACTIVITY_WORKSPACE_CONFIG:holding,
     ERPX_NATIVE_SALES_DOCUMENTS_CONFIG:holding, ERPX_NATIVE_COMMERCE_ORDER_CONFIG:holding,
   } satisfies NodeJS.ProcessEnv;
