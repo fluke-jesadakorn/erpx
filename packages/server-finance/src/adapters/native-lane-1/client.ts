@@ -173,7 +173,7 @@ async function read(
     'cache-control': 'no-cache',
     'x-erpx-context-company': companyId,
   });
-  const body = JSON.stringify(kind === LANE_01_JOURNAL_LINES ? { kind, journalId } : { kind });
+  const body = JSON.stringify(kind === LANE_01_JOURNAL_LINES ? { kind, journal_id: journalId } : { kind });
   if (new TextEncoder().encode(body).length > 4096) return unavailable('LANE_01_READ_INPUT_INVALID');
 
   let response: Response;
