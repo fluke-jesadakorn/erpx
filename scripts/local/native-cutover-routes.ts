@@ -143,11 +143,12 @@ export function respondToHoldingQualityMethod(res: ServerResponse, method: strin
 }
 
 /** Native Holding operations and paths reserved for private SSR. */
-export function holdingNativeCutoverPath(url: string, holdingSlug: string, method: string | undefined): "records" | "record-action" | "routine-templates" | "routine-schedules" | "routine-command" | "routine-editor-private" | "quality-read" | "quality-command" | "quality-missing" | "plugins" | "social" | undefined {
+export function holdingNativeCutoverPath(url: string, holdingSlug: string, method: string | undefined): "records" | "record-action" | "routine-templates" | "routine-schedules" | "routine-command" | "routine-editor-private" | "quality-read" | "quality-command" | "quality-missing" | "plugins" | "social" | "navigation-command" | undefined {
   const [path] = url.split("?", 1);
   const prefix = `/api/v1/holdings/${holdingSlug}/`;
   if (!path?.startsWith(prefix)) return;
   const [owner, segment, ...tail] = path.slice(prefix.length).split("/");
+  if (owner === "navigation" && segment === undefined && method === "POST") return "navigation-command";
   if (owner === "plugins" && segment === undefined) return "plugins";
   if (owner === "feed" && segment === undefined) return "social";
   if (owner === "posts" && segment && tail.length === 1 && tail[0] === "comments") {

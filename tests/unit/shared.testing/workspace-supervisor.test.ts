@@ -416,7 +416,7 @@ it('routes retired Holding entries and their transport aliases directly to Axum'
     if (req.url?.startsWith('/internal/session-context?')) {
       if (req.headers['x-erpx-workspace-branch'] === 'bangkok' && req.headers['x-erpx-workspace-department'] === 'ops') {
         res.writeHead(200, {'Content-Type': 'application/json'});
-        res.end(JSON.stringify({data: {companyId: 'company', assignmentId: 'holding-assignment', revision: 3}}));
+        res.end(JSON.stringify({data: {companyId: 'company', assignmentId: 'holding-assignment', revision: 3, assignmentVersion: 2}}));
         return;
       }
       res.writeHead(403, {'Content-Type': 'application/json'});
@@ -481,6 +481,29 @@ it('routes retired Holding entries and their transport aliases directly to Axum'
     });
     expect(scopedResponse.status).toBe(200);
     expect(JSON.parse(scopedResponse.body)).toEqual({path: record, branch: 'bangkok', department: 'ops'});
+    const navigation = '/api/v1/holdings/acme/branches/bangkok/departments/ops/navigation';
+    const headers = {'x-erpx-context-company': 'company', 'x-erpx-context-assignment': 'holding-assignment',
+      'x-erpx-context-revision': '3', 'x-erpx-context-assignment-version': '2'};
+    const markRead = (selection: Record<string, string>) => new Promise<{status: number; body: string}>((done, reject) => {
+      const req = request({host: '127.0.0.1', port: 3104, path: '/__erpx/apps' + navigation, method: 'POST',
+        headers: {Host: host, Cookie: 'erpx_session=fixture', ...selection}}, res => {
+        let body = '';
+        res.setEncoding('utf8');
+        res.on('data', chunk => body += chunk);
+        res.once('end', () => done({status: res.statusCode!, body}));
+      });
+      req.once('error', reject);
+      req.end('{"action":"read-home"}');
+    });
+    expect(await markRead(headers)).toEqual({
+      status: 200,
+      body: JSON.stringify({path: '/api/v1/holdings/acme/navigation', branch: 'bangkok', department: 'ops'}),
+    });
+    for (const selection of [{}, {...headers, 'x-erpx-context-revision': '2'}, {...headers, 'x-erpx-workspace-branch': 'forged'}]) {
+      const rejected = await markRead(selection);
+      expect(rejected.status).toBe(409);
+      expect(JSON.parse(rejected.body)).toMatchObject({error: {code: 'WORK_CONTEXT_CHANGED'}});
+    }
     const routines = '/api/v1/holdings/acme/routine-templates';
     expect((await get(3104, host, routines)).status).toBe(401);
     const denied = await new Promise<{status: number; body: string}>((done, reject) => {

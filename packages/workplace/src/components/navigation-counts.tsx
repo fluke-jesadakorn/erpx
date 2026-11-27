@@ -1,5 +1,5 @@
 "use client";
-import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
+import { workspacePathParts } from "@erpx/feature-work_projection/lib/destination-registry";
 import type { NavigationSnapshot } from "@erpx/server-work_projection/public/navigation-snapshot";
 import { contextIsSwitching } from "@erpx/feature-work_projection/lib/context-switch";
 import { workAttention, type WorkAttention } from "@erpx/feature-work_projection/lib/work-attention";
@@ -54,8 +54,8 @@ export function NavigationCountsProvider({ base, shortcutStorageKey, initial, ch
   const [homeChanged, setHomeChanged] = useState(false);
   const [workChanged, setWorkChanged] = useState(false);
   const [initialPending, setInitialPending] = useState(!!initial);
-  const pathname = usePathname();
-  const home = pathname === canonicalUiHref(`${base}/home`) || pathname === canonicalUiHref(`${base}/feed`);
+  const route = workspacePathParts(usePathname());
+  const home = route?.base === base && (route.path === "home" || route.path === "feed");
   const [workViewAvailability, setWorkViewAvailability] = useState<WorkViewAvailability | null>(null);
   const [counts, setCounts] = useState<Counts>(empty);
   const [attention, setAttention] = useState(() => workAttention([]));
@@ -132,7 +132,7 @@ export function NavigationCountsProvider({ base, shortcutStorageKey, initial, ch
         if (initial) await initial;
         if (stale.current || contextIsSwitching()) return;
         const response = await workFetch(endpoint, {
-          method: "POST", headers: { "Content-Type": "application/json" },
+          method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
           body: JSON.stringify({ action: "read-home" }),
         });
         if (!response.ok) throw new Error("Unable to mark Home as read");

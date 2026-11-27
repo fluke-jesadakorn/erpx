@@ -145,15 +145,17 @@ const commandContextAssertions = [
 ] as const;
 const recordRequestHeaders = ["origin", "content-type", "idempotency-key", ...commandContextAssertions];
 
-export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.ProcessEnv; req: IncomingMessage; res: ServerResponse; url?: string; requiresSession?: boolean; recordAction?: boolean; routineCommand?: boolean; qualityRead?: boolean; qualityCommand?: boolean; qualityMissing?: boolean; workspace?: HoldingNativeWorkspace; contextGuard?: "social" | "plugins"; shellPreference?: ShellPreference }): Promise<void> {
+export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.ProcessEnv; req: IncomingMessage; res: ServerResponse; url?: string; requiresSession?: boolean; recordAction?: boolean; routineCommand?: boolean; qualityRead?: boolean; qualityCommand?: boolean; qualityMissing?: boolean; workspace?: HoldingNativeWorkspace; contextGuard?: "social" | "plugins" | "navigation-command"; shellPreference?: ShellPreference }): Promise<void> {
   const { base, environment, req, res, recordAction, routineCommand, qualityRead, qualityCommand, qualityMissing, contextGuard } = options;
   const quality = qualityRead || qualityCommand || qualityMissing;
   const requiresSession = options.requiresSession || quality || !!contextGuard;
   const workspace = req.method === "OPTIONS" ? undefined : options.workspace;
   const routineUnavailable = () => nativeApiError(res, 503, "NATIVE_ROUTINES_UNAVAILABLE", `The native Operations routine ${routineCommand ? "command" : "read"} is unavailable.`);
-  const unavailableContext = () => contextGuard === "social"
-    ? nativeApiError(res, 503, "NATIVE_SOCIAL_UNAVAILABLE", "The native Feed is unavailable.")
-    : nativeApiError(res, 503, "PLUGINS_UNAVAILABLE", "The native plugin catalogue is unavailable.");
+  const unavailableContext = () => {
+    if (contextGuard === "social") return nativeApiError(res, 503, "NATIVE_SOCIAL_UNAVAILABLE", "The native Feed is unavailable.");
+    if (contextGuard === "navigation-command") return nativeApiError(res, 503, "NATIVE_WORK_NAVIGATION_UNAVAILABLE", "The native Work navigation is unavailable.");
+    return nativeApiError(res, 503, "PLUGINS_UNAVAILABLE", "The native plugin catalogue is unavailable.");
+  };
   const url = options.url ?? req.url ?? "/";
   const queryStart = url.indexOf("?");
   if (recordAction && (Buffer.byteLength(req.headers.cookie ?? "") > 8192 ||
@@ -184,11 +186,11 @@ export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.
     }
   }
   if (qualityMissing) return nativeApiError(res, 404, "NOT_FOUND", "Quality route not found.");
-  const missingQualitySelection = qualityCommand && renderedSelectionHeaders.some(name => !req.headers[name]);
+  const missingSelection = (qualityCommand || contextGuard === "navigation-command") && renderedSelectionHeaders.some(name => !req.headers[name]);
   const checksCommandContext = qualityCommand || routineCommand || ((recordAction || contextGuard) && ["POST", "PATCH", "DELETE"].includes(req.method ?? ""));
   const staleCommandContext = checksCommandContext && commandContextAssertions.some(name =>
     req.headers[name] !== undefined && req.headers[name] !== context[name]);
-  if (missingQualitySelection || staleCommandContext) {
+  if (missingSelection || staleCommandContext) {
     return nativeApiError(res, 409, "WORK_CONTEXT_CHANGED", "The work context changed.");
   }
   await new Promise<void>(done => {

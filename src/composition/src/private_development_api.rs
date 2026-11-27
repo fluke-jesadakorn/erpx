@@ -13729,6 +13729,12 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         ] if !slug.is_empty() => state.policy.audience(host).is_some(),
         _ => false,
     };
+    let work_navigation_command = request.method() == axum::http::Method::POST
+        && matches!(
+            request.uri().path().split('/').collect::<Vec<_>>().as_slice(),
+            ["", "api", "v1", "holdings", slug, "navigation"] if !slug.is_empty()
+        )
+        && state.policy.audience(host).is_some();
     let work_snapshot = request.method() == axum::http::Method::GET
         && match request
             .uri()
@@ -13803,6 +13809,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || service_packages
         || field_work_roles
         || work_card_preferences
+        || work_navigation_command
         || work_snapshot
         || work_home_unread
         || field_operations

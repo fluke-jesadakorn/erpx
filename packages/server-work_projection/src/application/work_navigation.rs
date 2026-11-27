@@ -62,8 +62,7 @@ pub struct MarkHomeReadCommand {
 }
 
 impl MarkHomeReadCommand {
-    /// The retained route requires an Idempotency-Key; the cursor upsert uses
-    /// `GREATEST`, so a replay with the same key cannot move the cursor back.
+    /// Validate the key used to admit one cursor update per workspace and user.
     pub fn validate(&self) -> Result<(), BusinessError> {
         let key = &self.idempotency_key;
         if !(8..=180).contains(&key.len())
@@ -103,8 +102,7 @@ pub trait WorkNavigationPort {
     fn mark_home_read<'a>(
         &'a mut self,
         current: &'a AuthorizedWorkContext,
-        workspace_base: &'a str,
-        read_through: i64,
+        command: &'a MarkHomeReadCommand,
     ) -> impl Future<Output = Result<(), Self::Error>> + Send + 'a;
 }
 
@@ -149,8 +147,7 @@ pub async fn mark_home_read<P: WorkNavigationPort>(
     now: TimestampMillis,
 ) -> Result<Value, P::Error> {
     command.validate().map_err(P::Error::from)?;
-    port.mark_home_read(current, &command.workspace_base, command.read_through)
-        .await?;
+    port.mark_home_read(current, command).await?;
     let home = port
         .unread_home(current, &command.workspace_base, now.get())
         .await?;
@@ -209,10 +206,9 @@ mod tests {
         async fn mark_home_read<'a>(
             &'a mut self,
             _: &'a AuthorizedWorkContext,
-            _: &'a str,
-            read_through: i64,
+            command: &'a MarkHomeReadCommand,
         ) -> Result<(), Self::Error> {
-            self.marked.push(read_through);
+            self.marked.push(command.read_through);
             Ok(())
         }
     }

@@ -31,6 +31,7 @@ use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
     BusinessError, CompanyId, FailureKind, HoldingId, TimestampMillis,
 };
+use sha2::{Digest, Sha256};
 use sqlx::PgConnection;
 use std::sync::Arc;
 
@@ -203,16 +204,40 @@ impl WorkNavigationPort for PgWorkNavigation<'_> {
     async fn mark_home_read<'a>(
         &'a mut self,
         current: &'a AuthorizedWorkContext,
-        workspace_base: &'a str,
-        read_through: i64,
+        command: &'a MarkHomeReadCommand,
     ) -> Result<(), Self::Error> {
         let workspace = current.selection().workspace();
         let input = crate::domain::home_read_cursor::MarkHomeReadInput {
             company_id: workspace.company_id.as_str().to_owned(),
             user_id: current.user_id().as_str().to_owned(),
-            workspace_base: workspace_base.to_owned(),
-            read_through,
+            workspace_base: command.workspace_base.clone(),
+            read_through: command.read_through,
         };
+        input.validate()?;
+        // Capture admission and update the cursor in the same Holding transaction.
+        // A retry arriving later must never mark posts published since the first call.
+        let scope = serde_json::json!([
+            input.company_id,
+            input.user_id,
+            input.workspace_base,
+            command.idempotency_key,
+        ]);
+        let fingerprint = format!("{:x}", Sha256::digest(scope.to_string()));
+        let admitted = sqlx::query(
+            "INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at) \
+             VALUES($1,'work.navigation.read-home',$2,$3,$4,'{}',$5) \
+             ON CONFLICT (command_id) DO NOTHING",
+        )
+        .bind(format!("work-navigation-read-home:{fingerprint}"))
+        .bind(&input.user_id)
+        .bind(&fingerprint)
+        .bind(&input.workspace_base)
+        .bind(input.read_through)
+        .execute(&mut *self.connection)
+        .await?;
+        if admitted.rows_affected() == 0 {
+            return Ok(());
+        }
         let mut repository = crate::adapters::home_read_cursor_postgres::PgHomeReadCursor::new(
             &mut *self.connection,
         );
