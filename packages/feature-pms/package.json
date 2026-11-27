@@ -209,8 +209,7 @@
     "./routes/api/v1/holdings/[holdingSlug]/pms/booking-changes/route": "./src/routes/api/v1/holdings/[holdingSlug]/pms/booking-changes/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/pms/[action]/route": "./src/routes/api/v1/holdings/[holdingSlug]/pms/[action]/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/pms/stripe-refunds/route": "./src/routes/api/v1/holdings/[holdingSlug]/pms/stripe-refunds/route.ts",
-    "./routes/api/v1/holdings/[holdingSlug]/pms/booking-refunds/route": "./src/routes/api/v1/holdings/[holdingSlug]/pms/booking-refunds/route.ts",
-    "./routes/api/v1/holdings/[holdingSlug]/pms/reports/route": "./src/routes/api/v1/holdings/[holdingSlug]/pms/reports/route.ts"
+    "./routes/api/v1/holdings/[holdingSlug]/pms/booking-refunds/route": "./src/routes/api/v1/holdings/[holdingSlug]/pms/booking-refunds/route.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

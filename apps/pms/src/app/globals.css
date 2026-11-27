@@ -306,7 +306,6 @@
 @source "../../../../packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/booking-changes/route.ts";
 @source "../../../../packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/booking-refunds/route.ts";
 @source "../../../../packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/imports/route.ts";
-@source "../../../../packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/reports/route.ts";
 @source "../../../../packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/stripe-payments/route.ts";
 @source "../../../../packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/stripe-refunds/route.ts";
 @source "../../../../packages/feature-pms/src/routes/holdings/[holdingSlug]/@record/pms/documents/[id]/[recordSection]/page.tsx";
@@ -3930,7 +3929,6 @@
 @source "../../../../packages/server-records/src/public/identity-access-verified-context-projections.ts";
 @source "../../../../packages/server-records/src/public/legal-attachment-read-sources.ts";
 @source "../../../../packages/server-records/src/public/native-record-context.ts";
-@source "../../../../packages/server-records/src/public/native-record-search.ts";
 @source "../../../../packages/server-records/src/public/platform-owner-projection-sources.ts";
 @source "../../../../packages/server-records/src/public/record-details.ts";
 @source "../../../../packages/server-records/src/public/record-domain-details.ts";
@@ -4523,7 +4521,6 @@
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/profiles/me/media/[kind]/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/profiles/me/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/push/route.ts";
-@source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/search/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/uploads/[id]/content/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/uploads/route.ts";
 @source "../../../../packages/workplace/src/routes/choose-work-role/native-role-form.tsx";
