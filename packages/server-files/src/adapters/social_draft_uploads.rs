@@ -1,4 +1,4 @@
-//! Files-owned cleanup for canceled Social upload drafts.
+//! Files-owned projections and cleanup for Social upload drafts.
 //!
 //! Collaboration owns the social draft row and its cancellation receipt. The
 //! Files owner owns the attachment revocation and upload-intent expiry that
@@ -6,9 +6,10 @@
 //! connection so no other owner writes `attachments` or `upload_intents`; it
 //! never begins, commits or retries a transaction and mints no authority.
 use erpx_server_collaboration::public::social_upload_files::SocialCommentDraftWitness;
-use erpx_server_runtime::public::postgres::PgTransactionError;
+use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::BusinessError;
-use sqlx::PgConnection;
+use serde::Serialize;
+use sqlx::{Connection, PgConnection};
 use std::collections::HashSet;
 
 /// Exact bounded facts the Files owner needs. Only the canceled draft's live
@@ -23,6 +24,47 @@ pub struct SocialCommentFilesRequest<'a> {
     pub draft: &'a SocialCommentDraftWitness,
     pub selected_attachment_ids: &'a [String],
     pub now: i64,
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize)]
+pub struct SocialHomeImage {
+    pub post_id: String,
+    pub id: String,
+    pub original_name: String,
+    pub media_type: String,
+}
+
+/// Project the visible draft images for one already authorized Social post.
+/// The caller runs this inside the transaction that authorized the post.
+pub async fn read_social_home_images(
+    connection: &mut PgConnection,
+    company_id: &str,
+    post_id: &str,
+) -> Result<Vec<SocialHomeImage>, PgTransactionError<BusinessError>> {
+    if !connection.is_in_transaction() {
+        return Err(PersistenceError::new("SOCIAL_IMAGE_TRANSACTION_REQUIRED").into());
+    }
+    let rows = sqlx::query_as::<_, (String, String, String, String)>(
+        "SELECT p.id,a.id,a.original_name,a.media_type FROM social_posts p
+         JOIN social_post_drafts d ON d.company_id=p.company_id
+           AND (d.published_post_id=p.id OR (d.edit_post_id=p.id AND d.edit_saved_version IS NOT NULL))
+         JOIN attachments a ON a.owner_id=d.id AND a.owner_type='social_draft'
+         WHERE p.id=$1 AND p.company_id=$2 AND p.state='published' AND a.revoked_at IS NULL
+         ORDER BY a.created_at,a.id",
+    )
+    .bind(post_id)
+    .bind(company_id)
+    .fetch_all(connection)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|(post_id, id, original_name, media_type)| SocialHomeImage {
+            post_id,
+            id,
+            original_name,
+            media_type,
+        })
+        .collect())
 }
 
 /// Validate the exact selected draft images and revoke only unused draft files.

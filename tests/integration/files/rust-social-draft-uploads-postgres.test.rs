@@ -1,12 +1,11 @@
-//! Files-owned Social draft upload cleanup against actual Holding PostgreSQL
-//! rows. Collaboration owns the canceled draft; this target proves the two
-//! Files effects apply only to that draft's live attachments and ready uploads.
+//! Files-owned Social draft images and cleanup against actual Holding
+//! PostgreSQL. Collaboration supplies the current draft or post identity.
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 use erpx_server_collaboration::public::social_upload_files::lock_social_comment_draft;
 use erpx_server_files::public::social_draft_uploads::{
-    SocialCommentFilesRequest, SocialDraftUploadRevokeRequest, retain_social_comment_images,
-    revoke_social_draft_uploads,
+    SocialCommentFilesRequest, SocialDraftUploadRevokeRequest, read_social_home_images,
+    retain_social_comment_images, revoke_social_draft_uploads,
 };
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
@@ -45,6 +44,39 @@ async fn setup(pool: &DatabasePool) {
     .execute(pool.raw())
     .await
     .unwrap();
+}
+
+#[tokio::test]
+async fn home_image_projection_uses_published_drafts_and_saved_edits_only() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        sqlx::raw_sql(
+            "UPDATE social_post_drafts SET published_post_id='post-a',comment_parent_post_id=NULL WHERE id='draft-a';
+             INSERT INTO social_post_drafts(id,author_id,company_id,body,created_at,updated_at,edit_post_id,edit_post_version,edit_saved_version)
+               VALUES ('draft-b','author','company-b','Other company',1,1,'post-a',3,4);
+             INSERT INTO social_post_drafts(id,author_id,company_id,body,created_at,updated_at,edit_post_id,edit_post_version,edit_saved_version)
+               VALUES ('edit-saved','author','company-a','Saved edit',2,2,'post-a',1,2),
+                      ('edit-open','author','company-a','Unpublished edit',2,2,'post-a',2,NULL);
+             INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,
+               declared_bytes,staging_key,status,created_by,expires_at,created_at,updated_at) VALUES
+               ('u-saved','social_draft','edit-saved','post_image','edit.png','image/png',1,'staging-edit-saved','ready','author',2,2,2),
+               ('u-open','social_draft','edit-open','post_image','open.png','image/png',1,'staging-edit-open','ready','author',2,2,2);
+             INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,
+               original_name,media_type,bytes,checksum_sha256,created_by,created_at) VALUES
+               ('a-saved','u-saved','social_draft','edit-saved','post_image','object-a-saved',1,'edit.png','image/png',1,'checksum-a-saved','author',2),
+               ('a-open','u-open','social_draft','edit-open','post_image','object-a-open',1,'open.png','image/png',1,'checksum-a-open','author',2);",
+        )
+        .execute(pool.raw()).await.unwrap();
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+            .execute(&mut *tx).await.unwrap();
+        let images = read_social_home_images(&mut tx, "company-a", "post-a").await.unwrap();
+        assert_eq!(images.iter().map(|image| image.id.as_str()).collect::<Vec<_>>(), ["a-live-a", "a-saved"]);
+        assert_eq!(images[1].original_name, "edit.png");
+        assert!(images.iter().all(|image| image.post_id == "post-a"));
+        assert!(read_social_home_images(&mut tx, "company-b", "post-a").await.unwrap().is_empty());
+        tx.rollback().await.unwrap();
+    }).await;
 }
 
 #[tokio::test]

@@ -13,8 +13,9 @@ use erpx_server_collaboration::public::messaging_teams::{
     Change as TeamChange, MessagingTeamUnit, PgMessagingTeamUnit, execute as execute_team,
 };
 use erpx_server_collaboration::public::social::{
-    Audience, Change, FeedFilter, PgSocialUnit, SocialScope, UnavailableSocialRecords, execute,
-    lock_social_sources,
+    Audience, Change, FeedFilter, PgSocialUnit, SocialHomeAdditions, SocialHomeCandidate,
+    SocialHomePolicy, SocialHomePolicyFuture, SocialHomeSelection, SocialScope,
+    UnavailableSocialRecords, execute, lock_social_sources,
 };
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
@@ -105,6 +106,135 @@ async fn setup(pool: &DatabasePool, now: i64) {
 }
 
 fn assert_team_unit<T: MessagingTeamUnit>() {}
+
+#[derive(Default)]
+struct HomeSourcePolicy {
+    queried: Vec<String>,
+}
+
+impl SocialHomePolicy for HomeSourcePolicy {
+    fn present<'a>(
+        &'a mut self,
+        _connection: &'a mut sqlx::PgConnection,
+        _scope: &'a SocialScope,
+        post: &'a SocialHomeCandidate,
+    ) -> SocialHomePolicyFuture<'a> {
+        Box::pin(async move {
+            self.queried.push(post.id.clone());
+            if post.audience_kind.as_deref() == Some("project") || !post.sources.is_empty() {
+                return Ok(None);
+            }
+            Ok(Some(SocialHomeAdditions {
+                ai_name: "Fixture assistant".into(),
+                project_audience_name: None,
+                linked_sources: Vec::new(),
+                files: vec![
+                    serde_json::json!({"id":"current-image","original_name":"current.png"}),
+                    serde_json::json!({"id":"old-image","original_name":"old.png"}),
+                ],
+                task: None,
+                tracking_state: Some("author only".into()),
+                purchase: None,
+                handover_receipt: None,
+            }))
+        })
+    }
+}
+
+#[tokio::test]
+async fn rich_home_preserves_scoped_cards_thread_and_nested_comments() {
+    if !configured() {
+        eprintln!("skipping rich Home PostgreSQL: ERPX_TEST_ADMIN_URL is not configured");
+        return;
+    }
+    fixture::with_database(2, |pool| async move {
+        let now: i64 =
+            sqlx::query_scalar("SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+        setup(&pool, now).await;
+        sqlx::query(
+            "INSERT INTO social_posts(id,kind,author_id,author_name,company_id,branch_id,
+                                      body,audience_kind,created_at,updated_at)
+             VALUES
+             ('visible','team','author','Author','company','branch','First card','branch',$1-100,$1),
+             ('private','team','author','Author','company','branch','Private','participants',$1,$1),
+             ('hidden-source','team','author','Author','company','branch','Source hidden','branch',$1,$1),
+             ('different-branch','team','author','Author','company','elsewhere','Other branch','branch',$1,$1),
+             ('different-company','team','author','Author','different','branch','Other tenant','branch',$1,$1),
+             ('milestone','system','author','Author','company',NULL,'Milestone','company',$1,$1)",
+        )
+        .bind(now)
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        sqlx::query("UPDATE social_posts SET content_json=$1 WHERE id='visible'")
+            .bind(r#"[{"type":"text","text":"First card"},{"type":"image","slotId":"image-slot","attachmentId":"current-image","name":"current.png"}]"#)
+            .execute(pool.raw()).await.unwrap();
+        sqlx::query("INSERT INTO social_post_participants(post_id,user_id) VALUES('private','author'),('private','other')")
+            .execute(pool.raw()).await.unwrap();
+        sqlx::query("INSERT INTO social_post_sources(post_id,ordinal,source_kind,source_id) VALUES('hidden-source',0,'staff_task','protected')")
+            .execute(pool.raw()).await.unwrap();
+        sqlx::query(
+            "INSERT INTO social_posts(id,author_id,author_name,company_id,body,audience_kind,audience_id,created_at,updated_at)
+             SELECT 'project-'||i,'author','Author','company','Project post','project','outside-project',$1,$1
+             FROM generate_series(1,25) AS seq(i)",
+        ).bind(now).execute(pool.raw()).await.unwrap();
+        sqlx::query(
+            "INSERT INTO social_comments(id,post_id,author_id,author_name,body,created_at,updated_at,parent_comment_id)
+             VALUES ('root','visible','author','Author','Parent',$1-5,$1,NULL),
+                    ('sibling','visible','author','Author','Another root',$1-3,$1,NULL),
+                    ('child','visible','other','Other','Has #phuket',$1-2,$1,'root'),
+                    ('grandchild','visible','other','Other','Reply',$1-1,$1,'child')",
+        ).bind(now).execute(pool.raw()).await.unwrap();
+        sqlx::query("INSERT INTO social_topics(tag,created_by,created_at) VALUES('phuket','other',$1)")
+            .bind(now).execute(pool.raw()).await.unwrap();
+        sqlx::query("INSERT INTO social_comment_topics(comment_id,tag) VALUES('child','phuket')")
+            .execute(pool.raw()).await.unwrap();
+        sqlx::query("INSERT INTO social_follows(principal_id,target_type,target_id,created_at) VALUES('reader','post','visible',$1)")
+            .bind(now).execute(pool.raw()).await.unwrap();
+
+        PgUnitOfWork::new(pool)
+            .run(TransactionOptions::default(), move |connection| {
+                Box::pin(async move {
+                    let scope = SocialScope::new("company", "reader", "grant-reader", "Reader", now)?
+                        .branch(Some("branch"))?
+                        .assignment_version(1);
+                    let mut records = UnavailableSocialRecords;
+                    let mut unit = PgSocialUnit::read_only(connection, scope, &mut records);
+                    let mut policy = HomeSourcePolicy::default();
+                    let feed = unit.home_posts(SocialHomeSelection::Conversations { tag: None }, &mut policy).await?;
+                    assert_eq!(feed.len(), 1);
+                    assert_eq!(feed[0]["id"], "visible");
+                    assert_eq!(feed[0]["commentCount"], 4);
+                    assert_eq!(feed[0]["followed"], true);
+                    assert_eq!(feed[0]["aiName"], "Fixture assistant");
+                    assert_eq!(feed[0]["content"][0]["text"], "First card");
+                    assert_eq!(feed[0]["files"].as_array().unwrap().len(), 1);
+                    assert_eq!(feed[0]["files"][0]["id"], "current-image");
+                    assert_eq!(feed[0]["trackingState"], serde_json::Value::Null);
+                    assert_eq!(feed[0]["comments"].as_array().unwrap().iter().map(|row| row["id"].as_str().unwrap()).collect::<Vec<_>>(),
+                               vec!["root","child","grandchild"]);
+                    assert!(policy.queried.iter().any(|id| id == "hidden-source"));
+                    assert!(policy.queried.iter().all(|id| !["private","different-branch","different-company"].contains(&id.as_str())));
+                    let tagged = unit.home_posts(SocialHomeSelection::Conversations { tag: Some("phuket") }, &mut policy).await?;
+                    assert_eq!(tagged.len(), 1);
+                    assert_eq!(tagged[0]["id"], "visible");
+                    let milestones = unit.home_posts(SocialHomeSelection::Milestones { tag: None }, &mut policy).await?;
+                    assert_eq!(milestones[0]["id"], "milestone");
+                    let thread = unit.home_posts(SocialHomeSelection::Thread { post_id: "visible" }, &mut policy).await?;
+                    assert_eq!(thread[0]["comments"].as_array().unwrap().len(), 4);
+                    assert_eq!(thread[0]["comments"][2]["parent_author_name"], "Author");
+                    let denied = unit.home_posts(SocialHomeSelection::Thread { post_id: "private" }, &mut policy).await;
+                    assert!(matches!(denied, Err(PgTransactionError::Business(error)) if error.code == "POST_NOT_FOUND"));
+                    Ok::<_, Error>(())
+                })
+            })
+            .await
+            .unwrap();
+    }).await;
+}
 
 #[tokio::test]
 async fn collaboration_pg_units_mount_over_real_owner_rows() {

@@ -10,6 +10,7 @@ use crate::adapters::social::{
     CurrentSocialEffects, FeedComment, FeedFilter, FeedPost, apply_plan, read_comment,
     read_comments, read_feed, read_post, read_thread, retain_effects,
 };
+use crate::adapters::social_home::{SocialHomePolicy, SocialHomeSelection, read_home_posts};
 use crate::adapters::social_upload_files::{SocialUploadFilesPort, UnavailableSocialUploadFiles};
 use crate::application::social::{Access, SocialUnit};
 use crate::domain::social::{
@@ -360,6 +361,17 @@ impl<'c> PgSocialUnit<'c> {
     pub async fn thread(&mut self, post_id: &str) -> Result<Vec<FeedPost>, Error> {
         let actor = self.verify_authority().await?;
         read_thread(&mut *self.connection, &actor, post_id).await
+    }
+
+    /// Rich cards for the Holding Home presenter. Composition supplies the
+    /// source, purchase and attachment checks on this same transaction.
+    pub async fn home_posts(
+        &mut self,
+        selection: SocialHomeSelection<'_>,
+        policy: &mut dyn SocialHomePolicy,
+    ) -> Result<Vec<Value>, Error> {
+        self.verify_authority().await?;
+        read_home_posts(self.connection, &self.scope, selection, policy).await
     }
 
     pub async fn comments(

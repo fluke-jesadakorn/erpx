@@ -29,6 +29,8 @@ pub(crate) mod command_ledger;
 
 pub(crate) mod social;
 
+pub(crate) mod social_home;
+
 pub(crate) mod social_pg;
 
 pub(crate) mod social_upload_files;

@@ -553,7 +553,7 @@ impl CommentPageRow {
     }
 }
 
-fn comment_page_row(row: sqlx::postgres::PgRow) -> Result<CommentPageRow, Error> {
+pub(super) fn comment_page_row(row: sqlx::postgres::PgRow) -> Result<CommentPageRow, Error> {
     Ok(CommentPageRow::new(
         row.try_get(0)?,
         row.try_get(1)?,

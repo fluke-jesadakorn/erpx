@@ -9,6 +9,10 @@ pub use crate::adapters::social::{
     RevisionRow, apply_plan, lock_social_sources, read_comment, read_comment_page, read_comments,
     read_feed, read_feed_page, read_post, read_revisions, read_thread, retain_effects,
 };
+pub use crate::adapters::social_home::{
+    SocialHomeAdditions, SocialHomeCandidate, SocialHomePolicy, SocialHomePolicyFuture,
+    SocialHomeSelection,
+};
 pub use crate::adapters::social_pg::{
     PgSocialUnit, SocialRecordFuture, SocialRecordPort, SocialScope, UnavailableSocialRecords,
 };
