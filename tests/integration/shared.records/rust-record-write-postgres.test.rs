@@ -210,8 +210,8 @@ async fn rejects_changed_replay_unauthorized_scope_and_invalid_section() {
             .await
             .unwrap_err();
         assert_eq!(business(denied).kind, erpx_server_shared::public::FailureKind::Forbidden);
-        // Every module is accepted by the native route; access still requires
-        // the actor's current work context to contain it.
+        // The native route accepts every registered module. The shared Work
+        // authorization gate rejects an unavailable module before the owner runs.
         let without_access = service
             .create(
                 "acme.example.test",
@@ -223,7 +223,16 @@ async fn rejects_changed_replay_unauthorized_scope_and_invalid_section() {
             )
             .await
             .unwrap_err();
-        assert_eq!(business(without_access).code, "RECORDS_MODULE_FORBIDDEN");
+        let denied_module = business(without_access);
+        assert_eq!(denied_module.kind, erpx_server_shared::public::FailureKind::Forbidden);
+        assert_eq!(denied_module.code, "MODULE_UNAVAILABLE");
+        let denied_record_count: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM workspace_records WHERE module_id='crm' AND id='rec-crm-records:create-4'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(denied_record_count, 0);
         let invalid_section = service
             .create(
                 "acme.example.test",
