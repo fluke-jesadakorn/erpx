@@ -79,6 +79,12 @@ if(verify){
  try{
   for(const name of ['src','apps','packages','public','scripts','fixtures','tests','docs','ops','migrations','.github','node_modules','package.json','bun.lock','next.config.ts','next-env.d.ts','tsconfig.base.json','tsconfig.json','postcss.config.mjs','eslint.config.mjs','README.md','AGENTS.md','CONTEXT.md','CONTRACT_POLICY.md','Cargo.toml','Cargo.lock','rust-toolchain.toml','LICENSE','NOTICE','LICENSING.md','CONTRIBUTING.md','SECURITY.md','CODE_OF_CONDUCT.md','GOVERNANCE.md','.bun-version','.node-version','bunfig.toml','turbo.json','.gitignore'])if(existsSync(join(root,name)))await copyWorkspaceSnapshot(join(root,name),join(snapshot,name),path=>workspaceCopyInput(root,path));
   if(await runtimeSourceFingerprint(snapshot)!==sourceFingerprint||await runtimeSourceFingerprint(root)!==sourceFingerprint)throw new Error('RELEASE_SOURCE_CHANGED_DURING_SNAPSHOT');
+  if(oasisDemo){
+   // Regenerate derived Tailwind inputs in the frozen copy so removed routes
+   // neither leak into the asset graph nor require changing the live checkout.
+   const styles=Bun.spawn([process.execPath,'--no-env-file','scripts/assets/workspace-styles.ts'],{cwd:snapshot,stdin:'ignore',stdout:'inherit',stderr:'inherit'});
+   if(await styles.exited!==0)throw new Error('OASIS_WORKSPACE_STYLE_REGENERATION_FAILED');
+  }
   const graph=loadWorkspaceGraph(snapshot),settings=JSON.parse(await readFile(join(snapshot,'scripts/local/workspace-settings.json'),'utf8'));
   const common={candidate,sourceFingerprint,productionCandidateFrozen:!development,acceptance:false,acceptanceAdapter:null,node:'26.11.1',bun:'1.4.3',postgres:'18.6',createdAt:new Date().toISOString(),apps:{} as WorkspaceReleaseManifest['apps'],gateway:null!} as const;
   const manifest:WorkspaceReleaseManifest=oasisDemo?{...common,schema:'erpx-oasis-demo-release/v1',stage:null!,native:null!}:{...common,schema:'erpx-workspace-release/v2',jobs:null!};
