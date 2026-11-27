@@ -10386,6 +10386,33 @@ async fn assemble_checked(
         directory_source: directory_source_mounted,
         directory_connection: directory_connection_mounted,
     });
+    let records_search_targets = config.holdings.iter().enumerate().map(|(index, holding)| {
+        use erpx_server_records::public::{
+            record_search::SearchTarget, record_search_http::RecordSearchBackend,
+        };
+        let inspector =
+            erpx_server_identity_access::public::work_context::HoldingWorkContextInspector::new(
+                pools[0].clone(),
+                pools[index + 1].clone(),
+                holding.registration.holding_id.clone(),
+                (*config.policy).clone(),
+                clock.clone(),
+                config.holdings_registry.clone(),
+            ).map_err(|_| "PRIVATE_API_RECORDS_SEARCH_INVALID")?;
+        let backend: Arc<dyn RecordSearchBackend> = Arc::new(
+            crate::records_search::RecordsSearchBackend::new(
+                config.policy.clone(), inspector, clock.clone(),
+            ),
+        );
+        Ok((SearchTarget {
+            host: holding.host.clone(),
+            holding_slug: holding.registration.slug.clone(),
+        }, backend))
+    }).collect::<Result<Vec<_>, &'static str>>()?;
+    let router = router.merge(
+        erpx_server_records::public::record_search_http::router_for_holdings(records_search_targets)
+            .map_err(|_| "PRIVATE_API_RECORDS_SEARCH_INVALID")?,
+    );
     let router = crate::native_lane_mounts::mount(router, config, pools)?;
     Ok(CheckedAssembly {
         router: router.layer(middleware::from_fn_with_state(state, boundary)),

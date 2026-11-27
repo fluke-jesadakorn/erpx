@@ -52,13 +52,30 @@ pub async fn search_principals(
     control: &DatabasePool,
     needle: &str,
 ) -> Result<Vec<(String, String)>, BusinessError> {
+    search_principals_with(control.raw(), needle).await
+}
+
+pub async fn search_principals_on(
+    control: &mut PgConnection,
+    needle: &str,
+) -> Result<Vec<(String, String)>, BusinessError> {
+    search_principals_with(control, needle).await
+}
+
+async fn search_principals_with<'c, E>(
+    control: E,
+    needle: &str,
+) -> Result<Vec<(String, String)>, BusinessError>
+where
+    E: Executor<'c, Database = Postgres>,
+{
     if needle.is_empty() || needle.len() > 200 || needle.chars().any(char::is_control) {
         return Ok(Vec::new());
     }
     let pattern = format!("%{needle}%");
     let rows = sqlx::query(SEARCH_SQL)
         .bind(pattern)
-        .fetch_all(control.raw())
+        .fetch_all(control)
         .await
         .map_err(|_| unavailable())?;
     rows.into_iter()

@@ -1,14 +1,12 @@
 //! PostgreSQL adapter for the native Records reference-search read.
 //!
 //! This is the only place in the migrated path that holds SQL text for the
-//! search family. It selects Records-owned `workspace_records` rows on a pooled
-//! Holding connection; Company/branch/department scope, the module allowlist and
+//! search family. It selects Records-owned `workspace_records` rows on the selected
+//! Holding transaction; Company/branch/department scope, the module allowlist and
 //! the search term are always bind parameters. Cross-owner row admission and
 //! the control-side principal lookup are composition-owned ports.
 
-use crate::application::record_search::{RecordSearchSource, SearchFuture};
 use crate::domain::record_search::{MAX_SCAN, RecordHit, SearchActor, SearchQuery, unavailable};
-use erpx_server_runtime::public::postgres::DatabasePool;
 use erpx_server_shared::public::BusinessError;
 use sqlx::{AssertSqlSafe, PgConnection, Row};
 
@@ -27,18 +25,6 @@ pub const BRANCH_SQL: &str = "SELECT module_id,id,title,status,version FROM work
 pub const DEPARTMENT_SQL: &str = "SELECT module_id,id,title,status,version FROM workspace_records \
  WHERE archived_at IS NULL AND company_id=$1 AND department_id=$2 AND module_id=ANY($3::text[]) \
  AND (module_id||'/'||id ILIKE $4 OR title ILIKE $4) ORDER BY updated_at DESC LIMIT $5";
-
-/// Postgres-backed owner reader for the Records search family.
-pub struct PgRecordSearch {
-    pool: DatabasePool,
-    field_probe: &'static str,
-}
-
-impl PgRecordSearch {
-    pub fn new(pool: DatabasePool, field_probe: &'static str) -> Self {
-        Self { pool, field_probe }
-    }
-}
 
 fn partitioned_candidates(statement: &'static str, field_probe: &'static str) -> String {
     let (condition, ordering) = statement
@@ -93,19 +79,6 @@ pub async fn read_search_candidates(
             })
         })
         .collect::<Result<Vec<_>, BusinessError>>()
-}
-
-impl RecordSearchSource for PgRecordSearch {
-    fn records<'a>(
-        &'a self,
-        actor: &'a SearchActor,
-        query: &'a SearchQuery,
-    ) -> SearchFuture<'a, Vec<RecordHit>> {
-        Box::pin(async move {
-            let mut connection = self.pool.raw().acquire().await.map_err(|_| unavailable())?;
-            read_search_candidates(&mut connection, actor, query, self.field_probe).await
-        })
-    }
 }
 
 #[cfg(test)]

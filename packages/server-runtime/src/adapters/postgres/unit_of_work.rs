@@ -57,8 +57,25 @@ impl PgUnitOfWork {
     where
         F: for<'c> FnMut(&'c mut PgConnection) -> PgWorkFuture<'c, T, E> + Send,
     {
-        self.execute(options, 4, action).await
+        let mut action = action;
+        self.execute(options, 4, &mut (), move |connection, _| action(connection))
+            .await
     }
+    /// Borrow an already-held read connection or other request context during
+    /// each attempt. The context must outlive all attempts and remain read-only
+    /// across retries.
+    pub async fn run_with_context<T: Send + 'static, E: Send + 'static, C: Send, F>(
+        &self,
+        options: TransactionOptions,
+        context: &mut C,
+        action: F,
+    ) -> Result<T, PgTransactionError<E>>
+    where
+        F: for<'c> FnMut(&'c mut PgConnection, &'c mut C) -> PgWorkFuture<'c, T, E> + Send,
+    {
+        self.execute(options, 4, context, action).await
+    }
+
     /// A Control write surrounding committed Holding effects must never replay
     /// its callback or commit attempt. Serialization/deadlock errors are returned
     /// unchanged for the caller's explicit resumable protocol.
@@ -71,22 +88,25 @@ impl PgUnitOfWork {
         F: for<'c> FnOnce(&'c mut PgConnection) -> PgWorkFuture<'c, T, E> + Send,
     {
         let mut action = Some(action);
-        self.execute(options, 1, move |connection| match action.take() {
-            Some(action) => action(connection),
-            None => Box::pin(async {
-                Err(PersistenceError::new("TRANSACTION_CALLBACK_REPLAY_REFUSED").into())
-            }),
+        self.execute(options, 1, &mut (), move |connection, _| {
+            match action.take() {
+                Some(action) => action(connection),
+                None => Box::pin(async {
+                    Err(PersistenceError::new("TRANSACTION_CALLBACK_REPLAY_REFUSED").into())
+                }),
+            }
         })
         .await
     }
-    async fn execute<T: Send + 'static, E: Send + 'static, F>(
+    async fn execute<T: Send + 'static, E: Send + 'static, C: Send, F>(
         &self,
         options: TransactionOptions,
         attempts: usize,
+        context: &mut C,
         mut action: F,
     ) -> Result<T, PgTransactionError<E>>
     where
-        F: for<'c> FnMut(&'c mut PgConnection) -> PgWorkFuture<'c, T, E> + Send,
+        F: for<'c> FnMut(&'c mut PgConnection, &'c mut C) -> PgWorkFuture<'c, T, E> + Send,
     {
         if options.session_lock.as_ref().is_some_and(|l| {
             l.namespace.is_empty()
@@ -119,7 +139,7 @@ impl PgUnitOfWork {
                         .execute(&mut *tx)
                         .await?;
                 }
-                match action(&mut tx).await {
+                match action(&mut tx, context).await {
                     Ok(value) => {
                         tx.commit().await?;
                         Ok(value)

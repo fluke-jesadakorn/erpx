@@ -6,73 +6,9 @@
 
 use crate::private_development_api::DevelopmentApiConfiguration;
 use axum::Router;
-use erpx_server_records::public::record_search::{
-    PrincipalHit, RecordHit, SearchActor, SearchAdmission, SearchFuture,
-};
 use erpx_server_runtime::public::postgres::DatabasePool;
 use std::collections::BTreeMap;
 use std::sync::Arc;
-
-/// Composition-owned admission for the native Records reference search.
-///
-/// Candidate SQL scopes records by Company, branch or department and module.
-/// It excludes Field-owned sources before the limit. Principal names come from
-/// the Control database, with active-assignment eligibility read in the Holding.
-struct RecordsSearchAdmission {
-    control: DatabasePool,
-    holding: DatabasePool,
-}
-
-impl SearchAdmission for RecordsSearchAdmission {
-    fn visible<'a>(
-        &'a self,
-        actor: &'a SearchActor,
-        hit: &'a RecordHit,
-    ) -> SearchFuture<'a, bool> {
-        Box::pin(async move {
-            Ok(actor
-                .modules
-                .iter()
-                .any(|module| module == &hit.module_id))
-        })
-    }
-
-    /// Control `principals` supplies the display name; the target Holding
-    /// supplies the retained active-assignment predicate. A principal without
-    /// an active assignment in this Holding is omitted, never synthesized.
-    fn principal_hits<'a>(
-        &'a self,
-        _actor: &'a SearchActor,
-        needle: &'a str,
-        now: i64,
-    ) -> SearchFuture<'a, Vec<PrincipalHit>> {
-        Box::pin(async move {
-            let mut hits = Vec::new();
-            for (target_id, label) in
-                erpx_server_identity_access::public::records_principal_search::search_principals(
-                    &self.control,
-                    needle,
-                )
-                .await?
-            {
-                if erpx_server_identity_access::public::records_principal_search::active_assignment(
-                    &self.holding,
-                    &target_id,
-                    now,
-                )
-                .await?
-                {
-                    hits.push(PrincipalHit { target_id, label });
-                }
-            }
-            Ok(hits)
-        })
-    }
-}
-
-fn records_search_admission(control: DatabasePool, holding: DatabasePool) -> Arc<dyn SearchAdmission> {
-    Arc::new(RecordsSearchAdmission { control, holding })
-}
 
 /// Merge every ready native lane router into the private API router.
 ///
@@ -1137,23 +1073,6 @@ pub fn mount(
                 .collect(),
         )
         .map_err(|_| "PRIVATE_API_WORKFLOW_LANE32_INVALID")?,
-    );
-
-    // The generic Records search excludes the Field owner's source identities.
-    let field_probe =
-        erpx_server_field_service::public::record_probe::field_record_probe("sourceReadScopeProbe");
-    router = router.merge(
-        erpx_server_records::public::record_search_http::router_for_holdings(
-            config.holdings.iter().enumerate().map(|(i, holding)| (
-                erpx_server_records::public::record_search::SearchTarget {
-                    host: holding.host.clone(),
-                    holding_slug: holding.registration.slug.clone(),
-                },
-                pools[i + 1].clone(),
-                records_search_admission(pools[0].clone(), pools[i + 1].clone()),
-            )).collect(),
-            field_probe,
-        ).map_err(|_| "PRIVATE_API_RECORDS_SEARCH_INVALID")?,
     );
 
     // Marketing: active public form source read.

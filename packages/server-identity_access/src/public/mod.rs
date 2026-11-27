@@ -186,6 +186,7 @@ pub mod messaging_people;
 pub mod records_principal_search {
     pub use crate::adapters::records_principal_search::{
         active_assignment, active_assignment_on, active_principal_display_name, search_principals,
+        search_principals_on,
     };
 }
 pub mod portal_private_session_lease;

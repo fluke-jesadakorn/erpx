@@ -1,8 +1,8 @@
 //! Records reference-search use case.
 //!
 //! The composition root supplies the owner SQL reader, the cross-owner
-//! admission port and the current clock. This layer validates scope, filters
-//! owner rows through admission, and assembles the exact legacy reply. It never
+//! filters and the current clock. This layer validates scope and assembles the
+//! legacy reply from guarded owner rows and eligible principals. It never
 //! builds SQL and never reads HTTP.
 
 use crate::domain::record_search::{
@@ -13,89 +13,57 @@ use std::{future::Future, pin::Pin};
 
 pub type SearchFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
 
-/// Owner-local SQL access to Records-owned `workspace_records` rows. The
-/// caller must already be inside the serialised Holding read unit; no commit is
-/// performed here.
-pub trait RecordSearchSource: Send + Sync {
+/// Reads borrowed on the selected Holding transaction. Owner predicates belong
+/// in the candidate query before any result limit is applied.
+pub trait RecordSearchRead: Send {
     fn records<'a>(
-        &'a self,
+        &'a mut self,
         actor: &'a SearchActor,
         query: &'a SearchQuery,
     ) -> SearchFuture<'a, Vec<RecordHit>>;
-}
-
-/// Cross-owner admission supplied by composition. `visible` reproduces the
-/// retained per-owner source read scopes with owning public ports; a `false`
-/// filters one row while an error fails the whole read closed.
-/// `principal_hits` performs the control-side people and active-assignment
-/// reads using identity-access public ports. Neither method executes SQL from
-/// this crate.
-pub trait SearchAdmission: Send + Sync {
-    fn visible<'a>(&'a self, actor: &'a SearchActor, hit: &'a RecordHit) -> SearchFuture<'a, bool>;
 
     fn principal_hits<'a>(
-        &'a self,
-        actor: &'a SearchActor,
+        &'a mut self,
         needle: &'a str,
         now: i64,
     ) -> SearchFuture<'a, Vec<PrincipalHit>>;
 }
 
-pub struct RecordSearchHandler<S: RecordSearchSource, A: SearchAdmission> {
-    source: S,
-    admission: A,
-}
-
-impl<S: RecordSearchSource, A: SearchAdmission> RecordSearchHandler<S, A> {
-    pub fn new(source: S, admission: A) -> Self {
-        Self { source, admission }
+pub async fn execute_search(
+    read: &mut impl RecordSearchRead,
+    actor: &SearchActor,
+    query: &SearchQuery,
+    now: i64,
+) -> Result<SearchResponse, BusinessError> {
+    actor.validate()?;
+    if actor.modules.is_empty() {
+        return Ok(SearchResponse { hits: Vec::new() });
     }
 
-    pub async fn execute(
-        &self,
-        actor: &SearchActor,
-        query: &SearchQuery,
-        now: i64,
-    ) -> Result<SearchResponse, BusinessError> {
-        actor.validate()?;
-
-        // The legacy search returns an empty result for an actor with no
-        // readable modules, before Records or principal reads start.
-        if actor.modules.is_empty() {
-            return Ok(SearchResponse { hits: Vec::new() });
-        }
-
-        let mut hits = Vec::with_capacity(MAX_HITS);
-        for row in self.source.records(actor, query).await? {
-            if self.admission.visible(actor, &row).await? {
-                hits.push(row.to_wire());
-                if hits.len() >= MAX_HITS {
-                    break;
-                }
-            }
-        }
-
-        if hits.len() < MAX_HITS {
-            for principal in self
-                .admission
-                .principal_hits(actor, &query.needle(), now)
+    let mut hits: Vec<_> = read
+        .records(actor, query)
+        .await?
+        .into_iter()
+        .take(MAX_HITS)
+        .map(|row| row.to_wire())
+        .collect();
+    if hits.len() < MAX_HITS {
+        let remaining = MAX_HITS - hits.len();
+        hits.extend(
+            read.principal_hits(&query.needle(), now)
                 .await?
-            {
-                hits.push(principal.to_wire());
-                if hits.len() >= MAX_HITS {
-                    break;
-                }
-            }
-        }
-
-        Ok(SearchResponse { hits })
+                .into_iter()
+                .take(remaining)
+                .map(|principal| principal.to_wire()),
+        );
     }
+    Ok(SearchResponse { hits })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::record_search::{request_invalid, unavailable};
+    use crate::domain::record_search::request_invalid;
 
     fn actor() -> SearchActor {
         SearchActor {
@@ -108,69 +76,56 @@ mod tests {
         }
     }
 
-    struct FakeSource {
+    #[derive(Default)]
+    struct FixtureRead {
         rows: Vec<RecordHit>,
+        people: Vec<PrincipalHit>,
+        record_reads: usize,
+        principal_reads: usize,
     }
-
-    impl RecordSearchSource for FakeSource {
+    impl RecordSearchRead for FixtureRead {
         fn records<'a>(
-            &'a self,
+            &'a mut self,
             _actor: &'a SearchActor,
             _query: &'a SearchQuery,
         ) -> SearchFuture<'a, Vec<RecordHit>> {
-            let rows = self.rows.clone();
+            self.record_reads += 1;
+            let rows = std::mem::take(&mut self.rows);
             Box::pin(async move { Ok(rows) })
-        }
-    }
-
-    struct FakeAdmission {
-        deny: bool,
-        people: Vec<PrincipalHit>,
-    }
-
-    impl SearchAdmission for FakeAdmission {
-        fn visible<'a>(
-            &'a self,
-            _actor: &'a SearchActor,
-            _hit: &'a RecordHit,
-        ) -> SearchFuture<'a, bool> {
-            let deny = self.deny;
-            Box::pin(async move { Ok(!deny) })
         }
 
         fn principal_hits<'a>(
-            &'a self,
-            _actor: &'a SearchActor,
+            &'a mut self,
             _needle: &'a str,
             _now: i64,
         ) -> SearchFuture<'a, Vec<PrincipalHit>> {
-            let people = self.people.clone();
+            self.principal_reads += 1;
+            let people = std::mem::take(&mut self.people);
             Box::pin(async move { Ok(people) })
+        }
+    }
+
+    fn record(id: String) -> RecordHit {
+        RecordHit {
+            module_id: "operations".into(),
+            id,
+            title: "Desk".into(),
+            status: "draft".into(),
+            version: 1,
         }
     }
 
     #[tokio::test]
     async fn assembles_records_then_people_in_the_exact_order() {
-        let handler = RecordSearchHandler::new(
-            FakeSource {
-                rows: vec![RecordHit {
-                    module_id: "operations".into(),
-                    id: "rec-1".into(),
-                    title: "Desk".into(),
-                    status: "draft".into(),
-                    version: 1,
-                }],
-            },
-            FakeAdmission {
-                deny: false,
-                people: vec![PrincipalHit {
-                    target_id: "u2".into(),
-                    label: "Alice".into(),
-                }],
-            },
-        );
-        let value = handler
-            .execute(&actor(), &SearchQuery::new("@Desk").unwrap(), 9)
+        let mut read = FixtureRead {
+            rows: vec![record("rec-1".into())],
+            people: vec![PrincipalHit {
+                target_id: "u2".into(),
+                label: "Alice".into(),
+            }],
+            ..Default::default()
+        };
+        let value = execute_search(&mut read, &actor(), &SearchQuery::new("@Desk").unwrap(), 9)
             .await
             .unwrap()
             .value();
@@ -180,110 +135,45 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn denied_rows_are_replaced_by_principal_hits() {
-        let handler = RecordSearchHandler::new(
-            FakeSource {
-                rows: (0..20)
-                    .map(|i| RecordHit {
-                        module_id: "operations".into(),
-                        id: format!("rec-{i}"),
-                        title: "t".into(),
-                        status: "draft".into(),
-                        version: 1,
-                    })
-                    .collect(),
-            },
-            FakeAdmission {
-                deny: true,
-                people: vec![PrincipalHit {
-                    target_id: "u2".into(),
-                    label: "Alice".into(),
-                }],
-            },
-        );
-        let value = handler
-            .execute(&actor(), &SearchQuery::new("needle").unwrap(), 9)
+    async fn full_record_results_skip_the_control_lookup() {
+        let mut read = FixtureRead {
+            rows: (0..20).map(|i| record(format!("rec-{i}"))).collect(),
+            ..Default::default()
+        };
+        let value = execute_search(&mut read, &actor(), &SearchQuery::new("Desk").unwrap(), 9)
             .await
             .unwrap()
             .value();
-        assert_eq!(value["data"].as_array().unwrap().len(), 1);
-        assert_eq!(value["data"][0]["kind"], "person");
+        assert_eq!(value["data"].as_array().unwrap().len(), MAX_HITS);
+        assert_eq!(read.record_reads, 1);
+        assert_eq!(read.principal_reads, 0);
     }
 
     #[tokio::test]
     async fn empty_modules_return_empty_data_without_any_read() {
-        struct NoCalls;
-
-        impl RecordSearchSource for NoCalls {
-            fn records<'a>(
-                &'a self,
-                _actor: &'a SearchActor,
-                _query: &'a SearchQuery,
-            ) -> SearchFuture<'a, Vec<RecordHit>> {
-                Box::pin(async { Err(unavailable()) })
-            }
-        }
-
-        impl SearchAdmission for NoCalls {
-            fn visible<'a>(
-                &'a self,
-                _actor: &'a SearchActor,
-                _hit: &'a RecordHit,
-            ) -> SearchFuture<'a, bool> {
-                Box::pin(async { Err(unavailable()) })
-            }
-
-            fn principal_hits<'a>(
-                &'a self,
-                _actor: &'a SearchActor,
-                _needle: &'a str,
-                _now: i64,
-            ) -> SearchFuture<'a, Vec<PrincipalHit>> {
-                Box::pin(async { Err(unavailable()) })
-            }
-        }
-
-        let handler = RecordSearchHandler::new(NoCalls, NoCalls);
+        let mut read = FixtureRead::default();
         let mut empty = actor();
         empty.modules.clear();
-        assert!(empty.validate().is_ok());
-        let value = handler
-            .execute(&empty, &SearchQuery::new("needle").unwrap(), 9)
+        let value = execute_search(&mut read, &empty, &SearchQuery::new("needle").unwrap(), 9)
             .await
             .unwrap()
             .value();
-        assert_eq!(value["data"], serde_json::json!([]));
-        assert_eq!(value.as_object().unwrap().len(), 1);
+        assert_eq!(value, serde_json::json!({"data": []}));
+        assert_eq!((read.record_reads, read.principal_reads), (0, 0));
     }
 
     #[tokio::test]
     async fn an_invalid_actor_fails_closed_before_any_read() {
-        struct Failing;
-        impl RecordSearchSource for Failing {
-            fn records<'a>(
-                &'a self,
-                _actor: &'a SearchActor,
-                _query: &'a SearchQuery,
-            ) -> SearchFuture<'a, Vec<RecordHit>> {
-                Box::pin(async { Err(unavailable()) })
-            }
-        }
-        let handler = RecordSearchHandler::new(
-            Failing,
-            FakeAdmission {
-                deny: false,
-                people: vec![],
-            },
-        );
+        let mut read = FixtureRead::default();
         let mut bad = actor();
         bad.company_id.clear();
         assert_eq!(
-            handler
-                .execute(&bad, &SearchQuery::new("needle").unwrap(), 9)
+            execute_search(&mut read, &bad, &SearchQuery::new("needle").unwrap(), 9)
                 .await
                 .unwrap_err()
                 .code,
             request_invalid().code
         );
+        assert_eq!((read.record_reads, read.principal_reads), (0, 0));
     }
 }

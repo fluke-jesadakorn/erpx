@@ -6,9 +6,10 @@ import type { WorkContext } from '@erpx/server-identity_access/public/authorizat
 
 /**
  * Strict server-side transport for the native Records reference-search route.
- * It carries no SQL and offers no TypeScript fallback: the axum owner executes
- * the `workspace_records` read and returns the exact legacy `data` array. A
- * missing transport, malformed reply or rejected request fails closed.
+ * It carries no SQL and offers no TypeScript fallback: the axum owner resolves
+ * the Holding session cookie and current Work selection, executes the
+ * `workspace_records` read and returns the exact legacy `data` array. A missing
+ * transport, malformed reply or rejected request fails closed.
  */
 type Holding = Readonly<{ origin: string; holdingSlug: string; holdingId: string; companyId: string }>;
 type Settings = Readonly<{ privateBaseUrl: string; timeoutMs: number; holdings: readonly Holding[] }>;
@@ -17,7 +18,12 @@ type Reply = Readonly<{ data?: unknown; error?: { code?: string; message?: strin
 const unavailable = (): never => {
   throw new ApiError(503, 'NATIVE_RECORDS_SEARCH_UNAVAILABLE', 'The native Records search is unavailable.');
 };
+const selectionRequired = (): never => {
+  throw new ApiError(409, 'NATIVE_RECORDS_SEARCH_SELECTION_REQUIRED', 'The native Records search requires the current Holding selection.');
+};
 const record = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
+const validId = (v: string): boolean => v.length > 0 && v.length <= 200 && !/[\x00-\x1f\x7f]/.test(v);
+const validSlug = (v: string): boolean => /^[a-z0-9_-]{1,128}$/.test(v);
 const reservedPorts = new Set([3000, 3001, 3100, 3101, 3103, 5432, 5433, 5435, 8080]);
 
 function configuration(): Settings {
@@ -70,16 +76,37 @@ export function nativeRecordSearchAvailable(): boolean {
   return process.env.ERPX_NATIVE_RECORDS_CONFIG !== undefined;
 }
 
-/** Returns the exact owner `data` array; the caller adds presentation links. */
+/**
+ * Returns the exact owner `data` array; the caller adds presentation links.
+ * Only the real session cookie is read from the incoming request. The user,
+ * modules and scope are re-resolved by Rust from that cookie and the expected
+ * Work selection, never copied from caller-supplied header claims.
+ */
 export async function nativeRecordSearch(
   actor: WorkContext,
   q: string,
+  requestHeaders: Pick<Headers, 'get'>,
   send: (url: URL, headers: Record<string, string>, timeoutMs: number) => Promise<Response> = directGet,
 ): Promise<Record<string, unknown>[]> {
   if (typeof q !== 'string' || q.length < 1 || q.length > 800 || q.includes('\0')) return unavailable();
   const config = configuration();
   const holding = config.holdings.find(h => h.holdingSlug === actor.holdingSlug && h.holdingId === actor.holdingId);
   if (!holding || !actor.companyId) return unavailable();
+
+  const cookie = requestHeaders.get('cookie');
+  const authority = actor.authority;
+  const scope = actor.scope;
+  if (
+    !cookie || cookie.length > 8192 ||
+    !validId(actor.companyId) || !validId(actor.assignmentId) ||
+    !authority || !Number.isSafeInteger(authority.revision) || authority.revision < 0 ||
+    !Number.isSafeInteger(authority.assignmentVersion) || authority.assignmentVersion < 1 ||
+    !scope
+  ) return selectionRequired();
+  const branchSlug = scope.kind === 'branch' || scope.kind === 'department' ? scope.branchSlug : null;
+  const departmentSlug = scope.kind === 'department' ? scope.departmentSlug : null;
+  if ((branchSlug != null && !validSlug(branchSlug)) || (departmentSlug != null && !validSlug(departmentSlug))) return selectionRequired();
+
   const url = new URL(`/api/v1/holdings/${encodeURIComponent(actor.holdingSlug)}/records/native-search`, config.privateBaseUrl);
   url.searchParams.set('q', q);
   const headers: Record<string, string> = {
@@ -87,13 +114,14 @@ export async function nativeRecordSearch(
     origin: holding.origin,
     accept: 'application/json',
     'cache-control': 'no-cache',
-    'x-erpx-context-user': actor.userId,
-    'x-erpx-context-assignment': actor.assignmentId,
+    cookie,
     'x-erpx-context-company': actor.companyId,
-    'x-erpx-context-modules': actor.modules.join(','),
+    'x-erpx-context-assignment': actor.assignmentId,
+    'x-erpx-context-revision': String(authority.revision),
+    'x-erpx-context-assignment-version': String(authority.assignmentVersion),
   };
-  if (actor.branchId) headers['x-erpx-workspace-branch'] = actor.branchId;
-  if (actor.departmentId) headers['x-erpx-workspace-department'] = actor.departmentId;
+  if (branchSlug) headers['x-erpx-workspace-branch'] = branchSlug;
+  if (departmentSlug) headers['x-erpx-workspace-department'] = departmentSlug;
 
   let response: Response;
   try {

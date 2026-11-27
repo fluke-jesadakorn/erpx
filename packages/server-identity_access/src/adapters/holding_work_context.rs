@@ -305,6 +305,32 @@ impl HoldingWorkContextInspector {
             + Sync
             + 'static,
     {
+        self.with_holding_account_and_control(host, proof, sources, move |c, _, account| {
+            work(c, account)
+        }).await
+    }
+
+    /// Borrow the retained Control connection for read-only owner lookups
+    /// during the authenticated Holding calculation. No second lease is
+    /// requested from the Control pool, including when the Holding read retries.
+    pub async fn with_holding_account_and_control<Output, Sources, Work>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        sources: Sources,
+        work: Work,
+    ) -> Result<Output, PgTransactionError<BusinessError>>
+    where
+        Output: Send + 'static,
+        Sources: super::authorized_work::HoldingWorkSourcePreparation + Send + Sync + 'static,
+        Work: for<'c> Fn(
+                &'c mut sqlx::PgConnection,
+                &'c mut sqlx::PgConnection,
+                &'c HoldingAccountScope,
+            ) -> erpx_server_runtime::public::postgres::PgWorkFuture<
+                'c, Output, BusinessError,
+            > + Send + Sync + 'static,
+    {
         let Some(RequestAudience::Holding { audience }) = self.policy.audience(host) else {
             return Err(missing().into());
         };
@@ -362,7 +388,7 @@ impl HoldingWorkContextInspector {
                         prefer_indexed_reads: false,
                     };
                     let result = holding
-                        .run(options, move |c| {
+                        .run_with_context(options, &mut *connection, move |c, control| {
                             let session_id = session_id.clone();
                             let user_id = user_id.clone();
                             let user = user.clone();
@@ -384,7 +410,7 @@ impl HoldingWorkContextInspector {
                                         .await?,
                                 };
                                 scope.require_current(c, clock.now().get()).await?;
-                                let result = work(c, &scope).await?;
+                                let result = work(c, control, &scope).await?;
                                 scope.require_current(c, clock.now().get()).await?;
                                 Ok(result)
                             })
