@@ -137,6 +137,7 @@ async function provision() {
     control: { url: control.urls.app }, controlRead: { url: control.urls.read }, holdings,
     productOrigins: [{ key: 'sales', host: 'oasisdreamhouse-demo-sales.invalid', holdingId: primary.scope }],
     crmCompanies: companyScope, commerceCompanies: companyScope, financeJournalReads: companyScope,
+    operationsCompanies: companyScope,
   });
   await writePrivate('rehearsal-accounts.json', actors);
   await writePrivate('demo-guide.json', { companyId, branchId, ...kitchen });

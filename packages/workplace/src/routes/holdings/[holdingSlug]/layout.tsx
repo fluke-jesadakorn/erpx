@@ -1,3 +1,4 @@
+import { oasisDemoStagingEnabled } from "@erpx/contracts/holding-hosts";
 import {AppsHomeLink} from "@erpx/workplace/components/product-link-context";
 import type { LayoutProps } from "@erpx/contracts/next-routes";
 import { AppsWorkspaceMemory } from "@erpx/workplace/components/apps-workspace-memory";
@@ -166,7 +167,10 @@ export default async function WorkplaceLayout({
     return pageError(error, holdingSlug);
   }
   const moneyPending = moneyContext(context);
-  const cataloguePending = !sourceRecord && process.env.NODE_ENV === "production" ? companyFeatureCatalogue(context) : Promise.resolve([]);
+  const oasisDemo = oasisDemoStagingEnabled(process.env);
+  const cataloguePending = !oasisDemo && !sourceRecord && process.env.NODE_ENV === "production"
+    ? companyFeatureCatalogue(context)
+    : Promise.resolve([]);
   const theme = await preferredAccountAppearance((await cookies()).get("erpx_appearance")?.value);
   const language = await preferredAccountLanguage((await cookies()).get("erpx_language")?.value === "th" ? "th" : "en");
   const holdingName = context.holdingName;
@@ -240,7 +244,7 @@ export default async function WorkplaceLayout({
     canManageApprovals: !sourceRecord && admin.manageOrganization,
     ...(process.env.NODE_ENV === "production"
       ? {
-          availableAppIds: availableNavigationAppIds(featureCatalogue),
+          availableAppIds: oasisDemo ? ["apps", "sales", "crm"] : availableNavigationAppIds(featureCatalogue),
         }
       : {}),
   };
@@ -424,7 +428,7 @@ export default async function WorkplaceLayout({
                     <FeatureEnvironment
                       navigation={navigation}
                       productionCatalogue={
-                        !sourceRecord && process.env.NODE_ENV === "production"
+                        !oasisDemo && !sourceRecord && process.env.NODE_ENV === "production"
                           ? featureCatalogue.map(({ id, name, state }) => ({ id, name, state }))
                           : undefined
                       }

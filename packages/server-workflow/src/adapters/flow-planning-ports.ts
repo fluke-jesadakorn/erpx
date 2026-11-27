@@ -3,9 +3,7 @@ import {workflowWave3Statement} from './native-workflow-wave3';
 import {nativeWorkflowReadAll,nativeWorkflowReadFirst} from './native-workflow-read';
 import {approvalStepsByInstanceSql} from './approval-projection-sources';
 import {tableExistsGuardSql} from './closed-projection-sources';
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import flowAdvanceContract from '../flow-advance-sql.json' with { type: 'json' };
 import { workflowFinalOwnerProjections as financeFinalOwnerProjections } from '@erpx/server-finance/public/workflow-final-owner-projections';
 import { workflowFinalOwnerProjections as peoplepayrollFinalOwnerProjections } from '@erpx/server-people_payroll/public/workflow-final-owner-projections';
 const commerceFinalSources=commerceFinalOwnerProjections(),financeFinalSources=financeFinalOwnerProjections(),peoplepayrollFinalSources=peoplepayrollFinalOwnerProjections();
@@ -13,7 +11,7 @@ const commerceFinalSources=commerceFinalOwnerProjections(),financeFinalSources=f
 const orderFulfilledExistsSql = `WHEN d.state='fulfilled' AND EXISTS(SELECT 1 ${commerceFinalSources.flow_routing_commerce_fulfillments_f_from} `;
 /** Byte-identical span shared by the flow-defaults revision read and the route-version guard; emitted SQL is unchanged. */
 const flowDefaultsMaxRevisionSql = "SELECT COALESCE(MAX(revision),0)";
-const flowAdvanceSql=JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)),'../flow-advance-sql.json'),'utf8')) as Record<string,string>;
+const flowAdvanceSql: Readonly<Partial<Record<string,string>>> = flowAdvanceContract;
 function flowAdvanceStatement(kind:FlowKind):string{const sql=flowAdvanceSql[kind];if(!sql)throw new Error(`FLOW_ADVANCE_SQL_MISSING:${kind}`);return sql;}
 
 

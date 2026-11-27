@@ -1,3 +1,4 @@
+import { oasisDemoStagingEnabled } from '@erpx/contracts/holding-hosts';
 import 'server-only';
 import { DestinationIndexView } from "@erpx/workplace/components/destination-index-view";
 import type { UiAppearance } from "@erpx/ui/components/appearance";
@@ -21,8 +22,9 @@ export async function DestinationIndex({holdingSlug,path,appearance,openWork=fal
  const actor=await requireWorkContext(holdingSlug),base=workspaceBase(publicScope(actor));
  if(path.startsWith('erpx-management'))await requireManageErpxContext();
  const snapshot=await workspaceNavigation(Promise.resolve({holdingSlug}));
- const [admin,catalogue,handbookAccess,executiveVisible]=await Promise.all([administrationAccess(actor),process.env.NODE_ENV==='production'?companyFeatureCatalogue(actor):Promise.resolve([]),(await collaborationPresentationQueries(actor.holdingId)).handbookAccess(actor).catch(()=>({editor:false,owner:false})),(await workProjectionPresentationQueries(actor.holdingId)).executiveVisible(actor)]);
- const model=workplaceNavigation({workspaceBase:base,handbookAccess,executiveVisible,financeWorkspaceV2:financeWorkspaceV2Enabled(),...(process.env.NODE_ENV==='production'?{availableAppIds:availableNavigationAppIds(catalogue)}:{}),scopeKind:actor.scope.kind,role:actor.role,moduleIds:actor.modules,permissions:actor.iam?.permissions,beta:actor.beta,adminSections:admin.sections,canManageApprovals:admin.manageOrganization,workViewAvailability:(await snapshot.initialNavigation)?.workViewAvailability,manageErpxVisible:holdingSlug==='erpx'&&hasPermission(actor,'manage_erpx.access')});
+ const oasisDemo = oasisDemoStagingEnabled(process.env);
+ const [admin,catalogue,handbookAccess,executiveVisible]=await Promise.all([administrationAccess(actor),process.env.NODE_ENV==='production'&&!oasisDemo?companyFeatureCatalogue(actor):Promise.resolve([]),(await collaborationPresentationQueries(actor.holdingId)).handbookAccess(actor).catch(()=>({editor:false,owner:false})),(await workProjectionPresentationQueries(actor.holdingId)).executiveVisible(actor)]);
+ const model=workplaceNavigation({workspaceBase:base,handbookAccess,executiveVisible,financeWorkspaceV2:financeWorkspaceV2Enabled(),...(process.env.NODE_ENV==='production'?{availableAppIds:oasisDemo?['apps','sales','crm']:availableNavigationAppIds(catalogue)}:{}),scopeKind:actor.scope.kind,role:actor.role,moduleIds:actor.modules,permissions:actor.iam?.permissions,beta:actor.beta,adminSections:admin.sections,canManageApprovals:admin.manageOrganization,workViewAvailability:(await snapshot.initialNavigation)?.workViewAvailability,manageErpxVisible:holdingSlug==='erpx'&&hasPermission(actor,'manage_erpx.access')});
  const root=navigationWorkEntry(model,base,`${base}/${path}`),definition=workEntries.find(entry=>entry.id===root?.id);
  const daily=model.primary.find(entry=>entry.id===path);
  const landing=root?.href??(daily?.id==='calendar'?daily.submodules?.find(item=>item.href.endsWith('/calendar/team'))?.href:undefined)??daily?.submodules?.[0]?.href;
