@@ -41,5 +41,5 @@ export async function POST(request:Request,context:Context){try{
  else if(p.length===3&&["submit","reject","cancel","approve","post"].includes(p[2]))data=await transitionInitialPhysicalStockCount(actor,p[1],p[2] as "submit"|"reject"|"cancel"|"approve"|"post",initialPhysicalStockCountActionSchema.parse(input),key);
  else throw new ApiError(404,"NOT_FOUND","Initial physical stock count action not found.");
  }else if(p.length<=1)throw new ApiError(503,"NATIVE_INVENTORY_COUNT_UNAVAILABLE","The native stock Count command is unavailable.");
- else throw new ApiError(404,"NOT_FOUND","Stock count action not found.");return Response.json(canonicalDestinationLinks({data}),{status:p.length===1&&p[0]==="initial-physical"?201:200,headers:{"Cache-Control":"private, no-store"}});
+ else throw new ApiError(404,"NOT_FOUND","Stock count action not found.");return Response.json(canonicalDestinationLinks({data}),{headers:{"Cache-Control":"private, no-store"}});
 }catch(e){if(e instanceof z.ZodError)return errorResponse(new ApiError(422,"VALIDATION_FAILED",e.issues[0]?.message??"Invalid input."));if(e instanceof SyntaxError)return errorResponse(new ApiError(422,"INVALID_JSON","Use valid JSON."));return errorResponse(e);}}

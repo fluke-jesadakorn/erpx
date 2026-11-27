@@ -30,14 +30,32 @@ export type NativeBrandIdentityConfiguration = Readonly<{
 
 type Row = Record<string, unknown>;
 type Identity = { identity: { shortName: string; tagline: string }; visual: { accentColor: string; logoPublicationId: string | null } };
+type DraftRow = Row & {
+  id: string; company_id: string; based_revision: number; identity_json: string; status: string;
+  version: number; created_by: string; updated_by: string; created_at: number; updated_at: number;
+};
+type PublishedRow = Row & {
+  id: string; company_id: string; revision: number; identity_json: string; draft_id: string;
+  draft_version: number; created_by: string; published_by: string; published_at: number;
+};
+type LockRow = Row & {
+  company_id: string; category: 'identity' | 'visual'; locked: boolean; approved_snapshot_json: string;
+  version: number; updated_by: string; reason: string; updated_at: number;
+};
+type HistoryRow = Row & {
+  id: string; company_id: string; record_id: string; action: string; version: number;
+  actor_id: string; reason: string; details_json: string; created_at: number;
+};
+type ActiveRow = PublishedRow & { identity: Identity; active_version: number };
+type MediaRow = { id: string; name: string | null };
 export type NativeBrandIdentityWorkspace = {
-  drafts: Row[];
-  versions: Row[];
-  locks: Row[];
-  history: Row[];
-  active: (Row & { identity: Identity; active_version: number }) | null;
+  drafts: DraftRow[];
+  versions: PublishedRow[];
+  locks: LockRow[];
+  history: HistoryRow[];
+  active: ActiveRow | null;
   initial: Identity;
-  media: { id: string; name: string | null }[];
+  media: MediaRow[];
   actorId: string;
   canManage: boolean;
   canLock: boolean;
@@ -88,7 +106,7 @@ const text = (value: unknown, max = 4096): value is string =>
 const identifier = (value: unknown): value is string => text(value, 200) && value.length > 0;
 const integer = (value: unknown, min = 0): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= min;
-const optionalText = (value: unknown, max = 4096) => value === null || text(value, max);
+const optionalText = (value: unknown, max = 4096): value is string | null => value === null || text(value, max);
 const texts = (value: unknown, max = 4096): value is string[] =>
   Array.isArray(value) && value.length <= max && value.every((item) => text(item, 256));
 const sameSet = (left: readonly string[], right: readonly string[]) => {
@@ -107,18 +125,20 @@ const identity = (value: unknown): value is Identity =>
   /^#[a-fA-F0-9]{6}$/.test(value.visual.accentColor) &&
   optionalText(value.visual.logoPublicationId, 200);
 
-const draftRow = (row: Row) =>
+const draftRow = (row: unknown): row is DraftRow =>
+  record(row) &&
   identifier(row.id) &&
   text(row.company_id, 200) &&
   integer(row.based_revision) &&
   text(row.identity_json, 65536) &&
-  ['draft', 'published', 'cancelled'].includes(String(row.status)) &&
+  typeof row.status === 'string' && ['draft', 'published', 'cancelled'].includes(row.status) &&
   integer(row.version, 1) &&
   identifier(row.created_by) &&
   identifier(row.updated_by) &&
   integer(row.created_at) &&
   integer(row.updated_at);
-const versionRow = (row: Row) =>
+const versionRow = (row: unknown): row is PublishedRow =>
+  record(row) &&
   identifier(row.id) &&
   text(row.company_id, 200) &&
   integer(row.revision, 1) &&
@@ -128,16 +148,18 @@ const versionRow = (row: Row) =>
   identifier(row.created_by) &&
   identifier(row.published_by) &&
   integer(row.published_at);
-const lockRow = (row: Row) =>
+const lockRow = (row: unknown): row is LockRow =>
+  record(row) &&
   text(row.company_id, 200) &&
-  ['identity', 'visual'].includes(String(row.category)) &&
+  (row.category === 'identity' || row.category === 'visual') &&
   typeof row.locked === 'boolean' &&
   text(row.approved_snapshot_json, 65536) &&
   integer(row.version) &&
   identifier(row.updated_by) &&
   text(row.reason, 4000) &&
   integer(row.updated_at);
-const historyRow = (row: Row) =>
+const historyRow = (row: unknown): row is HistoryRow =>
+  record(row) &&
   identifier(row.id) &&
   text(row.company_id, 200) &&
   identifier(row.record_id) &&
@@ -147,6 +169,10 @@ const historyRow = (row: Row) =>
   text(row.reason, 4000) &&
   text(row.details_json, 65536) &&
   integer(row.created_at);
+const activeRow = (row: unknown): row is ActiveRow =>
+  versionRow(row) && integer(row.active_version, 1) && identity(row.identity);
+const mediaRow = (row: unknown): row is MediaRow =>
+  exact(row, ['id', 'name']) && identifier(row.id) && optionalText(row.name, 500);
 
 function workspace(value: unknown, actor: NativeBrandIdentityPageContext, input: NativeBrandIdentityReadInput): NativeBrandIdentityWorkspace {
   if (
@@ -181,28 +207,21 @@ function workspace(value: unknown, actor: NativeBrandIdentityPageContext, input:
   )
     return failure('NATIVE_BRAND_CONTEXT_CHANGED');
   if (
-    !Array.isArray(data.drafts) || !data.drafts.every((row) => record(row) && draftRow(row)) ||
-    !Array.isArray(data.versions) || !data.versions.every((row) => record(row) && versionRow(row)) ||
-    !Array.isArray(data.locks) || !data.locks.every((row) => record(row) && lockRow(row)) ||
-    !Array.isArray(data.history) || !data.history.every((row) => record(row) && historyRow(row)) ||
+    !Array.isArray(data.drafts) || !data.drafts.every(draftRow) ||
+    !Array.isArray(data.versions) || !data.versions.every(versionRow) ||
+    !Array.isArray(data.locks) || !data.locks.every(lockRow) ||
+    !Array.isArray(data.history) || !data.history.every(historyRow) ||
     !identity(data.initial) ||
     data.actorId !== actor.userId ||
     typeof data.canManage !== 'boolean' ||
     typeof data.canLock !== 'boolean'
   )
     return failure('NATIVE_BRAND_RESPONSE_INVALID');
-  if (
-    data.active !== null &&
-    (!record(data.active) ||
-      !versionRow(data.active) ||
-      !integer(data.active.active_version, 1) ||
-      !identity(data.active.identity))
-  )
-    return failure('NATIVE_BRAND_RESPONSE_INVALID');
+  if (data.active !== null && !activeRow(data.active)) return failure('NATIVE_BRAND_RESPONSE_INVALID');
   if (
     !Array.isArray(data.media) ||
     data.media.length > 1000 ||
-    !data.media.every((item) => record(item) && exact(item, ['id', 'name']) && identifier(item.id) && optionalText(item.name, 500))
+    !data.media.every(mediaRow)
   )
     return failure('NATIVE_BRAND_RESPONSE_INVALID');
   if (
@@ -218,7 +237,11 @@ function workspace(value: unknown, actor: NativeBrandIdentityPageContext, input:
       context.assignmentVersion !== input.expected.assignmentVersion)
   )
     return failure('NATIVE_BRAND_CONTEXT_CHANGED');
-  return data as unknown as NativeBrandIdentityWorkspace;
+  return {
+    drafts: data.drafts, versions: data.versions, locks: data.locks, history: data.history,
+    active: data.active, initial: data.initial, media: data.media, actorId: data.actorId,
+    canManage: data.canManage, canLock: data.canLock,
+  };
 }
 
 function commandData(value: unknown): Row {

@@ -19,7 +19,7 @@ import { RecordDomainControls } from "@erpx/feature-records/components/record-do
 import { requireWorkContext, publicScope } from "@erpx/server-identity_access/public/authorization";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { recordSupplementData } from "@erpx/server-records/public/record-details";
-import { type RecordTarget, recordDrawerHref, recordCanonicalHref } from "@erpx/feature-records/lib/record-drawer";
+import { type RecordTarget, isRecordKind, recordDrawerHref, recordCanonicalHref } from "@erpx/feature-records/lib/record-drawer";
 import { RecordLink } from "@erpx/feature-records/components/record-link";
 import { CalculationDecision } from "@erpx/feature-records/components/loaders/finance--finance-engine-controls";
 import { AccrualScheduleConsole } from "@erpx/feature-records/components/loaders/finance--finance-accrual-controls";
@@ -48,7 +48,11 @@ export async function RecordSupplement({ holdingSlug, target, args }: { holdingS
   return <FinancePurchaseProvider purchases={purchases}><div className="ui-stack"><header><h1>{String(row.name??row.title??row.description??row.reference??row.sku??row.code??target.id)}</h1></header>
    <dl className="ui-form-grid">{fields.filter(([key])=>row[key]!==null&&row[key]!==undefined).map(([key,label])=><div key={key}><dt className="muted">{label}</dt><dd>{key==='expires_at'?<TimeText appearance="standard" value={Number(row[key])}/>:String(row[`${key}_name`]??row[key])}</dd></div>)}</dl>
    {target.kind==='inventory_movement'&&<p>Quantity: {Number(row.quantity_milli)/1000} {String(row.unit??'')}</p>}
-   {'related' in data&&data.related&&<section><h2>Related records</h2>{data.related.map(record=><p key={`${record.kind}:${record.id}`}><RecordLink href={recordCanonicalHref(base,record)} record={record}>{record.kind.replaceAll('_',' ')} · {record.id}</RecordLink></p>)}</section>}
+   {'related' in data&&data.related&&<section><h2>Related records</h2>{data.related.map(record=>{
+    const label=`${record.kind.replaceAll('_',' ')} · ${record.id}`;
+    const related=isRecordKind(record.kind)?{...record,kind:record.kind}:null;
+    return <p key={`${record.kind}:${record.id}`}>{related?<RecordLink href={recordCanonicalHref(base,related)} record={related}>{label}</RecordLink>:label}</p>;
+   })}</section>}
    {'domain' in data&&<><h2>Recorded data</h2>{['identity_json','lines_json','operations_json','assumptions_json','result_json','specification_json','requirements_json','eligibility_json','scope_json'].filter(key=>typeof row[key]==='string').map(key=><section key={key}><h3>{key.replace(/_json$/,'').replaceAll('_',' ')}</h3><RecordValues value={JSON.parse(String(row[key]))}/></section>)}<RecordDomainControls detail={data} base={base} actor={actor}/></>}
    {'groupData' in data&&<FinanceGroupEditionControls base={base} data={data.groupData} enabled={data.enabled} canWrite={hasPermission(actor,'finance.write')} canApprove={hasPermission(actor,'finance.approve')} userId={actor.userId}/>}
    {'retainedLines' in data&&data.retainedLines&&<section><h2>Retained journal lines</h2><Table><thead><tr><th>Account</th><th>Debit / credit</th><th>Base debit / credit</th><th>Dimensions</th></tr></thead><tbody>{data.retainedLines.map(line=><tr key={String(line.id)}><td>{row.company_id===actor.companyId?<RecordLink href={recordCanonicalHref(base,{kind:'finance_account',id:String(line.account_id)})}>{String(line.code)} · {String(line.name)}</RecordLink>:`${line.code} · ${line.name}`}</td><td>{String(line.currency??row.currency??'')} {minorToDecimal(Number(line.debit_minor))} / {minorToDecimal(Number(line.credit_minor))}</td><td>{minorToDecimal(Number(line.base_debit_minor))} / {minorToDecimal(Number(line.base_credit_minor))}</td><td><RecordValues value={JSON.parse(String(line.dimension_json??'{}'))}/></td></tr>)}</tbody></Table></section>}

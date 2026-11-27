@@ -1198,7 +1198,7 @@ const directHttp: NativePmsTransport = (method, url, headers, body, signal) =>
             new Response(bytes, {
               status: incoming.statusCode ?? 0,
               headers: new Headers(
-                Object.entries(incoming.headers).flatMap(([key, value]) =>
+                Object.entries(incoming.headers).flatMap<[string, string]>(([key, value]) =>
                   value === undefined
                     ? []
                     : [[key, Array.isArray(value) ? value.join(', ') : value]],

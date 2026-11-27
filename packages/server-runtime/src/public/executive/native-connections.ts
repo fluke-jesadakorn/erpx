@@ -40,7 +40,7 @@ function direct(url:URL,method:'GET'|'POST',headers:Headers,body:string|undefine
   const req=request(url,{method,agent,headers:Object.fromEntries(headers),signal,maxHeaderSize:8192},incoming=>{
    const chunks:Uint8Array[]=[];let total=0;
    incoming.on('data',(chunk:Uint8Array)=>{total+=chunk.byteLength;if(total>1024*1024){incoming.destroy();reject(new Error('NATIVE_EXECUTIVE_CONNECTIONS_RESPONSE_LIMIT'));return;}chunks.push(chunk);});
-   incoming.on('end',()=>{const bytes=new Uint8Array(total);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}resolve(new Response(bytes,{status:incoming.statusCode??0,headers:new Headers(Object.entries(incoming.headers).flatMap(([key,value])=>value===undefined?[]:[[key,Array.isArray(value)?value.join(', '):value]]))}));});
+   incoming.on('end',()=>{const bytes=new Uint8Array(total);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}resolve(new Response(bytes,{status:incoming.statusCode??0,headers:new Headers(Object.entries(incoming.headers).flatMap<[string, string]>(([key,value])=>value===undefined?[]:[[key,Array.isArray(value)?value.join(', '):value]]))}));});
    incoming.on('error',reject);
   });
   req.on('error',reject);
