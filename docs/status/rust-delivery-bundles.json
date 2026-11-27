@@ -9291,17 +9291,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16294,
+    "revision": 16470,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261128-route",
-      "agentId": "lead",
-      "startedAt": "2026-11-27T18:37:24.221Z",
-      "heartbeatAt": "2026-11-27T19:47:40.606Z",
-      "expiresAt": "2026-11-27T20:17:40.606Z",
-      "generation": 225,
-      "tokenHash": "32082f670a6f8aac8b5cfee007842097505e0fb379d299c9043b25f7aa71813e"
+      "runId": "run-main-ux-runtime",
+      "agentId": "codex-lead",
+      "startedAt": "2026-11-27T20:18:08.571Z",
+      "heartbeatAt": "2026-11-27T21:02:39.822Z",
+      "expiresAt": "2026-11-27T21:32:39.822Z",
+      "generation": 226,
+      "tokenHash": "95a7f4010461446ff4aff388ab3801b3cfeaf23f711a0b3d7b1b41a5b98ed762"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -141328,8 +141328,8 @@
         ],
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "ffd86161be368e1c7ea8c0465c1acb1d05568974",
+        "lastPushedSha": "ffd86161be368e1c7ea8c0465c1acb1d05568974",
         "checks": [
           {
             "command": "cargo test -p erpx-server-runtime --test control_plane_read_port_postgres -- --nocapture",
@@ -141341,18 +141341,40 @@
             "command": "tsc server-runtime",
             "result": "passed",
             "sourceSha": "d8da6c09c"
+          },
+          {
+            "sourceSha": "ffd86161be368e1c7ea8c0465c1acb1d05568974",
+            "command": "targeted Runtime localhost HTTP unit suite",
+            "result": "passed",
+            "tests": 46
+          },
+          {
+            "sourceSha": "ffd86161be368e1c7ea8c0465c1acb1d05568974",
+            "command": "private Axum Runtime loopback Host",
+            "result": "passed",
+            "node": "26.11.1",
+            "http": 200
+          },
+          {
+            "sourceSha": "ffd86161be368e1c7ea8c0465c1acb1d05568974",
+            "command": "Identity integration bootstrap",
+            "result": "passed",
+            "casesReached": 15,
+            "casePassed": 1,
+            "caseFailed": 14,
+            "previousCasesReached": 0
           }
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "Reported round committed/verified; next family recorded",
+        "nextAction": "The Runtime client preserves registered Holding Host and the catalogue reaches all 15 Identity test cases. Resolve the 14 existing assertion and request-scope failures separately.",
         "handoff": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-runtime",
-          "at": "2026-11-25T17:51:44.276Z",
+          "runId": "run-main-ux-runtime",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T20:27:17.834Z",
           "previousStatus": "ready_for_integration",
           "reason": "handoff",
-          "nextAction": "Reported round committed/verified; next family recorded"
+          "nextAction": "The Runtime client preserves registered Holding Host and the catalogue reaches all 15 Identity test cases. Resolve the 14 existing assertion and request-scope failures separately."
         },
         "scopeRefinementRequired": false
       },
@@ -211481,11 +211503,11 @@
           "workplace:assets",
           "route:assets-register"
         ],
-        "nextAction": "Asset register TS read authority + GET routes deleted; presenters use native assets; POST retained.",
+        "nextAction": "Verified complete at 84fa38c; no code change. Assets GET authority/re-exports gone; POST retained; native presenters; 64 focused tests pass. Gaps: stale register, no route-gone test, no public GET gateway entry. Latest remote checkpoint 48adbcfb8.",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "075dda9d433eb93b9ecff5418fd7ceb96d2acb83",
-        "lastPushedSha": "075dda9d433eb93b9ecff5418fd7ceb96d2acb83",
+        "lastPushedSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
         "checks": [
           {
             "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
@@ -211506,17 +211528,55 @@
             "command": "cargo test -p erpx-server-assets --lib --locked",
             "result": "passed",
             "sourceSha": "075dda9d433eb93b9ecff5418fd7ceb96d2acb83"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
+          },
+          {
+            "command": "bun scripts/testing/layout.ts",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
+          },
+          {
+            "command": "vitest run --config tests/config/vitest.unit.config.mts tests/unit/assets/native-assets-transport.test.ts tests/unit/assets/native-assets-read-transport.test.ts",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b",
+            "details": "2 files, 64 tests passed"
+          },
+          {
+            "command": "native-payload: assets register and detail",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b",
+            "details": "native Assets read mounted; workspace/detail payload and keyed POST acknowledgement asserted"
+          },
+          {
+            "command": "route-gone: assets GET export",
+            "result": "blocked",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b",
+            "details": "No dedicated route-gone test in allowed paths; source inspection shows feature route and both app re-exports are POST-only"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-h",
-          "agentId": "cut-assets",
-          "at": "2026-11-26T11:50:54.435Z",
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-route-assets",
+          "at": "2026-11-27T20:37:35.779Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Asset register TS read authority + GET routes deleted; presenters use native assets; POST retained."
+          "reason": "released with work preserved",
+          "nextAction": "Verified complete at 84fa38c; no code change. Assets GET authority/re-exports gone; POST retained; native presenters; 64 focused tests pass. Gaps: stale register, no route-gone test, no public GET gateway entry. Latest remote checkpoint 48adbcfb8."
         },
         "scopeRefinementRequired": false
       },
@@ -211542,11 +211602,11 @@
           "workplace:crm",
           "route:crm-history"
         ],
-        "nextAction": "CRM history TS SQL authority + GET re-exports deleted; native transport wired; case-history router mounted.",
+        "nextAction": "Verified complete at 84fa38c; no code change. CRM case-event history native; owner SQL Rust; app GET re-export gone; POST retained. Gaps: no route-gone test; 7 stale dedupe test failures. Latest remote checkpoint 48adbcfb8.",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "075dda9d433eb93b9ecff5418fd7ceb96d2acb83",
-        "lastPushedSha": "075dda9d433eb93b9ecff5418fd7ceb96d2acb83",
+        "lastPushedSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
         "checks": [
           {
             "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
@@ -211567,17 +211627,61 @@
             "command": "cargo test -p erpx-server-crm --test crm_case_event_history --locked",
             "result": "passed",
             "sourceSha": "075dda9d433eb93b9ecff5418fd7ceb96d2acb83"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
+          },
+          {
+            "command": "bun scripts/testing/layout.ts",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
+          },
+          {
+            "command": "cargo test -p erpx-server-crm --test crm_case_event_history --locked",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b",
+            "details": "2/2"
+          },
+          {
+            "command": "focused CRM vitest",
+            "result": "partial",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b",
+            "details": "399 passed / 7 failed; 7 stale dedupe assertions expect deleted TS SQL and are outside allowed paths"
+          },
+          {
+            "command": "native-payload: CRM case-event history",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b",
+            "details": "native case-event transport fails closed; owner SQL in Rust; payload parity test passes"
+          },
+          {
+            "command": "route-gone: CRM history GET re-export",
+            "result": "blocked",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b",
+            "details": "GET re-export removed, but no dedicated route-gone test and tests/ is outside allowed paths"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-h",
-          "agentId": "cut-crm",
-          "at": "2026-11-26T11:50:54.736Z",
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-route-crm",
+          "at": "2026-11-27T20:37:36.532Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "CRM history TS SQL authority + GET re-exports deleted; native transport wired; case-history router mounted."
+          "reason": "released with work preserved",
+          "nextAction": "Verified complete at 84fa38c; no code change. CRM case-event history native; owner SQL Rust; app GET re-export gone; POST retained. Gaps: no route-gone test; 7 stale dedupe test failures. Latest remote checkpoint 48adbcfb8."
         },
         "scopeRefinementRequired": false
       },
@@ -211606,11 +211710,11 @@
           "workplace:finance",
           "route:finance-charts"
         ],
-        "nextAction": "Residual listCharts TS authority and consumers deleted; native chart list mounted.",
+        "nextAction": "Verified complete at 84fa38c; no code change. listCharts TS authority/callers absent; native chart list mounted and tested; aggregate GET /finance and catch-all remain outside scope. No route-gone test. Latest remote checkpoint dd73c0a1f.",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "075dda9d433eb93b9ecff5418fd7ceb96d2acb83",
-        "lastPushedSha": "075dda9d433eb93b9ecff5418fd7ceb96d2acb83",
+        "lastPushedSha": "dd73c0a1f90dfade79a9a1e05c8fe593d25a15c1",
         "checks": [
           {
             "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
@@ -211631,17 +211735,55 @@
             "command": "cargo test -p erpx-server-finance --lib --locked",
             "result": "passed",
             "sourceSha": "075dda9d433eb93b9ecff5418fd7ceb96d2acb83"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
+          },
+          {
+            "command": "bun scripts/testing/layout.ts",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
+          },
+          {
+            "command": "vitest run --config tests/config/vitest.unit.config.mts native-lane-6-chart-list finance-core-services finance-workspace-services",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b",
+            "details": "3 files, 93 tests passed"
+          },
+          {
+            "command": "route-gone: listCharts TS authority and callers",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b",
+            "details": "git grep listCharts leaves only a Rust comment and the native test assertion; no TS source"
+          },
+          {
+            "command": "native-payload: finance chart list",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b",
+            "details": "native lane-6 chart-list GET mounted in composition; sqlx owner SQL; 5/5 native chart-list tests"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-h",
-          "agentId": "cut-finance",
-          "at": "2026-11-26T11:50:56.274Z",
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-route-finance",
+          "at": "2026-11-27T20:37:35.158Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Residual listCharts TS authority and consumers deleted; native chart list mounted."
+          "reason": "released with work preserved",
+          "nextAction": "Verified complete at 84fa38c; no code change. listCharts TS authority/callers absent; native chart list mounted and tested; aggregate GET /finance and catch-all remain outside scope. No route-gone test. Latest remote checkpoint dd73c0a1f."
         },
         "scopeRefinementRequired": false
       },
@@ -211730,11 +211872,11 @@
           "workplace:manufacturing",
           "route:manufacturing-production"
         ],
-        "nextAction": "Production profiles TS read authority + GET branch deleted; app re-exports now POST-only.",
+        "nextAction": "Verified at 84fa38c; no code change. Production GET branch and app re-exports are POST-only; native accounting-profiles payload passes 3/3 and cargo check passes. Gap: production-command-sources.ts plus server-planning still execute owner-planned SQL in TS, no public gateway entry, no executable route-gone test, and multiplexed POST remains. All follow-up paths are outside this task scope. Latest remote checkpoint 48adbcfb8.",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "075dda9d433eb93b9ecff5418fd7ceb96d2acb83",
-        "lastPushedSha": "075dda9d433eb93b9ecff5418fd7ceb96d2acb83",
+        "lastPushedSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
         "checks": [
           {
             "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
@@ -211755,17 +211897,65 @@
             "command": "cargo test -p erpx-server-manufacturing --test production_profiles_http --locked",
             "result": "passed",
             "sourceSha": "075dda9d433eb93b9ecff5418fd7ceb96d2acb83"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
+          },
+          {
+            "command": "bun scripts/testing/layout.ts",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
+          },
+          {
+            "command": "PATH=$HOME/.bun/bin:$PATH bun run structure:check",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
+          },
+          {
+            "command": "vitest run --config tests/config/vitest.unit.config.mts tests/unit/manufacturing",
+            "result": "partial",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b",
+            "details": "151/152 passed; 1 pre-existing stale BOM oracle failure"
+          },
+          {
+            "command": "cargo test -p erpx-server-manufacturing --test production_profiles_http --locked",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b",
+            "details": "3/3"
+          },
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
+          },
+          {
+            "command": "route-gone + native-payload: manufacturing production",
+            "result": "partial",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b",
+            "details": "GET branch and app re-exports are POST-only; native accounting-profiles payload passes 3/3; no executable route-gone test"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-h",
-          "agentId": "cut-manufacturing",
-          "at": "2026-11-26T11:50:53.839Z",
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-route-manufacturing",
+          "at": "2026-11-27T20:40:06.587Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Production profiles TS read authority + GET branch deleted; app re-exports now POST-only."
+          "reason": "released with work preserved",
+          "nextAction": "Verified at 84fa38c; no code change. Production GET branch and app re-exports are POST-only; native accounting-profiles payload passes 3/3 and cargo check passes. Gap: production-command-sources.ts plus server-planning still execute owner-planned SQL in TS, no public gateway entry, no executable route-gone test, and multiplexed POST remains. All follow-up paths are outside this task scope. Latest remote checkpoint 48adbcfb8."
         },
         "scopeRefinementRequired": false
       },
@@ -211917,11 +212107,11 @@
           "workplace:portal",
           "route:portal-threads"
         ],
-        "nextAction": "Portal support-thread TS authority + tickets route deleted; native thread router mounted with verified portal session.",
+        "nextAction": "Verified complete at 84fa38c; no code change. Portal support-thread authority/tickets route gone; native thread router mounted with portal-session gate; 94 TS + 2 Rust tests pass. Gaps: no route-gone test; stale acceptance inventory; no public gateway entry. Latest remote checkpoint 48adbcfb8.",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "075dda9d433eb93b9ecff5418fd7ceb96d2acb83",
-        "lastPushedSha": "075dda9d433eb93b9ecff5418fd7ceb96d2acb83",
+        "lastPushedSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
         "checks": [
           {
             "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
@@ -211942,17 +212132,61 @@
             "command": "cargo test -p erpx-server-customer-authority --lib --locked",
             "result": "passed",
             "sourceSha": "075dda9d433eb93b9ecff5418fd7ceb96d2acb83"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
+          },
+          {
+            "command": "bun scripts/testing/layout.ts",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
+          },
+          {
+            "command": "vitest run --config tests/config/vitest.unit.config.mts tests/unit/customer_authority/customer-portal-application.test.ts tests/unit/customer_authority/native-customer-portal-transport.test.ts",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b",
+            "details": "94/94"
+          },
+          {
+            "command": "cargo test -p erpx-server-customer-authority --lib --locked portal_support_threads_http",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b",
+            "details": "2/2"
+          },
+          {
+            "command": "native-payload: portal support threads",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b",
+            "details": "native thread router mounted; owner SQL in Rust; complete thread/response payload and portal-session gate asserted"
+          },
+          {
+            "command": "route-gone: portal tickets route",
+            "result": "blocked",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b",
+            "details": "tickets route and TS authority absent, but no dedicated route-gone test; tests/ outside allowed paths"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-h",
-          "agentId": "cut-portal",
-          "at": "2026-11-26T11:50:55.368Z",
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-route-portal",
+          "at": "2026-11-27T20:37:37.302Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Portal support-thread TS authority + tickets route deleted; native thread router mounted with verified portal session."
+          "reason": "released with work preserved",
+          "nextAction": "Verified complete at 84fa38c; no code change. Portal support-thread authority/tickets route gone; native thread router mounted with portal-session gate; 94 TS + 2 Rust tests pass. Gaps: no route-gone test; stale acceptance inventory; no public gateway entry. Latest remote checkpoint 48adbcfb8."
         },
         "scopeRefinementRequired": false
       },
@@ -211979,11 +212213,11 @@
           "workplace:pos",
           "route:pos-room-charges"
         ],
-        "nextAction": "POS room-charge TS SELECT authority deleted; native transport wired; room-charge router mounted.",
+        "nextAction": "Verified complete at 48adbcfb8; no code change. Room-charge TS SELECT authority is gone, the native GET is mounted with byte-identical owner SQL, callers use the native branch, and 177 TS + 4 Rust tests pass. Gaps: no route-gone test; no tracked public native gateway entry. Latest remote checkpoint 48adbcfb8.",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "075dda9d433eb93b9ecff5418fd7ceb96d2acb83",
-        "lastPushedSha": "075dda9d433eb93b9ecff5418fd7ceb96d2acb83",
+        "lastPushedSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
         "checks": [
           {
             "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
@@ -212004,17 +212238,61 @@
             "command": "cargo test -p erpx-server-pos --test pos_room_charges --locked",
             "result": "passed",
             "sourceSha": "075dda9d433eb93b9ecff5418fd7ceb96d2acb83"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "bun scripts/testing/layout.ts",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "vitest run --config tests/config/vitest.unit.config.mts tests/unit/pos/pos-application.test.ts",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "177/177"
+          },
+          {
+            "command": "cargo test -p erpx-server-pos --test pos_room_charges --locked",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "4/4"
+          },
+          {
+            "command": "native-payload: POS room-charge reversals",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "native route mounted; owner SQL byte-identical; ROW_KEYS parity asserted; client fails closed"
+          },
+          {
+            "command": "route-gone + public gateway: POS room-charge",
+            "result": "blocked",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "No dedicated route-gone test; no tracked ERPX_DEV_NATIVE_PATHS entry for the room-charge native path"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-h",
-          "agentId": "cut-pos",
-          "at": "2026-11-26T11:50:55.670Z",
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-route-pos",
+          "at": "2026-11-27T20:41:19.235Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "POS room-charge TS SELECT authority deleted; native transport wired; room-charge router mounted."
+          "reason": "released with work preserved",
+          "nextAction": "Verified complete at 48adbcfb8; no code change. Room-charge TS SELECT authority is gone, the native GET is mounted with byte-identical owner SQL, callers use the native branch, and 177 TS + 4 Rust tests pass. Gaps: no route-gone test; no tracked public native gateway entry. Latest remote checkpoint 48adbcfb8."
         },
         "scopeRefinementRequired": false
       },
@@ -212041,11 +212319,11 @@
           "workplace:projects",
           "route:projects-handoffs"
         ],
-        "nextAction": "Project handoff TS authority + GET branches deleted; native transport wired; handoff router mounted.",
+        "nextAction": "Verified complete at 84fa38c; no code change. Project handoff GET authority/app re-exports are absent; native transport and router are mounted; presenter fails closed; 154/156 focused tests pass. Follow-up: two stale projectHandoffs mocks in tests/unit/projects/project-services.test.ts, dead application function in server-projects/src/application/structure.ts, and structure POST still needs caller/gateway/parity work. Latest remote checkpoint 48adbcfb8.",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "075dda9d433eb93b9ecff5418fd7ceb96d2acb83",
-        "lastPushedSha": "075dda9d433eb93b9ecff5418fd7ceb96d2acb83",
+        "lastPushedSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
         "checks": [
           {
             "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
@@ -212066,17 +212344,61 @@
             "command": "cargo test -p erpx-server-projects --test project_handoffs --locked",
             "result": "passed",
             "sourceSha": "075dda9d433eb93b9ecff5418fd7ceb96d2acb83"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
+          },
+          {
+            "command": "bun scripts/testing/layout.ts",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
+          },
+          {
+            "command": "focused projects vitest: native-lane-27, native-project-wbs-transport, project-services",
+            "result": "partial",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b",
+            "details": "156 tests: 154 passed, 2 failed; both stale projectHandoffs mocks outside allowed paths"
+          },
+          {
+            "command": "cargo test -p erpx-server-projects --test project_handoffs --locked",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b",
+            "details": "2/2"
+          },
+          {
+            "command": "native-payload: project handoffs",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b",
+            "details": "native handoff router mounted; presenter uses fail-closed ownedProjectHandoffs; payload parity passes"
+          },
+          {
+            "command": "project-structure integration test",
+            "result": "blocked",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b",
+            "details": "Integration harness startup error code.charCodeAt is not a function; no test executed"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-h",
-          "agentId": "cut-projects",
-          "at": "2026-11-26T11:50:54.135Z",
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-route-projects",
+          "at": "2026-11-27T20:38:17.520Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Project handoff TS authority + GET branches deleted; native transport wired; handoff router mounted."
+          "reason": "released with work preserved",
+          "nextAction": "Verified complete at 84fa38c; no code change. Project handoff GET authority/app re-exports are absent; native transport and router are mounted; presenter fails closed; 154/156 focused tests pass. Follow-up: two stale projectHandoffs mocks in tests/unit/projects/project-services.test.ts, dead application function in server-projects/src/application/structure.ts, and structure POST still needs caller/gateway/parity work. Latest remote checkpoint 48adbcfb8."
         },
         "scopeRefinementRequired": false
       },
@@ -212164,11 +212486,11 @@
           "workplace:support",
           "route:support-sla"
         ],
-        "nextAction": "Support SLA TS authority + GET routes deleted; SSR already native; existing support read mount retained.",
+        "nextAction": "Verified complete at 84fa38c; no code change. SLA route and both app re-exports are absent, SSR/client use native reads, route-gone/native-payload assertions pass, 64 focused tests and 2 Rust tests pass. Lead cleanup: stale route strings in catalogue/architecture generated files; test-only native SLA writer. Latest remote checkpoint 48adbcfb8.",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "075dda9d433eb93b9ecff5418fd7ceb96d2acb83",
-        "lastPushedSha": "075dda9d433eb93b9ecff5418fd7ceb96d2acb83",
+        "lastPushedSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
         "checks": [
           {
             "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
@@ -212189,17 +212511,66 @@
             "command": "cargo test -p erpx-server-support --test sla_workspace --locked",
             "result": "passed",
             "sourceSha": "075dda9d433eb93b9ecff5418fd7ceb96d2acb83"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
+          },
+          {
+            "command": "bun scripts/testing/layout.ts",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
+          },
+          {
+            "command": "focused support vitest: support-services, native-support-sla-transport, native-support-read, sla-policy-native-read",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b",
+            "details": "4 files, 64 tests passed"
+          },
+          {
+            "command": "extended support vitest including read-tail suites",
+            "result": "partial",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b",
+            "details": "73 passed; 2 pre-existing retirement:ts-statements count failures in read-tail-r26/r39"
+          },
+          {
+            "command": "cargo test -p erpx-server-support --test sla_workspace --locked",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b",
+            "details": "2/2"
+          },
+          {
+            "command": "route-gone + native-payload: support SLA",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b",
+            "details": "SLA route plus support/compat re-exports absent; support-services.test.ts asserts route-gone and native GET/POST; Rust payload parity passes"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-h",
-          "agentId": "cut-support",
-          "at": "2026-11-26T11:50:55.071Z",
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-route-support",
+          "at": "2026-11-27T20:37:57.049Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Support SLA TS authority + GET routes deleted; SSR already native; existing support read mount retained."
+          "reason": "released with work preserved",
+          "nextAction": "Verified complete at 84fa38c; no code change. SLA route and both app re-exports are absent, SSR/client use native reads, route-gone/native-payload assertions pass, 64 focused tests and 2 Rust tests pass. Lead cleanup: stale route strings in catalogue/architecture generated files; test-only native SLA writer. Latest remote checkpoint 48adbcfb8."
         },
         "scopeRefinementRequired": false
       },
@@ -213045,11 +213416,11 @@
           "owner:inventory",
           "route:inventory-transfers"
         ],
-        "nextAction": "Native transfer list committed; GET route/re-exports deleted; presenters native-backed.",
+        "nextAction": "Verified complete at 48adbcfb8; no code change. Stock-transfer POST catch-all and both re-exports are absent; native transfer list/detail and three POST paths are mounted; 20 focused tests pass. Lead cleanup: refresh the stale route-register blockers and add a Rust owner HTTP integration test. Latest remote checkpoint 48adbcfb8.",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "4c98df6035e2201cb3cc7656a93fe578f557a759",
-        "lastPushedSha": "4c98df6035e2201cb3cc7656a93fe578f557a759",
+        "lastPushedSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
         "checks": [
           {
             "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
@@ -213075,17 +213446,54 @@
             "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/inventory/native-transfer-list.test.ts",
             "result": "passed",
             "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "bun scripts/testing/layout.ts",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "PATH=$HOME/.bun/bin:$PATH bun run structure:check",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "vitest run --config tests/config/vitest.unit.config.mts native-transfer-list native-transfer-detail native-transfer-detail-cutover records-registry-routes-pure-transport",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "4 files, 20 tests passed"
+          },
+          {
+            "command": "route-gone + native-payload: inventory transfers",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "POST catch-all and both re-exports absent; native list/detail and three POST paths mounted; route-gone source test and payload tests pass"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-h",
-          "agentId": "c-inventory",
-          "at": "2026-11-26T12:41:23.641Z",
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-route-inventory",
+          "at": "2026-11-27T20:40:06.046Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Native transfer list committed; GET route/re-exports deleted; presenters native-backed."
+          "reason": "released with work preserved",
+          "nextAction": "Verified complete at 48adbcfb8; no code change. Stock-transfer POST catch-all and both re-exports are absent; native transfer list/detail and three POST paths are mounted; 20 focused tests pass. Lead cleanup: refresh the stale route-register blockers and add a Rust owner HTTP integration test. Latest remote checkpoint 48adbcfb8."
         },
         "scopeRefinementRequired": false
       },
@@ -213112,11 +213520,11 @@
           "owner:maintenance",
           "route:maintenance-owners"
         ],
-        "nextAction": "Maintenance people-option SELECT deleted; consoles use native owner options.",
+        "nextAction": "Verified complete; no code change. Maintenance people-option SELECT is gone, native owner-options route owns SQL, consoles use the fail-closed native transport, 14 TS + 9 Rust tests pass. Corrected implementedCommit to f72b6c05b. Latest remote contains the implemented commit.",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "4c98df6035e2201cb3cc7656a93fe578f557a759",
-        "lastPushedSha": "4c98df6035e2201cb3cc7656a93fe578f557a759",
+        "implementedCommit": "f72b6c05b046861d853e3a905e3876b096c8d335",
+        "lastPushedSha": "5555b6ff6732b3ff5b4f1a11e3072f81cbbf5527",
         "checks": [
           {
             "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
@@ -213142,17 +213550,60 @@
             "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/maintenance/native-owner-options.test.ts",
             "result": "passed",
             "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "bun scripts/testing/layout.ts",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "vitest run tests/unit/maintenance/native-owner-options.test.ts",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "14/14"
+          },
+          {
+            "command": "cargo test -p erpx-server-maintenance --lib native_owner_options --locked",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "9/9"
+          },
+          {
+            "command": "native-payload + route-gone: maintenance owner options",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "native owner-options route mounted; owner SQL Rust; TS people SELECT removed; SQL-free fail-closed transport; payload test passes"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-h",
-          "agentId": "c-maintenance",
-          "at": "2026-11-26T12:41:23.918Z",
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-route-maintenance",
+          "at": "2026-11-27T20:53:34.390Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Maintenance people-option SELECT deleted; consoles use native owner options."
+          "reason": "released with work preserved",
+          "nextAction": "Verified complete; no code change. Maintenance people-option SELECT is gone, native owner-options route owns SQL, consoles use the fail-closed native transport, 14 TS + 9 Rust tests pass. Corrected implementedCommit to f72b6c05b. Latest remote contains the implemented commit."
         },
         "scopeRefinementRequired": false
       },
@@ -213178,11 +213629,11 @@
           "owner:quality",
           "route:quality-alerts"
         ],
-        "nextAction": "Quality alert-queue TS read deleted; presenters use native queue.",
+        "nextAction": "Verified complete at 48adbcfb8; no code change. Quality alert routes are absent, the native queue owns SQL and full payload parity, presenters fail closed, and 46 TS + 7 Rust tests pass. Corrected implementedCommit to the actual route-retirement commit. Gaps: no automated route-gone test; TS point/work alert reads remain under work_projection/collaboration ownership. Latest remote checkpoint 48adbcfb8.",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "4c98df6035e2201cb3cc7656a93fe578f557a759",
-        "lastPushedSha": "4c98df6035e2201cb3cc7656a93fe578f557a759",
+        "implementedCommit": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+        "lastPushedSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
         "checks": [
           {
             "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
@@ -213208,17 +213659,61 @@
             "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/quality/native-quality-alert-queue.test.ts",
             "result": "passed",
             "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "bun scripts/testing/layout.ts",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "vitest run --config tests/config/vitest.unit.config.mts tests/unit/quality/native-quality-alert-queue.test.ts tests/unit/quality/quality-services.test.ts tests/unit/quality/native-quality-transport.test.ts tests/unit/quality/quality-alert-source-dedupe.test.ts",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "4 files, 46 tests passed"
+          },
+          {
+            "command": "cargo test -p erpx-server-quality --lib --locked quality_alert_queue",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "7/7"
+          },
+          {
+            "command": "native-payload: quality alert queue",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "native queue owns SQL via sqlx AssertSqlSafe; exact path and full field parity asserted; presenters fail closed"
+          },
+          {
+            "command": "route-gone: quality alert routes",
+            "result": "partial",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "No quality route.ts files remain and the register has no quality rows; no dedicated automated route-gone test"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-h",
-          "agentId": "c-alerts",
-          "at": "2026-11-26T12:41:24.196Z",
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-route-quality",
+          "at": "2026-11-27T20:41:57.446Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Quality alert-queue TS read deleted; presenters use native queue."
+          "reason": "released with work preserved",
+          "nextAction": "Verified complete at 48adbcfb8; no code change. Quality alert routes are absent, the native queue owns SQL and full payload parity, presenters fail closed, and 46 TS + 7 Rust tests pass. Corrected implementedCommit to the actual route-retirement commit. Gaps: no automated route-gone test; TS point/work alert reads remain under work_projection/collaboration ownership. Latest remote checkpoint 48adbcfb8."
         },
         "scopeRefinementRequired": false
       },
@@ -213244,11 +213739,11 @@
           "owner:crm",
           "route:crm-guest-history"
         ],
-        "nextAction": "CRM guest-history TS authority deleted; app GET re-exports native; identity drawer fail-closed.",
+        "nextAction": "Verified complete at 48adbcfb8; no code change. CRM guest-history TS authority is gone, app GET re-exports native, the drawer fails closed, and 35 TS + 14 Rust tests pass. Gaps: no dedicated route-gone test; the bare /crm GET+POST route remains for other views and writers. Latest remote checkpoint 48adbcfb8.",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "4c98df6035e2201cb3cc7656a93fe578f557a759",
-        "lastPushedSha": "4c98df6035e2201cb3cc7656a93fe578f557a759",
+        "lastPushedSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
         "checks": [
           {
             "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
@@ -213269,17 +213764,67 @@
             "command": "cargo test -p erpx-server-crm --lib guest_history --locked",
             "result": "passed",
             "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "bun scripts/testing/layout.ts",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "focused CRM guest-history vitest",
+            "result": "partial",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "35 passed / 1 failed; pre-existing read-tail-r46 stale string assertion unrelated to guest-history"
+          },
+          {
+            "command": "cargo test -p erpx-server-crm --locked --test crm_guest_history",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "3/3"
+          },
+          {
+            "command": "cargo test -p erpx-server-crm --lib guest_history --locked",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "11/11"
+          },
+          {
+            "command": "native-payload: CRM guest history",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "native GET owns SQL and exact contact/stays/hasMore parity; app GET re-exports native; drawer fails closed"
+          },
+          {
+            "command": "route-gone: CRM guest-history authority",
+            "result": "blocked",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "No dedicated route-gone test; bare /crm GET+POST remains for other views/writers and is not delete-ready"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-h",
-          "agentId": "c-crm",
-          "at": "2026-11-26T12:41:24.499Z",
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-route-crm2",
+          "at": "2026-11-27T20:43:52.758Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "CRM guest-history TS authority deleted; app GET re-exports native; identity drawer fail-closed."
+          "reason": "released with work preserved",
+          "nextAction": "Verified complete at 48adbcfb8; no code change. CRM guest-history TS authority is gone, app GET re-exports native, the drawer fails closed, and 35 TS + 14 Rust tests pass. Gaps: no dedicated route-gone test; the bare /crm GET+POST route remains for other views and writers. Latest remote checkpoint 48adbcfb8."
         },
         "scopeRefinementRequired": false
       },
@@ -213367,11 +213912,11 @@
           "owner:finance",
           "route:finance-attachment-version"
         ],
-        "nextAction": "Finance step consumers use mounted native port; guard/step SQL descriptors deleted.",
+        "nextAction": "Pushed cf9afec7e: native attachment-version guard/step is fully wired, the payload test now mocks the real nativeRequest transport, and 14 focused tests pass. No Next attachment-version route exists. Latest remote contains cf9afec7e; organization test commit 6097702de is later.",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "4c98df6035e2201cb3cc7656a93fe578f557a759",
-        "lastPushedSha": "4c98df6035e2201cb3cc7656a93fe578f557a759",
+        "implementedCommit": "cf9afec7ee66f16ddc8dcdeb95b268804cbff2b5",
+        "lastPushedSha": "cf9afec7ee66f16ddc8dcdeb95b268804cbff2b5",
         "checks": [
           {
             "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
@@ -213397,17 +213942,55 @@
             "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/finance/native-finance-attachment-version-step.test.ts tests/unit/finance/finance-operations-attachment-policy.test.ts",
             "result": "passed",
             "sourceSha": "4c98df6035e2201cb3cc7656a93fe578f557a759"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "cf9afec7ee66f16ddc8dcdeb95b268804cbff2b5"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "cf9afec7ee66f16ddc8dcdeb95b268804cbff2b5"
+          },
+          {
+            "command": "bun scripts/testing/layout.ts",
+            "result": "passed",
+            "sourceSha": "cf9afec7ee66f16ddc8dcdeb95b268804cbff2b5"
+          },
+          {
+            "command": "vitest run --config tests/config/vitest.unit.config.mts tests/unit/finance/native-finance-attachment-version-step.test.ts tests/unit/finance/finance-operations-attachment-policy.test.ts tests/unit/files/attachment-service-facts-cutover.test.ts",
+            "result": "passed",
+            "sourceSha": "cf9afec7ee66f16ddc8dcdeb95b268804cbff2b5",
+            "details": "3 files, 14 tests passed; test now mocks nativeRequest instead of global fetch"
+          },
+          {
+            "command": "native-payload: finance attachment version guard/step",
+            "result": "passed",
+            "sourceSha": "cf9afec7ee66f16ddc8dcdeb95b268804cbff2b5",
+            "details": "native guard/step routes mounted; owner SQL in Rust; TS descriptors carry no SQL and fail closed; exact URL/method/body/idempotency pinned"
+          },
+          {
+            "command": "route-gone: finance attachment-version",
+            "result": "passed",
+            "sourceSha": "cf9afec7ee66f16ddc8dcdeb95b268804cbff2b5",
+            "details": "No Next attachment-version route or register row exists; no route file to delete"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "cf9afec7ee66f16ddc8dcdeb95b268804cbff2b5"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-h",
-          "agentId": "c-finance-attach",
-          "at": "2026-11-26T12:41:25.089Z",
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-route-finance2",
+          "at": "2026-11-27T20:46:26.620Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Finance step consumers use mounted native port; guard/step SQL descriptors deleted."
+          "reason": "released with work preserved",
+          "nextAction": "Pushed cf9afec7e: native attachment-version guard/step is fully wired, the payload test now mocks the real nativeRequest transport, and 14 focused tests pass. No Next attachment-version route exists. Latest remote contains cf9afec7e; organization test commit 6097702de is later."
         },
         "scopeRefinementRequired": false
       },
@@ -214447,11 +215030,11 @@
         "resources": [
           "cutover:organization"
         ],
-        "nextAction": "Native organization/drafts GET cut with 503 fail-closed; retained TS command read oracle remains for command tests.",
+        "nextAction": "Pushed 6097702de: added the missing route-gone/oracle-retention test for the native organization drafts GET. Native owner SQL and payload parity pass. Remaining: no exact checked-in gateway entry for people/organization/drafts; public path still uses the retained catch-all.",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "f00feb722bf7e773e87973703791fe59defbbc36",
-        "lastPushedSha": "f00feb722bf7e773e87973703791fe59defbbc36",
+        "implementedCommit": "6097702de74fa7d8e8ee29ee86cdb0df7ccf72b3",
+        "lastPushedSha": "6097702de74fa7d8e8ee29ee86cdb0df7ccf72b3",
         "checks": [
           {
             "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
@@ -214477,17 +215060,61 @@
             "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/organization/native-organization-draft-read.test.ts",
             "result": "passed",
             "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "6097702de74fa7d8e8ee29ee86cdb0df7ccf72b3"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "6097702de74fa7d8e8ee29ee86cdb0df7ccf72b3"
+          },
+          {
+            "command": "bun scripts/testing/layout.ts",
+            "result": "passed",
+            "sourceSha": "6097702de74fa7d8e8ee29ee86cdb0df7ccf72b3"
+          },
+          {
+            "command": "vitest run --config tests/config/vitest.unit.config.mts tests/unit/organization/native-organization-draft-read.test.ts",
+            "result": "passed",
+            "sourceSha": "6097702de74fa7d8e8ee29ee86cdb0df7ccf72b3",
+            "details": "9/9"
+          },
+          {
+            "command": "vitest run draft-read + acceptance-read",
+            "result": "passed",
+            "sourceSha": "6097702de74fa7d8e8ee29ee86cdb0df7ccf72b3",
+            "details": "17/17"
+          },
+          {
+            "command": "native-payload + route-gone: organization drafts",
+            "result": "passed",
+            "sourceSha": "6097702de74fa7d8e8ee29ee86cdb0df7ccf72b3",
+            "details": "native GET mounted with owner SQL; workplace GET native; new test asserts route-gone and retained command oracle; payload parity/fail-closed pass"
+          },
+          {
+            "command": "exact gateway entry: organization drafts",
+            "result": "blocked",
+            "sourceSha": "6097702de74fa7d8e8ee29ee86cdb0df7ccf72b3",
+            "details": "No exact native-api-paths entry; public path still served by the retained catch-all"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "6097702de74fa7d8e8ee29ee86cdb0df7ccf72b3"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-i",
-          "agentId": "w-organization.draft-route",
-          "at": "2026-11-26T14:09:15.466Z",
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-route-organization",
+          "at": "2026-11-27T20:46:45.701Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Native organization/drafts GET cut with 503 fail-closed; retained TS command read oracle remains for command tests."
+          "reason": "released with work preserved",
+          "nextAction": "Pushed 6097702de: added the missing route-gone/oracle-retention test for the native organization drafts GET. Native owner SQL and payload parity pass. Remaining: no exact checked-in gateway entry for people/organization/drafts; public path still uses the retained catch-all."
         },
         "scopeRefinementRequired": false
       },
@@ -214516,11 +215143,11 @@
         "resources": [
           "cutover:customer_authority"
         ],
-        "nextAction": "Native customer-access sources GET cut; workspace source reader retained for the console until its presenter migration.",
+        "nextAction": "Verified complete; no code change. Native customer-access sources GET is mounted, owner SQL is Rust, app GET re-exports native, workspace reader is console-only, 56 TS + 17 Rust tests pass. Latest remote contains the implemented commit.",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "f00feb722bf7e773e87973703791fe59defbbc36",
-        "lastPushedSha": "f00feb722bf7e773e87973703791fe59defbbc36",
+        "lastPushedSha": "5555b6ff6732b3ff5b4f1a11e3072f81cbbf5527",
         "checks": [
           {
             "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
@@ -214546,17 +215173,55 @@
             "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/customer_authority/access-sources-native.test.ts tests/unit/customer_authority/native-owner-read-history.test.ts",
             "result": "passed",
             "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "cf9afec7ee66f16ddc8dcdeb95b268804cbff2b5"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "cf9afec7ee66f16ddc8dcdeb95b268804cbff2b5"
+          },
+          {
+            "command": "bun scripts/testing/layout.ts",
+            "result": "passed",
+            "sourceSha": "cf9afec7ee66f16ddc8dcdeb95b268804cbff2b5"
+          },
+          {
+            "command": "focused customer authority vitest",
+            "result": "passed",
+            "sourceSha": "cf9afec7ee66f16ddc8dcdeb95b268804cbff2b5",
+            "details": "4 files, 56 tests passed"
+          },
+          {
+            "command": "cargo test -p erpx-server-customer-authority --test customer_access",
+            "result": "passed",
+            "sourceSha": "cf9afec7ee66f16ddc8dcdeb95b268804cbff2b5",
+            "details": "17/17"
+          },
+          {
+            "command": "native-payload + route-gone: customer access sources",
+            "result": "passed",
+            "sourceSha": "cf9afec7ee66f16ddc8dcdeb95b268804cbff2b5",
+            "details": "native sources GET mounted; owner SQL Rust; app GET re-exports native; workspace reader retained only for console; payload/route-gone tests pass"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "cf9afec7ee66f16ddc8dcdeb95b268804cbff2b5"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-i",
-          "agentId": "w-customer_authority.access-sources",
-          "at": "2026-11-26T14:09:15.764Z",
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-route-customer-authority",
+          "at": "2026-11-27T20:53:33.806Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Native customer-access sources GET cut; workspace source reader retained for the console until its presenter migration."
+          "reason": "released with work preserved",
+          "nextAction": "Verified complete; no code change. Native customer-access sources GET is mounted, owner SQL is Rust, app GET re-exports native, workspace reader is console-only, 56 TS + 17 Rust tests pass. Latest remote contains the implemented commit."
         },
         "scopeRefinementRequired": false
       },
@@ -214585,11 +215250,11 @@
         "resources": [
           "cutover:support"
         ],
-        "nextAction": "Native SLA policy point/work cut for all server callers; support-sla integration oracle still needs native transport config.",
+        "nextAction": "Verified complete; no code change. Native SLA policy point/work route is mounted, owner SQL is Rust, TS authority/read kinds are gone, 86 focused tests pass. Pre-existing r26/r39 SELECT-count failures remain. Latest remote contains the implemented commit.",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "f00feb722bf7e773e87973703791fe59defbbc36",
-        "lastPushedSha": "f00feb722bf7e773e87973703791fe59defbbc36",
+        "lastPushedSha": "5555b6ff6732b3ff5b4f1a11e3072f81cbbf5527",
         "checks": [
           {
             "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
@@ -214620,17 +215285,55 @@
             "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/support/sla-policy-native-read.test.ts tests/unit/support/support-services.test.ts",
             "result": "passed",
             "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "bun scripts/testing/layout.ts",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "focused support SLA policy vitest",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "5 files, 86 tests passed"
+          },
+          {
+            "command": "extended support SLA policy vitest",
+            "result": "partial",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "95/97 passed; 2 pre-existing retirement:ts-statements count failures"
+          },
+          {
+            "command": "native-payload + route-gone: support SLA policy",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "native point/work route mounted; owner SQL Rust; TS authority/read kinds gone; exact payload and fail-closed tests pass"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-i",
-          "agentId": "w-support.sla-policy-read",
-          "at": "2026-11-26T14:09:16.065Z",
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-route-support2",
+          "at": "2026-11-27T20:53:32.569Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Native SLA policy point/work cut for all server callers; support-sla integration oracle still needs native transport config."
+          "reason": "released with work preserved",
+          "nextAction": "Verified complete; no code change. Native SLA policy point/work route is mounted, owner SQL is Rust, TS authority/read kinds are gone, 86 focused tests pass. Pre-existing r26/r39 SELECT-count failures remain. Latest remote contains the implemented commit."
         },
         "scopeRefinementRequired": false
       },
@@ -214661,11 +215364,11 @@
         "resources": [
           "cutover:billing"
         ],
-        "nextAction": "Holding and platform billing forecast routes cut to the native client; TS reader retained for integration oracle and feature type import.",
+        "nextAction": "Verified; no code change. Both forecast handlers use the native client with 8-field parity and 93 tests pass, but routes remain intentionally: platform path lacks an exact native route/gateway entry, holding route still runs TS requireCompanyAuthority, and no route-gone test exists. TS reader remains for the integration oracle and type import.",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "f00feb722bf7e773e87973703791fe59defbbc36",
-        "lastPushedSha": "f00feb722bf7e773e87973703791fe59defbbc36",
+        "lastPushedSha": "6097702de74fa7d8e8ee29ee86cdb0df7ccf72b3",
         "checks": [
           {
             "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
@@ -214691,17 +215394,55 @@
             "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/commercial/billing-forecast-routes.test.ts",
             "result": "passed",
             "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "bun scripts/testing/layout.ts",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "vitest run --config tests/config/vitest.unit.config.mts billing-forecast-routes native-forecast-transport billing-owner-services native-evidence-read-tail",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "4 files, 93 tests passed"
+          },
+          {
+            "command": "native-payload: billing forecast",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "Holding and platform handlers use native client; exact holding route mounted; 8-field wire parity and fail-closed behavior asserted"
+          },
+          {
+            "command": "route-gone + gateway: billing forecast",
+            "result": "blocked",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "No route-gone test; platform path has no exact native route/gateway entry; holding route still runs TS requireCompanyAuthority; routes intentionally retained"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-i",
-          "agentId": "w-billing.forecast-route",
-          "at": "2026-11-26T14:09:16.376Z",
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-route-billing",
+          "at": "2026-11-27T20:46:45.152Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Holding and platform billing forecast routes cut to the native client; TS reader retained for integration oracle and feature type import."
+          "reason": "released with work preserved",
+          "nextAction": "Verified; no code change. Both forecast handlers use the native client with 8-field parity and 93 tests pass, but routes remain intentionally: platform path lacks an exact native route/gateway entry, holding route still runs TS requireCompanyAuthority, and no route-gone test exists. TS reader remains for the integration oracle and type import."
         },
         "scopeRefinementRequired": false
       },
@@ -214726,11 +215467,11 @@
         "resources": [
           "cutover:field_service"
         ],
-        "nextAction": "Field part-reservation readback cut to the mounted native route; other reserve readbacks retained.",
+        "nextAction": "Verified complete; no code change. Native part-reservation route is exact and mounted, owner SQL is Rust, TS bridge has no SQL/fallback, 8-field parity and route-gone tests pass, 171 focused tests and structure check pass. Register retains stale blocker prose only. Remote tree verified via ls-tree at c73ec0fd.",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "f00feb722bf7e773e87973703791fe59defbbc36",
-        "lastPushedSha": "f00feb722bf7e773e87973703791fe59defbbc36",
+        "lastPushedSha": "c73ec0fd4662931eee360b5f326741844f0cf5ec",
         "checks": [
           {
             "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
@@ -214761,17 +215502,54 @@
             "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/field_service/native-reserve.test.ts tests/unit/field_service/part-reservation-native-cutover.test.ts",
             "result": "passed",
             "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "bun scripts/testing/layout.ts",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "vitest run --config tests/config/vitest.unit.config.mts field-service native-reserve part-reservation-native-cutover",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "3 files, 171 tests passed"
+          },
+          {
+            "command": "native-payload + route-gone: field part reservation",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "native route exact and mounted; owner SQL in Rust; TS bridge has no SQL; 8-field parity; public field-service prefix covers path; route-gone/payload tests pass"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-i",
-          "agentId": "w-field_service.part-reservation",
-          "at": "2026-11-26T14:09:16.654Z",
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-route-field-service",
+          "at": "2026-11-27T20:49:16.089Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Field part-reservation readback cut to the mounted native route; other reserve readbacks retained."
+          "reason": "released with work preserved",
+          "nextAction": "Verified complete; no code change. Native part-reservation route is exact and mounted, owner SQL is Rust, TS bridge has no SQL/fallback, 8-field parity and route-gone tests pass, 171 focused tests and structure check pass. Register retains stale blocker prose only. Remote tree verified via ls-tree at c73ec0fd."
         },
         "scopeRefinementRequired": false
       },
@@ -215141,17 +215919,19 @@
         "allowedPaths": [
           "packages/feature-people_payroll/src/**",
           "packages/server-people_payroll/src/**",
-          "tests/unit/people_payroll/**"
+          "tests/unit/people_payroll/**",
+          "scripts/local/native-cutover-routes.ts",
+          "tests/unit/shared.testing/workspace-supervisor.test.ts"
         ],
         "resources": [
           "owner:people_payroll",
           "route:people_payroll-feature-2"
         ],
-        "nextAction": "Flow-settings active leave policies native; next people-payroll family.",
+        "nextAction": "Boot the isolated Rust candidate and run a PostgreSQL-backed read, then wire the Settings Hub and retire its TS read.",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "daad617b6e9206ae71e4f5fee66303366cf371ec",
-        "lastPushedSha": "f88d1ffa536a39e15931d4fc55225a96b0083822",
+        "implementedCommit": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+        "lastPushedSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
         "checks": [
           {
             "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
@@ -215183,17 +215963,29 @@
             "result": "passed",
             "sourceSha": "daad617b6e9206ae71e4f5fee66303366cf371ec",
             "note": "production consumer calls the mounted native owner route; focused tests and tsc passed"
+          },
+          {
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "command": "cargo test -p erpx-server-people-payroll --lib native_lane_10",
+            "result": "passed",
+            "tests": 14
+          },
+          {
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "command": "People Payroll and gateway targeted Vitest",
+            "result": "passed",
+            "tests": 19
           }
         ],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
+        "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261127-a",
-          "agentId": "lead",
-          "at": "2026-11-26T17:57:34.892Z",
+          "runId": "run-main-ux-runtime",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T20:35:03.163Z",
           "previousStatus": "ready_for_integration",
-          "reason": "released with work preserved",
-          "nextAction": "Flow-settings active leave policies native; next people-payroll family."
+          "reason": "handoff",
+          "nextAction": "Boot the isolated Rust candidate and run a PostgreSQL-backed read, then wire the Settings Hub and retire its TS read."
         },
         "scopeRefinementRequired": false
       },
@@ -215341,7 +216133,7 @@
         "goalId": "G4",
         "owner": "operations",
         "kind": "migration",
-        "status": "ready_for_integration",
+        "status": "blocked",
         "title": "feature-operations route family native slice 2",
         "scope": "Inventory feature-operations routes and port one further bounded read/command to Rust with real SQL execution and complete payload parity.",
         "workflowIds": [],
@@ -215350,13 +216142,14 @@
         "allowedPaths": [
           "packages/feature-operations/src/**",
           "packages/server-operations/src/**",
-          "tests/unit/operations/**"
+          "tests/unit/operations/**",
+          "tests/integration/commercial/provider-legacy-grants.test.ts"
         ],
         "resources": [
           "owner:operations",
           "route:operations-feature-2"
         ],
-        "nextAction": "Native routine-template detail compiled/tested and mounted; featured GET cutover pending.",
+        "nextAction": "Preserved HY4 WIP retires one TS statement with 22 unit passes. Bind actual native template authority to the registered provider-grants DB lane and prove the stranger denial there before pushing.",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "a860e274f5918e7712fa2ad35411aac27a040265",
@@ -215396,12 +216189,12 @@
         "retainedLegacy": [],
         "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261126-i",
-          "agentId": "w3-operations",
-          "at": "2026-11-26T14:42:10.945Z",
-          "previousStatus": "ready_for_integration",
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-demo-operations",
+          "at": "2026-11-27T20:52:46.995Z",
+          "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Native routine-template detail compiled/tested and mounted; featured GET cutover pending."
+          "nextAction": "Preserved HY4 WIP retires one TS statement with 22 unit passes. Bind actual native template authority to the registered provider-grants DB lane and prove the stranger denial there before pushing."
         },
         "scopeRefinementRequired": false
       },
@@ -215741,11 +216534,11 @@
         "resources": [
           "cutover:inventory"
         ],
-        "nextAction": "Native transfer detail cut with purchase gate retained; all callers use (actor,id) and no SQL unit.",
+        "nextAction": "Verified complete; no code change. Native transfer detail owns SQL, callers use (actor,id), purchase gate retained, TS SQL authority absent, and 8 focused tests pass. Stock-transfer POST catch-all is a separate task. Remote contains the implemented commit.",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "1ce263c83320df9948ad7a570e4e867d02f3efed",
-        "lastPushedSha": "1ce263c83320df9948ad7a570e4e867d02f3efed",
+        "lastPushedSha": "6097702de74fa7d8e8ee29ee86cdb0df7ccf72b3",
         "checks": [
           {
             "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
@@ -215771,17 +216564,49 @@
             "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/inventory/native-transfer-detail.test.ts tests/unit/inventory/native-transfer-detail-cutover.test.ts",
             "result": "passed",
             "sourceSha": "1ce263c83320df9948ad7a570e4e867d02f3efed"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "bun scripts/testing/layout.ts",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "vitest run --config tests/config/vitest.unit.config.mts tests/unit/inventory/native-transfer-detail.test.ts tests/unit/inventory/native-transfer-detail-cutover.test.ts",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "2 files, 8 tests passed"
+          },
+          {
+            "command": "native-payload + route-gone: inventory transfer detail",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "native detail route exact; owner SQL in Rust; callers use (actor,id); purchase gate retained; TS SQL authority absent; payload/cutover tests pass"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-i",
-          "agentId": "w4-inventory.transfer-detail",
-          "at": "2026-11-26T14:54:42.809Z",
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-route-inventory2",
+          "at": "2026-11-27T20:46:44.588Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Native transfer detail cut with purchase gate retained; all callers use (actor,id) and no SQL unit."
+          "reason": "released with work preserved",
+          "nextAction": "Verified complete; no code change. Native transfer detail owns SQL, callers use (actor,id), purchase gate retained, TS SQL authority absent, and 8 focused tests pass. Stock-transfer POST catch-all is a separate task. Remote contains the implemented commit."
         },
         "scopeRefinementRequired": false
       },
@@ -215876,11 +216701,11 @@
         "resources": [
           "cutover:quality"
         ],
-        "nextAction": "Executive inspection evidence uses native transport; integration oracle needs native config.",
+        "nextAction": "Verified complete; no code change. Native inspection-evidence POST is mounted, owner SQL is Rust, TS fallback is removed and fail-closed, payload/route-gone tests pass. Detail/holds TS reads remain by design and need separate native routes. Latest remote contains the implemented commit.",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "1ce263c83320df9948ad7a570e4e867d02f3efed",
-        "lastPushedSha": "1ce263c83320df9948ad7a570e4e867d02f3efed",
+        "implementedCommit": "08b1fa5aca90a51853c81f80a3ca9100ca12e631",
+        "lastPushedSha": "5555b6ff6732b3ff5b4f1a11e3072f81cbbf5527",
         "checks": [
           {
             "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
@@ -215906,17 +216731,49 @@
             "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/quality/native-quality-evidence-consumer.test.ts tests/unit/quality/read-tail-r26-dedupe.test.ts",
             "result": "passed",
             "sourceSha": "1ce263c83320df9948ad7a570e4e867d02f3efed"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "bun scripts/testing/layout.ts",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
+          },
+          {
+            "command": "vitest run native-quality-evidence-consumer native-quality-transport read-tail-r26-dedupe",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "3 files, 26 tests passed"
+          },
+          {
+            "command": "native-payload + route-gone: quality inspection evidence",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8",
+            "details": "native POST mounted; owner SQL in Rust; TS fallback removed and fail-closed; exact 7-field payload and route-gone assertions pass"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "48adbcfb8f11dd30ed3c571c1e227c89d2a3e9d8"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-i",
-          "agentId": "w4-quality.inspection-evidence",
-          "at": "2026-11-26T14:54:43.355Z",
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-route-quality2",
+          "at": "2026-11-27T20:53:33.154Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Executive inspection evidence uses native transport; integration oracle needs native config."
+          "reason": "released with work preserved",
+          "nextAction": "Verified complete; no code change. Native inspection-evidence POST is mounted, owner SQL is Rust, TS fallback is removed and fail-closed, payload/route-gone tests pass. Detail/holds TS reads remain by design and need separate native routes. Latest remote contains the implemented commit."
         },
         "scopeRefinementRequired": false
       },
@@ -216423,11 +217280,11 @@
         "resources": [
           "cutover:legal"
         ],
-        "nextAction": "Legal processing-status GET is native; TS read authority/port/exports deleted.",
+        "nextAction": "Native Legal status uses owner-bound module visibility. Preserve its Next authority relay until the exact ingress supplies selected item access.",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "58c65b87b5bb65286e968004497b4089d0b443a8",
-        "lastPushedSha": "58c65b87b5bb65286e968004497b4089d0b443a8",
+        "implementedCommit": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b",
+        "lastPushedSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b",
         "checks": [
           {
             "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
@@ -216453,17 +217310,23 @@
             "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/legal/processing-status-route.test.ts tests/unit/legal/native-processing-status.test.ts",
             "result": "passed",
             "sourceSha": "58c65b87b5bb65286e968004497b4089d0b443a8"
+          },
+          {
+            "sourceSha": "84fa38c0cd1e44962aec2bfbcbf2c56dc5645e7b",
+            "command": "targeted Legal processing-status tests",
+            "result": "passed",
+            "tests": 10
           }
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261126-i",
-          "agentId": "w6-legal.processing-status",
-          "at": "2026-11-26T15:30:55.708Z",
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-legal-processing",
+          "at": "2026-11-27T20:27:18.344Z",
           "previousStatus": "ready_for_integration",
           "reason": "handoff",
-          "nextAction": "Legal processing-status GET is native; TS read authority/port/exports deleted."
+          "nextAction": "Native Legal status uses owner-bound module visibility. Preserve its Next authority relay until the exact ingress supplies selected item access."
         },
         "scopeRefinementRequired": false
       },
@@ -225699,15 +226562,8 @@
           "owner:organization",
           "route:holding-ui-address-wire"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261128-route",
-          "agentId": "codex-oasis-holding-address",
-          "claimedAt": "2026-11-27T19:26:06.018Z",
-          "heartbeatAt": "2026-11-27T19:47:40.606Z",
-          "expiresAt": "2026-11-27T20:17:40.606Z",
-          "generation": 225
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "7e0d0db108612bf1caae014d0d6f60c208b427db",
         "implementedCommit": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
         "lastPushedSha": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
@@ -225753,15 +226609,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Previous OpenCode coordination session finished idle with a successful stop, lease expired. Reviewed tracked WIP and fast-forwarded to its independently verified pushed checkpoint, preserving unrelated edits.",
         "nextAction": "Final Acme browser evidence is recorded at frozen code SHA 4c1e26e: all 15 registered Products and Company Admin return 200, Support/Service 200, Sales 200, uninstalled site-measurement 404, and an alternate non-installed Plugin 404. The only external product item still unresolved is real installed Plugin verification because the approved registry is empty; the identity_access integration harness reporter still errors REQUIRED_TEST_CASES_NOT_EXECUTED. Keep the claim and do not promote full acceptance.",
         "handoff": {
           "runId": "run-20261128-route",
-          "agentId": "lead",
-          "at": "2026-11-27T19:26:05.472Z",
+          "agentId": "codex-oasis-holding-address",
+          "at": "2026-11-27T20:18:08.571Z",
           "previousStatus": "in_progress",
-          "reason": "handoff",
-          "nextAction": "Handed to codex-oasis-holding-address at Fluke request. Codex owns the completed URL integration and may edit only the refined allowed paths; lead retains central ledger, route-cutover orchestration and Git serialization."
+          "reason": "Recovery: Previous OpenCode coordination session finished idle with a successful stop, lease expired. Reviewed tracked WIP and fast-forwarded to its independently verified pushed checkpoint, preserving unrelated edits.",
+          "nextAction": "Final Acme browser evidence is recorded at frozen code SHA 4c1e26e: all 15 registered Products and Company Admin return 200, Support/Service 200, Sales 200, uninstalled site-measurement 404, and an alternate non-installed Plugin 404. The only external product item still unresolved is real installed Plugin verification because the approved registry is empty; the identity_access integration harness reporter still errors REQUIRED_TEST_CASES_NOT_EXECUTED. Keep the claim and do not promote full acceptance."
         },
         "scopeRefinementRequired": false
       },
@@ -225780,7 +226636,7 @@
         "requiredPorts": [],
         "allowedPaths": [],
         "resources": [],
-        "status": "in_progress",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
@@ -225884,6 +226740,719 @@
           "routeAuthority": true,
           "presenterParity": true
         }
+      },
+      {
+        "id": "integrate.work_projection.main-apps-launcher",
+        "goalId": "G4",
+        "owner": "work_projection",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Extend the OASIS Apps layout to the main Holding launcher",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/workplace/src/components/apps-launcher.tsx",
+          "packages/workplace/src/components/apps-launcher.module.css"
+        ],
+        "resources": [
+          "ui:main-holding-launcher"
+        ],
+        "status": "done",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "c6ad6591f68879a5a520c31c42c5bfe6730e4a49",
+        "lastPushedSha": "c6ad6591f68879a5a520c31c42c5bfe6730e4a49",
+        "checks": [
+          {
+            "sourceSha": "c6ad6591f68879a5a520c31c42c5bfe6730e4a49",
+            "command": "dev-browser:main-holding-launcher",
+            "result": "passed",
+            "acmeApps": 15,
+            "northstarApps": 14,
+            "internalApps": 14,
+            "widths": [
+              1440,
+              820,
+              390
+            ],
+            "horizontalOverflow": false,
+            "keyboardEscape": true
+          },
+          {
+            "sourceSha": "c6ad6591f68879a5a520c31c42c5bfe6730e4a49",
+            "command": "targeted launcher unit suites",
+            "result": "passed",
+            "tests": 67
+          },
+          {
+            "sourceSha": "c6ad6591f68879a5a520c31c42c5bfe6730e4a49",
+            "command": "bun run typecheck",
+            "result": "passed"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Main ERPX shared launcher is verified on Acme, Northstar and ERPX Internal at 1440, 820 and 390 pixels with real SSO; continue separate owner menu checks.",
+        "handoff": null
+      },
+      {
+        "id": "integrate.sales.main-followup-entry",
+        "goalId": "G4",
+        "owner": "sales",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Open linked customer follow-up from the Sales order",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/commerce/orders/[id]/screen.tsx",
+          "packages/feature-sales/src/components/customers/sales-views.tsx",
+          "scripts/local/app-next-config.ts",
+          "packages/feature-runtime/src/lib/holding-hosts.ts",
+          "tests/unit/identity_access/holding-routing.test.ts",
+          "packages/feature-records/src/lib/record-drawer.ts",
+          "packages/feature-records/src/components/record-link.tsx",
+          "tests/unit/shared.records/record-drawer-routing.test.ts"
+        ],
+        "resources": [
+          "ui:main-sales-followup-entry"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-main-ux-runtime",
+          "agentId": "codex-lead",
+          "claimedAt": "2026-11-27T20:55:14.990Z",
+          "heartbeatAt": "2026-11-27T21:02:39.822Z",
+          "expiresAt": "2026-11-27T21:32:39.822Z",
+          "generation": 226
+        },
+        "baseSha": null,
+        "implementedCommit": "5555b6ff6732b3ff5b4f1a11e3072f81cbbf5527",
+        "lastPushedSha": "5555b6ff6732b3ff5b4f1a11e3072f81cbbf5527",
+        "checks": [
+          {
+            "sourceSha": "dd73c0a1f90dfade79a9a1e05c8fe593d25a15c1",
+            "command": "Holding routing targeted Vitest",
+            "result": "passed",
+            "tests": 31
+          },
+          {
+            "sourceSha": "5555b6ff6732b3ff5b4f1a11e3072f81cbbf5527",
+            "command": "Record drawer and Holding routing Vitest with pinned Chromium",
+            "result": "passed",
+            "tests": 49
+          },
+          {
+            "sourceSha": "5555b6ff6732b3ff5b4f1a11e3072f81cbbf5527",
+            "command": "signed Acme browser quotation row click",
+            "result": "passed",
+            "detail": "Collection 34 links; clicked row resolved to canonical Company + Bangkok detail; owned Sales responded HTTP 200."
+          },
+          {
+            "sourceSha": "5555b6ff6732b3ff5b4f1a11e3072f81cbbf5527",
+            "command": "signed Acme browser quotation linked follow-up action",
+            "result": "failed",
+            "detail": "CTA not visible; detail shell rendered with Sales heading. Verify source detail and current purchase admission before claiming workflow."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Canonical quote click is verified. Trace commerce detail and current Sales permission to reach the linked Follow-up drawer; browser CTA timed out.",
+        "handoff": {
+          "runId": "run-main-ux-runtime",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T20:54:43.417Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Canonical quote click is verified. Trace commerce detail and current Sales permission to reach the linked Follow-up drawer; browser CTA timed out."
+        }
+      },
+      {
+        "id": "cutover.sales.main-pricing-workspace",
+        "goalId": "G4",
+        "owner": "sales",
+        "workflowIds": [],
+        "kind": "integration",
+        "title": "Connect native Sales pricing read and exact command routes",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-sales/src/adapters/native-lane-30/pricing-client.ts",
+          "tests/unit/sales/native-lane-30-pricing.test.ts"
+        ],
+        "resources": [
+          "slice:sales-pricing-transport"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "f27c99e86cab45234bd1418e2b15cbce4d845329",
+        "lastPushedSha": "f27c99e86cab45234bd1418e2b15cbce4d845329",
+        "checks": [
+          {
+            "sourceSha": "f27c99e86cab45234bd1418e2b15cbce4d845329",
+            "command": "Sales Pricing and gateway targeted Vitest",
+            "result": "passed",
+            "tests": 23
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Compile and boot the isolated Rust candidate, configure the main Holding pricing client, then verify signed-in Price Lists reads and writes before enabling the route.",
+        "handoff": {
+          "runId": "run-main-ux-runtime",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T20:31:01.729Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Compile and boot the isolated Rust candidate, configure the main Holding pricing client, then verify signed-in Price Lists reads and writes before enabling the route."
+        }
+      },
+      {
+        "id": "integrate.sales.main-pricing-binding",
+        "goalId": "G4",
+        "owner": "sales",
+        "workflowIds": [],
+        "kind": "integration",
+        "title": "Mount private Sales price lists and route OASIS pricing commands",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/native_lane_mounts.rs",
+          "scripts/local/oasis-demo-stage.ts",
+          "scripts/local/native-cutover-routes.ts",
+          "scripts/local/workspace-gateway-runtime.ts",
+          "scripts/local/compiled-workspace-gateway.ts",
+          "tests/unit/shared.testing/workspace-supervisor.test.ts"
+        ],
+        "resources": [
+          "slice:sales-pricing-binding"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "f27c99e86cab45234bd1418e2b15cbce4d845329",
+        "lastPushedSha": "f27c99e86cab45234bd1418e2b15cbce4d845329",
+        "checks": [
+          {
+            "sourceSha": "f27c99e86cab45234bd1418e2b15cbce4d845329",
+            "command": "Sales Pricing and gateway targeted Vitest",
+            "result": "passed",
+            "tests": 23
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Compile and boot the isolated Rust candidate, configure the main Holding pricing client, then verify signed-in Price Lists reads and writes before enabling the route.",
+        "handoff": {
+          "runId": "run-main-ux-runtime",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T20:31:02.250Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Compile and boot the isolated Rust candidate, configure the main Holding pricing client, then verify signed-in Price Lists reads and writes before enabling the route."
+        }
+      },
+      {
+        "id": "cutover.people_payroll.leave-policy-history",
+        "goalId": "G4",
+        "owner": "people_payroll",
+        "workflowIds": [],
+        "kind": "integration",
+        "title": "Read Leave Settings Hub history from Axum",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-work_projection/src/adapters/flow-settings-hub.ts",
+          "packages/server-work_projection/src/application/flow-settings-hub.ts"
+        ],
+        "resources": [
+          "consumer:work-projection-leave-settings"
+        ],
+        "status": "blocked",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "After native endpoint gate, wire Settings Hub to nativeLeavePolicySettingsHistory and retire the old SQL on a running candidate.",
+        "handoff": {
+          "runId": "run-main-ux-runtime",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T20:32:30.900Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "After native endpoint gate, wire Settings Hub to nativeLeavePolicySettingsHistory and retire the old SQL on a running candidate."
+        }
+      },
+      {
+        "id": "cutover.work_projection.main-navigation-ingress",
+        "goalId": "G4",
+        "owner": "work_projection",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Restore exact Acme and Northstar native navigation ingress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "scripts/local/native-cutover-routes.ts",
+          "scripts/local/native-api-proxy.ts",
+          "scripts/local/workspace-gateway-runtime.ts",
+          "scripts/local/compiled-workspace-gateway.ts",
+          "src/composition/src/private_development_api.rs",
+          "tests/unit/shared.testing/workspace-supervisor.test.ts"
+        ],
+        "resources": [
+          "work-navigation-gateway"
+        ],
+        "status": "blocked",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "a649e6a6ceeb5dbd0f19791b10ae9f28c3a9f9a9",
+        "lastPushedSha": "a649e6a6ceeb5dbd0f19791b10ae9f28c3a9f9a9",
+        "checks": [
+          {
+            "sourceSha": "a649e6a6ceeb5dbd0f19791b10ae9f28c3a9f9a9",
+            "command": "workspace supervisor native ingress Vitest",
+            "result": "passed",
+            "tests": 15
+          },
+          {
+            "sourceSha": "a649e6a6ceeb5dbd0f19791b10ae9f28c3a9f9a9",
+            "command": "bun run typecheck",
+            "result": "passed"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-main-ux-runtime",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T20:48:10.696Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Complete expense and routing-attention source parity in cutover.work_projection.feed-navigation-runtime before admitting GET."
+        },
+        "nextAction": "Complete expense and routing-attention source parity in cutover.work_projection.feed-navigation-runtime before admitting GET."
+      },
+      {
+        "id": "cutover.nextapi.benefits-native",
+        "goalId": "G3",
+        "owner": "benefits",
+        "kind": "migration",
+        "title": "Retire the native benefits Next route",
+        "scope": "Delete the transport-only benefits GET/POST handler and both app re-exports after proving the existing benefits holding gateway prefix forwards every served method and that the native payload and owner authority are exact. Keep unrelated benefits command surfaces. Do not edit docs/status, generated CSS/turbo, or the main checkout.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-people/src/routes/api/v1/holdings/[holdingSlug]/benefits/**",
+          "apps/people/src/app/api/v1/holdings/[holdingSlug]/benefits/**",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/benefits/**",
+          "packages/feature-people/src/lib/**",
+          "tests/unit/people/**",
+          "tests/integration/people/**",
+          "tests/unit/benefits/**",
+          "tests/catalogue/suite-manifest.json"
+        ],
+        "resources": [
+          "owner:benefits",
+          "route:benefits"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "1301627d0bfc5d81cdc1a75f8f786f635b94140c",
+        "lastPushedSha": "1301627d0bfc5d81cdc1a75f8f786f635b94140c",
+        "checks": [
+          {
+            "command": "retirement:next-routes bun scripts/testing/api-cutover.ts count",
+            "result": "passed",
+            "sourceSha": "9ee0c4e46e03b414dce7258967996bcc9295b971",
+            "before": 1258,
+            "after": 1255,
+            "details": "Removed 3 Next route files: shared benefits handler plus apps/people and apps/compat re-exports"
+          },
+          {
+            "command": "vitest run tests/unit/people/benefits-route-cutover.test.ts",
+            "result": "passed",
+            "sourceSha": "9ee0c4e46e03b414dce7258967996bcc9295b971",
+            "details": "4/4 route-gone, gateway-prefix, native-SQL and fail-closed tests"
+          },
+          {
+            "command": "vitest run tests/unit/benefits/benefits-native-read.test.ts",
+            "result": "passed",
+            "sourceSha": "9ee0c4e46e03b414dce7258967996bcc9295b971",
+            "details": "11/11"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "9ee0c4e46e03b414dce7258967996bcc9295b971"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "9ee0c4e46e03b414dce7258967996bcc9295b971"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "failed",
+            "sourceSha": "9ee0c4e46e03b414dce7258967996bcc9295b971",
+            "details": "2 TS2307 errors: tests/unit/benefits/native-benefits-workspace-transport.test.ts still imports the deleted benefits route at lines 362/373"
+          },
+          {
+            "command": "bun scripts/testing/layout.ts",
+            "result": "failed",
+            "sourceSha": "9ee0c4e46e03b414dce7258967996bcc9295b971",
+            "details": "TEST_INVENTORY_MISMATCH: tests/unit/people/benefits-route-cutover.test.ts is not registered in tests/catalogue/suite-manifest.json"
+          },
+          {
+            "sourceSha": "1301627d0bfc5d81cdc1a75f8f786f635b94140c",
+            "command": "bun scripts/testing/test.ts unit --suite=benefits.native-benefits-workspace-transport.unit",
+            "result": "passed",
+            "tests": 30
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Test cleanup and native route classifier pass; verify signed Benefits browser and PostgreSQL read/write end-to-end before marking migrated.",
+        "handoff": {
+          "runId": "run-main-ux-runtime",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T21:02:03.619Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Test cleanup and native route classifier pass; verify signed Benefits browser and PostgreSQL read/write end-to-end before marking migrated."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "integrate.work_projection.main-launcher-latency",
+        "goalId": "G4",
+        "owner": "work_projection",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Scope launcher readiness to the active Holding and deduplicate Company probes",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-work_projection/src/adapters/product-launcher.ts",
+          "packages/server-work_projection/src/application/product-launcher.ts",
+          "packages/workplace/src/components/office-product-menus.tsx",
+          "tests/unit/shared.ui/product-launcher.test.ts"
+        ],
+        "resources": [
+          "ui:main-launcher-latency"
+        ],
+        "status": "done",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "3f755d76afab135111973a47f484305d13e64176",
+        "lastPushedSha": "3f755d76afab135111973a47f484305d13e64176",
+        "checks": [
+          {
+            "sourceSha": "3f755d76afab135111973a47f484305d13e64176",
+            "command": "product launcher Vitest",
+            "result": "passed",
+            "tests": 70
+          },
+          {
+            "sourceSha": "3f755d76afab135111973a47f484305d13e64176",
+            "command": "bun run typecheck",
+            "result": "passed"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": {
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-demo-launcher",
+          "at": "2026-11-27T20:50:02.471Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "HY4 submitted scoped launcher diff and passing tests. Lead reviews the shared adapter and browser behavior."
+        },
+        "nextAction": "Keep performance and URL compatibility checks on signed Acme and Northstar. Rich navigation SQL source parity is a separate gate."
+      },
+      {
+        "id": "integrate.crm.main-pipeline-holdings",
+        "goalId": "G4",
+        "owner": "crm",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Enable native CRM pipeline for configured development Holdings",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-sales/src/public/native-crm-pipeline-page.ts",
+          "tests/unit/crm/native-crm-pipeline-transport.test.ts"
+        ],
+        "resources": [
+          "crm-main-pipeline-ssr"
+        ],
+        "status": "done",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "3de065217d95bd1cbe5816c2b886186a23495822",
+        "lastPushedSha": "3de065217d95bd1cbe5816c2b886186a23495822",
+        "checks": [
+          {
+            "sourceSha": "3de065217d95bd1cbe5816c2b886186a23495822",
+            "command": "native CRM pipeline transport Vitest",
+            "result": "passed",
+            "tests": 13
+          },
+          {
+            "sourceSha": "3de065217d95bd1cbe5816c2b886186a23495822",
+            "command": "signed Acme and Northstar Sales Pipeline SSR",
+            "result": "passed",
+            "holdings": [
+              "acme",
+              "northstar"
+            ]
+          },
+          {
+            "sourceSha": "3de065217d95bd1cbe5816c2b886186a23495822",
+            "command": "signed Axum candidate CRM leads reads on loopback 3196",
+            "result": "passed",
+            "holdings": [
+              "acme",
+              "northstar"
+            ],
+            "httpStatus": 200
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Native pipeline list active for configured Acme and Northstar. Port New Lead options and detail presenter before retiring the remaining TypeScript CRM UI reads."
+      },
+      {
+        "id": "integrate.support.main-holding-ssr",
+        "goalId": "G4",
+        "owner": "support",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Bind Axum Support read workspace to Acme and Northstar dev",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-support/src/adapters/server/native-support-read.ts"
+        ],
+        "resources": [
+          "support-main-ssr-runtime"
+        ],
+        "status": "done",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "3de065217d95bd1cbe5816c2b886186a23495822",
+        "lastPushedSha": "3de065217d95bd1cbe5816c2b886186a23495822",
+        "checks": [
+          {
+            "sourceSha": "3de065217d95bd1cbe5816c2b886186a23495822",
+            "command": "signed main Holding Support SSR",
+            "result": "passed",
+            "holdings": [
+              "acme",
+              "northstar"
+            ],
+            "detail": "Actual Service cases and empty-state headings, both original Holding sessions."
+          },
+          {
+            "sourceSha": "3de065217d95bd1cbe5816c2b886186a23495822",
+            "command": "signed Axum candidate Support reads on loopback 3196",
+            "result": "passed",
+            "holdings": [
+              "acme",
+              "northstar"
+            ],
+            "httpStatus": 200
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Signed read workspace active in both development Holdings. Treat public Support writes, SLA and recipient/drawer flows as separate runtime acceptance."
+      },
+      {
+        "id": "integrate.runtime.holding-static-asset-resolution",
+        "goalId": "G4",
+        "owner": "runtime",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Serve registered Next static bundles without native Holding database admission",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/workplace/src/holding-proxy.ts",
+          "tests/unit/identity_access/holding-entry-resolution.test.ts"
+        ],
+        "resources": [
+          "runtime-holding-static"
+        ],
+        "status": "done",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "df54b36e666d4a386bd12b3b4b3ecaf03be44a16",
+        "lastPushedSha": "df54b36e666d4a386bd12b3b4b3ecaf03be44a16",
+        "checks": [
+          {
+            "sourceSha": "df54b36e666d4a386bd12b3b4b3ecaf03be44a16",
+            "command": "Holding static asset exact route Vitest",
+            "result": "passed",
+            "tests": 1,
+            "detail": "Exact registered host and app GET/HEAD bypass binding; other app and foreign host rejected; _next/data retains binding."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Refresh warm-browser timing and confirm lower native binding load on static bundles."
+      },
+      {
+        "id": "integrate.crm.main-case-event-history",
+        "goalId": "G4",
+        "owner": "crm",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Bind native case-event history for the main CRM detail cohort",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-crm/src/adapters/native-crm-history.ts",
+          "tests/unit/crm/native-crm-command-transport.test.ts"
+        ],
+        "resources": [
+          "crm-main-case-events-ssr"
+        ],
+        "status": "done",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "68320d89e8422886d138377b97eba569e4d6454d",
+        "lastPushedSha": "68320d89e8422886d138377b97eba569e4d6454d",
+        "checks": [
+          {
+            "sourceSha": "68320d89e8422886d138377b97eba569e4d6454d",
+            "command": "CRM native command and history transport Vitest",
+            "result": "passed",
+            "tests": 17
+          },
+          {
+            "sourceSha": "68320d89e8422886d138377b97eba569e4d6454d",
+            "command": "signed Northstar CRM lead detail in Chrome",
+            "result": "passed",
+            "detail": "Direct link rendered the Rotterdam fixture, customer needs, linked sources, activities and decision history. List click on final build not rerun."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Native history and activities read on both configured main Holdings. Finish full CRM detail ownership and standard list click workflow separately."
+      },
+      {
+        "id": "integrate.organization.main-directory-transport",
+        "goalId": "G4",
+        "owner": "organization",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Restore native Organization directory in main Holding People app",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-organization/src/adapters/native-lane-23/client.ts",
+          "tests/unit/organization/native-lane-23.test.ts"
+        ],
+        "resources": [
+          "organization-directory-main-transport"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-demo-people",
+          "claimedAt": "2026-11-27T21:00:52.023Z",
+          "heartbeatAt": "2026-11-27T21:02:39.822Z",
+          "expiresAt": "2026-11-27T21:32:39.822Z",
+          "generation": 226
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Fix exact loopback Host transport and support a separate directory native config for the Acme and Northstar People app."
+      },
+      {
+        "id": "integrate.pos.main-owner-transport",
+        "goalId": "G4",
+        "owner": "pos",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Restore exact Holding authority on POS owner transport",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/adapters/native-notification-statement.ts",
+          "tests/unit/shared.ui/workplace-navigation.test.ts"
+        ],
+        "resources": [
+          "pos-main-statement-transport"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-demo-pos",
+          "claimedAt": "2026-11-27T21:01:32.975Z",
+          "heartbeatAt": "2026-11-27T21:02:39.822Z",
+          "expiresAt": "2026-11-27T21:32:39.822Z",
+          "generation": 226
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Verify and repair the exact native SSR transport using a scoped regression."
+      },
+      {
+        "id": "integrate.projects.main-ssr-origin",
+        "goalId": "G4",
+        "owner": "projects",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Bind Projects navigation to its exact SSR origin",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-projects/src/adapters/native-lane-27/client.ts",
+          "tests/unit/projects/native-lane-27.test.ts"
+        ],
+        "resources": [
+          "projects-main-ssr-origin"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-demo-projects",
+          "claimedAt": "2026-11-27T21:01:33.503Z",
+          "heartbeatAt": "2026-11-27T21:02:39.822Z",
+          "expiresAt": "2026-11-27T21:32:39.822Z",
+          "generation": 226
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Verify and repair the exact native SSR transport using a scoped regression."
       }
     ],
     "migrationProgress": {
@@ -225892,7 +227461,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2486,
+      "totalPackets": 2487,
       "migratedPackets": 378,
       "statusCounts": {
         "pending": 14,
@@ -225900,13 +227469,13 @@
         "ready_for_integration": 166,
         "integrating": 0,
         "migrated": 378,
-        "blocked": 1926,
+        "blocked": 1927,
         "deferred": 2,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 225,
-    "updatedAt": "2026-11-27T19:48:48.664Z",
+    "lastCoordinatorGeneration": 226,
+    "updatedAt": "2026-11-27T21:02:39.826Z",
     "handoff": {
       "fromRun": "run-20261128-route",
       "verifiedPushedCheckpoint": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
@@ -225914,10 +227483,10 @@
       "summary": "All 15 registered Acme Products and Company Admin pass normal-SSO browser checks at 4c1e26e. Real installed Plugin verification remains external because the approved registry is empty; full acceptance stays deferred."
     },
     "lastRecovery": {
-      "previousRunId": "run-20261127-g",
-      "runId": "run-20261127-codex-api",
-      "at": "2026-11-27T03:57:41.748Z",
-      "reason": "DeepSeek confirmed coordinator and delegated writers stopped, WIP reviewed at pushed 4073f31fb; preserve remaining CSS and ignored dev runtime WIP",
+      "previousRunId": "run-20261128-route",
+      "runId": "run-main-ux-runtime",
+      "at": "2026-11-27T20:18:08.572Z",
+      "reason": "Previous OpenCode coordination session finished idle with a successful stop, lease expired. Reviewed tracked WIP and fast-forwarded to its independently verified pushed checkpoint, preserving unrelated edits.",
       "wipReviewed": true,
       "previousRunStopped": true
     },
