@@ -4,6 +4,11 @@
 .trigger small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ui-muted); font-size: .8rem; font-weight: 400; }
 
 .modal {
+  --ui-ink: #edf3ff;
+  --ui-ink-strong: #f4f7ff;
+  --ui-muted: #b4c3de;
+  --ui-card: #172337;
+  --ui-line: #ffffff20;
   isolation: isolate;
   border-radius: 0;
   block-size: 100dvh;
@@ -50,6 +55,11 @@
   --launcher-paper: #101a2b;
   --launcher-padding: clamp(1.15rem, 4vw, 4rem);
   --launcher-ease: cubic-bezier(.22,.76,.2,1);
+  --ui-ink: var(--launcher-ink);
+  --ui-ink-strong: var(--launcher-ink);
+  --ui-muted: var(--launcher-muted);
+  --ui-card: var(--launcher-inset);
+  --ui-control-border: var(--launcher-line);
   position: relative;
   isolation: isolate;
   display: grid;
@@ -128,7 +138,7 @@
 .search { position: relative; display: block; color: var(--launcher-muted); min-width: 0; }
 .resultsHeader .search { width: min(100%, 18rem); }
 .search > svg { position: absolute; top: 50%; inset-inline-start: .8rem; translate: 0 -50%; pointer-events: none; z-index: 1; }
-.search input {
+.search > input[data-slot="input"] {
   min-height: 44px;
   padding-inline-start: 2.35rem;
   border-color: var(--launcher-line);
