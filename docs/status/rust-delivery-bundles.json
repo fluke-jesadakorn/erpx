@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15440,
+    "revision": 15481,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": null,
@@ -209309,12 +209309,12 @@
         "retainedLegacy": [],
         "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261127-codex-api",
+          "runId": "run-20261127-records-operations",
           "agentId": "hy4-records",
-          "at": "2026-11-27T04:08:07.692Z",
-          "previousStatus": "integrating",
+          "at": "2026-11-27T04:42:18.027Z",
+          "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Verify native registry and context same public paths against real sessions after expanded boot, enumerate supported module literals to preserve /records/search, then retire four wrappers and four shared routes together. Provisional deletion patch and source-only test retained in ignored lead scratch; restored tracked files."
+          "nextAction": "HY4 parity tests drafted. Fix incompatible Records registry transaction guard discovered on real account probe before deleting wrappers."
         },
         "scopeRefinementRequired": false,
         "id": "exec.records.registry",
@@ -209329,7 +209329,7 @@
           "owner:records",
           "route:records"
         ],
-        "nextAction": "Verify native registry and context same public paths against real sessions after expanded boot, enumerate supported module literals to preserve /records/search, then retire four wrappers and four shared routes together. Provisional deletion patch and source-only test retained in ignored lead scratch; restored tracked files."
+        "nextAction": "Collection GET/POST cut over under cutover.records.registry-entry. Continue real-session fixture coverage and exact ingress for the remaining wrappers via cutover.records.registry-record-actions without widening to mentions/suggestions."
       },
       {
         "goalId": "G4",
@@ -215119,7 +215119,7 @@
         "goalId": "G4",
         "owner": "operations",
         "kind": "migration",
-        "status": "blocked",
+        "status": "ready_for_integration",
         "title": "Switch the routine-template detail GET to the mounted native detail route.",
         "scope": "Switch the routine-template detail GET to the mounted native detail route. Use the mounted native transport, fail closed, and delete only the retired TS authority.",
         "workflowIds": [],
@@ -215140,11 +215140,11 @@
         "resources": [
           "cutover:operations"
         ],
-        "nextAction": "Operations and Records TS suites passed 26 cases at 5dc1f4951 with current wrappers. Configure exact list/detail GET and HEAD/OPTIONS parity, prove real sessions, preserve longer retained GET and POST branches.",
+        "nextAction": "Integrated in the pushed source. Continue routine-template catch-all retirement under cutover.operations.routine-template-retained after representative authenticated command and nested GET checks.",
         "claim": null,
-        "baseSha": null,
-        "implementedCommit": "1ce263c83320df9948ad7a570e4e867d02f3efed",
-        "lastPushedSha": "1ce263c83320df9948ad7a570e4e867d02f3efed",
+        "baseSha": "e9de38adfaee11590d19c5d07356ad2ecc1fd2ec",
+        "implementedCommit": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+        "lastPushedSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
         "checks": [
           {
             "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
@@ -215165,17 +215165,59 @@
             "command": "bun run structure:check",
             "result": "passed",
             "sourceSha": "1ce263c83320df9948ad7a570e4e867d02f3efed"
+          },
+          {
+            "command": "development Acme HTTPS and local gateway Operations routine smoke",
+            "result": "passed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "Authenticated list and alias detail 200 with {data}, HEAD 200, missing template 404 TEMPLATE_NOT_FOUND, anonymous 401 and cross-Holding 404. Retained catch-all covers nested GET and POST."
+          },
+          {
+            "command": "bun scripts/testing/test.ts unit --suite=operations.native-routines-route.unit",
+            "result": "passed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "12 passed including retained GET/POST and removed list/detail delegation."
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-operations --lib native_routines",
+            "result": "passed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "8 passed including trusted marker and missing-template wire checks."
+          },
+          {
+            "command": "cargo build --locked -p erpx-service --features private-development-api --bin erpx-server",
+            "result": "passed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "Built and served 3198. The later Records source assertion commit only changes a unit test."
+          },
+          {
+            "command": "bun run architecture:check",
+            "result": "failed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "Pre-existing owner-private imports and unrelated entrypoint SQL found. No reported violation in changed paths."
+          },
+          {
+            "command": "bun run docs:check",
+            "result": "failed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "Existing generated capability-delivery matrix is stale."
           }
         ],
-        "retainedLegacy": [],
+        "retainedLegacy": [
+          {
+            "path": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/routine-templates/[[...path]]/route.ts",
+            "removalTaskId": "cutover.operations.routine-template-retained",
+            "removalCondition": "Port the nested GET and retained POST branches and qualify the public command contract before removing the catch-all and both app re-exports."
+          }
+        ],
         "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261127-codex-api",
+          "runId": "run-20261127-records-operations",
           "agentId": "hy4-operations",
-          "at": "2026-11-27T04:09:11.727Z",
-          "previousStatus": "integrating",
+          "at": "2026-11-27T04:57:12.081Z",
+          "previousStatus": "ready_for_integration",
           "reason": "handoff",
-          "nextAction": "Operations and Records TS suites passed 26 cases at 5dc1f4951 with current wrappers. Configure exact list/detail GET and HEAD/OPTIONS parity, prove real sessions, preserve longer retained GET and POST branches."
+          "nextAction": "Integrated in the pushed source. Continue routine-template catch-all retirement under cutover.operations.routine-template-retained after representative authenticated command and nested GET checks."
         },
         "scopeRefinementRequired": false
       },
@@ -216674,6 +216716,480 @@
           "nextAction": "Expanded Axum native dev health 200 on three Holding config. Preserve current routes until authenticated gateway parity; Acme Chrome reaches Account sign-in."
         },
         "nextAction": "Expanded Axum native dev health 200 on three Holding config. Preserve current routes until authenticated gateway parity; Acme Chrome reaches Account sign-in."
+      },
+      {
+        "id": "cutover.operations.routines-pg-width",
+        "owner": "operations",
+        "title": "Decode PostgreSQL bigint Routine template fields",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-operations/src/domain/routine_template_read.rs",
+          "packages/server-operations/src/adapters/native_routines_read/postgres.rs",
+          "packages/server-operations/src/adapters/native_routines_detail_read/postgres.rs"
+        ],
+        "resources": [
+          "route:routine-pg-width"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "e9de38adfaee11590d19c5d07356ad2ecc1fd2ec",
+        "implementedCommit": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+        "lastPushedSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+        "checks": [
+          {
+            "command": "development Acme HTTPS and local gateway Operations routine smoke",
+            "result": "passed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "Authenticated list and alias detail 200 with {data}, HEAD 200, missing template 404 TEMPLATE_NOT_FOUND, anonymous 401 and cross-Holding 404. Retained catch-all covers nested GET and POST."
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-operations --lib native_routines",
+            "result": "passed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "8 passed including trusted marker and missing-template wire checks."
+          },
+          {
+            "command": "cargo build --locked -p erpx-service --features private-development-api --bin erpx-server",
+            "result": "passed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "Built and served 3198. The later Records source assertion commit only changes a unit test."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/routine-templates/[[...path]]/route.ts",
+            "removalTaskId": "cutover.operations.routine-template-retained",
+            "removalCondition": "Port the nested GET and retained POST branches and qualify the public command contract before removing the catch-all and both app re-exports."
+          }
+        ],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261127-records-operations",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T04:57:10.918Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Integrated in the pushed source. Continue routine-template catch-all retirement under cutover.operations.routine-template-retained after representative authenticated command and nested GET checks."
+        },
+        "nextAction": "Integrated in the pushed source. Continue routine-template catch-all retirement under cutover.operations.routine-template-retained after representative authenticated command and nested GET checks."
+      },
+      {
+        "id": "cutover.records.authorized-registry-transaction",
+        "owner": "records",
+        "title": "Read Records registry in the current IAM transaction",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/records.rs",
+          "packages/server-records/src/adapters/record_registry.rs",
+          "tests/integration/shared.records/rust-record-registry-postgres.test.rs",
+          "tests/unit/records/records-registry-native-proxy.test.ts"
+        ],
+        "resources": [
+          "route:records"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "e9de38adfaee11590d19c5d07356ad2ecc1fd2ec",
+        "implementedCommit": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+        "lastPushedSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+        "checks": [
+          {
+            "command": "development Acme HTTPS and local gateway Records registry smoke",
+            "result": "passed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "Authenticated collection list and native alias 200, HEAD 200, OPTIONS 204 with Allow. The isolated development candidate created a synthetic record twice with the same command key and returned the same record ID."
+          },
+          {
+            "command": "bun scripts/testing/test.ts unit --suite=records.read-tail-r16-dedupe.unit",
+            "result": "passed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "23 passed after updating the authorized-work source assertion."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=records.rust-record-registry-postgres.integration",
+            "result": "passed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "6 passed covering PostgreSQL authority, isolation, scoped paging and serializable read-only mode."
+          },
+          {
+            "command": "cargo build --locked -p erpx-service --features private-development-api --bin erpx-server",
+            "result": "passed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "Built and served 3198. The later Records source assertion commit only changes a unit test."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/route.ts",
+            "removalTaskId": "cutover.records.registry-record-actions",
+            "removalCondition": "Verify current work authority and successful database mutations/receipts, then gateway switch and removal. An early development archive probe returned 409."
+          },
+          {
+            "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/references/route.ts",
+            "removalTaskId": "cutover.records.registry-record-actions",
+            "removalCondition": "Verify current work authority and successful database mutations/receipts, then gateway switch and removal. An early development archive probe returned 409."
+          },
+          {
+            "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/transition/route.ts",
+            "removalTaskId": "cutover.records.registry-record-actions",
+            "removalCondition": "Verify current work authority and successful database mutations/receipts, then gateway switch and removal. An early development archive probe returned 409."
+          }
+        ],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261127-records-operations",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T04:57:11.216Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Integrated serializable authorized work. Continue Records detail and command coverage under cutover.records.registry-record-actions."
+        },
+        "nextAction": "Integrated serializable authorized work. Continue Records detail and command coverage under cutover.records.registry-record-actions."
+      },
+      {
+        "id": "cutover.operations.routine-http-envelope",
+        "owner": "operations",
+        "title": "Preserve Routine template GET response for direct Axum browser routes",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-operations/src/adapters/native_routines_read/http.rs",
+          "packages/server-operations/src/adapters/native_routines_detail_read/http.rs"
+        ],
+        "resources": [
+          "route:operations-public-routines"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "e9de38adfaee11590d19c5d07356ad2ecc1fd2ec",
+        "implementedCommit": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+        "lastPushedSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+        "checks": [
+          {
+            "command": "development Acme HTTPS and local gateway Operations routine smoke",
+            "result": "passed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "Authenticated list and alias detail 200 with {data}, HEAD 200, missing template 404 TEMPLATE_NOT_FOUND, anonymous 401 and cross-Holding 404. Retained catch-all covers nested GET and POST."
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-operations --lib native_routines",
+            "result": "passed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "8 passed including trusted marker and missing-template wire checks."
+          },
+          {
+            "command": "cargo build --locked -p erpx-service --features private-development-api --bin erpx-server",
+            "result": "passed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "Built and served 3198. The later Records source assertion commit only changes a unit test."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/routine-templates/[[...path]]/route.ts",
+            "removalTaskId": "cutover.operations.routine-template-retained",
+            "removalCondition": "Port the nested GET and retained POST branches and qualify the public command contract before removing the catch-all and both app re-exports."
+          }
+        ],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261127-records-operations",
+          "agentId": "hy4-operations-http",
+          "at": "2026-11-27T04:57:11.516Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Integrated in the pushed source. Continue routine-template catch-all retirement under cutover.operations.routine-template-retained after representative authenticated command and nested GET checks."
+        },
+        "nextAction": "Integrated in the pushed source. Continue routine-template catch-all retirement under cutover.operations.routine-template-retained after representative authenticated command and nested GET checks."
+      },
+      {
+        "id": "cutover.runtime.public-api-transport-marker",
+        "owner": "runtime",
+        "title": "Mark native gateway public response while preserving private SSR contracts",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "scripts/local/native-api-proxy.ts",
+          "tests/unit/shared.testing/workspace-supervisor.test.ts"
+        ],
+        "resources": [
+          "resource:gateway"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "e9de38adfaee11590d19c5d07356ad2ecc1fd2ec",
+        "implementedCommit": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+        "lastPushedSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+        "checks": [
+          {
+            "command": "development Acme HTTPS and local gateway Operations routine smoke",
+            "result": "passed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "Authenticated list and alias detail 200 with {data}, HEAD 200, missing template 404 TEMPLATE_NOT_FOUND, anonymous 401 and cross-Holding 404. Retained catch-all covers nested GET and POST."
+          },
+          {
+            "command": "bun scripts/testing/test.ts unit --suite=shared.testing.workspace-supervisor.unit",
+            "result": "passed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "13 passed, including exact method/host, aliases, spoofed headers, anonymous and denied context."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/routine-templates/[[...path]]/route.ts",
+            "removalTaskId": "cutover.operations.routine-template-retained",
+            "removalCondition": "Port the nested GET and retained POST branches and qualify the public command contract before removing the catch-all and both app re-exports."
+          }
+        ],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261127-records-operations",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T04:57:11.798Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Integrated in the pushed source. Continue routine-template catch-all retirement under cutover.operations.routine-template-retained after representative authenticated command and nested GET checks."
+        },
+        "nextAction": "Integrated in the pushed source. Continue routine-template catch-all retirement under cutover.operations.routine-template-retained after representative authenticated command and nested GET checks."
+      },
+      {
+        "id": "cutover.records.registry-entry",
+        "owner": "records",
+        "title": "Retire Records list and create Next transport files",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/route.ts",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/records/[module]/route.ts",
+          "packages/workplace/package.json",
+          "packages/server-records/src/adapters/record_registry_http.rs",
+          "tests/unit/records/records-registry-routes-pure-transport.test.ts",
+          "tests/unit/shared.records/native-record-registry-route.test.ts"
+        ],
+        "resources": [
+          "path:cutover.records.registry-entry"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": "e9de38adfaee11590d19c5d07356ad2ecc1fd2ec",
+        "implementedCommit": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+        "lastPushedSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+        "checks": [
+          {
+            "command": "development Acme HTTPS and local gateway Records registry smoke",
+            "result": "passed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "Authenticated collection list and native alias 200, HEAD 200, OPTIONS 204 with Allow. The isolated development candidate created a synthetic record twice with the same command key and returned the same record ID."
+          },
+          {
+            "command": "bun scripts/testing/test.ts unit --suite=records.read-tail-r16-dedupe.unit",
+            "result": "passed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "23 passed after updating the authorized-work source assertion."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=records.rust-record-registry-postgres.integration",
+            "result": "passed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "6 passed covering PostgreSQL authority, isolation, scoped paging and serializable read-only mode."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "Repository layout passed."
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "33 modules and 2425 suites passed catalogue validation."
+          },
+          {
+            "command": "retirement:next-routes bun scripts/testing/api-cutover.ts count",
+            "result": "passed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "One Records shared handler and its compat re-export were deleted. App files 1202 to 1201. Shared handlers 232 to 231.",
+            "before": 1434,
+            "after": 1432
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/route.ts",
+            "removalTaskId": "cutover.records.registry-record-actions",
+            "removalCondition": "Verify current work authority and successful database mutations/receipts, then gateway switch and removal. An early development archive probe returned 409."
+          },
+          {
+            "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/references/route.ts",
+            "removalTaskId": "cutover.records.registry-record-actions",
+            "removalCondition": "Verify current work authority and successful database mutations/receipts, then gateway switch and removal. An early development archive probe returned 409."
+          },
+          {
+            "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/transition/route.ts",
+            "removalTaskId": "cutover.records.registry-record-actions",
+            "removalCondition": "Verify current work authority and successful database mutations/receipts, then gateway switch and removal. An early development archive probe returned 409."
+          }
+        ],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Collection entry and gateway are active on Holding development. Continue per-record routes under cutover.records.registry-record-actions and Operations nested routes under cutover.operations.routine-template-retained."
+      },
+      {
+        "id": "cutover.runtime.records-routines-ingress",
+        "owner": "runtime",
+        "title": "Route retired owner reads and Records registry commands in Holding dev",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "scripts/local/workspace-gateway-runtime.ts",
+          "scripts/local/native-cutover-routes.ts",
+          "tests/unit/shared.testing/native-cutover-routes.test.ts"
+        ],
+        "resources": [
+          "path:cutover.runtime.records-routines-ingress"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": "e9de38adfaee11590d19c5d07356ad2ecc1fd2ec",
+        "implementedCommit": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+        "lastPushedSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+        "checks": [
+          {
+            "command": "development Acme HTTPS and local gateway Records registry smoke",
+            "result": "passed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "Authenticated collection list and native alias 200, HEAD 200, OPTIONS 204 with Allow. The isolated development candidate created a synthetic record twice with the same command key and returned the same record ID."
+          },
+          {
+            "command": "development Acme HTTPS and local gateway Operations routine smoke",
+            "result": "passed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "Authenticated list and alias detail 200 with {data}, HEAD 200, missing template 404 TEMPLATE_NOT_FOUND, anonymous 401 and cross-Holding 404. Retained catch-all covers nested GET and POST."
+          },
+          {
+            "command": "bun scripts/testing/test.ts unit --suite=shared.testing.workspace-supervisor.unit",
+            "result": "passed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "13 passed, including exact method/host, aliases, spoofed headers, anonymous and denied context."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "Repository layout passed."
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "33 modules and 2425 suites passed catalogue validation."
+          },
+          {
+            "command": "retirement:next-routes bun scripts/testing/api-cutover.ts count",
+            "result": "passed",
+            "sourceSha": "e4c5d02ee2a6f9393d4ac6b8f258f42c22937282",
+            "detail": "One Records shared handler and its compat re-export were deleted. App files 1202 to 1201. Shared handlers 232 to 231.",
+            "before": 1434,
+            "after": 1432
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/route.ts",
+            "removalTaskId": "cutover.records.registry-record-actions",
+            "removalCondition": "Verify current work authority and successful database mutations/receipts, then gateway switch and removal. An early development archive probe returned 409."
+          },
+          {
+            "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/references/route.ts",
+            "removalTaskId": "cutover.records.registry-record-actions",
+            "removalCondition": "Verify current work authority and successful database mutations/receipts, then gateway switch and removal. An early development archive probe returned 409."
+          },
+          {
+            "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/transition/route.ts",
+            "removalTaskId": "cutover.records.registry-record-actions",
+            "removalCondition": "Verify current work authority and successful database mutations/receipts, then gateway switch and removal. An early development archive probe returned 409."
+          }
+        ],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Collection entry and gateway are active on Holding development. Continue per-record routes under cutover.records.registry-record-actions and Operations nested routes under cutover.operations.routine-template-retained."
+      },
+      {
+        "id": "cutover.records.registry-record-actions",
+        "owner": "records",
+        "title": "Verify and retire Records detail, update, archive, reference and transition wrappers",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/records/[module]/[id]",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]",
+          "packages/server-records/src/adapters/record_registry_http.rs"
+        ],
+        "resources": [
+          "path:cutover.records.registry-record-actions"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Use a dedicated Acme dev record and expectedVersion from readback. Run POST references and transition, PATCH, DELETE and retry/receipt checks against the actual session. Add exact gateway routes and remove corresponding wrappers only after verification. Do not move mentions or suggestions in this task."
+      },
+      {
+        "id": "cutover.operations.routine-template-retained",
+        "owner": "operations",
+        "title": "Retire the routine template catch-all after porting remaining routes and commands",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/routine-templates",
+          "apps/launcher/src/app/api/v1/holdings/[holdingSlug]/routine-templates",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/routine-templates"
+        ],
+        "resources": [
+          "path:cutover.operations.routine-template-retained"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Audit staffHandler GET paths such as template schedules and POST subpaths. Bind the native command ingress and prove response/receipt/authorization parity with a synthetic fixture before removing the shared catch-all and two re-exports."
       }
     ],
     "migrationProgress": {
@@ -216687,16 +217203,16 @@
       "statusCounts": {
         "pending": 14,
         "in_progress": 0,
-        "ready_for_integration": 143,
+        "ready_for_integration": 144,
         "integrating": 0,
         "migrated": 370,
-        "blocked": 1921,
+        "blocked": 1920,
         "deferred": 2,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 196,
-    "updatedAt": "2026-11-27T04:27:46.450Z",
+    "lastCoordinatorGeneration": 197,
+    "updatedAt": "2026-11-27T04:57:12.227Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
