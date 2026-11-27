@@ -1,13 +1,16 @@
-import { constants } from 'node:fs';
+import { constants, existsSync } from 'node:fs';
 import { copyFile, lstat, mkdir, readdir, readlink, symlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { relative, resolve, sep } from 'node:path';
-const privateDirectories = new Set(['.next', '.build', '.cache', '.turbo', '.scratch', '.runtime', '.git', 'target']);
+const privateDirectories = new Set(['.next', '.build', '.cache', '.turbo', '.scratch', '.runtime', '.git']);
 /** Source snapshots never inherit local configuration, state or generated output. */
 export function workspaceCopyInput(root: string, path: string) {
   const base = resolve(root), target = resolve(path);
   if (target !== base && !target.startsWith(base + sep)) return false;
-  return !relative(base, target).split(sep).some(part => privateDirectories.has(part) || /^\.env(?:\.|$)/.test(part) || part === '.DS_Store');
+  const parts = relative(base, target).split(sep);
+  return !parts.some((part, index) =>
+    privateDirectories.has(part) || /^\.env(?:\.|$)/.test(part) || part === '.DS_Store' ||
+    (part === 'target' && (index === 0 || existsSync(join(base, ...parts.slice(0, index), 'Cargo.toml')))));
 }
 
 /** Copy fresh source snapshots with bounded filesystem work, retaining literal
