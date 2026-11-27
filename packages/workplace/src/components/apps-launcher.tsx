@@ -7,7 +7,7 @@ import { Dialog } from "@erpx/ui/components/dialog";
 import { TextInput } from "@erpx/ui/components/input";
 import { InlineNotice } from "@erpx/ui/components/foundation";
 import { CompanyPluginCatalogue } from "./company-plugin-catalogue";
-import { emptyAppsMemory, readAppsMemory, writeAppsMemory, restoreAppsSelection, rememberAppsLaunch, visibleApps, type AppsCompany, type AppsWorkspace, type AppsMemory } from "@erpx/feature-work_projection/lib/apps-launcher";
+import { emptyAppsMemory, readAppsMemory, writeAppsMemory, restoreAppsSelection, rememberAppsLaunch, visibleApps, recentApps, type AppsCompany, type AppsWorkspace, type AppsMemory } from "@erpx/feature-work_projection/lib/apps-launcher";
 import styles from "./apps-launcher.module.css";
 
 const launcherHash = "#apps";
@@ -28,11 +28,11 @@ const appIcons = {
 };
 
 /** The tree previews choices. Only an authorized owner launch link changes context. */
-export function AppsLauncher({ companies, accountId, language, provider, existingWorkspaces = [], currentCompanyId, currentWorkspaceId, productLabel, workspaceLabel, entry = false }: {
+export function AppsLauncher({ companies, accountId, language, provider, existingWorkspaces = [], currentCompanyId, currentWorkspaceId, currentProductId, productLabel, workspaceLabel, entry = false }: {
   companies: AppsCompany[]; accountId: string; language: "th" | "en";
   provider?: { href: string; role: string } | null;
   existingWorkspaces?: { holding: string; href: string }[];
-  currentCompanyId?: string; currentWorkspaceId?: string; productLabel?: string; workspaceLabel?: string; entry?: boolean;
+  currentCompanyId?: string; currentWorkspaceId?: string; currentProductId?: string; productLabel?: string; workspaceLabel?: string; entry?: boolean;
 }) {
   const th = language === "th", t = (thai: string, english: string) => th ? thai : english;
   const [memory, setMemory] = useState<AppsMemory>(emptyAppsMemory);
@@ -42,6 +42,7 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
   const [appQuery, setAppQuery] = useState("");
   const [showAreas, setShowAreas] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
+  const grid = useRef<HTMLDivElement>(null);
   const initialized = useRef<string | null>(null);
   const launched = useRef(false);
   const flight = useRef<{ layer: HTMLElement; animation: Animation } | null>(null);
@@ -95,13 +96,23 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
   }, []);
 
   function showHere() {
-    if (window.location.hash !== launcherHash) window.history.pushState(null, "", launcherHash);
+    if (window.location.hash !== launcherHash) window.history.pushState({ erpxAppsLauncher: true }, "", launcherHash);
     setOpen(true);
   }
 
   function close() {
-    if (window.location.hash === launcherHash) window.history.back();
-    else setOpen(false);
+    if (window.location.hash === launcherHash) {
+      if (window.history.state?.erpxAppsLauncher) {
+        window.history.back();
+        return;
+      }
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+    flight.current?.animation.cancel();
+    flight.current?.layer.remove();
+    flight.current = null;
+    launched.current = false;
+    setOpen(false);
   }
 
   function select(item: AppsCompany, area?: AppsWorkspace) {
@@ -117,9 +128,13 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
 
   function launch(event: MouseEvent<HTMLAnchorElement>, productId: string) {
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    remember(productId);
     event.preventDefault();
+    if (productId === activeProduct) {
+      close();
+      return;
+    }
     if (launched.current) return;
+    remember(productId);
     launched.current = true;
     const tile = event.currentTarget;
     const href = tile.href;
@@ -134,8 +149,11 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
     layer.className = styles.flight;
     layer.ariaHidden = "true";
     layer.dataset.appsLaunchTransition = "";
-    const color = window.getComputedStyle(tile).getPropertyValue("--tile-color").trim();
+    const source = Array.from(grid.current?.children ?? []).find(child => child.getAttribute("data-app-id") === productId) ?? tile;
+    const appearance = window.getComputedStyle(source);
+    const color = appearance.getPropertyValue("--tile-color").trim();
     if (color) layer.style.backgroundColor = color;
+    layer.style.backgroundImage = appearance.backgroundImage;
     document.body.append(layer);
     const animation = layer.animate([
       { transform: `translate3d(${rect.left}px,${rect.top}px,0) scale(${rect.width / window.innerWidth},${rect.height / window.innerHeight})`, borderRadius: "12px", opacity: 0.54 },
@@ -150,10 +168,11 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
     return <button type="button" key={area.id} data-workspace-id={area.id} className={styles.area} aria-pressed={company?.id === item.id && workspace?.id === area.id} onClick={() => select(item, area)}><MapPin size={16} aria-hidden="true" /><span>{label}</span></button>;
   }
   const holdings = [...new Set(companies.map(item => item.holdingSlug ?? item.holding))].map(id => ({ id, companies: companies.filter(item => (item.holdingSlug ?? item.holding) === id) }));
+  const activeProduct = workspace?.id === currentWorkspaceId && company?.id === currentCompanyId ? currentProductId : undefined;
   const history = company ? current.memory.recent[company.id] ?? [] : [];
-  const apps = workspace ? visibleApps(workspace.apps, history, appQuery) : [];
+  const apps = workspace ? visibleApps(workspace.apps, appQuery) : [];
   const recent = workspace && !appQuery.trim()
-    ? history.flatMap(id => workspace.apps.find(app => app.productId === id) ?? []).slice(0, 4)
+    ? recentApps(workspace.apps, history, activeProduct)
     : [];
   return <>
     <Button ref={trigger} appearance="standard" variant="ghost" className={styles.trigger} data-apps-launcher-trigger aria-label={[t("แอป", "Apps"),workspaceLabel].filter(Boolean).join(" · ")} aria-haspopup="dialog" aria-expanded={open} onClick={showHere}>
@@ -190,12 +209,14 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
           {companies.length > 0 && !holdings.some(holding => holding.companies.some(item => matches(`${item.holding} ${item.label}`) || item.workspaces.some(area => matches(area.label)))) && <p role="status">{t("ไม่พบพื้นที่ทำงาน", "No matching workspaces.")}</p>}
         </nav>
         <section className={styles.results} aria-label={t("แอปที่เข้าใช้ได้", "Available apps")}>
+          <div className={styles.resultsScroll}>
           <div aria-live="polite"><h2>{workspace?.label && workspace.kind !== "holding" ? workspace.label : company?.label ?? t("เลือกพื้นที่ทำงาน", "Choose a workspace")}</h2>{workspace?.kind !== "holding" && company && <p className={styles.hint}>{company.label}</p>}</div>
           {workspace && <>
             <label className={styles.search}><span>{t("ค้นหาแอปทั้งหมด", "Search all apps")}</span><TextInput appearance="standard" type="search" value={appQuery} onChange={event => setAppQuery(event.target.value)} /></label>
-            <div className={styles.grid}>{apps.map(app => {
+            <div className={styles.grid} ref={grid}>{apps.map(app => {
               const Icon = appIcons[app.productId as keyof typeof appIcons] ?? Grid2X2;
-              return <a data-product-switch data-app-id={app.productId} className={styles.app} href={app.href} key={app.productId} onClick={event => launch(event, app.productId)}>
+              const active = app.productId === activeProduct;
+              return <a data-product-switch={active ? undefined : ""} aria-current={active ? "location" : undefined} data-app-id={app.productId} className={styles.app} href={app.href} key={app.productId} onClick={event => launch(event, app.productId)}>
                 <span className={styles.appIcon}><Icon size={25} strokeWidth={1.7} aria-hidden="true" /></span><ArrowUpRight className={styles.openIcon} size={17} aria-hidden="true" />
                 <strong>{app.label}</strong>{app.accessLabel && <small>{app.accessLabel}</small>}
               </a>;
@@ -204,17 +225,19 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
             {(workspace.adminHref || workspace.managementHref) && <div className={styles.administration}>{[[workspace.adminHref, t("ดูแลบริษัท", "Company administration")], [workspace.managementHref, "ERPX Management"]].map(([href, label]) => href && <a key={href} data-product-switch href={href} onClick={() => remember()}><Settings size={18} aria-hidden="true" />{label}<ArrowUpRight size={16} aria-hidden="true" /></a>)}</div>}
             {workspace.id === currentWorkspaceId && company && company.id === currentCompanyId && !entry && <CompanyPluginCatalogue
               key={`${company.id}:${workspace.id}`} api={`/api/v1${workspace.id}/plugins`} language={language} />}
-            {recent.length > 0 && <nav className={styles.recent} aria-label={t("แอปที่เปิดล่าสุด", "Recently opened apps")}>
-              {recent.map(app => {
-                const Icon = appIcons[app.productId as keyof typeof appIcons] ?? Grid2X2;
-                return <a data-product-switch data-recent-app={app.productId} href={app.href} key={app.productId} onClick={event => launch(event, app.productId)}>
-                  <Icon size={19} strokeWidth={1.65} aria-hidden="true" /><span>{app.label}</span>
-                </a>;
-              })}
-            </nav>}
           </>}
           {provider && <a data-product-switch href={provider.href}>{t("พื้นที่ผู้ให้บริการ", "Provider administration")} · {provider.role}</a>}
           {existingWorkspaces.map(item => <a key={item.href} data-product-switch href={item.href}>{item.holding}</a>)}
+          </div>
+          {recent.length > 0 && <nav className={styles.recent} aria-label={t("สลับแอป", "Switch apps")}>
+            {recent.map(app => {
+              const Icon = appIcons[app.productId as keyof typeof appIcons] ?? Grid2X2;
+              const active = app.productId === activeProduct;
+              return <a data-product-switch={active ? undefined : ""} aria-current={active ? "location" : undefined} data-recent-app={app.productId} href={app.href} key={app.productId} onClick={event => launch(event, app.productId)}>
+                <Icon size={19} strokeWidth={1.65} aria-hidden="true" /><span>{app.label}</span>
+              </a>;
+            })}
+          </nav>}
         </section>
       </div>
     </Dialog>

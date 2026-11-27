@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { appsMemoryKey, buildAppsCompanies, emptyAppsMemory, feedEntryHref, readAppsMemory, rememberAppsLaunch, restoreAppsSelection, selectAppsCompany, visibleApps, writeAppsMemory, type AppsEntry, type AppsMemory } from "@erpx/feature-work_projection/lib/apps-launcher";
+import { appsMemoryKey, buildAppsCompanies, emptyAppsMemory, feedEntryHref, readAppsMemory, recentApps, rememberAppsLaunch, restoreAppsSelection, selectAppsCompany, visibleApps, writeAppsMemory, type AppsEntry, type AppsMemory } from "@erpx/feature-work_projection/lib/apps-launcher";
 import type { HoldingWorkspaceScope } from "@erpx/feature-work_projection/lib/workspace";
 
 const companyScope: HoldingWorkspaceScope = { kind: "holding", holdingSlug: "group" };
@@ -63,15 +63,22 @@ describe("Apps company and workspace projection", () => {
 });
 
 describe("Apps selection and recent apps", () => {
-  it("shows all apps, puts recent entries first and excludes history from other scopes", () => {
-    expect(visibleApps(products, ["app14", "unavailable", "app9"], "").map(app => app.productId)).toEqual(["app14", "app9", ...products.filter(app => !["app14", "app9"].includes(app.productId)).map(app => app.productId)]);
-    expect(visibleApps(products, [], "")).toEqual(products);
+  it("pins Feed first and keeps the other tiles in catalogue order", () => {
+    const feed = entry();
+    expect(visibleApps([products[0], feed, ...products.slice(1)], "")).toEqual([feed, ...products]);
+    expect(visibleApps(products, "")).toEqual(products);
+  });
+  it("puts the current app first in the dock and omits history from other scopes", () => {
+    expect(recentApps(products, ["app14", "unavailable", "app9", "app14", "app7", "app0"], "app9")).toEqual([products[9], products[14], products[7], products[0]]);
+    expect(recentApps([products[2]], ["app14", "app2"], "app9")).toEqual([products[2]]);
+    const feed = entry();
+    expect(recentApps([feed, ...products], ["app14"], "app9")).toEqual([products[9], feed, products[14]]);
   });
   it("searches every available app without an expansion step", () => {
-    expect(visibleApps(products, [], "APP 14")).toEqual([products[14]]);
-    expect(visibleApps(products, [], "")).toHaveLength(15);
-    expect(visibleApps(products, [], "  ")).toHaveLength(15);
-    expect(visibleApps(products, [], "missing")).toEqual([]);
+    expect(visibleApps(products, "APP 14")).toEqual([products[14]]);
+    expect(visibleApps(products, "")).toHaveLength(15);
+    expect(visibleApps(products, "  ")).toHaveLength(15);
+    expect(visibleApps(products, "missing")).toEqual([]);
   });
   it("remembers recent apps per company, once each, without storing their SSO links", () => {
     const [one, two] = companies();

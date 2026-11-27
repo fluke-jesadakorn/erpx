@@ -20,7 +20,7 @@
   --launcher-night: #16362c;
   --launcher-base: #28594a;
 }
-.tree, .results { min-width: 0; overflow-y: auto; padding: clamp(1rem, 3.5vw, 3rem); scrollbar-width: thin; }
+.tree, .resultsScroll { min-width: 0; min-height: 0; overflow-y: auto; padding: clamp(1rem, 3.5vw, 3rem); scrollbar-width: thin; }
 .modal .areaToggle { display: none; }
 .tree { border-inline-end: 1px solid var(--ui-line); background: color-mix(in srgb, var(--ui-card) 54%, transparent); }
 .tree ul { list-style: none; margin: .5rem 0; padding-inline-start: 1rem; }
@@ -32,7 +32,9 @@
 .area svg { flex-shrink: 0; }
 .area[aria-pressed="true"] { border-color: var(--ui-brand); background: var(--ui-card); }
 .area:hover { background: var(--ui-paper); }
-.results { display: flex; flex-direction: column; gap: clamp(.9rem, 2.3vw, 1.6rem); }
+.results { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.resultsScroll { display: flex; flex: 1; flex-direction: column; gap: clamp(.9rem, 2.3vw, 1.6rem); }
+.resultsScroll > * { flex-shrink: 0; }
 .results h2 { margin: 0; max-width: 24ch; font-size: clamp(1.85rem, 5vw, 4rem); line-height: 1; font-weight: 680; letter-spacing: -.055em; text-wrap: balance; overflow-wrap: anywhere; }
 .search { display: grid; gap: .5rem; font-size: .85rem; color: var(--ui-muted); }
 .hint { color: var(--ui-muted); font-size: .85rem; margin: 0; }
@@ -77,6 +79,7 @@
   .app:hover { transform: translateY(-4px); box-shadow: inset 0 1px color-mix(in srgb, white 22%, transparent), 0 11px 24px #10162220; }
 }
 .app:active { transform: scale(.962) rotateX(3deg); }
+.app[aria-current="location"] .openIcon { visibility: hidden; }
 .appIcon { display: grid; place-items: center; width: 2.8rem; height: 2.8rem; border-radius: .8rem; background: var(--tile-icon, color-mix(in srgb, var(--ui-card) 58%, transparent)); }
 .app strong { grid-column: 1 / -1; align-self: end; font-size: clamp(1.08rem, 2vw, 1.45rem); overflow-wrap: anywhere; letter-spacing: -.015em; }
 .app small { grid-column: 1 / -1; }
@@ -85,26 +88,31 @@
 .administration { display: grid; gap: .5rem; border-top: 1px solid var(--ui-line); padding-top: .75rem; }
 .administration a { display: flex; align-items: center; gap: .5rem; min-height: 44px; color: inherit; }
 .recent {
-  position: sticky;
-  bottom: 0;
-  align-self: flex-start;
+  flex: none;
+  margin: .5rem 1rem clamp(.65rem, 1.8vw, 1.2rem);
+  align-self: center;
   display: flex;
-  flex-wrap: wrap;
+  max-inline-size: calc(100% - 2rem);
+  overflow-x: auto;
   gap: .3rem;
   padding: .3rem;
-  border: 1px solid var(--ui-line);
+  border: 1px solid color-mix(in srgb, var(--launcher-accent) 20%, var(--ui-line));
   border-radius: 1rem;
   background: var(--ui-card);
   box-shadow: 0 8px 26px #10162218;
+  scrollbar-width: thin;
 }
-.recent a { display: inline-flex; align-items: center; gap: .4rem; min-height: 44px; padding: .45rem .75rem; border-radius: .65rem; color: var(--ui-ink); text-decoration: none; }
-.recent a:hover { background: color-mix(in srgb, var(--launcher-accent) 14%, var(--ui-card)); }
+.recent a { display: inline-flex; flex: 0 0 auto; align-items: center; gap: .4rem; min-height: 44px; padding: .45rem .75rem; border-radius: .65rem; color: var(--ui-ink); text-decoration: none; }
+.recent a:hover, .recent a[aria-current="location"] { background: color-mix(in srgb, var(--launcher-accent) 14%, var(--ui-card)); }
+.recent a[aria-current="location"] { box-shadow: inset 0 -2px var(--launcher-accent); font-weight: 620; }
 .area:focus-visible, .app:focus-visible, .tree summary:focus-visible, .results a:focus-visible { outline: 2px solid var(--ui-brand); outline-offset: 2px; }
+.recent a:focus-visible { outline-offset: -2px; }
 @media (max-width: 767px) {
   .modal .areaToggle { display: inline-flex; align-self: flex-start; margin: .5rem 1rem 0; min-height: 44px; }
-  .modalBody { overflow-y: auto; padding-bottom: env(safe-area-inset-bottom); }
-  .panes { display: flex; flex-direction: column; flex: 1 0 auto; }
-  .tree, .results { overflow-y: visible; }
+  .modalBody { overflow: hidden; padding-bottom: env(safe-area-inset-bottom); }
+  .panes { display: flex; flex-direction: column; }
+  .tree { flex: none; max-block-size: min(42dvh, 28rem); }
+  .results { flex: 1; }
   .tree { border-inline-end: 0; border-bottom: 1px solid var(--ui-line); }
   .tree[data-mobile-hidden="true"] { display: none; }
   .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }

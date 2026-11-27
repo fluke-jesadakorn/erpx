@@ -20,7 +20,7 @@ export async function OfficeProductMenus({ productId, accountId, companyId, scop
     accessLabel: productAccessLabel(choice, language),
   })), adminChoices);
   return <AppsLauncher key={accountId} accountId={accountId} language={language}
-    currentCompanyId={JSON.stringify([holdingSlug, companyId])} currentWorkspaceId={scopeBase}
+    currentCompanyId={JSON.stringify([holdingSlug, companyId])} currentWorkspaceId={scopeBase} currentProductId={productId}
     productLabel={productLabel ?? (productId === "apps" ? th ? "แอป" : "Apps" : productId === "admin" ? th ? "ดูแลบริษัท" : "Administration" : product(productId)!.label[language])}
     workspaceLabel={workspaceLabel}
     companies={holdingRoutingEnabled(process.env) ? companies.filter(company => company.holdingSlug === holdingSlug) : companies}

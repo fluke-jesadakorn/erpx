@@ -91,13 +91,17 @@ export function selectAppsCompany(companies: readonly AppsCompany[], memory: App
     ? memory.workspaceId : company.workspaces.length === 1 ? company.workspaces[0].id : null };
 }
 
-export function orderedApps(apps: readonly AppsEntry[], recent: readonly string[]) {
-  return [...recent.flatMap(id => apps.find(app => app.productId === id) ?? []), ...apps.filter(app => !recent.includes(app.productId))];
+export function visibleApps(apps: readonly AppsEntry[], query: string) {
+  const search = query.trim().toLocaleLowerCase();
+  const matches = search ? apps.filter(app => `${app.label} ${app.productId}`.toLocaleLowerCase().includes(search)) : apps;
+  const feed = matches.find(app => app.productId === "apps");
+  return feed ? [feed, ...matches.filter(app => app !== feed)] : matches;
 }
 
-export function visibleApps(apps: readonly AppsEntry[], recent: readonly string[], query: string) {
-  const ordered = orderedApps(apps, recent), search = query.trim().toLocaleLowerCase();
-  return search ? ordered.filter(app => `${app.label} ${app.productId}`.toLocaleLowerCase().includes(search)) : ordered;
+export function recentApps(apps: readonly AppsEntry[], recent: readonly string[], currentId?: string) {
+  const byId = new Map(apps.map(app => [app.productId, app]));
+  const ids = new Set(currentId ? [currentId, "apps", ...recent] : ["apps", ...recent]);
+  return [...ids].flatMap(id => byId.get(id) ?? []).slice(0, 4);
 }
 
 export function rememberAppsLaunch(memory: AppsMemory, companyId: string, productId: string): AppsMemory {
