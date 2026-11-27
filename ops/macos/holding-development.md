@@ -1,14 +1,14 @@
 # Holding development routing
 
-The exact registrations in `packages/contracts/src/holding-hosts.ts` are `acme.jesadakorn.com` (h001), `northstar.jesadakorn.com` (h002), and `erpx-internal.jesadakorn.com` (h003). Account uses `account-dev-erpx.jesadakorn.com`. The future production name for h003 is `admin.erpx.com`.
+The exact registrations in `packages/contracts/src/holding-hosts.ts` are `acme.jesadakorn.com` (h001), `northstar.jesadakorn.com` (h002), and `admin.jesadakorn.com` (h003). Account uses `account-dev-erpx.jesadakorn.com`. The future production name for h003 is `admin.erpx.com`.
 
-The h003 cutover targets `admin.jesadakorn.com`. Update the exact registration, development Account and native Holding profiles while retaining the h003 binding and Company IDs. Verify normal SSO, Feed, Apps and Sandbox Billing PDF on the new host, including denial for a customer identity. After those checks, retire the old `erpx-internal.jesadakorn.com` route through the gateway's generic 404. Keep the old route as a tombstone and verify it with the public hostname.
+The h003 cutover retained its Holding binding and Company IDs. The gateway serves a generic 404 at the old `erpx-internal.jesadakorn.com` hostname. Leave its existing tunnel rule as a tombstone.
 
 The Admin application listens on 3224. The independent OASIS 3D showroom uses 3218.
 
 The November 27 Admin rehearsal retained Cloudflare routing to the existing h003 name. Development now runs the pinned Next.js 16.4.6 and the updated Axum Billing reader. Chrome used normal Account SSO to open a temporary void Sandbox service invoice for Acme and printed one A4 page at THB 1,250. A separate signed-in customer received HTTP 403 on the same invoice URL. The Billing rehearsal created no provider jobs or payment requests.
 
-An isolated loopback preview on 3104 and 3199 used the exact proposed Admin hostname and independently passed Account SSO, direct `/applications`, invoice rendering, and customer denial. Its preview of the old host returned a generic 404. The new root reached `/apps/home`, where the richer Social presenter received HTTP 404 from the native aggregate page read. Bind and verify the complete native Social page projection before switching the public h003 hostname. The OASIS release and its Tunnel routes are independent of this rehearsal.
+On November 27, Chrome signed in through Account on the exact local preview and on the new public Admin hostname. The root opened Feed, the Apps dock showed 15 authorized tiles, and Platform Billing opened the fictional THB 1,250 invoice and printed an A4 PDF. The same invoice URL returned 403 for a signed-in customer. The temporary test invoice was removed. The public Admin health endpoint returned 200 and the previous hostname returned 404. Next uses the exact Holding Host and current rendered assignment for the private Axum Feed read. The OASIS staging release has its own runtime and tunnel routes.
 
 Use pinned Bun1.4.3 and Node26.11.1. Inspect the3100 listener and working directory before reusing or starting dev. The ignored development environment enables `ERPX_HOLDING_ROUTING`, `ERPX_PRODUCT_ROUTING`, `ERPX_PRODUCT_SSO`, with `ERPX_ENVIRONMENT=local` and `ERPX_PRODUCT_ENVIRONMENT=development`. `bun run dev` runs the gateway3100 and starts declared apps lazily on3200–3299. `bun run dev:jobs` rebuilds the development worker. Keep private production3101 and PostgreSQL5432 running; never use3000/3001/8080.
 
