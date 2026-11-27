@@ -141,6 +141,14 @@ describe('crm read-tail r46 byte-identical projection/FROM head', () => {
     expect(crmProjectionFromSql(projection, from)).toBe(`SELECT ${projection} FROM ${from}`);
   });
 
+  test('the lead records reader routes its former inline head through the one renderer', () => {
+    const leads = src('leads.ts');
+    expect(leads).toContain("import { crmSelectBodySql } from './read-tail-r46-sql';");
+    expect(leads).toContain('db.prepare(crmSelectBodySql(`l.*,v.id opportunity_id,');
+    expect(leads).not.toContain('db.prepare(`SELECT l.*,v.id opportunity_id,');
+    expect((leads.match(/SELECT /g) ?? []).length).toBe(0);
+  });
+
   test('retirement:ts-statements folds the projection/FROM head (40 -> 39)', () => {
     expect(totalSelects()).toBe(23);
     expect(totalSelects()).toBeLessThan(40);

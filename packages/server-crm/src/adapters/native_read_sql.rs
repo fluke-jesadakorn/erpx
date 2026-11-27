@@ -141,9 +141,10 @@ mod tests {
         for (name, rendered) in cases {
             assert_eq!(rendered.matches("SELECT ").count(), 1, "{name}");
             let upper = rendered.to_ascii_uppercase();
-            assert!(!upper.contains("INSERT"), "{name}");
-            assert!(!upper.contains("UPDATE"), "{name}");
-            assert!(!upper.contains("DELETE"), "{name}");
+            assert!(!upper.contains("INSERT "), "{name}");
+            // `ORDER BY r.updated_at` is a column, not the UPDATE keyword.
+            assert!(!upper.contains("UPDATE "), "{name}");
+            assert!(!upper.contains("DELETE "), "{name}");
             assert!(!upper.contains("FOR UPDATE"), "{name}");
             assert!(!upper.contains("LOCK TABLE"), "{name}");
         }
