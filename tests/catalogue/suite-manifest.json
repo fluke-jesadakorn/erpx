@@ -4317,6 +4317,33 @@
       },
       "ci": {
         "critical": true,
+        "reason": "Benefits exists head must stay byte-identical."
+      },
+      "apps": [
+        "people"
+      ],
+      "packages": [
+        "@erpx/server-benefits"
+      ],
+      "id": "benefits.read-tail-r30-dedupe.unit",
+      "files": [
+        "tests/unit/benefits/read-tail-r30-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "benefits",
+      "modules": [
+        "benefits"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
         "reason": "Benefits scope CTE prefix must exist once and stay byte-identical."
       },
       "apps": [
@@ -160635,6 +160662,29 @@
         "tests/unit/workflow/read-tail-r53-dedupe.test.ts"
       ],
       "framework": "vitest"
+    },
+    {
+      "id": "workflow.read-tail-r54-dedupe.unit",
+      "lane": "unit",
+      "owner": "workflow",
+      "modules": [
+        "operations"
+      ],
+      "files": [
+        "tests/unit/workflow/read-tail-r54-dedupe.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-workflow"
+      ]
     },
     {
       "id": "workflow.request_ai_effects_postgres.integration",
