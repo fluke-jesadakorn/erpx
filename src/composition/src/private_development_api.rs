@@ -3466,7 +3466,6 @@ async fn assemble_checked(
             erpx_server_runtime::public::postgres::DatabasePool,
         > = std::collections::BTreeMap::new();
         let mut work_cursor_targets: Vec<(String, String, String)> = Vec::new();
-        let mut work_owner_targets: Vec<(String, String, String, bool)> = Vec::new();
         let mut executive_evidence_routers: Vec<Router> = Vec::new();
         let mut commercial_native_routers: Vec<Router> = Vec::new();
         let mut pos_native_routers: Vec<Router> = Vec::new();
@@ -4473,12 +4472,6 @@ async fn assemble_checked(
                         holding.host.clone(),
                         holding.registration.slug.clone(),
                         format!("https://{}", holding.host),
-                    ));
-                    work_owner_targets.push((
-                        holding.host.clone(),
-                        holding.registration.slug.clone(),
-                        format!("https://{}", holding.host),
-                        false,
                     ));
                     executive_evidence_routers.push(
                         crate::executive_evidence_wave2::executive_evidence_router(
@@ -7841,17 +7834,40 @@ async fn assemble_checked(
                     .map_err(|_| "PRIVATE_API_WORK_CURSOR_CONFIGURATION_INVALID")?,
                 );
             }
+        }
+        // Work calendar commands are owner-wide: mount the command router for
+        // every registered Holding, bound to that Holding's own write pool.
+        // This is independent of the Company-keyed cursor/agent lanes.
+        if !config.holdings.is_empty() {
+            let work_pools: std::collections::BTreeMap<String, DatabasePool> = config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| (holding.registration.slug.clone(), pools[i + 1].clone()))
+                .collect();
+            let work_targets: Vec<(String, String, String, bool)> = config
+                .holdings
+                .iter()
+                .map(|holding| {
+                    (
+                        holding.host.clone(),
+                        holding.registration.slug.clone(),
+                        format!("https://{}", holding.host),
+                        false,
+                    )
+                })
+                .collect();
             let work_owner_backend = Arc::new(
                 crate::work_projection_wave2::WorkProjectionOwnerWriteBackend::with_reads(
                     holding_projections.clone(),
-                    agent_pools.clone(),
+                    work_pools,
                     pools[0].clone(),
                 ),
             );
             router = router.merge(
                 crate::work_projection_wave2::work_projection_owner_write_router(
                     work_owner_backend,
-                    work_owner_targets,
+                    work_targets,
                 )
                 .map_err(|_| "PRIVATE_API_WORK_OWNER_WRITE_CONFIGURATION_INVALID")?,
             );

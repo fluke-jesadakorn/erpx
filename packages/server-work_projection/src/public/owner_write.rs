@@ -2,7 +2,7 @@
 pub use crate::adapters::owner_write_postgres::{PgOwnerWrite, OwnerWriteError};
 pub use crate::application::owner_write::{OwnerWriteCommand, OwnerWritePort, execute_owner_write};
 pub use crate::domain::owner_write_registry::{
-    supported, validate, returning, WP_CAL_OCCURRENCE_EXCEPTION_UPSERT,
+    supported, validate, returning, is_calendar_write, WP_CAL_OCCURRENCE_EXCEPTION_UPSERT,
     WP_CAL_APPOINTMENT_VERSION_BUMP, WP_CAL_SERIES_UNTIL, WP_CAL_APPOINTMENT_CLONE,
     WP_CAL_SERIES_INSERT, WP_CAL_ATTENDEE_CLONE, WP_CAL_PARTICIPANT_CLONE,
     WP_CAL_APPOINTMENT_UPDATE, WP_CAL_ANNOUNCEMENT_DATES, WP_CAL_APPOINTMENT_UPSERT,

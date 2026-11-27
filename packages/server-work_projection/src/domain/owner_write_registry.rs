@@ -85,6 +85,13 @@ pub fn supported(kind: &str) -> bool {
     KINDS.iter().any(|(name, _)| *name == kind)
 }
 
+/// Calendar commands write the Holding calendar tables, not the Work read
+/// model. Composition uses this to select the same Holding pool as the native
+/// calendar read router instead of the projection read-model writer.
+pub fn is_calendar_write(kind: &str) -> bool {
+    kind.starts_with("wp_cal_")
+}
+
 pub fn validate(kind: &str, value_count: usize) -> Result<(), BusinessError> {
     let expected = KINDS
         .iter()
@@ -127,6 +134,14 @@ mod tests {
         assert!(validate(WP_CAL_APPOINTMENT_UPSERT, 21).is_ok());
         assert!(validate(WP_CAL_APPOINTMENT_UPSERT, 20).is_err());
         assert!(validate("unknown", 21).is_err());
+    }
+
+    #[test]
+    fn calendar_writes_are_exact() {
+        assert!(is_calendar_write(WP_CAL_APPOINTMENT_UPSERT));
+        assert!(is_calendar_write(WP_CAL_HISTORY_INSERT));
+        assert!(!is_calendar_write(WP_DAILY_PLAN_WRITE));
+        assert!(!is_calendar_write(WP_WORK_ITEM_UPSERT));
     }
 
     #[test]

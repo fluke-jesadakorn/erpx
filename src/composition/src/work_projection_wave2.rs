@@ -11,7 +11,9 @@ use erpx_server_runtime::public::postgres::{
 };
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use std::sync::Arc;
-use erpx_server_work_projection::public::owner_write::{PgOwnerWrite, execute_owner_write};
+use erpx_server_work_projection::public::owner_write::{
+    PgOwnerWrite, execute_owner_write, is_calendar_write,
+};
 use erpx_server_work_projection::public::owner_write_http::{
     OwnerWriteFuture, OwnerWriteHttpBackend, OwnerWriteHttpRequest, OwnerWriteHttpTarget,
     owner_write_router,
@@ -149,6 +151,9 @@ impl WorkProjectionOwnerWriteBackend {
 
     /// Work projection tables live in each Holding read model. The write pool
     /// remains a fallback only for deployments without a registered read model.
+    /// Calendar commands are the exception: their SQL touches the Holding
+    /// calendar tables read by the native calendar router, so they always use
+    /// the exact Holding write pool.
     pub fn with_reads(
         reads: impl IntoIterator<Item = (String, DatabasePool)>,
         holdings: impl IntoIterator<Item = (String, DatabasePool)>,
@@ -165,8 +170,14 @@ impl WorkProjectionOwnerWriteBackend {
 impl OwnerWriteHttpBackend for WorkProjectionOwnerWriteBackend {
     fn execute<'a>(&'a self, request: OwnerWriteHttpRequest<'a>) -> OwnerWriteFuture<'a> {
         Box::pin(async move {
+            let kind = request.command.kind.clone();
             let pool = if request.control {
                 self.control.clone()
+            } else if is_calendar_write(&kind) {
+                self.holdings
+                    .get(request.holding_slug)
+                    .ok_or_else(unavailable)?
+                    .clone()
             } else {
                 self.reads
                     .get(request.holding_slug)
@@ -174,7 +185,6 @@ impl OwnerWriteHttpBackend for WorkProjectionOwnerWriteBackend {
                     .ok_or_else(unavailable)?
                     .clone()
             };
-            let kind = request.command.kind.clone();
             let values = request.command.values.clone();
             let company = request.command.company_id.clone();
             let now = request.command.now;

@@ -10,10 +10,13 @@ mod fixture;
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, PgUnitOfWork, TransactionOptions, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_server_shared::public::{BusinessError, CommandKey};
 use erpx_server_work_projection::public::calendar_read::{
     CalendarReadCommand, READ_60, READ_61, READ_62, READ_63, READ_64, READ_65, READ_66, READ_67,
     execute_calendar_read,
+};
+use erpx_server_work_projection::public::owner_write::{
+    OwnerWriteCommand, PgOwnerWrite, WP_CAL_APPOINTMENT_STATUS, execute_owner_write,
 };
 use erpx_server_work_projection::public::calendar_read_tail::CalendarReadTail;
 use serde_json::{Value, json};
@@ -492,4 +495,62 @@ async fn calendar_read_tail_matches_retained_ts_authority() {
             .await
             .unwrap();
     }).await;
+}
+
+/// The native command path executes real calendar SQL in the Holding write
+/// pool: the result is visible to the native calendar read port and the receipt
+/// is committed in the same transaction. This is the owner-side proof for the
+/// mounted `/api/v1/holdings/{holding}/work/owner-write` route.
+#[tokio::test]
+async fn calendar_command_executes_in_the_holding_write_pool() {
+    fixture::with_database(2, |pool| async move {
+        seed(&pool).await;
+        let key = CommandKey::new("wp-cal-52:appt-1:7").unwrap();
+        PgUnitOfWork::new(pool.clone())
+            .run::<(), BusinessError, _>(TransactionOptions::default(), move |connection| {
+                let key = key.as_str().to_owned();
+                Box::pin(async move {
+                    let mut write = PgOwnerWrite::new(&mut *connection);
+                    let command = OwnerWriteCommand {
+                        kind: WP_CAL_APPOINTMENT_STATUS,
+                        values: &[
+                            json!("completed"),
+                            json!(2000),
+                            json!("appt-1"),
+                            json!("co-1"),
+                        ],
+                        company_id: "co-1",
+                        actor_id: "user-1",
+                        now: 2000,
+                    };
+                    let reply = execute_owner_write(&mut write, &command, &key)
+                        .await
+                        .unwrap();
+                    assert_eq!(reply["ok"], json!(true));
+                    assert_eq!(reply["kind"], json!(WP_CAL_APPOINTMENT_STATUS));
+                    Ok(())
+                })
+            })
+            .await
+            .unwrap();
+
+        let appointment = read(
+            &pool,
+            "wp_cal_read_12",
+            vec![json!("appt-1"), json!("co-1")],
+            "co-1",
+        )
+        .await;
+        assert_eq!(appointment["status"], json!("completed"));
+        assert_eq!(appointment["version"], json!(8));
+
+        let receipts: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM command_receipts WHERE command_id=$1")
+                .bind("work-owner-write:wp_cal_appointment_status:wp-cal-52:appt-1:7")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+        assert_eq!(receipts, 1);
+    })
+    .await;
 }
