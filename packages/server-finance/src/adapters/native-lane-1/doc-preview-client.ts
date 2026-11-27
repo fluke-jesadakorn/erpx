@@ -1,5 +1,6 @@
 import 'server-only';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { nativeRequest } from '@erpx/server-runtime/public/native-http';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import {
   resolveLane1Target,
