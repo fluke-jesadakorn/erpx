@@ -18,9 +18,10 @@ use erpx_server_identity_access::public::{
     account_inbound_http::{
         CapturedHoldingMutation, parse_inbound_account_request, unique_request_header,
     },
+    account_sessions::{require_platform_destination, verify_session_in_transaction},
     work_context::{HoldingWorkContextInspector, HoldingWorkspaceRequest},
 };
-use erpx_server_runtime::public::postgres::PgTransactionError;
+use erpx_server_runtime::public::postgres::{PgTransactionError, PgUnitOfWork, TransactionOptions};
 use erpx_server_shared::public::{AssignmentId, BusinessError, Clock, CompanyId, FailureKind};
 use std::{collections::BTreeMap, sync::Arc};
 pub struct NativeWorkRoleTarget {
@@ -88,6 +89,10 @@ pub(crate) fn native_work_roles_router_with_selection<C: Clock + Send + Sync + '
         .route(
             "/api/v1/holdings/{holding_slug}/workspace-preference",
             axum::routing::post(save_browser_workspace::<C>),
+        )
+        .route(
+            "/api/v1/workspace-preference",
+            axum::routing::post(save_current_host_workspace::<C>),
         )
         .route(
             "/api/v1/holdings/{holding_slug}/field-service/work-roles/preferences",
@@ -221,7 +226,7 @@ async fn save_workspace<C: Clock + Send + Sync + 'static>(
     Path(slug): Path<String>,
     request: Request,
 ) -> Response {
-    respond(remember_workspace(s, slug, request, false).await)
+    respond(remember_workspace(s, Some(slug), request, false).await)
 }
 
 async fn save_browser_workspace<C: Clock + Send + Sync + 'static>(
@@ -229,30 +234,32 @@ async fn save_browser_workspace<C: Clock + Send + Sync + 'static>(
     Path(slug): Path<String>,
     request: Request,
 ) -> Response {
-    respond(
-        remember_workspace(s, slug, request, true)
-            .await
-            .map(|_| serde_json::json!({"saved": true})),
-    )
+    respond(remember_workspace(s, Some(slug), request, true).await)
+}
+
+async fn save_current_host_workspace<C: Clock + Send + Sync + 'static>(
+    State(s): State<Arc<RoleState<C>>>,
+    request: Request,
+) -> Response {
+    respond(remember_workspace(s, None, request, true).await)
 }
 
 async fn remember_workspace<C: Clock + Send + Sync + 'static>(
     s: Arc<RoleState<C>>,
-    slug: String,
+    slug: Option<String>,
     request: Request,
     browser: bool,
-) -> RoleResult<crate::native_account_preferences::NativeAccountPreferences> {
+) -> RoleResult<serde_json::Value> {
     let (parts, body) = request.into_parts();
     let headers = parts.headers;
-    let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-    let target = s
-        .targets
-        .get(&(host.into(), slug.clone()))
-        .ok_or_else(missing)?;
     let inbound = parse_inbound_account_request(&s.policy, &headers)?;
     if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
         return Err(missing().into());
     }
+    let binding = s.registry.expected_for_audience(inbound.audience())?;
+    let slug = slug.as_deref().unwrap_or(&binding.slug);
+    let host = inbound.host().to_owned();
+    let target = s.targets.get(&(host.clone(), slug.into())).ok_or_else(missing)?;
     if unique_request_header(&headers, "origin")? != Some(inbound.expected_origin()) {
         return Err(BusinessError::new(
             FailureKind::Forbidden,
@@ -271,6 +278,25 @@ async fn remember_workspace<C: Clock + Send + Sync + 'static>(
             .ok_or_else(|| {
                 BusinessError::invalid("INVALID_WORKSPACE", "Choose an available workspace.")
             })?;
+        if base == "/platform" {
+            let control = target.control.clone();
+            let audience = inbound.audience().clone();
+            let proof = inbound.into_proof();
+            return PgUnitOfWork::new(control)
+                .run(TransactionOptions::default(), move |connection| {
+                    let (s, audience, proof) = (s.clone(), audience.clone(), proof.clone());
+                    Box::pin(async move {
+                        let now = s.clock.now().get();
+                        let session = verify_session_in_transaction(
+                            connection, &proof, &audience, &s.policy.environment, now, &s.registry,
+                        ).await?.ok_or_else(|| BusinessError::new(
+                            FailureKind::Unauthenticated, "UNAUTHENTICATED", "Sign in to continue.",
+                        ))?;
+                        require_platform_destination(connection, &session, now).await?;
+                        Ok(serde_json::json!({"saved": true}))
+                    })
+                }).await;
+        }
         format!("{base}/home")
     } else {
         raw.get("path")
@@ -280,7 +306,7 @@ async fn remember_workspace<C: Clock + Send + Sync + 'static>(
     };
     let selector =
         erpx_server_work_projection::public::workspace_preference::workspace_preference_scope(
-            &path, &slug,
+            &path, slug,
         )?;
     let requested =
         CapturedHoldingMutation::capture(&headers, selector.branch_slug, selector.department_slug)
@@ -296,9 +322,14 @@ async fn remember_workspace<C: Clock + Send + Sync + 'static>(
         )
         .into());
     }
-    preference_service(&s, target)
-        .remember_workspace(host.into(), inbound.into_proof(), path, requested)
-        .await
+    let preferences = preference_service(&s, target)
+        .remember_workspace(host, inbound.into_proof(), path, requested)
+        .await?;
+    if browser {
+        Ok(serde_json::json!({"saved": true}))
+    } else {
+        serde_json::to_value(preferences).map_err(|_| input().into())
+    }
 }
 async fn read_preferences<C: Clock + Send + Sync + 'static>(
     State(s): State<Arc<RoleState<C>>>,

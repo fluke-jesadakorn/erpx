@@ -90,7 +90,6 @@ it("saves only the owner's profile with optimistic versioning and idempotency", 
 });
 
 import {uploadMemberProfileMedia,removeMemberProfileMedia} from "@erpx/server-organization/public/profile-media-command";
-import {accountTimePreference,changeAccountTimePreference,setTimePreferenceReadForTest} from "@erpx/server-identity_access/public/account-time-preference";
 vi.mock("@erpx/server-files/public/attachments/scanner",()=>({scanAttachmentBytes:async()=>({clean:true})}));
 const profilePng=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOQaEj4D8IMMAYAQaQH3RNNL/AAAAAASUVORK5CYII=','base64'));
 it('rolls back profile media and its journal on late outbox failure, compensates storage and retries or replays each command once',async()=>{
@@ -108,14 +107,4 @@ it('rolls back profile media and its journal on late outbox failure, compensates
   const removal={kind:'avatar' as const,version:'1',commandId:removeKey},deletesBefore=del.mock.calls.length,beforeRemoval=await snapshot();await fail();try{await expect(removeMemberProfileMedia(actor,removal)).rejects.toMatchObject({code:'CONFLICT',cause:{code:'23514',constraint:'test_profile_media_final_outbox'}});expect(await snapshot()).toBe(beforeRemoval);expect(del.mock.calls.length).toBe(deletesBefore);expect(await env.H001_FILES.head(profile.avatar_key)).not.toBeNull();}finally{await clear();}
   const removed=await removeMemberProfileMedia(actor,removal);expect(removed).toEqual({version:2});const final=await snapshot();expect(await removeMemberProfileMedia(actor,removal)).toEqual(removed);expect(await snapshot()).toBe(final);expect(await env.H001_FILES.head(profile.avatar_key)).toBeNull();expect(del.mock.calls.filter(([objectKey])=>objectKey===profile.avatar_key)).toHaveLength(1);
  }finally{put.mockRestore();del.mockRestore();}
-});
-it('compares account time preference versions atomically on PostgreSQL across competing initial writes and stale changes',async()=>{
- // Oracle moved to this suite: assert the native write result against the
- // authoritative Control row. Production reads the native GET port.
- setTimePreferenceReadForTest(async userId => (await env.CONTROL_DB.prepare('SELECT mode,time_zone AS "timeZone",hour_cycle AS "hourCycle",version FROM account_time_preferences WHERE user_id=?').bind(userId).first<{mode:'system'|'manual';timeZone:string|null;hourCycle:'h12'|'h23';version:number}>()) ?? null);
- try {
- const id=first.owner.userId;expect(await accountTimePreference(id)).toEqual({mode:'system',timeZone:null,hourCycle:'h23',version:0});const input={mode:'manual',timeZone:'Asia/Bangkok',hourCycle:'h12',version:0};
- const competing=await Promise.allSettled([changeAccountTimePreference(id,input),changeAccountTimePreference(id,{...input,timeZone:'UTC'})]);expect(competing.filter(x=>x.status==='fulfilled')).toHaveLength(1);const rejection=competing.find(x=>x.status==='rejected');if(rejection?.status!=='rejected')throw new Error('Competing create was not rejected');expect(rejection.reason).toMatchObject({status:409,code:'TIME_PREFERENCE_CHANGED'});
- expect(await accountTimePreference(id)).toMatchObject({version:1,mode:'manual'});await expect(changeAccountTimePreference(id,input)).rejects.toMatchObject({status:409,code:'TIME_PREFERENCE_CHANGED'});const changed=await changeAccountTimePreference(id,{mode:'system',timeZone:null,hourCycle:'h23',version:1});expect(changed).toEqual({mode:'system',timeZone:null,hourCycle:'h23',version:2});expect(await accountTimePreference(id)).toEqual(changed);
- } finally { setTimePreferenceReadForTest(undefined); }
 });

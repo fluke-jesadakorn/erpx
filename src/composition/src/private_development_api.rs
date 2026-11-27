@@ -11818,6 +11818,10 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         ] => state
             .work_role_targets
             .contains(&(host.to_owned(), (*slug).to_owned())),
+        ["", "api", "v1", "workspace-preference"] => state
+            .work_role_targets
+            .iter()
+            .any(|(target_host, _)| target_host == host),
         ["", "api", "v1", "holdings", slug, "workspace-preference"] => state
             .work_role_targets
             .contains(&(host.to_owned(), (*slug).to_owned())),

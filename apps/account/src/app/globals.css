@@ -3223,7 +3223,6 @@
 @source "../../../../packages/workplace/src/routes/api/health/route.ts";
 @source "../../../../packages/workplace/src/routes/api/ready/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/account/preferences/route.ts";
-@source "../../../../packages/workplace/src/routes/api/v1/account/time-preference/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/account/work-context/route.ts";
 @source "../../../../packages/workplace/src/routes/error.tsx";
 @source "../../../../packages/workplace/src/routes/forbidden.tsx";

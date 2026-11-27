@@ -21,9 +21,9 @@ async fn real_account_work_role_response_reaches_typescript_mapper() {
   let inspector=Arc::new(HoldingWorkContextInspector::new(p.system.control.clone(),p.system.holdings[0].clone(),HoldingId::new("h001").unwrap(),review::account::fixture::account::policy(),p.system.scenario.clock.clone(),review::account::fixture::account::holding_registry()).unwrap());
   let app=native_work_roles_router(Arc::new(review::account::fixture::account::policy()),review::account::fixture::account::holding_registry(),Arc::new(FieldServiceReadScopeHeaders),p.system.scenario.clock.clone(),vec![NativeWorkRoleTarget{control:p.system.control.clone(),host:"acme.example.test".into(),holding_slug:"acme".into(),inspector}]).unwrap();
   let db=p.system.holdings[0].raw();
-  let remember = |base: &str, revision: i64| {
+  let remember = |uri: &str, base: &str, revision: i64| {
    let request = Request::builder().method("POST")
-     .uri("/api/v1/holdings/acme/workspace-preference")
+     .uri(uri)
      .header("host", "acme.example.test")
      .header("origin", "https://acme.example.test")
      .header("cookie", format!("__Host-erpx-product={}", p.maker_token.expose()))
@@ -40,10 +40,20 @@ async fn real_account_work_role_response_reaches_typescript_mapper() {
     (status.as_u16(), serde_json::from_slice::<serde_json::Value>(&bytes).unwrap())
    }
   };
-  let saved = remember("/holdings/acme", 7).await;
+  let direct = "/api/v1/workspace-preference";
+  let saved = remember(direct, "/holdings/acme", 7).await;
   assert_eq!(saved, (200, serde_json::json!({"data":{"saved":true}})));
-  assert_eq!(remember("/holdings/acme", 6).await.0, 409);
-  assert_eq!(remember("/holdings/northstar", 7).await.0, 422);
+  assert_eq!(remember("/api/v1/holdings/acme/workspace-preference", "/holdings/acme", 7).await, saved);
+  assert_eq!(remember(direct, "/holdings/acme", 6).await.0, 409);
+  assert_eq!(remember(direct, "/holdings/northstar", 7).await.0, 422);
+  assert_eq!(remember(direct, "/platform", 0).await.0, 403);
+  let control = p.system.control.raw();
+  let now = p.system.scenario.clock.now().get();
+  sqlx::query("INSERT INTO iam_members(company_id,user_id,principal_id,status,login_policy) VALUES('platform','fixture-a','local:fixture-a','active','local') ON CONFLICT(company_id,user_id) DO NOTHING")
+    .execute(control).await.unwrap();
+  sqlx::query("INSERT INTO platform_assignments(id,user_id,role,modules_json,valid_from,valid_until) VALUES('platform-workspace-a','fixture-a','platform_admin','[]',$1,$2)")
+    .bind(now - 1000).bind(now + 60_000).execute(control).await.unwrap();
+  assert_eq!(remember(direct, "/platform", 0).await, saved);
   let stored: String = sqlx::query_scalar("SELECT workspace_path FROM account_workspace_preferences WHERE user_id='fixture-a'")
     .fetch_one(p.system.control.raw()).await.unwrap();
   assert_eq!(stored, "/holdings/acme/home");

@@ -7,6 +7,30 @@ function validId(segment: string): boolean {
 }
 
 export type HoldingNativeWorkspace = { branch?: string; department?: string };
+export type ShellPreference = 'time' | 'workspace';
+
+export function shellPreferenceRoute(url: string): { kind: ShellPreference; url: string; app?: string } | undefined {
+  const prefixed = /^\/__erpx\/([a-z0-9-]+)(\/api\/.*)$/.exec(url);
+  const candidate = prefixed?.[2] ?? url;
+  const path = candidate.split('?', 1)[0];
+  if (path === '/api/v1/account/time-preference') return {kind:'time', url:candidate, app:prefixed?.[1]};
+  if (path === '/api/v1/workspace-preference') return {kind:'workspace', url:candidate, app:prefixed?.[1]};
+}
+
+export function respondToShellPreferenceMethod(
+  response: ServerResponse,
+  method: string | undefined,
+  kind: ShellPreference,
+  readOnly: boolean,
+): boolean {
+  const allowed = kind === 'workspace' ? ['POST'] : readOnly ? ['GET', 'HEAD'] : ['GET', 'HEAD', 'PATCH'];
+  if (method && allowed.includes(method)) return false;
+  response.writeHead(method === 'OPTIONS' ? 204 : 405, {
+    Allow: [...allowed, 'OPTIONS'].join(', '), 'Cache-Control': 'private, no-store',
+  });
+  response.end();
+  return true;
+}
 
 const read = ['GET', 'HEAD'];
 const write = ['POST'];

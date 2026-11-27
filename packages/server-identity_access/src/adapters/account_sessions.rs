@@ -263,3 +263,49 @@ pub async fn verify_session_in_transaction(
     lock_session_reads(connection).await?;
     read_session(connection, proof, audience, environment, now, holdings).await
 }
+
+/// Acknowledging the Platform selector never chooses or stores an assignment.
+pub async fn require_platform_destination(
+    connection: &mut PgConnection,
+    session: &AccountSession,
+    now: i64,
+) -> Result<(), PgTransactionError<BusinessError>> {
+    let revoked: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM iam_revoked_sessions
+          WHERE session_id=$1 AND company_id='platform' AND user_id=$2)",
+    )
+    .bind(&session.id)
+    .bind(&session.user.id)
+    .fetch_one(&mut *connection)
+    .await?;
+    if revoked {
+        return Err(BusinessError::new(
+            FailureKind::Unauthenticated,
+            "SESSION_REVOKED",
+            "Sign in again to continue.",
+        ).into());
+    }
+    let active: bool = sqlx::query_scalar(
+        "SELECT EXISTS(
+           SELECT 1 FROM platform_assignments a
+           JOIN iam_roles r ON r.id=a.role AND r.company_id IN ('*','platform') AND r.status='active'
+           JOIN iam_role_revisions v ON v.company_id=r.company_id AND v.role_id=r.id
+             AND v.revision=r.published_revision
+           WHERE a.user_id=$1 AND a.revoked_at IS NULL AND a.valid_from<=$2 AND a.valid_until>$2
+             AND iam_assignment_active(a.id,$2) AND iam_principal_active(a.user_id,'platform',$2)
+             AND v.scopes_json ? 'platform'
+         )",
+    )
+    .bind(&session.user.id)
+    .bind(now)
+    .fetch_one(connection)
+    .await?;
+    if !active {
+        return Err(BusinessError::new(
+            FailureKind::Forbidden,
+            "FORBIDDEN",
+            "Choose an available workspace.",
+        ).into());
+    }
+    Ok(())
+}

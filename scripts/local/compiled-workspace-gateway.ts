@@ -3,8 +3,9 @@ import { PassThrough, type Duplex } from 'node:stream';
 import { hasPortListener } from './port-listeners';
 import { appIds } from '@erpx/contracts/apps';
 import { holdingUiUrl, oasisDemoAccountHost, oasisDemoHolding, parseHoldingRoute } from '@erpx/contracts/holding-hosts';
-import { nativeApiError, proxyNativeApi, stripInternalHeaders } from './native-api-proxy';
-import { holdingNativeCutoverPath, isHoldingQualityPath, normalizeHoldingNativePath, oasisDemoNativeRoute, respondToHoldingQualityMethod, type HoldingNativeWorkspace } from './native-cutover-routes';
+import { holdingHostForHost } from '@erpx/feature-runtime/lib/holding-hosts';
+import { nativeApiError, proxyNativeApi, renderedSelectionHeaders, stripInternalHeaders, workspacePreferencePreconditions } from './native-api-proxy';
+import { holdingNativeCutoverPath, isHoldingQualityPath, normalizeHoldingNativePath, oasisDemoNativeRoute, respondToHoldingQualityMethod, respondToShellPreferenceMethod, shellPreferenceRoute, type HoldingNativeWorkspace } from './native-cutover-routes';
 
 export type CompiledGatewayRouting = { schema: 'erpx-compiled-routing/v1'; hosts: Record<string,string>; ports: Record<string,number>; api?: number };
 export const oasisDemoRouting = {
@@ -81,9 +82,7 @@ function oasisNextLocation(host: string, requestPath: string, location: string):
   return holdingUiUrl(target.href, requestUrl.searchParams.get('company') ?? requestUrl.searchParams.get('companyId') ?? undefined, 'oasis-demo-staging') ?? location;
 }
 
-const oasisRolePreconditions = ['x-erpx-context-company', 'x-erpx-context-assignment', 'x-erpx-context-revision',
-  'x-erpx-context-assignment-version'];
-const oasisRenderedContextHeaders = [...oasisRolePreconditions, 'x-erpx-workspace-branch', 'x-erpx-workspace-department'];
+const oasisRenderedContextHeaders = [...renderedSelectionHeaders, 'x-erpx-workspace-branch', 'x-erpx-workspace-department'];
 
 function oasisCompanySelector(value: string | string[] | undefined) {
   return typeof value === 'string' && /^[a-zA-Z0-9_:-]{1,128}$/.test(value) ? value : undefined;
@@ -150,9 +149,7 @@ async function proxyOasisDemo(req: IncomingMessage, res: ServerResponse) {
     if (target.workspacePreference) {
       // The owner compares these preconditions against the signed session and
       // the branch/department from the canonical workspace path in the body.
-      for (const name of oasisRolePreconditions) {
-        if (req.headers[name] !== undefined) headers[name] = req.headers[name];
-      }
+      Object.assign(headers, workspacePreferencePreconditions(req.headers));
     }
     if (target.path.split('?',1)[0]?.endsWith('/assignments/active')) {
       // This is a Company selector. The native IAM owner resolves membership and scope.
@@ -214,6 +211,25 @@ export async function startCompiledWorkspaceGateway(routing: CompiledGatewayRout
     if (demo) { void proxyOasisDemo(req,res).catch(() => unavailable(res)); return; }
     const target = selected(req);
     if (!target) {res.writeHead(421,{'Cache-Control':'no-store'});res.end();return;}
+    const preference = shellPreferenceRoute(req.url ?? '/');
+    if (preference) {
+      const app = config!.hosts[req.headers.host ?? ''];
+      const holding = holdingHostForHost(req.headers.host);
+      const prefixedAllowed = !preference.app || preference.app === app ||
+        (holding && preference.app !== 'account' && Object.hasOwn(config!.ports, preference.app));
+      if (!prefixedAllowed || app === 'account' && preference.kind === 'workspace') {
+        nativeApiError(res, 404, 'NOT_FOUND', 'Not found.');
+        return;
+      }
+      if (respondToShellPreferenceMethod(res, req.method, preference.kind, !holding && (app === 'pms' || app === 'pos'))) return;
+      if (!config!.api) {
+        nativeApiError(res, 503, 'NATIVE_PREFERENCES_UNAVAILABLE', 'The native preference service is unavailable.');
+        return;
+      }
+      void proxyNativeApi({base:new URL(`http://127.0.0.1:${config!.api}`), req, res, url:preference.url, shellPreference:preference.kind})
+        .catch(() => unavailable(res));
+      return;
+    }
     if (target.native) {
       const url = req.url ?? '/';
       const holdingSlug = /^\/api\/v1\/holdings\/([a-z0-9-]+)\//.exec(url)?.[1];

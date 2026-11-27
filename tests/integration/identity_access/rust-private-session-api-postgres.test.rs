@@ -173,6 +173,21 @@ async fn signed_account_and_holding_time_preference_uses_one_control_row_and_rec
         let writes: i64 = sqlx::query_scalar("SELECT count(*) FROM iam_receipts WHERE actor_id='fixture-a' AND id LIKE 'time-preference-%'")
             .fetch_one(system.control.raw()).await.unwrap();
         assert_eq!(writes, 1);
+        let other_cookie = cookie(&other);
+        let account_origin = "https://account.example.test";
+        let initial = |zone: &str| serde_json::json!({"mode":"manual","timeZone":zone,"hourCycle":"h12","version":0});
+        let (a, b) = tokio::join!(
+            time_request("PATCH", "account.example.test", &other_cookie, account_origin, initial("Asia/Bangkok")),
+            time_request("PATCH", "account.example.test", &other_cookie, account_origin, initial("UTC")),
+        );
+        let (success, conflict) = if a.0 == StatusCode::OK { (a,b) } else { (b,a) };
+        assert_eq!(success.0, StatusCode::OK, "{}", success.1);
+        assert_eq!(success.1["data"]["version"], 1);
+        assert_eq!(conflict.0, StatusCode::CONFLICT, "{}", conflict.1);
+        assert_eq!(conflict.1["error"]["code"], "TIME_PREFERENCE_CHANGED");
+        let system_mode = serde_json::json!({"mode":"system","timeZone":null,"hourCycle":"h23","version":1});
+        let saved = time_request("PATCH", "account.example.test", &other_cookie, account_origin, system_mode).await;
+        assert_eq!(saved, (StatusCode::OK, serde_json::json!({"data":{"mode":"system","timeZone":null,"hourCycle":"h23","version":2}})));
     })
     .await;
 }

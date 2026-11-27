@@ -15,7 +15,7 @@ import {holdingGatewayApp,holdingGatewayLocation} from './holding-gateway';
 import { consoleWorkspaceCutoverBlockers } from "./console-workspace-cutover";
 import {consoleRetirementResult,developmentConsoleRetired} from '@erpx/contracts/console-retirement';
 import { nativeApiBase, nativeApiError, nativeApiPath, nativeQualityUnavailable, proxyNativeApi } from "./native-api-proxy";
-import { holdingNativeCutoverPath, isHoldingQualityPath, normalizeHoldingNativePath, respondToHoldingQualityMethod } from "./native-cutover-routes";
+import { holdingNativeCutoverPath, isHoldingQualityPath, normalizeHoldingNativePath, respondToHoldingQualityMethod, respondToShellPreferenceMethod, shellPreferenceRoute } from "./native-cutover-routes";
 
 /** Optional local budget; isolated fixtures always retain their declared cap. */
 export function developmentApplicationBudget(configured:number,override:string|undefined){
@@ -271,6 +271,25 @@ const server = createServer(async (req, res) => {
   const requestUrl = req.url ?? "/";
   const transport = /^\/__erpx\/([^/]+)(\/api\/[^?]*(?:\?.*)?)$/.exec(requestUrl);
   const holding = holdingRoutingEnabled(environment) ? holdingHostForHost(req.headers.host) : undefined;
+  const preference = shellPreferenceRoute(requestUrl);
+  if (preference) {
+    const app = holding ? undefined : appForHost(req.headers.host ?? '', environment, originProfile());
+    const allowed = holding
+      ? !preference.app || preference.app !== 'account' && settings().activeApps.some(id => id === preference.app)
+      : app && (!preference.app || preference.app === app.id) && !(app.id === 'account' && preference.kind === 'workspace');
+    if (!allowed) {
+      nativeApiError(res, 404, 'NOT_FOUND', 'Not found.');
+      return;
+    }
+    if (respondToShellPreferenceMethod(res, req.method, preference.kind, app?.id === 'pos' || app?.id === 'pms')) return;
+    if (!nativeBase) {
+      nativeApiError(res, 503, 'NATIVE_PREFERENCES_UNAVAILABLE', 'The native preference service is unavailable.');
+      return;
+    }
+    await proxyNativeApi({base:nativeBase, environment, req, res, url:preference.url, shellPreference:preference.kind})
+      .catch(error => failed(res, error));
+    return;
+  }
   const appUrl = transport && holding ? transport[2]! : requestUrl;
   const scoped = holding && normalizeHoldingNativePath(appUrl, holding.holdingSlug);
   if (holding && scoped && isHoldingQualityPath(scoped.url, holding.holdingSlug) &&

@@ -386,6 +386,11 @@ it('routes /api to the native service, strips browser context and resolves sessi
   expect(await get(3104, 'finance.fixture.invalid', quality, {Cookie: 'erpx_session=fixture'}))
     .toEqual({status:200, body:'{"native":true}'});
   expect(seen.at(-1)).toMatchObject({path: quality, company: 'native-company', transport: 'public'});
+  expect(await get(3104, 'finance.fixture.invalid', '/__erpx/finance/api/v1/account/time-preference', {
+    Cookie:'erpx_session=fixture', 'x-erpx-context-user':'forged',
+  })).toEqual({status:200, body:'{"native":true}'});
+  expect(seen.at(-1)).toMatchObject({path:'/api/v1/account/time-preference',user:undefined,transport:'public'});
+  expect((await get(3104, 'finance.fixture.invalid', '/__erpx/sales/api/v1/account/time-preference')).status).toBe(404);
   const page=await new Promise<{status:number;body:string}>((done,reject)=>{
    const req=request({host:'127.0.0.1',port:3104,path:'/page',headers:{Host:'finance.fixture.invalid'},agent:false},res=>{
     const chunks:Buffer[]=[];res.on('data',chunk=>chunks.push(Buffer.from(chunk)));res.once('end',()=>done({status:res.statusCode??0,body:Buffer.concat(chunks).toString()}));
@@ -398,7 +403,16 @@ it('routes /api to the native service, strips browser context and resolves sessi
 it('routes retired Holding entries and their transport aliases directly to Axum', async () => {
   await free(3104);
   const root = await realpath(await mkdtemp(join(tmpdir(), 'erpx-native-selector-')));
+  const timePreference = '/api/v1/account/time-preference';
+  const workspacePreference = '/api/v1/workspace-preference';
   const upstream = createServer((req, res) => {
+    if (req.url === workspacePreference) {
+      res.end(JSON.stringify({
+        path: req.url, company: req.headers['x-erpx-context-company'], revision: req.headers['x-erpx-context-revision'],
+        user: req.headers['x-erpx-context-user'], branch: req.headers['x-erpx-workspace-branch'],
+      }));
+      return;
+    }
     if (req.url?.startsWith('/internal/session-context?')) {
       if (req.headers['x-erpx-workspace-branch'] === 'bangkok' && req.headers['x-erpx-workspace-department'] === 'ops') {
         res.writeHead(200, {'Content-Type': 'application/json'});
@@ -426,6 +440,26 @@ it('routes retired Holding entries and their transport aliases directly to Axum'
       environment: { NODE_ENV: 'development', ERPX_ENVIRONMENT: 'local', ERPX_PRODUCT_ENVIRONMENT: 'development', ERPX_HOLDING_ROUTING: 'enabled', ERPX_DEV_NATIVE_API: `http://127.0.0.1:${address.port}` },
       settings: () => ({ version: 1, activeApps: ['apps', 'supply'], maxApps: 1, idleMinutes: 10, bundlers: {}, defaultBundler: 'webpack' }),
     });
+    expect(await get(3104, host, '/__erpx/apps' + timePreference)).toEqual({status:200, body:timePreference});
+    expect(await get(3104, 'account-dev-erpx.jesadakorn.com', timePreference)).toEqual({status:200, body:timePreference});
+    expect((await get(3104, host, '/__erpx/account' + timePreference)).status).toBe(404);
+    expect((await get(3104, host, '/__erpx/sales' + timePreference)).status).toBe(404);
+    expect((await get(3104, 'account-dev-erpx.jesadakorn.com', workspacePreference)).status).toBe(404);
+    expect((await get(3104, host, workspacePreference)).status).toBe(405);
+    const preference = await new Promise<{status:number;body:string}>((done,reject) => {
+      const req = request({host:'127.0.0.1', port:3104, path:'/__erpx/apps' + workspacePreference, method:'POST',
+        headers:{Host:host, Cookie:'erpx_session=fixture', 'x-erpx-context-company':'captured-company',
+          'x-erpx-context-revision':'2', 'x-erpx-context-user':'forged', 'x-erpx-workspace-branch':'forged'}}, res => {
+        let body = '';
+        res.setEncoding('utf8');
+        res.on('data', chunk => body += chunk);
+        res.once('end', () => done({status:res.statusCode!, body}));
+      });
+      req.once('error', reject);
+      req.end('{}');
+    });
+    expect(preference.status).toBe(200);
+    expect(JSON.parse(preference.body)).toEqual({path:workspacePreference, company:'captured-company', revision:'2'});
     const path = '/api/v1/holdings/acme/records/case?cursor=a%2Fb';
     expect(await get(3104, host, path)).toEqual({ status: 200, body: path });
     expect(await get(3104, host, `/__erpx/apps${path}`)).toEqual({ status: 200, body: path });
@@ -540,6 +574,9 @@ it('routes retired Holding entries and their transport aliases directly to Axum'
       'support/record/references/extra', 'support/record/detail'])
       expect(holdingNativeCutoverPath(`/api/v1/holdings/acme/records/${tail}`, 'acme', 'GET')).toBeUndefined();
     await new Promise<void>(done => upstream.close(() => done()));
+    const unavailablePreference = await get(3104, host, timePreference);
+    expect(unavailablePreference.status).toBe(503);
+    expect(JSON.parse(unavailablePreference.body).error.code).toBe('NATIVE_PREFERENCES_UNAVAILABLE');
     const qualityUnavailable = await get(3104, host, quality, qualityHeaders);
     expect(qualityUnavailable.status).toBe(503);
     expect(JSON.parse(qualityUnavailable.body)).toMatchObject({error: {code: 'NATIVE_QUALITY_UNAVAILABLE'}});

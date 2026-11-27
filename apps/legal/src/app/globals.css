@@ -4355,7 +4355,6 @@
 @source "../../../../packages/workplace/src/routes/api/health/route.ts";
 @source "../../../../packages/workplace/src/routes/api/ready/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/account/preferences/route.ts";
-@source "../../../../packages/workplace/src/routes/api/v1/account/time-preference/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/account/work-context/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/assignments/active/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/assistant/intake/route.ts";
@@ -4400,7 +4399,6 @@
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/work/review/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/work/summary/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/me/page-layouts/[pageKey]/route.ts";
-@source "../../../../packages/workplace/src/routes/api/v1/workspace-preference/route.ts";
 @source "../../../../packages/workplace/src/routes/choose-work-role/page.tsx";
 @source "../../../../packages/workplace/src/routes/error.tsx";
 @source "../../../../packages/workplace/src/routes/forbidden.tsx";

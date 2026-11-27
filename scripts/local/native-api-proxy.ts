@@ -1,5 +1,5 @@
 import { request as httpRequest, type IncomingHttpHeaders, type IncomingMessage, type ServerResponse } from "node:http";
-import type { HoldingNativeWorkspace } from "./native-cutover-routes";
+import type { HoldingNativeWorkspace, ShellPreference } from "./native-cutover-routes";
 
 /** Development-only direct transport to the native owner service. No business
  * logic: the gateway preserves Host/cookies and streams the request. */
@@ -128,12 +128,16 @@ export async function nativeSessionContext(base: URL, req: IncomingMessage, url 
   return Object.fromEntries(Object.entries(headers).filter(([, item]) => item !== undefined)) as Record<string, string>;
 }
 
-const renderedSelectionHeaders = [
+export const renderedSelectionHeaders = [
   "x-erpx-context-company",
   "x-erpx-context-assignment",
   "x-erpx-context-revision",
   "x-erpx-context-assignment-version",
 ] as const;
+export function workspacePreferencePreconditions(headers: IncomingHttpHeaders): IncomingHttpHeaders {
+  return Object.fromEntries(renderedSelectionHeaders.filter(name => headers[name] !== undefined)
+    .map(name => [name, headers[name]]));
+}
 const commandContextAssertions = [
   ...renderedSelectionHeaders,
   "x-erpx-workspace-branch",
@@ -141,7 +145,7 @@ const commandContextAssertions = [
 ] as const;
 const recordRequestHeaders = ["origin", "content-type", "idempotency-key", ...commandContextAssertions];
 
-export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.ProcessEnv; req: IncomingMessage; res: ServerResponse; url?: string; requiresSession?: boolean; recordAction?: boolean; routineCommand?: boolean; qualityRead?: boolean; qualityCommand?: boolean; qualityMissing?: boolean; workspace?: HoldingNativeWorkspace; contextGuard?: "social" | "plugins" }): Promise<void> {
+export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.ProcessEnv; req: IncomingMessage; res: ServerResponse; url?: string; requiresSession?: boolean; recordAction?: boolean; routineCommand?: boolean; qualityRead?: boolean; qualityCommand?: boolean; qualityMissing?: boolean; workspace?: HoldingNativeWorkspace; contextGuard?: "social" | "plugins"; shellPreference?: ShellPreference }): Promise<void> {
   const { base, environment, req, res, recordAction, routineCommand, qualityRead, qualityCommand, qualityMissing, contextGuard } = options;
   const quality = qualityRead || qualityCommand || qualityMissing;
   const requiresSession = options.requiresSession || quality || !!contextGuard;
@@ -165,7 +169,7 @@ export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.
   if ((requiresSession || routineCommand || workspace) && !req.headers.cookie) return nativeApiError(res, 401, "UNAUTHENTICATED", "Sign in to continue.");
   let context: Record<string, string> = {};
   try {
-    context = await nativeSessionContext(base, req, url, workspace);
+    if (!options.shellPreference) context = await nativeSessionContext(base, req, url, workspace);
   } catch (error) {
     if (requiresSession || routineCommand || workspace) {
       if (error instanceof NativeSessionError) {
@@ -192,8 +196,10 @@ export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.
       host: base.hostname,
       port: Number(base.port || 80),
       method: req.method,
-      path: nativeApiRewrite(environment ?? process.env, target),
-      headers: { ...stripInternalHeaders(req.headers), ...context, "x-erpx-api-transport": "public" },
+      path: options.shellPreference ? target : nativeApiRewrite(environment ?? process.env, target),
+      headers: { ...stripInternalHeaders(req.headers), ...context,
+        ...(options.shellPreference === "workspace" ? workspacePreferencePreconditions(req.headers) : {}),
+        "x-erpx-api-transport": "public" },
     }, response => {
       res.writeHead(response.statusCode ?? 502, response.headers);
       response.pipe(res);
@@ -201,6 +207,7 @@ export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.
     });
     upstream.once("error", () => {
       if (res.headersSent) res.destroy();
+      else if (options.shellPreference) nativeApiError(res, 503, "NATIVE_PREFERENCES_UNAVAILABLE", "The native preference service is unavailable.");
       else if (recordAction) nativeApiError(res, 503, "NATIVE_RECORD_REGISTRY_UNAVAILABLE", "The native Records registry service is unavailable.");
       else if (quality) nativeQualityUnavailable(res);
       else if (contextGuard) unavailableContext();
