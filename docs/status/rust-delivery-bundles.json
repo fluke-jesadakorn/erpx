@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15593,
+    "revision": 15615,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": null,
@@ -18729,7 +18729,7 @@
         ],
         "retainedLegacy": [],
         "blocker": "Recovery: Lease run-d expired at 13:35Z during worker integration; WIP reconciled, no live coordinator process, tree preserved",
-        "nextAction": "Harness boot probe LANDED (worker final report reconciled with lead re-run; both green independently). Step 2 wiring spec from worker: (1) lease control+h001+h002 per suite (Development parser rejects single-holding); (2) config needs financeJournalReads + operationsCompanies or native routes do not mount; (3) substitute lane fixture companyId for probe-co in matrix; (4) lane wiring must mirror migrate_database semantics (lock 714928001, receipts, whole-file txns) — consider shared oracle; (5) add drop-only cleanup entrypoint + signal-forwarding for --keep children before lane adoption. Then transit oracle native seeding. Smoke still user-blocked.",
+        "nextAction": "Resume the independently verified native harness after inventory prerequisites. Seed permission is available for owned ERPX test resources. Lease control plus h001/h002, use actual fixture Company IDs and Finance/Operations config so routers mount, preserve migration-lock 714928001 and per-file receipts, implement paired cleanup for owned test resources and run native smoke. On the complete pushed candidate, audit all backend execution and compat entrances before integration.final; keep A1 separate.",
         "handoff": {
           "runId": "run-20261123-d",
           "agentId": "lead",
@@ -217639,11 +217639,11 @@
         "resources": [
           "path:cutover.records.registry-social-actions"
         ],
-        "status": "blocked",
+        "status": "migrated",
         "claim": null,
-        "baseSha": "7529a86204883ddb6606e9b143837243053d5553",
-        "implementedCommit": "1dfed3d497f8f0bdc079493f34b601269d219d32",
-        "lastPushedSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
+        "baseSha": "697607da5d6847b22d195d3814f8d8e2a2d1b8aa",
+        "implementedCommit": "f9483f2918c59f7ec40709eacbc5ec14f262d147",
+        "lastPushedSha": "f9483f2918c59f7ec40709eacbc5ec14f262d147",
         "checks": [
           {
             "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api; disposable and live Axum startup",
@@ -217689,35 +217689,84 @@
             "command": "Acme dev PostgreSQL READ ONLY proof: exactly one mention with Control-owned display name; one receipt, audit and outbox; zero rejected receipts",
             "sourceSha": "1dfed3d497f8f0bdc079493f34b601269d219d32",
             "result": "passed"
-          }
-        ],
-        "retainedLegacy": [
-          {
-            "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/suggestions/route.ts",
-            "removalTaskId": "cutover.records.registry-social-actions",
-            "removalCondition": "Use the native evidence projection plus byte-compatible SHA-256 to generate the suggestion, verify a 201 replay and remove the Next route."
           },
           {
-            "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/suggestions/[suggestionId]/route.ts",
-            "removalTaskId": "cutover.records.registry-social-actions",
-            "removalCondition": "Move apply/reject and their current field/source versions to one native Holding transaction; verify former 200 data and stale conflict before removing the route."
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api, isolated native startup and pinned local dev runtime",
+            "sourceSha": "f9483f2918c59f7ec40709eacbc5ec14f262d147",
+            "result": "passed"
           },
           {
-            "path": "packages/server-records/src/application/records.ts",
-            "removalTaskId": "cutover.records.registry-social-actions",
-            "removalCondition": "Remove requestSuggestion and decideSuggestion orchestration and related interfaces after existing API callers and the command/audit oracle switch to native."
+            "command": "cargo test --locked -p erpx-server-records --lib --test record_registry_http (77 owner and 10 HTTP tests)",
+            "sourceSha": "f9483f2918c59f7ec40709eacbc5ec14f262d147",
+            "result": "passed"
+          },
+          {
+            "command": "cargo test --locked -p erpx-service --features private-development-api --test records_write_postgres -- --test-threads=1 (7 on leased dev databases)",
+            "sourceSha": "f9483f2918c59f7ec40709eacbc5ec14f262d147",
+            "result": "passed"
+          },
+          {
+            "command": "Vitest all Records unit and workspace supervisor (144 passed in 26 files, unavailable native upstream returns JSON 503 to both retired paths)",
+            "sourceSha": "f9483f2918c59f7ec40709eacbc5ec14f262d147",
+            "result": "passed"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit -p tests/config/tsconfig.json",
+            "sourceSha": "f9483f2918c59f7ec40709eacbc5ec14f262d147",
+            "result": "passed"
+          },
+          {
+            "command": "bun run structure:check; bun run test:catalogue (33 modules, 2425 suites)",
+            "sourceSha": "f9483f2918c59f7ec40709eacbc5ec14f262d147",
+            "result": "passed"
+          },
+          {
+            "command": "Acme public HTTPS normal SSO: 201 request, 200 apply/reject and replay, two same-key concurrent requests, optional key, exact text and numeric values, byte-compatible provenance digest, cross-Holding/auth/origin/current authority denial, no evidence, unknown field, stale record and changed source conflicts, HEAD/GET family unsupported and OPTIONS 204",
+            "sourceSha": "f9483f2918c59f7ec40709eacbc5ec14f262d147",
+            "result": "passed"
+          },
+          {
+            "command": "Acme dev PostgreSQL READ ONLY proof: 4 distinct receipts, audits and outbox; 0 rejected receipts; states applied/ready/rejected; one record version increment; legacy previous-value digest retained",
+            "sourceSha": "f9483f2918c59f7ec40709eacbc5ec14f262d147",
+            "result": "passed"
+          },
+          {
+            "command": "After rollout Acme canonical Operations detail SSR renders seeded title/version; local dev, Console health and private production health 200, retired Console 404",
+            "sourceSha": "f9483f2918c59f7ec40709eacbc5ec14f262d147",
+            "result": "passed"
+          },
+          {
+            "command": "retirement:next-routes:record-suggestions-shared-milestone",
+            "sourceSha": "f9483f2918c59f7ec40709eacbc5ec14f262d147",
+            "result": "passed",
+            "before": 1418,
+            "after": 1414,
+            "appBefore": 1193,
+            "appAfter": 1191,
+            "sharedBefore": 225,
+            "sharedAfter": 223,
+            "methodPathDelta": 2,
+            "removedBranches": 2,
+            "deletedFiles": 4,
+            "note": "Same four retired Next files already counted under cutover.runtime.records-suggestion-ingress. Prior mention counted on 1dfed3d497f8f0bdc079493f34b601269d219d32."
           }
         ],
-        "blocker": "handoff",
+        "retainedLegacy": [],
+        "blocker": null,
         "handoff": {
-          "runId": "run-goal-schedule-state",
-          "agentId": "hy4-records-mention-retire",
-          "at": "2026-11-27T06:23:02.124Z",
+          "runId": "run-goal-suggestions",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T06:36:51.115Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Mention cutover is verified and pushed. Port POST suggestion request (201) and POST suggestion decision (200) next. In packages/server-records/src/application/records.ts compare the retained requestSuggestion/decideSuggestion rules, use standard SHA-256 with legacy ordered JSON for provenance/current values, recheck each readable source version for apply, then run records_write_postgres and real Acme request/apply/reject/changed-source assertions before retiring both route families."
+          "nextAction": "Native candidate fulfilled both suggestion wire contracts, authorized apply/reject, replay, changed-source conflict and PostgreSQL evidence. Delete only the four verified Next wrappers. Lead owns all other cleanup and integration."
         },
-        "nextAction": "Mention cutover is verified and pushed. Port POST suggestion request (201) and POST suggestion decision (200) next. In packages/server-records/src/application/records.ts compare the retained requestSuggestion/decideSuggestion rules, use standard SHA-256 with legacy ordered JSON for provenance/current values, recheck each readable source version for apply, then run records_write_postgres and real Acme request/apply/reject/changed-source assertions before retiring both route families."
+        "nextAction": "Two verified Acme suggestion POST pairs and two legacy dispatch branches retired; 4 tracked Next route files deleted (1418 to 1414), same checkpoint as sibling. Remaining Operations routine SSR still needs native Project picker and purchase presentation. Global docs and architecture checks show existing failures; G5 pending.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "cutover.runtime.routine-command-ingress",
@@ -218260,14 +218309,14 @@
         "retainedLegacy": [],
         "blocker": "handoff",
         "handoff": {
-          "runId": "run-goal-schedule-state",
-          "agentId": "hy4-routines-ssr",
-          "at": "2026-11-27T06:21:32.191Z",
+          "runId": "run-goal-suggestions",
+          "agentId": "hy4-operations-picker",
+          "at": "2026-11-27T06:34:26.800Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "HY4 audited project picker and purchase controls. Routine list/detail currently call staff-page routineProjectOptions plus presentation-context queries. Replace both with an authorized native read using Projects lane-27 visibility and Commercial history/strict scheduled capability checks. Retire the routine-only adapter plus public export as callers and oracle move; purchases.ts still owns other Projects flows."
+          "nextAction": "HY4 picker prerequisite saved as .scratch/dev/rust-migration/parked/ops-picker-697607da5.patch. It contains concat!(VISIBLE_PROJECTS_SCOPE) which Rust rejects and uses id/title order where existing native visibleProjects sorts by updated_at DESC. Use the existing exact same Company/owner-or-member predicate and ordering, read on the authorized Holding transaction, then compose Project history, strict beta and scheduled operations/Projects capability, and purchase presentation for both SSR callers."
         },
-        "nextAction": "HY4 audited project picker and purchase controls. Routine list/detail currently call staff-page routineProjectOptions plus presentation-context queries. Replace both with an authorized native read using Projects lane-27 visibility and Commercial history/strict scheduled capability checks. Retire the routine-only adapter plus public export as callers and oracle move; purchases.ts still owns other Projects flows.",
+        "nextAction": "HY4 picker prerequisite saved as .scratch/dev/rust-migration/parked/ops-picker-697607da5.patch. It contains concat!(VISIBLE_PROJECTS_SCOPE) which Rust rejects and uses id/title order where existing native visibleProjects sorts by updated_at DESC. Use the existing exact same Company/owner-or-member predicate and ordering, read on the authorized Holding transaction, then compose Project history, strict beta and scheduled operations/Projects capability, and purchase presentation for both SSR callers.",
         "deliverables": [
           "Native current Holding and Company-scoped routine picker and purchase controls for canonical list and detail SSR; verify no duplicate TypeScript permission or SQL execution.",
           "Remove routine-only Projects adapter and public export after moving the production caller and the legacy-grant oracle."
@@ -218844,6 +218893,126 @@
           "routeAuthority": true,
           "presenterParity": true
         }
+      },
+      {
+        "id": "cutover.runtime.records-suggestion-ingress",
+        "title": "Execute Records suggestion requests and decisions in the authorized Holding transaction",
+        "owner": "records",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [
+          "cutover.runtime.records-mention-ingress"
+        ],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/records.rs",
+          "src/composition/src/records_command.rs",
+          "packages/server-records/src/domain/record_context.rs",
+          "packages/server-records/src/application/record_context.rs",
+          "packages/server-records/src/public/record_context.rs",
+          "scripts/local/native-cutover-routes.ts",
+          "tests/unit/shared.testing/workspace-supervisor.test.ts",
+          "tests/unit/records/records-registry-routes-pure-transport.test.ts",
+          "tests/unit/shared.records/rust-record-registry-http.test.rs",
+          "tests/integration/shared.records/rust-record-write-postgres.test.rs",
+          "packages/workplace/package.json",
+          "packages/server-records/src/adapters/records.ts",
+          "packages/server-records/src/domain/records.ts",
+          "packages/server-records/src/application/records.ts",
+          "packages/server-records/src/public/records.ts",
+          "apps/compat/src/app/globals.css",
+          "tests/catalogue/suite-manifest.json",
+          "tests/unit/records/read-tail-r19-dedupe.test.ts",
+          "tests/unit/records/native-record-search-cutover.test.ts"
+        ],
+        "resources": [
+          "path:cutover.runtime.records-suggestion-ingress",
+          "build:heavy",
+          "service:dev-postgres-browser"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": "697607da5d6847b22d195d3814f8d8e2a2d1b8aa",
+        "implementedCommit": "f9483f2918c59f7ec40709eacbc5ec14f262d147",
+        "lastPushedSha": "f9483f2918c59f7ec40709eacbc5ec14f262d147",
+        "checks": [
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api, isolated native startup and pinned local dev runtime",
+            "sourceSha": "f9483f2918c59f7ec40709eacbc5ec14f262d147",
+            "result": "passed"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-records --lib --test record_registry_http (77 owner and 10 HTTP tests)",
+            "sourceSha": "f9483f2918c59f7ec40709eacbc5ec14f262d147",
+            "result": "passed"
+          },
+          {
+            "command": "cargo test --locked -p erpx-service --features private-development-api --test records_write_postgres -- --test-threads=1 (7 on leased dev databases)",
+            "sourceSha": "f9483f2918c59f7ec40709eacbc5ec14f262d147",
+            "result": "passed"
+          },
+          {
+            "command": "Vitest all Records unit and workspace supervisor (144 passed in 26 files, unavailable native upstream returns JSON 503 to both retired paths)",
+            "sourceSha": "f9483f2918c59f7ec40709eacbc5ec14f262d147",
+            "result": "passed"
+          },
+          {
+            "command": "node_modules/.bin/tsc --noEmit -p tests/config/tsconfig.json",
+            "sourceSha": "f9483f2918c59f7ec40709eacbc5ec14f262d147",
+            "result": "passed"
+          },
+          {
+            "command": "bun run structure:check; bun run test:catalogue (33 modules, 2425 suites)",
+            "sourceSha": "f9483f2918c59f7ec40709eacbc5ec14f262d147",
+            "result": "passed"
+          },
+          {
+            "command": "Acme public HTTPS normal SSO: 201 request, 200 apply/reject and replay, two same-key concurrent requests, optional key, exact text and numeric values, byte-compatible provenance digest, cross-Holding/auth/origin/current authority denial, no evidence, unknown field, stale record and changed source conflicts, HEAD/GET family unsupported and OPTIONS 204",
+            "sourceSha": "f9483f2918c59f7ec40709eacbc5ec14f262d147",
+            "result": "passed"
+          },
+          {
+            "command": "Acme dev PostgreSQL READ ONLY proof: 4 distinct receipts, audits and outbox; 0 rejected receipts; states applied/ready/rejected; one record version increment; legacy previous-value digest retained",
+            "sourceSha": "f9483f2918c59f7ec40709eacbc5ec14f262d147",
+            "result": "passed"
+          },
+          {
+            "command": "After rollout Acme canonical Operations detail SSR renders seeded title/version; local dev, Console health and private production health 200, retired Console 404",
+            "sourceSha": "f9483f2918c59f7ec40709eacbc5ec14f262d147",
+            "result": "passed"
+          },
+          {
+            "command": "retirement:next-routes",
+            "sourceSha": "f9483f2918c59f7ec40709eacbc5ec14f262d147",
+            "result": "passed",
+            "before": 1418,
+            "after": 1414,
+            "appBefore": 1193,
+            "appAfter": 1191,
+            "sharedBefore": 225,
+            "sharedAfter": 223,
+            "methodPathDelta": 2,
+            "removedBranches": 2,
+            "deletedFiles": 4
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": {
+          "runId": "run-goal-suggestions",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T06:38:53.256Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Review Records test failures after the verified route retirement. Update the existing SQL caller oracle for removal of suggestion guards and the stale Records search source oracle to check its actual Control and Holding pool binding."
+        },
+        "nextAction": "Two verified Acme suggestion POST pairs and two legacy dispatch branches retired; 4 tracked Next route files deleted (1418 to 1414), same checkpoint as sibling. Remaining Operations routine SSR still needs native Project picker and purchase presentation. Global docs and architecture checks show existing failures; G5 pending.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       }
     ],
     "migrationProgress": {
@@ -218865,8 +219034,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 199,
-    "updatedAt": "2026-11-27T06:23:02.300Z",
+    "lastCoordinatorGeneration": 200,
+    "updatedAt": "2026-11-27T06:42:10.393Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
