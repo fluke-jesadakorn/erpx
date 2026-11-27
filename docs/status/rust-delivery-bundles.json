@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15387,
+    "revision": 15392,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261127-f",
       "agentId": "lead",
       "startedAt": "2026-11-27T02:03:29.663Z",
-      "heartbeatAt": "2026-11-27T02:27:26.459Z",
-      "expiresAt": "2026-11-27T02:57:26.459Z",
+      "heartbeatAt": "2026-11-27T02:32:43.517Z",
+      "expiresAt": "2026-11-27T03:02:43.517Z",
       "generation": 194,
       "tokenHash": "2136d35f96e5dbde2109a42dc96f779f8467e46d2a31c4e5274930bdb3a6a99e"
     },
@@ -213546,7 +213546,7 @@
         "goalId": "G4",
         "owner": "identity_access",
         "kind": "migration",
-        "status": "integrating",
+        "status": "ready_for_integration",
         "title": "feature-identity_access routes native execution",
         "scope": "Inventory feature-identity_access routes and port one bounded read/command to Rust with real SQL execution and complete payload parity.",
         "workflowIds": [],
@@ -213561,15 +213561,8 @@
           "owner:identity_access",
           "route:identity_access-feature"
         ],
-        "nextAction": "Native IAM session list compiled/tested and mounted; IAM catch-all cutover pending.",
-        "claim": {
-          "runId": "run-20261127-f",
-          "agentId": "worker-identity",
-          "claimedAt": "2026-11-27T02:21:13.043Z",
-          "heartbeatAt": "2026-11-27T02:27:26.459Z",
-          "expiresAt": "2026-11-27T02:57:26.459Z",
-          "generation": 194
-        },
+        "nextAction": "Account IAM sessions native verified 200; next mount lane-44 catch-all and switch workplace IAM route",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": "3cbd0350c675ab420131cdd1870ed5d73c07a224",
         "lastPushedSha": "3cbd0350c675ab420131cdd1870ed5d73c07a224",
@@ -213598,17 +213591,47 @@
             "command": "cargo test -p erpx-server-identity-access --lib --locked",
             "result": "passed",
             "sourceSha": "3cbd0350c675ab420131cdd1870ed5d73c07a224"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "a5fb2f0e8c8c0e72e4e3e63ffdd79afa52be99ac",
+            "note": "root clean"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "a5fb2f0e8c8c0e72e4e3e63ffdd79afa52be99ac",
+            "note": "tests clean"
+          },
+          {
+            "command": "vitest identity session-list probes",
+            "result": "passed",
+            "sourceSha": "a5fb2f0e8c8c0e72e4e3e63ffdd79afa52be99ac",
+            "note": "16 passed"
+          },
+          {
+            "command": "GET https://account-dev-erpx.jesadakorn.com/api/v1/account/iam",
+            "result": "passed",
+            "sourceSha": "a5fb2f0e8c8c0e72e4e3e63ffdd79afa52be99ac",
+            "note": "200 with 596 native sessions; lane-45 Account target"
+          },
+          {
+            "command": "cargo check -p erpx-service --locked",
+            "result": "passed",
+            "sourceSha": "a5fb2f0e8c8c0e72e4e3e63ffdd79afa52be99ac",
+            "note": "Account target + accessor compile"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-i",
+          "runId": "run-20261127-f",
           "agentId": "lead",
-          "at": "2026-11-26T13:47:24.180Z",
+          "at": "2026-11-27T02:40:03.080Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Native IAM session list compiled/tested and mounted; IAM catch-all cutover pending."
+          "reason": "released with work preserved",
+          "nextAction": "Account IAM sessions native verified 200; next mount lane-44 catch-all and switch workplace IAM route"
         },
         "scopeRefinementRequired": false
       },
@@ -216254,8 +216277,8 @@
       "statusCounts": {
         "pending": 14,
         "in_progress": 0,
-        "ready_for_integration": 145,
-        "integrating": 1,
+        "ready_for_integration": 146,
+        "integrating": 0,
         "migrated": 369,
         "blocked": 1915,
         "deferred": 2,
@@ -216263,7 +216286,7 @@
       }
     },
     "lastCoordinatorGeneration": 194,
-    "updatedAt": "2026-11-27T02:32:19.805Z",
+    "updatedAt": "2026-11-27T02:40:03.084Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
