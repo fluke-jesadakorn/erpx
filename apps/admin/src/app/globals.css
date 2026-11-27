@@ -20,14 +20,12 @@
 @source "../../../../packages/feature-admin/src/routes/admin/choose-work-role/page.tsx";
 @source "../../../../packages/feature-admin/src/routes/admin/launch/route.ts";
 @source "../../../../packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/agents/route.ts";
-@source "../../../../packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/ai-providers/[[...path]]/route.ts";
 @source "../../../../packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/authority/[[...path]]/route.ts";
 @source "../../../../packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/authority/flows/preview/route.ts";
 @source "../../../../packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/beta/[[...path]]/route.ts";
 @source "../../../../packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/billing/[[...path]]/route.ts";
 @source "../../../../packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/billing/forecast/route.ts";
 @source "../../../../packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/billing/target/route.ts";
-@source "../../../../packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/brand/route.ts";
 @source "../../../../packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/branding/[[...path]]/route.ts";
 @source "../../../../packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/business-readiness/releases/[[...path]]/route.ts";
 @source "../../../../packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/business-readiness/route.ts";
@@ -36,18 +34,13 @@
 @source "../../../../packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/usage/route.ts";
 @source "../../../../packages/feature-admin/src/routes/api/v1/platform/assignments/active/route.ts";
 @source "../../../../packages/feature-admin/src/routes/api/v1/platform/billing/[[...path]]/route.ts";
-@source "../../../../packages/feature-admin/src/routes/api/v1/platform/billing/ai-gateway/route.ts";
 @source "../../../../packages/feature-admin/src/routes/api/v1/platform/billing/forecast/route.ts";
 @source "../../../../packages/feature-admin/src/routes/api/v1/platform/billing/target/route.ts";
 @source "../../../../packages/feature-admin/src/routes/api/v1/platform/billing/usage/route.ts";
 @source "../../../../packages/feature-admin/src/routes/api/v1/platform/commercial/[[...path]]/route.ts";
 @source "../../../../packages/feature-admin/src/routes/api/v1/platform/context/route.ts";
-@source "../../../../packages/feature-admin/src/routes/api/v1/platform/executive/route.ts";
 @source "../../../../packages/feature-admin/src/routes/api/v1/platform/iam/[[...path]]/route.ts";
-@source "../../../../packages/feature-admin/src/routes/api/v1/platform/operations/migrate/route.ts";
 @source "../../../../packages/feature-admin/src/routes/api/v1/platform/operations/provision/route.ts";
-@source "../../../../packages/feature-admin/src/routes/api/v1/platform/operations/recover/route.ts";
-@source "../../../../packages/feature-admin/src/routes/api/v1/platform/operations/route.ts";
 @source "../../../../packages/feature-admin/src/routes/api/v1/platform/page-layouts/[pageKey]/route.ts";
 @source "../../../../packages/feature-admin/src/routes/api/v1/stripe/webhook/route.ts";
 @source "../../../../packages/feature-admin/src/routes/holdings/[holdingSlug]/@record/administration/agents/records/agent_assignment/[id]/[recordSection]/page.tsx";
@@ -490,7 +483,6 @@
 @source "../../../../packages/feature-people_payroll/src/public/native-payroll-summary-owned.ts";
 @source "../../../../packages/feature-people_payroll/src/public/native-payroll-summary-page.ts";
 @source "../../../../packages/feature-people_payroll/src/public/native-payroll-summary.ts";
-@source "../../../../packages/feature-platform_administration/src/adapters/server/native-agent-ai-providers.ts";
 @source "../../../../packages/feature-platform_administration/src/adapters/server/native-platform-administration.ts";
 @source "../../../../packages/feature-platform_administration/src/adapters/server/native-platform-iam.ts";
 @source "../../../../packages/feature-platform_administration/src/components/ai-connection-form.tsx";
@@ -502,7 +494,6 @@
 @source "../../../../packages/feature-platform_administration/src/components/settings/push-settings.tsx";
 @source "../../../../packages/feature-platform_administration/src/lib/native-platform-administration.ts";
 @source "../../../../packages/feature-platform_administration/src/lib/native-platform-iam.ts";
-@source "../../../../packages/feature-platform_administration/src/public/native-agent-ai-providers.ts";
 @source "../../../../packages/feature-pms/src/adapters/server/native-pms-command.ts";
 @source "../../../../packages/feature-pms/src/adapters/server/native-pms-owner-write.ts";
 @source "../../../../packages/feature-pms/src/adapters/server/native-pms.ts";
@@ -742,7 +733,6 @@
 @source "../../../../packages/server-agent/src/public/native-agent-evidence.ts";
 @source "../../../../packages/server-agent/src/public/native-agent-governance.ts";
 @source "../../../../packages/server-agent/src/public/native-agent-workspace.ts";
-@source "../../../../packages/server-agent/src/public/native-ai-gateway.ts";
 @source "../../../../packages/server-agent/src/public/operations-guided-intake-facts.ts";
 @source "../../../../packages/server-agent/src/public/records-ai-quota.ts";
 @source "../../../../packages/server-agent/src/public/social-ai-source-locks.ts";

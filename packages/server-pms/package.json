@@ -138,7 +138,6 @@
     "./application/hospitality-rollout": "./src/application/hospitality-rollout.ts",
     "./application/home-api": "./src/application/home-api.ts",
     "./application/pms-booking-changes": "./src/application/pms-booking-changes.ts",
-    "./application/social-events": "./src/application/social-events.ts",
     "./application/feature-availability": "./src/application/feature-availability.ts",
     "./application/staff-booking-changes": "./src/application/staff-booking-changes.ts",
     "./application/hospitality-setup": "./src/application/hospitality-setup.ts",

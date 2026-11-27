@@ -205,7 +205,6 @@
     "./domain/work-cards": "./src/domain/work-cards.ts",
     "./domain/front-path": "./src/domain/front-path.ts",
     "./domain/work-cache": "./src/domain/work-cache.ts",
-    "./adapters/native-work-role-transport": "./src/adapters/native-work-role-transport.ts",
     "./adapters/read-tail-sql": "./src/adapters/read-tail-sql.ts",
     "./adapters/native-navigation": "./src/adapters/native-navigation.ts"
   },

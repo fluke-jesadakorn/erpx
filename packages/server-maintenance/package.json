@@ -14,7 +14,6 @@
     "./adapters/asset-settlement-refs": "./src/adapters/asset-settlement-refs.ts",
     "./adapters/attachments-policy-facts": "./src/adapters/attachments-policy-facts.ts",
     "./adapters/attachments-service-facts": "./src/adapters/attachments-service-facts.ts",
-    "./adapters/preventive-plan": "./src/adapters/preventive-plan.ts",
     "./adapters/attachments-operational-facts": "./src/adapters/attachments-operational-facts.ts",
     "./adapters/package-obligations": "./src/adapters/package-obligations.ts",
     "./public/attachment-read-sources": "./src/public/attachment-read-sources.ts",

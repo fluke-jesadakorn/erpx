@@ -91,7 +91,6 @@
     "./adapters/finance-accruals": "./src/adapters/finance-accruals.ts",
     "./adapters/performance-compensation-sources": "./src/adapters/performance-compensation-sources.ts",
     "./adapters/presentation-queries": "./src/adapters/presentation-queries.ts",
-    "./adapters/refund-notifications": "./src/adapters/refund-notifications.ts",
     "./adapters/manufacturing-posting-setup": "./src/adapters/manufacturing-posting-setup.ts",
     "./adapters/legal-setup": "./src/adapters/legal-setup.ts",
     "./adapters/finance-expansion-records": "./src/adapters/finance-expansion-records.ts",

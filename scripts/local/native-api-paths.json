@@ -6,9 +6,12 @@
     "pms/reports",
     "records/search",
     "benefits",
-    "stock-transfers"
+    "stock-transfers",
+    "ai-providers"
   ],
   "holdingPaths": [
+    { "method": "GET", "path": "brand" },
+    { "method": "POST", "path": "brand" },
     { "method": "GET", "path": "customers" },
     { "method": "GET", "path": "crm/activities" },
     { "method": "POST", "path": "crm/activities" },

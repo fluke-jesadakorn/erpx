@@ -7,7 +7,6 @@
     "./routes/api/customer-portal/enroll/route": "./src/routes/api/customer-portal/enroll/route.ts",
     "./routes/api/customer-portal/[holdingSlug]/tickets/[bindingId]/files/[linkId]/content/route": "./src/routes/api/customer-portal/[holdingSlug]/tickets/[bindingId]/files/[linkId]/content/route.ts",
     "./routes/api/customer-portal/[holdingSlug]/tickets/[bindingId]/acknowledgements/route": "./src/routes/api/customer-portal/[holdingSlug]/tickets/[bindingId]/acknowledgements/route.ts",
-    "./routes/api/customer-portal/[holdingSlug]/tickets/route": "./src/routes/api/customer-portal/[holdingSlug]/tickets/route.ts",
     "./routes/api/customer-portal/[holdingSlug]/quick-access/route": "./src/routes/api/customer-portal/[holdingSlug]/quick-access/route.ts",
     "./routes/api/customer-portal/[holdingSlug]/route": "./src/routes/api/customer-portal/[holdingSlug]/route.ts",
     "./routes/api/customer-portal/[holdingSlug]/attachments/[[...path]]/route": "./src/routes/api/customer-portal/[holdingSlug]/attachments/[[...path]]/route.ts",

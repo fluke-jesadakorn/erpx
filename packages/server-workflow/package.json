@@ -4,7 +4,6 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./adapters/finance-refund-notifications": "./src/adapters/finance-refund-notifications.ts",
     "./adapters/routing-attention": "./src/adapters/routing-attention.ts",
     "./adapters/pms-command-facts": "./src/adapters/pms-command-facts.ts",
     "./adapters/flow-record": "./src/adapters/flow-record.ts",
@@ -75,7 +74,6 @@
     "./adapters/job-projector": "./src/adapters/job-projector.ts",
     "./adapters/flow-work": "./src/adapters/flow-work.ts",
     "./adapters/collaboration-notification-snapshot-sources": "./src/adapters/collaboration-notification-snapshot-sources.ts",
-    "./public/finance-refund-notifications": "./src/public/finance-refund-notifications.ts",
     "./public/routing-attention": "./src/public/routing-attention.ts",
     "./public/pms-command-facts": "./src/public/pms-command-facts.ts",
     "./public/flow-record": "./src/public/flow-record.ts",

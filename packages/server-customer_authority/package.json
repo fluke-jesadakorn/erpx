@@ -6,7 +6,6 @@
   "exports": {
     "./adapters/identity": "./src/adapters/identity.ts",
     "./adapters/portal-projection-unit": "./src/adapters/portal-projection-unit.ts",
-    "./adapters/portal-support": "./src/adapters/portal-support.ts",
     "./adapters/executive-metric-projections": "./src/adapters/executive-metric-projections.ts",
     "./adapters/attachments-portal-facts": "./src/adapters/attachments-portal-facts.ts",
     "./adapters/portal-read-purchases": "./src/adapters/portal-read-purchases.ts",

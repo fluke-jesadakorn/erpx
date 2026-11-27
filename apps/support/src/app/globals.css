@@ -252,14 +252,7 @@
 @source "../../../../packages/feature-shared/src/lib/route-context.ts";
 @source "../../../../packages/feature-shared/src/lib/ui-format.ts";
 @source "../../../../packages/feature-shared/src/lib/widget-geometry.ts";
-@source "../../../../packages/feature-support/src/adapters/server/native-support-evidence.ts";
-@source "../../../../packages/feature-support/src/adapters/server/native-support-incident.ts";
 @source "../../../../packages/feature-support/src/adapters/server/native-support-read.ts";
-@source "../../../../packages/feature-support/src/adapters/server/native-support-service-teams.ts";
-@source "../../../../packages/feature-support/src/adapters/server/native-support-session.ts";
-@source "../../../../packages/feature-support/src/adapters/server/native-support-sla.ts";
-@source "../../../../packages/feature-support/src/adapters/server/native-support-ticket-portal.ts";
-@source "../../../../packages/feature-support/src/adapters/server/native-support.ts";
 @source "../../../../packages/feature-support/src/components/support-console.tsx";
 @source "../../../../packages/feature-support/src/components/support-evidence-console.tsx";
 @source "../../../../packages/feature-support/src/components/support-incident-console.tsx";
@@ -269,13 +262,6 @@
 @source "../../../../packages/feature-support/src/components/ticket-portal.tsx";
 @source "../../../../packages/feature-support/src/lib/native-support-read.ts";
 @source "../../../../packages/feature-support/src/lib/ticket-portal-command.ts";
-@source "../../../../packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/service-teams/[[...path]]/route.ts";
-@source "../../../../packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/service-teams/preview/route.ts";
-@source "../../../../packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/incidents/route.ts";
-@source "../../../../packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/route.ts";
-@source "../../../../packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/sessions/route.ts";
-@source "../../../../packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/sla/route.ts";
-@source "../../../../packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/ticket-portal/[[...path]]/route.ts";
 @source "../../../../packages/feature-support/src/routes/holdings/[holdingSlug]/@record/customers-sales/customers/service/cases/[id]/[recordSection]/page.tsx";
 @source "../../../../packages/feature-support/src/routes/holdings/[holdingSlug]/@record/customers-sales/customers/service/cases/[id]/page.tsx";
 @source "../../../../packages/feature-support/src/routes/holdings/[holdingSlug]/@record/customers-sales/customers/service/incidents/[id]/[recordSection]/page.tsx";
@@ -2171,7 +2157,6 @@
 @source "../../../../packages/server-legal/src/adapters/legal-read-tail-r54-sources.ts";
 @source "../../../../packages/server-legal/src/adapters/legal-read-tail-r9-sources.ts";
 @source "../../../../packages/server-legal/src/adapters/legal/access.ts";
-@source "../../../../packages/server-legal/src/adapters/legal/body.ts";
 @source "../../../../packages/server-legal/src/adapters/legal/integrations.ts";
 @source "../../../../packages/server-legal/src/adapters/metric-purchases.ts";
 @source "../../../../packages/server-legal/src/adapters/pms-rollout-facts.ts";
@@ -2181,7 +2166,6 @@
 @source "../../../../packages/server-legal/src/adapters/runtime-mutation-authority.ts";
 @source "../../../../packages/server-legal/src/adapters/work-purchases.ts";
 @source "../../../../packages/server-legal/src/application/access.ts";
-@source "../../../../packages/server-legal/src/application/body.ts";
 @source "../../../../packages/server-legal/src/application/integrations.ts";
 @source "../../../../packages/server-legal/src/application/runtime-preservation-authority.ts";
 @source "../../../../packages/server-legal/src/domain/model.ts";
@@ -2195,7 +2179,6 @@
 @source "../../../../packages/server-legal/src/public/final-root-owner-projection-sources.ts";
 @source "../../../../packages/server-legal/src/public/hospitality-owner-projection-sources.ts";
 @source "../../../../packages/server-legal/src/public/legal/access.ts";
-@source "../../../../packages/server-legal/src/public/legal/body.ts";
 @source "../../../../packages/server-legal/src/public/legal/integrations.ts";
 @source "../../../../packages/server-legal/src/public/metric-purchases.ts";
 @source "../../../../packages/server-legal/src/public/pms-rollout-facts.ts";
