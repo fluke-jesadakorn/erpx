@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15284,
+    "revision": 15321,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261127-d",
+      "runId": "run-20261127-e",
       "agentId": "lead",
-      "startedAt": "2026-11-27T00:20:34.236Z",
-      "heartbeatAt": "2026-11-27T00:20:34.236Z",
-      "expiresAt": "2026-11-27T00:50:34.237Z",
-      "generation": 192,
-      "tokenHash": "1a106c675b2c3dcefae8c9a4f6c86258f85eac9a4451cbb771a669d82a89159a"
+      "startedAt": "2026-11-27T01:33:06.431Z",
+      "heartbeatAt": "2026-11-27T01:33:06.431Z",
+      "expiresAt": "2026-11-27T02:03:06.432Z",
+      "generation": 193,
+      "tokenHash": "30aaeb319ca84a4344a412c258e69f7091d1baf05ec40054997673da3899b9b0"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -11663,8 +11663,8 @@
         "status": "ready_for_integration",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "19580e0835c1dde972e2d399e77a681c8f890638",
-        "lastPushedSha": "19580e0835c1dde972e2d399e77a681c8f890638",
+        "implementedCommit": "ec6bac922d31976c85e1ae6d41279df3786978dc",
+        "lastPushedSha": "ec6bac922d31976c85e1ae6d41279df3786978dc",
         "checks": [
           {
             "command": "cargo check -p erpx-server-finance --all-targets",
@@ -11705,18 +11705,60 @@
             "command": "commerce_goods_journal 4/4 + due_draft 8/8 + bank 2/2",
             "result": "passed",
             "sourceSha": "b091bb71e0618c71b4e83f68cbe650a090f412ff"
+          },
+          {
+            "command": "cargo check -p erpx-server-finance --lib --locked",
+            "result": "passed",
+            "sourceSha": "ec6bac922d31976c85e1ae6d41279df3786978dc",
+            "note": "owner crate compiles"
+          },
+          {
+            "command": "cargo test -p erpx-server-finance --lib --locked",
+            "result": "passed",
+            "sourceSha": "ec6bac922d31976c85e1ae6d41279df3786978dc",
+            "note": "195 passed"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "ec6bac922d31976c85e1ae6d41279df3786978dc",
+            "note": "after nativeRequest transport rewrite"
+          },
+          {
+            "command": "RecordDetailsFinanceOwnedFacts party read via 3198",
+            "result": "passed",
+            "sourceSha": "ec6bac922d31976c85e1ae6d41279df3786978dc",
+            "note": "real native 200 with Host; record-facts transport preserved"
+          },
+          {
+            "command": "POST /api/v1/holdings/acme/finance/expense-posting-projection",
+            "result": "passed",
+            "sourceSha": "0bd4d55ebdb5eba645aacc94bf7b12815ae8b83b",
+            "note": "200 real rows; expense projection router mounted beside doc preview"
+          },
+          {
+            "command": "expenseJournalProjection via TS client",
+            "result": "passed",
+            "sourceSha": "0bd4d55ebdb5eba645aacc94bf7b12815ae8b83b",
+            "note": "2 rows; journal_id wire field fixed"
+          },
+          {
+            "command": "bunx tsc -p packages/server-finance/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "0bd4d55ebdb5eba645aacc94bf7b12815ae8b83b",
+            "note": "lane 1 client compiles"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "KPI 1701->1678 verified; lead mounts record_facts_router_for_holdings + ERPX_NATIVE_FINANCE_CUSTOMER_READ_CONFIG; thread WorkContext at 4 record-details sites",
+        "blocker": "released with work preserved",
+        "nextAction": "Lane 1 expense projection mounted and verified; all finance native clients Host-preserving; KPI cut still pending",
         "handoff": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-finance",
-          "at": "2026-11-25T17:37:21.231Z",
-          "previousStatus": "in_progress",
-          "reason": "handoff",
-          "nextAction": "Lead commits the reported cut; next family attached"
+          "runId": "run-20261127-e",
+          "agentId": "lead",
+          "at": "2026-11-27T01:52:43.082Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Lane 1 expense projection mounted and verified; all finance native clients Host-preserving; KPI cut still pending"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-finance",
@@ -13302,8 +13344,8 @@
         "status": "ready_for_integration",
         "claim": null,
         "baseSha": "213fccf859788ae3c32a44bb4068c5501a8aea9a",
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "2a89e96dca12dc149ce44a577ee59b1efcd0c3be",
+        "lastPushedSha": "2a89e96dca12dc149ce44a577ee59b1efcd0c3be",
         "checks": [
           {
             "command": "cargo check -p erpx-server-crm",
@@ -13331,18 +13373,44 @@
             "command": "cargo test crm 108/108",
             "result": "passed",
             "sourceSha": "754ddee5f08f7895be4c93a7bf6fc6487384548a"
+          },
+          {
+            "command": "cargo test -p erpx-server-crm --lib --locked",
+            "result": "passed",
+            "sourceSha": "2a89e96dca12dc149ce44a577ee59b1efcd0c3be",
+            "note": "72 passed"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "2a89e96dca12dc149ce44a577ee59b1efcd0c3be",
+            "note": "after guest-history nativeRequest import"
+          },
+          {
+            "command": "vitest run tests/unit/crm",
+            "result": "passed-with-preexisting",
+            "sourceSha": "2a89e96dca12dc149ce44a577ee59b1efcd0c3be",
+            "note": "376 passed / 7 pre-existing oracle failures; no new failures"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-crm/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "2a89e96dca12dc149ce44a577ee59b1efcd0c3be",
+            "before": 24,
+            "after": 23,
+            "note": "leads records() folded into r46 select-body head"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "41 SELECTs remain: 20 renderer heads + 21 direct inline queries need composition/presenter wiring",
+        "blocker": "released with work preserved",
+        "nextAction": "24->23 committed; remaining 23 SELECT tokens need composition/presenter wiring for 20 native read kinds",
         "handoff": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-crm",
-          "at": "2026-11-25T17:17:23.290Z",
-          "previousStatus": "in_progress",
-          "reason": "handoff",
-          "nextAction": "41 SELECTs remain: 20 renderer heads + 21 direct inline queries need composition/presenter wiring"
+          "runId": "run-20261127-e",
+          "agentId": "worker-crm",
+          "at": "2026-11-27T01:44:35.478Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "24->23 committed; remaining 23 SELECT tokens need composition/presenter wiring for 20 native read kinds"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-crm",
@@ -16706,8 +16774,8 @@
         "status": "ready_for_integration",
         "claim": null,
         "baseSha": "0807b7d6ff9921cac319f5bc37fb02233edcbb52",
-        "implementedCommit": "cf0ff01964a108c70a7a6239e40405bbdfcc89f5",
-        "lastPushedSha": null,
+        "implementedCommit": "e9ace7f2b92ba08a9c18b77fc833df943bd0e1c1",
+        "lastPushedSha": "e9ace7f2b92ba08a9c18b77fc833df943bd0e1c1",
         "checks": [
           {
             "command": "cargo check -p erpx-server-files",
@@ -16875,18 +16943,38 @@
             "sourceSha": "0807b7d6ff9921cac319f5bc37fb02233edcbb52",
             "before": 395,
             "after": 395
+          },
+          {
+            "command": "cargo test -p erpx-server-files --lib --offline",
+            "result": "passed",
+            "sourceSha": "e9ace7f2b92ba08a9c18b77fc833df943bd0e1c1",
+            "note": "83 passed with ERPX_BUN_BIN; 82/1 without pinned Bun (pre-existing env)"
+          },
+          {
+            "command": "vitest files.scan-pending-native-head.unit",
+            "result": "passed-with-preexisting",
+            "sourceSha": "e9ace7f2b92ba08a9c18b77fc833df943bd0e1c1",
+            "note": "4 passed; 1 pre-existing broad-pin failure expected 208 vs 209"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "e9ace7f2b92ba08a9c18b77fc833df943bd0e1c1",
+            "before": 190,
+            "after": 190,
+            "note": "scan-pending witness already native-owned; 211->210 nextAction stale"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "Cut 211->210 scan-pending bind witness; 2 pre-existing migration.ts byte-oracles remain",
+        "blocker": "released with work preserved",
+        "nextAction": "Scan-pending witness already native-owned (190/190); re-baseline 8 stale broad pins 208->209, then re-scope next Files cut",
         "handoff": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-files",
-          "at": "2026-11-25T17:49:46.848Z",
-          "previousStatus": "in_progress",
-          "reason": "handoff",
-          "nextAction": "Lead commits the reported work; next family recorded"
+          "runId": "run-20261127-e",
+          "agentId": "worker-files",
+          "at": "2026-11-27T01:40:04.777Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Scan-pending witness already native-owned (190/190); re-baseline 8 stale broad pins 208->209, then re-scope next Files cut"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-files",
@@ -110110,8 +110198,15 @@
         "resources": [
           "owner:commerce"
         ],
-        "status": "ready_for_integration",
-        "claim": null,
+        "status": "integrating",
+        "claim": {
+          "runId": "run-20261127-e",
+          "agentId": "worker-commerce",
+          "claimedAt": "2026-11-27T01:40:19.269Z",
+          "heartbeatAt": "2026-11-27T01:40:19.269Z",
+          "expiresAt": "2026-11-27T02:10:19.269Z",
+          "generation": 193
+        },
         "baseSha": "89cf1fc2547a1bad396f281fe620266bf9914034",
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -110197,7 +110292,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261125-g",
           "agentId": "retire-commerce",
@@ -115098,8 +115193,8 @@
         ],
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "e9ace7f2b92ba08a9c18b77fc833df943bd0e1c1",
+        "lastPushedSha": "e9ace7f2b92ba08a9c18b77fc833df943bd0e1c1",
         "checks": [
           {
             "command": "cargo check -p erpx-server-pms",
@@ -115117,18 +115212,36 @@
             "result": "passed",
             "sourceSha": "ff54215cb",
             "note": "2 passed on real PostgreSQL"
+          },
+          {
+            "command": "cargo test -p erpx-server-pms --test pms_home_metrics",
+            "result": "passed",
+            "sourceSha": "e9ace7f2b92ba08a9c18b77fc833df943bd0e1c1",
+            "note": "7 passed; port complete at HEAD"
+          },
+          {
+            "command": "cargo test -p erpx-server-pms --test pms_home_metrics_postgres",
+            "result": "passed",
+            "sourceSha": "e9ace7f2b92ba08a9c18b77fc833df943bd0e1c1",
+            "note": "2 passed on isolated real PostgreSQL"
+          },
+          {
+            "command": "cargo check -p erpx-server-pms",
+            "result": "passed",
+            "sourceSha": "e9ace7f2b92ba08a9c18b77fc833df943bd0e1c1",
+            "note": "no errors; 11 pre-existing warnings"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "Lead commits the port; follow-up cutover attached",
+        "blocker": "released with work preserved",
+        "nextAction": "Verified complete at HEAD; follow-up is route/client/TS-authority cutover",
         "handoff": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-pms",
-          "at": "2026-11-25T15:39:00.380Z",
+          "runId": "run-20261127-e",
+          "agentId": "worker-pms",
+          "at": "2026-11-27T01:37:38.090Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Lead commits the port; follow-up cutover attached"
+          "reason": "released with work preserved",
+          "nextAction": "Verified complete at HEAD; follow-up is route/client/TS-authority cutover"
         },
         "scopeRefinementRequired": false
       },
@@ -124388,8 +124501,8 @@
         ],
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "ee58b52d344f6fe51cda35cd1c5715ae5e85aedc",
+        "lastPushedSha": "ee58b52d344f6fe51cda35cd1c5715ae5e85aedc",
         "checks": [
           {
             "command": "retirement:ts-statements -- ':(glob)packages/server-operations/src/**/*.ts'",
@@ -124409,18 +124522,50 @@
             "command": "tsc operations + root",
             "result": "passed",
             "sourceSha": "e13d93d59"
+          },
+          {
+            "command": "vitest operations.read-tail-r62-native",
+            "result": "passed",
+            "sourceSha": "ee58b52d344f6fe51cda35cd1c5715ae5e85aedc",
+            "note": "6/6"
+          },
+          {
+            "command": "vitest run tests/unit/operations",
+            "result": "passed-with-preexisting",
+            "sourceSha": "ee58b52d344f6fe51cda35cd1c5715ae5e85aedc",
+            "note": "296/299; 3 unrelated failures"
+          },
+          {
+            "command": "cargo check -p erpx-server-operations",
+            "result": "passed",
+            "sourceSha": "ee58b52d344f6fe51cda35cd1c5715ae5e85aedc",
+            "note": "compiles"
+          },
+          {
+            "command": "cargo test -p erpx-server-operations r62_attachment_owner_scope_sql_matches_retired_typescript_literal",
+            "result": "passed",
+            "sourceSha": "ee58b52d344f6fe51cda35cd1c5715ae5e85aedc",
+            "note": "1 passed"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-operations/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ee58b52d344f6fe51cda35cd1c5715ae5e85aedc",
+            "before": 58,
+            "after": 58,
+            "note": "r62 cut already landed; 61->60 nextAction stale"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "Cut 61->60 (operations_rd_attachment_owner_scope); residual 60 needs widened composition/cross-owner paths",
+        "blocker": "released with work preserved",
+        "nextAction": "r62 attachment owner scope already landed (KPI 58); re-baseline residual owner-local heads into a fresh family",
         "handoff": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-operations",
-          "at": "2026-11-25T17:37:21.380Z",
-          "previousStatus": "in_progress",
-          "reason": "handoff",
-          "nextAction": "Lead commits the reported cut; next family attached"
+          "runId": "run-20261127-e",
+          "agentId": "worker-operations",
+          "at": "2026-11-27T01:47:52.026Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "r62 attachment owner scope already landed (KPI 58); re-baseline residual owner-local heads into a fresh family"
         },
         "scopeRefinementRequired": false
       },
@@ -131995,8 +132140,8 @@
         ],
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "7d695dc76a5c147342bc8a61660ad87396f491f2",
-        "lastPushedSha": null,
+        "implementedCommit": "310ff30fe12cd429b692725b06ad1208c992beed",
+        "lastPushedSha": "310ff30fe12cd429b692725b06ad1208c992beed",
         "checks": [
           {
             "command": "cargo build -p erpx-service --bin erpx-server --locked",
@@ -132009,18 +132154,48 @@
             "result": "passed",
             "sourceSha": "7d695dc76a5c147342bc8a61660ad87396f491f2",
             "note": "200 with the native calendar snapshot"
+          },
+          {
+            "command": "cargo test -p erpx-server-work-projection --lib --locked",
+            "result": "passed",
+            "sourceSha": "310ff30fe12cd429b692725b06ad1208c992beed",
+            "note": "114 passed"
+          },
+          {
+            "command": "cargo test -p erpx-server-work-projection --test work_projection_calendar_read_postgres --locked",
+            "result": "passed",
+            "sourceSha": "310ff30fe12cd429b692725b06ad1208c992beed",
+            "note": "3 passed on real PostgreSQL including command path"
+          },
+          {
+            "command": "cargo build -p erpx-service --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "310ff30fe12cd429b692725b06ad1208c992beed",
+            "note": "all-Holding owner-write mount compiles"
+          },
+          {
+            "command": "POST /api/v1/holdings/northstar/work/owner-write (wp_cal_appointment_status)",
+            "result": "passed",
+            "sourceSha": "0bd4d55ebdb5eba645aacc94bf7b12815ae8b83b",
+            "note": "200 with ok result after all-Holding mount; previously 404"
+          },
+          {
+            "command": "POST /api/v1/holdings/acme/finance/expense-posting-projection",
+            "result": "passed",
+            "sourceSha": "0bd4d55ebdb5eba645aacc94bf7b12815ae8b83b",
+            "note": "200 with real journal rows after lane 1 mount"
           }
         ],
         "retainedLegacy": [],
         "blocker": "released with work preserved",
-        "nextAction": "Calendar owner-read router is mounted; follow-up is the remaining calendar command write path.",
+        "nextAction": "Command path verified on northstar and acme; frozen read oracle reconciled",
         "handoff": {
-          "runId": "run-20261127-d",
+          "runId": "run-20261127-e",
           "agentId": "lead",
-          "at": "2026-11-27T00:20:41.315Z",
+          "at": "2026-11-27T01:52:42.265Z",
           "previousStatus": "ready_for_integration",
           "reason": "released with work preserved",
-          "nextAction": "Calendar owner-read router is mounted; follow-up is the remaining calendar command write path."
+          "nextAction": "Command path verified on northstar and acme; frozen read oracle reconciled"
         },
         "scopeRefinementRequired": false
       },
@@ -136943,8 +137118,8 @@
         ],
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "ec6bac922d31976c85e1ae6d41279df3786978dc",
+        "lastPushedSha": "ec6bac922d31976c85e1ae6d41279df3786978dc",
         "checks": [
           {
             "command": "cargo check -p erpx-server-records --tests --locked",
@@ -136960,18 +137135,30 @@
             "command": "cargo test record_context_parity_postgres 1/1",
             "result": "passed",
             "sourceSha": "7fc4f2edc"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "ec6bac922d31976c85e1ae6d41279df3786978dc",
+            "note": "record-details context threading compiles"
+          },
+          {
+            "command": "RecordDetailsFinanceOwnedFacts party read via 3198",
+            "result": "passed",
+            "sourceSha": "ec6bac922d31976c85e1ae6d41279df3786978dc",
+            "note": "real native 200 through records adapter context"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "Reported round committed/verified; next family recorded",
+        "blocker": "released with work preserved",
+        "nextAction": "Finance record-facts context threaded at both application sites; next Records family",
         "handoff": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-records",
-          "at": "2026-11-25T17:51:43.469Z",
+          "runId": "run-20261127-e",
+          "agentId": "lead",
+          "at": "2026-11-27T01:41:53.175Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Reported round committed/verified; next family recorded"
+          "reason": "released with work preserved",
+          "nextAction": "Finance record-facts context threaded at both application sites; next Records family"
         },
         "scopeRefinementRequired": false
       },
@@ -151403,19 +151590,40 @@
         ],
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "ee58b52d344f6fe51cda35cd1c5715ae5e85aedc",
+        "lastPushedSha": "ee58b52d344f6fe51cda35cd1c5715ae5e85aedc",
+        "checks": [
+          {
+            "command": "bunx tsc -p packages/server-billing/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "ee58b52d344f6fe51cda35cd1c5715ae5e85aedc",
+            "note": "nativeRequest import restored"
+          },
+          {
+            "command": "vitest billing-native-view-cutover",
+            "result": "passed",
+            "sourceSha": "ee58b52d344f6fe51cda35cd1c5715ae5e85aedc",
+            "note": "5/5"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-billing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ee58b52d344f6fe51cda35cd1c5715ae5e85aedc",
+            "before": 5,
+            "after": 5,
+            "note": "4 transaction locks + 1 shared r35 head remain; needs widened scope"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "Owner literal KPI 5: 4 transaction-bound locks + 1 shared r35 head; needs widened scope for TS=0",
+        "blocker": "released with work preserved",
+        "nextAction": "Native transport import fixed; residual 5 literals need widened composition scope",
         "handoff": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-billing",
-          "at": "2026-11-25T17:37:21.844Z",
-          "previousStatus": "in_progress",
-          "reason": "handoff",
-          "nextAction": "Lead commits the reported cut; next family attached"
+          "runId": "run-20261127-e",
+          "agentId": "lead",
+          "at": "2026-11-27T01:46:25.617Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Native transport import fixed; residual 5 literals need widened composition scope"
         },
         "scopeRefinementRequired": false
       },
@@ -210770,7 +210978,7 @@
         "goalId": "G4",
         "owner": "talent",
         "kind": "migration",
-        "status": "ready_for_integration",
+        "status": "integrating",
         "title": "feature-recruit routes native execution",
         "scope": "Inventory feature-recruit routes. Port one bounded recruit/talent read/command to Rust domain/application/adapters/http with real SQL execution and prepare the exact deletion packet.",
         "workflowIds": [],
@@ -210786,7 +210994,14 @@
           "route:recruit"
         ],
         "nextAction": "Wave-3 talent application detail committed and mounted; delete GET branch and app re-exports next.",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261127-e",
+          "agentId": "worker-recruit",
+          "claimedAt": "2026-11-27T01:48:19.100Z",
+          "heartbeatAt": "2026-11-27T01:48:19.100Z",
+          "expiresAt": "2026-11-27T02:18:19.100Z",
+          "generation": 193
+        },
         "baseSha": null,
         "implementedCommit": "539935933f59419f35283c30460f023a9c2b5431",
         "lastPushedSha": "539935933f59419f35283c30460f023a9c2b5431",
@@ -210813,7 +211028,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261126-h",
           "agentId": "lead",
@@ -211755,7 +211970,7 @@
         "goalId": "G4",
         "owner": "maintenance",
         "kind": "migration",
-        "status": "ready_for_integration",
+        "status": "integrating",
         "title": "feature-maintenance routes native execution",
         "scope": "Inventory feature-maintenance routes and port one bounded read/command to Rust with real SQL execution and complete payload parity.",
         "workflowIds": [],
@@ -211771,7 +211986,14 @@
           "route:maintenance-feature"
         ],
         "nextAction": "Maintenance owner-options native slice committed and mounted; wire presenters and delete TS SELECT next.",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261127-e",
+          "agentId": "worker-maintenance",
+          "claimedAt": "2026-11-27T01:48:18.952Z",
+          "heartbeatAt": "2026-11-27T01:48:18.952Z",
+          "expiresAt": "2026-11-27T02:18:18.952Z",
+          "generation": 193
+        },
         "baseSha": null,
         "implementedCommit": "b9e69ba469b0ac06e6d633a40114574f5fa16b08",
         "lastPushedSha": "b9e69ba469b0ac06e6d633a40114574f5fa16b08",
@@ -211798,7 +212020,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261126-h",
           "agentId": "w-maintenance",
@@ -211952,11 +212174,11 @@
           "owner:agent",
           "route:agent-feature"
         ],
-        "nextAction": "Agent assistant-sources native slice committed and mounted; delete shared assistant GET and 17 re-exports next.",
+        "nextAction": "Mount native /assistant/view, repoint workspace-assistant-content GET, then delete workplace assistant GET + 17 app re-exports",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "b9e69ba469b0ac06e6d633a40114574f5fa16b08",
-        "lastPushedSha": "b9e69ba469b0ac06e6d633a40114574f5fa16b08",
+        "implementedCommit": "ee58b52d344f6fe51cda35cd1c5715ae5e85aedc",
+        "lastPushedSha": "ee58b52d344f6fe51cda35cd1c5715ae5e85aedc",
         "checks": [
           {
             "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
@@ -211977,17 +212199,35 @@
             "command": "cargo test -p erpx-server-agent --lib --locked",
             "result": "passed",
             "sourceSha": "b9e69ba469b0ac06e6d633a40114574f5fa16b08"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "ee58b52d344f6fe51cda35cd1c5715ae5e85aedc",
+            "note": "no agent-path deletions needed"
+          },
+          {
+            "command": "bun scripts/testing/test.ts unit tests/unit/agent/*.test.ts",
+            "result": "passed",
+            "sourceSha": "ee58b52d344f6fe51cda35cd1c5715ae5e85aedc",
+            "note": "15 files / 131 tests"
+          },
+          {
+            "command": "rg agent assistant route in allowed paths",
+            "result": "passed",
+            "sourceSha": "ee58b52d344f6fe51cda35cd1c5715ae5e85aedc",
+            "note": "no in-scope GET or 17 re-exports; all targets in workplace/apps"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-h",
-          "agentId": "w-agent",
-          "at": "2026-11-26T12:25:43.469Z",
+          "runId": "run-20261127-e",
+          "agentId": "worker-agent",
+          "at": "2026-11-27T01:48:04.370Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Agent assistant-sources native slice committed and mounted; delete shared assistant GET and 17 re-exports next."
+          "reason": "released with work preserved",
+          "nextAction": "Mount native /assistant/view, repoint workspace-assistant-content GET, then delete workplace assistant GET + 17 app re-exports"
         },
         "scopeRefinementRequired": false
       },
@@ -215648,16 +215888,16 @@
       "statusCounts": {
         "pending": 14,
         "in_progress": 0,
-        "ready_for_integration": 146,
-        "integrating": 0,
+        "ready_for_integration": 143,
+        "integrating": 3,
         "migrated": 369,
         "blocked": 1915,
         "deferred": 2,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 192,
-    "updatedAt": "2026-11-27T00:20:41.319Z",
+    "lastCoordinatorGeneration": 193,
+    "updatedAt": "2026-11-27T01:52:43.088Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
@@ -215692,10 +215932,10 @@
       }
     },
     "lastRecovery": {
-      "previousRunId": "run-20261127-c",
-      "runId": "run-20261127-d",
-      "at": "2026-11-27T00:20:34.238Z",
-      "reason": "Continue migration wave; no active task claims.",
+      "previousRunId": "run-20261127-d",
+      "runId": "run-20261127-e",
+      "at": "2026-11-27T01:33:06.433Z",
+      "reason": "parallel hy4 flash workers",
       "wipReviewed": true,
       "previousRunStopped": true
     },
