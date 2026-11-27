@@ -4,7 +4,20 @@
     "support",
     "service-teams",
     "pms/reports",
-    "records/search"
+    "records/search",
+    "benefits",
+    "stock-transfers"
+  ],
+  "holdingPaths": [
+    { "method": "GET", "path": "customers" },
+    { "method": "GET", "path": "crm/activities" },
+    { "method": "POST", "path": "crm/activities" },
+    { "method": "GET", "path": "customer-duplicates" },
+    { "method": "POST", "path": "customer-duplicates" },
+    { "method": "GET", "path": "customer-notes" },
+    { "method": "POST", "path": "customer-notes" },
+    { "method": "GET", "path": "customer-identity" },
+    { "method": "POST", "path": "customer-identity" }
   ],
   "platform": [
     { "host": "admin.jesadakorn.com", "method": "GET", "path": "/api/v1/platform/operations" },
