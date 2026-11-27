@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15378,
+    "revision": 15383,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261127-f",
       "agentId": "lead",
       "startedAt": "2026-11-27T02:03:29.663Z",
-      "heartbeatAt": "2026-11-27T02:21:12.274Z",
-      "expiresAt": "2026-11-27T02:51:12.274Z",
+      "heartbeatAt": "2026-11-27T02:27:26.459Z",
+      "expiresAt": "2026-11-27T02:57:26.459Z",
       "generation": 194,
       "tokenHash": "2136d35f96e5dbde2109a42dc96f779f8467e46d2a31c4e5274930bdb3a6a99e"
     },
@@ -209993,7 +209993,7 @@
         "goalId": "G4",
         "owner": "collaboration",
         "kind": "migration",
-        "status": "integrating",
+        "status": "ready_for_integration",
         "title": "collaboration push route native execution",
         "scope": "Port one bounded push settings operation (settings read, subscription registration, preferences or device removal) to the Collaboration owner with domain/application/adapters/http, real Rust SQL execution and CQRS separation. Remove the TypeScript authority for that operation and prepare the exact route deletion packet.",
         "workflowIds": [],
@@ -210008,15 +210008,8 @@
           "owner:collaboration",
           "route:push"
         ],
-        "nextAction": "Push settings GET is native; subscribe/preferences/delete writes remain TS.",
-        "claim": {
-          "runId": "run-20261127-f",
-          "agentId": "worker-push",
-          "claimedAt": "2026-11-27T02:21:12.469Z",
-          "heartbeatAt": "2026-11-27T02:21:12.469Z",
-          "expiresAt": "2026-11-27T02:51:12.469Z",
-          "generation": 194
-        },
+        "nextAction": "Native push write commands required: implement POST/DELETE + session route, mount per Holding, then cut TS writes",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": "e703e5f9c7652c137184e16ca2ea59e8f6a67979",
         "lastPushedSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
@@ -210045,17 +210038,35 @@
             "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/collaboration/native-push-settings-parity.test.ts",
             "result": "passed",
             "sourceSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "89538a838ded5a0d973b90a5ca6af3ee1a322260",
+            "note": "no code changes"
+          },
+          {
+            "command": "vitest collaboration native push settings/read",
+            "result": "passed",
+            "sourceSha": "89538a838ded5a0d973b90a5ca6af3ee1a322260",
+            "note": "7 passed"
+          },
+          {
+            "command": "cargo check -p erpx-server-collaboration --locked",
+            "result": "passed",
+            "sourceSha": "89538a838ded5a0d973b90a5ca6af3ee1a322260",
+            "note": "no native write route exists yet"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261127-c",
-          "agentId": "lead",
-          "at": "2026-11-26T19:03:33.686Z",
+          "runId": "run-20261127-f",
+          "agentId": "worker-push",
+          "at": "2026-11-27T02:24:13.664Z",
           "previousStatus": "ready_for_integration",
           "reason": "released with work preserved",
-          "nextAction": "Push settings GET is native; subscribe/preferences/delete writes remain TS."
+          "nextAction": "Native push write commands required: implement POST/DELETE + session route, mount per Holding, then cut TS writes"
         },
         "scopeRefinementRequired": false
       },
@@ -210090,7 +210101,7 @@
         "goalId": "G4",
         "owner": "platform_administration",
         "kind": "migration",
-        "status": "integrating",
+        "status": "ready_for_integration",
         "title": "platform/admin feature routes native execution",
         "scope": "Inventory the feature-admin route package (32 shared handlers). Port one bounded admin or platform read/command family to Rust domain/application/adapters/http with real PostgreSQL execution, remove the TS authority for that family, and prepare the exact route-deletion packet. Do not touch other owners' server crates.",
         "workflowIds": [],
@@ -210105,15 +210116,8 @@
           "owner:platform_administration",
           "route:admin"
         ],
-        "nextAction": "Native Platform usage read committed and mounted; cut the feature-admin usage route and retire the TS projection after moving consumers.",
-        "claim": {
-          "runId": "run-20261127-f",
-          "agentId": "worker-admin",
-          "claimedAt": "2026-11-27T02:21:12.672Z",
-          "heartbeatAt": "2026-11-27T02:21:12.672Z",
-          "expiresAt": "2026-11-27T02:51:12.672Z",
-          "generation": 194
-        },
+        "nextAction": "Needs widened paths: native full UsageView mounted on Holding hosts + Agent quota adapters + feature-billing/workplace presenters + apps/admin/compat re-exports",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
         "lastPushedSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
@@ -210137,17 +210141,41 @@
             "command": "cargo test -p erpx-server-platform-administration --test native_platform_usage --locked",
             "result": "passed",
             "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "89538a838ded5a0d973b90a5ca6af3ee1a322260",
+            "note": "no changes"
+          },
+          {
+            "command": "vitest tests/unit/platform_administration",
+            "result": "passed-with-preexisting",
+            "sourceSha": "89538a838ded5a0d973b90a5ca6af3ee1a322260",
+            "note": "106 passed; 2 pre-existing"
+          },
+          {
+            "command": "cargo check -p erpx-server-platform-administration --locked",
+            "result": "passed",
+            "sourceSha": "89538a838ded5a0d973b90a5ca6af3ee1a322260",
+            "note": "no Rust changes"
+          },
+          {
+            "command": "native platform usage probes",
+            "result": "passed-with-gap",
+            "sourceSha": "89538a838ded5a0d973b90a5ca6af3ee1a322260",
+            "note": "Holding hosts 404; product hosts 503; native response is generationJobs only, not full UsageView"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-g",
-          "agentId": "lead",
-          "at": "2026-11-26T10:47:03.903Z",
+          "runId": "run-20261127-f",
+          "agentId": "worker-admin",
+          "at": "2026-11-27T02:27:06.242Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Native Platform usage read committed and mounted; cut the feature-admin usage route and retire the TS projection after moving consumers."
+          "reason": "released with work preserved",
+          "nextAction": "Needs widened paths: native full UsageView mounted on Holding hosts + Agent quota adapters + feature-billing/workplace presenters + apps/admin/compat re-exports"
         },
         "scopeRefinementRequired": false
       },
@@ -213538,8 +213566,8 @@
           "runId": "run-20261127-f",
           "agentId": "worker-identity",
           "claimedAt": "2026-11-27T02:21:13.043Z",
-          "heartbeatAt": "2026-11-27T02:21:13.043Z",
-          "expiresAt": "2026-11-27T02:51:13.043Z",
+          "heartbeatAt": "2026-11-27T02:27:26.459Z",
+          "expiresAt": "2026-11-27T02:57:26.459Z",
           "generation": 194
         },
         "baseSha": null,
@@ -213748,8 +213776,8 @@
           "runId": "run-20261127-f",
           "agentId": "worker-procurement",
           "claimedAt": "2026-11-27T02:21:12.859Z",
-          "heartbeatAt": "2026-11-27T02:21:12.859Z",
-          "expiresAt": "2026-11-27T02:51:12.859Z",
+          "heartbeatAt": "2026-11-27T02:27:26.459Z",
+          "expiresAt": "2026-11-27T02:57:26.459Z",
           "generation": 194
         },
         "baseSha": null,
@@ -216209,8 +216237,8 @@
       "statusCounts": {
         "pending": 14,
         "in_progress": 0,
-        "ready_for_integration": 142,
-        "integrating": 4,
+        "ready_for_integration": 144,
+        "integrating": 2,
         "migrated": 369,
         "blocked": 1915,
         "deferred": 2,
@@ -216218,7 +216246,7 @@
       }
     },
     "lastCoordinatorGeneration": 194,
-    "updatedAt": "2026-11-27T02:21:13.047Z",
+    "updatedAt": "2026-11-27T02:27:26.840Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
