@@ -11,14 +11,19 @@ import { HubShell } from "@erpx/feature-sales/components/customers/hub-shell";
 import { SalesDocumentsView, SalesPipelineView, SalesReportsView, SalesTodayView } from "@erpx/feature-sales/components/customers/sales-views";
 import { oasisDemoStagingEnabled } from "@erpx/contracts/holding-hosts";
 import OrderPage from "../commerce/orders/[id]/screen";
+import LeadPage from "../crm/[id]/screen";
 export const dynamic = "force-dynamic";
 export default async function Page({ params, searchParams }: { params: Promise<{ holdingSlug: string; id?: string }>; searchParams: Promise<HubQuery> }) {
   const { holdingSlug, id } = await params, actor = await requireWorkContext(holdingSlug), base = workspaceBase(publicScope(actor)), access = await salesCustomersAccess(actor), query = await searchParams;
   const requested = queryValue(query, "view"), defaultView = (["today", "pipeline", "documents"] as const).find(view => access[view]);
   const view = (requested || defaultView) as SalesView;
   if (!["today", "pipeline", "documents", "pricing", "reports"].includes(view) || !access[view]) forbidden();
-  if (view === "documents" && id && queryValue(query, "print") === "1" && oasisDemoStagingEnabled(process.env)) {
-    return <OrderPage params={Promise.resolve({ holdingSlug, id })} searchParams={Promise.resolve({ print: "1" })} />;
+  if (id && oasisDemoStagingEnabled(process.env)) {
+    const record = Promise.resolve({ holdingSlug, id });
+    if (view === "documents") {
+      return <OrderPage params={record} searchParams={Promise.resolve({ print: queryValue(query, "print") })} />;
+    }
+    if (view === "pipeline") return <LeadPage params={record} />;
   }
   if(view==='pricing')redirect(routeContextHref(`${base}/commerce`,query,{view:'pricing'}));
   const props = { actor, base, query: { ...query, view } };
