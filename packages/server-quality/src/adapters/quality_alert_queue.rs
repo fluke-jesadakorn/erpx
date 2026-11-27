@@ -36,17 +36,17 @@ const RECIPIENT: &str = "m.company_id=h.company_id \
 /// ever concatenated into it.
 pub fn quality_alert_queue_sql() -> String {
     format!(
-        "SELECT a.id,a.hold_id,a.phase,a.source_version,h.version hold_version,\
-a.due_date::text due_date,a.detected_at,a.version,a.acknowledged_by,a.acknowledged_at,a.reason,\
-h.company_id,h.branch_id,h.status,p.name product_name,w.name warehouse_name,\
-CASE WHEN EXISTS(SELECT 1 FROM ({}) m WHERE {} AND m.user_id=$1) THEN 1 ELSE 0 END can_ack,\
-(SELECT COUNT(DISTINCT m.user_id) FROM ({}) m WHERE {}) recipients\
- FROM inventory_quality_alerts a\
- JOIN inventory_quality_holds h ON h.id=a.hold_id\
- JOIN ({}) p ON p.id=h.product_id AND p.company_id=h.company_id\
- JOIN ({}) w ON w.id=h.warehouse_id AND w.company_id=h.company_id\
- WHERE h.company_id=$2 AND ($3::text IS NULL OR h.branch_id=$3)\
- ORDER BY a.due_date,CASE WHEN a.phase='overdue' THEN 0 ELSE 1 END,a.id LIMIT 1001",
+        "SELECT a.id,a.hold_id,a.phase,a.source_version,h.version hold_version,
+                a.due_date::text due_date,a.detected_at,a.version,a.acknowledged_by,a.acknowledged_at,a.reason,
+                h.company_id,h.branch_id,h.status,p.name product_name,w.name warehouse_name,
+                CASE WHEN EXISTS(SELECT 1 FROM ({}) m WHERE {} AND m.user_id=$1) THEN 1::bigint ELSE 0 END can_ack,
+                (SELECT COUNT(DISTINCT m.user_id) FROM ({}) m WHERE {}) recipients
+         FROM inventory_quality_alerts a
+         JOIN inventory_quality_holds h ON h.id=a.hold_id
+         JOIN ({}) p ON p.id=h.product_id AND p.company_id=h.company_id
+         JOIN ({}) w ON w.id=h.warehouse_id AND w.company_id=h.company_id
+         WHERE h.company_id=$2 AND ($3::text IS NULL OR h.branch_id=$3)
+         ORDER BY a.due_date,CASE WHEN a.phase='overdue' THEN 0 ELSE 1 END,a.id LIMIT 1001",
         ASSIGNMENTS,
         RECIPIENT,
         ASSIGNMENTS,
@@ -54,6 +54,17 @@ CASE WHEN EXISTS(SELECT 1 FROM ({}) m WHERE {} AND m.user_id=$1) THEN 1 ELSE 0 E
         PRODUCTS,
         WAREHOUSES,
     )
+}
+
+#[cfg(test)]
+#[test]
+fn queue_sql_preserves_clause_spacing_and_acknowledgement_width() {
+    let statement = quality_alert_queue_sql();
+    let sql = statement.split_whitespace().collect::<Vec<_>>().join(" ");
+    assert!(sql.contains("THEN 1::bigint ELSE 0 END can_ack,"));
+    assert!(sql.contains("recipients FROM inventory_quality_alerts a JOIN inventory_quality_holds"));
+    assert!(sql.contains("w.company_id=h.company_id WHERE h.company_id=$2"));
+    assert!(sql.contains("h.branch_id=$3) ORDER BY a.due_date"));
 }
 
 fn invalid() -> BusinessError {
