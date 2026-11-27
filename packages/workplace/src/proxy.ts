@@ -12,7 +12,7 @@ import { productPageAllowed, productFrontBackofficeAllowed } from "@erpx/feature
 import { applicationUrl } from "@erpx/feature-runtime/lib/application-origins";
 import { consoleRetirementResponse } from "@erpx/feature-runtime/lib/console-retirement";
 import {prepareHoldingRequest,finishHoldingResponse,holdingRewriteUrl} from './holding-proxy';
-import {holdingRoutingEnabled,holdingHostForHost} from '@erpx/feature-runtime/lib/holding-hosts';
+import {holdingRoutingEnabled,holdingHostForHost,oasisDemoStagingEnabled} from '@erpx/feature-runtime/lib/holding-hosts';
 
 type ParsedScope = {
   holdingSlug: string;
@@ -64,6 +64,8 @@ function requestedPagePath(request: NextRequest) {
 // Proxy owns a separate invocation; nothing is shared with the route handler.
 // Origin/artifact guards remain fresh; byte-identical digest work is local.
 export async function holdingAwareProxy(request:NextRequest, registeredAppsPages: readonly string[] = []){
+  if (oasisDemoStagingEnabled(process.env) && /^(?:\/__erpx\/[^/]+)?\/(?:api|internal|sso)(?:\/|$)/.test(request.nextUrl.pathname))
+    return new NextResponse('Not Found\n', {status:404, headers:{'Cache-Control':'private, no-store', 'X-Robots-Tag':'noindex, nofollow'}});
   const prepared=await prepareHoldingRequest(request);
   if(prepared instanceof NextResponse)return prepared;
   if(prepared){

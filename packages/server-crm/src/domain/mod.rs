@@ -7,3 +7,4 @@ pub mod collaboration_lead;
 pub mod leads_native;
 pub mod native_command;
 pub mod pipeline;
+pub mod sales_report;

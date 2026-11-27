@@ -1,4 +1,5 @@
 import {customerNotificationReconciliationControls} from "@erpx/server-sales/public/sales-customer-notifications";
+import { oasisDemoStagingEnabled } from "@erpx/contracts/holding-hosts";
 import {landedCostPurchaseControls} from "@erpx/server-inventory/public/landed-cost-purchases";
 import { commercePurchaseControls, commerceReturnPurchaseControls } from "@erpx/server-commerce/public/purchase-controls";
 import { CommerceEnvironment, CommercePurchaseProvider } from "@erpx/feature-commerce/components/purchase-context";
@@ -55,13 +56,13 @@ export default async function OrderPage({
   const printing = query.print === "1";
   const actor = await requireWorkContext(holdingSlug);
   const base = workspaceBase(publicScope(actor));
+  const demo = oasisDemoStagingEnabled(process.env);
+  const readNative = () => nativeCommerceOrderPage(actor, id).catch((error) =>
+    pageError(error, holdingSlug),
+  );
+  const demoOrder = demo ? await readNative() : undefined;
   const data = await getOrder(actor, id).catch((error) => pageError(error, holdingSlug));
-  const nativeOrder =
-    data.order.kind === "purchase"
-      ? undefined
-      : await nativeCommerceOrderPage(actor, id).catch((error) =>
-          pageError(error, holdingSlug),
-        );
+  const nativeOrder = demo ? demoOrder : data.order.kind === "purchase" ? undefined : await readNative();
   const order = nativeOrder ? { ...data.order, ...nativeOrder.order } : data.order;
   const lines = nativeOrder ? nativeOrder.lines : data.lines;
   const nativeActor =
@@ -334,7 +335,7 @@ export default async function OrderPage({
             </p>
             <p className="muted">{String(order.note)}</p>
             {order.source_id && (
-              <Link href={canonicalUiHref(`${base}/commerce/orders/${order.source_id}`)}>Source quotation</Link>
+              <Link href={canonicalUiHref(`${base}/customers-sales/sales/documents/quote/${encodeURIComponent(String(order.source_id))}`)}>Source quotation</Link>
             )}
             {data.children.map((c) => (
               <UiActionLink appearance="standard"

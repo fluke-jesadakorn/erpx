@@ -509,6 +509,69 @@ impl<C: Clock + Send + Sync + 'static> CrmService<C> {
     }
 }
 
+impl<C: Clock + Send + Sync + 'static>
+    erpx_server_crm::public::sales_report_http::CrmSalesReportHttpBackend for CrmBackend<C>
+{
+    fn read<'a>(
+        &'a self,
+        request: erpx_server_crm::public::sales_report_http::CrmSalesReportHttpRequest<'a>,
+    ) -> erpx_server_crm::public::sales_report_http::CrmSalesReportHttpFuture<'a> {
+        use erpx_server_crm::public::sales_report::{SalesReportAccess, SalesReportScope, read_sales_report};
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            let clock = self.service.clock.clone();
+            let holding = self.service.configuration.holding.clone();
+            let company = self.service.company().clone();
+            self.service.authorizer.execute_with_sources_deferred(
+                request.host,
+                proof,
+                self.service.input(move || Ok(selection)),
+                CrmService::<C>::access(),
+                CrmSources,
+                move |connection, current| {
+                    let (clock, holding, company, query) = (clock.clone(), holding.clone(), company.clone(), request.query.clone());
+                    Box::pin(async move {
+                        let workspace = current.selection().workspace();
+                        if current.holding_id() != &holding || workspace.company_id != company {
+                            return Err(scope().into());
+                        }
+                        let now = clock.now();
+                        let catalogue = current_package_catalogue()?;
+                        let mut purchased = PgCompanyPurchaseReader::new(holding.clone(), company.clone(), connection, &catalogue);
+                        let purchase = purchased.inspect(&PurchaseRequest {
+                            capabilities: ["sales.crm", "sales.marketing", "sales.orders", "pms.reservations", "pms.guest-accounts", "finance.sales-posting", "finance.hotel-posting", "finance.accounting"].into_iter().map(str::to_owned).collect(),
+                            purpose: CapabilityPurpose::History,
+                            mode: PackageEnforcementMode::Enforced,
+                        }, now).await.map_err(business)?;
+                        let has = |capability| purchase.access.iter().any(|access| access.capability == capability && access.allowed_by_mode);
+                        let crm = has("sales.crm");
+                        let sales_orders = crm && has("sales.orders");
+                        let marketing = current.require_permission("records.read").is_ok()
+                            && current.modules().iter().any(|module| module == "marketing") && has("sales.marketing");
+                        let hotel = current.require_permission("pms.read").is_ok() && has("pms.reservations");
+                        let report = read_sales_report(connection, &SalesReportScope {
+                            company_id: company.as_str().to_owned(),
+                            branch_id: workspace.branch_id.as_ref().map(|id| id.as_str().to_owned()),
+                            department_id: workspace.department_id.as_ref().map(|id| id.as_str().to_owned()),
+                            sales_orders,
+                            access: SalesReportAccess {
+                                crm,
+                                marketing,
+                                hotel,
+                                sales_revenue: sales_orders && has("finance.sales-posting"),
+                                hotel_revenue: crm && hotel && has("pms.guest-accounts") && has("finance.hotel-posting"),
+                                costs: marketing && current.require_permission("finance.read").is_ok() && has("finance.accounting"),
+                                revision: purchase.revision.clone(),
+                            },
+                        }, query, now.get()).await?;
+                        Ok(serde_json::json!({ "data": report.report, "options": report.options, "context": context(current) }))
+                    })
+                },
+            ).await.map_err(business)
+        })
+    }
+}
+
 pub struct CrmBackend<C> {
     policy: Arc<AccountPolicy>,
     scopes: Arc<dyn BusinessScopeSlugs>,

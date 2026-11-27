@@ -237,6 +237,39 @@ server.on('upgrade',(req,socket,head)=>{if(req.url==='/cancelled-upgrade')append
 function compiledRouting(){
  return{schema:'erpx-compiled-routing/v1' as const,hosts:Object.fromEntries(appIds.map(id=>[`${id}.fixture.invalid`,id])),ports:Object.fromEntries(appIds.map((id,index)=>[id,id==='finance'?3298:3200+index]))};
 }
+
+it('routes only the OASIS walkthrough APIs to Rust and rejects foreign hosts, tenants and methods', async () => {
+  const {oasisDemoRouting, isOasisDemoRouting, selectOasisDemoTarget} = await import('../../../scripts/local/compiled-workspace-gateway');
+  const holding = 'oasisdreamhouse-demo.jesadakorn.com', account = 'account-oasisdreamhouse-demo.jesadakorn.com';
+  const base = '/api/v1/holdings/oasis-demo';
+  const target = (path: string, method = 'GET', host = holding) => selectOasisDemoTarget(host, path, method);
+  expect(isOasisDemoRouting({schema:oasisDemoRouting.schema})).toBe(true);
+  expect(isOasisDemoRouting({schema:oasisDemoRouting.schema, api:3101})).toBe(false);
+  expect(target('/')).toEqual({status:307, location:'/sales'});
+  expect(target('/sales/sales/documents/quote')).toMatchObject({port:3288, native:false});
+  expect(target('/__erpx/sales/_next/static/chunks/app.js')).toMatchObject({port:3288, native:false});
+  expect(target('/launch?app=sales')).toMatchObject({port:3288, native:false});
+  expect(target('/apps/work/actions')).toMatchObject({port:3289, native:false});
+  expect(target('/login', 'GET', account)).toMatchObject({port:3287, native:false});
+  for (const [host, method, path] of [
+    [account, 'POST', '/api/auth/sign-in/email'], [account, 'GET', '/sso/authorize'], [holding, 'GET', '/sso/start'],
+    [holding, 'GET', '/sso/callback'], [holding, 'POST', `${base}/assignments/active`], [holding, 'POST', `${base}/companies/active`],
+    [holding, 'POST', `${base}/crm/activities`], [holding, 'POST', `${base}/crm/activities/activity-1/changes`],
+    [holding, 'POST', `${base}/crm/leads/lead-1/changes`], [holding, 'POST', `${base}/crm/leads/lead-1/opportunity/changes`],
+    [holding, 'POST', `${base}/commerce/orders`], [holding, 'POST', `${base}/commerce/orders/order-1`],
+    [holding, 'GET', `${base}/commerce/orders/order-1`], [holding, 'POST', `${base}/commerce/orders/order-1/transition`],
+    [holding, 'GET', `${base}/reports/sales-crm`],
+  ]) expect(target(path!, method, host)).toMatchObject({port:3382, native:true, path});
+  expect(target(`/__erpx/sales${base}/branches/phuket/departments/sales/crm/activities?x=a%2Fb`, 'POST')).toEqual({
+    port:3382, native:true, path:`${base}/crm/activities?x=a%2Fb`, workspace:{branch:'phuket', department:'sales'}, workContext:true,
+  });
+  expect(target(`${base}/commerce/orders/order-1`, 'PATCH')).toEqual({status:405, allow:'GET, HEAD, POST'});
+  for (const path of ['/api/auth/sign-up/email', '/sso/authorize', '/api/v1/holdings/acme/crm/activities', `${base}/crm`,
+    `${base}/reports/crm-marketing`, `${base}/commerce/orders/order-1/fulfill`, `${base}/crm/leads/%2F/changes`,
+    '/internal/session-context', '/admin', '/__erpx/admin/_next/static/chunks/app.js', '/launch?app=admin']) expect(target(path)).toEqual({status:404});
+  expect(target('/sso/start', 'GET', account)).toEqual({status:404});
+  expect(target('/sales', 'GET', `${holding}.invalid`)).toEqual({status:421});
+});
 it('requires complete unique compiled app routing and rejects reserved ports before listening',async()=>{
  const {validateCompiledRouting,startCompiledWorkspaceGateway}=await import('../../../scripts/local/compiled-workspace-gateway');
  const routing=compiledRouting();expect(Object.keys(validateCompiledRouting(routing).ports)).toHaveLength(21);

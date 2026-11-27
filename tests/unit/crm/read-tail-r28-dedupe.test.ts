@@ -68,7 +68,7 @@ describe('crm read-tail r28 byte-identical read families', () => {
     expect(purchases).toContain('crmCaseEventReceiptWitnessSql');
     expect(purchases).toContain('SELECT 1 FROM command_receipts WHERE command_id=?');
     expect(purchases).toContain("crmSelectExprSql(\"jsonb_array_length(modules_json::jsonb)=0 OR modules_json::jsonb @> jsonb_build_array('marketing'::text)) allowed FROM assignments WHERE id=?\")");
-    for (const kind of ['crm_stmt_1', 'crm_stmt_4', 'crm_stmt_16', 'crm_stmt_17']) expect(leads).toContain(kind);
+    for (const kind of ['crm_stmt_1', 'crm_stmt_4', 'crm_stmt_17']) expect(leads).toContain(kind);
     expect(src('read-tail-r24-sql.ts')).toContain('export const crmCreatorLeadScopeSql');
     expect(src('read-tail-r25-sql.ts')).toContain('export const crmPurchaseRowProjection');
     expect(src('read-tail-r26-sql.ts')).toContain('export const crmCaseEventLeadReadSql');

@@ -146,6 +146,7 @@
     "lint": "eslint src"
   },
   "dependencies": {
+    "@erpx/contracts": "workspace:*",
     "@erpx/feature-commerce": "workspace:*",
     "@erpx/feature-crm": "workspace:*",
     "@erpx/feature-marketing": "workspace:*",

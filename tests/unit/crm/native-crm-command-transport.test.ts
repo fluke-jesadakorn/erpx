@@ -283,7 +283,10 @@ describe('native CRM command transport',()=>{
     expectedValue:'100',closeDate:'2026-11-30',reason:'Qualified'};
   const winPms={id:'lead-1',domain:'opportunity',action:'win-pms',expectedVersion:1,
     leadVersion:2,reservationId:'reservation-1',propertyId:'property-1',reason:'Won'};
+  const linkQuote={id:'lead-1',domain:'opportunity',action:'link-quote',expectedVersion:1,
+    leadVersion:2,quoteId:'quote-1',quoteVersion:3,reason:'Link approved quotation'};
   expect(nativeCrmCommandRequired(qualify)).toBe(true);
+  expect(nativeCrmCommandRequired(linkQuote)).toBe(true);
   expect(nativeCrmCommandRequired(winPms)).toBe(true);
   expect(nativeCrmCommandRequired({id:'lead-1',action:'disqualify'})).toBe(false);
   expect(nativeCrmCommandRequired({branchId:'branch',title:'New lead'})).toBe(false);
@@ -291,6 +294,8 @@ describe('native CRM command transport',()=>{
     .toBe(false);
   const transport=vi.fn();
   await expect(nativeCrmCommand(actor,'acme',qualify,'key-9',incoming(),transport))
+    .resolves.toBeUndefined();
+  await expect(nativeCrmCommand(actor,'acme',linkQuote,'key-10',incoming(),transport))
     .resolves.toBeUndefined();
   expect(transport).not.toHaveBeenCalled();
  });

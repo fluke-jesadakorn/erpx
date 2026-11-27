@@ -85,7 +85,7 @@ describe('crm read-tail r27 byte-identical read families', () => {
     expect(policy).toContain('${crmAccountCreatedByScopeSql}');
     expect(service).toContain('${crmAccountCreatedByScopeSql}');
     expect(service).toContain('UPDATE ${descriptor.table} SET version=version+1');
-    for (const kind of ['crm_stmt_1', 'crm_stmt_4', 'crm_stmt_16', 'crm_stmt_17']) expect(leads).toContain(kind);
+    for (const kind of ['crm_stmt_1', 'crm_stmt_4', 'crm_stmt_17']) expect(leads).toContain(kind);
     expect(purchases).toContain('LOCK TABLE crm_accounts,crm_contacts,crm_guest_links,crm_guest_sharing_events,crm_leads,crm_opportunities,crm_case_events,crm_lead_activities,crm_lead_activity_events IN SHARE ROW EXCLUSIVE MODE');
   });
 

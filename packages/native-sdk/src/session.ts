@@ -2,7 +2,7 @@ import 'server-only';
 import { Agent, request } from 'node:http';
 import { Readable } from 'node:stream';
 import type { AccountSessionResponse } from '@erpx/contracts/account-auth';
-import {contributorExactOrigin, accountDevelopmentOrigin} from '@erpx/contracts/holding-hosts';
+import {contributorExactOrigin, accountDevelopmentOrigin, oasisDemoHolding, type OriginProfile} from '@erpx/contracts/holding-hosts';
 import {allowedPrivateLoopbackPort} from './loopback';
 
 /** Explicit private transport and HTTPS public authority are separate contexts. */
@@ -11,7 +11,7 @@ export type NativeSessionClientConfiguration = Readonly<{
   accountOrigin: string;
   holdingOrigins: readonly string[];
   timeoutMs: number;
-  originProfile?: 'public' | 'contributor' | 'loopback';
+  originProfile?: OriginProfile;
   /** Explicit private production runtime opt-in; admits loopback 3101. */
   production?: boolean;
 }>;
@@ -26,7 +26,7 @@ export class NativeSessionReadError extends Error {
   }
 }
 const fail = (code: string, status?: number): never => { throw new NativeSessionReadError(code, status); };
-function exactOrigin(value: string, profile: 'public' | 'contributor' | 'loopback'): URL {
+function exactOrigin(value: string, profile: OriginProfile): URL {
   let url: URL;
   try { url = new URL(value); } catch { return fail('NATIVE_SESSION_CONFIGURATION_INVALID'); }
   if (profile === 'loopback') {
@@ -122,7 +122,10 @@ export function createNativeSessionClient(configuration: NativeSessionClientConf
     || configuration.holdingOrigins.length < 1 || configuration.holdingOrigins.length > 64
     || (configuration.production !== undefined && typeof configuration.production !== 'boolean')) return fail('NATIVE_SESSION_CONFIGURATION_INVALID');
   const profile=configuration.originProfile ?? 'public';
-  if (profile !== 'public' && profile !== 'contributor' && profile !== 'loopback') return fail('NATIVE_SESSION_CONFIGURATION_INVALID');
+  if (profile !== 'public' && profile !== 'contributor' && profile !== 'loopback' && profile !== 'oasis-demo-staging') return fail('NATIVE_SESSION_CONFIGURATION_INVALID');
+  if (profile === 'oasis-demo-staging' && (configuration.privateBaseUrl !== 'http://127.0.0.1:3382' ||
+    configuration.accountOrigin !== accountDevelopmentOrigin(profile) || configuration.holdingOrigins.length !== 1 ||
+    configuration.holdingOrigins[0] !== `https://${oasisDemoHolding.hostname}`)) return fail('NATIVE_SESSION_CONFIGURATION_INVALID');
   const origins = [configuration.accountOrigin, ...configuration.holdingOrigins].map(value => exactOrigin(value,profile));
   if (profile === 'contributor' && (configuration.accountOrigin !== accountDevelopmentOrigin(profile) || origins.slice(1).some(origin => contributorExactOrigin(origin.host, profile) !== origin.origin || origin.origin === configuration.accountOrigin))) return fail('NATIVE_SESSION_CONFIGURATION_INVALID');
   const hosts = new Set(origins.map(origin => origin.host));

@@ -102,12 +102,6 @@ const STATEMENTS: &[NativeStatement] = &[
         scope: "holding",
     }, // identities.ts
     NativeStatement {
-        kind: "crm_stmt_16",
-        sql: r#"UPDATE crm_opportunities SET quote_id=$1,quote_version=$2,expected_minor=(SELECT subtotal_minor FROM (SELECT "id","company_id","branch_id","department_id","kind","number","party_id","warehouse_id","currency","order_date","due_date","note","state","subtotal_minor","tax_minor","source_id","version","created_by","approved_by","created_at","updated_at","price_list_id","price_list_version","discount_reason","discount_approval_required","discount_approved_by","discount_approved_at" FROM commerce_orders) commerce_orders WHERE id=$3),stage='proposal',version=version+1,updated_at=$4 WHERE id=$5"#,
-        bind_count: 5,
-        scope: "holding",
-    }, // leads.ts (resolved commerce projection)
-    NativeStatement {
         kind: "crm_stmt_17",
         sql: r#"UPDATE crm_opportunities SET sales_id=$1,win_source='sales',won_at=$2,expected_minor=(SELECT subtotal_minor FROM (SELECT "id","company_id","branch_id","department_id","kind","number","party_id","warehouse_id","currency","order_date","due_date","note","state","subtotal_minor","tax_minor","source_id","version","created_by","approved_by","created_at","updated_at","price_list_id","price_list_version","discount_reason","discount_approval_required","discount_approved_by","discount_approved_at" FROM commerce_orders) commerce_orders WHERE id=$3),stage='won',version=version+1,updated_at=$4 WHERE id=$5"#,
         bind_count: 5,

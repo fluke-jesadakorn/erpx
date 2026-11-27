@@ -21,7 +21,9 @@ import {salesEditorOptions,type SalesEditorOptions} from "@erpx/server-commerce/
 import {salesPostingDocumentReadiness} from "@erpx/server-finance/public/sales-posting-setup";
 import { crmWorkspace } from "@erpx/server-crm/public/crm";
 import { crmIdentities } from "@erpx/server-crm/public/crm-identities";
-import { crmAnalytics, analyticsOptions, defaultAnalyticsRange } from "@erpx/server-crm/public/crm-marketing-report";
+import { analyticsOptions, crmAnalytics } from "@erpx/server-crm/public/crm-marketing-report";
+import { legacyCrmReportFilters, nativeCrmReport } from "../../public/native-crm-report";
+import { oasisDemoStagingEnabled } from "@erpx/contracts/holding-hosts";
 import { customerFollowupWorkspace } from "@erpx/server-sales/public/customer-followups";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { pricingWorkspace } from "@erpx/server-sales/public/sales-pricing";
@@ -47,6 +49,8 @@ export async function SalesTodayView({ actor, base, query }: { actor: WorkContex
 }
 export async function SalesPipelineView({ actor, base, query }: { actor: WorkContext; base: string; query: HubQuery }) {
   const native = await nativeCrmPipeline(actor, { q: queryValue(query, "q"), stage: queryValue(query, "stage"), cursor: queryValue(query, "cursor") || undefined });
+  if (!native && oasisDemoStagingEnabled(process.env))
+    throw new ApiError(503, "NATIVE_CRM_PIPELINE_UNAVAILABLE", "The native CRM pipeline is unavailable.");
   const data = native ? undefined : await crmWorkspace(actor), search = queryValue(query, "q").trim().toLowerCase(), stage = queryValue(query, "stage");
   const items = native ? native.items : data!.items.filter(row => (!stage || String(row.stage ?? row.status) === stage) && (!search || `${row.title} ${row.customer_name} ${row.owner_name}`.toLowerCase().includes(search))), rows = native ? items : hubPage(items, query);
   const canCreate = native ? native.canCreate : data!.canCreate, purchase = native ? native.purchase : data!.purchase;
@@ -64,14 +68,23 @@ export async function SalesPipelineView({ actor, base, query }: { actor: WorkCon
 export async function SalesDocumentsView({ actor, base, query }: { actor: WorkContext; base: string; query: HubQuery }) {
   const kind = queryValue(query, "type", "quote") === "sales" ? "sales" : "quote", status = queryValue(query, "status");
   const purchase = await commercePurchaseControls(actor, {type:"kind",kind});
-  // Only an unset native selector returns undefined; configured failures throw.
-  const page = (await nativeSalesDocuments(actor, kind, {q:queryValue(query,"q"),cursor:queryValue(query,"cursor")||undefined,status}, purchase?.history)) ?? await commerceSalesDocuments(actor, {view:kind,q:queryValue(query,"q"),cursor:queryValue(query,"cursor")||undefined,status});
+  const demo = oasisDemoStagingEnabled(process.env);
+  const nativePage = await nativeSalesDocuments(actor, kind, {
+    q: queryValue(query, "q"), cursor: queryValue(query, "cursor") || undefined, status,
+  }, purchase?.history);
+  if (!nativePage && demo)
+    throw new ApiError(503, "NATIVE_SALES_DOCUMENTS_UNAVAILABLE", "The native Sales documents are unavailable.");
+  const page = nativePage ?? await commerceSalesDocuments(actor, {
+    view: kind, q: queryValue(query, "q"), cursor: queryValue(query, "cursor") || undefined, status,
+  });
   const editing = queryValue(query, "edit");
   // The existing native Commerce public order port owns the selected document
   // facts and lines. `undefined` means its selector is unset, so only then is
   // the retained owner read used; a configured failure is never replaced.
-  const nativeDetail = editing ? await nativeCommerceOrderPage(actor, editing) : undefined,
-    detail = editing && !nativeDetail ? await getOrder(actor, editing) : null;
+  const nativeDetail = editing ? await nativeCommerceOrderPage(actor, editing) : undefined;
+  if (editing && !nativeDetail && demo)
+    throw new ApiError(503, "NATIVE_COMMERCE_ORDER_UNAVAILABLE", "The native Sales document is unavailable.");
+  const detail = editing && !nativeDetail ? await getOrder(actor, editing) : null;
   const documentOrder = nativeDetail?.order ?? detail?.order ?? null,
     documentLines = nativeDetail?.lines ?? detail?.lines;
   if (documentOrder && documentOrder.kind !== kind) throw new ApiError(404, "ORDER_NOT_FOUND", "Sales document is not available in this view.");
@@ -92,7 +105,16 @@ export async function SalesPricingView({ actor, base }: { actor: WorkContext; ba
   return <section className={styles.section}><SalesPricingConsole base={base} data={await pricingWorkspace(actor)} /></section>;
 }
 export async function SalesReportsView({ actor, base, query }: { actor: WorkContext; base: string; query: HubQuery }) {
-  const defaults = defaultAnalyticsRange(), raw = { from: queryValue(query, "from", defaults.from), to: queryValue(query, "to", defaults.to), branchId: queryValue(query, "branchId") || undefined, propertyId: queryValue(query, "propertyId") || undefined, campaignId: queryValue(query, "campaignId") || undefined, ownerId: queryValue(query, "ownerId") || undefined };
-  const [report, options] = await Promise.all([crmAnalytics(actor, raw), analyticsOptions(actor)]);
+  const filters = {
+    from: query.from === undefined ? undefined : queryValue(query, "from"),
+    to: query.to === undefined ? undefined : queryValue(query, "to"),
+    branchId: queryValue(query, "branchId") || undefined,
+    propertyId: queryValue(query, "propertyId") || undefined,
+    campaignId: queryValue(query, "campaignId") || undefined,
+    ownerId: queryValue(query, "ownerId") || undefined,
+  };
+  const [report, options] = oasisDemoStagingEnabled(process.env)
+    ? await nativeCrmReport(actor, filters).then(result => [result.data, result.options] as const)
+    : await Promise.all([crmAnalytics(actor, legacyCrmReportFilters(filters)), analyticsOptions(actor)]);
   return <section className={styles.section}><AnalyticsReport kind="crm" base={base} report={report} options={options} workspaceHref={canonicalUiHref(`${base}/sales?view=reports`)} /></section>;
 }

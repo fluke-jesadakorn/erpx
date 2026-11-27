@@ -1,4 +1,5 @@
-import { holdingRoutingEnabled } from "@erpx/contracts/holding-hosts";
+import { holdingRoutingEnabled, oasisDemoStagingEnabled } from "@erpx/contracts/holding-hosts";
+import { workspaceApiHref } from "@erpx/feature-work_projection/lib/workspace";
 import {AppsHomeLink} from "@erpx/workplace/components/product-link-context";
 import {productAccessLabel} from '@erpx/feature-work_projection/lib/product-access-label';
 import { preferredAccountLanguage } from "@erpx/server-identity_access/public/account-preference-snapshot";
@@ -12,6 +13,7 @@ import { ProductNavigationBoundary } from "@erpx/workplace/components/product-na
 import { ProductBrand } from "@erpx/feature-brand/components/product-brand";
 import { Button, Card, PageContent, Stack, InlineNotice } from "@erpx/ui/components/foundation";
 import styles from "@erpx/workplace/components/product-shell.module.css";
+import NativeRoleForm from "./native-role-form";
 
 export const dynamic = "force-dynamic";
 export default async function ProductWorkRolePage({ searchParams }: {
@@ -24,6 +26,7 @@ export default async function ProductWorkRolePage({ searchParams }: {
     typeof query.next === "string" ? query.next : null);
   if (!audience || !definition || !input) notFound();
   const launchAction = holdingRoutingEnabled(process.env) ? `/launch?${new URLSearchParams({app:audience})}` : "/launch";
+  const nativeSelection = oasisDemoStagingEnabled(process.env);
   const language = await preferredAccountLanguage((await cookies()).get("erpx_language")?.value === "th" ? "th" : "en"), th = language === "th";
   let data: Awaited<ReturnType<typeof productWorkRoleChoices>> | undefined;
   try { data = await productWorkRoleChoices(audience, input); }
@@ -46,6 +49,12 @@ export default async function ProductWorkRolePage({ searchParams }: {
         <p>{th ? "เลือกบทบาทที่จะใช้ในพื้นที่ทำงานนี้" : "Choose the role to use in this workspace."}</p>
         {query.notice === "access-changed" && <InlineNotice tone="warning">{th ? "สิทธิ์หรือบทบาทเปลี่ยนไป โปรดตรวจรายการล่าสุดและเลือกอีกครั้ง" : "Your access or selected role changed. Review the current choices and choose again."}</InlineNotice>}
         <div className={styles.grid}>{data.options.map(option => <Card appearance="standard" key={option.assignmentId}>
+          {nativeSelection ? <NativeRoleForm endpoint={workspaceApiHref(input.scope, 'assignments/active')}
+            next={productLaunchPath(input)} companyId={input.companyId} assignmentId={option.assignmentId}
+            assignmentVersion={option.assignmentVersion} revision={data.revision} locale={th ? 'th' : 'en'}>
+            <strong>{option.label}</strong>
+            {productAccessLabel(option,th?"th":"en")&&<span>{productAccessLabel(option,th?"th":"en")}</span>}
+          </NativeRoleForm> :
           <form method="post" action={launchAction}><Stack>
             <input type="hidden" name="companyId" value={input.companyId} />
             <input type="hidden" name="next" value={input.target} />
@@ -55,7 +64,7 @@ export default async function ProductWorkRolePage({ searchParams }: {
             <strong>{option.label}</strong>
             {productAccessLabel(option,th?"th":"en")&&<span>{productAccessLabel(option,th?"th":"en")}</span>}
             <div><Button appearance="standard" type="submit">{th ? "ใช้บทบาทนี้" : "Use this role"}</Button></div>
-          </Stack></form>
+          </Stack></form>}
         </Card>)}</div>
       </> : <InlineNotice tone="warning">{th ? "ไม่มีบทบาทและแพ็กเกจที่พร้อมใช้สำหรับหน้านี้ โปรดกลับไปเลือกพื้นที่ทำงาน" : "No current role and package can open this page. Return to Apps to choose a workspace."}</InlineNotice>}
     </Stack></PageContent>

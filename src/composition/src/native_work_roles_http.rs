@@ -36,12 +36,28 @@ struct RoleState<C> {
     clock: Arc<C>,
     targets: BTreeMap<(String, String), NativeWorkRoleTarget>,
 }
+#[derive(Clone, Copy)]
+enum RoleResponse {
+    Internal,
+    ActiveAssignments,
+    SelectedAssignment,
+}
 pub fn native_work_roles_router<C: Clock + Send + Sync + 'static>(
     policy: Arc<AccountPolicy>,
     registry: Arc<ConfiguredHoldingRegistry>,
     scopes: Arc<dyn BusinessScopeSlugs>,
     clock: Arc<C>,
     targets: Vec<NativeWorkRoleTarget>,
+) -> Result<Router, BusinessError> {
+    native_work_roles_router_with_selection(policy, registry, scopes, clock, targets, false)
+}
+pub(crate) fn native_work_roles_router_with_selection<C: Clock + Send + Sync + 'static>(
+    policy: Arc<AccountPolicy>,
+    registry: Arc<ConfiguredHoldingRegistry>,
+    scopes: Arc<dyn BusinessScopeSlugs>,
+    clock: Arc<C>,
+    targets: Vec<NativeWorkRoleTarget>,
+    public_selection: bool,
 ) -> Result<Router, BusinessError> {
     policy.validate()?;
     let mut configured = BTreeMap::new();
@@ -60,7 +76,7 @@ pub fn native_work_roles_router<C: Clock + Send + Sync + 'static>(
             ));
         }
     }
-    Ok(Router::new()
+    let router = Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/field-service/work-roles",
             get(read::<C>).post(write::<C>),
@@ -92,8 +108,21 @@ pub fn native_work_roles_router<C: Clock + Send + Sync + 'static>(
         .route(
             "/api/v1/holdings/{holding_slug}/field-service/work-roles/initialize",
             get(initialize::<C>),
-        )
-        .with_state(Arc::new(RoleState {
+        );
+    let router = if public_selection {
+        router
+            .route(
+                "/api/v1/holdings/{holding_slug}/assignments/active",
+                get(read_active::<C>).post(select_active::<C>),
+            )
+            .route(
+                "/api/v1/holdings/{holding_slug}/companies/active",
+                axum::routing::post(select_active_company::<C>),
+            )
+    } else {
+        router
+    };
+    Ok(router.with_state(Arc::new(RoleState {
             registry,
             policy,
             scopes,
@@ -110,12 +139,66 @@ fn input() -> BusinessError {
         "Use a role selection and its current revision.",
     )
 }
+fn company_required() -> BusinessError {
+    BusinessError::invalid("COMPANY_CONTEXT_REQUIRED", "Choose a Company.")
+}
+fn selection_cookie(name: &str, value: &str, max_age: u32) -> Result<HeaderValue, BusinessError> {
+    if !value.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.')) {
+        return Err(input());
+    }
+    HeaderValue::from_str(&format!(
+        "{name}={value}; Path=/; Max-Age={max_age}; HttpOnly; Secure; SameSite=Lax; Priority=High"
+    )).map_err(|_| input())
+}
+type RoleResult<T> = Result<T, PgTransactionError<BusinessError>>;
+
+fn option_href(option: &native_work_roles::NativeWorkRoleOption) -> String {
+    match (option.branch_slug.as_deref(), option.department_slug.as_deref()) {
+        (Some(branch), Some(department)) => format!("/{branch}/{department}/sales"),
+        (Some(branch), None) => format!("/{branch}/sales"),
+        (None, Some(department)) => format!("/departments/{department}/sales"),
+        (None, None) => "/sales".into(),
+    }
+}
+
+fn active_assignments(state: native_work_roles::NativeWorkRoleState) -> RoleResult<serde_json::Value> {
+    let options = state.options.iter().map(|option| {
+        let mut data = serde_json::to_value(option).map_err(|_| input())?;
+        data["href"] = serde_json::Value::String(option_href(option));
+        Ok(data)
+    }).collect::<Result<Vec<_>, BusinessError>>()?;
+    let revision = state.selection.as_ref().map_or(0, |selection| selection.revision);
+    let selected = state.selection.as_ref().filter(|_| state.valid);
+    Ok(serde_json::json!({
+        "valid": state.valid,
+        "options": options,
+        "revision": revision,
+        "assignmentVersion": selected.and_then(|s| s.assignment_version),
+        "assignmentId": selected.and_then(|s| s.assignment_id.as_deref()),
+        "companyId": state.company_id,
+        "userId": state.user_id,
+    }))
+}
+fn selected_assignment(state: native_work_roles::NativeWorkRoleState) -> RoleResult<(serde_json::Value, String)> {
+    let selected = state.selection.as_ref().ok_or_else(input)?;
+    let option = state.options.iter()
+        .find(|option| Some(option.id.as_str()) == selected.assignment_id.as_deref())
+        .ok_or_else(input)?;
+    Ok((serde_json::json!({
+        "assignmentId": option.id,
+        "revision": selected.revision,
+        "href": option_href(option),
+        "companyId": state.company_id,
+        "userId": state.user_id,
+        "appliesToWorkspace": state.valid,
+    }), state.holding_id))
+}
 async fn read<C: Clock + Send + Sync + 'static>(
     State(s): State<Arc<RoleState<C>>>,
     Path(slug): Path<String>,
     headers: HeaderMap,
 ) -> Response {
-    run(s, slug, headers, Ok(WorkRoleAction::Restore), false).await
+    run(s, slug, headers, Ok(WorkRoleAction::Restore), false, RoleResponse::Internal).await
 }
 fn preference_service<C: Clock + Send + Sync + 'static>(
     s: &RoleState<C>,
@@ -219,9 +302,35 @@ async fn select_company<C: Clock + Send + Sync + 'static>(
     Path(slug): Path<String>,
     request: Request,
 ) -> Response {
+    respond(select_company_state(s, slug, request).await)
+}
+async fn select_active_company<C: Clock + Send + Sync + 'static>(
+    State(s): State<Arc<RoleState<C>>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = select_company_state(s, slug, request).await.and_then(|state| {
+        let company = state.company.ok_or_else(input)?.company_id;
+        let cookie = selection_cookie(&format!("erpx_company_{}", state.holding_id), &company, 31_536_000)?;
+        Ok((company, cookie))
+    });
+    match result {
+        Ok((company, cookie)) => {
+            let mut response = respond(Ok(serde_json::json!({"companyId": company})));
+            response.headers_mut().append(header::SET_COOKIE, cookie);
+            response
+        }
+        Err(error) => respond::<serde_json::Value>(Err(error)),
+    }
+}
+async fn select_company_state<C: Clock + Send + Sync + 'static>(
+    s: Arc<RoleState<C>>,
+    slug: String,
+    request: Request,
+) -> Result<crate::native_account_preferences::NativeAccountPreferences, PgTransactionError<BusinessError>> {
     let (parts, body) = request.into_parts();
     let headers = parts.headers;
-    let result: Result<_, PgTransactionError<BusinessError>> = async {
+    async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
         let target = s.targets.get(&(host.into(), slug)).ok_or_else(missing)?;
         let inbound = parse_inbound_account_request(&s.policy, &headers)?;
@@ -275,8 +384,7 @@ async fn select_company<C: Clock + Send + Sync + 'static>(
             .select_company(host.into(), inbound.into_proof(), company.into(), lineage)
             .await
     }
-    .await;
-    respond(result)
+    .await
 }
 async fn read_companies<C: Clock + Send + Sync + 'static>(
     State(s): State<Arc<RoleState<C>>>,
@@ -412,19 +520,41 @@ async fn current<C: Clock + Send + Sync + 'static>(
     Path(slug): Path<String>,
     headers: HeaderMap,
 ) -> Response {
-    run(s, slug, headers, Ok(WorkRoleAction::Inspect), false).await
+    run(s, slug, headers, Ok(WorkRoleAction::Inspect), false, RoleResponse::Internal).await
 }
 async fn initialize<C: Clock + Send + Sync + 'static>(
     State(s): State<Arc<RoleState<C>>>,
     Path(slug): Path<String>,
     headers: HeaderMap,
 ) -> Response {
-    run(s, slug, headers, Ok(WorkRoleAction::Initialize), false).await
+    run(s, slug, headers, Ok(WorkRoleAction::Initialize), false, RoleResponse::Internal).await
+}
+async fn read_active<C: Clock + Send + Sync + 'static>(
+    State(s): State<Arc<RoleState<C>>>,
+    Path(slug): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    run(s, slug, headers, Ok(WorkRoleAction::Inspect), false, RoleResponse::ActiveAssignments).await
+}
+async fn select_active<C: Clock + Send + Sync + 'static>(
+    State(s): State<Arc<RoleState<C>>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    write_role(s, slug, request, RoleResponse::SelectedAssignment).await
 }
 async fn write<C: Clock + Send + Sync + 'static>(
     State(s): State<Arc<RoleState<C>>>,
     Path(slug): Path<String>,
     request: Request,
+) -> Response {
+    write_role(s, slug, request, RoleResponse::Internal).await
+}
+async fn write_role<C: Clock + Send + Sync + 'static>(
+    s: Arc<RoleState<C>>,
+    slug: String,
+    request: Request,
+    response_kind: RoleResponse,
 ) -> Response {
     let (parts, body) = request.into_parts();
     // Bounded input; the role actor is always resolved from the native Account proof.
@@ -434,7 +564,9 @@ async fn write<C: Clock + Send + Sync + 'static>(
             std::str::from_utf8(&bytes).map_err(|_| input())?,
         )?;
         let raw: serde_json::Value = serde_json::from_str(parsed.as_str()).map_err(|_| input())?;
-        if raw.get("action").and_then(|v| v.as_str()) == Some("initialize") {
+        if matches!(response_kind, RoleResponse::Internal)
+            && raw.get("action").and_then(|v| v.as_str()) == Some("initialize")
+        {
             return Ok(WorkRoleAction::Initialize);
         }
         let assignment = raw
@@ -469,7 +601,7 @@ async fn write<C: Clock + Send + Sync + 'static>(
         })
     }
     .await;
-    run(s, slug, parts.headers, action, true).await
+    run(s, slug, parts.headers, action, true, response_kind).await
 }
 async fn run<C: Clock + Send + Sync + 'static>(
     s: Arc<RoleState<C>>,
@@ -477,6 +609,7 @@ async fn run<C: Clock + Send + Sync + 'static>(
     headers: HeaderMap,
     action: Result<WorkRoleAction, BusinessError>,
     mutation: bool,
+    response_kind: RoleResponse,
 ) -> Response {
     let result: Result<_, PgTransactionError<BusinessError>> = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
@@ -496,15 +629,33 @@ async fn run<C: Clock + Send + Sync + 'static>(
             )
             .into());
         }
-        let company =
-            unique_request_header(&headers, "x-erpx-context-company")?.ok_or_else(|| {
-                BusinessError::invalid("COMPANY_CONTEXT_REQUIRED", "Choose a Company.")
-            })?;
+        let proof = inbound.into_proof();
+        let selected_company = unique_request_header(&headers, "x-erpx-context-company")?;
+        let company = if let Some(company) = selected_company {
+            CompanyId::new(company)?
+        } else if matches!(response_kind, RoleResponse::Internal) {
+            return Err(company_required().into());
+        } else {
+            let preferences = preference_service(&s, target)
+                .read(host.into(), proof.clone())
+                .await?;
+            if let Some(company) = preferences.company {
+                CompanyId::new(company.company_id)?
+            } else {
+                let companies = native_work_roles::companies(
+                    &target.inspector, host, proof.clone(), s.clock.clone(),
+                ).await?;
+                let [company] = companies.companies.as_slice() else {
+                    return Err(company_required().into());
+                };
+                CompanyId::new(company.id.clone())?
+            }
+        };
         let (branch_slug, department_slug) = s.scopes.slugs(&headers)?;
         // Selectors are untrusted. Identity/Organization verify the exact current
         // Company and hierarchy inside the retained authenticated Holding unit.
         let request = HoldingWorkspaceRequest {
-            company_id: CompanyId::new(company)?,
+            company_id: company,
             branch_slug,
             department_slug,
             expected: None,
@@ -513,7 +664,7 @@ async fn run<C: Clock + Send + Sync + 'static>(
         native_work_roles::execute(
             &target.inspector,
             host,
-            inbound.into_proof(),
+            proof,
             request,
             s.clock.clone(),
             action?,
@@ -521,7 +672,23 @@ async fn run<C: Clock + Send + Sync + 'static>(
         .await
     }
     .await;
-    respond(result)
+    match response_kind {
+        RoleResponse::Internal => respond(result),
+        RoleResponse::ActiveAssignments => respond(result.and_then(active_assignments)),
+        RoleResponse::SelectedAssignment => match result.and_then(selected_assignment) {
+            Ok((data, holding)) => {
+                let mut response = respond(Ok(data));
+                for prefix in ["erpx_assignment_", "erpx_role_preference_"] {
+                    match selection_cookie(&format!("{prefix}{holding}"), "", 0) {
+                        Ok(cookie) => { response.headers_mut().append(header::SET_COOKIE, cookie); }
+                        Err(error) => return respond::<serde_json::Value>(Err(error.into())),
+                    }
+                }
+                response
+            }
+            Err(error) => respond::<serde_json::Value>(Err(error)),
+        },
+    }
 }
 fn respond<T: serde::Serialize>(result: Result<T, PgTransactionError<BusinessError>>) -> Response {
     let mut response=match result{

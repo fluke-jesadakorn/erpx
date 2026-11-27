@@ -73,7 +73,7 @@ describe('crm read-tail r26 byte-identical read families', () => {
     expect(src('read-tail-r24-sql.ts')).toContain('export const crmCreatorLeadScopeSql');
     expect(src('read-tail-r25-sql.ts')).toContain('export const crmPurchaseRowProjection');
     expect(src('purchases.ts')).toContain('crmPurchaseRowProjection(');
-    for (const kind of ['crm_stmt_1', 'crm_stmt_4', 'crm_stmt_16', 'crm_stmt_17']) expect(leads).toContain(kind);
+    for (const kind of ['crm_stmt_1', 'crm_stmt_4', 'crm_stmt_17']) expect(leads).toContain(kind);
     for (const kind of ['crm_stmt_9', 'crm_stmt_11', 'crm_stmt_12', 'crm_stmt_15']) expect(identities).toContain(kind);
     for (const file of ['purchases.ts', 'marketing-package-obligations.ts', 'sales-package-obligations.ts']) {
       expect(src(file)).toContain('LOCK TABLE');

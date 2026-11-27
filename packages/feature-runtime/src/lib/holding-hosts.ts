@@ -1,7 +1,8 @@
-/** Runtime-only selection of an explicitly bounded development profile. */
+/** Runtime-only selection of an explicitly bounded origin profile. */
 import * as hosts from '@erpx/contracts/holding-hosts';
 export * from '@erpx/contracts/holding-hosts';
 export function originProfile(): hosts.OriginProfile {
+  if (hosts.oasisDemoStagingEnabled(process.env)) return 'oasis-demo-staging';
   if (process.env.NODE_ENV === 'development' && (process.env.NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE === 'loopback' || process.env.ERPX_NATIVE_ORIGIN_PROFILE === 'loopback')) return 'loopback';
   return process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE === 'container-localhost' ? 'contributor' : 'public';
 }
@@ -13,6 +14,7 @@ export function holdingHostForHost(host: string | null | undefined) { return hos
 export function holdingHostForSlug(slug: string) { return hosts.holdingHostForSlug(slug, originProfile()); }
 export function holdingOrigin(slug: string) { return hosts.holdingOrigin(slug, originProfile()); }
 export function holdingAudience(host: string | null | undefined) { return hosts.holdingAudience(host, originProfile()); }
+export function parseHoldingRoute(holdingSlug: string, pathname: string) { return hosts.parseHoldingRoute(holdingSlug, pathname, originProfile()); }
 export function holdingUiUrl(value: string, company?: string) { return hosts.holdingUiUrl(value, company, originProfile()); }
 export function holdingPublicUiUrl(value: string) { return hosts.holdingPublicUiUrl(value, originProfile()); }
 export function holdingFrontUiUrl(value: string, app: 'pos'|'pms') { return hosts.holdingFrontUiUrl(value, app, originProfile()); }

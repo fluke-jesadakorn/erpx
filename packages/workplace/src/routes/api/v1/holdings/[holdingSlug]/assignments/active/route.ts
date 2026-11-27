@@ -1,3 +1,4 @@
+import { oasisDemoStagingEnabled } from '@erpx/contracts/holding-hosts';
 import type { RouteContext } from "@erpx/contracts/next-routes";
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { NextResponse } from 'next/server';
@@ -8,9 +9,11 @@ import { selectNativeWorkRole } from "@erpx/server-work_projection/public/work-r
 import { ApiError,errorResponse } from "@erpx/server-runtime/public/http";
 const schema=z.object({assignmentId:z.string().min(1).max(128),revision:z.number().int().nonnegative()});
 export async function GET(_request:Request,context:RouteContext<'/api/v1/holdings/[holdingSlug]/assignments/active'>){
+ if (oasisDemoStagingEnabled(process.env)) return errorResponse(new ApiError(404,'NOT_FOUND','Not found.'));
  try{const state=await workRoleOptions((await context.params).holdingSlug);return NextResponse.json(canonicalDestinationLinks({data:{valid:!!state.selection && state.selection.expires_at>Date.now() && state.options.some(a=>a.id===state.selection!.assignment_id && a.version===state.selection!.assignment_version && assignmentApplies(a,state.access.scope)),options:state.options,revision:state.selection?.revision??0,assignmentVersion:state.selection?.assignment_version??null,assignmentId:state.selection?.assignment_id??null,companyId:state.access.scope.companyId,userId:state.access.userId}}),{headers:{'Cache-Control':'private, no-store'}});}catch(e){return errorResponse(e);}
 }
 export async function POST(request:Request,context:RouteContext<'/api/v1/holdings/[holdingSlug]/assignments/active'>){
+ if (oasisDemoStagingEnabled(process.env)) return errorResponse(new ApiError(404,'NOT_FOUND','Not found.'));
  try {
  const input=schema.parse(await request.json()),state=await workRoleOptions((await context.params).holdingSlug);
  const a=state.options.find(a=>a.id===input.assignmentId);

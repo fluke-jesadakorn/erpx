@@ -1,0 +1,50 @@
+# OASIS Dream House และเดโม ERPX สำหรับสัมภาษณ์
+
+ตรวจเมื่อ 27 พฤศจิกายน 2026 จากเว็บไซต์บริษัทและประกาศที่นายจ้างลงเอง
+
+- OASIS ทำครัวและเฟอร์นิเจอร์บิลต์อินตามขนาดที่ภูเก็ต บริษัทอธิบายขั้นตอนเป็นปรึกษา วัดหน้างาน ออกแบบ 3D และเสนอราคา ผลิตตามสั่ง แล้วติดตั้งและตรวจรับ ราคาขึ้นอยู่กับขนาด วัสดุ และฮาร์ดแวร์ [OASIS Kitchen](https://oasisdreamhouse.com/en/products/kitchen) · [FAQ ของ OASIS](https://oasisdreamhouse.com/en/faq)
+- แบบฟอร์มขอราคาเก็บงบ หมวดสินค้าที่สนใจ และรายละเอียดโครงการ เว็บไซต์ระบุว่าจะให้ใบเสนอราคาเฉพาะโครงการภายใน 24 ชั่วโมง ควรถามว่าทีมส่งอะไรในช่วงนั้น และขนาดใดต้องรอวัด [แบบฟอร์มขอราคา](https://oasisdreamhouse.com/th/quote)
+- ประกาศระบุงาน ERP ใบเสนอราคา แดชบอร์ด การส่งต่อข้อมูลระหว่างฝ่ายขาย ดีไซน์ ออร์เดอร์ และหลังการขาย รวมถึงคู่มืออบรมและการวัดผลคอนเทนต์ ข้อมูลสาธารณะยังไม่ยืนยันว่าทีมใช้ระบบภายในอะไรหรือรับออร์เดอร์ผ่านช่องทางใดอยู่จริง [ประกาศ AI Specialist](https://www.jobjeen.com/th/job/2150)
+
+## บทพูดในห้องสัมภาษณ์
+
+> When a customer asks for a kitchen quote, what do you send within the first 24 hours, and what has to wait for the site measurement?
+
+ใช้ ERPX แสดงการรับงานและควบคุมใบเสนอราคา ใช้ OASIS AI Deal-Closer แสดงการลองวัสดุบนแบบ 3D การทำภาพ และสื่อโฆษณา เปิดแต่ละเดโมในแท็บของตัวเอง [OASIS AI Deal-Closer](http://localhost:3218/)
+
+## เคส Phuket Villa – Kitchen A
+
+1. เปิด lead ที่มีบรีฟภาษาอังกฤษ งบ 90,000 บาท หน้าบานวอลนัท และท็อปควอตซ์ ใช้ `Schedule lead activity` นัดวัดโดยมอบหมายให้ Kitchen sales manager ใช้อีกบัญชีบันทึกผลวัดตัวอย่างว่าผนังยาว 3.6 ม. และท็อปยาว 2.4 ม.
+2. เลือก Andaman Villa Demo Customer ใน `New quotation` ใส่ตู้ล่าง 2 ชุด ชุดละ 18,500 บาท ท็อป 2.4 ม. เมตรละ 7,500 บาท และค่าติดตั้ง 12,000 บาท ใช้ยอดสมมติ 67,000 บาทพร้อมระบุในหมายเหตุว่าใช้สาธิต
+3. ให้ผู้สัมภาษณ์เปลี่ยนตู้ล่างเป็น 3 ชุด กดบันทึกแล้วเปิดใบเดิม ยอดตัวอย่างต้องเป็น 85,500 บาทและเลข QT ต้องเดิม
+4. ให้ฝ่ายขายส่งอนุมัติ แล้วผู้จัดการอีกบัญชีอนุมัติ เปิดงานเดิม เชื่อมใบที่อนุมัติกับ opportunity แล้วตรวจเลข QT และสถานะจากทั้งสองบัญชี ทดสอบเส้นทางเสริมด้วย Sales order จากใบเดิมเมื่อการอนุมัติผ่าน
+5. พิมพ์ PDF จากใบจริงและเก็บคลิป 60–90 วินาทีที่เห็นการแก้จำนวน ยอดหลังโหลดใหม่ และการอนุมัติ ใช้ข้อมูลสมมติทั้งหมด
+
+## ข้อมูลสำหรับซ้อม
+
+คำสั่งเตรียมสร้างฐาน PostgreSQL แยก พร้อม lead สำหรับซ้อมและ lead สำหรับนำเสนอ โดยตั้งต้นก่อนนัดวัดหรือสร้างเอกสาร
+
+```sh
+ERPX_BROWSER_SIMULATION_OASIS_INTERVIEW=1 bun run demo:prepare
+bun run demo:start -- <run-id>
+```
+
+ผลการเตรียมระบุตำแหน่ง `demo-guide.json` และ `credentials.json` ของ run นั้น เลือกบทบาท Sales operator และ Sales manager จากบัญชีคนละคน การเตรียมฐานเสร็จยืนยันได้ถึงข้อมูลตั้งต้น ให้ตรวจหน้า Sales และคำสั่ง Axum ใน runtime ที่ผูกกับฐานเดียวกันก่อนอัดคลิป
+
+### ผลการซ้อมล่าสุด
+
+Run `27a0515d3e06` เตรียมข้อมูลสำเร็จและเปิดตัวรับ HTTP ที่ `127.0.0.1:3102` ได้ แต่ Next ตอบ HTTP 503 ที่ health และ sign-in ส่วน Axum ฝั่งฐานจำลองตอบ sign-in 200 และเดิน SSO ถึง callback สำหรับทั้งสองบัญชี ก่อนการอ่านบทบาทจาก `assignments/active` ได้ HTTP 404 จึงยังไม่มีหลักฐานการกดจากเบราว์เซอร์และยังไม่มี PDF หรือคลิปจากเคสนี้
+
+## Staging สำหรับ OASIS
+
+เดโมใช้ Sales, Apps และ Account ในชุด Next.js standalone และใช้ Axum สำหรับ SSO การเลือกบทบาท และ API ขายที่อยู่ในขอบเขตเดโม บัญชีทดสอบสองบทบาท ข้อมูลลูกค้า และราคาทั้งหมดเป็นข้อมูลสมมติ ฐานข้อมูลของชุดนี้ใช้ชื่อ `erpx_stage_oasis_demo_*` บน PostgreSQL เครื่องเดียวกัน
+
+เตรียม state ในโฟลเดอร์ใหม่ด้วย Bun 1.4.3 และ build จาก Git candidate ที่สะอาดด้วย Node.js 26.11.1 คำสั่งสร้างไฟล์บัญชีซ้อมใน state ที่อ่านได้เฉพาะเจ้าของเครื่อง
+
+```sh
+bun --conditions=react-server scripts/seed/oasis-demo-staging.ts provision /absolute/private/oasis-state
+bun scripts/local/prepare-workspace-release.ts --candidate=HEAD --oasis-demo
+node /absolute/oasis-release/stage/entry.mjs --release=/absolute/oasis-release --state=/absolute/private/oasis-state
+```
+
+จุดเริ่มทดสอบคือ `/sales?company=andaman-kitchen` ที่ Holding host `oasisdreamhouse-demo.jesadakorn.com` ระบบพาเข้าสู่ Account host และกลับมายัง Sales หลัง SSO ใช้ Sales operator สำหรับนัดวัด ออกใบเสนอราคา และส่งขออนุมัติ ใช้ Sales manager ในอีกโปรไฟล์เบราว์เซอร์สำหรับอนุมัติ ตรวจ PDF จากหน้าใบเสนอราคาที่พิมพ์ได้ของใบเดิมและตรวจตัวกรองวันที่กับเจ้าของใน Sales Reports ก่อนเปิดลิงก์ให้ผู้รับสมัคร

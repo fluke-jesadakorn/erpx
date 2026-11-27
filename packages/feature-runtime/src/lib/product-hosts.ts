@@ -1,37 +1,48 @@
 import { developmentProductOrigin, isProductHostKey, productIds, sharedHostKeys, type ProductHostKey } from "@erpx/server-commercial/public/product-registry";
 import { safeProductReturnPath } from "@erpx/contracts/product-return-path";
-import {holdingRoutingEnabled,holdingHostForHost,holdingOrigin,holdingUiUrl,holdingAudience,accountDevelopmentOrigin,holdingPublicUiUrl,holdingFrontUiUrl} from '@erpx/feature-runtime/lib/holding-hosts';
+import {holdingRoutingEnabled,holdingHostForHost,holdingOrigin,holdingUiUrl,holdingAudience,accountDevelopmentOrigin,holdingPublicUiUrl,holdingFrontUiUrl,oasisDemoStagingEnabled} from '@erpx/feature-runtime/lib/holding-hosts';
 
-export type ProductHostConfiguration = { routing: boolean; sso: boolean; environment: "development" | null };
+export type ProductHostConfiguration = { routing: boolean; sso: boolean; environment: "development" | "oasis-demo-staging" | null };
 export function productHostConfiguration(): ProductHostConfiguration {
   return {
     routing: process.env.ERPX_PRODUCT_ROUTING === "enabled",
     sso: process.env.ERPX_PRODUCT_SSO === "enabled",
-    environment: process.env.ERPX_PRODUCT_ENVIRONMENT === "development" && process.env.ERPX_ENVIRONMENT === "local" ? "development" : null,
+    environment: oasisDemoStagingEnabled(process.env) ? 'oasis-demo-staging' :
+      process.env.ERPX_PRODUCT_ENVIRONMENT === "development" && process.env.ERPX_ENVIRONMENT === "local" ? "development" : null,
   };
 }
-/** Exact, owned development origins only; no suffix/wildcard or future-origin trust. */
+function supportsRouting(config: ProductHostConfiguration) {
+  return config.routing && config.sso && (config.environment === 'development' ||
+    config.environment === 'oasis-demo-staging' && oasisDemoStagingEnabled(process.env) && holdingRoutingEnabled(process.env));
+}
+function demoProduct(key: string) { return key === 'account' || key === 'apps' || key === 'sales'; }
+
+/** Only explicitly registered origins qualify for product SSO. */
 export function productHostForHost(host: string | null, config = productHostConfiguration()): ProductHostKey | null {
-  if (!host || !config.routing || !config.sso || config.environment !== "development") return null;
+  if (!host || !supportsRouting(config)) return null;
   if (holdingRoutingEnabled(process.env)) {
     if (host === new URL(accountDevelopmentOrigin()).host) return 'account';
-    return holdingHostForHost(host) && isProductHostKey(process.env.ERPX_APP_ID ?? '') ? process.env.ERPX_APP_ID as ProductHostKey : null;
+    const key = process.env.ERPX_APP_ID ?? '';
+    return holdingHostForHost(host) && isProductHostKey(key) &&
+      (config.environment !== 'oasis-demo-staging' || key !== 'account' && demoProduct(key)) ? key : null;
   }
   for (const key of [...productIds, ...sharedHostKeys]) if (new URL(developmentProductOrigin(key)).host === host) return key;
   return null;
 }
 export function trustedProductOrigin(value: string, config = productHostConfiguration()): string | null {
-  if(!config.routing||!config.sso||config.environment!=='development')return null;
+  if(!supportsRouting(config))return null;
   let url: URL;
   try { url = new URL(value); } catch { return null; }
   if (url.protocol !== "https:" || url.username || url.password || url.pathname !== "/" || url.search || url.hash) return null;
   return (holdingRoutingEnabled(process.env) && holdingHostForHost(url.host)) || productHostForHost(url.host, config) ? url.origin : null;
 }
 export function configuredProductOrigin(key: string, config = productHostConfiguration(), holdingSlug?: string): string | null {
-  if (holdingRoutingEnabled(process.env) && key !== 'account') return holdingSlug && config.routing && config.sso && config.environment === 'development' ? holdingOrigin(holdingSlug) : null;
+  if (config.environment === 'oasis-demo-staging' && !demoProduct(key)) return null;
+  if (holdingRoutingEnabled(process.env) && key !== 'account') return holdingSlug && supportsRouting(config) ? holdingOrigin(holdingSlug) : null;
   return isProductHostKey(key) ? trustedProductOrigin(key === 'account' && holdingRoutingEnabled(process.env) ? accountDevelopmentOrigin() : developmentProductOrigin(key), config) : null;
 }
 export function requestProductOrigin(key: string, headers: Pick<Headers, 'get'>): string | null {
+  if (oasisDemoStagingEnabled(process.env) && !demoProduct(key)) return null;
   const holding = holdingRoutingEnabled(process.env) && holdingHostForHost(headers.get('host'));
   return key !== 'account' && holding ? holdingOrigin(holding.holdingSlug) : configuredProductOrigin(key);
 }
@@ -42,6 +53,7 @@ export function ssoAudienceForHost(host: string | null) {
 /** Authenticated GET navigation only. Re-enter through the central account
  * rather than silently keeping a different account's existing child cookie. */
 export function configuredProductHandoff(key: ProductHostKey, next = "/", config = productHostConfiguration()): string | null {
+  if (config.environment === 'oasis-demo-staging' && (!supportsRouting(config) || !demoProduct(key))) return null;
   if (holdingRoutingEnabled(process.env) && key !== 'account') {
     const nested = new URL(next, 'https://path.invalid');
     let target = nested.searchParams.get('next') ?? next;
@@ -57,7 +69,8 @@ export function configuredProductHandoff(key: ProductHostKey, next = "/", config
       entry.search = new URLSearchParams({app:key, ...Object.fromEntries(nested.searchParams), next:target}).toString();
       return entry.href;
     }
-    if (key === 'admin' && next.startsWith('/provider')) return new URL(next, holdingOrigin('erpx')!).href;
+    const providerOrigin = key === 'admin' && next.startsWith('/provider') ? holdingOrigin('erpx') : null;
+    if (providerOrigin) return new URL(next, providerOrigin).href;
     if(key==='apps'&&next==='/')return '/?organizations=open';
     return next === '/' ? '/' : next;
   }

@@ -1,5 +1,15 @@
 import {describe,it,expect,vi} from 'vitest';
 vi.mock('server-only',()=>({}));
+const orderFacts = vi.hoisted(() => vi.fn());
+vi.mock('@erpx/server-commerce/public/entrypoint-facts', () => ({
+  commerceEntrypointFacts: () => ({ orderFacts }),
+}));
+vi.mock('@erpx/server-runtime/public/runtime', () => ({
+  holdingResources: async () => ({ write: {} }),
+}));
+import { nativeCommerceOrderTransition } from '../../../packages/feature-sales/src/public/native-commerce-orders-page';
+import { crmAcknowledgement, createCRMCommandFetch } from '../../../packages/feature-crm/src/lib/command-fetch';
+import { crmCommandTransport } from '../../../packages/feature-crm/src/lib/oasis-command-transport';
 import {
   createNativeSalesDocumentsClient,
   createNativeSalesCancellationClient,
@@ -36,6 +46,89 @@ const context={userId:'user',holdingId:'h001',companyId:'company',branchId:null,
   assignmentVersion:3,revision:7,role:'owner',assignmentScopeKind:'holding',
   modules:['sales'],permissions:['commerce.read'],
   expiresAt:9_007_199_254_740_991};
+
+describe('Oasis demo Sales browser command transport', () => {
+  const origin = 'https://oasisdreamhouse-demo.jesadakorn.com';
+  const leadApi = '/api/v1/holdings/oasis-demo/branches/phuket/crm';
+
+  it('routes qualification and quotation linking to their typed CRM endpoints', () => {
+    const qualify = {
+      id: 'lead-1', action: 'qualify', expectedVersion: 2, reason: 'Site measured',
+      customerId: 'customer-1', expectedValue: '120000.00', closeDate: '2026-12-10',
+    };
+    const { id, ...qualifyBody } = qualify;
+    expect(crmCommandTransport(origin, leadApi, qualify, JSON.stringify(qualify))).toEqual({
+      path: `${leadApi}/leads/${id}/changes`,
+      body: JSON.stringify(qualifyBody),
+      receiptAtRoot: true,
+    });
+    const link = {
+      action: 'link-quote', expectedVersion: 1, leadVersion: 3,
+      reason: 'Approved price', quoteId: 'quote-1', quoteVersion: 5,
+    };
+    const selection = { id, domain: 'opportunity', ...link };
+    expect(crmCommandTransport(origin, leadApi, selection, JSON.stringify(selection))).toEqual({
+      path: `${leadApi}/leads/${id}/opportunity/changes`,
+      body: JSON.stringify(link),
+      receiptAtRoot: true,
+    });
+    expect(crmCommandTransport(origin, '/api/v1/holdings/acme/crm', qualify, JSON.stringify(qualify)))
+      .toBeUndefined();
+    expect(crmCommandTransport(`${origin}.invalid`, leadApi, qualify, JSON.stringify(qualify)))
+      .toEqual({ path: leadApi, body: JSON.stringify(qualify), receiptAtRoot: false });
+    expect(crmCommandTransport(origin, leadApi, { domain: 'identity' }, '{"domain":"identity"}'))
+      .toBeUndefined();
+  });
+
+  it('keeps activity form metadata outside the native completion body', () => {
+    const activityApi = `${leadApi}/activities`;
+    const completed = { action: 'complete', expectedVersion: 1, reason: 'Measured 3.6 m' };
+    const input = { id: 'activity-1', ...completed, ownerId: null, dueDate: null };
+    expect(crmCommandTransport(origin, activityApi, input, JSON.stringify(input))).toEqual({
+      path: `${activityApi}/activity-1/changes`,
+      body: JSON.stringify(completed),
+      receiptAtRoot: false,
+    });
+    const created = { leadId: 'lead-1', expectedVersion: 1, activityType: 'meeting',
+      subject: 'Kitchen survey', details: 'Check sockets and wall length',
+      ownerId: 'assignee', dueDate: '2026-12-01' };
+    expect(crmCommandTransport(origin, activityApi, created, JSON.stringify(created))).toEqual({
+      path: activityApi, body: JSON.stringify(created), receiptAtRoot: false,
+    });
+  });
+
+  it('clears a CRM attempt only when a receipt in the selected wire format is acknowledged', async () => {
+    const data = { id: 'lead-1', version: 2 };
+    const send = vi.fn().mockResolvedValueOnce(Response.json({ data })).mockResolvedValueOnce(Response.json(data));
+    const request = createCRMCommandFetch(send);
+    const url = `${leadApi}/leads/lead-1/changes`;
+    const init = { method: 'POST', body: '{"action":"qualify"}' };
+    await request(url, init, undefined, true);
+    expect(request.hasAttempt(url, init.body)).toBe(true);
+    const response = await request(url, init, undefined, true);
+    expect(crmAcknowledgement(await response.json(), true)).toEqual(data);
+    expect(request.hasAttempt(url, init.body)).toBe(false);
+    expect(send.mock.calls[1][1].headers.get('Idempotency-Key'))
+      .toBe(send.mock.calls[0][1].headers.get('Idempotency-Key'));
+  });
+});
+
+it('requires native authority for quote transitions and retains purchase dispatch', async () => {
+  vi.stubEnv('ERPX_NATIVE_COMMERCE_ORDER_CONFIG', undefined);
+  try {
+    const command = {action:'approve',expectedVersion:2} as const;
+    type Actor = Parameters<typeof nativeCommerceOrderTransition>[0];
+    orderFacts.mockResolvedValue({kind:'quote',state:'submitted'});
+    await expect(nativeCommerceOrderTransition(actor as Actor,'quote-1',command,'key-1'))
+      .rejects.toMatchObject({status:503,code:'NATIVE_COMMERCE_ORDER_UNAVAILABLE'});
+    orderFacts.mockResolvedValue({kind:'purchase',state:'submitted'});
+    await expect(nativeCommerceOrderTransition(actor as Actor,'purchase-1',command,'key-2'))
+      .resolves.toBeUndefined();
+  } finally {
+    orderFacts.mockReset();
+    vi.unstubAllEnvs();
+  }
+});
 const order={id:'order-1',company_id:'company',branch_id:'branch',department_id:null,
   kind:'quote',number:'QT-1',party_id:'customer',party_name:'Customer',state:'draft',
   order_date:'2026-11-04',due_date:'2026-11-18',currency:'THB',subtotal_minor:1000,

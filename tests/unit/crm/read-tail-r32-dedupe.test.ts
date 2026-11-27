@@ -61,7 +61,7 @@ describe('crm read-tail r32 byte-identical commerce-order read-head family', () 
     expect(purchases).toContain("crmSelectExprSql(\"jsonb_array_length(modules_json::jsonb)=0 OR modules_json::jsonb @> jsonb_build_array('marketing'::text)) allowed FROM assignments WHERE id=?\")");
     expect(purchases).toContain('export const crmAssignmentModuleExists=');
     expect(analytics).toContain('crmAssignmentScopeExistsSql');
-    for (const kind of ['crm_stmt_1', 'crm_stmt_4', 'crm_stmt_16', 'crm_stmt_17']) expect(ledger).toContain(kind);
+    for (const kind of ['crm_stmt_1', 'crm_stmt_4', 'crm_stmt_17']) expect(ledger).toContain(kind);
     for (const [file, token] of [
       ['read-tail-r24-sql.ts', 'export const crmCreatorLeadScopeSql'],
       ['read-tail-r25-sql.ts', 'export const crmPurchaseRowProjection'],

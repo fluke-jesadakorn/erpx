@@ -2270,3 +2270,86 @@ async fn lead_and_opportunity_require_exact_owner_even_for_identity_alias() {
         tx.rollback().await.unwrap();
     }).await;
 }
+
+#[tokio::test]
+async fn sales_report_preserves_bangkok_cohort_scope_and_source_availability() {
+    use erpx_server_crm::public::sales_report::{
+        SalesReportAccess, SalesReportQuery, SalesReportScope, read_sales_report,
+    };
+    use serde_json::json;
+
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        sqlx::raw_sql(
+            "INSERT INTO crm_accounts(id,company_id,kind,name,finance_party_id,reviewed_by,created_by,created_at,updated_at)
+             VALUES ('report-account','company','business','Report account','customer','reviewer','owner',1,1);
+             INSERT INTO crm_contacts(id,company_id,account_id,name,detail,created_by,created_at,updated_at)
+             VALUES ('report-contact','company','report-account','Report contact','Demo channel','owner',1,1);
+             UPDATE crm_leads SET account_id='report-account',contact_id='report-contact',
+               created_at=(extract(epoch FROM timestamp with time zone '2026-09-23 00:00:00+07')*1000)::bigint
+             WHERE id IN ('lead-discovery','lead-lost','lead-department','lead-other-branch');
+             UPDATE crm_leads SET created_at=created_at-1 WHERE id='lead-department';
+             UPDATE crm_leads SET owner_id='other-owner' WHERE id='lead-lost';
+             INSERT INTO crm_case_events(id,lead_id,opportunity_id,version,action,actor_id,reason,snapshot_json,created_at)
+              SELECT 'qualify-evidence',id,'opp-discovery',1,'qualify','owner','Review','{}'::jsonb,created_at
+              FROM crm_leads WHERE id='lead-discovery'
+              UNION ALL SELECT 'loss-evidence',id,'opp-lost',1,'lose','owner','Lost','{\"lossReason\":\"budget\"}'::jsonb,created_at+1
+              FROM crm_leads WHERE id='lead-lost';
+             INSERT INTO crm_lead_activities(id,company_id,lead_id,activity_type,subject,details,owner_id,due_date,created_by,created_at,updated_at)
+             VALUES ('site-survey','company','lead-discovery','meeting','Measure kitchen','Survey','owner','2026-09-22','owner',1,1);
+             INSERT INTO marketing_campaigns(id,company_id,code,name,created_by,created_at)
+             VALUES ('report-campaign','company','DEMO','Demo campaign','owner',1);
+             INSERT INTO marketing_touches(id,company_id,lead_id,campaign_id,source,evidence,source_kind,source_id,occurred_at,created_by)
+             VALUES ('report-touch','company','lead-discovery','report-campaign','Web','Synthetic','staff','lead-discovery',1,'owner');",
+        ).execute(pool.raw()).await.unwrap();
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        let now = sqlx::query_scalar::<_, i64>("SELECT (extract(epoch FROM timestamp with time zone '2026-09-23 10:00:00+07')*1000)::bigint")
+            .fetch_one(&mut *tx).await.unwrap();
+        let mut scope = SalesReportScope {
+            company_id: "company".into(), branch_id: Some("branch".into()), department_id: None,
+            sales_orders: true,
+            access: SalesReportAccess {
+                crm: true, marketing: false, hotel: false, sales_revenue: true, hotel_revenue: false,
+                costs: false, revision: "report-revision".into(),
+            },
+        };
+        let query = SalesReportQuery {
+            from: Some("2026-09-23".into()), to: Some("2026-09-23".into()), ..Default::default()
+        };
+        let view = read_sales_report(&mut tx, &scope, query.clone(), now).await.unwrap();
+        let values: Vec<_> = view.report["metrics"].as_array().unwrap().iter()
+            .map(|metric| (metric["id"].as_str().unwrap(), metric["value"].clone())).collect();
+        assert_eq!(values, [
+            ("received", json!(2)), ("qualified", json!(1)), ("won", json!(0)), ("lost", json!(1)),
+            ("conversion", json!(0.0)), ("overdue", json!(1)), ("repeat", json!(0)),
+            ("forecast", json!(999)), ("booked", json!(0)), ("recognized", json!(0)),
+        ]);
+        assert_eq!(view.report["lossReasons"], json!([{"reason":"budget","count":1,"leadIds":["lead-lost"]}]));
+        assert_eq!(view.options["branches"], json!([{"id":"branch","name":"Branch"}]));
+        assert_eq!(view.options["campaigns"], json!([]));
+        assert_eq!(view.options["properties"], json!([]));
+        let report = view.report.to_string();
+        assert!(!report.contains("lead-department") && !report.contains("lead-other-branch"));
+        assert_eq!(view.report["filters"], json!({"from":"2026-09-23","to":"2026-09-23"}));
+        let owner = read_sales_report(&mut tx, &scope, SalesReportQuery { owner_id: Some("owner".into()), ..query.clone() }, now)
+            .await.unwrap();
+        assert_eq!(owner.report["metrics"][0]["drilldown"], json!(["lead-discovery"]));
+        let owner_defaults = read_sales_report(&mut tx, &scope, SalesReportQuery::default(), now).await.unwrap();
+        assert_eq!(owner_defaults.report["filters"], json!({"from":"2026-08-24","to":"2026-09-23"}));
+        for (request, code) in [
+            (SalesReportQuery { from: Some("2026-02-31".into()), ..query.clone() }, "CRM_SALES_REPORT_REQUEST_INVALID"),
+            (SalesReportQuery { from: Some("2026-09-24".into()), ..query.clone() }, "REPORT_DATE_RANGE"),
+            (SalesReportQuery { branch_id: Some("other-branch".into()), ..query.clone() }, "REPORT_SCOPE"),
+            (SalesReportQuery { campaign_id: Some("report-campaign".into()), ..query.clone() }, "REPORT_FILTER_UNAVAILABLE"),
+        ] {
+            assert_eq!(business(read_sales_report(&mut tx, &scope, request, now).await.unwrap_err()).code, code);
+        }
+        scope.access.marketing = true;
+        let campaign = read_sales_report(&mut tx, &scope, SalesReportQuery { campaign_id: Some("report-campaign".into()), ..query }, now)
+            .await.unwrap();
+        assert_eq!(campaign.report["metrics"][0]["drilldown"], json!(["lead-discovery"]));
+        assert_eq!(campaign.options["campaigns"], json!([{"id":"report-campaign","name":"Demo campaign"}]));
+        tx.rollback().await.unwrap();
+    }).await;
+}

@@ -60,7 +60,7 @@ export const NATIVE_CRM_OPPORTUNITY_ACTIONS = new Set([
  */
 export function nativeCrmCommandRequired(input: unknown): boolean {
   if (!record(input)) return false;
-  if (input.domain === 'opportunity') return input.action === 'win-pms';
+  if (input.domain === 'opportunity') return input.action === 'link-quote' || input.action === 'win-pms';
   if (input.domain !== undefined) return false;
   return input.action === 'qualify';
 }

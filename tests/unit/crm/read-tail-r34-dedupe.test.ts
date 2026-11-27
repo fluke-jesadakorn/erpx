@@ -78,7 +78,7 @@ describe('crm read-tail r34 byte-identical owned-source row-head family', () => 
     expect(rp).toContain('crmWorkLeadOwnerProbeSql');
     expect(rp).toContain('crmAssignmentScopeExistsSql');
     expect(analytics).toContain('crmCaseEventLeadReadSql');
-    for (const kind of ['crm_stmt_1', 'crm_stmt_4', 'crm_stmt_16', 'crm_stmt_17']) expect(src('leads.ts')).toContain(kind);
+    for (const kind of ['crm_stmt_1', 'crm_stmt_4', 'crm_stmt_17']) expect(src('leads.ts')).toContain(kind);
     for (const [file, token] of [
       ['read-tail-r24-sql.ts', 'export const crmCreatorLeadScopeSql'],
       ['read-tail-r25-sql.ts', 'export const crmPurchaseRowProjection'],

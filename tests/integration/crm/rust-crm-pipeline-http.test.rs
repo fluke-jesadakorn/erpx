@@ -257,3 +257,55 @@ async fn actual_router_forwards_exact_query_and_maps_business_errors() {
 
     server.abort();
 }
+
+#[tokio::test]
+async fn sales_report_ingress_accepts_only_exact_holding_and_filter_keys() {
+    use erpx_server_crm::public::sales_report_http::{
+        CrmSalesReportHttpBackend, CrmSalesReportHttpFuture, CrmSalesReportHttpRequest,
+        CrmSalesReportHttpTarget, crm_sales_report_router,
+    };
+    struct ReportProbe;
+    impl CrmSalesReportHttpBackend for ReportProbe {
+        fn read<'a>(&'a self, request: CrmSalesReportHttpRequest<'a>) -> CrmSalesReportHttpFuture<'a> {
+            Box::pin(async move {
+                if request.headers.get("cookie").is_none() {
+                    return Err(BusinessError::new(
+                        FailureKind::Unauthenticated, "UNAUTHENTICATED", "Sign in to continue."
+                    ));
+                }
+                Ok(serde_json::json!({
+                    "data": request.query,
+                    "options": {},
+                    "context": {"holdingSlug":request.holding_slug,"host":request.host}
+                }))
+            })
+        }
+    }
+
+    let router = crm_sales_report_router(vec![CrmSalesReportHttpTarget {
+        host: "oasis.example.test".into(),
+        holding_slug: "oasis-demo".into(),
+        origin: "https://oasis.example.test".into(),
+        backend: Arc::new(ReportProbe),
+    }]).unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move { let _ = serve(listener, router).await; });
+    let root = "/api/v1/holdings/oasis-demo/reports/sales-crm";
+    let host = "oasis.example.test";
+    assert_eq!(http(addr, get(root, host)).await.0, 401);
+    assert_eq!(http(addr, get(root, "foreign.example.test")).await.0, 404);
+    for suffix in ["?unexpected=1", "?from=2026-09-23&from=2026-09-24", "?ownerId=%Z4"] {
+        let (status, body, _) = http(addr, get(&format!("{root}{suffix}"), host)).await;
+        assert_eq!(status, 422);
+        assert_eq!(body["error"]["code"], "CRM_SALES_REPORT_REQUEST_INVALID");
+    }
+    let (status, reply, raw) = http(addr, format!(
+        "GET {root}?ownerId=first%2Bsecond&from=2026-09-23 HTTP/1.1\r\nHost: {host}\r\nCookie: fixture=demo\r\nConnection: close\r\n\r\n"
+    )).await;
+    assert_eq!(status, 200);
+    assert_eq!(reply["data"]["ownerId"], "first+second");
+    assert_eq!(reply["context"]["holdingSlug"], "oasis-demo");
+    assert!(raw.to_ascii_lowercase().contains("cache-control: private, no-store"));
+    server.abort();
+}

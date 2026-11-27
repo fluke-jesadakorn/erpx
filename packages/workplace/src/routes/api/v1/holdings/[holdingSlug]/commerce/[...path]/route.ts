@@ -1,4 +1,5 @@
 import {salesServiceProducts,createSalesServiceProduct,salesServiceProductSchema} from '@erpx/server-commerce/public/sales-service-products';
+import {oasisDemoStagingEnabled} from "@erpx/contracts/holding-hosts";
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import {commerceEntrypointFacts} from "@erpx/server-commerce/public/entrypoint-facts";
 import {commerceEntrypointFinanceFacts} from "@erpx/server-finance/public/commerce-entrypoint-facts";
@@ -55,6 +56,7 @@ async function assertPilotCommercePath(actor:Awaited<ReturnType<typeof requireWo
   return assertProductionModuleEnabled(db,actor.companyId,kind==='purchase'?'procurement':'sales');
 }
 export async function GET(_request:Request,context:Context) {
+  if(oasisDemoStagingEnabled(process.env))return errorResponse(new ApiError(404,'NOT_FOUND','Not found.'));
   try{const {holdingSlug,path}=await context.params;if(path[0]==='sales-service-products'){if(path.length!==1||new URL(_request.url).search)throw new ApiError(404,'NOT_FOUND','Workflow action not found.');const actor=await requireWorkContext(holdingSlug);return Response.json({data:await salesServiceProducts(actor)},{headers:{'Cache-Control':'private, no-store'}});}if(path[0]==='sales-goods-posting-setup'){const actor=await requireWorkContext(holdingSlug);if(path.length!==1)throw new ApiError(404,'NOT_FOUND','Workflow action not found.');return Response.json({data:await salesGoodsPostingSetup(actor)},{headers:{'Cache-Control':'private, no-store'}});}if(path[0]==='sales-posting-setup'){const actor=await requireWorkContext(holdingSlug);if(path.length!==1)throw new ApiError(404,'NOT_FOUND','Workflow action not found.');return Response.json({data:await salesPostingSetup(actor)},{headers:{'Cache-Control':'private, no-store'}});}if(path[0]==='posting-setup'){
     const actor=await requireWorkContext(holdingSlug);if(path.length===2&&path[1]==='prerequisites')return Response.json({data:await supplyPostingPrerequisites(actor)},{headers:{'Cache-Control':'private, no-store'}});if(path.length!==1)throw new ApiError(404,'NOT_FOUND','Workflow action not found.');
     return Response.json({data:await commercePostingSetup(actor)},{headers:{'Cache-Control':'private, no-store'}});
@@ -63,6 +65,7 @@ export async function GET(_request:Request,context:Context) {
 }
 export async function POST(request:Request,context:Context) {
   try{
+    if(oasisDemoStagingEnabled(process.env))throw new ApiError(404,'NOT_FOUND','Not found.');
     const origin=request.headers.get("origin");if(origin&&origin!==requestPublicOrigin(request))throw new ApiError(403,"ORIGIN_FORBIDDEN","Use the application origin for this action.");
     const {holdingSlug,path:p}=await context.params;const actor=await requireWorkContext(holdingSlug);const key=request.headers.get("Idempotency-Key");if(!key)throw new ApiError(422,"COMMAND_KEY_REQUIRED","Idempotency-Key is required.");
     const input=await request.json();await assertPilotCommercePath(actor,p,input);let data;
@@ -84,7 +87,15 @@ export async function POST(request:Request,context:Context) {
     else if(p[0]==='pricing'&&p.length===1)data=await nativePricing(actor,'create',null,input,key,request.headers);
     else if(p[0]==='pricing'&&p.length===3&&p[2]==='edit')data=await nativePricing(actor,'update',p[1],input,key,request.headers);
     else if(p[0]==='pricing'&&p.length===2)data=await nativePricing(actor,'decide',p[1],input,key,request.headers);
-    else if(p[0]==="orders"&&p.length<=2){const order=orderSchema.parse(input);const kind=order.kind;if(kind==="purchase")data=await saveOrder(actor,p[1]??null,order,key);else{const nativeOrder={...order,kind};data=(await nativeCommerceOrderSave(actor,p[1]??null,nativeOrder,key))??await saveOrder(actor,p[1]??null,order,key);}}
+    else if(p[0]==="orders"&&p.length<=2){
+      const order=orderSchema.parse(input),id=p[1]??null;
+      if(order.kind==="purchase") data=await saveOrder(actor,id,order,key);
+      else {
+        const native=await nativeCommerceOrderSave(actor,id,{...order,kind:order.kind},key);
+        if(order.kind==="quote"&&!native)throw new ApiError(503,"NATIVE_COMMERCE_ORDER_UNAVAILABLE","The native quotation service is unavailable.");
+        data=native??await saveOrder(actor,id,order,key);
+      }
+    }
     else if(p[0]==="orders"&&p[2]==="transition"){const transition=transitionSchema.parse(input);const cancelled=transition.action==="cancel"?await nativeSalesConfirmedCancellation(actor,p[1],transition.expectedVersion,key):undefined;data=cancelled??(await nativeCommerceOrderTransition(actor,p[1],transition,key))??await transitionOrder(actor,p[1],transition,key);}
     else if(p[0]==="orders"&&p[2]==="reservations")data=await changeOrderReservation(actor,p[1],input,key);
     else if(p[0]==="orders"&&p[2]==="fulfill"){const f=fulfillmentSchema.parse(input);const lines=(line:any)=>line.allocations?.length?{allocations:line.allocations.map((a:any)=>({...(a.lotId?{lotId:a.lotId}:{}),...(a.lotCode?{lotCode:a.lotCode}:{}),...(a.serialNumber?{serialNumber:a.serialNumber}:{}),quantity:a.quantity,...(a.disposition?{disposition:a.disposition}:{}),...(a.quarantineReason?{quarantineReason:a.quarantineReason}:{}),...(a.quarantineDueDate?{quarantineDueDate:a.quarantineDueDate}:{})}))}:{};if(f.completionMode==="service"){const native={expectedVersion:f.expectedVersion,date:f.date,evidenceNote:f.evidenceNote,lines:f.lines.map(l=>({lineId:l.lineId,quantity:l.quantity}))};data=await nativeCommerceOrderFulfill(actor,p[1],native,key);if(!data)throw new ApiError(503,'NATIVE_COMMERCE_ORDER_UNAVAILABLE','The native Commerce service completion is unavailable.');}else{const deliveryLines=f.lines.map((l:any)=>({lineId:l.lineId,quantity:l.quantity,...lines(l)}));const purchaseLines=f.lines.map((l:any)=>({lineId:l.lineId,quantity:l.quantity,...(l.allocations.length?{allocations:l.allocations.map((a:any)=>({...(a.lotCode?{lotCode:a.lotCode}:{}),...(a.serialNumber?{serialNumber:a.serialNumber}:{}),quantity:a.quantity,...(a.manufacturedDate?{manufacturedDate:a.manufacturedDate}:{}),...(a.expiryDate?{expiryDate:a.expiryDate}:{}),...(a.disposition?{disposition:a.disposition}:{}),...(a.quarantineReason?{quarantineReason:a.quarantineReason}:{}),...(a.quarantineDueDate?{quarantineDueDate:a.quarantineDueDate}:{})}))}:{})}));const receipt=f.completionMode==="goods"?await nativeCommerceGoodsReceipt(actor,p[1],{expectedVersion:f.expectedVersion,date:f.date,lines:purchaseLines},key):undefined;data=receipt??await nativeCommerceSalesDelivery(actor,p[1],{completionMode:f.completionMode==="mixed"?"mixed":"goods",expectedVersion:f.expectedVersion,date:f.date,lines:deliveryLines},key);}}

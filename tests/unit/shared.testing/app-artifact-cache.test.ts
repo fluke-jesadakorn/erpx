@@ -126,6 +126,39 @@ it('rejects stale receipts, missing/extra apps, escaping entries and unexpected 
  }finally{await rm(f.root,{recursive:true,force:true});}
 });
 
+it('verifies the exact OASIS app set and a content-addressed executable only in the demo lane', async () => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'erpx-oasis-release-')));
+  const fingerprint = 'a'.repeat(64);
+  const {oasisDemoApps, oasisNativeReference, releaseArtifactReference, verifyWorkspaceRelease} = await import('../../../scripts/local/workspace-release-manifest');
+  try {
+    async function artifact(id: string, role?: 'gateway' | 'stage') {
+      const path = role ?? `apps/${id}`, directory = join(root, path);
+      await mkdir(directory, {recursive:true});
+      const contents = 'export const ready=true;';
+      await writeFile(join(directory, 'entry.mjs'), contents);
+      await writeFile(join(directory, 'artifact.json'), JSON.stringify({
+        schema:role ? 'erpx-tool-artifact/v1' : 'erpx-app-artifact/v2', ...(role ? {role} : {app:id}),
+        runtimeFingerprint:fingerprint, node:'26.11.1', bun:'1.4.3', acceptance:false, entry:'entry.mjs',
+        files:{'entry.mjs':createHash('sha256').update(contents).digest('hex')}, links:{},
+      }));
+      return releaseArtifactReference(root, path, role ? {role} : {app:id});
+    }
+    await mkdir(join(root, 'native'));
+    const executable = join(root, 'native/erpx-server');
+    await writeFile(executable, 'demo binary bytes', {mode:0o700});
+    const native = await oasisNativeReference(root);
+    const apps = Object.fromEntries(await Promise.all(oasisDemoApps.map(async id => [id,await artifact(id)])));
+    const manifest = {schema:'erpx-oasis-demo-release/v1', candidate:'b'.repeat(40), sourceFingerprint:fingerprint,
+      productionCandidateFrozen:true, acceptance:false, acceptanceAdapter:null, node:'26.11.1', bun:'1.4.3', postgres:'18.6',
+      createdAt:new Date().toISOString(), apps, gateway:await artifact('gateway','gateway'), stage:await artifact('stage','stage'), native};
+    await writeFile(join(root, 'release.json'), JSON.stringify(manifest));
+    await expect(verifyWorkspaceRelease(root, {oasisDemo:true, frozen:true})).resolves.toMatchObject({native});
+    await expect(verifyWorkspaceRelease(root)).rejects.toThrow('EXACT_COMBINED_RELEASE_REQUIRED');
+    await writeFile(executable, 'different bytes');
+    await expect(verifyWorkspaceRelease(root, {oasisDemo:true, frozen:true})).rejects.toThrow('RELEASE_NATIVE_ARTIFACT_MISMATCH');
+  } finally { await rm(root, {recursive:true, force:true}); }
+});
+
 
 it('workspace scaffolding preserves an existing app host policy byte-for-byte across regeneration',async()=>{
  const root=await mkdtemp(join(tmpdir(),'erpx-proxy-source-'));

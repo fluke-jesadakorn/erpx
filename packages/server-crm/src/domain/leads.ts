@@ -9,7 +9,6 @@ export const crmLeadChangeSchema=z.discriminatedUnion('action',[
  z.object({action:z.literal('qualify'),expectedVersion:version,customerId:id,expectedValue:z.string().regex(/^\d{1,12}(\.\d{1,2})?$/),closeDate:z.iso.date(),reason})
 ]);
 export const crmOpportunitySchema=z.discriminatedUnion('action',[
- z.object({action:z.literal('link-quote'),expectedVersion:version,leadVersion:version,quoteId:id,quoteVersion:version,reason}),
  z.object({action:z.enum(['negotiate','reopen']),expectedVersion:version,leadVersion:version,reason}),
  z.object({action:z.literal('lose'),expectedVersion:version,leadVersion:version,lossReason:z.enum(['price','availability','competitor','timing','no_response','other']).default('other'),reason}),
  z.object({action:z.literal('win'),expectedVersion:version,leadVersion:version,salesId:id,salesVersion:version,reason}),

@@ -1,5 +1,6 @@
 import 'server-only';
 import { headers } from 'next/headers';
+import { oasisDemoStagingEnabled } from '@erpx/contracts/holding-hosts';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import { holdingResources } from '@erpx/server-runtime/public/runtime';
@@ -116,7 +117,16 @@ export async function nativeCommerceOrderPage(
   id: string,
 ): Promise<NativeCommerceOrderDocument | undefined> {
   const native = client();
-  if (!native) return undefined;
+  if (!native) {
+    if (oasisDemoStagingEnabled(process.env)) {
+      throw new ApiError(
+        503,
+        'NATIVE_COMMERCE_ORDER_UNAVAILABLE',
+        'The native Commerce order service is unavailable.',
+      );
+    }
+    return undefined;
+  }
   try {
     const context = nativeCommerceOrdersPageContext(actor);
     return await native.detail(await headers(), context, id, readInput(context));
@@ -126,11 +136,8 @@ export async function nativeCommerceOrderPage(
 }
 
 /**
- * Native draft create/update gate for the retained route. Unset configuration
- * or purchase/order-handoff input returns undefined so the retained writer
- * remains authoritative. Once a quotation/sales draft is native-eligible, a
- * configured native failure is surfaced and never replaced by the retained
- * command.
+ * Quotation writes are owned by Commerce. Sales orders may still use the
+ * retained command when the native service is not selected.
  */
 export async function nativeCommerceOrderSave(
   actor: WorkContext,
@@ -141,7 +148,7 @@ export async function nativeCommerceOrderSave(
   const native = client();
   if (!native) return undefined;
   if (input.kind !== 'quote' && input.kind !== 'sales') return undefined;
-  if (id !== null) {
+  if (id !== null && input.kind === 'sales') {
     let facts: { kind: string; state: string } | null;
     try {
       const write = (await holdingResources(actor.holdingId)).write;
@@ -281,11 +288,8 @@ export async function nativeCommerceOrderTransition(
   key: string,
 ): Promise<NativeCommerceOrderReceipt | undefined> {
   const native = client();
-  if (!native) return undefined;
-  let context: NativeCommerceOrdersPageContext;
   let facts: { kind: string; state: string } | null;
   try {
-    context = nativeCommerceOrdersPageContext(actor);
     const write = (await holdingResources(actor.holdingId)).write;
     facts = await commerceEntrypointFacts(write).orderFacts(id, actor.companyId);
   } catch {
@@ -300,7 +304,13 @@ export async function nativeCommerceOrderTransition(
   if (!facts) return undefined;
   if (!nativeSalesDocumentTransitionEligible(facts.kind, facts.state, input.action))
     return undefined;
+  if (!native) {
+    if (facts.kind === 'quote')
+      throw new ApiError(503, 'NATIVE_COMMERCE_ORDER_UNAVAILABLE', 'The native quotation service is unavailable.');
+    return undefined;
+  }
   try {
+    const context = nativeCommerceOrdersPageContext(actor);
     return await native.transition(await headers(), context, id, input, key, readInput(context));
   } catch (error) {
     return fail(error);

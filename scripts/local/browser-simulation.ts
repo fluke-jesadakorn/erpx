@@ -45,6 +45,8 @@ const origin=`http://127.0.0.1:${port}`;
 const node=resolve(process.env.ERPX_NODE_BIN??join(root,'.runtime/node/node-v26.11.1-darwin-arm64/bin/node'));
 const profile=process.env.ERPX_BROWSER_SIMULATION_PROFILE??'general-company';
 if(!['general-company','hospitality','engineering','legal','uat','local-seed','staff-work','expense','work-cards','messaging','services','executive-work','booking'].includes(profile))throw new Error('UNSUPPORTED_BROWSER_SIMULATION_PROFILE');
+const oasisInterview=process.env.ERPX_BROWSER_SIMULATION_OASIS_INTERVIEW==='1';
+if(oasisInterview&&profile!=='general-company')throw new Error('OASIS_INTERVIEW_REQUIRES_GENERAL_COMPANY');
 if(Bun.version!=='1.4.3'||Bun.spawnSync([node,'--version']).stdout.toString().trim()!=='v26.11.1')throw new Error('PINNED_TOOLCHAIN_REQUIRED');
 let adminUrl=process.env.ERPX_TEST_ADMIN_URL;
 if(!adminUrl)for(const file of ['.env.test.local','.env.test','.env.local']){const path=join(root,file);if(!existsSync(path))continue;const value=(await readFile(path,'utf8')).match(/^\s*(?:export\s+)?ERPX_TEST_ADMIN_URL\s*=\s*(.*?)\s*$/m)?.[1];if(value){adminUrl=value.replace(/^(["'])(.*)\1$/,'$2');break;}}
@@ -236,10 +238,10 @@ if(mode==='prepare'||diagnostic){
   await env.CONTROL_DB.prepare("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES('h002','riverside-lantern','Riverside Lantern Hotel & Kitchen','H002_DB','H002_READ_DB','H002_FILES','active')").run();
   const {seedExpenseCompany}=await import('../../fixtures/expenses/company'),{mapSpendingOrganization}=await import("../../tests/support/helpers/spending-organization");
   const f=await seedExpenseCompany(env.H001_DB,env.H001_FILES);await mapSpendingOrganization(f);
-  await env.H001_DB.prepare("UPDATE organization_nodes SET display_name='Isolated browser simulation' WHERE id=?").bind(f.company).run();
+  await env.H001_DB.prepare('UPDATE organization_nodes SET display_name=? WHERE id=?').bind(oasisInterview?'Andaman Kitchen Demo':'Isolated browser simulation',f.company).run();
   const {hashPassword}=await import('better-auth/crypto'),{businessRoles}=await import("@erpx/feature-identity_access/lib/business-roles"),{moduleRegistry}=await import('@erpx/catalogue/module-registry');
  const password=`Simulation-${randomBytes(15).toString('hex')}`,hash=await hashPassword(password),now=Date.now(),users:Array<{label:string;email:string;role:string;userId:string;roles:string[];scope?:string;scopeNode?:string;scopeParentNode?:string}> = [];
-  for(const [actor,role,label,email] of [[f.owner,'holding_owner','Source operator','source@simulation.test'],[f.head,'warehouse_manager','Receiving operator','receiver@simulation.test'],[f.manager,'finance_approver','Finance reviewer','finance@simulation.test'],[f.reviewer,'finance_preparer','Finance preparer','preparer@simulation.test'],[f.payer,'quality_manager','Quality release manager','quality-manager@simulation.test'],[f.it,'purchasing_manager','Purchasing manager','buyer@simulation.test'],[f.claimant,'support_agent','Support agent','support-agent@simulation.test'],[f.tie,'support_manager','Support manager','support-manager@simulation.test']] as const){
+  for(const [actor,role,label,email] of [[f.owner,'holding_owner','Source operator','source@simulation.test'],[f.head,'warehouse_manager','Receiving operator','receiver@simulation.test'],[f.manager,'finance_approver','Finance reviewer','finance@simulation.test'],[f.reviewer,'finance_preparer','Finance preparer','preparer@simulation.test'],[f.payer,'quality_manager','Quality release manager','quality-manager@simulation.test'],[f.it,'purchasing_manager','Purchasing manager','buyer@simulation.test'],[f.claimant,'support_agent',oasisInterview?'Kitchen salesperson':'Support agent','support-agent@simulation.test'],[f.tie,'support_manager',oasisInterview?'Kitchen sales manager':'Support manager','support-manager@simulation.test']] as const){
    actor.role=role;actor.branchId=null;actor.departmentId=null;actor.holdingSlug='simulation';actor.assignmentId=await f.grant(actor,role);
    await env.H001_DB.prepare('UPDATE assignments SET revoked_at=? WHERE user_id=? AND company_id=? AND id<>?').bind(now,actor.userId,f.company,actor.assignmentId).run();
    const modules=role==='holding_owner'?moduleRegistry.map(m=>m.id):businessRoles[role as keyof typeof businessRoles];await env.H001_DB.prepare('UPDATE assignments SET modules_json=? WHERE id=?').bind(JSON.stringify(modules),actor.assignmentId).run();
@@ -248,6 +250,23 @@ if(mode==='prepare'||diagnostic){
    users.push({label,email,role,userId:actor.userId,roles:[role]});
   }
   const extraGrant=async(actor:typeof f.claimant,role:keyof typeof businessRoles|'holding_owner')=>{const id=await f.grant(actor,role);const modules=role==='holding_owner'?moduleRegistry.map(m=>m.id):businessRoles[role];await env.H001_DB.prepare('UPDATE assignments SET modules_json=? WHERE id=?').bind(JSON.stringify(modules),id).run();return id;};
+  if(oasisInterview) {
+    const {seedOasisInterview}=await import('../../fixtures/sales/builders/oasis-interview');
+    const salesperson={...f.claimant,role:'sales_operator',assignmentId:await extraGrant(f.claimant,'sales_operator')};
+    const manager={...f.tie,role:'sales_manager',assignmentId:await extraGrant(f.tie,'sales_manager')};
+    const actors=users.filter(user=>user.userId===salesperson.userId||user.userId===manager.userId).map(user=>({
+      ...user,role:user.userId===salesperson.userId?'sales_operator':'sales_manager',
+    }));
+    const dueDate=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Bangkok'}).format(new Date(now+86_400_000));
+    const kitchen=await seedOasisInterview(env.H001_DB,{
+      run,companyId:f.company,branchId:f.branch,salespersonId:salesperson.userId,managerId:manager.userId,dueDate,
+      finance:{chart:f.chart,receivable:f.accounts.cash,revenue:f.accounts.revenue,tax:f.accounts.payable,preparerId:f.reviewer.userId,reviewerId:f.manager.userId},
+    });
+    state.fixture={companyId:f.company,oasisInterview:kitchen};
+    await writePrivate(statePath,state);
+    await writePrivate(join(directory,'credentials.json'),{password,users:actors});
+    await writePrivate(join(directory,'demo-guide.json'),{run,origin,...kitchen,actors});
+  }else{
   const employeeActor={...f.claimant,role:'employee',assignmentId:await extraGrant(f.claimant,'employee')};
   await extraGrant(f.head,'people_manager');
   await extraGrant(f.payer,'hr_admin');users.find(user=>user.userId===f.payer.userId)!.roles.push('hr_admin');
@@ -492,6 +511,7 @@ if(mode==='prepare'||diagnostic){
      state.fixture.engineeringShowcaseGuide={moduleCount:showcaseGuide.moduleCount,path:join(directory,'engineering-showcase-guide.json')};
     }
     await writePrivate(statePath,state);
+  }
   }
   }
  }finally{await closeRuntime();}

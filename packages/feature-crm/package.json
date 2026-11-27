@@ -19,6 +19,7 @@
     "lint": "eslint src"
   },
   "dependencies": {
+    "@erpx/contracts": "workspace:*",
     "@erpx/feature-records": "workspace:*",
     "@erpx/feature-sales": "workspace:*",
     "@erpx/feature-shared": "workspace:*",

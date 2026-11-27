@@ -150,7 +150,7 @@ export function OrderEditor({
               ...(sourceRequest
                 ? { requestId: sourceRequest.id, requestVersion: sourceRequest.version }
                 : {}),
-              ...(order ? { expectedVersion: order.version } : {}),
+              ...(order ? { expectedVersion: Number(order.version) } : {}),
             });
           }}
         >
@@ -422,11 +422,17 @@ export function OrderActions({
                 reason.trim().length < 5)
             }
             onClick={() =>
-              void send(`orders/${order.id}/transition`, {
-                action,
-                expectedVersion: order.version,
-                ...(action === "approve" && reason ? { reason } : {}),
-              })
+              void send(
+                `orders/${order.id}/transition`,
+                {
+                  action,
+                  expectedVersion: Number(order.version),
+                  ...(action === "approve" && reason ? { reason } : {}),
+                },
+                order.kind === "quote" && action !== "convert"
+                  ? canonicalUiHref(`${base}/customers-sales/sales/documents/quote/${encodeURIComponent(String(order.id))}`)
+                  : undefined,
+              )
             }
           >
             {

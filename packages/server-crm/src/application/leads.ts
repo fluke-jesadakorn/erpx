@@ -43,7 +43,7 @@ export function createCRMApplication(ports:{actorId:string;canRead:boolean;canSa
    const record=await getLead(id);if(!record.opportunity_id)throw new BusinessRuleError(409,"CRM_OPPORTUNITY_REQUIRED","Qualify the lead before managing a deal.");
    if(input.action==="reopen"){ports.authorize("commerce.approve");if(record.stage!=="lost")throw new BusinessRuleError(409,"CRM_STATE_CHANGED","Only a lost opportunity can be reopened.");}else if(record.owner_id!==ports.actorId)throw new BusinessRuleError(403,"CRM_OWNER_REQUIRED","The assigned salesperson must act on the opportunity.");
    if(input.action!=="reopen"&&!["discovery","proposal","negotiation"].includes(String(record.stage)))throw new BusinessRuleError(409,"CRM_STATE_CHANGED","This opportunity is closed.");
-   const now=ports.clock.now(),opportunityId=String(record.opportunity_id),stage=input.action==="lose"?"lost":input.action==="reopen"?"discovery":input.action==="win"?"won":input.action==="link-quote"?"proposal":"negotiation";
+   const now=ports.clock.now(),opportunityId=String(record.opportunity_id),stage=input.action==="lose"?"lost":input.action==="reopen"?"discovery":input.action==="win"?"won":"negotiation";
    if(input.action==="win"&&!record.quote_id)throw new BusinessRuleError(409,"CRM_QUOTATION_REQUIRED","Link an approved quotation first.");
    if(input.action==="negotiate"&&!record.quote_id)throw new BusinessRuleError(409,"CRM_QUOTATION_REQUIRED","Link an approved quotation before negotiation.");
    return repository.commit({action:"opportunity",input,id,key,operation,now,record,opportunityId,stage},{id,version:input.expectedVersion+1,leadVersion:input.leadVersion+1,stage});

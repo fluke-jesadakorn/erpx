@@ -32,7 +32,7 @@ export function useCommerceCommand(base: string) {
       const kind = typeof input === "object" && input !== null && "kind" in input && (input as {kind?: unknown}).kind === "quote" ? "quote" : "sales";
       const documentId = result.data.salesId ?? result.data.orderId ?? result.data.id;
       const isOrder = path === "orders" || /^orders\/[^/]+$/.test(path);
-      const destination = target ?? canonicalUiHref(isOrder ? `${base}/customers-sales/sales/documents/${kind}/${documentId}` : `${base}/commerce/orders/${documentId}`);
+      const destination = target ?? canonicalUiHref(isOrder || result.data.salesId ? `${base}/customers-sales/sales/documents/${kind}/${encodeURIComponent(String(documentId))}` : `${base}/commerce/orders/${documentId}`);
       const record = recordTarget(destination, base), hubResult = hubResultHref(window.location.href, base, destination);
       window.dispatchEvent(new CustomEvent("erpx:hub-saved", {detail: completion}));
       window.dispatchEvent(new CustomEvent("erpx:record-saved", {detail: completion}));

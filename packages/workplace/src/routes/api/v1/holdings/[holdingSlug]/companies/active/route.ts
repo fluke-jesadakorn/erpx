@@ -1,3 +1,4 @@
+import { oasisDemoStagingEnabled } from '@erpx/contracts/holding-hosts';
 import type {RouteContext} from '@erpx/contracts/next-routes';
 import {canonicalDestinationLinks} from '@erpx/feature-work_projection/lib/destination-links';
 import {selectNativeCompanyPreference} from '@erpx/server-work_projection/public/workspace-preferences';
@@ -5,6 +6,7 @@ import {currentSession} from '@erpx/server-identity_access/public/authorization'
 import {ApiError,errorResponse,boundedCommandBody} from '@erpx/server-runtime/public/http';
 import {NextResponse} from 'next/server';
 export async function POST(request:Request,context:RouteContext<'/api/v1/holdings/[holdingSlug]/companies/active'>){
+ if (oasisDemoStagingEnabled(process.env)) return errorResponse(new ApiError(404,'NOT_FOUND','Not found.'));
  try{
   if(!process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG)throw new ApiError(503,'NATIVE_ACCOUNT_PREFERENCE_TARGET_UNAVAILABLE','The native Company selection is not configured.');
   const {holdingSlug}=await context.params,{session}=await currentSession();

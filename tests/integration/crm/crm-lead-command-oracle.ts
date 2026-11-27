@@ -1,5 +1,5 @@
 /**
- * Native-seeding oracle for retained CRM lead qualification and PMS win reads.
+ * Native-seeding oracle for retained CRM lead qualification, quotation and PMS win reads.
  *
  * The TypeScript `qualify` and `win-pms` writers were retired with the native
  * CRM lead command (`packages/server-crm/src/adapters/leads_native.rs` + the
@@ -19,6 +19,38 @@
  */
 import type {SqlDatabase,TransactionalSqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {salesRecipientEligibility} from "@erpx/server-sales/public/sales-recipient";
+
+/** Seed the native link-quote after-image for retained CRM consumers. */
+export async function linkNativeQuote(
+  db: TransactionalSqlDatabase,
+  input: {leadId: string; quoteId: string; key: string; reason: string; scope: NativeLeadScope},
+) {
+  const {leadId, quoteId, key, reason, scope} = input;
+  await db.transaction(async (tx) => {
+    const lead = await leadForUpdate(tx, leadId, scope);
+    const source = await tx.prepare(
+      "SELECT o.id,o.version,q.version quote_version,q.subtotal_minor FROM crm_opportunities o JOIN crm_leads l ON l.id=o.lead_id JOIN commerce_orders q ON q.id=? AND q.kind='quote' AND q.state='confirmed' AND q.company_id=l.company_id AND q.branch_id=l.branch_id AND q.department_id IS NOT DISTINCT FROM l.department_id AND q.party_id=o.customer_id AND q.currency=o.currency WHERE o.lead_id=? AND o.stage='discovery' FOR UPDATE OF o",
+    ).bind(quoteId, leadId).first<{id:string; version:number; quote_version:number; subtotal_minor:number}>();
+    if (!lead || lead.owner_id !== scope.actorId || !source)
+      failure("CRM_SOURCE_CHANGED", 409);
+    const now = scope.now ?? Date.now(), expectedVersion = Number(source.version), leadVersion = Number(lead.version);
+    const command = {action:"link-quote", expectedVersion, leadVersion, quoteId, quoteVersion:Number(source.quote_version), reason};
+    await tx.prepare(
+      "UPDATE crm_opportunities SET quote_id=?,quote_version=?,expected_minor=?,stage='proposal',version=version+1,updated_at=? WHERE id=?",
+    ).bind(quoteId, source.quote_version, source.subtotal_minor, now, source.id).run();
+    await tx.prepare(
+      "UPDATE crm_leads SET version=version+1,updated_at=? WHERE id=?",
+    ).bind(now, leadId).run();
+    for (const [suffix, opportunityId, version, action, snapshot] of [
+      ["lead", null, leadVersion+1, "opportunity-link-quote", command],
+      ["deal", source.id, expectedVersion+1, "link-quote", {...command, stage:"proposal"}],
+    ] as const) {
+      await tx.prepare(
+        "INSERT INTO crm_case_events(id,lead_id,opportunity_id,version,action,actor_id,reason,snapshot_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+      ).bind(`crm-event-${key}-${suffix}`, leadId, opportunityId, version, action, scope.actorId, reason, JSON.stringify(snapshot), now).run();
+    }
+  });
+}
 
 function failure(code: string, status: number): never {
   throw Object.assign(new Error(code), {code, status});

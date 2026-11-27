@@ -13,7 +13,8 @@ export function nativeAccountConfiguration(raw: string): NativeSessionClientConf
     throw new NativeSessionReadError('NATIVE_SESSION_CONFIGURATION_INVALID');
   }
   const loopback = process.env.NODE_ENV === 'development' && (process.env.NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE === 'loopback' || process.env.ERPX_NATIVE_ORIGIN_PROFILE === 'loopback');
-  const profile = loopback ? 'loopback' : process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE === 'container-localhost' ? 'contributor' : 'public';
+  const oasisDemo = process.env.ERPX_OASIS_DEMO_STAGING === '1' && process.env.ERPX_ENVIRONMENT === 'staging';
+  const profile = oasisDemo ? 'oasis-demo-staging' : loopback ? 'loopback' : process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE === 'container-localhost' ? 'contributor' : 'public';
   return {...record,originProfile:profile} as NativeSessionClientConfiguration;
 }
 

@@ -65,7 +65,7 @@ describe('crm read-tail r36 byte-identical opportunity source anchor', () => {
   test('leaves locks, command receipts, native kinds and r8-r35 helpers untouched', () => {
     expect(src('purchases.ts')).toContain('LOCK TABLE crm_accounts,crm_contacts,crm_guest_links,crm_guest_sharing_events,crm_leads,crm_opportunities,crm_case_events,crm_lead_activities,crm_lead_activity_events IN SHARE ROW EXCLUSIVE MODE');
     expect(src('purchases.ts')).toContain('SELECT 1 FROM command_receipts WHERE command_id=?');
-    for (const kind of ['crm_stmt_1', 'crm_stmt_4', 'crm_stmt_16', 'crm_stmt_17']) expect(src('leads.ts')).toContain(kind);
+    for (const kind of ['crm_stmt_1', 'crm_stmt_4', 'crm_stmt_17']) expect(src('leads.ts')).toContain(kind);
     for (const [file, token] of [
       ['read-tail-r24-sql.ts', 'export const crmCreatorLeadScopeSql'],
       ['read-tail-r25-sql.ts', 'export const crmPurchaseRowProjection'],

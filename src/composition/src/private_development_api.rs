@@ -391,6 +391,7 @@ struct ConfigurationDocument {
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Profile {
+    OasisDemoStaging,
     Development,
     Production,
     Test,
@@ -701,6 +702,23 @@ fn direct_development_database(url: &str) -> Result<RuntimeDatabase, &'static st
         identity: (database.to_owned(), role.to_owned()),
     })
 }
+const OASIS_DEMO_ACCOUNT_HOST: &str = "account-oasisdreamhouse-demo.jesadakorn.com";
+const OASIS_DEMO_HOLDING_HOST: &str = "oasisdreamhouse-demo.jesadakorn.com";
+const OASIS_DEMO_INERT_HOST: &str = "oasisdreamhouse-demo-internal.invalid";
+
+fn check_oasis_database(
+    database: &RuntimeDatabase,
+    scope: &str,
+    access: &str,
+) -> Result<(), &'static str> {
+    let expected = format!("erpx_stage_oasis_demo_{scope}");
+    match database {
+        RuntimeDatabase::Durable { identity: (name, role), .. }
+            if name == &expected && role == &format!("{expected}_{access}") => Ok(()),
+        _ => Err("EXACT_OASIS_DEMO_DATABASE_REQUIRED"),
+    }
+}
+
 fn runtime_database(
     document: &DatabaseDocument,
     profile: Profile,
@@ -730,6 +748,12 @@ fn runtime_database(
                 return Err("EXACT_TEST_DATABASE_REQUIRED");
             }
             test_database(&document.url)
+        }
+        Profile::OasisDemoStaging => {
+            if document.lease_token.is_some() || document.direct || document.browser {
+                return Err("EXACT_OASIS_DEMO_DATABASE_REQUIRED");
+            }
+            durable_database(&document.url).map_err(|_| "EXACT_OASIS_DEMO_DATABASE_REQUIRED")
         }
         Profile::Production => {
             if document.lease_token.is_some() || document.direct || document.browser {
@@ -779,11 +803,13 @@ impl DevelopmentApiConfiguration {
         }
         let environment = match (profile, doc.environment.as_deref()) {
             (Profile::Development, None | Some("development")) => "development".to_owned(),
+            (Profile::OasisDemoStaging, Some("staging")) => "staging".to_owned(),
             (Profile::Production, Some("production")) => "production".to_owned(),
             (Profile::Test, Some("development")) => "development".to_owned(),
             _ => return Err("PRIVATE_API_ENVIRONMENT_INVALID"),
         };
         let expected_mode = match profile {
+            Profile::OasisDemoStaging => "oasis-demo-staging",
             Profile::Development => "development",
             Profile::Production => "production",
             Profile::Test => "test",
@@ -808,6 +834,7 @@ impl DevelopmentApiConfiguration {
                 Profile::Development => "EXPLICIT_LEASED_DEVELOPMENT_API_REQUIRED",
                 Profile::Production => "EXPLICIT_PRIVATE_PRODUCTION_API_REQUIRED",
                 Profile::Test => "EXPLICIT_TEST_API_REQUIRED",
+                Profile::OasisDemoStaging => "EXPLICIT_OASIS_DEMO_STAGING_REQUIRED",
             });
         }
         if profile == Profile::Production
@@ -818,12 +845,27 @@ impl DevelopmentApiConfiguration {
         {
             return Err("PRODUCTION_API_SECURITY_CONFIGURATION_REQUIRED");
         }
+        if profile == Profile::OasisDemoStaging
+            && (doc.account_host != OASIS_DEMO_ACCOUNT_HOST
+                || doc.holdings.len() != 2
+                || !doc.account_bootstrap
+                || !doc.require_email_verification
+                || doc.account_security_keys.is_none())
+        {
+            return Err("EXACT_OASIS_DEMO_STAGING_CONFIGURATION_REQUIRED");
+        }
         // Finance production composition is mounted with the production
         // environment and same-transaction release gates, never with
         // development semantics (see finance_composition_environment).
         let listen = match profile {
             Profile::Development => validate_foundation_address(&doc.listen)
                 .map_err(|_| "DISPOSABLE_PRIVATE_API_PORT_REQUIRED")?,
+            Profile::OasisDemoStaging => {
+                if doc.listen != "127.0.0.1:3382" {
+                    return Err("EXACT_OASIS_DEMO_LISTENER_REQUIRED");
+                }
+                std::net::SocketAddr::from(([127, 0, 0, 1], 3382))
+            }
             Profile::Production => validate_private_production_address(&doc.listen)?,
             Profile::Test => validate_foundation_address(&doc.listen)
                 .map_err(|_| "DISPOSABLE_TEST_API_PORT_REQUIRED")?,
@@ -839,6 +881,12 @@ impl DevelopmentApiConfiguration {
             .transpose()?;
         if control_read_aliases_control(&doc.control, doc.control_read.as_ref()) {
             return Err("PRIVATE_API_CONTROL_READ_CONFIGURATION_INVALID");
+        }
+        if profile == Profile::OasisDemoStaging {
+            check_oasis_database(&control, "control", "app")?;
+            if let Some(read) = &control_read {
+                check_oasis_database(read, "control", "read")?;
+            }
         }
         let mut tokens = BTreeSet::new();
         if let Some(token) = &doc.control.lease_token {
@@ -898,12 +946,18 @@ impl DevelopmentApiConfiguration {
                         }
                     }
                 }
-                Profile::Production => {
-                    if !urls.insert(h.database.url.clone()) {
-                        return Err("DISTINCT_EXACT_API_HOLDINGS_REQUIRED");
+                Profile::OasisDemoStaging => {
+                    let expected = match h.holding_id.as_str() {
+                        "h001" => ("oasis-demo", OASIS_DEMO_HOLDING_HOST),
+                        "h002" => ("oasis-internal", OASIS_DEMO_INERT_HOST),
+                        _ => return Err("EXACT_OASIS_DEMO_HOLDING_REQUIRED"),
+                    };
+                    if (h.slug.as_str(), h.host.as_str()) != expected {
+                        return Err("EXACT_OASIS_DEMO_HOLDING_REQUIRED");
                     }
+                    check_oasis_database(&database, &h.holding_id, "app")?;
                 }
-                Profile::Test => {
+                Profile::Production | Profile::Test => {
                     if !urls.insert(h.database.url.clone()) {
                         return Err("DISTINCT_EXACT_API_HOLDINGS_REQUIRED");
                     }
@@ -933,12 +987,8 @@ impl DevelopmentApiConfiguration {
                                 }
                             }
                         }
-                        Profile::Production => {
-                            if !urls.insert(read.url.clone()) {
-                                return Err("DISTINCT_EXACT_API_HOLDINGS_REQUIRED");
-                            }
-                        }
-                        Profile::Test => {
+                        Profile::OasisDemoStaging => check_oasis_database(&selected, &h.holding_id, "read")?,
+                        Profile::Production | Profile::Test => {
                             if !urls.insert(read.url.clone()) {
                                 return Err("DISTINCT_EXACT_API_HOLDINGS_REQUIRED");
                             }
@@ -975,12 +1025,8 @@ impl DevelopmentApiConfiguration {
                                 }
                             }
                         }
-                        Profile::Production => {
-                            if !urls.insert(projection.url.clone()) {
-                                return Err("DISTINCT_EXACT_API_HOLDINGS_REQUIRED");
-                            }
-                        }
-                        Profile::Test => {
+                        Profile::OasisDemoStaging => return Err("OASIS_DEMO_PROJECTION_DATABASE_UNSUPPORTED"),
+                        Profile::Production | Profile::Test => {
                             if !urls.insert(projection.url.clone()) {
                                 return Err("DISTINCT_EXACT_API_HOLDINGS_REQUIRED");
                             }
@@ -1618,7 +1664,7 @@ impl DevelopmentApiConfiguration {
                 return Err("PRIVATE_API_FINANCE_CONFIGURATION_INVALID");
             }
         }
-        if profile != Profile::Test
+        if matches!(profile, Profile::Development | Profile::Production)
             && doc.account_bootstrap
             && finance_journal_reads.is_empty()
             && field_service_reads.is_empty()
@@ -2454,7 +2500,7 @@ fn finance_composition_environment(
     configuration: &DevelopmentApiConfiguration,
 ) -> FinanceJournalEnvironment {
     match configuration.profile {
-        Profile::Development | Profile::Test => FinanceJournalEnvironment::Development,
+        Profile::Development | Profile::Test | Profile::OasisDemoStaging => FinanceJournalEnvironment::Development,
         Profile::Production => FinanceJournalEnvironment::Production,
     }
 }
@@ -3548,6 +3594,8 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut crm_targets = Vec::new();
         #[cfg(feature = "existing-business")]
+        let mut crm_sales_report_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut crm_history_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut crm_guest_history_targets = Vec::new();
@@ -3928,6 +3976,14 @@ async fn assemble_checked(
                         backend: crm_backend.clone(),
                     },
                 );
+                if config.profile == Profile::OasisDemoStaging && holding.host == OASIS_DEMO_HOLDING_HOST {
+                    crm_sales_report_targets.push(erpx_server_crm::public::sales_report_http::CrmSalesReportHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: crm_backend.clone(),
+                    });
+                }
                 crm_history_targets.push(
                     erpx_server_crm::public::crm_case_event_history::CrmCaseEventHistoryHttpTarget {
                         host: holding.host.clone(),
@@ -7588,6 +7644,13 @@ async fn assemble_checked(
             );
         }
         #[cfg(feature = "existing-business")]
+        if !crm_sales_report_targets.is_empty() {
+            router = router.merge(
+                erpx_server_crm::public::sales_report_http::crm_sales_report_router(crm_sales_report_targets)
+                    .map_err(|_| "PRIVATE_API_CRM_SALES_REPORT_ROUTER_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
         if !crm_history_targets.is_empty() {
             router = router.merge(
                 erpx_server_crm::public::crm_case_event_history::crm_case_event_history_http_router(
@@ -9487,12 +9550,13 @@ async fn assemble_checked(
         .collect();
     if !work_roles.is_empty() {
         router = router.merge(
-            crate::native_work_roles_http::native_work_roles_router(
+            crate::native_work_roles_http::native_work_roles_router_with_selection(
                 config.policy.clone(),
                 config.holdings_registry.clone(),
                 Arc::new(FieldServiceReadScopeHeaders),
                 Arc::new(SharedClock(clock.clone())),
                 work_roles,
+                config.profile == Profile::OasisDemoStaging,
             )
             .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?,
         );
@@ -10101,6 +10165,7 @@ async fn assemble_checked(
             .map(|product| product.host.clone())
             .collect(),
         test_profile: config.profile == Profile::Test,
+        oasis_demo_staging: config.profile == Profile::OasisDemoStaging,
         loopback: config.listen.to_string(),
         permits: Arc::new(Semaphore::new(config.maximum_requests)),
         timeout: config.request_timeout,
@@ -10433,6 +10498,7 @@ struct Boundary {
     policy: Arc<AccountPolicy>,
     sso_product_hosts: BTreeSet<String>,
     test_profile: bool,
+    oasis_demo_staging: bool,
     loopback: String,
     permits: Arc<Semaphore>,
     timeout: Duration,
@@ -11717,6 +11783,13 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         ] => state
             .work_role_targets
             .contains(&(host.to_owned(), (*slug).to_owned())),
+        ["", "api", "v1", "holdings", "oasis-demo", "assignments", "active"] => {
+            state.oasis_demo_staging && host == OASIS_DEMO_HOLDING_HOST
+        }
+        ["", "api", "v1", "holdings", "oasis-demo", "companies", "active"] => {
+            state.oasis_demo_staging && host == OASIS_DEMO_HOLDING_HOST
+                && request.method() == axum::http::Method::POST
+        }
         _ => false,
     };
     let field_evidence = request.method() == axum::http::Method::POST
@@ -11843,7 +11916,8 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             }
             (&axum::http::Method::GET, "/sso/authorize") => host == state.policy.account_host,
             (&axum::http::Method::GET, "/sso/start" | "/sso/callback") => {
-                state.sso_product_hosts.contains(host)
+                (state.oasis_demo_staging && host == OASIS_DEMO_HOLDING_HOST)
+                    || state.sso_product_hosts.contains(host)
                     || state
                         .finance_targets
                         .iter()
@@ -12813,6 +12887,10 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
+    let crm_sales_report = state.oasis_demo_staging && host == OASIS_DEMO_HOLDING_HOST
+        && request.method() == axum::http::Method::GET
+        && request.uri().path() == "/api/v1/holdings/oasis-demo/reports/sales-crm"
+        && state.crm_targets.contains(&(host.to_owned(), "oasis-demo".to_owned()));
     let crm_command = request.method() == axum::http::Method::POST
         && match request
             .uri()
@@ -13626,6 +13704,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || operations
         || platform_operations
         || crm
+        || crm_sales_report
         || crm_command
         || crm_activity_command
         || crm_activity_workspace
@@ -13934,6 +14013,28 @@ pub async fn run_development_api_file(
         .await;
     runtime.close().await;
     result.map_err(|_| "PRIVATE_API_HTTP_FAILED")
+}
+
+pub async fn run_oasis_demo_staging_api_file(
+    path: &Path,
+    shutdown: impl std::future::Future<Output = ()> + Send + 'static,
+) -> Result<(), &'static str> {
+    let configuration = DevelopmentApiConfiguration::read_configuration_file(path, Profile::OasisDemoStaging)?;
+    let runtime = assemble_development_api(
+        configuration,
+        Arc::new(SystemAccountClock),
+        Arc::new(SystemAuthenticationSecrets),
+    ).await?;
+    let listener = match tokio::net::TcpListener::bind(runtime.listen_address()).await {
+        Ok(listener) => listener,
+        Err(_) => {
+            runtime.close().await;
+            return Err("OASIS_DEMO_STAGING_LISTEN_FAILED");
+        }
+    };
+    let result = axum::serve(listener, runtime.router()).with_graceful_shutdown(shutdown).await;
+    runtime.close().await;
+    result.map_err(|_| "OASIS_DEMO_STAGING_HTTP_FAILED")
 }
 
 /// Assemble the private test API from the exact disposable test databases.

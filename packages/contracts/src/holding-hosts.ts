@@ -12,17 +12,33 @@ const contributorHoldingHosts = [
   { holdingId: 'h003', holdingSlug: 'erpx', hostname: 'erpx-internal.erpx.localhost:3443', environment:'development' },
 ] as const;
 /** Origin choice is supplied by the outer runtime; this module has no ambient state. */
-export type OriginProfile = 'public' | 'contributor' | 'loopback';
-export function activeHoldingHosts(profile: OriginProfile = 'public') { return profile === 'contributor' ? contributorHoldingHosts : holdingHosts; }
-export function accountDevelopmentOrigin(profile: OriginProfile = 'public') { return profile === 'contributor' ? 'https://account.erpx.localhost:3443' : 'https://account-dev-erpx.jesadakorn.com'; }
+export const oasisDemoHolding = { holdingId: 'h001', holdingSlug: 'oasis-demo', hostname: 'oasisdreamhouse-demo.jesadakorn.com', environment: 'staging' } as const;
+export const oasisDemoAccountHost = 'account-oasisdreamhouse-demo.jesadakorn.com';
+const oasisDemoHoldingHosts = [oasisDemoHolding] as const;
+export type OriginProfile = 'public' | 'contributor' | 'loopback' | 'oasis-demo-staging';
+export function oasisDemoStagingEnabled(env: Record<string, string | undefined>) {
+  return env.ERPX_OASIS_DEMO_STAGING === '1' && env.ERPX_ENVIRONMENT === 'staging' && env.ERPX_PRODUCT_ENVIRONMENT === 'staging';
+}
+function oasisDemoAssetBuild(env: Record<string, string | undefined>) {
+  return env.ERPX_BUILD_DIR === '.build' && env.NEXT_PUBLIC_ERPX_OASIS_DEMO_ASSETS === '1' &&
+    env.ERPX_ENVIRONMENT === 'staging' && env.ERPX_PRODUCT_ENVIRONMENT === 'staging';
+}
+export function activeHoldingHosts(profile: OriginProfile = 'public') {
+  if (profile === 'oasis-demo-staging') return oasisDemoHoldingHosts;
+  return profile === 'contributor' ? contributorHoldingHosts : holdingHosts;
+}
+export function accountDevelopmentOrigin(profile: OriginProfile = 'public') {
+  if (profile === 'oasis-demo-staging') return `https://${oasisDemoAccountHost}`;
+  return profile === 'contributor' ? 'https://account.erpx.localhost:3443' : 'https://account-dev-erpx.jesadakorn.com';
+}
 export function contributorExactOrigin(host: string | null | undefined, profile: OriginProfile = 'public') {
   if (profile !== 'contributor' || !host) return null;
   return host === 'account.erpx.localhost:3443' || contributorHoldingHosts.some(entry => entry.hostname === host) ? `https://${host}` : null;
 }
-export type HoldingHost = typeof holdingHosts[number] | typeof contributorHoldingHosts[number];
+export type HoldingHost = typeof holdingHosts[number] | typeof contributorHoldingHosts[number] | typeof oasisDemoHolding;
 export function holdingRoutingEnabled(env: Record<string, string | undefined>) {
-  return env.ERPX_HOLDING_ROUTING === 'enabled' && env.ERPX_ENVIRONMENT === 'local'
-    && env.ERPX_PRODUCT_ENVIRONMENT === 'development';
+  return env.ERPX_HOLDING_ROUTING === 'enabled' && (oasisDemoStagingEnabled(env) || oasisDemoAssetBuild(env) ||
+    env.ERPX_ENVIRONMENT === 'local' && env.ERPX_PRODUCT_ENVIRONMENT === 'development');
 }
 export function holdingHostForHost(host: string | null | undefined, profile: OriginProfile = 'public'): HoldingHost | undefined {
   return activeHoldingHosts(profile).find(entry => entry.hostname === host);
@@ -56,8 +72,8 @@ function ownerDestination(app: ProductHostKey, tail: string[]) {
   const root = ownerRoots[app] ?? ''; return [root, ...tail].filter(Boolean).join('/');
 }
 /** Parse presentation only. Organization lineage and current authority remain owner reads. */
-export function parseHoldingRoute(holdingSlug: string, pathname: string): HoldingRoute | null {
-  if (!holdingHostForSlug(holdingSlug) || /[\\\u0000-\u001f\u007f]/u.test(pathname) || /%(?:2f|5c|00)/i.test(pathname)) return null;
+export function parseHoldingRoute(holdingSlug: string, pathname: string, profile: OriginProfile = 'public'): HoldingRoute | null {
+  if (!holdingHostForSlug(holdingSlug, profile) || /[\\\u0000-\u001f\u007f]/u.test(pathname) || /%(?:2f|5c|00)/i.test(pathname)) return null;
   const parts = pathname.split('/').filter(Boolean);
   if (parts.some(part => part === '.' || part === '..')) return null;
   if (parts[0] === '__erpx') {

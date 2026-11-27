@@ -233,7 +233,7 @@ export async function crmLeadCreateReferences(database:SqlDatabase,actor:WorkCon
  if(input.sourceKind==="pms"){await requireCRMCurrentAuthority(database,actor,["pms.read"],`crm-hotel-reference:${randomUUID()}`);if(!await database.prepare(`${crmHotelReservationProbeSql} WHERE id=? AND company_id=? AND branch_id=?`).bind(input.sourceId??"",actor.companyId,input.branchId).first())throw new ApiError(404,"CRM_RESERVATION_NOT_FOUND","The actual Hotel reservation is required.");}
 }
 
-export async function crmOpportunityReference(database:SqlDatabase,actor:WorkContext,kind:"quote"|"sales"|"reservation",id:string){
+export async function crmOpportunityReference(database:SqlDatabase,actor:WorkContext,kind:"sales"|"reservation",id:string){
  if(await commercePackageEnforcementMode()==='disabled')return;
  const rows=kind==="reservation"?crmHotelReservationSources:crmCommerceOrderSources;
  const row=await database.prepare(crmOwnedSourceRowSql('id',rows,'actual',` AND (?::text IS NULL OR branch_id=?) ${kind==="reservation"?"":"AND kind=? AND (?::text IS NULL OR department_id=?)"}`)).bind(id,actor.companyId,actor.branchId,actor.branchId,...(kind==="reservation"?[]:[kind,actor.departmentId,actor.departmentId])).first();

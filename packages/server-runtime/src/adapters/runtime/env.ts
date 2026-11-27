@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { z } from 'zod';
+import { oasisDemoAccountHost, oasisDemoHolding, oasisDemoStagingEnabled } from '@erpx/contracts/holding-hosts';
 import { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
 import { databasePoolAcquireTimeout,databasePoolLimits,databasePoolSize } from "@erpx/feature-runtime/lib/database-pool-policy";
 import { LocalFileStore } from "@erpx/server-runtime/adapters/runtime/filesystem";
@@ -33,6 +34,25 @@ const runtimeGlobal = globalThis as typeof globalThis & { erpxDevRuntime?: { key
 let singleton: RuntimeEnv | undefined;
 function runtimeKey() { return JSON.stringify([process.env.ERPX_DATABASE_MANIFEST, process.env.ERPX_PROCESS_ROLE, process.env.ERPX_DEV_PG_POOL_MAX,process.env.ERPX_APP_PG_POOL_MAX,process.env.ERPX_CONTROL_PG_POOL_MAX, process.env.ERPX_PUBLIC_ORIGIN, process.env.ERPX_MARKETING_ORIGIN, process.env.ERPX_FRONT_PMS_ORIGIN, process.env.ERPX_FRONT_POS_ORIGIN, process.env.ERPX_DATA_DIR, process.env.ERPX_MINIO_ENDPOINT, process.env.ERPX_MINIO_BUCKET]); }
 
+function validateOasisDatabases(manifest: DatabaseManifest) {
+  const scopes = ['control', 'h001', 'h002'];
+  if (Object.keys(manifest.databases).length !== scopes.length * 2 || manifest.slots.length !== 2 ||
+    !['h001', 'h002'].every(id => manifest.slots.some(slot => slot.id === id && !slot.beta &&
+      slot.write === `${id.toUpperCase()}_DB` && slot.read === `${id.toUpperCase()}_READ_DB` && slot.files === `${id.toUpperCase()}_FILES`)))
+    throw new Error('OASIS_DEMO_DATABASE_MANIFEST_MISMATCH');
+  for (const scope of scopes) {
+    const database = `erpx_stage_oasis_demo_${scope}`;
+    for (const access of ['app','read']) {
+      const key = `${scope.toUpperCase()}${access === 'read' ? '_READ' : ''}_DB`;
+      if (!manifest.databases[key]) throw new Error('OASIS_DEMO_DATABASE_MANIFEST_MISMATCH');
+      const url = new URL(manifest.databases[key]);
+      if (!['postgres:', 'postgresql:'].includes(url.protocol) || url.hostname !== '127.0.0.1' || url.port !== '5432' ||
+        url.pathname !== `/${database}` || url.username !== `${database}_${access}` || !url.password || url.hash || url.search)
+        throw new Error('OASIS_DEMO_DATABASE_MANIFEST_MISMATCH');
+    }
+  }
+}
+
 export function getRuntime(): RuntimeEnv {
   if (singleton) return singleton;
   if (process.env.NODE_ENV === 'development' && runtimeGlobal.erpxDevRuntime?.key === runtimeKey()) return singleton = runtimeGlobal.erpxDevRuntime.env;
@@ -49,6 +69,17 @@ export function getRuntime(): RuntimeEnv {
   const manifestPath = process.env.ERPX_DATABASE_MANIFEST;
   if (!manifestPath || !isAbsolute(manifestPath)) throw new Error('ERPX_DATABASE_MANIFEST_REQUIRED');
   const manifest = manifestSchema.parse(JSON.parse(readFileSync(manifestPath, 'utf8')));
+  const oasisDemo = process.env.ERPX_OASIS_DEMO_STAGING !== undefined;
+  if (oasisDemo) {
+    const app = process.env.ERPX_APP_ID;
+    const host = app === 'account' ? oasisDemoAccountHost : oasisDemoHolding.hostname;
+    if (!production || engineering || !oasisDemoStagingEnabled(process.env) || !['account','apps','sales'].includes(app ?? '') ||
+      resolve(manifestPath) !== join(data, 'databases.json') || process.env.ERPX_PUBLIC_ORIGIN !== `https://${host}` ||
+      process.env.ERPX_MINIO_ENDPOINT || process.env.ERPX_MINIO_BUCKET || process.env.ERPX_MARKETING_ORIGIN ||
+      process.env.ERPX_FRONT_PMS_ORIGIN || process.env.ERPX_FRONT_POS_ORIGIN || process.env.ERPX_PUBLIC_BETA === 'true' ||
+      process.env.ERPX_PROCESS_ROLE !== 'app') throw new Error('OASIS_DEMO_RUNTIME_MISMATCH');
+    validateOasisDatabases(manifest);
+  }
   if(engineering){
     if(resolve(manifestPath)!==join(data,'databases.json')||!Object.entries(manifest.databases).every(([binding,value])=>{
       if(!/^(CONTROL|H00[1-3])(_READ)?_DB$/.test(binding))return false;
@@ -107,7 +138,7 @@ export function getRuntime(): RuntimeEnv {
   // Schema migrations use a separately provisioned login. The web process gets
   // these credentials only from the private, sibling migration manifest; app
   // and jobs URLs remain unable to migrate schema or read erpx_migrations.
-  if (process.env.ERPX_PROCESS_ROLE !== 'jobs') {
+  if (process.env.ERPX_PROCESS_ROLE !== 'jobs' && !oasisDemo) {
     try {
       const migrationManifestPath = process.env.ERPX_MIGRATION_DATABASE_MANIFEST ?? join(dirname(manifestPath), 'databases-migrations.json');
       if (!isAbsolute(migrationManifestPath)) throw new Error('ERPX_MIGRATION_DATABASE_MANIFEST_REQUIRED');

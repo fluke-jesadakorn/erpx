@@ -76,6 +76,13 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
             .await
             .map_err(str::to_owned)
         }
+        #[cfg(feature = "private-development-api")]
+        [command, option, path] if command == "private-api" && option == "--oasis-demo-staging-config" => {
+            erpx_service::private_development_api::run_oasis_demo_staging_api_file(
+                std::path::Path::new(path),
+                shutdown(),
+            ).await.map_err(str::to_owned)
+        }
         #[cfg(feature = "private-field-api")]
         [command, option, path] if command == "private-api" && option == "--development-config" => {
             erpx_service::private_development_api::run_development_api_file(

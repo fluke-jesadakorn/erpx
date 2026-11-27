@@ -17,3 +17,5 @@ pub mod native_command_http;
 pub mod pipeline;
 pub mod pipeline_http;
 pub mod native_lane_29;
+pub mod sales_report;
+pub mod sales_report_http;

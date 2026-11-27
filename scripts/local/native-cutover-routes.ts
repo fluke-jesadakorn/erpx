@@ -1,4 +1,5 @@
 import type { ServerResponse } from "node:http";
+import { oasisDemoAccountHost, oasisDemoHolding } from '@erpx/contracts/holding-hosts';
 
 function validId(segment: string): boolean {
   const id = decodeURIComponent(segment);
@@ -6,6 +7,60 @@ function validId(segment: string): boolean {
 }
 
 export type HoldingNativeWorkspace = { branch?: string; department?: string };
+
+const read = ['GET', 'HEAD'];
+const write = ['POST'];
+const readWrite = [...read, ...write];
+const oasisAccountRoutes: Readonly<Record<string, readonly string[]>> = {
+  '/api/auth/get-session': read,
+  '/api/auth/sign-in/email': write,
+  '/api/auth/sign-out': write,
+  '/api/v1/account/device-accounts': [...read, 'DELETE'],
+  '/api/v1/account/device-accounts/initialize': write,
+  '/api/v1/account/device-accounts/active': write,
+  '/api/v1/account/device-accounts/sign-in': write,
+  '/sso/authorize': ['GET'],
+};
+const oasisHoldingRoutes: Readonly<Record<string, readonly string[]>> = {
+  '/api/auth/get-session': read,
+  '/api/auth/sign-out': write,
+  '/sso/start': ['GET'],
+  '/sso/callback': ['GET'],
+};
+const oasisSalesRoutes: Readonly<Record<string, readonly string[]>> = {
+  'assignments/active': readWrite,
+  'companies/active': write,
+  'crm/activities': readWrite,
+  'crm/activities/work': read,
+  'crm/leads': read,
+  'commerce/orders': write,
+  'reports/sales-crm': read,
+};
+
+/** Public methods of the walkthrough. Private SSR transport is never exposed here. */
+export function oasisDemoNativeRoute(host: string, url: string): { url: string; methods: readonly string[]; workspace?: HoldingNativeWorkspace; workContext?: true } | undefined {
+  if (host !== oasisDemoAccountHost && host !== oasisDemoHolding.hostname) return;
+  const [path] = url.split('?', 1);
+  if (path === '/api/health' || path === '/api/ready') return {url, methods: read};
+  const methods = (host === oasisDemoAccountHost ? oasisAccountRoutes : oasisHoldingRoutes)[path!];
+  if (methods) return {url, methods};
+  if (host !== oasisDemoHolding.hostname) return;
+  const scoped = normalizeHoldingNativePath(url, oasisDemoHolding.holdingSlug);
+  const canonical = scoped.url.split('?', 1)[0]!;
+  const prefix = `/api/v1/holdings/${oasisDemoHolding.holdingSlug}/`;
+  if (!canonical.startsWith(prefix)) return;
+  const route = canonical.slice(prefix.length);
+  if (Object.hasOwn(oasisSalesRoutes, route)) return {...scoped, methods: oasisSalesRoutes[route]!,
+    ...(route === 'assignments/active' || route === 'companies/active' ? {} : {workContext:true})};
+  const match = /^(crm\/activities|crm\/leads|commerce\/orders)\/([^/]+)(?:\/(changes|opportunity\/changes|transition))?$/.exec(route);
+  if (!match) return;
+  const [, owner, id, action] = match;
+  try { if (!validId(id!)) return; } catch { return; }
+  if (owner === 'commerce/orders' && !action) return {...scoped, methods: readWrite, workContext:true};
+  if (owner === 'commerce/orders' && action === 'transition' ||
+      owner === 'crm/activities' && action === 'changes' ||
+      owner === 'crm/leads' && (action === 'changes' || action === 'opportunity/changes')) return {...scoped, methods: write, workContext:true};
+}
 
 function canonicalQualityAction(url: string, prefix: string): string {
   const match = /^quality\/([^/?]+)(?:\/([^/?]+))?(\?.*)?$/.exec(url.slice(prefix.length));
