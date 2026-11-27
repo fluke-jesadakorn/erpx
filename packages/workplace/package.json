@@ -494,7 +494,6 @@
     "./routes/api/v1/holdings/[holdingSlug]/hospitality/setup/route": "./src/routes/api/v1/holdings/[holdingSlug]/hospitality/setup/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/page-layouts/[pageKey]/route": "./src/routes/api/v1/holdings/[holdingSlug]/page-layouts/[pageKey]/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/records/search/route": "./src/routes/api/v1/holdings/[holdingSlug]/records/search/route.ts",
-    "./routes/api/v1/holdings/[holdingSlug]/records/[module]/route": "./src/routes/api/v1/holdings/[holdingSlug]/records/[module]/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/transition/route": "./src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/transition/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/references/route": "./src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/references/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/mentions/route": "./src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/mentions/route.ts",

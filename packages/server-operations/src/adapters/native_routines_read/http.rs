@@ -22,6 +22,7 @@ const CONTEXT_ASSIGNMENT: HeaderName = HeaderName::from_static("x-erpx-context-a
 const CONTEXT_REVISION: HeaderName = HeaderName::from_static("x-erpx-context-revision");
 const CONTEXT_ASSIGNMENT_VERSION: HeaderName =
     HeaderName::from_static("x-erpx-context-assignment-version");
+const API_TRANSPORT: HeaderName = HeaderName::from_static("x-erpx-api-transport");
 
 /// Registered Holding target. Both fields must be exact and distinct.
 pub struct TemplateReadTarget {
@@ -70,6 +71,14 @@ fn unique_header(headers: &HeaderMap, name: HeaderName) -> Result<Option<&str>, 
         .transpose()
 }
 
+/// The gateway injects one trusted public marker after stripping every
+/// browser-supplied `x-erpx-*` header. Duplicates remain invalid.
+fn public_transport(headers: &HeaderMap) -> Result<bool, BusinessError> {
+    Ok(unique_header(headers, API_TRANSPORT)?
+        .filter(|value| *value == "public")
+        .is_some())
+}
+
 fn required(headers: &HeaderMap, name: HeaderName) -> Result<String, BusinessError> {
     unique_header(headers, name)?
         .filter(|value| !value.is_empty())
@@ -116,6 +125,29 @@ fn bounded(body: serde_json::Value) -> Response {
             .insert(name, HeaderValue::from_static(value));
     }
     response
+}
+
+/// The public browser route keeps the former Next `{data}` envelope; the
+/// private SSR transport still receives the full context-bearing wire.
+fn response_body(
+    public: bool,
+    value: serde_json::Value,
+    actor: &TemplateActor,
+) -> serde_json::Value {
+    if public {
+        serde_json::json!({"data": value})
+    } else {
+        serde_json::json!({
+            "data": value,
+            "context": {
+                "companyId": &actor.company_id,
+                "userId": &actor.user_id,
+                "assignmentId": &actor.assignment_id,
+                "revision": actor.revision,
+                "assignmentVersion": actor.assignment_version,
+            }
+        })
+    }
 }
 
 fn configured(
@@ -203,7 +235,8 @@ async fn list_templates(
 ) -> Response {
     let result = async move {
         let headers = request.headers();
-        if request.uri().query().is_some() {
+        let public = public_transport(headers)?;
+        if !public && request.uri().query().is_some() {
             return Err(invalid());
         }
         let host = unique_header(headers, header::HOST)?
@@ -228,16 +261,7 @@ async fn list_templates(
                 "The native Operations routine read service is unavailable.",
             )
         })?;
-        Ok::<_, BusinessError>(serde_json::json!({
-            "data": value,
-            "context": {
-                "companyId": actor.company_id,
-                "userId": actor.user_id,
-                "assignmentId": actor.assignment_id,
-                "revision": actor.revision,
-                "assignmentVersion": actor.assignment_version,
-            }
-        }))
+        Ok::<_, BusinessError>(response_body(public, value, &actor))
     }
     .await;
     match result {
@@ -249,6 +273,38 @@ async fn list_templates(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn public_marker_must_be_single_and_exact() {
+        let mut headers = HeaderMap::new();
+        assert!(!public_transport(&headers).expect("absent marker"));
+        headers.insert(API_TRANSPORT, HeaderValue::from_static("public"));
+        assert!(public_transport(&headers).expect("public marker"));
+        headers.append(API_TRANSPORT, HeaderValue::from_static("public"));
+        assert_eq!(public_transport(&headers), Err(invalid()));
+        let mut headers = HeaderMap::new();
+        headers.insert(API_TRANSPORT, HeaderValue::from_static("private"));
+        assert!(!public_transport(&headers).expect("other marker"));
+    }
+
+    #[test]
+    fn public_envelope_omits_context() {
+        let actor = TemplateActor {
+            company_id: "acme:001".into(),
+            user_id: "u-1".into(),
+            assignment_id: "a-1".into(),
+            revision: 7,
+            assignment_version: 2,
+        };
+        let data = serde_json::json!([{"id":"t-1"}]);
+        assert_eq!(
+            response_body(true, data.clone(), &actor),
+            serde_json::json!({"data": data})
+        );
+        let private = response_body(false, data, &actor);
+        assert_eq!(private["context"]["companyId"], "acme:001");
+        assert_eq!(private["context"]["revision"], 7);
+    }
 
     #[test]
     fn targets_must_be_exact_and_distinct() {

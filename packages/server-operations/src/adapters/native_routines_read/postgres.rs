@@ -101,10 +101,10 @@ impl TemplateRead for PgTemplateRead {
                                     .try_get::<String, _>("completion_approvers_json")
                                     .map_err(|_| unavailable())?,
                                 published: row
-                                    .try_get::<i32, _>("published")
+                                    .try_get::<i64, _>("published")
                                     .map_err(|_| unavailable())?,
                                 version: row
-                                    .try_get::<i32, _>("version")
+                                    .try_get::<i64, _>("version")
                                     .map_err(|_| unavailable())?,
                                 created_at: row
                                     .try_get::<i64, _>("created_at")

@@ -20,6 +20,7 @@ const CONTEXT_ASSIGNMENT: HeaderName = HeaderName::from_static("x-erpx-context-a
 const CONTEXT_REVISION: HeaderName = HeaderName::from_static("x-erpx-context-revision");
 const CONTEXT_ASSIGNMENT_VERSION: HeaderName =
     HeaderName::from_static("x-erpx-context-assignment-version");
+const API_TRANSPORT: HeaderName = HeaderName::from_static("x-erpx-api-transport");
 
 /// Registered Holding target. Both fields must be exact and distinct.
 pub struct TemplateDetailTarget {
@@ -33,6 +34,14 @@ struct TemplateDetailState {
 
 fn missing() -> BusinessError {
     BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.")
+}
+
+fn missing_template() -> BusinessError {
+    BusinessError::new(
+        FailureKind::NotFound,
+        "TEMPLATE_NOT_FOUND",
+        "Routine template not found.",
+    )
 }
 
 fn invalid() -> BusinessError {
@@ -66,6 +75,14 @@ fn unique_header(headers: &HeaderMap, name: HeaderName) -> Result<Option<&str>, 
     first
         .map(|value| value.to_str().map_err(|_| invalid()))
         .transpose()
+}
+
+/// The gateway injects one trusted public marker after stripping every
+/// browser-supplied `x-erpx-*` header. Duplicates remain invalid.
+fn public_transport(headers: &HeaderMap) -> Result<bool, BusinessError> {
+    Ok(unique_header(headers, API_TRANSPORT)?
+        .filter(|value| *value == "public")
+        .is_some())
 }
 
 fn required(headers: &HeaderMap, name: HeaderName) -> Result<String, BusinessError> {
@@ -114,6 +131,29 @@ fn bounded(body: serde_json::Value) -> Response {
             .insert(name, HeaderValue::from_static(value));
     }
     response
+}
+
+/// The public browser route keeps the former Next `{data}` envelope; the
+/// private SSR transport still receives the full context-bearing wire.
+fn response_body(
+    public: bool,
+    value: serde_json::Value,
+    actor: &TemplateActor,
+) -> serde_json::Value {
+    if public {
+        serde_json::json!({"data": value})
+    } else {
+        serde_json::json!({
+            "data": value,
+            "context": {
+                "companyId": &actor.company_id,
+                "userId": &actor.user_id,
+                "assignmentId": &actor.assignment_id,
+                "revision": actor.revision,
+                "assignmentVersion": actor.assignment_version,
+            }
+        })
+    }
 }
 
 fn configured(
@@ -196,7 +236,8 @@ async fn template_detail(
 ) -> Response {
     let result = async move {
         let headers = request.headers();
-        if request.uri().query().is_some() {
+        let public = public_transport(headers)?;
+        if !public && request.uri().query().is_some() {
             return Err(invalid());
         }
         let host = unique_header(headers, header::HOST)?
@@ -214,6 +255,9 @@ async fn template_detail(
             assignment_version: counter(headers, CONTEXT_ASSIGNMENT_VERSION)?,
         };
         let row = handler.detail(&actor, &id).await?;
+        if public && row.is_none() {
+            return Err(missing_template());
+        }
         let value = serde_json::to_value(row).map_err(|_| {
             BusinessError::new(
                 FailureKind::Unavailable,
@@ -221,16 +265,7 @@ async fn template_detail(
                 "The native Operations routine read service is unavailable.",
             )
         })?;
-        Ok::<_, BusinessError>(serde_json::json!({
-            "data": value,
-            "context": {
-                "companyId": actor.company_id,
-                "userId": actor.user_id,
-                "assignmentId": actor.assignment_id,
-                "revision": actor.revision,
-                "assignmentVersion": actor.assignment_version,
-            }
-        }))
+        Ok::<_, BusinessError>(response_body(public, value, &actor))
     }
     .await;
     match result {
@@ -313,5 +348,45 @@ mod tests {
         let _ = router;
         assert!(valid_slug("acme"));
         assert!(!valid_slug("Acme"));
+    }
+
+    #[test]
+    fn public_marker_must_be_single_and_exact() {
+        let mut headers = HeaderMap::new();
+        assert!(!public_transport(&headers).expect("absent marker"));
+        headers.insert(API_TRANSPORT, HeaderValue::from_static("public"));
+        assert!(public_transport(&headers).expect("public marker"));
+        headers.append(API_TRANSPORT, HeaderValue::from_static("public"));
+        assert_eq!(public_transport(&headers), Err(invalid()));
+        let mut headers = HeaderMap::new();
+        headers.insert(API_TRANSPORT, HeaderValue::from_static("private"));
+        assert!(!public_transport(&headers).expect("other marker"));
+    }
+
+    #[test]
+    fn public_missing_template_keeps_next_404() {
+        let error = missing_template();
+        assert_eq!(error.kind, FailureKind::NotFound);
+        assert_eq!(error.code, "TEMPLATE_NOT_FOUND");
+        assert_eq!(error.message, "Routine template not found.");
+    }
+
+    #[test]
+    fn public_envelope_omits_context() {
+        let actor = TemplateActor {
+            company_id: "acme:001".into(),
+            user_id: "u-1".into(),
+            assignment_id: "a-1".into(),
+            revision: 7,
+            assignment_version: 2,
+        };
+        let data = serde_json::json!({"id":"t-1"});
+        assert_eq!(
+            response_body(true, data.clone(), &actor),
+            serde_json::json!({"data": data})
+        );
+        let private = response_body(false, data, &actor);
+        assert_eq!(private["context"]["companyId"], "acme:001");
+        assert_eq!(private["context"]["revision"], 7);
     }
 }

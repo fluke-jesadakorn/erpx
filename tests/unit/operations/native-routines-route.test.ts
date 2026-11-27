@@ -1,5 +1,6 @@
 import {afterEach,describe,expect,it,vi} from 'vitest';
 import {nativeRoutinesAvailable} from '@erpx/server-operations/public/native-routines-page';
+import {GET as templatesGet} from '../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/routine-templates/[[...path]]/route';
 import {POST as templatesPost} from '../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/routine-templates/[[...path]]/route';
 import {POST as schedulesPost} from '../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/routine-schedules/[[...path]]/route';
 
@@ -129,5 +130,25 @@ describe('native routine routes are the sole command path', () => {
     expect(response.status).toBe(503);
     expect(await response.json()).toMatchObject({error: {code: 'NATIVE_ROUTINES_CONFIGURATION_INVALID'}});
     expect(retained).not.toHaveBeenCalled();
+  });
+});
+
+describe('routine template routes after the direct read cutover', () => {
+  const read = new Request('https://acme.jesadakorn.com/api/v1/holdings/acme/routine-templates');
+
+  it('serves only the retained longer read in Next', async () => {
+    for (const path of [[], ['template']]) {
+      const response = await templatesGet(read, context(path));
+      expect(response.status).toBe(404);
+    }
+    expect(retained).not.toHaveBeenCalled();
+    expect(await (await templatesGet(read, context(['template', 'schedules']))).json()).toEqual({data: 'retained'});
+    expect(retained).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves the retained branch for an uncovered template POST shape', async () => {
+    const response = await templatesPost(request(), context(['template', 'unknown']));
+    expect(await response.json()).toEqual({data: 'retained'});
+    expect(retained).toHaveBeenCalledTimes(1);
   });
 });

@@ -296,6 +296,18 @@ async fn ensure_empty_body(request: Request) -> Result<(), BusinessError> {
     }
 }
 
+/// Next derived OPTIONS as 204 + `Allow` for the retired collection route.
+/// Keep that contract on the native entry so browser preflights do not change.
+/// Axum's `get` already serves HEAD with the body removed.
+async fn collection_options() -> Response {
+    let mut response = StatusCode::NO_CONTENT.into_response();
+    response.headers_mut().insert(
+        header::ALLOW,
+        HeaderValue::from_static("GET, HEAD, OPTIONS, POST"),
+    );
+    response
+}
+
 pub fn records_registry_http_router(
     targets: Vec<RecordsRegistryHttpTarget>,
 ) -> Result<Router, BusinessError> {
@@ -314,7 +326,7 @@ pub fn records_registry_http_router(
     Ok(Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/records/{module_id}",
-            get(read_registry).post(create_record),
+            get(read_registry).post(create_record).options(collection_options),
         )
         .route(
             "/api/v1/holdings/{holding_slug}/records/{module_id}/{record_id}",
@@ -780,6 +792,16 @@ mod wire_parity_tests {
         assert_eq!(
             keys(&page),
             vec!["hasMore", "items", "nextCursor", "previousCursor"]
+        );
+    }
+
+    #[tokio::test]
+    async fn collection_options_preserves_the_retired_next_preflight() {
+        let response = collection_options().await;
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+        assert_eq!(
+            response.headers().get(header::ALLOW).unwrap(),
+            "GET, HEAD, OPTIONS, POST"
         );
     }
 

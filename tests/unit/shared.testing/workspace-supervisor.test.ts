@@ -316,13 +316,13 @@ it('routes /api to the native service, strips browser context and resolves sessi
  expect(nativeApiPath(routeEnv, nativePath, 'other.fixture.invalid', 'GET')).toBe(false);
  expect(nativeApiPath(routeEnv, `${nativePath}/suggestions`, 'finance.fixture.invalid', 'GET')).toBe(false);
  expect(nativeApiPath(routeEnv, `${nativePath}%2Fsuggestions`, 'finance.fixture.invalid', 'GET')).toBe(false);
- const seen:Array<{path:string;company:string|undefined;user:string|undefined;modules:string|undefined;requested:string|undefined}>=[];
+ const seen:Array<{path:string;company:string|undefined;user:string|undefined;modules:string|undefined;requested:string|undefined;transport:string|undefined}>=[];
  const api=createServer((req,res)=>{
   if((req.url??'').startsWith('/internal/session-context')){
    if(req.headers.origin!=='http://127.0.0.1:3299'){res.statusCode=403;res.end('non-loopback');return;}
    res.setHeader('Content-Type','application/json');res.end(JSON.stringify({data:{companyId:'native-company',userId:'native-user',modules:['finance.read','work.read']}}));return;
   }
-  seen.push({path:req.url!,company:req.headers['x-erpx-context-company'] as string|undefined,user:req.headers['x-erpx-context-user'] as string|undefined,modules:req.headers['x-erpx-context-modules'] as string|undefined,requested:req.headers['x-erpx-requested-company'] as string|undefined});
+  seen.push({path:req.url!,company:req.headers['x-erpx-context-company'] as string|undefined,user:req.headers['x-erpx-context-user'] as string|undefined,modules:req.headers['x-erpx-context-modules'] as string|undefined,requested:req.headers['x-erpx-requested-company'] as string|undefined,transport:req.headers['x-erpx-api-transport'] as string|undefined});
   res.setHeader('Content-Type','application/json');res.end(JSON.stringify({native:true}));
  });
  const app=createServer((_,res)=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify({app:true}));});
@@ -331,12 +331,12 @@ it('routes /api to the native service, strips browser context and resolves sessi
  const gateway=await startCompiledWorkspaceGateway({...compiledRouting(),api:3299},3104);
  try{
   const response=await new Promise<{status:number;body:string}>((done,reject)=>{
-   const req=request({host:'127.0.0.1',port:3104,path:'/api/v1/holdings/acme/finance/journals',headers:{Host:'finance.fixture.invalid',Cookie:'erpx_session=1','x-erpx-context-company':'spoofed','x-erpx-requested-company':'selected'},agent:false},res=>{
+   const req=request({host:'127.0.0.1',port:3104,path:'/api/v1/holdings/acme/finance/journals',headers:{Host:'finance.fixture.invalid',Cookie:'erpx_session=1','x-erpx-context-company':'spoofed','x-erpx-requested-company':'selected','x-erpx-api-transport':'spoofed'},agent:false},res=>{
     const chunks:Buffer[]=[];res.on('data',chunk=>chunks.push(Buffer.from(chunk)));res.once('end',()=>done({status:res.statusCode??0,body:Buffer.concat(chunks).toString()}));
    });req.once('error',reject);req.end();
   });
   expect(response).toEqual({status:200,body:'{"native":true}'});
-  expect(seen).toEqual([{path:'/api/v1/holdings/acme/finance/journals',company:'native-company',user:'native-user',modules:'finance.read,work.read',requested:undefined}]);
+  expect(seen).toEqual([{path:'/api/v1/holdings/acme/finance/journals',company:'native-company',user:'native-user',modules:'finance.read,work.read',requested:undefined,transport:'public'}]);
   const page=await new Promise<{status:number;body:string}>((done,reject)=>{
    const req=request({host:'127.0.0.1',port:3104,path:'/page',headers:{Host:'finance.fixture.invalid'},agent:false},res=>{
     const chunks:Buffer[]=[];res.on('data',chunk=>chunks.push(Buffer.from(chunk)));res.once('end',()=>done({status:res.statusCode??0,body:Buffer.concat(chunks).toString()}));
@@ -346,10 +346,17 @@ it('routes /api to the native service, strips browser context and resolves sessi
  }finally{await gateway.close();await new Promise<void>(done=>api.close(()=>done()));await new Promise<void>(done=>app.close(()=>done()));}
 },20000);
 
-it('routes an exact Holding API transport alias to Axum with its original query', async () => {
+it('routes retired Holding entries and their transport aliases directly to Axum', async () => {
   await free(3104);
   const root = await realpath(await mkdtemp(join(tmpdir(), 'erpx-native-selector-')));
-  const upstream = createServer((req, res) => { res.end(req.url); });
+  const upstream = createServer((req, res) => {
+    if (req.url?.startsWith('/internal/session-context?')) {
+      res.writeHead(403, {'Content-Type': 'application/json'});
+      res.end('{"error":{"code":"FORBIDDEN","message":"Unavailable to the current role."}}');
+      return;
+    }
+    res.end(req.url);
+  });
   let gateway: Awaited<ReturnType<typeof startWorkspaceGateway>> | undefined;
   try {
     await writeFile(join(root, 'package.json'), JSON.stringify({ name: 'erpx' }));
@@ -358,8 +365,7 @@ it('routes an exact Holding API transport alias to Axum with its original query'
     if (!address || typeof address === 'string') throw new Error('FIXTURE_LISTENER_MISSING');
     const host = 'acme.jesadakorn.com';
     gateway = await startWorkspaceGateway({ root, node: process.execPath, port: 3104, preview: false, fallback: null,
-      environment: { NODE_ENV: 'development', ERPX_ENVIRONMENT: 'local', ERPX_PRODUCT_ENVIRONMENT: 'development', ERPX_HOLDING_ROUTING: 'enabled', ERPX_DEV_NATIVE_API: `http://127.0.0.1:${address.port}`,
-        ERPX_DEV_NATIVE_PATHS: `${host}|GET|/api/v1/holdings/{holding}/records/{module}` },
+      environment: { NODE_ENV: 'development', ERPX_ENVIRONMENT: 'local', ERPX_PRODUCT_ENVIRONMENT: 'development', ERPX_HOLDING_ROUTING: 'enabled', ERPX_DEV_NATIVE_API: `http://127.0.0.1:${address.port}` },
       settings: () => ({ version: 1, activeApps: ['apps'], maxApps: 1, idleMinutes: 10, bundlers: {}, defaultBundler: 'webpack' }),
     });
     const path = '/api/v1/holdings/acme/records/case?cursor=a%2Fb';
@@ -367,6 +373,27 @@ it('routes an exact Holding API transport alias to Axum with its original query'
     expect(await get(3104, host, `/__erpx/apps${path}`)).toEqual({ status: 200, body: path });
     expect((await get(3104, host, `/__erpx/sales${path}`)).status).toBe(404);
     expect((await get(3104, host, path.replace('/acme/', '/northstar/'))).status).toBe(404);
+    const routines = '/api/v1/holdings/acme/routine-templates';
+    expect((await get(3104, host, routines)).status).toBe(401);
+    const denied = await new Promise<{status: number; body: string}>((done, reject) => {
+      const req = request({host: '127.0.0.1', port: 3104, path: `${routines}/template-1`,
+        headers: {Host: host, Cookie: 'erpx_session=denied', 'x-erpx-context-user': 'spoofed'}}, res => {
+        let body = '';
+        res.setEncoding('utf8');
+        res.on('data', chunk => body += chunk);
+        res.once('end', () => done({status: res.statusCode ?? 0, body}));
+      });
+      req.once('error', reject);
+      req.end();
+    });
+    expect(denied.status).toBe(403);
+    expect(JSON.parse(denied.body)).toMatchObject({error: {code: 'FORBIDDEN'}});
+    const {holdingNativeCutoverPath} = await import('../../../scripts/local/native-cutover-routes');
+    expect(holdingNativeCutoverPath(routines, 'acme', 'HEAD')).toBe('routine-templates');
+    expect(holdingNativeCutoverPath(routines, 'acme', 'POST')).toBeUndefined();
+    expect(holdingNativeCutoverPath(`${routines}/template-1/schedules`, 'acme', 'GET')).toBeUndefined();
+    for (const tail of ['search', 'native-search', '%73earch', 'support/record', 'support%2Frecord'])
+      expect(holdingNativeCutoverPath(`/api/v1/holdings/acme/records/${tail}`, 'acme', 'GET')).toBeUndefined();
   } finally {
     await gateway?.close();
     await new Promise<void>(done => upstream.close(() => done()));

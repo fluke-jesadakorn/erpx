@@ -452,7 +452,7 @@ impl<C: Clock + Send + Sync + 'static> RecordsService<C> {
                         current.require_permission("records.read")?;
                         let actor = records_actor(current)?;
                         let now = clock.now().get();
-                        let mut repository = PgRecordRegistry::new(connection);
+                        let mut repository = PgRecordRegistry::in_authorized_work(connection);
                         let mut guard = RecordsRegistryGuardImpl;
                         let data = if is_page {
                             let query = RegistryQuery::page(

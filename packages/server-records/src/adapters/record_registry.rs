@@ -3,8 +3,8 @@
 //! SQL is Records-owned: only `workspace_records` is selected. Current IAM is
 //! re-read through the existing assignments/IAM predicates used by the
 //! retained owner. Cross-owner source admission is not performed here; the
-//! caller supplies the public guard port. The caller's serializable read-only
-//! Holding transaction is required and no commit is performed.
+//! caller supplies the public guard port. Records queries are read-only and
+//! run inside the caller's serializable Holding transaction.
 use crate::adapters::record_context::{AUTHORITY, map_record};
 use crate::application::record_registry::RecordRegistryRepository;
 use crate::domain::record_context::{RecordContextActor, RecordRow};
@@ -41,11 +41,18 @@ const REVERSE: &str = "SELECT module_id,id,section_id,title,description,status,f
 
 pub struct PgRecordRegistry<'c> {
     connection: &'c mut PgConnection,
+    require_read_only: bool,
 }
 
 impl<'c> PgRecordRegistry<'c> {
     pub fn new(connection: &'c mut PgConnection) -> Self {
-        Self { connection }
+        Self { connection, require_read_only: true }
+    }
+
+    /// Keep the read inside the same serializable transaction as the current
+    /// Holding authorization and its source locks.
+    pub fn in_authorized_work(connection: &'c mut PgConnection) -> Self {
+        Self { connection, require_read_only: false }
     }
 
     async fn ready(&mut self) -> Result<(), Error> {
@@ -59,7 +66,7 @@ impl<'c> PgRecordRegistry<'c> {
         {
             return Err(PersistenceError::new("RECORDS_REGISTRY_SERIALIZABLE_REQUIRED").into());
         }
-        if sqlx::query_scalar::<_, String>("SHOW transaction_read_only")
+        if self.require_read_only && sqlx::query_scalar::<_, String>("SHOW transaction_read_only")
             .fetch_one(&mut *self.connection)
             .await?
             != "on"

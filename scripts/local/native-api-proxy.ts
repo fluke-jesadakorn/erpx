@@ -57,6 +57,17 @@ export function stripInternalHeaders(headers: IncomingHttpHeaders): IncomingHttp
     !key.startsWith("x-erpx-") && !key.startsWith("x-forwarded-") && key !== "forwarded"));
 }
 
+class NativeSessionError extends Error {
+  constructor(readonly status: number, readonly body: string) {
+    super("NATIVE_CONTEXT_UNAVAILABLE");
+  }
+}
+
+export function nativeApiError(res: ServerResponse, status: number, code: string, message: string): void {
+  res.writeHead(status, { "Content-Type": "application/json", "Cache-Control": "private, no-store" });
+  res.end(JSON.stringify({error: {code, message}}));
+}
+
 export async function nativeSessionContext(base: URL, req: IncomingMessage, url = req.url ?? ""): Promise<Record<string, string>> {
   const slug = /^\/api\/v1\/holdings\/([^/]+)\//.exec(url)?.[1];
   if (!slug || !req.headers.cookie) return {};
@@ -80,9 +91,16 @@ export async function nativeSessionContext(base: URL, req: IncomingMessage, url 
     }, response => {
       let text = "";
       response.setEncoding("utf8"); response.on("data", chunk => { text += chunk; });
-      response.once("end", () => response.statusCode === 200 ? done(text) : reject(new Error("NATIVE_CONTEXT_UNAVAILABLE")));
+      response.once("end", () => {
+        const status = response.statusCode ?? 503;
+        if (status === 200) done(text);
+        else if ([401, 403, 404, 409, 422, 503].includes(status) && response.headers["content-type"]?.startsWith("application/json"))
+          reject(new NativeSessionError(status, text));
+        else reject(new Error("NATIVE_CONTEXT_UNAVAILABLE"));
+      });
       response.once("error", reject);
     });
+    call.setTimeout(5_000, () => call.destroy(new Error("NATIVE_CONTEXT_UNAVAILABLE")));
     call.once("error", reject); call.end();
   });
   let data: unknown;
@@ -103,17 +121,30 @@ export async function nativeSessionContext(base: URL, req: IncomingMessage, url 
   return Object.fromEntries(Object.entries(headers).filter(([, item]) => item !== undefined)) as Record<string, string>;
 }
 
-export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.ProcessEnv; req: IncomingMessage; res: ServerResponse; url?: string }): Promise<void> {
-  const { base, environment, req, res } = options;
+export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.ProcessEnv; req: IncomingMessage; res: ServerResponse; url?: string; requiresSession?: boolean }): Promise<void> {
+  const { base, environment, req, res, requiresSession } = options;
   const url = options.url ?? req.url ?? "/";
-  const context = await nativeSessionContext(base, req, url).catch(() => ({}));
+  if (requiresSession && !req.headers.cookie) return nativeApiError(res, 401, "UNAUTHENTICATED", "Sign in to continue.");
+  let context: Record<string, string> = {};
+  try {
+    context = await nativeSessionContext(base, req, url);
+  } catch (error) {
+    if (requiresSession) {
+      if (error instanceof NativeSessionError) {
+        res.writeHead(error.status, { "Content-Type": "application/json", "Cache-Control": "private, no-store" });
+        res.end(error.body);
+        return;
+      }
+      return nativeApiError(res, 503, "NATIVE_ROUTINES_UNAVAILABLE", "The native Operations routine read is unavailable.");
+    }
+  }
   await new Promise<void>(done => {
     const upstream = httpRequest({
       host: base.hostname,
       port: Number(base.port || 80),
       method: req.method,
       path: nativeApiRewrite(environment ?? process.env, url),
-      headers: { ...stripInternalHeaders(req.headers), ...context },
+      headers: { ...stripInternalHeaders(req.headers), ...context, "x-erpx-api-transport": "public" },
     }, response => {
       res.writeHead(response.statusCode ?? 502, response.headers);
       response.pipe(res);

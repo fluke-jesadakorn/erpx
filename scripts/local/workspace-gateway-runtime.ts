@@ -14,7 +14,8 @@ import {holdingRoutingEnabled,holdingHostForHost,holdingPathMatches,contributorE
 import {holdingGatewayApp,holdingGatewayLocation} from './holding-gateway';
 import { consoleWorkspaceCutoverBlockers } from "./console-workspace-cutover";
 import {consoleRetirementResult,developmentConsoleRetired} from '@erpx/contracts/console-retirement';
-import { nativeApiBase, nativeApiPath, proxyNativeApi } from "./native-api-proxy";
+import { nativeApiBase, nativeApiError, nativeApiPath, proxyNativeApi } from "./native-api-proxy";
+import { holdingNativeCutoverPath } from "./native-cutover-routes";
 
 /** Optional local budget; isolated fixtures always retain their declared cap. */
 export function developmentApplicationBudget(configured:number,override:string|undefined){
@@ -267,19 +268,23 @@ const server = createServer(async (req, res) => {
     if(retired){settings();res.writeHead(retired.status,retired.headers);res.end(retired.body);return;}
   }catch(error){failed(res,error);return;}
   const nativeBase = nativeApiBase(environment);
-  if (nativeBase) {
-    const requestUrl = req.url ?? "/";
-    const transport = /^\/__erpx\/([^/]+)(\/api\/[^?]*(?:\?.*)?)$/.exec(requestUrl);
-    const holding = holdingRoutingEnabled(environment) ? holdingHostForHost(req.headers.host) : undefined;
-    const nativeUrl = transport && holding ? transport[2]! : requestUrl;
-    if (nativeApiPath(environment, nativeUrl, req.headers.host, req.method)) {
-      try {
-        if (holding && !holdingPathMatches(holding.holdingSlug, nativeUrl.split('?')[0]!)) throw new Error('HOLDING_ROUTE_NOT_FOUND');
-        if (nativeUrl !== requestUrl && target(req) !== transport?.[1]) throw new Error('HOLDING_ROUTE_NOT_FOUND');
-        await proxyNativeApi({ base: nativeBase, environment, req, res, url: nativeUrl });
-      } catch (error) { failed(res, error); }
-      return;
-    }
+  const requestUrl = req.url ?? "/";
+  const transport = /^\/__erpx\/([^/]+)(\/api\/[^?]*(?:\?.*)?)$/.exec(requestUrl);
+  const holding = holdingRoutingEnabled(environment) ? holdingHostForHost(req.headers.host) : undefined;
+  const nativeUrl = transport && holding ? transport[2]! : requestUrl;
+  const cutover = holding && holdingNativeCutoverPath(nativeUrl, holding.holdingSlug, req.method);
+  if (cutover || (nativeBase && nativeApiPath(environment, nativeUrl, req.headers.host, req.method))) {
+    try {
+      if (holding && !holdingPathMatches(holding.holdingSlug, nativeUrl.split('?')[0]!)) throw new Error('HOLDING_ROUTE_NOT_FOUND');
+      if (nativeUrl !== requestUrl && target(req) !== transport?.[1]) throw new Error('HOLDING_ROUTE_NOT_FOUND');
+      if (!nativeBase) {
+        if (cutover === "routine-templates") nativeApiError(res, 503, "NATIVE_ROUTINES_UNAVAILABLE", "The native Operations routine read is unavailable.");
+        else nativeApiError(res, 503, "NATIVE_RECORD_REGISTRY_UNAVAILABLE", "The native Records registry is unavailable.");
+      } else {
+        await proxyNativeApi({ base: nativeBase, environment, req, res, url: nativeUrl, requiresSession: cutover === "routine-templates" });
+      }
+    } catch (error) { failed(res, error); }
+    return;
   }
   // A temporary host-only routing preference lets the normal browser review a
   // candidate app before its public host mapping changes. It grants no access.

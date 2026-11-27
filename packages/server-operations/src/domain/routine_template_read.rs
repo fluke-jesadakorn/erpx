@@ -98,8 +98,8 @@ pub struct TemplateRow {
     pub project_id: Option<String>,
     pub start_approvers_json: String,
     pub completion_approvers_json: String,
-    pub published: i32,
-    pub version: i32,
+    pub published: i64,
+    pub version: i64,
     pub created_at: i64,
     pub updated_at: i64,
 }

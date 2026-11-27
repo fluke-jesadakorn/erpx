@@ -81,8 +81,8 @@ impl TemplateDetailRead for PgTemplateDetailRead {
                         project_id: row.try_get::<Option<String>, _>("project_id").map_err(|_| unavailable())?,
                         start_approvers_json: row.try_get::<String, _>("start_approvers_json").map_err(|_| unavailable())?,
                         completion_approvers_json: row.try_get::<String, _>("completion_approvers_json").map_err(|_| unavailable())?,
-                        published: row.try_get::<i32, _>("published").map_err(|_| unavailable())?,
-                        version: row.try_get::<i32, _>("version").map_err(|_| unavailable())?,
+                        published: row.try_get::<i64, _>("published").map_err(|_| unavailable())?,
+                        version: row.try_get::<i64, _>("version").map_err(|_| unavailable())?,
                         created_at: row.try_get::<i64, _>("created_at").map_err(|_| unavailable())?,
                         updated_at: row.try_get::<i64, _>("updated_at").map_err(|_| unavailable())?,
                     }))
