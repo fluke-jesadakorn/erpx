@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15691,
+    "revision": 15714,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": null,
@@ -213431,18 +213431,30 @@
         "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
-          "src/composition/src/native_lane_mounts.rs"
+          "src/composition/src/native_lane_mounts.rs",
+          "src/composition/src/private_development_api.rs",
+          "src/composition/src/records_search.rs",
+          "src/composition/src/lib.rs",
+          "packages/server-records/src/adapters/record_search_http.rs",
+          "packages/server-records/src/public/record_search_http.rs",
+          "packages/server-records/src/application/record_search.rs",
+          "packages/server-records/src/adapters/record_search.rs",
+          "packages/server-records/src/public/record_search.rs",
+          "packages/server-runtime/src/adapters/postgres/unit_of_work.rs",
+          "packages/server-identity_access/src/adapters/holding_work_context.rs",
+          "packages/server-identity_access/src/adapters/records_principal_search.rs",
+          "packages/server-identity_access/src/public/mod.rs"
         ],
         "resources": [
           "route:records-feature",
           "build:heavy",
           "service:dev-postgres-browser"
         ],
-        "nextAction": "Start from packages/server-records/src/adapters/record_search.rs read_search_candidates and Identity HoldingWorkAuthorizer; preserve read-only selected identity semantics equivalent to requireWorkContext. Port Finance initial-stock and enforced ordinary purchase authority and Expense wrapper before remaining 20 owner guard families.",
+        "nextAction": "Start migrate.finance.records-search-visibility and Expense wrapper ports in parallel and compose inside records_search.rs SearchRead using its genuine selected Holding snapshot; keep the whole Records visibility scope and retire 18 files only after all guards pass.",
         "claim": null,
-        "baseSha": "ee14eda4cd4f2c5e099f6eee5b6b4d24166e5fcc",
-        "implementedCommit": "79674e8874a0f88d9e04a873633da269aecef842",
-        "lastPushedSha": "79674e8874a0f88d9e04a873633da269aecef842",
+        "baseSha": "55d500eb4385ed75f0dbb5982493f67d32c43fff",
+        "implementedCommit": "9e15417a977e0a84247896bc1ba8f905e260a52c",
+        "lastPushedSha": "9e15417a977e0a84247896bc1ba8f905e260a52c",
         "checks": [
           {
             "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
@@ -213566,6 +213578,60 @@
             "nextRouteFilesRetired": 0,
             "typeScriptBackendFilesRetired": 0,
             "nextInventory": 1414
+          },
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api",
+            "note": "Built and activated in the owned dev native service.",
+            "sourceSha": "9e15417a977e0a84247896bc1ba8f905e260a52c",
+            "result": "passed"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-records --lib record_search",
+            "note": "14 passed; borrowed read and response, maximum results, no role/no module reads.",
+            "sourceSha": "9e15417a977e0a84247896bc1ba8f905e260a52c",
+            "result": "passed"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-runtime --lib postgres",
+            "note": "3 passed.",
+            "sourceSha": "9e15417a977e0a84247896bc1ba8f905e260a52c",
+            "result": "passed"
+          },
+          {
+            "command": "Vitest Records Search + registry transport; TypeScript test workspace check",
+            "note": "17 passed; TS types passed.",
+            "sourceSha": "9e15417a977e0a84247896bc1ba8f905e260a52c",
+            "result": "passed"
+          },
+          {
+            "command": "Normal SSO and PostgreSQL from native Search and public relay",
+            "note": "Acme actual 200 for Support-enabled and module-free actors. Native 401 absent cookie, 409 stale selected revision and version, 404 foreign Holding/Company. Supplied user/modules headers have no authority.",
+            "sourceSha": "9e15417a977e0a84247896bc1ba8f905e260a52c",
+            "result": "passed"
+          },
+          {
+            "command": "Run parallel native principal lookups in isolated dev candidate",
+            "note": "24 completed 200 and actual people reported via the retained Control connection; isolated ingress budget 40 so no load shed.",
+            "sourceSha": "9e15417a977e0a84247896bc1ba8f905e260a52c",
+            "result": "passed"
+          },
+          {
+            "command": "Repo layout, test catalogue, and dev availability",
+            "note": "33 modules and 2425 suites; both dev health endpoints and private prod health HTTP 200. Retired Console HTTP 404. Acme routine unauth 307 and authenticated seeded page 200.",
+            "sourceSha": "9e15417a977e0a84247896bc1ba8f905e260a52c",
+            "result": "passed"
+          },
+          {
+            "command": "Native Records Search runtime source delta",
+            "note": "Existing Rust search now authenticates the cookie and binds the rendered Work selection. Records and active-assignment checks use the same Holding transaction; names use the retained Control connection. Architecture/docs known baseline failures remain; 399 output lines and stale capability matrix. Finance and other owner predicates remain.",
+            "sourceSha": "9e15417a977e0a84247896bc1ba8f905e260a52c",
+            "result": "passed",
+            "nativeMethodPathsAdded": 0,
+            "nativeMethodPathsChanged": 1,
+            "nextRouteBranchesRetired": 0,
+            "nextRouteFilesRetired": 0,
+            "typeScriptBackendFilesRetired": 0,
+            "nextInventory": 1414
           }
         ],
         "retainedLegacy": [
@@ -213582,12 +213648,12 @@
         ],
         "blocker": "handoff",
         "handoff": {
-          "runId": "run-goal-records-search-parity",
+          "runId": "run-goal-records-search-session",
           "agentId": "codex-lead",
-          "at": "2026-11-27T07:22:19.992Z",
+          "at": "2026-11-27T07:34:04.495Z",
           "previousStatus": "blocked",
           "reason": "handoff",
-          "nextAction": "Start from packages/server-records/src/adapters/record_search.rs read_search_candidates and Identity HoldingWorkAuthorizer; preserve read-only selected identity semantics equivalent to requireWorkContext. Port Finance initial-stock and enforced ordinary purchase authority and Expense wrapper before remaining 20 owner guard families."
+          "nextAction": "Start migrate.finance.records-search-visibility and Expense wrapper ports in parallel and compose inside records_search.rs SearchRead using its genuine selected Holding snapshot; keep the whole Records visibility scope and retire 18 files only after all guards pass."
         },
         "scopeRefinementRequired": false
       },
@@ -219849,6 +219915,170 @@
         },
         "nextAction": "Frozen code 79674e887. Bind the PgConnection reader to current selected IAM and the owner predicate set, then proceed with exact route retirement.",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "cutover.records.search-session-client",
+        "goalId": "G4",
+        "owner": "records",
+        "kind": "integration",
+        "title": "Carry the real Holding session into native Records Search",
+        "scope": "Replace asserted user/modules with the Holding session cookie, expected current assignment revision and canonical scope slugs in the loopback search relay.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-records/src/public/native-record-search.ts",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/search/route.ts",
+          "tests/unit/records/native-record-search-cutover.test.ts"
+        ],
+        "resources": [],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "55d500eb4385ed75f0dbb5982493f67d32c43fff",
+        "implementedCommit": "9e15417a977e0a84247896bc1ba8f905e260a52c",
+        "lastPushedSha": "9e15417a977e0a84247896bc1ba8f905e260a52c",
+        "checks": [
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api",
+            "note": "Built and activated in the owned dev native service.",
+            "sourceSha": "9e15417a977e0a84247896bc1ba8f905e260a52c",
+            "result": "passed"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-records --lib record_search",
+            "note": "14 passed; borrowed read and response, maximum results, no role/no module reads.",
+            "sourceSha": "9e15417a977e0a84247896bc1ba8f905e260a52c",
+            "result": "passed"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-runtime --lib postgres",
+            "note": "3 passed.",
+            "sourceSha": "9e15417a977e0a84247896bc1ba8f905e260a52c",
+            "result": "passed"
+          },
+          {
+            "command": "Vitest Records Search + registry transport; TypeScript test workspace check",
+            "note": "17 passed; TS types passed.",
+            "sourceSha": "9e15417a977e0a84247896bc1ba8f905e260a52c",
+            "result": "passed"
+          },
+          {
+            "command": "Normal SSO and PostgreSQL from native Search and public relay",
+            "note": "Acme actual 200 for Support-enabled and module-free actors. Native 401 absent cookie, 409 stale selected revision and version, 404 foreign Holding/Company. Supplied user/modules headers have no authority.",
+            "sourceSha": "9e15417a977e0a84247896bc1ba8f905e260a52c",
+            "result": "passed"
+          },
+          {
+            "command": "Run parallel native principal lookups in isolated dev candidate",
+            "note": "24 completed 200 and actual people reported via the retained Control connection; isolated ingress budget 40 so no load shed.",
+            "sourceSha": "9e15417a977e0a84247896bc1ba8f905e260a52c",
+            "result": "passed"
+          },
+          {
+            "command": "Repo layout, test catalogue, and dev availability",
+            "note": "33 modules and 2425 suites; both dev health endpoints and private prod health HTTP 200. Retired Console HTTP 404. Acme routine unauth 307 and authenticated seeded page 200.",
+            "sourceSha": "9e15417a977e0a84247896bc1ba8f905e260a52c",
+            "result": "passed"
+          },
+          {
+            "command": "Native Records Search runtime source delta",
+            "note": "Existing Rust search now authenticates the cookie and binds the rendered Work selection. Records and active-assignment checks use the same Holding transaction; names use the retained Control connection. Architecture/docs known baseline failures remain; 399 output lines and stale capability matrix. Finance and other owner predicates remain.",
+            "sourceSha": "9e15417a977e0a84247896bc1ba8f905e260a52c",
+            "result": "passed",
+            "nativeMethodPathsAdded": 0,
+            "nativeMethodPathsChanged": 1,
+            "nextRouteBranchesRetired": 0,
+            "nextRouteFilesRetired": 0,
+            "typeScriptBackendFilesRetired": 0,
+            "nextInventory": 1414
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/search/route.ts",
+            "removalTaskId": "exec.records.routes",
+            "removalCondition": "Native selected session and scope parity, all owner predicates before the result limit, then exact public cutover and removal of all 18 route files."
+          },
+          {
+            "path": "packages/server-records/src/adapters/records.ts",
+            "removalTaskId": "retire.records.search-count-detail",
+            "removalCondition": "Move shared callers including Collaboration searchReferences to the guarded native operation and delete the TypeScript search-only SQL/authority."
+          }
+        ],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-goal-records-search-session",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T07:34:04.138Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Verified source 9e15417a9. Keep typed relay until exact native owner predicates and gateway public cutover pass."
+        },
+        "nextAction": "Verified source 9e15417a9. Keep typed relay until exact native owner predicates and gateway public cutover pass.",
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "inventory.finance.records-search-policy",
+        "goalId": "G4",
+        "owner": "finance",
+        "kind": "inventory",
+        "title": "Map native Finance initial-stock and purchase search predicates",
+        "scope": "Find exact reuse and test gaps for all Finance guard variants used in reference search before assembling their native port.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [],
+        "resources": [],
+        "status": "done",
+        "claim": null,
+        "baseSha": "55d500eb4385ed75f0dbb5982493f67d32c43fff",
+        "implementedCommit": "9e15417a977e0a84247896bc1ba8f905e260a52c",
+        "lastPushedSha": "9e15417a977e0a84247896bc1ba8f905e260a52c",
+        "checks": [
+          {
+            "command": "HY4 Finance search policy inventory",
+            "note": "Preserve initial-stock Film Finance guard in all modes; effective assignment and ordinary accounting purchase enforced per original cases. Reuse initial_stock_journal_filter.sql only inside its j-aliased correlation with now_ms; compile scheduled readiness and test alias parity, both denied/allowed modes. Finance/Commercial predicate builder and ledger schema used for authoritative facts.",
+            "sourceSha": "9e15417a977e0a84247896bc1ba8f905e260a52c",
+            "result": "passed"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Open migrate.finance.records-search-visibility for exact Finance guards before enabling the public search cutover.",
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.finance.records-search-visibility",
+        "goalId": "G4",
+        "owner": "finance",
+        "kind": "migration",
+        "title": "Apply exact Finance initial-stock and accounting history to native Records Search",
+        "scope": "Port Finance-owned source precedence and purchased History plus assignment predicates before the Records limit, including scheduled Finance, Inventory, POS, Manufacturing and Field source cases. Rust executes the query; TypeScript remains an oracle only until retained Collaboration search callers migrate.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-finance/src/adapters/journal_list.rs",
+          "packages/server-finance/src/adapters/records_search_policy.rs",
+          "packages/server-finance/src/adapters/mod.rs",
+          "packages/server-finance/src/public/mod.rs",
+          "tests/unit/finance/initial-stock-journal-filter.test.ts"
+        ],
+        "resources": [
+          "owner:finance-records-search"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Read financeWorkspaceSearchScope in document-purchases.ts and inventory.finance.records-search-policy. Implement and pin native Finance owner predicates for initial, marked-invalid and ordinary records with the exact row scope and clock, before handing the public owner port to Records composition. Refine cross-owner wiring and tests under a separate lead claim.",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -219857,10 +220087,10 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2450,
+      "totalPackets": 2451,
       "migratedPackets": 370,
       "statusCounts": {
-        "pending": 14,
+        "pending": 15,
         "in_progress": 0,
         "ready_for_integration": 143,
         "integrating": 0,
@@ -219870,8 +220100,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 202,
-    "updatedAt": "2026-11-27T07:22:20.154Z",
+    "lastCoordinatorGeneration": 203,
+    "updatedAt": "2026-11-27T07:34:04.679Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
