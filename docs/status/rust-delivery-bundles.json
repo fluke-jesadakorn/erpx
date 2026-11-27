@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15804,
+    "revision": 15819,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": null,
@@ -220329,7 +220329,7 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": null,
+        "baseSha": "70e15e5302179d2331aee8c1f6d93b90192ddee7",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -220394,6 +220394,20 @@
             "command": "python3 .scratch/dev/hy4-expense-treasury-pg.py",
             "result": "passed",
             "detail": "Independent Treasury, prepared receipt and terminal cancel SQL executed read-only on ERPX dev fixture relations."
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-people-payroll --lib expense_records_search",
+            "result": "passed",
+            "sourceSha": "70e15e5302179d2331aee8c1f6d93b90192ddee7",
+            "tests": 22,
+            "scope": "reviewed WIP patch"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-people-payroll --lib",
+            "result": "passed",
+            "sourceSha": "70e15e5302179d2331aee8c1f6d93b90192ddee7",
+            "tests": 201,
+            "scope": "reviewed WIP patch"
           }
         ],
         "retainedLegacy": [
@@ -220405,14 +220419,14 @@
         ],
         "blocker": "handoff",
         "handoff": {
-          "runId": "run-goal-quality-ack-resume",
+          "runId": "run-quality-spec",
           "agentId": "hy4-expense",
-          "at": "2026-11-27T08:49:57.504Z",
+          "at": "2026-11-27T08:59:33.420Z",
           "previousStatus": "blocked",
           "reason": "handoff",
-          "nextAction": "Resume .scratch/dev/goal-expense-with-treasury.patch, verify exact live Workflow and Commercial binding with all transaction authority before enabling the enforced Records branch."
+          "nextAction": "Apply the reviewed WIP with git apply .scratch/dev/goal-expense-live-approval-reviewed.patch. Bind Workflow approval view canDecide and projection heads, Commercial purchase history and locks, Identity scoped assignment and Finance deferred-effect flush in composition. Prove the enforced search transaction before removing expense-record-purchases.ts."
         },
-        "nextAction": "Resume .scratch/dev/goal-expense-with-treasury.patch, verify exact live Workflow and Commercial binding with all transaction authority before enabling the enforced Records branch.",
+        "nextAction": "Apply the reviewed WIP with git apply .scratch/dev/goal-expense-live-approval-reviewed.patch. Bind Workflow approval view canDecide and projection heads, Commercial purchase history and locks, Identity scoped assignment and Finance deferred-effect flush in composition. Prove the enforced search transaction before removing expense-record-purchases.ts.",
         "scopeRefinementRequired": false
       },
       {
@@ -221322,6 +221336,298 @@
           "routeAuthority": true,
           "presenterParity": true
         }
+      },
+      {
+        "id": "cutover.quality.spec-post",
+        "goalId": "G4",
+        "owner": "quality",
+        "workflowIds": [],
+        "kind": "integration",
+        "title": "Cut over Quality specification POST",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-quality/src/adapters/quality_http.rs",
+          "tests/integration/quality/rust-quality-http.test.rs",
+          "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route.ts"
+        ],
+        "resources": [
+          "path:quality-ack-owner"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "69ad9c63b21a7601714f5d93df193dbf34911044",
+        "lastPushedSha": "69ad9c63b21a7601714f5d93df193dbf34911044",
+        "checks": [
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api",
+            "result": "passed",
+            "sourceSha": "69ad9c63b21a7601714f5d93df193dbf34911044"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-quality --test quality_http",
+            "result": "passed",
+            "sourceSha": "69ad9c63b21a7601714f5d93df193dbf34911044",
+            "tests": 10
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-quality --test quality_alert_acknowledge",
+            "result": "passed",
+            "sourceSha": "69ad9c63b21a7601714f5d93df193dbf34911044",
+            "tests": 3
+          },
+          {
+            "command": "bunx vitest run workspace-supervisor",
+            "result": "passed",
+            "sourceSha": "69ad9c63b21a7601714f5d93df193dbf34911044",
+            "tests": 13
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "69ad9c63b21a7601714f5d93df193dbf34911044"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "69ad9c63b21a7601714f5d93df193dbf34911044"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "69ad9c63b21a7601714f5d93df193dbf34911044"
+          },
+          {
+            "command": "bun run architecture:check",
+            "result": "failed",
+            "sourceSha": "69ad9c63b21a7601714f5d93df193dbf34911044",
+            "baselineIdentical": true
+          },
+          {
+            "command": "bun run docs:check",
+            "result": "failed",
+            "sourceSha": "69ad9c63b21a7601714f5d93df193dbf34911044",
+            "baselineIdentical": true,
+            "reason": "Pre-existing stale capability-delivery-matrix.md"
+          },
+          {
+            "command": "dev-https:quality-specification-command",
+            "result": "passed",
+            "sourceSha": "69ad9c63b21a7601714f5d93df193dbf34911044",
+            "create": 200,
+            "edit": 200,
+            "activate": 200,
+            "aliasReplay": 200,
+            "changedPayload": 409,
+            "staleSelection": 409,
+            "selfApproval": 403,
+            "malformedJson": 500,
+            "validJsonAsText": 200,
+            "directRetiredNext": [
+              404,
+              404
+            ],
+            "authenticatedSSR": 200,
+            "postgresReceiptCount": 3,
+            "specificationVersion": 3
+          },
+          {
+            "command": "dev-health:gateway-console-private-production",
+            "result": "passed",
+            "sourceSha": "69ad9c63b21a7601714f5d93df193dbf34911044",
+            "gateway": 200,
+            "console": 200,
+            "privateProd": 200,
+            "retiredConsole": 404
+          },
+          {
+            "command": "retirement:next-routes:quality-spec-post",
+            "result": "passed",
+            "sourceSha": "69ad9c63b21a7601714f5d93df193dbf34911044",
+            "before": 1414,
+            "after": 1414,
+            "publicNativeMethodPathsCutOver": 2,
+            "nextDispatchBranchesRetired": 2,
+            "nextRouteFilesDeleted": 0,
+            "sharedMilestone": "cutover.quality.spec-post and cutover.quality.spec-post-ingress"
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route.ts",
+            "removalTaskId": "exec.quality.routes",
+            "removalCondition": "Preserve named legacy GET responses and cut over hold create, cancel, inspect, release and disposition with native authority and receipt proof before deleting the catch-all and re-export."
+          },
+          {
+            "path": "packages/feature-quality/src/adapters/server/native-quality-page.ts",
+            "removalTaskId": "exec.quality.routes",
+            "removalCondition": "Delete orphaned spec command wrappers and the other relays after consumers migrate."
+          }
+        ],
+        "blocker": "handoff",
+        "nextAction": "Claim exec.quality.routes and audit hold create, cancel, inspect, release and disposition against native command receipts. Port named legacy GET responses before deleting the shared catch-all, its re-export and orphaned server command wrappers.",
+        "handoff": {
+          "runId": "run-quality-spec",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T09:00:41.513Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Claim exec.quality.routes and audit hold create, cancel, inspect, release and disposition against native command receipts. Port named legacy GET responses before deleting the shared catch-all, its re-export and orphaned server command wrappers."
+        },
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
+      },
+      {
+        "id": "cutover.quality.spec-post-ingress",
+        "goalId": "G4",
+        "owner": "quality",
+        "workflowIds": [],
+        "kind": "integration",
+        "title": "Cut over Quality specification POST",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "scripts/local/native-cutover-routes.ts",
+          "scripts/local/native-api-proxy.ts",
+          "scripts/local/workspace-gateway-runtime.ts",
+          "scripts/local/compiled-workspace-gateway.ts",
+          "tests/unit/shared.testing/workspace-supervisor.test.ts",
+          "src/composition/src/quality.rs"
+        ],
+        "resources": [
+          "path:quality-ack-ingress",
+          "service:dev-postgres-browser"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "69ad9c63b21a7601714f5d93df193dbf34911044",
+        "lastPushedSha": "69ad9c63b21a7601714f5d93df193dbf34911044",
+        "checks": [
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api",
+            "result": "passed",
+            "sourceSha": "69ad9c63b21a7601714f5d93df193dbf34911044"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-quality --test quality_http",
+            "result": "passed",
+            "sourceSha": "69ad9c63b21a7601714f5d93df193dbf34911044",
+            "tests": 10
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-quality --test quality_alert_acknowledge",
+            "result": "passed",
+            "sourceSha": "69ad9c63b21a7601714f5d93df193dbf34911044",
+            "tests": 3
+          },
+          {
+            "command": "bunx vitest run workspace-supervisor",
+            "result": "passed",
+            "sourceSha": "69ad9c63b21a7601714f5d93df193dbf34911044",
+            "tests": 13
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "69ad9c63b21a7601714f5d93df193dbf34911044"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "69ad9c63b21a7601714f5d93df193dbf34911044"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "69ad9c63b21a7601714f5d93df193dbf34911044"
+          },
+          {
+            "command": "bun run architecture:check",
+            "result": "failed",
+            "sourceSha": "69ad9c63b21a7601714f5d93df193dbf34911044",
+            "baselineIdentical": true
+          },
+          {
+            "command": "bun run docs:check",
+            "result": "failed",
+            "sourceSha": "69ad9c63b21a7601714f5d93df193dbf34911044",
+            "baselineIdentical": true,
+            "reason": "Pre-existing stale capability-delivery-matrix.md"
+          },
+          {
+            "command": "dev-https:quality-specification-command",
+            "result": "passed",
+            "sourceSha": "69ad9c63b21a7601714f5d93df193dbf34911044",
+            "create": 200,
+            "edit": 200,
+            "activate": 200,
+            "aliasReplay": 200,
+            "changedPayload": 409,
+            "staleSelection": 409,
+            "selfApproval": 403,
+            "malformedJson": 500,
+            "validJsonAsText": 200,
+            "directRetiredNext": [
+              404,
+              404
+            ],
+            "authenticatedSSR": 200,
+            "postgresReceiptCount": 3,
+            "specificationVersion": 3
+          },
+          {
+            "command": "dev-health:gateway-console-private-production",
+            "result": "passed",
+            "sourceSha": "69ad9c63b21a7601714f5d93df193dbf34911044",
+            "gateway": 200,
+            "console": 200,
+            "privateProd": 200,
+            "retiredConsole": 404
+          },
+          {
+            "command": "retirement:next-routes:quality-spec-post",
+            "result": "passed",
+            "sourceSha": "69ad9c63b21a7601714f5d93df193dbf34911044",
+            "before": 1414,
+            "after": 1414,
+            "publicNativeMethodPathsCutOver": 2,
+            "nextDispatchBranchesRetired": 2,
+            "nextRouteFilesDeleted": 0,
+            "sharedMilestone": "cutover.quality.spec-post and cutover.quality.spec-post-ingress"
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route.ts",
+            "removalTaskId": "exec.quality.routes",
+            "removalCondition": "Preserve named legacy GET responses and cut over hold create, cancel, inspect, release and disposition with native authority and receipt proof before deleting the catch-all and re-export."
+          },
+          {
+            "path": "packages/feature-quality/src/adapters/server/native-quality-page.ts",
+            "removalTaskId": "exec.quality.routes",
+            "removalCondition": "Delete orphaned spec command wrappers and the other relays after consumers migrate."
+          }
+        ],
+        "blocker": "handoff",
+        "nextAction": "Claim exec.quality.routes and audit hold create, cancel, inspect, release and disposition against native command receipts. Port named legacy GET responses before deleting the shared catch-all, its re-export and orphaned server command wrappers.",
+        "handoff": {
+          "runId": "run-quality-spec",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T09:00:41.799Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Claim exec.quality.routes and audit hold create, cancel, inspect, release and disposition against native command receipts. Port named legacy GET responses before deleting the shared catch-all, its re-export and orphaned server command wrappers."
+        },
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       }
     ],
     "migrationProgress": {
@@ -221343,8 +221649,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 208,
-    "updatedAt": "2026-11-27T08:52:40.210Z",
+    "lastCoordinatorGeneration": 209,
+    "updatedAt": "2026-11-27T09:00:41.950Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
