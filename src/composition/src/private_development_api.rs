@@ -7296,10 +7296,28 @@ async fn assemble_checked(
             );
         }
         #[cfg(feature = "existing-business")]
+        // Commerce routes are Company-keyed: discover each Holding's real
+        // Companies so the owner command-plan route is mounted even when the
+        // manifest carries no explicit commerceCompanies map.
+        let mut commerce_companies = config.commerce_companies.clone();
         for (i, holding) in config.holdings.iter().enumerate() {
-            let Some(companies) = config
-                .commerce_companies
-                .get(&holding.registration.holding_id)
+            let companies: Vec<String> = sqlx::query_scalar(
+                "SELECT id FROM organization_nodes WHERE kind='company' ORDER BY id",
+            )
+            .fetch_all(pools[i + 1].raw())
+            .await
+            .map_err(|_| "PRIVATE_API_COMMERCE_COMPANY_DISCOVERY_FAILED")?;
+            for company in companies {
+                if let Ok(company) = CompanyId::new(&company) {
+                    commerce_companies
+                        .entry(holding.registration.holding_id.clone())
+                        .or_default()
+                        .insert(company);
+                }
+            }
+        }
+        for (i, holding) in config.holdings.iter().enumerate() {
+            let Some(companies) = commerce_companies.get(&holding.registration.holding_id)
             else {
                 continue;
             };
