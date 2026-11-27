@@ -899,6 +899,31 @@ const SPEC_EDIT: &str = r#"{"productId":"product","name":"Cold chain acceptance 
 const SPEC_ACTION: &str = r#"{"expectedVersion":1,"action":"activate","reason":"Independent review confirms the limits"}"#;
 
 #[tokio::test]
+async fn public_cancellation_post_preserves_relay_json_behavior() {
+    let backend = Arc::new(Backend::new());
+    let (address, task) = start(backend.clone()).await;
+    let path = "/api/v1/holdings/acme/quality/hold-a/cancel";
+    let key = ("idempotency-key", "quality-cancel-public");
+    let public = [key, ("x-erpx-api-transport", "public")];
+    let input = r#"{"action":"request","expectedVersion":1,"reason":"Independent review required"}"#;
+
+    let (status, error) = call_raw(address, "POST", path, &public, "text/plain", "{").await;
+    assert_eq!(status, 500);
+    assert_eq!(error["error"]["code"], "INTERNAL_ERROR");
+    let (status, error) = call_raw(address, "POST", path, &[key], "text/plain", input).await;
+    assert_eq!(status, 422);
+    assert_eq!(error["error"]["code"], "QUALITY_COMMAND_REQUIRED");
+    assert_eq!(backend.cancels.load(Ordering::SeqCst), 0);
+
+    let (status, value) = call_raw(address, "POST", path, &public, "text/plain", input).await;
+    assert_eq!(status, 200, "{value}");
+    assert_eq!(value["data"]["status"], "cancel_pending");
+    assert_eq!(value["data"]["cancellationId"], "quality-cancel-quality-cancel-public");
+    assert_eq!(backend.cancels.load(Ordering::SeqCst), 1);
+    task.abort();
+}
+
+#[tokio::test]
 async fn public_specification_post_preserves_relay_json_behavior() {
     let backend = Arc::new(Backend::new());
     let (address, task) = start(backend.clone()).await;

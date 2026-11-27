@@ -1,3 +1,0 @@
-// App-owned entry; shared payloads do not import another application.
-export { POST } from "@erpx/feature-supply/routes/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route";
-

@@ -64,7 +64,7 @@ export function holdingNativeCutoverPath(url: string, holdingSlug: string, metho
   if (owner === "quality" && method === "POST") {
     if (segment === undefined) return "quality-command";
     try {
-      if (validId(segment) && tail.length === 1 && ["acknowledge", "inspect", "release", "disposition"].includes(tail[0]!)) return "quality-command";
+      if (validId(segment) && tail.length === 1 && ["acknowledge", "cancel", "inspect", "release", "disposition"].includes(tail[0]!)) return "quality-command";
       if (segment === "read-plan" && tail.length === 0) return "quality-missing";
     } catch {
       return;

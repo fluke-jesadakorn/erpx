@@ -80,7 +80,6 @@
     "./routes/api/v1/holdings/[holdingSlug]/supplier-bills/route": "./src/routes/api/v1/holdings/[holdingSlug]/supplier-bills/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/supplier-bills/[id]/route": "./src/routes/api/v1/holdings/[holdingSlug]/supplier-bills/[id]/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/supplier-bills/policy/route": "./src/routes/api/v1/holdings/[holdingSlug]/supplier-bills/policy/route.ts",
-    "./routes/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/stock-transit/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/stock-transit/[[...path]]/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/procurement-rfqs/route": "./src/routes/api/v1/holdings/[holdingSlug]/procurement-rfqs/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/procurement-rfqs/[id]/route": "./src/routes/api/v1/holdings/[holdingSlug]/procurement-rfqs/[id]/route.ts",

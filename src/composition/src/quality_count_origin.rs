@@ -1,6 +1,9 @@
 //! Join actual Inventory and Workflow origin witnesses in one Holding unit.
 //! This is source evidence only; it does not establish a customer return,
 //! current actor authority or any Commercial entitlement.
+use erpx_server_commerce::public::quality_receipt_origin::{
+    CurrentQualityReceiptCommerce, inspect_quality_receipt_commerce,
+};
 use erpx_server_commerce::public::quality_return_origin::{
     CurrentQualityReturnCommerce, QualityReturnSelector, inspect_quality_return_commerce,
 };
@@ -28,6 +31,7 @@ use erpx_server_workflow::public::quality_return_receipts::{
     QualityScrapRequestReceiptScope, inspect_quality_return_receipts,
     inspect_quality_scrap_request_receipt,
 };
+use serde_json::Value;
 use sqlx::PgConnection;
 
 type Error = PgTransactionError<BusinessError>;
@@ -68,36 +72,15 @@ impl QualityLineageCountPort for InventoryLineageCounts {
     }
 }
 
-/// Retains actual customer-return provenance, not the current actor or grant.
-pub struct CurrentQualityCountCustomerReturn {
-    direct: CurrentQualityCountOrigin,
-    lineage: CurrentQualityPurchaseLineage<CurrentQualityDispositionCount>,
+/// Commerce return facts, the Workflow approval receipt and the Inventory
+/// original allocation together. Labels alone never create this relationship.
+struct QualityReturnOriginProof {
     commerce: CurrentQualityReturnCommerce,
     approval: CurrentQualityReturnReceipts,
     allocation: Option<CurrentQualityFulfillmentAllocations>,
 }
-impl CurrentQualityCountCustomerReturn {
-    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
-        self.direct.require_current(c).await?;
-        self.lineage
-            .require_current(c, &mut InventoryLineageCounts)
-            .await?;
-        self.commerce.require_current(c).await?;
-        self.approval.require_current(c).await?;
-        if let Some(allocation) = &self.allocation {
-            allocation.require_current(c).await?;
-        }
-        Ok(())
-    }
-    pub async fn require_after_count(
-        &self,
-        c: &mut PgConnection,
-        finalized: &RetainedQualityCountDisposition<CurrentInventoryQualityCount>,
-    ) -> Result<(), Error> {
-        self.direct.require_current(c).await?;
-        self.lineage
-            .require_after_count(c, &mut InventoryLineageCounts, finalized)
-            .await?;
+impl QualityReturnOriginProof {
+    async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
         self.commerce.require_current(c).await?;
         self.approval.require_current(c).await?;
         if let Some(allocation) = &self.allocation {
@@ -107,26 +90,15 @@ impl CurrentQualityCountCustomerReturn {
     }
 }
 
-/// The caller must acquire all relevant owner fences before its first source
-/// snapshot. A nonqualifying source returns None; it never grants permission.
-pub async fn inspect_quality_count_customer_return(
+/// Prove a customer-return root from the actual owner witnesses. The selector
+/// and source label are only lookup keys; every returned fact is compared with
+/// the proven lineage root before any capability can be derived.
+async fn inspect_quality_return_origin(
     c: &mut PgConnection,
-    direct: CurrentQualityCountOrigin,
     company: &CompanyId,
     branch: Option<&RecordId>,
-) -> Result<Option<CurrentQualityCountCustomerReturn>, Error> {
-    direct.require_current(c).await?;
-    let lineage = inspect_quality_purchase_lineage(
-        c,
-        &mut InventoryLineageCounts,
-        QualityLineageRequest {
-            company_id: company.clone(),
-            branch_id: branch.map(|v| v.as_str().to_owned()),
-            hold_id: direct.inventory.hold_id().to_owned(),
-        },
-    )
-    .await?;
-    let root = lineage.root();
+    root: &Value,
+) -> Result<Option<QualityReturnOriginProof>, Error> {
     if !root["spec_id"].is_null() || root["source_type"].as_str() != Some("customer_return") {
         return Ok(None);
     }
@@ -203,15 +175,216 @@ pub async fn inspect_quality_count_customer_return(
         (None, None, None) => None,
         _ => return Ok(None),
     };
-    let result = CurrentQualityCountCustomerReturn {
-        direct,
-        lineage,
+    Ok(Some(QualityReturnOriginProof {
         commerce,
         approval,
         allocation,
+    }))
+}
+
+/// Retains actual customer-return provenance, not the current actor or grant.
+pub struct CurrentQualityCountCustomerReturn {
+    direct: CurrentQualityCountOrigin,
+    lineage: CurrentQualityPurchaseLineage<CurrentQualityDispositionCount>,
+    origin: QualityReturnOriginProof,
+}
+impl CurrentQualityCountCustomerReturn {
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        self.direct.require_current(c).await?;
+        self.lineage
+            .require_current(c, &mut InventoryLineageCounts)
+            .await?;
+        self.origin.require_current(c).await?;
+        Ok(())
+    }
+    pub async fn require_after_count(
+        &self,
+        c: &mut PgConnection,
+        finalized: &RetainedQualityCountDisposition<CurrentInventoryQualityCount>,
+    ) -> Result<(), Error> {
+        self.direct.require_current(c).await?;
+        self.lineage
+            .require_after_count(c, &mut InventoryLineageCounts, finalized)
+            .await?;
+        self.origin.require_current(c).await?;
+        Ok(())
+    }
+}
+
+/// The caller must acquire all relevant owner fences before its first source
+/// snapshot. A nonqualifying source returns None; it never grants permission.
+pub async fn inspect_quality_count_customer_return(
+    c: &mut PgConnection,
+    direct: CurrentQualityCountOrigin,
+    company: &CompanyId,
+    branch: Option<&RecordId>,
+) -> Result<Option<CurrentQualityCountCustomerReturn>, Error> {
+    direct.require_current(c).await?;
+    let lineage = inspect_quality_purchase_lineage(
+        c,
+        &mut InventoryLineageCounts,
+        QualityLineageRequest {
+            company_id: company.clone(),
+            branch_id: branch.map(|v| v.as_str().to_owned()),
+            hold_id: direct.inventory.hold_id().to_owned(),
+        },
+    )
+    .await?;
+    let Some(origin) = inspect_quality_return_origin(c, company, branch, lineage.root()).await?
+    else {
+        return Ok(None);
+    };
+    let result = CurrentQualityCountCustomerReturn {
+        direct,
+        lineage,
+        origin,
     };
     result.require_current(c).await?;
     Ok(Some(result))
+}
+
+/// The proven original-purchase kind of a Quality hold. Advanced is the
+/// least-privilege fallback when no owner witness proves a narrower origin.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum QualityCancelSourceKind {
+    Advanced,
+    Receipt,
+    CustomerReturn,
+}
+
+/// A receipt root is proven by the Inventory quarantine allocation joined to
+/// the Commerce purchase-line facts; the label alone is never sufficient.
+async fn inspect_quality_receipt_origin(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    branch: Option<&RecordId>,
+    root: &Value,
+) -> Result<Option<(CurrentQualityReceiptCommerce, CurrentQualityFulfillmentAllocations)>, Error> {
+    let Some(hold_id) = root["id"].as_str() else {
+        return Ok(None);
+    };
+    let Some(lot) = root["lot_id"].as_str() else {
+        return Ok(None);
+    };
+    let quantity = root["held_quantity_milli"].as_i64();
+    let allocations = inspect_quality_fulfillment_allocations(
+        c,
+        QualityFulfillmentAllocationRequest::QuarantineHold {
+            hold_id: hold_id.to_owned(),
+        },
+    )
+    .await?;
+    let mut line = None;
+    for row in allocations.rows() {
+        if row.lot_id == lot && Some(row.quantity_milli) == quantity {
+            if line.is_some() {
+                return Ok(None);
+            }
+            line = Some(row.fulfillment_line_id.clone());
+        }
+    }
+    let Some(line) = line else {
+        return Ok(None);
+    };
+    let commerce = inspect_quality_receipt_commerce(c, company, branch, &line).await?;
+    let Some(facts) = commerce.facts() else {
+        return Ok(None);
+    };
+    if Some(facts.company_id.as_str()) != root["company_id"].as_str()
+        || Some(facts.branch_id.as_str()) != root["branch_id"].as_str()
+        || Some(facts.warehouse_id.as_str()) != root["warehouse_id"].as_str()
+        || Some(facts.product_id.as_str()) != root["product_id"].as_str()
+        || facts.fulfillment_line_id != line
+    {
+        return Ok(None);
+    }
+    Ok(Some((commerce, allocations)))
+}
+
+/// The proven original purchase of the hold a cancellation settles. This is a
+/// source witness only; current actor, permission and purchase authority stay
+/// with the caller's serializable command unit.
+pub struct CurrentQualityCancelPurchaseSource {
+    lineage: CurrentQualityPurchaseLineage<CurrentQualityDispositionCount>,
+    kind: QualityCancelSourceKind,
+    receipt: Option<(CurrentQualityReceiptCommerce, CurrentQualityFulfillmentAllocations)>,
+    origin: Option<QualityReturnOriginProof>,
+}
+impl CurrentQualityCancelPurchaseSource {
+    pub fn kind(&self) -> QualityCancelSourceKind {
+        self.kind
+    }
+    pub fn capabilities(&self) -> &'static [&'static str] {
+        match self.kind {
+            QualityCancelSourceKind::Advanced => &["supply.quality"],
+            QualityCancelSourceKind::Receipt => &["supply.receiving", "supply.stock"],
+            QualityCancelSourceKind::CustomerReturn => &["sales.orders", "inventory.stock-core"],
+        }
+    }
+
+    /// Re-walk the proven remaining-hold ancestry and re-read every owner
+    /// witness in the caller's unit, including the final after-image check.
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        self.lineage
+            .require_current(c, &mut InventoryLineageCounts)
+            .await?;
+        if let Some((commerce, allocation)) = &self.receipt {
+            commerce.require_current(c).await?;
+            allocation.require_current(c).await?;
+        }
+        if let Some(origin) = &self.origin {
+            origin.require_current(c).await?;
+        }
+        Ok(())
+    }
+}
+
+/// Caller must acquire the Quality lineage, Commerce, Inventory, Workflow and
+/// notification fences before this first source snapshot. A nonqualifying
+/// origin falls back to advanced; it never grants a narrower purchase.
+pub async fn inspect_quality_cancel_purchase_source(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    branch: Option<&RecordId>,
+    hold_id: &RecordId,
+) -> Result<CurrentQualityCancelPurchaseSource, Error> {
+    let lineage = inspect_quality_purchase_lineage(
+        c,
+        &mut InventoryLineageCounts,
+        QualityLineageRequest {
+            company_id: company.clone(),
+            branch_id: branch.map(|v| v.as_str().to_owned()),
+            hold_id: hold_id.as_str().to_owned(),
+        },
+    )
+    .await?;
+    let (kind, receipt, origin) = if lineage.root()["spec_id"].is_null() {
+        match lineage.root()["source_type"].as_str() {
+            Some("goods_receipt") => {
+                match inspect_quality_receipt_origin(c, company, branch, lineage.root()).await? {
+                    Some(proof) => (QualityCancelSourceKind::Receipt, Some(proof), None),
+                    None => (QualityCancelSourceKind::Advanced, None, None),
+                }
+            }
+            Some("customer_return") => {
+                match inspect_quality_return_origin(c, company, branch, lineage.root()).await? {
+                    Some(proof) => (QualityCancelSourceKind::CustomerReturn, None, Some(proof)),
+                    None => (QualityCancelSourceKind::Advanced, None, None),
+                }
+            }
+            _ => (QualityCancelSourceKind::Advanced, None, None),
+        }
+    } else {
+        (QualityCancelSourceKind::Advanced, None, None)
+    };
+    let result = CurrentQualityCancelPurchaseSource {
+        lineage,
+        kind,
+        receipt,
+        origin,
+    };
+    result.require_current(c).await?;
+    Ok(result)
 }
 
 impl CurrentQualityCountOrigin {

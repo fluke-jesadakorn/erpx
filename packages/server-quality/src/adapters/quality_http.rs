@@ -1644,7 +1644,7 @@ async fn parse_quality_command(
 /// The former Next relay parsed a command body as JSON regardless of the
 /// incoming media type and surfaced an unparseable body as a generic 500.
 /// Public transport keeps that wire behavior; private owner callers keep
-/// strict JSON admission. Shared by acknowledgement and specification POST.
+/// strict JSON admission.
 async fn parse_relay_command(
     mut request: Request,
     target: &QualityHttpTarget,
@@ -1901,57 +1901,27 @@ async fn cancel(
     request: Request,
 ) -> Response {
     let result = async move {
-        let target = target(&state, request.headers(), &slug)?;
-        if unique_header(request.headers(), header::ORIGIN)?
-            .is_some_and(|value| value != target.origin)
-        {
-            return Err(BusinessError::new(
-                FailureKind::Forbidden,
-                "ORIGIN_FORBIDDEN",
-                "Use the application origin.",
-            ));
-        }
-        let key = unique_header(
-            request.headers(),
-            HeaderName::from_static("idempotency-key"),
-        )?
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| {
-            BusinessError::invalid("COMMAND_KEY_REQUIRED", "Idempotency-Key is required.")
-        })
-        .and_then(CommandKey::new)?;
-        if !unique_header(request.headers(), header::CONTENT_TYPE)?.is_some_and(|value| {
-            value
-                .split(';')
-                .next()
-                .is_some_and(|value| value.trim().eq_ignore_ascii_case("application/json"))
-        }) {
-            return Err(malformed());
-        }
-        let hold_id = RecordId::new(id)?;
-        let headers = request.headers().clone();
-        let body = to_bytes(request.into_body(), BODY_LIMIT)
-            .await
-            .map_err(|_| {
-                BusinessError::invalid("BODY_TOO_LARGE", "Use a smaller Quality command.")
-            })?;
-        let raw = serde_json::from_slice::<Value>(&body).map_err(|_| malformed())?;
-        let command = parse_cancellation(&raw, hold_id.as_str(), key)?;
+        let target = target(&state, request.headers(), &slug).map_err(error_response)?;
+        let parsed = parse_relay_command(request, target).await?;
+        let hold_id = RecordId::new(id).map_err(error_response)?;
+        let command = parse_cancellation(&parsed.body, hold_id.as_str(), parsed.key)
+            .map_err(error_response)?;
         target
             .backend
             .cancel(QualityHttpCommandRequest {
                 host: &target.host,
                 holding_slug: &target.holding_slug,
-                headers: &headers,
+                headers: &parsed.headers,
                 id: hold_id.as_str(),
-                body: &raw,
+                body: &parsed.body,
                 key: &command.command_key,
             })
             .await
+            .map_err(error_response)
     }
     .await;
     match result {
         Ok(receipt) => bounded(receipt_json(&receipt)),
-        Err(error) => error_response(error),
+        Err(response) => response,
     }
 }

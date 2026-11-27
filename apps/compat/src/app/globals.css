@@ -1835,7 +1835,6 @@
 @source "../../../../packages/feature-projects/src/routes/holdings/[holdingSlug]/projects-routines/projects/settings/workers/[personId]/page.tsx";
 @source "../../../../packages/feature-projects/src/routes/holdings/[holdingSlug]/projects-routines/projects/settings/workers/page.tsx";
 @source "../../../../packages/feature-quality/src/adapters/server/native-quality-context-read.ts";
-@source "../../../../packages/feature-quality/src/adapters/server/native-quality-owned.ts";
 @source "../../../../packages/feature-quality/src/adapters/server/native-quality-page.ts";
 @source "../../../../packages/feature-quality/src/adapters/server/native-quality.ts";
 @source "../../../../packages/feature-quality/src/components/quality-cancellation-history.tsx";
@@ -2224,7 +2223,6 @@
 @source "../../../../packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/landed-costs/[[...path]]/route.ts";
 @source "../../../../packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/procurement-rfqs/[id]/route.ts";
 @source "../../../../packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/procurement-rfqs/route.ts";
-@source "../../../../packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route.ts";
 @source "../../../../packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/stock-transfers/[[...path]]/route.ts";
 @source "../../../../packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/stock-transit/[[...path]]/route.ts";
 @source "../../../../packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/supplier-bills/[id]/route.ts";

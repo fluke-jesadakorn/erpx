@@ -16,6 +16,9 @@ use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::{Clock, CompanyId, HoldingId, RecordId};
 use erpx_service::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
 use erpx_service::quality::{QualityBackend, QualityConfiguration, QualityService};
+use erpx_service::quality_count_origin::{
+    QualityCancelSourceKind, inspect_quality_cancel_purchase_source,
+};
 use std::sync::Arc;
 use tower::ServiceExt;
 
@@ -1780,6 +1783,165 @@ async fn quality_release_and_scrap_dispositions_are_native_and_replayable() {
             json(denied_scrap).await["error"]["code"],
             "PACKAGE_INACTIVE"
         );
+    })
+    .await;
+}
+
+/// A customer-return hold whose kind is not a label: every owner row needed
+/// by the return witness, approval receipt and lineage root is actual data.
+async fn seed_proven_return_cancel_hold(p: &review::Prepared) {
+    let now = p.system.scenario.clock.now().get();
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO finance_charts(id,company_id,name,base_currency,created_by,created_at,updated_at) \
+          VALUES('cancel-chart','company','Cancel Chart','THB','fixture-c',0,0);\
+         INSERT INTO finance_parties(id,company_id,kind,code,name,currency,created_at,updated_at) \
+          VALUES('cancel-customer','company','customer','C1','Cancel Customer','THB',0,0);\
+         INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,created_at,updated_at) \
+          VALUES('cancel-debit','cancel-chart','company','100','Cancel Debit','asset',0,0),\
+                 ('cancel-credit','cancel-chart','company','400','Cancel Credit','revenue',0,0);\
+         INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,debit_account_id,credit_account_id,created_by,created_at,updated_at) \
+          VALUES('cancel-invoice','company','cancel-customer','receivable','INV-CANCEL','2026-11-01','2026-11-02','THB',1000,0,1000,1000,'cancel-debit','cancel-credit','fixture-c',0,0);\
+         INSERT INTO commerce_products(id,company_id,sku,name,price_minor,tracking_mode) \
+          VALUES('cancel-plain','company','CP1','Cancel Plain',1000,'none');\
+         INSERT INTO commerce_stock(warehouse_id,product_id,quantity_milli,value_minor,version) \
+          VALUES('warehouse','cancel-plain',2000,2000,1);\
+         INSERT INTO commerce_orders(id,company_id,branch_id,kind,number,party_id,warehouse_id,currency,order_date,due_date,subtotal_minor,tax_minor,state,version,created_by,created_at,updated_at) \
+          VALUES('cancel-order','company','branch','sales','SO-CANCEL','cancel-customer','warehouse','THB','2026-11-01','2026-11-10',1000,0,'confirmed',3,'fixture-c',0,0);\
+         INSERT INTO commerce_order_lines(id,order_id,product_id,description,quantity_milli,fulfilled_milli,price_minor,tax_bps,subtotal_minor,tax_minor,ordinal,item_type) \
+          VALUES('cancel-order-line','cancel-order','cancel-plain','Cancel Plain',1000,1000,1000,0,1000,0,0,'stock');\
+         INSERT INTO commerce_fulfillments(id,order_id,number,fulfillment_date,created_by,created_at,version,invoice_id) \
+          VALUES('cancel-fulfillment','cancel-order','FUL-CANCEL','2026-11-01','fixture-c',0,1,'cancel-invoice');\
+         INSERT INTO commerce_fulfillment_lines(id,fulfillment_id,order_line_id,quantity_milli,value_minor,subtotal_minor,tax_minor) \
+          VALUES('cancel-fulfilled','cancel-fulfillment','cancel-order-line',1000,1000,1000,0);\
+         INSERT INTO commerce_returns(id,company_id,branch_id,order_id,fulfillment_id,invoice_id,kind,number,return_date,reason,status,subtotal_minor,tax_minor,total_minor,version,requested_by,approved_by,created_at,updated_at) \
+          VALUES('cancel-return','company','branch','cancel-order','cancel-fulfillment','cancel-invoice','customer_return','RET-CANCEL','2026-11-01','Return','approved',1000,0,1000,2,'fixture-c','fixture-c',0,0);\
+         INSERT INTO commerce_return_lines(id,return_id,fulfillment_line_id,product_id,quantity_milli,value_minor,subtotal_minor,tax_minor,ordinal) \
+          VALUES('cancel-return-line','cancel-return','cancel-fulfilled','cancel-plain',1000,1000,1000,0,0);\
+         INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json) \
+          VALUES('cancel-return-approval','commerce.return.approve','fixture-c','legacy-nonhex','cancel-return','{{}}',{now},'{{\"companyId\":\"company\"}}');\
+         INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,status,created_by,created_at,updated_at,quantity_scope,held_quantity_milli,source_type,source_id,version) \
+          VALUES('quality-return-cancel-return-approval-0','company','branch','warehouse','cancel-plain','Returned','2026-11-10','held','fixture-c',{now},{now},'partial',1000,'customer_return','cancel-return-line',1)"
+    )))
+    .execute(p.system.holdings[0].raw())
+    .await
+    .unwrap();
+}
+
+async fn grant_sales(p: &review::Prepared) {
+    let now = p.system.scenario.clock.now().get();
+    let expires = now + 3_600_000;
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,ends_at,version,reason,evidence,updated_at) \
+          VALUES('company','sales',1,'active',0,{expires},1,'Synthetic reviewed sales purchase','public synthetic evidence',{now});\
+         INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) \
+          SELECT 'quality-cancel-sales-origin','company',package_id,'fixture-a','synthetic-request',NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),{now} \
+          FROM company_package_grants WHERE company_id='company' AND package_id='sales'"
+    )))
+    .execute(p.system.holdings[0].raw())
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn quality_cancellation_settles_the_proven_original_purchase() {
+    review::account::with_system(|system| async move {
+        let p = review::setup_with_finance(system, false).await;
+        grant_quality(&p).await;
+        seed_quality(&p).await;
+        seed_proven_return_cancel_hold(&p).await;
+        let db = p.system.holdings[0].raw();
+        let hold = RecordId::new("quality-return-cancel-return-approval-0").unwrap();
+        let company = CompanyId::new("company").unwrap();
+        let branch = RecordId::new("branch").unwrap();
+
+        // Direct proof: a source label alone cannot select the narrower
+        // purchase. All owner witnesses must join in this serializable unit.
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        erpx_server_quality::public::purchase_lineage::lock_quality_purchase_lineage(&mut tx)
+            .await
+            .unwrap();
+        erpx_server_commerce::public::quality_return_origin::lock_quality_return_commerce(&mut tx)
+            .await
+            .unwrap();
+        erpx_server_inventory::public::quality_fulfillment_allocation::lock_quality_fulfillment_allocations(&mut tx)
+            .await
+            .unwrap();
+        erpx_server_inventory::public::quality_disposition_count::lock_quality_disposition_count_sources(&mut tx)
+            .await
+            .unwrap();
+        erpx_server_workflow::public::quality_return_receipts::lock_quality_return_receipts(&mut tx)
+            .await
+            .unwrap();
+        let proof = inspect_quality_cancel_purchase_source(&mut tx, &company, Some(&branch), &hold)
+            .await
+            .unwrap();
+        assert_eq!(proof.kind(), QualityCancelSourceKind::CustomerReturn);
+        assert_eq!(
+            proof.capabilities().to_vec(),
+            vec!["sales.orders", "inventory.stock-core"]
+        );
+        sqlx::query(
+            "UPDATE inventory_quality_holds SET source_id='forged' WHERE id='quality-return-cancel-return-approval-0'",
+        )
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        assert!(
+            proof.require_current(&mut tx).await.is_err(),
+            "the final after-image revalidation must reject a changed root"
+        );
+        let forged = inspect_quality_cancel_purchase_source(&mut tx, &company, Some(&branch), &hold)
+            .await
+            .unwrap();
+        assert_eq!(forged.kind(), QualityCancelSourceKind::Advanced);
+        assert_eq!(forged.capabilities().to_vec(), vec!["supply.quality"]);
+        tx.rollback().await.unwrap();
+
+        let app = prepared_router(&p);
+        // supply.quality is active but must not settle a proven return lineage.
+        let path = format!("/api/v1/holdings/acme/quality/{}/cancel", hold.as_str());
+        let denied = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                &path,
+                &p,
+                false,
+                Some("quality-cancel-return-denied"),
+                Some(r#"{"expectedVersion":1,"action":"request","reason":"The proven return purchase is required."}"#),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(denied.status(), StatusCode::FORBIDDEN);
+        assert_eq!(json(denied).await["error"]["code"], "PACKAGE_REQUIRED");
+        let rows: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM inventory_quality_cancellations WHERE hold_id='quality-return-cancel-return-approval-0'",
+        )
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(rows, 0, "a denied purchase must not write owner effects");
+
+        grant_sales(&p).await;
+        let allowed = app
+            .oneshot(request(
+                "POST",
+                &path,
+                &p,
+                false,
+                Some("quality-cancel-return-allowed"),
+                Some(r#"{"expectedVersion":1,"action":"request","reason":"The proven return purchase permits the cancellation."}"#),
+            ))
+            .await
+            .unwrap();
+        let status = allowed.status();
+        let allowed = json(allowed).await;
+        assert_eq!(status, StatusCode::OK, "{allowed}");
+        assert_eq!(allowed["data"]["status"], "cancel_pending");
     })
     .await;
 }

@@ -433,7 +433,7 @@ it('routes retired Holding entries and their transport aliases directly to Axum'
     expect(holdingNativeCutoverPath(`${routines}/template-1/schedules`, 'acme', 'GET')).toBe('routine-templates');
     const quality = '/api/v1/holdings/acme/quality';
     expect(holdingNativeCutoverPath(quality + '/alert-1/acknowledge', 'acme', 'POST')).toBe('quality-command');
-    for (const suffix of ['', '/specifications', '/specifications/spec-1', '/hold-1/inspect', '/hold-1/release', '/hold-1/disposition'])
+    for (const suffix of ['', '/specifications', '/specifications/spec-1', '/hold-1/cancel', '/hold-1/inspect', '/hold-1/release', '/hold-1/disposition'])
       expect(holdingNativeCutoverPath(quality + suffix, 'acme', 'POST')).toBe('quality-command');
     const encodedSpec = normalizeHoldingNativePath(quality + '/%73pecifications/spec-1?view=draft', 'acme');
     expect(encodedSpec.url).toBe(quality + '/specifications/spec-1?view=draft');
@@ -441,7 +441,7 @@ it('routes retired Holding entries and their transport aliases directly to Axum'
     const encodedRelease = normalizeHoldingNativePath(quality + '/hold-1/%72elease', 'acme');
     expect(encodedRelease.url).toBe(quality + '/hold-1/release');
     expect(holdingNativeCutoverPath(encodedRelease.url, 'acme', 'POST')).toBe('quality-command');
-    for (const suffix of ['/alert-1/acknowledge/extra', '/%2F/acknowledge', '/hold-1/cancel', '/specifications/%2F', '/specifications/spec-1/extra'])
+    for (const suffix of ['/alert-1/acknowledge/extra', '/%2F/acknowledge', '/specifications/%2F', '/specifications/spec-1/extra'])
       expect(holdingNativeCutoverPath(quality + suffix, 'acme', 'POST')).toBeUndefined();
     for (const suffix of ['', '/hold-1', '/hold-1/cancellations', '/alerts', '/read-plan', '/specifications']) {
       for (const method of ['GET', 'HEAD'])
@@ -506,6 +506,7 @@ it('routes retired Holding entries and their transport aliases directly to Axum'
       ['apps', `${suggestions}/suggestion-1`, 'NATIVE_RECORD_REGISTRY_UNAVAILABLE'],
       ['supply', `${quality}/alert-1/acknowledge`, 'NATIVE_QUALITY_UNAVAILABLE'],
       ['supply', quality, 'NATIVE_QUALITY_UNAVAILABLE'],
+      ['supply', `${quality}/hold-1/cancel`, 'NATIVE_QUALITY_UNAVAILABLE'],
       ['supply', `${quality}/hold-1/inspect`, 'NATIVE_QUALITY_UNAVAILABLE'],
       ['supply', `${quality}/hold-1/release`, 'NATIVE_QUALITY_UNAVAILABLE'],
       ['supply', `${quality}/hold-1/disposition`, 'NATIVE_QUALITY_UNAVAILABLE'],

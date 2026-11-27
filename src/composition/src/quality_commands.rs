@@ -3,6 +3,9 @@
 //! The selected Account/Holding context, current IAM permission, Commercial
 //! purchase admission, Commerce master witness, owner effects and Workflow
 //! receipt/audit/outbox share the same serializable Holding unit.
+use crate::quality_count_origin::{
+    CurrentQualityCancelPurchaseSource, inspect_quality_cancel_purchase_source,
+};
 use erpx_server_collaboration::public::quality_notification::{
     PgQualityNotificationSource, QualityNotificationFacts, RetainedQualityNotifications,
     lock_quality_notifications, stage_quality_notifications,
@@ -172,12 +175,28 @@ impl HoldingWorkSourcePreparation for QualityCommandPreparation {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move {
             lock_commercial_authority_sources(c).await?;
+            if self.cancellation {
+                erpx_server_commerce::public::quality_receipt_origin::lock_quality_receipt_commerce(c)
+                    .await?;
+                erpx_server_commerce::public::quality_return_origin::lock_quality_return_commerce(c)
+                    .await?;
+                erpx_server_inventory::public::quality_fulfillment_allocation::lock_quality_fulfillment_allocations(c)
+                    .await?;
+            }
             lock_quality_masters(c).await?;
             if self.stock {
                 lock_quality_scrap_stock_sources(c).await?;
             }
             if self.cancellation {
+                // Take writer intent before any shared fence on the same
+                // hold relation. The Workflow unit also writes receipts.
                 erpx_server_quality::public::quality_http::lock_quality_cancellation_writes(c)
+                    .await?;
+                erpx_server_quality::public::purchase_lineage::lock_quality_purchase_lineage(c)
+                    .await?;
+                erpx_server_inventory::public::quality_disposition_count::lock_quality_disposition_count_sources(c)
+                    .await?;
+                erpx_server_workflow::public::quality_return_receipts::lock_quality_scrap_request_receipts(c)
                     .await?;
             }
             lock_quality_command_sources(c).await?;
@@ -477,6 +496,7 @@ struct Authority<'a, G> {
     clock: &'a G,
     catalogue: CommercialCatalogue,
     purchase: Option<PurchaseWitness>,
+    cancel_source: Option<CurrentQualityCancelPurchaseSource>,
 }
 
 impl<G: Clock + Sync> Authority<'_, G> {
@@ -554,16 +574,44 @@ impl<G: Clock + Sync> PgCommandAuthority for Authority<'_, G> {
             return Err(changed().into());
         }
         let now = self.clock.now();
+        let purpose = match disposition {
+            CommandDisposition::Execute => self.command.purpose(),
+            CommandDisposition::Replay => CapabilityPurpose::History,
+        };
+        // Cancellation settles an existing hold: its original purchase is the
+        // proven remaining-hold origin, not a fixed owner label. Everything
+        // else keeps its bounded owner capability set.
+        let capabilities = if matches!(self.command, QualityOwnerCommand::Cancel(_)) {
+            if self.cancel_source.is_none() {
+                let company = actor.company_id.clone();
+                let branch = self.current.selection().workspace().branch_id.clone();
+                let hold_id = RecordId::new(self.command.record_id()?.as_str())?;
+                self.cancel_source = Some(
+                    inspect_quality_cancel_purchase_source(
+                        c,
+                        &company,
+                        branch.as_ref(),
+                        &hold_id,
+                    )
+                    .await?,
+                );
+            }
+            self.cancel_source
+                .as_ref()
+                .expect("checked above")
+                .capabilities()
+                .iter()
+                .map(|capability| (*capability).to_owned())
+                .collect::<Vec<_>>()
+        } else {
+            self.command.capabilities()
+        };
         let mut purchases = PgCompanyPurchaseReader::new(
             self.current.holding_id().clone(),
             actor.company_id.clone(),
             c,
             &self.catalogue,
         );
-        let purpose = match disposition {
-            CommandDisposition::Execute => self.command.purpose(),
-            CommandDisposition::Replay => CapabilityPurpose::History,
-        };
         if let Some(witness) = &self.purchase {
             purchases
                 .revalidate(witness, now)
@@ -574,7 +622,7 @@ impl<G: Clock + Sync> PgCommandAuthority for Authority<'_, G> {
                 purchases
                     .inspect(
                         &PurchaseRequest {
-                            capabilities: self.command.capabilities(),
+                            capabilities,
                             purpose,
                             mode: self.mode,
                         },
@@ -584,6 +632,11 @@ impl<G: Clock + Sync> PgCommandAuthority for Authority<'_, G> {
                     .require_allowed()?
                     .clone(),
             );
+        }
+        // The same witness is read before preparation and after retention, so
+        // the final after-image revalidation covers the proven origin too.
+        if let Some(source) = &self.cancel_source {
+            source.require_current(c).await?;
         }
         Ok(())
     }
@@ -1701,6 +1754,7 @@ pub async fn execute_quality_command<W: Clock + Sync, G: Clock + Sync, I: Identi
         clock: guard_clock,
         catalogue: current_package_catalogue()?,
         purchase: None,
+        cancel_source: None,
     };
     let mut effects = Effects {
         current,

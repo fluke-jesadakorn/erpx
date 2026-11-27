@@ -2,4 +2,3 @@ import 'server-only';
 
 export {nativeQualityAlerts, nativeQualityDetailCore, nativeQualityWorkspace, nativeQualityCancellationHistory} from '../adapters/server/native-quality-page';
 export type {NativeQualityCancellationCursor, NativeQualityCancellationPage, NativeQualityAlert, NativeQualityQueueAlert, NativeQualityAlertAcknowledgementReceipt, NativeQualityCancellation, NativeQualityDecision, NativeQualityDetail, NativeQualityDetailCore, NativeQualityDisposition, NativeQualityHold, NativeQualityInspection, NativeQualityLot, NativeQualityMeasurement, NativeQualityMetric, NativeQualityProduct, NativeQualitySpecification, NativeQualityStock, NativeQualityWorkspace, NativeQualitySpecReceipt, NativeQualityInspectionReceipt, NativeQualityReleaseReceipt, NativeQualityHoldReceipt, NativeQualityDispositionReceipt} from '../adapters/server/native-quality';
-export {ownedNativeQualityCancel} from '../adapters/server/native-quality-owned';
