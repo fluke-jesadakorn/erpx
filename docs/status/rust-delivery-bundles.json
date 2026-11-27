@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16111,
+    "revision": 16121,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": null,
@@ -223914,11 +223914,6 @@
         ],
         "retainedLegacy": [
           {
-            "path": "packages/server-collaboration/src/adapters/product-entry.ts",
-            "removalTaskId": "cutover.collaboration.rich-home-native-ssr",
-            "removalCondition": "Port product-workspace candidate-only admission for an eligible assignment before selection. Retain current Account proof, exact assignment version, Company and scope, and same native source purchase policy without selecting or minting authority. Verify PMS and Projects role candidates before removing the TypeScript candidate predicate."
-          },
-          {
             "path": "packages/server-collaboration/src/adapters/social-home.ts",
             "removalTaskId": "cutover.collaboration.rich-home-native-ssr",
             "removalCondition": "Remove callers and the SELECT-only branches replaced by native page cards in the same cutover. Other rich feed/command consumers retain their own owner cutover."
@@ -223946,12 +223941,12 @@
         ],
         "blocker": "handoff",
         "handoff": {
-          "runId": "oasis-native-selected-thread-20261127",
+          "runId": "oasis-social-role-candidates-20261127",
           "agentId": "codex",
-          "at": "2026-11-27T16:10:08.471Z",
+          "at": "2026-11-27T16:26:57.361Z",
           "previousStatus": "ready_for_integration",
           "reason": "handoff",
-          "nextAction": "Selected Social page is native-only and deployed. Port product-workspace candidate admission through CurrentAccountWorkRoles::eligible and the native source/history rights checks without writing a work selection. Verify unselected eligible PMS and Projects candidates with Account proof and current assignment/version before retiring the TypeScript candidate predicate."
+          "nextAction": "The selected page and pre-selection admission are native in Development. Rerun selected and pre-selection Postgres owner checks at the consolidated G3 SHA, then inventory any remaining Social Home side-route consumers before claiming their retirement."
         },
         "resources": [
           "collaboration-rich-home-native-ssr"
@@ -224006,7 +224001,7 @@
           "Bind complete Axum aggregate presentation and mount it through the exact registered Holding routes",
           "Verify the new Admin Holding root reaches real Feed after normal SSO and retained Social contracts still pass"
         ],
-        "nextAction": "Selected Social page is native-only and deployed. Port product-workspace candidate admission through CurrentAccountWorkRoles::eligible and the native source/history rights checks without writing a work selection. Verify unselected eligible PMS and Projects candidates with Account proof and current assignment/version before retiring the TypeScript candidate predicate.",
+        "nextAction": "The selected page and pre-selection admission are native in Development. Rerun selected and pre-selection Postgres owner checks at the consolidated G3 SHA, then inventory any remaining Social Home side-route consumers before claiming their retirement.",
         "cutover": {
           "clientParity": true,
           "routeAuthority": true,
@@ -224153,6 +224148,120 @@
           "Verify actual mobile browser scroll position before leaving for Sales and after browser Back, including the Account role selection path."
         ],
         "nextAction": "The exact public OASIS release was browser verified with a pixel-matched Feed return and the approved quotation read and print."
+      },
+      {
+        "id": "cutover.collaboration.social-product-entry",
+        "goalId": "G3",
+        "owner": "collaboration",
+        "workflowIds": [],
+        "kind": "migration",
+        "title": "Read Social source admission for eligible roles before Account selection",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/collaboration.rs",
+          "src/composition/src/collaboration_social_home.rs",
+          "src/composition/src/private_development_api.rs",
+          "packages/server-collaboration/package.json",
+          "packages/server-collaboration/src/adapters/product-entry.ts",
+          "packages/server-collaboration/src/public/product-entry.ts",
+          "packages/server-collaboration/src/public/native-social-page.ts",
+          "packages/server-collaboration/src/adapters/social_home.rs",
+          "packages/server-collaboration/src/adapters/social_http.rs",
+          "packages/server-collaboration/src/public/social.rs",
+          "packages/server-collaboration/src/public/social_http.rs",
+          "packages/server-identity_access/src/adapters/account_work_roles.rs",
+          "packages/server-identity_access/src/adapters/product-workspace.ts",
+          "tests/unit/identity_access/product-workspace.test.ts",
+          "tests/unit/collaboration/collaboration-services.test.ts",
+          "tests/integration/pms/pms.test.ts",
+          "tests/integration/collaboration/social-beta.test.ts",
+          "tests/integration/collaboration/rust-field-collaboration-selected-postgres.test.rs"
+        ],
+        "resources": [
+          "collaboration-rich-home-native-ssr"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "e1b8131c99601aa9dcfe7386959618dcb935aa45",
+        "implementedCommit": "93aaea893d733db77108228c0462c5587e452c44",
+        "lastPushedSha": "93aaea893d733db77108228c0462c5587e452c44",
+        "checks": [
+          {
+            "command": "cargo test --locked --no-default-features --features private-development-api -p erpx-service --test field_collaboration_selected_postgres native_social_page_admits_only_the_exact_paid_source_thread_under_current_iam -- --nocapture",
+            "result": "passed",
+            "sourceSha": "93aaea893d733db77108228c0462c5587e452c44",
+            "details": "Real isolated migrated PostgreSQL and signed Account proof. Unselected PMS and Projects candidate, Projects draining and membership loss, Finance retained guest account only, stale version, revoked/foreign assignments, foreign Company, unsigned, unrelated post, private bounded response and unchanged Account selection."
+          },
+          {
+            "command": "vitest run --config tests/config/vitest.unit.config.mts tests/unit/collaboration/collaboration-services.test.ts tests/unit/shared.ui/apps-launcher.test.ts",
+            "result": "passed",
+            "sourceSha": "93aaea893d733db77108228c0462c5587e452c44",
+            "details": "154 passed, including signed pre-selection scope forwarding and launcher state."
+          },
+          {
+            "command": "Product-workspace Vitest baseline comparison against 4489f344d",
+            "result": "passed",
+            "sourceSha": "93aaea893d733db77108228c0462c5587e452c44",
+            "details": "The current suite and baseline both reproduced the same three pre-existing failures: two versioned selection transport argument assertions and extracted Payroll fixture ownedPeoplePayrollRuns. All three Social role/link cases passed in the current suite; the filtered runner emits its required-cases error for skipped unrelated cases."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "93aaea893d733db77108228c0462c5587e452c44"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "93aaea893d733db77108228c0462c5587e452c44"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "93aaea893d733db77108228c0462c5587e452c44"
+          },
+          {
+            "command": "cargo build --release --locked --no-default-features --features private-development-api -p erpx-service --bin erpx-server",
+            "result": "passed",
+            "sourceSha": "93aaea893d733db77108228c0462c5587e452c44"
+          },
+          {
+            "command": "Optimized development deployment and public Admin Chrome",
+            "result": "passed",
+            "sourceSha": "93aaea893d733db77108228c0462c5587e452c44",
+            "details": "Private development API health 200, exact unsigned native candidate 401, unregistered host 404. Authenticated Admin browser displayed Feed, opened Apps with 15 authorized tiles and loaded the GitHub-approved catalogue."
+          },
+          {
+            "command": "retirement:ts-statements:collaboration-role-candidate",
+            "result": "passed",
+            "sourceSha": "93aaea893d733db77108228c0462c5587e452c44",
+            "details": "Retired both candidate TypeScript paths and their package exports after the selected-role launcher switched to the signed native admission endpoint. All owner TypeScript SQL statement mentions measured by git grep of SELECT/INSERT/UPDATE/DELETE.",
+            "before": 228,
+            "after": 224,
+            "baseSha": "e1b8131c99601aa9dcfe7386959618dcb935aa45"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "oasis-social-role-candidates-20261127",
+          "agentId": "codex",
+          "at": "2026-11-27T16:26:56.911Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Rerun the isolated native_social_page_admits_only_the_exact_paid_source_thread_under_current_iam PostgreSQL integration against the consolidated G3 candidate. Review any outstanding Social side routes under separate owner claims."
+        },
+        "scope": "The exact Holding Social post candidate used by the Apps role picker. Use current Account proof and the exact proposed assignment for Projects and PMS source access and purchased History. Neither mutate work selection nor return conversation content.",
+        "deliverables": [
+          "Private native admission transport for the Apps role picker without a TypeScript SQL fallback",
+          "Signed unselected PMS and Projects role candidate verification and retirement of the old predicate"
+        ],
+        "nextAction": "Rerun the isolated native_social_page_admits_only_the_exact_paid_source_thread_under_current_iam PostgreSQL integration against the consolidated G3 candidate. Review any outstanding Social side routes under separate owner claims.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       }
     ],
     "migrationProgress": {
@@ -224161,12 +224270,12 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2472,
+      "totalPackets": 2473,
       "migratedPackets": 370,
       "statusCounts": {
         "pending": 14,
         "in_progress": 0,
-        "ready_for_integration": 161,
+        "ready_for_integration": 162,
         "integrating": 0,
         "migrated": 370,
         "blocked": 1925,
@@ -224174,8 +224283,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 218,
-    "updatedAt": "2026-11-27T16:10:08.633Z",
+    "lastCoordinatorGeneration": 219,
+    "updatedAt": "2026-11-27T16:26:57.510Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
