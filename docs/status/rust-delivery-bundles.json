@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15280,
+    "revision": 15284,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261127-c",
+      "runId": "run-20261127-d",
       "agentId": "lead",
-      "startedAt": "2026-11-26T19:03:13.100Z",
-      "heartbeatAt": "2026-11-26T19:03:13.100Z",
-      "expiresAt": "2026-11-26T19:33:13.101Z",
-      "generation": 191,
-      "tokenHash": "d860e5acba9227e02701cd753c566e8a98d80b5612a76d49b3cca3cdc2d40f4b"
+      "startedAt": "2026-11-27T00:20:34.236Z",
+      "heartbeatAt": "2026-11-27T00:20:34.236Z",
+      "expiresAt": "2026-11-27T00:50:34.237Z",
+      "generation": 192,
+      "tokenHash": "1a106c675b2c3dcefae8c9a4f6c86258f85eac9a4451cbb771a669d82a89159a"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -131980,7 +131980,7 @@
         "owner": "work_projection",
         "title": "Mount the work projection native calendar read router",
         "kind": "integration",
-        "status": "pending",
+        "status": "ready_for_integration",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -131995,13 +131995,33 @@
         ],
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
+        "implementedCommit": "7d695dc76a5c147342bc8a61660ad87396f491f2",
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo build -p erpx-service --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "7d695dc76a5c147342bc8a61660ad87396f491f2",
+            "note": "calendar_read_router mounted with one PgCalendarReadBackend per Holding"
+          },
+          {
+            "command": "GET https://acme.jesadakorn.com/api/v1/holdings/acme/calendar",
+            "result": "passed",
+            "sourceSha": "7d695dc76a5c147342bc8a61660ad87396f491f2",
+            "note": "200 with the native calendar snapshot"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Scout found calendar_read_router (work/owner-read) defined at packages/server-work_projection/src/adapters/calendar_read_http.rs:277 but never mounted in src/composition/src/private_development_api.rs. Compose per-holding targets like other owner routers, mount under existing-business, add config failure code, extend boundary allowlist, and add an in-process route test. Requires resource:composition.",
-        "handoff": null,
+        "blocker": "released with work preserved",
+        "nextAction": "Calendar owner-read router is mounted; follow-up is the remaining calendar command write path.",
+        "handoff": {
+          "runId": "run-20261127-d",
+          "agentId": "lead",
+          "at": "2026-11-27T00:20:41.315Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Calendar owner-read router is mounted; follow-up is the remaining calendar command write path."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -215636,8 +215656,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 191,
-    "updatedAt": "2026-11-26T19:03:33.690Z",
+    "lastCoordinatorGeneration": 192,
+    "updatedAt": "2026-11-27T00:20:41.319Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
@@ -215672,10 +215692,10 @@
       }
     },
     "lastRecovery": {
-      "previousRunId": "run-20261127-b",
-      "runId": "run-20261127-c",
-      "at": "2026-11-26T19:03:13.101Z",
-      "reason": "Continue overnight wave after heartbeat gap; no active claims.",
+      "previousRunId": "run-20261127-c",
+      "runId": "run-20261127-d",
+      "at": "2026-11-27T00:20:34.238Z",
+      "reason": "Continue migration wave; no active task claims.",
       "wipReviewed": true,
       "previousRunStopped": true
     },
