@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16161,
+    "revision": 16169,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": null,
@@ -224690,27 +224690,99 @@
           "packages/workplace/src/routes/holdings/[holdingSlug]/layout.tsx",
           "packages/workplace/src/components/navigation-counts.tsx",
           "scripts/local/native-cutover-routes.ts",
-          "src/composition/src/private_development_api.rs"
+          "src/composition/src/private_development_api.rs",
+          "packages/server-work_projection/src/application/work_navigation.rs",
+          "scripts/local/workspace-gateway-runtime.ts",
+          "scripts/local/compiled-workspace-gateway.ts",
+          "scripts/local/native-api-proxy.ts",
+          "tests/unit/shared.testing/workspace-supervisor.test.ts"
         ],
         "resources": [
           "feed-native-page-presentation",
           "work-navigation-read"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "baseSha": "f5b11de4705ca6e0e6dec39fef819be2625004d0",
+        "implementedCommit": "33398bb2da24effc69ed232b290fbc49f175f861",
+        "lastPushedSha": "33398bb2da24effc69ed232b290fbc49f175f861",
+        "checks": [
+          {
+            "command": "cargo test --locked -p erpx-server-work-projection --lib work_navigation",
+            "result": "passed",
+            "sourceSha": "33398bb2da24effc69ed232b290fbc49f175f861",
+            "details": "13 native domain, application and HTTP checks passed."
+          },
+          {
+            "command": "cargo build --locked -p erpx-service --features private-development-api,production-api --bin erpx-server",
+            "result": "passed",
+            "sourceSha": "33398bb2da24effc69ed232b290fbc49f175f861",
+            "details": "Built the native development candidate from this change."
+          },
+          {
+            "command": "bun run test:unit -- tests/unit/shared.testing/workspace-supervisor.test.ts",
+            "result": "passed",
+            "sourceSha": "33398bb2da24effc69ed232b290fbc49f175f861",
+            "details": "14 passed, including scoped gateway normalization, missing and stale role fences and forged location refusal."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "33398bb2da24effc69ed232b290fbc49f175f861",
+            "details": "Application and testing TypeScript projects passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "33398bb2da24effc69ed232b290fbc49f175f861",
+            "details": "Repository test and owner layout passed."
+          },
+          {
+            "command": "Public Development Chrome Acme Feed POST and PostgreSQL cursor witness",
+            "result": "passed",
+            "sourceSha": "33398bb2da24effc69ed232b290fbc49f175f861",
+            "details": "Signed Account SSO reached /bangkok/apps. The automatic scoped read-home returned 200. Same-key retry returned 200 without advancing the cursor in PostgreSQL. Stale role revision returned 409 and did not advance the cursor. Apps opened from the role-appropriate Feed."
+          },
+          {
+            "command": "Development deployment and independent service probes",
+            "result": "passed",
+            "sourceSha": "33398bb2da24effc69ed232b290fbc49f175f861",
+            "details": "Dev gateway, public Console health and private production health 200. Retired Console and prior internal ERPX root 404. Admin root 307 to Account SSO. Dedicated OASIS staging health 200."
+          },
+          {
+            "command": "Acme Development Feed trace",
+            "result": "passed",
+            "sourceSha": "33398bb2da24effc69ed232b290fbc49f175f861",
+            "details": "The last signed visit still ran 1854 navigation queries in 13.9s and whole GET in 15.0s. The native command change is independent of this residual SSR query."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-work_projection/src/adapters/navigation-snapshot.ts",
+            "removalTaskId": "cutover.work_projection.feed-navigation-runtime",
+            "removalCondition": "Native Work items carry actual role-scoped title, detail, status, due time and routing facts with exact owner availability. Verify signed browser renewal and SSR against identical fixtures before replacing the retained reader."
+          },
+          {
+            "path": "packages/server-work_projection/src/adapters/navigation-counts.ts",
+            "removalTaskId": "cutover.work_projection.feed-navigation-runtime",
+            "removalCondition": "Move retained unread SSR callers and the legacy markHomeRead integration oracle to the signed native reader and command before retiring the TS adapter."
+          }
+        ],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "codex-feed-navigation-20261128",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T17:35:25.986Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Implement native owner-aware rich Work navigation facts from work_snapshot_read.rs for entitled lanes, including title, detail, due time and routing. Compare the full GET payload with navigation-snapshot.ts using signed Acme and Admin fixtures, then switch SSR and browser refresh together and remeasure /bangkok/apps. The live mark-read POST may be used independently."
+        },
         "scope": "The normal Acme branch Feed render has one residual full legacy Work query fan-out (1854 queries and 16.2s in the recorded Development visit). Reuse the mounted but unexposed Rust Work navigation owner port, replacing conservative Beta/Inventory/Expense/routing defaults before switching authority. Keep actual Work cues, package limits and scoped operations.",
         "deliverables": [
           "Signed Holding browser and SSR navigation data use a bounded authoritative native read",
           "Acme/Apps trace shows the Feed and launcher work without the retained full TS Work snapshot on that request"
         ],
-        "nextAction": "Compare normal role and branch responses from work_navigation_execution.rs and the existing TypeScript navigation-snapshot.ts before admitting the exact native navigation path. Extend the scope claim to the exact browser test and Next wrapper paths discovered in the route audit."
+        "nextAction": "Implement native owner-aware rich Work navigation facts from work_snapshot_read.rs for entitled lanes, including title, detail, due time and routing. Compare the full GET payload with navigation-snapshot.ts using signed Acme and Admin fixtures, then switch SSR and browser refresh together and remeasure /bangkok/apps. The live mark-read POST may be used independently."
       }
     ],
     "migrationProgress": {
@@ -224722,18 +224794,18 @@
       "totalPackets": 2477,
       "migratedPackets": 371,
       "statusCounts": {
-        "pending": 15,
+        "pending": 14,
         "in_progress": 0,
         "ready_for_integration": 164,
         "integrating": 0,
         "migrated": 371,
-        "blocked": 1925,
+        "blocked": 1926,
         "deferred": 2,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 221,
-    "updatedAt": "2026-11-27T17:22:13.319Z",
+    "lastCoordinatorGeneration": 222,
+    "updatedAt": "2026-11-27T17:35:26.144Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
