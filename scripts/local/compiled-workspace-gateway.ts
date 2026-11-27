@@ -57,7 +57,7 @@ export function selectOasisDemoTarget(host: string | undefined, url: string, met
   if (/^\/(?:api|internal|sso)(?:\/|$)/.test(path) || transport || /\/api(?:\/|$)/.test(path) && path.startsWith('/__erpx/')) return { status: 404 };
   if (method !== 'GET' && method !== 'HEAD') return { status: 405, allow: 'GET, HEAD' };
   if (account) return path.startsWith('/__erpx/') ? { status: 404 } : { port: oasisDemoRouting.ports.account, native: false, path: url };
-  const route = parseHoldingRoute(oasisDemoHolding.holdingSlug, path, 'oasis-demo-staging');
+  const route = parseHoldingRoute(oasisDemoHolding.holdingSlug, path, 'oasis-demo-staging', process.env.ERPX_COMPANY_ADDRESS_ROUTING === 'enabled');
   let app = route?.app;
   if (['/launch', '/choose-work-role', '/account/continue'].includes(path)) {
     const navigation = new URL(url, `https://${host}`);
@@ -68,7 +68,7 @@ export function selectOasisDemoTarget(host: string | undefined, url: string, met
       app = declared;
     } else if (next) {
       const requested = new URL(next, navigation);
-      if (requested.origin === navigation.origin) app = parseHoldingRoute(oasisDemoHolding.holdingSlug, requested.pathname, 'oasis-demo-staging')?.app;
+      if (requested.origin === navigation.origin) app = parseHoldingRoute(oasisDemoHolding.holdingSlug, requested.pathname, 'oasis-demo-staging', process.env.ERPX_COMPANY_ADDRESS_ROUTING === 'enabled')?.app;
     }
   }
   if (app !== 'sales' && app !== 'apps') return { status: 404 };
@@ -79,7 +79,7 @@ function oasisNextLocation(host: string, requestPath: string, location: string):
   if (host !== oasisDemoHolding.hostname) return location;
   const requestUrl = new URL(requestPath, `https://${host}`), target = new URL(location, requestUrl);
   if (target.origin !== requestUrl.origin) return location;
-  return holdingUiUrl(target.href, requestUrl.searchParams.get('company') ?? requestUrl.searchParams.get('companyId') ?? undefined, 'oasis-demo-staging') ?? location;
+  return holdingUiUrl(target.href, requestUrl.searchParams.get('company') ?? requestUrl.searchParams.get('companyId') ?? undefined, 'oasis-demo-staging', process.env.ERPX_COMPANY_ADDRESS_ROUTING === 'enabled') ?? location;
 }
 
 const oasisRenderedContextHeaders = [...renderedSelectionHeaders, 'x-erpx-workspace-branch', 'x-erpx-workspace-department'];

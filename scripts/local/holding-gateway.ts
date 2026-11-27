@@ -10,10 +10,16 @@ const apiRoutes = catalogue.apps.flatMap(app => app.entries.filter(entry => entr
 /** Owner redirects retain an explicitly selected Company through the public
  * address conversion. Foreign origins (especially Account exchange) are untouched. */
 export function holdingGatewayLocation(host:string,value:string,location:string,app:ProductHostKey){
-  if(!holdingHostForHost(host))return location;
+  const holding=holdingHostForHost(host);
+  if(!holding)return location;
   const request=new URL(value,`https://${host}`),target=new URL(location,request);
   if(target.origin!==request.origin)return location;
-  return holdingUiUrl(target.href,request.searchParams.get('company')??request.searchParams.get('companyId')??undefined)
+  const company=parseHoldingRoute(holding.holdingSlug,request.pathname)?.companySlug;
+  if(company&&['/login','/sso/start'].includes(target.pathname)&&target.searchParams.get('next')?.startsWith('/holdings/')){
+    target.searchParams.set('next',request.pathname+request.search);
+    return target.href;
+  }
+  return holdingUiUrl(target.href,company??request.searchParams.get('company')??request.searchParams.get('companyId')??undefined)
     ??holdingPublicUiUrl(target.href)
     ??(app==='pos'||app==='pms'?holdingFrontUiUrl(target.href,app):null)??location;
 }

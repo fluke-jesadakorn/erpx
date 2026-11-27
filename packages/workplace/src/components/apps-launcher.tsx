@@ -374,7 +374,7 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
             {!apps.length && <p className={styles.emptyApps} role="status">{workspace.apps.length ? t("ไม่พบแอปที่ค้นหา", "No matching apps.") : t("ยังไม่มีแอปที่เข้าใช้ได้ในพื้นที่นี้", "No apps are available in this workspace.")}</p>}
             {(workspace.adminHref || workspace.managementHref) && <div className={styles.administration}>{[[workspace.adminHref, t("ดูแลบริษัท", "Company administration")], [workspace.managementHref, "ERPX Management"]].map(([href, label]) => href && <a key={href} data-product-switch href={href} onClick={() => remember()}><Settings size={18} aria-hidden="true" />{label}<ArrowUpRight size={16} aria-hidden="true" /></a>)}</div>}
             {workspace.id === currentWorkspaceId && company && company.id === currentCompanyId && !entry && <CompanyPluginCatalogue
-              key={`${company.id}:${workspace.id}`} api={`/api/v1${workspace.id}/plugins`} language={language} appQuery={appQuery} onLaunch={launch} />}
+              key={`${company.id}:${workspace.id}`} api={`/api/v1${workspace.id}/plugins`} addressHref={workspace.apps.find(app=>app.productId==="apps")?.href} language={language} appQuery={appQuery} onLaunch={launch} />}
           </>}
           {provider && <a data-product-switch href={provider.href}>{t("พื้นที่ผู้ให้บริการ", "Provider administration")} · {provider.role}</a>}
           {existingWorkspaces.map(item => <a key={item.href} data-product-switch href={item.href}>{item.holding}</a>)}

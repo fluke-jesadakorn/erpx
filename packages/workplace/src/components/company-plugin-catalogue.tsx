@@ -7,6 +7,8 @@ import { Dialog } from "@erpx/ui/components/dialog";
 import { InlineNotice, Stack } from "@erpx/ui/components/foundation";
 import { TextInput } from "@erpx/ui/components/input";
 import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
+import {companyAddressPath, holdingHostForHost, originProfile} from "@erpx/feature-runtime/lib/holding-hosts";
+import {parseHoldingRoute} from "@erpx/contracts/holding-hosts";
 import styles from "./apps-launcher.module.css";
 
 type Version = { id: string; version: string; repository: string };
@@ -26,8 +28,8 @@ async function readCatalogue(api: string, full: boolean, signal?: AbortSignal): 
   return payload.data as Catalogue;
 }
 
-export function CompanyPluginCatalogue({ api, language, appQuery, onLaunch }: {
-  api: string; language: "en" | "th"; appQuery: string; onLaunch: (event: MouseEvent<HTMLAnchorElement>) => void;
+export function CompanyPluginCatalogue({ api, addressHref, language, appQuery, onLaunch }: {
+  api: string; addressHref?: string; language: "en" | "th"; appQuery: string; onLaunch: (event: MouseEvent<HTMLAnchorElement>) => void;
 }) {
   const th = language === "th";
   const t = (thai: string, english: string) => th ? thai : english;
@@ -91,7 +93,14 @@ export function CompanyPluginCatalogue({ api, language, appQuery, onLaunch }: {
       <div className={`${styles.grid} ${styles.pluginGrid}`}>
         {installed.map(item => {
           const measurement = item.manifest.tile.source === "crm.next-site-measurement.v1" ? siteMeasurement : null;
-          const href = measurement ? measurementHref : undefined;
+          const current = typeof window === "undefined" ? undefined : holdingHostForHost(window.location.host);
+          const destination = current && addressHref ? new URL(addressHref, window.location.origin) : null;
+          const address = current && destination && !destination.searchParams.has("company")
+            && parseHoldingRoute(current.holdingSlug, destination.pathname, originProfile(), true);
+          const oldWorkspace = address && !address.workspaceSlug && !address.branchSlug && /\/(?:branches|departments)\//.test(api);
+          const href = address && !oldWorkspace && address.companySlug
+            ? companyAddressPath(address.companySlug, address.branchSlug ?? address.workspaceSlug, address.departmentSlug, item.id)
+            : measurement ? measurementHref : undefined;
           const tile = <>
             <span className={styles.appIcon}><CalendarDays size={27} strokeWidth={1.65} aria-hidden="true" /></span>
             {href && <ArrowUpRight className={styles.openIcon} size={18} aria-hidden="true" />}

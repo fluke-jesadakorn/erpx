@@ -1,3 +1,4 @@
+import { companyAddressPath, parseCompanyAddress } from './holding-hosts/company-address.ts';
 import { productIds, sharedHostKeys, destinationProduct, product, type ProductHostKey } from './product-registry.ts';
 
 /** Operator-owned exact registrations. Production names are metadata, never trust. */
@@ -55,7 +56,7 @@ const appKeys = [...productIds, ...sharedHostKeys.filter(key => key !== 'account
 const publicRoots: Record<string, ProductHostKey> = { book: 'booking', 'customer-portal': 'portal', 'legal-portal': 'legal-portal', forms: 'forms' };
 export const reservedWorkspaceSlugs = [...new Set([...appKeys, ...Object.keys(publicRoots), 'departments', 'sso', 'api', '_next', '__erpx', 'login', 'logout', 'launch', 'choose-work-role', 'applications', 'account', 'provider', 'platform', 'robots.txt', 'manifest.webmanifest', 'brand', 'fonts', 'vendor'])];
 export function reservedWorkspaceSlug(slug: string) { return reservedWorkspaceSlugs.includes(slug); }
-export type HoldingRoute = { app: ProductHostKey; internalPath: string; kind: 'page' | 'entry' | 'transport' | 'system'; branchSlug?: string; departmentSlug?: string };
+export type HoldingRoute = { app: ProductHostKey; internalPath: string; kind: 'page' | 'entry' | 'transport' | 'system'; branchSlug?: string; departmentSlug?: string; companySlug?: string; workspaceSlug?: string; pluginId?: string };
 const ownerRoots: Partial<Record<ProductHostKey, string>> = {
   finance: 'finance', people: 'people-organization', sales: 'customers-sales', supply: '', assets: 'services/assets',
   projects: 'projects-routines', recruit: 'people-organization/talent', learn: 'knowledge/learning',
@@ -69,10 +70,11 @@ export function internalWorkspaceBase(holdingSlug: string, branchSlug?: string, 
 }
 function ownerDestination(app: ProductHostKey, tail: string[]) {
   if (!tail.length) return product(app)?.landing ?? (app === 'admin' ? 'administration/technology/organization' : '');
+  if (app === 'admin' && tail[0] === 'erpx-management') return tail.join('/');
   const root = ownerRoots[app] ?? ''; return [root, ...tail].filter(Boolean).join('/');
 }
 /** Parse presentation only. Organization lineage and current authority remain owner reads. */
-export function parseHoldingRoute(holdingSlug: string, pathname: string, profile: OriginProfile = 'public'): HoldingRoute | null {
+export function parseHoldingRoute(holdingSlug: string, pathname: string, profile: OriginProfile = 'public', companyInPath = false): HoldingRoute | null {
   if (!holdingHostForSlug(holdingSlug, profile) || /[\\\u0000-\u001f\u007f]/u.test(pathname) || /%(?:2f|5c|00)/i.test(pathname)) return null;
   const parts = pathname.split('/').filter(Boolean);
   if (parts.some(part => part === '.' || part === '..')) return null;
@@ -101,6 +103,25 @@ export function parseHoldingRoute(holdingSlug: string, pathname: string, profile
     const app = dest[0] === 'administration' || dest[0] === 'erpx-management' ? 'admin' : destinationProduct(dest.join('/'));
     return app ? { app, internalPath: pathname, kind: 'system' } : null;
   }
+  const companyAddress = parseCompanyAddress(parts, appKey, reservedWorkspaceSlug);
+  if (companyInPath && companyAddress && appKey(companyAddress.destination)) {
+    const app = companyAddress.destination;
+    if (['booking', 'portal', 'forms', 'legal-portal'].includes(app)) return null;
+    const { company, workspace, branch, department, tail } = companyAddress;
+    if (app === 'sales' && tail[0] === 'sales') return null;
+    const ownerTail = app === 'sales' && tail.length && !['customers', 'marketing', 'ecommerce'].includes(tail[0])
+      ? ['sales', ...tail] : tail;
+    return {
+      app, kind: 'page',
+      internalPath: `${internalWorkspaceBase(holdingSlug, branch, department)}/${ownerDestination(app, ownerTail)}`,
+      companySlug: company, workspaceSlug: workspace, branchSlug: branch, departmentSlug: department,
+    };
+  }
+  if (companyInPath && companyAddress && /^[a-z][a-z0-9-]{0,59}$/.test(companyAddress.destination)) {
+    const {company, workspace, branch, department, destination} = companyAddress;
+    return {app:'apps',kind:'page',internalPath:`${internalWorkspaceBase(holdingSlug,branch,department)}/home`,
+      companySlug:company,workspaceSlug:workspace,branchSlug:branch,departmentSlug:department,pluginId:destination};
+  }
   let branchSlug: string | undefined, departmentSlug: string | undefined, offset = 0;
   if (parts[0] === 'departments') { departmentSlug = parts[1]; offset = 2; }
   else if (!appKey(parts[0])) { branchSlug = parts[0]; offset = 1; if (!appKey(parts[offset])) { departmentSlug = parts[offset]; offset++; } }
@@ -116,7 +137,7 @@ export function holdingPathMatches(holdingSlug: string, pathname: string) {
   return !match || match[1] === holdingSlug;
 }
 /** Translate an owner URL without changing its query, fragment, or record identity. */
-export function holdingUiUrl(value: string, company?: string, profile: OriginProfile = 'public'): string | null {
+export function holdingUiUrl(value: string, company?: string, profile: OriginProfile = 'public', companyInPath = false): string | null {
   const url = new URL(value, 'https://owner.invalid');
   const match = url.pathname.match(/^\/holdings\/([^/]+)(?:\/branches\/([^/]+))?(?:\/departments\/([^/]+))?(?:\/(.*))?$/);
   if (!match) return null;
@@ -125,6 +146,12 @@ export function holdingUiUrl(value: string, company?: string, profile: OriginPro
   const app: ProductHostKey | undefined = /^(administration|erpx-management)(?:\/|$)/.test(destination) ? 'admin' : destinationProduct(destination);
   if (!app) return null;
   const root = ownerRoots[app] ?? '', landing = product(app)?.landing;
+  if (companyInPath && company) {
+    const tail = destination === landing ? '' : root && (destination === root || destination.startsWith(root + '/')) ? destination.slice(root.length).replace(/^\//, '') : destination;
+    url.searchParams.delete('company');
+    url.searchParams.delete('companyId');
+    return origin + companyAddressPath(company, branch, department, app, app === 'sales' ? tail.replace(/^sales(?:\/|$)/, '') : tail) + url.search + url.hash;
+  }
   if (app === 'admin') {
     // The Admin app serves its owner workspace under the original
     // /holdings/{holding}/administration|erpx-management path, not /admin.
@@ -139,6 +166,7 @@ export function holdingUiUrl(value: string, company?: string, profile: OriginPro
   if (!branch && !department && company) url.searchParams.set('company', company);
   return origin + url.pathname + url.search + url.hash;
 }
+export { companyAddressPath };
 export function holdingTransportPath(app: ProductHostKey, path: string) { return `/__erpx/${app}${path.startsWith('/') ? path : '/' + path}`; }
 
 export function holdingPublicUiUrl(value:string,profile: OriginProfile = 'public'){
@@ -146,10 +174,15 @@ export function holdingPublicUiUrl(value:string,profile: OriginProfile = 'public
   if(!match)return null;const origin=holdingOrigin(match[2],profile);if(!origin)return null;
   return origin+'/'+match[1]+match[3]+url.search+url.hash;
 }
-export function holdingFrontUiUrl(value:string,app:'pos'|'pms',profile: OriginProfile = 'public'){
+export function holdingFrontUiUrl(value:string,app:'pos'|'pms',profile: OriginProfile = 'public', companyInPath = false){
   const url=new URL(value,'https://owner.invalid');
   const match=url.pathname.match(/^\/(?:front\/)?([^/]+)\/([^/]+)\/(?:pos\/|pms\/)?(holding|branches\/([^/]+)(?:\/departments\/([^/]+))?|departments\/([^/]+))(?:\/(.*))?$/);
   if(!match)return null;const [,holding,company,location,branch,department,directDepartment,tail='']=match,origin=holdingOrigin(holding,profile);if(!origin)return null;
+  if(companyInPath){
+    url.searchParams.delete('company');
+    url.searchParams.delete('companyId');
+    return origin+companyAddressPath(company,branch,department??directDepartment,app,tail)+url.search+url.hash;
+  }
   if(location==='holding')url.searchParams.set('company',company);
   return origin+'/'+[branch??(directDepartment?'departments':''),department??directDepartment,app,tail].filter(Boolean).join('/')+url.search+url.hash;
 }

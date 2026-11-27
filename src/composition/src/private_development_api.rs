@@ -3397,6 +3397,25 @@ async fn assemble_checked(
             }
         }
     }
+    #[cfg(feature = "existing-business")]
+    {
+        use erpx_server_organization::public::{HoldingAddressTarget, holding_address_router};
+        let targets = config
+            .holdings
+            .iter()
+            .zip(pools.iter().skip(1))
+            .map(|(holding, pool)| HoldingAddressTarget {
+                host: holding.host.clone(),
+                holding_slug: holding.registration.slug.clone(),
+                holding_id: holding.registration.holding_id.clone(),
+                pool: pool.clone(),
+            })
+            .collect();
+        router = router.merge(
+            holding_address_router(targets)
+                .map_err(|_| "PRIVATE_API_HOLDING_ADDRESS_CONFIGURATION_INVALID")?,
+        );
+    }
     if !config.finance_journal_reads.is_empty()
         || !config.pos_companies.is_empty()
         || !config.crm_companies.is_empty()

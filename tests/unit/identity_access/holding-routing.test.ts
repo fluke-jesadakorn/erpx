@@ -125,3 +125,45 @@ describe('contributor Node Account projection', () => {
     expect(malformed.status).toBe(502); expect(malformed.headers.getSetCookie()).toEqual([]);
   });
 });
+
+it('round-trips Company paths and preserves the business hierarchy in the URL',()=>{
+  const cases=[
+    ['/holdings/acme/finance/documents','/acme-co/finance',undefined,undefined],
+    ['/holdings/acme/departments/accounting/finance/documents','/acme-co/accounting/finance','accounting',undefined],
+    ['/holdings/acme/branches/bangkok/departments/kitchens/finance/reports/company','/acme-co/bangkok/kitchens/finance/reports/company',undefined,'bangkok'],
+    ['/holdings/acme/administration/brand/identity','/acme-co/admin/brand/identity',undefined,undefined],
+    ['/holdings/acme/customers-sales/sales/documents/quote','/acme-co/sales/documents/quote',undefined,undefined],
+  ] as const;
+  for(const [owner,path,workspace,branch] of cases){
+    const href=holdingUiUrl(owner+'?company=stale&tag=a&tag=b#record','acme-co','public',true);
+    expect(href).toBe('https://acme.jesadakorn.com'+path+'?tag=a&tag=b#record');
+    const address=parseHoldingRoute('acme',path,'public',true);
+    expect([address?.companySlug,address?.workspaceSlug,address?.branchSlug]).toEqual(['acme-co',workspace,branch]);
+  }
+});
+
+it('preserves the Company page address in the Holding sign-in continuation',()=>{
+  vi.stubEnv('ERPX_COMPANY_ADDRESS_ROUTING','acme');
+  try {
+    const host='acme.jesadakorn.com';
+    const page='/acme-co/bangkok/finance?tab=quotes';
+    const location='/login?reason=sign_in&next=%2Fholdings%2Facme%2Fbranches%2Fbangkok%2Ffinance%2Fdocuments';
+    const result=new URL(holdingGatewayLocation(host,page,location,'finance'));
+    expect(result.pathname).toBe('/login');
+    expect(result.searchParams.get('next')).toBe(page);
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});
+
+it('selects the correct product on every Company-root tile address',async()=>{
+  const {productIds}=await import('@erpx/contracts/product-registry');
+  for(const product of productIds){
+    for(const prefix of ['/acme-co','/acme-co/bangkok','/acme-co/bangkok/kitchens','/acme-co/accounting']){
+      expect(parseHoldingRoute('acme',prefix+'/'+product,'public',true)).toMatchObject({app:product,companySlug:'acme-co'});
+    }
+  }
+  expect(parseHoldingRoute('acme','/acme-co/bangkok/site-measurement','public',true)).toMatchObject({app:'apps',pluginId:'site-measurement',workspaceSlug:'bangkok'});
+  expect(parseHoldingRoute('acme','/acme-co/bangkok/kitchens/another-approved-addon','public',true)).toMatchObject({app:'apps',pluginId:'another-approved-addon',departmentSlug:'kitchens'});
+  expect(holdingFrontUiUrl('/acme/acme-co/branches/bangkok/sale','pos','public',true)).toBe('https://acme.jesadakorn.com/acme-co/bangkok/pos/sale');
+});

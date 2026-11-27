@@ -26,7 +26,7 @@ export function purchasedCapabilityPredicate(company: string, capability: string
   const available = (alias: string) => `${alias}.starts_at<=${now}${purpose === "new-work"
     ? ` AND ${alias}.state='active' AND (${alias}.ends_at IS NULL OR ${alias}.ends_at>${now})`
     : purpose === "settle-existing" ? ` AND ${alias}.state<>'inactive'` : ""}`;
-  return candidates.length ? `(${candidates.map(definition => `${packageSourceProbe("company_package_grants", "purchase", `purchase.company_id=${company} AND purchase.package_id=${literal(definition.id)} AND purchase.package_version`, `=${definition.version}`, ` AND ${available("purchase")}`)}${definition.dependencies.map(id => {
+  return candidates.length ? `(${candidates.map(definition => `(${packageSourceProbe("company_package_grants", "purchase", `purchase.company_id=${company} AND purchase.package_id=${literal(definition.id)} AND purchase.package_version`, `=${definition.version}`, ` AND ${available("purchase")}`)}${definition.dependencies.map(id => {
     const versions = commercialPackages.filter(parent => parent.id === id).map(parent => parent.version);
     return ` AND ${packageSourceProbe("company_package_grants", "parent", `parent.company_id=${company} AND parent.package_id=${literal(id)} AND parent.package_version`, ` IN (${versions.join(",")})`, ` AND ${available("parent")}`)}`;
   }).join("")})`).join(" OR ")})` : "FALSE";

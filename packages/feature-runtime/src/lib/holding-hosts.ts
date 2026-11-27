@@ -14,7 +14,11 @@ export function holdingHostForHost(host: string | null | undefined) { return hos
 export function holdingHostForSlug(slug: string) { return hosts.holdingHostForSlug(slug, originProfile()); }
 export function holdingOrigin(slug: string) { return hosts.holdingOrigin(slug, originProfile()); }
 export function holdingAudience(host: string | null | undefined) { return hosts.holdingAudience(host, originProfile()); }
-export function parseHoldingRoute(holdingSlug: string, pathname: string) { return hosts.parseHoldingRoute(holdingSlug, pathname, originProfile()); }
-export function holdingUiUrl(value: string, company?: string) { return hosts.holdingUiUrl(value, company, originProfile()); }
+export function companyAddressRouting(holdingSlug:string) {
+  const setting=process.env.ERPX_COMPANY_ADDRESS_ROUTING;
+  return setting==='enabled'||setting===holdingSlug;
+}
+export function parseHoldingRoute(holdingSlug: string, pathname: string) { return hosts.parseHoldingRoute(holdingSlug, pathname, originProfile(), companyAddressRouting(holdingSlug)); }
+export function holdingUiUrl(value: string, company?: string) { return hosts.holdingUiUrl(value, company, originProfile(), companyAddressRouting(/^\/holdings\/([^/]+)/.exec(new URL(value,'https://owner.invalid').pathname)?.[1]??'')); }
 export function holdingPublicUiUrl(value: string) { return hosts.holdingPublicUiUrl(value, originProfile()); }
-export function holdingFrontUiUrl(value: string, app: 'pos'|'pms') { return hosts.holdingFrontUiUrl(value, app, originProfile()); }
+export function holdingFrontUiUrl(value: string, app: 'pos'|'pms') { return hosts.holdingFrontUiUrl(value, app, originProfile(), companyAddressRouting(/^\/(?:front\/)?([^/]+)/.exec(new URL(value,'https://owner.invalid').pathname)?.[1]??'')); }

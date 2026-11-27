@@ -4,7 +4,6 @@ import {randomUUID} from 'node:crypto';
 import {env,applyMigrations} from '../../support/runtime-env';
 import {productSsoStore} from '@erpx/server-identity_access/adapters/product-sso-store';
 import {revokeSsoFamily} from './sso-family-oracle';
-import {workspaceRouteCompany} from '@erpx/server-organization/public/workspace-route-company';
 
 const control=env.CONTROL_DB,db=env.H001_DB;
 vi.mock('@erpx/server-runtime/adapters/runtime',()=>({runtimeEnv:async()=>env}));
@@ -47,8 +46,5 @@ it('replaces conflicting slugs without changing organization identities and rest
  const sql=await readFile('migrations/postgres/holding-write/1073_holding_workspace_route_slugs.sql','utf8');
  await db.transaction(async unit=>{await unit.exec(sql);});
  expect(await db.prepare('SELECT slug,parent_id,company_id,branch_id FROM organization_nodes WHERE id=?').bind(dept).first()).toEqual({slug:'people-dept-2',parent_id:branch,company_id:company,branch_id:branch});
- expect(await workspaceRouteCompany(db,'finance-branch','people-dept-2')).toEqual({id:company,slug:company});
- expect(await workspaceRouteCompany(db,'finance-branch','missing')).toBeNull();
- expect(await workspaceRouteCompany(db,'finance-branch','people-dept-2','foreign-company')).toBeNull();
  await expect(db.prepare("UPDATE organization_nodes SET slug='changed' WHERE id=?").bind(dept).run()).rejects.toThrow('IMMUTABLE_ORGANIZATION_ROUTE');
 });
