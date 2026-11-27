@@ -32,7 +32,7 @@ import { OfficeProductMenus } from "@erpx/workplace/components/office-product-me
 import { AdminWorkspaceMenus } from "@erpx/workplace/components/admin-workspace-menus";
 import { ProductNavigationBoundary } from "@erpx/workplace/components/product-navigation-boundary";
 import {ProductAccountTrigger} from '@erpx/workplace/components/product-account-provider';
-import { redirect } from "next/navigation";
+import { forbidden, redirect } from "next/navigation";
 import { WorkspaceBrandMark } from "@erpx/feature-brand/components/workspace-brand";
 import { FeatureEnvironment } from "@erpx/feature-shared/components/features/feature-environment";
 import { WorkEntryNavigation } from "@erpx/workplace/components/topic-navigation";
@@ -127,7 +127,10 @@ export default async function WorkplaceLayout({
       if (error instanceof Error && error.message === "UNAUTHENTICATED"
         || error instanceof ApiError && error.status === 401)
         redirect("/sso/start?" + new URLSearchParams({ next: path || "/" }));
-      if (error instanceof ApiError && error.code === "COMPANY_REQUIRED") redirect("/");
+      if (error instanceof ApiError && error.code === "COMPANY_REQUIRED") {
+        if (adminManagementPath) forbidden();
+        redirect("/");
+      }
       const input = companyId && adminWorkspaceTarget(companyId, path);
       if (input && error instanceof ApiError && error.code === "ADMIN_ROLE_REQUIRED")
         redirect(adminWorkRolePath(input, "access-changed"));
