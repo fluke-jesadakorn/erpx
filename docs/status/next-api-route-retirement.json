@@ -1,16 +1,16 @@
 {
   "version": 1,
   "planRef": "docs/production-plan.md#rust-migration-current",
-  "sourceSha": "447cf3841b76b669f9b98dc404d8f47eb64e9798",
-  "generatedAt": "2026-11-27T19:04:41.918Z",
+  "sourceSha": "161b5c16999853882de5ad3f4679231704de282e",
+  "generatedAt": "2026-11-27T19:17:58.158Z",
   "interpretation": "Scout snapshot across the 250 shared/package API handlers. deleteReady is strict: exact native route/method, Rust SQL execution, no TS SQL/fallback, gateway entry, and a route-gone/native-payload test. The current cutover wave and subsequent Rust read ports must update this register.",
   "counts": {
     "handlers": 250,
-    "retired": 20,
-    "remaining": 230,
+    "retired": 28,
+    "remaining": 222,
     "deleteReady": 0,
     "catchAlls": 56,
-    "R1-native": 21,
+    "R1-native": 13,
     "R2-native-exec": 7,
     "R3-ts-read": 173,
     "R4-transport": 6,
@@ -1752,7 +1752,7 @@
         "Delete handler and app re-exports only after the gateway owns all accepted subpaths"
       ],
       "estimatedEffort": "medium",
-      "status": "present"
+      "status": "retired"
     },
     {
       "lane": "L03",
@@ -2255,7 +2255,7 @@
         "add gateway entry and native-route parity test before removal"
       ],
       "estimatedEffort": "medium",
-      "status": "present"
+      "status": "retired"
     },
     {
       "lane": "L04",
@@ -5370,7 +5370,7 @@
         "Retire the now-unused canonicalDestinationLinks wrapper on this path only if no other consumer needs it."
       ],
       "estimatedEffort": "medium",
-      "status": "present"
+      "status": "retired"
     },
     {
       "lane": "L07",
@@ -5607,7 +5607,7 @@
         "Retain canonicalDestinationLinks on the gateway if client hrefs must stay identical."
       ],
       "estimatedEffort": "small",
-      "status": "present"
+      "status": "retired"
     },
     {
       "lane": "L07",
@@ -5646,7 +5646,7 @@
         "Register a route-gone + native-payload test, then delete the shared handler and both app re-exports."
       ],
       "estimatedEffort": "small",
-      "status": "present"
+      "status": "retired"
     },
     {
       "lane": "L07",
@@ -5685,7 +5685,7 @@
         "Register a route-gone test asserting native notes payload and validation errors, then delete the shared handler and both app re-exports."
       ],
       "estimatedEffort": "small",
-      "status": "present"
+      "status": "retired"
     },
     {
       "lane": "L07",
@@ -5724,7 +5724,7 @@
         "Register a route-gone + native-payload test, then delete the shared handler and both app re-exports."
       ],
       "estimatedEffort": "small",
-      "status": "present"
+      "status": "retired"
     },
     {
       "lane": "L07",
@@ -7517,7 +7517,7 @@
         "Delete handler and both app re-exports; confirm range-reports.tsx reaches Rust via gateway"
       ],
       "estimatedEffort": "small",
-      "status": "present"
+      "status": "retired"
     },
     {
       "lane": "L11",
@@ -13101,16 +13101,16 @@
     }
   ],
   "routeFiles": {
-    "current": 1306,
-    "app": 1108,
-    "handlers": 198,
+    "current": 1267,
+    "app": 1077,
+    "handlers": 190,
     "baseline": {
       "app": 1146,
       "handlers": 218,
       "total": 1364
     },
-    "retired": 58,
-    "retiredApp": 38,
-    "retiredHandlers": 20
+    "retired": 97,
+    "retiredApp": 69,
+    "retiredHandlers": 28
   }
 }

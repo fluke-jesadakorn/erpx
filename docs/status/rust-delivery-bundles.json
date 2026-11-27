@@ -6760,7 +6760,7 @@
   ],
   "executionPlan": {
     "generatedAt": "2026-11-10T22:40:10+07:00",
-    "sourceHead": "447cf3841b76b669f9b98dc404d8f47eb64e9798",
+    "sourceHead": "161b5c16999853882de5ad3f4679231704de282e",
     "interpretation": "Model-neutral migration-first execution. Implementation progress is independent of strict owner/workflow qualification. Inventory is not implementation; unqualified does not mean no Rust code. The seven surface owners are outside the 41-owner denominator. Historical evidence remains scoped to its original source.",
     "ownerTotals": {
       "brand": {
@@ -9172,6 +9172,12 @@
         "commit": "447cf3841b76b669f9b98dc404d8f47eb64e9798",
         "bundles": [],
         "evidence": "Retired 58 Next route files (20 shared handlers, 38 app re-exports): seven platform Admin routes, six Field Service handlers, seven Support/service-team handlers. Added exact holding gateway paths, cleaned generated manifests, and fixed the billing forecast unknown-Holding response. Field Service readback client remains a tracked follow-up."
+      },
+      {
+        "at": "2026-11-27T19:19:02.379Z",
+        "commit": "161b5c16999853882de5ad3f4679231704de282e",
+        "bundles": [],
+        "evidence": "Wave 2 retired 39 more Next route files (Sales 15, Records/PMS/stock-transfers 24) and completed the Field Service native readback client; target is 1,267 route files (1,077 app re-exports / 190 handlers). Claimed migrate.organization.holding-ui-address for codex-oasis-holding-address with the confirmed Company-in-path business-order grammar and private workspace-address GET; the lead-owned integration packet is pending the native read."
       }
     ],
     "historicalExecutionPlans": [
@@ -9263,7 +9269,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16238,
+    "revision": 16266,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -225074,15 +225080,44 @@
           "route:field-service",
           "owner:field_service"
         ],
-        "status": "blocked",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "e399be48572dbd1a26a474b915c1615c3b25d1c8",
+        "lastPushedSha": "161b5c16999853882de5ad3f4679231704de282e",
+        "checks": [
+          {
+            "command": "retirement:next-routes bun scripts/testing/api-cutover.ts count",
+            "result": "passed",
+            "sourceSha": "e399be48572dbd1a26a474b915c1615c3b25d1c8",
+            "before": 1364,
+            "after": 1348
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "e399be48572dbd1a26a474b915c1615c3b25d1c8"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "e399be48572dbd1a26a474b915c1615c3b25d1c8"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "e399be48572dbd1a26a474b915c1615c3b25d1c8"
+          },
+          {
+            "command": "bunx vitest run --config tests/config/vitest.unit.config.mts tests/unit/field_service",
+            "result": "passed",
+            "sourceSha": "e399be48572dbd1a26a474b915c1615c3b25d1c8",
+            "details": "198/198 TypeScript tests passed on the route-retirement commit before the dependent client fix"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "After the client fix is migrated and pushed, re-verify the Field Service browser confirmation and close this route-retirement task.",
+        "blocker": null,
+        "nextAction": "Field Service route packet closed; Organization holding address packet is the next claimed lane",
         "handoff": {
           "runId": "run-20261128-route",
           "agentId": "hy4-field",
@@ -225091,7 +225126,12 @@
           "reason": "handoff",
           "nextAction": "Blocked on cutover.nextapi.field-service-client: native-reserve-command still uses retired GET query readbacks"
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "cutover.nextapi.support",
@@ -225282,24 +225322,58 @@
           "route:sales-native",
           "owner:sales"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261128-route",
-          "agentId": "hy4-sales",
-          "claimedAt": "2026-11-27T19:03:42.358Z",
-          "heartbeatAt": "2026-11-27T19:04:59.145Z",
-          "expiresAt": "2026-11-27T19:34:59.145Z",
-          "generation": 225
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "5f1e76705af3ab18181015081c31e1965f823075",
+        "lastPushedSha": "81b151f90d0a01e6428a1bc95f811fd65a21066a",
+        "checks": [
+          {
+            "command": "retirement:next-routes bun scripts/testing/api-cutover.ts count",
+            "result": "passed",
+            "sourceSha": "5f1e76705af3ab18181015081c31e1965f823075",
+            "before": 1306,
+            "after": 1291
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "5f1e76705af3ab18181015081c31e1965f823075"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "5f1e76705af3ab18181015081c31e1965f823075"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "5f1e76705af3ab18181015081c31e1965f823075"
+          },
+          {
+            "command": "bunx vitest run --config tests/config/vitest.unit.config.mts tests/unit/sales/sales-services.test.ts -t \"Sales/CRM native route retirement\"",
+            "result": "passed",
+            "sourceSha": "5f1e76705af3ab18181015081c31e1965f823075",
+            "details": "4/4 focused route-gone, gateway-entry and native SQL-backed route tests pass; the file's remaining 110 tests are outside this slice and one SQL-constant assertion is pre-existing at base"
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Delete the five Sales/CRM handlers and app re-exports; update route-import tests and prove the exact gateway entries.",
-        "handoff": null,
-        "scopeRefinementRequired": false
+        "nextAction": "Sales customer route retirement integrated; continue the next native route family",
+        "handoff": {
+          "runId": "run-20261128-route",
+          "agentId": "hy4-sales",
+          "at": "2026-11-27T19:15:34.530Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Delete the five Sales/CRM handlers and app re-exports; update route-import tests and prove the exact gateway entries."
+        },
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "cutover.nextapi.records-pms-transfers",
@@ -225344,24 +225418,58 @@
           "route:records-pms-transfers",
           "owner:records"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261128-route",
-          "agentId": "hy4-records",
-          "claimedAt": "2026-11-27T19:03:42.514Z",
-          "heartbeatAt": "2026-11-27T19:04:59.145Z",
-          "expiresAt": "2026-11-27T19:34:59.145Z",
-          "generation": 225
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "6b0fc8a8b6e7ba0bb3337ae45202119280255342",
+        "lastPushedSha": "81b151f90d0a01e6428a1bc95f811fd65a21066a",
+        "checks": [
+          {
+            "command": "retirement:next-routes bun scripts/testing/api-cutover.ts count",
+            "result": "passed",
+            "sourceSha": "6b0fc8a8b6e7ba0bb3337ae45202119280255342",
+            "before": 1306,
+            "after": 1282
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "6b0fc8a8b6e7ba0bb3337ae45202119280255342"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "6b0fc8a8b6e7ba0bb3337ae45202119280255342"
+          },
+          {
+            "command": "bun scripts/testing/layout.ts",
+            "result": "passed",
+            "sourceSha": "6b0fc8a8b6e7ba0bb3337ae45202119280255342"
+          },
+          {
+            "command": "bunx vitest run --config tests/config/vitest.unit.config.mts focused retirement suites in tests/unit/records, tests/unit/pms, tests/unit/supply",
+            "result": "passed",
+            "sourceSha": "6b0fc8a8b6e7ba0bb3337ae45202119280255342",
+            "details": "39/39 focused route-gone, gateway-entry and native SQL-backed tests pass; the 23/62 full-suite failures are identical to pristine HEAD and unrelated"
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Delete the three native-ready route families and app re-exports; update tests and prove the checked-in gateway entries.",
-        "handoff": null,
-        "scopeRefinementRequired": false
+        "nextAction": "Records/PMS/stock-transfer route retirement integrated; continue the next native route family",
+        "handoff": {
+          "runId": "run-20261128-route",
+          "agentId": "hy4-records",
+          "at": "2026-11-27T19:15:35.171Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Delete the three native-ready route families and app re-exports; update tests and prove the checked-in gateway entries."
+        },
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "cutover.nextapi.field-service-client",
@@ -225381,24 +225489,176 @@
           "route:field-service-client",
           "owner:field_service"
         ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "161b5c16999853882de5ad3f4679231704de282e",
+        "lastPushedSha": "161b5c16999853882de5ad3f4679231704de282e",
+        "checks": [
+          {
+            "command": "retirement:next-routes bun scripts/testing/api-cutover.ts count",
+            "result": "passed",
+            "sourceSha": "161b5c16999853882de5ad3f4679231704de282e",
+            "before": 1364,
+            "after": 1267,
+            "details": "Shared Field Service packet route count; this client task is transport-only and completes the readback for the already-retired routes"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "161b5c16999853882de5ad3f4679231704de282e"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "161b5c16999853882de5ad3f4679231704de282e"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "161b5c16999853882de5ad3f4679231704de282e"
+          },
+          {
+            "command": "bunx vitest run --config tests/config/vitest.unit.config.mts tests/unit/field_service",
+            "result": "passed",
+            "sourceSha": "161b5c16999853882de5ad3f4679231704de282e",
+            "details": "208/208 TypeScript tests pass; six catalogued *.test.rs files are unparseable by the TS vitest harness as at base"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Field Service readback client integrated; parent route-retirement task may close",
+        "handoff": {
+          "runId": "run-20261128-route",
+          "agentId": "hy4-field-client",
+          "at": "2026-11-27T19:17:46.278Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Replace the GET query readbacks with direct native public readback paths, preserve confirmation validation, add focused tests, commit and push."
+        },
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
+      },
+      {
+        "id": "migrate.organization.holding-ui-address",
+        "goalId": "G4",
+        "owner": "organization",
+        "kind": "migration",
+        "title": "Native Organization structural workspace address lookup",
+        "scope": "Complete the owner-local Organization structural workspace address read for the Holding UI proxy: resolve an exact registered Holding, Company selector (slug or id), branch, direct department, and nested department with department-first semantics. Keep structural facts only: no account, role, module or work authority. Reuse the existing domain/application hierarchy port and PgOrganizationReader, add the missing nested-department lineage and a native HTTP adapter that executes the owner SQL itself, and add unit and PostgreSQL integration coverage. Do not edit shared contracts, src/composition/Axum mount, Next Proxy/gateway code, tracked status, or the retained TS workspace-route-company adapter; report the public interface and mount request to the lead.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-organization/src/domain/hierarchy.rs",
+          "packages/server-organization/src/application/hierarchy.rs",
+          "packages/server-organization/src/adapters/postgres_hierarchy.rs",
+          "packages/server-organization/src/adapters/native_holding_address_http.rs",
+          "packages/server-organization/src/adapters/mod.rs",
+          "packages/server-organization/src/lib.rs",
+          "packages/server-organization/src/public/mod.rs",
+          "packages/server-organization/Cargo.toml",
+          "tests/unit/organization/**",
+          "tests/integration/organization/**"
+        ],
+        "resources": [
+          "owner:organization",
+          "route:holding-ui-address"
+        ],
         "status": "in_progress",
         "claim": {
           "runId": "run-20261128-route",
-          "agentId": "hy4-field-client",
-          "claimedAt": "2026-11-27T19:03:34.065Z",
-          "heartbeatAt": "2026-11-27T19:04:59.145Z",
-          "expiresAt": "2026-11-27T19:34:59.145Z",
+          "agentId": "codex-oasis-holding-address",
+          "claimedAt": "2026-11-27T19:17:23.021Z",
+          "heartbeatAt": "2026-11-27T19:17:23.021Z",
+          "expiresAt": "2026-11-27T19:47:23.021Z",
           "generation": 225
         },
+        "baseSha": "161b5c16999853882de5ad3f4679231704de282e",
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Fluke confirmed the business-order grammar and private contract. Implement GET /internal/organization/holdings/{holding_slug}/workspace-address with selectors company, branch, department and workspace (one segment that may be branch or direct department); return data:{companyId,companySlug,branchSlug,departmentSlug}; company accepts id/slug. Keep the owner read named-field and structural-only; add unit and PostgreSQL tests; report interface and Axum mount request.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "integrate.organization.holding-ui-address",
+        "goalId": "G4",
+        "owner": "organization",
+        "kind": "integration",
+        "title": "Wire and retire the Organization holding UI address resolver",
+        "scope": "Lead-owned integration for the native Organization structural address read. Company slug is the first path segment after the Holding host and is mandatory for every Product/Plugin. Confirmed public grammar: /{companySlug}/{branchSlug}/{departmentSlug}/{product}/... (e.g. /acme-co/bangkok/kitchens/finance); /{companySlug}/{departmentSlug}/{product}/... for a direct department (e.g. /acme-co/accounting/finance); /{companySlug}/{product}/... for Company-only (e.g. /acme-co/finance); Plugins may nest under the Company path (e.g. /acme-co/admin/brand/identity) at every level. Replace the ?company= page URL grammar. Native private contract: GET /internal/organization/holdings/{holding_slug}/workspace-address with selectors company, branch, department and workspace (one segment that may be a branch or a direct department); return data:{companyId,companySlug,branchSlug,departmentSlug}. company accepts id or slug with existing parity; URL creators use the returned slug. Retire workspaceRouteCompany only after the private Axum lookup is exercised in both gateway profiles. Acceptance remains deferred.",
+        "workflowIds": [],
+        "dependsOn": [
+          "migrate.organization.holding-ui-address"
+        ],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/contracts/src/holding-hosts.ts",
+          "packages/contracts/src/holding-hosts/**",
+          "packages/workplace/src/holding-proxy.ts",
+          "packages/server-organization/src/adapters/workspace-route-company.ts",
+          "packages/server-organization/src/public/workspace-route-company.ts",
+          "packages/server-organization/src/public/mod.rs",
+          "scripts/local/native-cutover-routes.ts",
+          "scripts/local/native-api-proxy.ts",
+          "scripts/local/workspace-gateway-runtime.ts",
+          "scripts/local/compiled-workspace-gateway.ts",
+          "src/composition/src/**",
+          "tests/unit/shared.testing/**",
+          "tests/integration/identity_access/holding-addresses.test.ts",
+          "docs/status/rust-delivery-bundles.json"
+        ],
+        "resources": [
+          "owner:organization",
+          "route:holding-ui-address-wire"
+        ],
+        "status": "pending",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Replace the GET query readbacks with direct native public readback paths, preserve confirmation validation, add focused tests, commit and push.",
+        "nextAction": "Bind the confirmed business-order grammar and private workspace-address GET: mount the Axum owner route, update the shared Holding contract and Company-in-path redirects, apply the grammar to every Product/Plugin, replace workspaceRouteCompany, and run the address and proxy tests.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "cutover.organization.holding-ui-address",
+        "goalId": "G4",
+        "owner": "organization",
+        "kind": "migration",
+        "title": "Organization holding UI address cutover packet",
+        "scope": "Aggregate packet for the owner-local native structural address lookup and the lead-owned contract/Axum/gateway/TS retirement. The child migrate task owns Organization source and tests; the child integration task owns shared contracts, mount, gateway and retirement.",
+        "workflowIds": [],
+        "dependsOn": [
+          "migrate.organization.holding-ui-address",
+          "integrate.organization.holding-ui-address"
+        ],
+        "requiredPorts": [],
+        "allowedPaths": [],
+        "resources": [],
+        "status": "in_progress",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Track the native Organization address read and its lead-owned wire/retirement as one aggregate packet.",
+        "handoff": null,
+        "scopeRefinementRequired": false,
+        "aggregate": true
       }
     ],
     "migrationProgress": {
@@ -225407,26 +225667,26 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2484,
-      "migratedPackets": 373,
+      "totalPackets": 2485,
+      "migratedPackets": 377,
       "statusCounts": {
         "pending": 14,
-        "in_progress": 3,
+        "in_progress": 1,
         "ready_for_integration": 165,
         "integrating": 0,
-        "migrated": 373,
-        "blocked": 1927,
+        "migrated": 377,
+        "blocked": 1926,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 225,
-    "updatedAt": "2026-11-27T19:04:59.149Z",
+    "updatedAt": "2026-11-27T19:18:54.909Z",
     "handoff": {
       "fromRun": "run-20261128-route",
-      "verifiedPushedCheckpoint": "447cf3841b76b669f9b98dc404d8f47eb64e9798",
-      "remoteVerifiedAt": "HEAD==origin==447cf3841b76b669f9b98dc404d8f47eb64e9798",
-      "summary": "Retired 58 Next route files (20 shared handlers, 38 app re-exports): seven platform Admin routes, six Field Service handlers, seven Support/service-team handlers. Added exact holding gateway paths, cleaned generated manifests, and fixed the billing forecast unknown-Holding response. Field Service readback client remains a tracked follow-up."
+      "verifiedPushedCheckpoint": "161b5c16999853882de5ad3f4679231704de282e",
+      "remoteVerifiedAt": "HEAD==origin==161b5c16999853882de5ad3f4679231704de282e",
+      "summary": "Wave 2 retired 39 more Next route files (Sales 15, Records/PMS/stock-transfers 24) and completed the Field Service native readback client; target is 1,267 route files (1,077 app re-exports / 190 handlers). Claimed migrate.organization.holding-ui-address for codex-oasis-holding-address with the confirmed Company-in-path business-order grammar and private workspace-address GET; the lead-owned integration packet is pending the native read."
     },
     "lastRecovery": {
       "previousRunId": "run-20261127-g",
@@ -225436,7 +225696,7 @@
       "wipReviewed": true,
       "previousRunStopped": true
     },
-    "lastPushedSha": "447cf3841b76b669f9b98dc404d8f47eb64e9798",
+    "lastPushedSha": "161b5c16999853882de5ad3f4679231704de282e",
     "lastKpi": 1942,
     "statusCounts": {
       "done": 51,
@@ -225447,5 +225707,5 @@
       "deferred": 1
     }
   },
-  "lastPushedSha": "447cf3841b76b669f9b98dc404d8f47eb64e9798"
+  "lastPushedSha": "161b5c16999853882de5ad3f4679231704de282e"
 }
