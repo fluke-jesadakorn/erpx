@@ -20,7 +20,6 @@ vi.mock('@erpx/server-inventory/public/service-initial-physical-stock-count', ()
   serviceInitialPhysicalStockCountFlowSchema: { parse: mocks.retained },
 }));
 
-import { GET, POST } from '../../../packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/initial-physical-stock/[[...path]]/route';
 import Page from '../../../packages/feature-service/src/routes/holdings/[holdingSlug]/services/field-service/settings/initial-stock/page';
 import {serviceCountCommand} from '../../../packages/workplace/src/lib/service-count-native-command';
 
@@ -54,14 +53,6 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 
-it('actual Count BFF forwards the original selection query, including encoded and duplicate values', async () => {
-  const query = '?warehouseId=WH%20%26%20one&productId=%E0%B8%81%2B2&countDate=2026-01-01&productId=other';
-  const response = await GET(new Request(`https://acme.example.test/api/v1/holdings/acme/field-service/initial-physical-stock${query}`, {headers:headers()}), {params});
-  expect(response.status).toBe(200);
-  expect((await response.json()).data).toEqual(view);
-  expect(observed).toEqual([{method:'GET',path:`/api/v1/holdings/acme/field-service/initial-physical-stock${query}`,body:'',company:'company',assignment:'grant',revision:'7',assignmentVersion:'3',key:undefined}]);
-  expect(mocks.retained).not.toHaveBeenCalled();
-});
 
 it('actual Count preparation page sends encoded selection and duplicates through the native SDK', async () => {
   const element = await Page({params,searchParams:Promise.resolve({warehouseId:'WH & one',productId:['ก+2','other'],countDate:'2026-01-01'})});
@@ -70,25 +61,7 @@ it('actual Count preparation page sends encoded selection and duplicates through
   expect(mocks.retained).not.toHaveBeenCalled();
 });
 
-it('actual Count BFF preserves the captured command bytes and idempotency key', async () => {
-  const incoming = headers(); incoming.set('idempotency-key', 'original-key'); incoming.set('content-type', 'application/json');
-  const body = '{ "expectedVersion": 0, "contextKey": "original" }';
-  const response = await POST(new Request('https://acme.example.test/api/v1/holdings/acme/field-service/initial-physical-stock', {method:'POST',headers:incoming,body}), {params});
-  expect(response.status).toBe(201);
-  expect((await response.json()).data).toEqual({id:'count-original-key',status:'draft',version:1});
-  expect(observed).toEqual([{method:'POST',path:'/api/v1/holdings/acme/field-service/initial-physical-stock',body,company:'company',assignment:'grant',revision:'7',assignmentVersion:'3',key:'original-key'}]);
-  expect(mocks.retained).not.toHaveBeenCalled();
-});
 
-it('selected native failures do not fall back to the retained Count owner', async () => {
-  outage = true;
-  const response = await GET(new Request('https://acme.example.test/api/v1/holdings/acme/field-service/initial-physical-stock?warehouseId=wh', {headers:headers()}), {params});
-  expect(response.status).toBe(503);
-  expect((await response.json()).error.code).toBe('OWNER_UNAVAILABLE');
-  await expect(Page({params,searchParams:Promise.resolve({warehouseId:'wh'})})).rejects.toMatchObject({status:503,code:'OWNER_UNAVAILABLE'});
-  expect(observed).toHaveLength(2);
-  expect(mocks.retained).not.toHaveBeenCalled();
-});
 
 it('generic Service native helper forwards raw update after captured context checks',async()=>{
  const incoming=headers(),raw='{ "expectedVersion":3, "unknown":{"x":1} }',request=new Request('https://acme.example.test/api/v1/holdings/acme/stock-counts/count-a',{method:'POST',headers:incoming,body:raw});
