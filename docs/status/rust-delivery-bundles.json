@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16078,
+    "revision": 16087,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": null,
@@ -223766,8 +223766,8 @@
         "status": "blocked",
         "claim": null,
         "baseSha": "451d2a079885475c9aa55163dee98471e23f1f3a",
-        "implementedCommit": "ea8444293cbebdeecb21074408cbd45add926b08",
-        "lastPushedSha": "ea8444293cbebdeecb21074408cbd45add926b08",
+        "implementedCommit": "3a44c96b9358ac18fa7fbe717ee04e7d8f51f27e",
+        "lastPushedSha": "3a44c96b9358ac18fa7fbe717ee04e7d8f51f27e",
         "checks": [
           {
             "command": "vitest run --config tests/config/vitest.unit.config.mts tests/unit/collaboration/collaboration-services.test.ts tests/unit/shared.ui/apps-launcher.test.ts",
@@ -223790,6 +223790,22 @@
             "command": "bun run structure:check",
             "result": "passed",
             "sourceSha": "ea8444293cbebdeecb21074408cbd45add926b08"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-identity-access -p erpx-server-pms -p erpx-server-projects -p erpx-server-collaboration -p erpx-server-operations --test pms_social_recipients_postgres --test pms_social_source_postgres --test staff_facts_postgres --test collaboration_pg_postgres --test social_http --test record_source_postgres",
+            "result": "passed",
+            "sourceSha": "3a44c96b9358ac18fa7fbe717ee04e7d8f51f27e",
+            "details": "30 passed. Isolated migrated PostgreSQL proved same-Company Projects membership and handover owner aliases; PMS body v. selected preview authority, branch, inactive/expired assignments, and precise reservation/refund/correction links; Operations latest/any-active delegation and source-origin exclusion; Collaboration acknowledgement counts across recipients/version and exact original publish source bindings."
+          },
+          {
+            "command": "cargo check --locked --no-default-features --features private-development-api -p erpx-service --bin erpx-server",
+            "result": "passed",
+            "sourceSha": "3a44c96b9358ac18fa7fbe717ee04e7d8f51f27e"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "3a44c96b9358ac18fa7fbe717ee04e7d8f51f27e"
           }
         ],
         "retainedLegacy": [
@@ -223807,16 +223823,31 @@
             "path": "packages/server-files/src/adapters/collaboration-home-sources.ts",
             "removalTaskId": "cutover.collaboration.rich-home-native-ssr",
             "removalCondition": "Remove the page image SELECT when every call uses the Files owner read on the same authorized native transaction. Preserve draft upload validation used by other commands."
+          },
+          {
+            "path": "packages/server-collaboration/src/adapters/handover-receipts.ts",
+            "removalCondition": "Switch the Feed presenter to the Rust current-version handover receipt and retire the replaced call after proving the native page; retain other readers until their caller cutovers.",
+            "removalTaskId": "cutover.collaboration.rich-home-native-ssr"
+          },
+          {
+            "path": "packages/server-projects/src/adapters/collaboration-home-sources.ts",
+            "removalCondition": "Switch the Social composer and linked card to native Projects membership and purchase checks before retiring the corresponding TypeScript read.",
+            "removalTaskId": "cutover.collaboration.rich-home-native-ssr"
+          },
+          {
+            "path": "packages/server-pms/src/adapters/pms/source.ts",
+            "removalCondition": "Native Social must use the current company/assignment and purchased hotel scope for links and compare the original preview paths before retiring the corresponding TypeScript consumer.",
+            "removalTaskId": "cutover.collaboration.rich-home-native-ssr"
           }
         ],
         "blocker": "handoff",
         "handoff": {
-          "runId": "oasis-admin-feed-owner-20261127",
+          "runId": "oasis-admin-feed-linked-20261127",
           "agentId": "codex",
-          "at": "2026-11-27T15:01:50.944Z",
+          "at": "2026-11-27T15:17:06.606Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Bind SocialHomePolicy using native Files, Projects member/purchase, Operations handover/read/receipt, and PMS property-source authority on the same selected transaction. Add project/branch/team options and Commercial flags to SocialHttpBackend::page, then mount exact registered GET and rerun Admin SSO, Feed and Billing with both roles."
+          "nextAction": "Compose SocialHomePolicy::present using the tested Files, Projects, PMS IAM/property and Operations task ports. Bind current Commercial decisions and Social-origin checks, fill composer/role projection, and implement SocialHttpBackend::page before mounting exact registered GET. Rerun exact Admin SSO and Feed/Billing canary, then retire the superseded TypeScript page read."
         },
         "resources": [
           "collaboration-rich-home-native-ssr"
@@ -223837,14 +223868,26 @@
           "tests/integration/collaboration/rust-collaboration-pg-postgres.test.rs",
           "packages/server-files/src/adapters/social_draft_uploads.rs",
           "packages/server-files/src/public/social_draft_uploads.rs",
-          "tests/integration/files/rust-social-draft-uploads-postgres.test.rs"
+          "tests/integration/files/rust-social-draft-uploads-postgres.test.rs",
+          "packages/server-identity_access/src/adapters/pms_social_event_recipients.rs",
+          "packages/server-identity_access/src/public/pms_social_event_recipients.rs",
+          "tests/integration/identity_access/rust-pms-social-recipients-postgres.test.rs",
+          "packages/server-pms/src/adapters/pms_social_event.rs",
+          "packages/server-pms/src/public/pms_social_event.rs",
+          "tests/integration/pms/rust-pms-social-source-postgres.test.rs",
+          "packages/server-projects/src/adapters/staff_facts.rs",
+          "packages/server-projects/src/public/staff_facts.rs",
+          "tests/integration/projects/rust-staff-facts-postgres.test.rs",
+          "packages/server-operations/src/adapters/record_source.rs",
+          "packages/server-operations/src/public/record_source.rs",
+          "tests/integration/operations/rust-record-source-postgres.test.rs"
         ],
         "scope": "The existing full SocialPage aggregate for a normal signed-in Holding session, including the initial thread, tag, audience/composer options, moderation, and document context. Preserve normal OASIS and CRM paths.",
         "deliverables": [
           "Bind complete Axum aggregate presentation and mount it through the exact registered Holding routes",
           "Verify the new Admin Holding root reaches real Feed after normal SSO and retained Social contracts still pass"
         ],
-        "nextAction": "Bind SocialHomePolicy using native Files, Projects member/purchase, Operations handover/read/receipt, and PMS property-source authority on the same selected transaction. Add project/branch/team options and Commercial flags to SocialHttpBackend::page, then mount exact registered GET and rerun Admin SSO, Feed and Billing with both roles."
+        "nextAction": "Compose SocialHomePolicy::present using the tested Files, Projects, PMS IAM/property and Operations task ports. Bind current Commercial decisions and Social-origin checks, fill composer/role projection, and implement SocialHttpBackend::page before mounting exact registered GET. Rerun exact Admin SSO and Feed/Billing canary, then retire the superseded TypeScript page read."
       },
       {
         "id": "ux.apps.stable-switcher",
@@ -223954,8 +223997,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 215,
-    "updatedAt": "2026-11-27T15:01:51.095Z",
+    "lastCoordinatorGeneration": 216,
+    "updatedAt": "2026-11-27T15:17:06.759Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
