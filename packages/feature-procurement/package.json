@@ -20,6 +20,7 @@
     "./lib/command": "./src/lib/command.ts",
     "./public/native-supplier-promise-history-owned": "./src/public/native-supplier-promise-history-owned.ts",
     "./public/native-supplier-bill-command-owned": "./src/public/native-supplier-bill-command-owned.ts",
+    "./public/native-supplier-bill-detail-owned": "./src/public/native-supplier-bill-detail-owned.ts",
     "./adapters/server/native-procurement-command": "./src/adapters/server/native-procurement-command.ts"
   },
   "scripts": {

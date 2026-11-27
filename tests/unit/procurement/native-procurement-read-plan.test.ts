@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 vi.mock('server-only', () => ({}));
+vi.mock('next/headers', () => ({
+  headers: async () => new Headers({ host: 'acme.example.com', cookie: '__Host-erpx=session' }),
+}));
 import {
   nativeProcurementReadAll,
   nativeProcurementReadFirst,
@@ -37,6 +40,7 @@ import { OperationalAttachmentProcurementFacts } from '../../../packages/server-
 import { documentPostingPreviewFacts } from '../../../packages/server-procurement/src/adapters/document-posting-preview-facts';
 import { EmployeeRequestsProcurementOwnedFacts } from '../../../packages/server-procurement/src/adapters/records-employee-requests-owned-facts';
 import { CommerceProcurementFacts } from '../../../packages/server-procurement/src/adapters/commerce-facts';
+import { nativeSupplierBillDetail, ownedSupplierBillDetail } from '../../../packages/feature-procurement/src/public/native-supplier-bill-detail-owned';
 
 const envKey = 'ERPX_NATIVE_PROCUREMENT_CONFIG';
 const original = process.env[envKey];
@@ -617,5 +621,72 @@ describe('native Procurement caller-unit read plan', () => {
     await expect(nativeProcurementReadAll(
       PROCUREMENT_RD_REQUEST_QUOTATION, ['req-1', 'company'], fakeDb().db as never,
     )).rejects.toMatchObject({ status: 503 });
+  });
+});
+
+describe('native Procurement supplier-bill detail read', () => {
+  const actor = {
+    holdingSlug: 'acme', holdingId: 'h001', companyId: 'company',
+    assignmentId: 'assignment', authority: { revision: 7, assignmentVersion: 3 },
+    iam: { permissions: ['finance.read', 'commerce.read'] }, scope: { kind: 'holding' },
+    modules: ['procurement'],
+  };
+  const data = {
+    bill: { id: 'bill-1', company_id: 'company', status: 'review', version: 4 },
+    lines: [{ id: 'line-1', match_id: 'bill-1' }],
+    receipts: [{ id: 'receipt-1', match_id: 'bill-1' }],
+    events: [{ id: 'event-1', match_id: 'bill-1' }],
+    accounts: [{ id: 'account-1', code: '5100', name: 'Variance' }],
+    canReview: true, canPrepare: false,
+    purchase: { newWork: true, settleExisting: true, history: true, revision: 'rev-1' },
+  };
+  const context = {
+    companyId: 'company', assignmentId: 'assignment', revision: 7,
+    assignmentVersion: 3, permissions: ['finance.read', 'commerce.read'],
+  };
+  const reply = (value: unknown = { data, context }, status = 200) => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify(value), { status, headers: { 'content-type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  };
+
+  it('returns the complete native owner payload with the purchased-package overlay', async () => {
+    const fetchMock = reply();
+    expect(await nativeSupplierBillDetail(actor as never, 'bill-1')).toEqual(data);
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
+    expect(String(url)).toBe('http://127.0.0.1:44997/api/v1/holdings/acme/supplier-bills/bill-1');
+    expect(init.method).toBe('GET');
+    expect(new Headers(init.headers).get('x-erpx-context-company')).toBe('company');
+    expect(new Headers(init.headers).get('x-erpx-context-revision')).toBe('7');
+    expect(new Headers(init.headers).get('cookie')).toBe('__Host-erpx=session');
+  });
+
+  it('fails closed on scope drift, a foreign bill and an owner denial', async () => {
+    reply({ data, context: { ...context, revision: 8 } });
+    await expect(nativeSupplierBillDetail(actor as never, 'bill-1'))
+      .rejects.toMatchObject({ status: 409, code: 'WORK_CONTEXT_CHANGED' });
+    reply({ data: { ...data, bill: { ...data.bill, id: 'foreign' } }, context });
+    await expect(nativeSupplierBillDetail(actor as never, 'bill-1'))
+      .rejects.toMatchObject({ status: 503, code: 'NATIVE_PROCUREMENT_RESPONSE_INVALID' });
+    reply({ error: { code: 'NOT_FOUND', message: 'Not found.' } }, 404);
+    await expect(nativeSupplierBillDetail(actor as never, 'bill-1'))
+      .rejects.toMatchObject({ status: 404, code: 'PERMISSION_REQUIRED' });
+    delete process.env[envKey];
+    await expect(nativeSupplierBillDetail(actor as never, 'bill-1'))
+      .rejects.toMatchObject({ status: 503, code: 'NATIVE_PROCUREMENT_UNAVAILABLE' });
+  });
+
+  it('exposes an owned port that returns undefined without the native owner and rejects drift', async () => {
+    delete process.env[envKey];
+    expect(await ownedSupplierBillDetail(actor as never, 'acme', 'bill-1')).toBeUndefined();
+    process.env[envKey] = JSON.stringify({
+      privateBaseUrl: 'http://127.0.0.1:44997', timeoutMs: 1000,
+      holdings: [{ origin: 'https://acme.example.com', holdingSlug: 'acme', holdingId: 'h001', companyId: 'company' }],
+    });
+    await expect(ownedSupplierBillDetail(actor as never, 'other', 'bill-1'))
+      .rejects.toMatchObject({ status: 409, code: 'WORK_CONTEXT_CHANGED' });
+    await expect(ownedSupplierBillDetail({ ...actor, modules: [] } as never, 'acme', 'bill-1'))
+      .rejects.toMatchObject({ status: 403, code: 'MODULE_FORBIDDEN' });
   });
 });

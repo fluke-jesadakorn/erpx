@@ -1,7 +1,10 @@
 import 'server-only';
 import { headers } from 'next/headers';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
+import { holdingResources } from '@erpx/server-runtime/public/runtime';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { requireProcurementPurchasedRead } from '@erpx/server-procurement/public/purchases';
+import { nativeProcurementAvailable } from './native-supplier-promise-history';
 
 /**
  * Fail-closed client for the native Procurement supplier-bill detail route.
@@ -126,4 +129,42 @@ export async function nativeSupplierBillDetail(actor: WorkContext, billId: strin
     return fail(409, 'WORK_CONTEXT_CHANGED');
   }
   return parsed.data;
+}
+
+/** Keep the retained module and purchased-package preflight ahead of the
+ * native read. The owner still re-checks the actor's current Company scope;
+ * once configured, a failure never falls back to a TypeScript bill reader. */
+async function admission(actor: WorkContext) {
+  if (!actor.modules.includes('procurement'))
+    throw new ApiError(403, 'MODULE_FORBIDDEN', 'Your current role cannot access Procurement.');
+  try {
+    const database = (await holdingResources(actor.holdingId)).write;
+    await requireProcurementPurchasedRead(database, actor);
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(
+      503,
+      'NATIVE_PROCUREMENT_UNAVAILABLE',
+      'The native Procurement service is unavailable.',
+    );
+  }
+}
+
+/** Native supplier-bill detail port for the Supply API route and the SSR
+ * presenter. The caller must fail closed when the owner is not configured;
+ * an undefined result is never an authorization to read TypeScript. */
+export async function ownedSupplierBillDetail(
+  actor: WorkContext,
+  holdingSlug: string,
+  billId: string,
+): Promise<NativeSupplierBillDetail | undefined> {
+  if (!nativeProcurementAvailable()) return undefined;
+  if (actor.holdingSlug !== holdingSlug)
+    throw new ApiError(
+      409,
+      'WORK_CONTEXT_CHANGED',
+      'Your work role changed. Reload and review before retrying.',
+    );
+  await admission(actor);
+  return nativeSupplierBillDetail(actor, billId);
 }

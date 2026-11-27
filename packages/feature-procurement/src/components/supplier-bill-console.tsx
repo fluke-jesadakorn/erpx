@@ -11,7 +11,8 @@ import {useState} from "react";
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
 import type {Row} from '@erpx/server-commerce/public/commerce';
-import type { supplierBillDetail, supplierInvoicePolicy } from "@erpx/server-procurement/public/supplier-bill-matching";
+import type { supplierInvoicePolicy } from "@erpx/server-procurement/public/supplier-bill-matching";
+import type { NativeSupplierBillDetail } from "../public/native-supplier-bill-detail-owned";
 import { Card, FormGrid, TableFrame } from "@erpx/ui/components/foundation";
 function BillCommandState({command}:{command:ReturnType<typeof useSupplierBillCommand>}){return <>{command.error&&<InlineNotice tone="danger" role="alert">{command.error}</InlineNotice>}{command.notice&&<InlineNotice>{command.notice}</InlineNotice>}{command.uncertain&&<Button appearance="standard" type="button" disabled={command.busy} onClick={()=>void command.retry()}>Retry submitted supplier invoice change</Button>}{command.savedHref&&command.notice&&<Link href={command.savedHref}>Open saved supplier invoice</Link>}</>;}
 export function SupplierInvoicePolicy({
@@ -264,7 +265,7 @@ export function SupplierBillConsole({
   data,
 }: {
   base: string;
-  data: Awaited<ReturnType<typeof supplierBillDetail>>;
+  data: NativeSupplierBillDetail;
 }) {
   const r = data.bill,command=useSupplierBillCommand(base,data.purchase,String(r.order_id)),{busy,ready,send}=command,[revision,setRevision]=useState(0),[reviewVersion,setReviewVersion]=useState(Number(r.version)),
     allowedReview=["review","approved","invoiced"].includes(String(r.status))&&data.purchase?.settleExisting!==false,
