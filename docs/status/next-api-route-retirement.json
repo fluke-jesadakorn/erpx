@@ -1,16 +1,16 @@
 {
   "version": 1,
   "planRef": "docs/production-plan.md#rust-migration-current",
-  "sourceSha": "161b5c16999853882de5ad3f4679231704de282e",
-  "generatedAt": "2026-11-27T19:17:58.158Z",
+  "sourceSha": "548ab272d96f1721bcc26dbff0f72da3daaafead",
+  "generatedAt": "2026-11-27T19:39:58.262Z",
   "interpretation": "Scout snapshot across the 250 shared/package API handlers. deleteReady is strict: exact native route/method, Rust SQL execution, no TS SQL/fallback, gateway entry, and a route-gone/native-payload test. The current cutover wave and subsequent Rust read ports must update this register.",
   "counts": {
     "handlers": 250,
-    "retired": 28,
-    "remaining": 222,
+    "retired": 31,
+    "remaining": 219,
     "deleteReady": 0,
     "catchAlls": 56,
-    "R1-native": 13,
+    "R1-native": 10,
     "R2-native-exec": 7,
     "R3-ts-read": 173,
     "R4-transport": 6,
@@ -4954,7 +4954,7 @@
         "delete catch-all and two re-exports"
       ],
       "estimatedEffort": "medium",
-      "status": "present"
+      "status": "retired"
     },
     {
       "lane": "L06",
@@ -5030,7 +5030,7 @@
         "delete handler and two re-exports"
       ],
       "estimatedEffort": "small",
-      "status": "present"
+      "status": "retired"
     },
     {
       "lane": "L06",
@@ -5283,7 +5283,7 @@
         "delete handler and two re-exports"
       ],
       "estimatedEffort": "small",
-      "status": "present"
+      "status": "retired"
     },
     {
       "lane": "L06",
@@ -13101,16 +13101,16 @@
     }
   ],
   "routeFiles": {
-    "current": 1267,
-    "app": 1077,
-    "handlers": 190,
+    "current": 1258,
+    "app": 1071,
+    "handlers": 187,
     "baseline": {
       "app": 1146,
       "handlers": 218,
       "total": 1364
     },
-    "retired": 97,
-    "retiredApp": 69,
-    "retiredHandlers": 28
+    "retired": 106,
+    "retiredApp": 75,
+    "retiredHandlers": 31
   }
 }

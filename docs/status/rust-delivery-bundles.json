@@ -6760,7 +6760,7 @@
   ],
   "executionPlan": {
     "generatedAt": "2026-11-10T22:40:10+07:00",
-    "sourceHead": "161b5c16999853882de5ad3f4679231704de282e",
+    "sourceHead": "548ab272d96f1721bcc26dbff0f72da3daaafead",
     "interpretation": "Model-neutral migration-first execution. Implementation progress is independent of strict owner/workflow qualification. Inventory is not implementation; unqualified does not mean no Rust code. The seven surface owners are outside the 41-owner denominator. Historical evidence remains scoped to its original source.",
     "ownerTotals": {
       "brand": {
@@ -9178,6 +9178,12 @@
         "commit": "161b5c16999853882de5ad3f4679231704de282e",
         "bundles": [],
         "evidence": "Wave 2 retired 39 more Next route files (Sales 15, Records/PMS/stock-transfers 24) and completed the Field Service native readback client; target is 1,267 route files (1,077 app re-exports / 190 handlers). Claimed migrate.organization.holding-ui-address for codex-oasis-holding-address with the confirmed Company-in-path business-order grammar and private workspace-address GET; the lead-owned integration packet is pending the native read."
+      },
+      {
+        "at": "2026-11-27T19:40:05.435Z",
+        "commit": "548ab272d96f1721bcc26dbff0f72da3daaafead",
+        "bundles": [],
+        "evidence": "Retired the live-native collaboration transport routes (handbook catch-all, stories archive, executive connections): 3 handlers and 6 app re-exports removed, target 1,258 route files. Claim extended for codex-oasis-holding-address with the inventory and Commercial SQL regression files."
       }
     ],
     "historicalExecutionPlans": [
@@ -9269,15 +9275,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16274,
+    "revision": 16288,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261128-route",
       "agentId": "lead",
       "startedAt": "2026-11-27T18:37:24.221Z",
-      "heartbeatAt": "2026-11-27T19:04:59.145Z",
-      "expiresAt": "2026-11-27T19:34:59.145Z",
+      "heartbeatAt": "2026-11-27T19:38:44.301Z",
+      "expiresAt": "2026-11-27T20:08:44.301Z",
       "generation": 225,
       "tokenHash": "32082f670a6f8aac8b5cfee007842097505e0fb379d299c9043b25f7aa71813e"
     },
@@ -225668,7 +225674,10 @@
           "tests/unit/pms/**",
           "tests/unit/sales/sales-services.test.ts",
           "tests/integration/identity_access/holding-addresses.test.ts",
-          "tests/integration/shared.foundation/web-push.test.ts"
+          "tests/integration/shared.foundation/web-push.test.ts",
+          "packages/server-inventory/src/adapters/initial-physical-stock-count.ts",
+          "tests/integration/identity_access/product-workspace.test.ts",
+          "packages/server-commercial/src/adapters/purchased-capability-sql.ts"
         ],
         "resources": [
           "owner:organization",
@@ -225679,8 +225688,8 @@
           "runId": "run-20261128-route",
           "agentId": "codex-oasis-holding-address",
           "claimedAt": "2026-11-27T19:26:06.018Z",
-          "heartbeatAt": "2026-11-27T19:26:06.018Z",
-          "expiresAt": "2026-11-27T19:56:06.018Z",
+          "heartbeatAt": "2026-11-27T19:38:44.301Z",
+          "expiresAt": "2026-11-27T20:08:44.301Z",
           "generation": 225
         },
         "baseSha": "7e0d0db108612bf1caae014d0d6f60c208b427db",
@@ -225689,7 +225698,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Start from pushed base 7e0d0db10 (owner read packet edb3182b0): mount the private workspace-address GET, implement the Company-first business-order grammar and link producers, retire workspaceRouteCompany after both gateway profiles exercise the native lookup, run the address/proxy/type checks, and report the frozen SHA and actual URL checks.",
+        "nextAction": "Claim extended only with packages/server-inventory/src/adapters/initial-physical-stock-count.ts, packages/server-commercial/src/adapters/purchased-capability-sql.ts, tests/integration/identity_access/product-workspace.test.ts and the already-allowed tests/unit/identity_access/**. Diagnose/fix the PostgreSQL 42601 render regressions in initialPhysicalStockCountProductEntry/productPageAccess and the unbalanced new-work capability predicates (sales.orders -1, inventory.stock-core -4, finance.sales-posting -1); report exact SQL errors, fixes, targeted tests and signed-in Acme URL checks.",
         "handoff": {
           "runId": "run-20261128-route",
           "agentId": "lead",
@@ -225727,6 +225736,98 @@
         "handoff": null,
         "scopeRefinementRequired": false,
         "aggregate": true
+      },
+      {
+        "id": "cutover.nextapi.collaboration-live-native",
+        "goalId": "G3",
+        "owner": "collaboration",
+        "kind": "migration",
+        "title": "Retire live-native collaboration Next routes",
+        "scope": "Remove the transport-only Next handlers whose exact native routes, SQL execution and development-gateway entries are already live: handbook catch-all GET/POST, stories archive POST, and executive connections GET/POST. Delete the shared handlers and every app re-export, keep the stories list route, update only the owner-local handbook clients/tests needed by the cutover, and add route-gone plus native-payload evidence. Do not change the gateway config, shared contracts, workplace proxy, composition, server-organization or tracked status; those belong to the lead or the URL integration lane.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/handbook/**",
+          "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/stories/[id]/archive/**",
+          "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/executive/connections/**",
+          "packages/feature-collaboration/src/lib/native-handbook.ts",
+          "packages/feature-collaboration/src/lib/native-handbook-page.ts",
+          "packages/feature-collaboration/src/lib/handbook-command.ts",
+          "packages/feature-collaboration/src/lib/handbook-navigation.ts",
+          "packages/feature-collaboration/src/adapters/server/native-handbook.ts",
+          "packages/feature-collaboration/src/adapters/server/native-handbook-page.ts",
+          "packages/feature-runtime/src/components/executive/external-connections.tsx",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/handbook/**",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/stories/[id]/archive/**",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/executive/connections/**",
+          "apps/launcher/src/app/api/v1/holdings/[holdingSlug]/handbook/**",
+          "apps/launcher/src/app/api/v1/holdings/[holdingSlug]/stories/[id]/archive/**",
+          "apps/launcher/src/app/api/v1/holdings/[holdingSlug]/executive/connections/**",
+          "tests/unit/collaboration/**",
+          "tests/unit/apps/**",
+          "tests/integration/collaboration/**",
+          "tests/integration/apps/**"
+        ],
+        "resources": [
+          "owner:collaboration",
+          "route:holding-handbook",
+          "route:holding-stories-archive",
+          "route:holding-executive-connections"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": "9e5f29abf77c3c9292ab1c9638112e261a848b20",
+        "implementedCommit": "548ab272d96f1721bcc26dbff0f72da3daaafead",
+        "lastPushedSha": "548ab272d96f1721bcc26dbff0f72da3daaafead",
+        "checks": [
+          {
+            "command": "retirement:next-routes bun scripts/testing/api-cutover.ts count",
+            "result": "passed",
+            "sourceSha": "548ab272d96f1721bcc26dbff0f72da3daaafead",
+            "before": 1267,
+            "after": 1258,
+            "details": "Removed 3 shared handlers and 6 app re-exports (app 1077 -> 1071, handlers 190 -> 187)"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "548ab272d96f1721bcc26dbff0f72da3daaafead"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "548ab272d96f1721bcc26dbff0f72da3daaafead"
+          },
+          {
+            "command": "vitest run --config tests/config/vitest.unit.config.mts tests/unit/collaboration/native-handbook-transport.test.ts",
+            "result": "passed",
+            "sourceSha": "548ab272d96f1721bcc26dbff0f72da3daaafead",
+            "details": "28/28 focused tests"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "548ab272d96f1721bcc26dbff0f72da3daaafead"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Handbook catch-all, stories archive and executive connections retired; generated CSS/turbo/package references are lead cleanup",
+        "handoff": {
+          "runId": "run-20261128-route",
+          "agentId": "hy4-collab-live",
+          "at": "2026-11-27T19:39:44.547Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Verify the native handbook/stories-archive/executive-connections payloads, delete the three shared handlers and all app re-exports, add route-gone tests, and push through the shared lock without touching gateway/contracts/workplace/composition/status."
+        },
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       }
     ],
     "migrationProgress": {
@@ -225735,26 +225836,26 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2485,
-      "migratedPackets": 377,
+      "totalPackets": 2486,
+      "migratedPackets": 378,
       "statusCounts": {
         "pending": 14,
         "in_progress": 0,
         "ready_for_integration": 166,
         "integrating": 0,
-        "migrated": 377,
+        "migrated": 378,
         "blocked": 1926,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 225,
-    "updatedAt": "2026-11-27T19:26:06.022Z",
+    "updatedAt": "2026-11-27T19:39:45.622Z",
     "handoff": {
       "fromRun": "run-20261128-route",
-      "verifiedPushedCheckpoint": "161b5c16999853882de5ad3f4679231704de282e",
-      "remoteVerifiedAt": "HEAD==origin==161b5c16999853882de5ad3f4679231704de282e",
-      "summary": "Wave 2 retired 39 more Next route files (Sales 15, Records/PMS/stock-transfers 24) and completed the Field Service native readback client; target is 1,267 route files (1,077 app re-exports / 190 handlers). Claimed migrate.organization.holding-ui-address for codex-oasis-holding-address with the confirmed Company-in-path business-order grammar and private workspace-address GET; the lead-owned integration packet is pending the native read."
+      "verifiedPushedCheckpoint": "548ab272d96f1721bcc26dbff0f72da3daaafead",
+      "remoteVerifiedAt": "HEAD==origin==548ab272d96f1721bcc26dbff0f72da3daaafead",
+      "summary": "Retired the live-native collaboration transport routes (handbook catch-all, stories archive, executive connections): 3 handlers and 6 app re-exports removed, target 1,258 route files. Claim extended for codex-oasis-holding-address with the inventory and Commercial SQL regression files."
     },
     "lastRecovery": {
       "previousRunId": "run-20261127-g",
@@ -225764,7 +225865,7 @@
       "wipReviewed": true,
       "previousRunStopped": true
     },
-    "lastPushedSha": "161b5c16999853882de5ad3f4679231704de282e",
+    "lastPushedSha": "548ab272d96f1721bcc26dbff0f72da3daaafead",
     "lastKpi": 1942,
     "statusCounts": {
       "done": 51,
@@ -225775,5 +225876,5 @@
       "deferred": 1
     }
   },
-  "lastPushedSha": "161b5c16999853882de5ad3f4679231704de282e"
+  "lastPushedSha": "548ab272d96f1721bcc26dbff0f72da3daaafead"
 }
