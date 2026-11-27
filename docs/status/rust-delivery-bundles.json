@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-10T22:40:10+07:00",
+  "updatedAt": "2026-11-27T19:48:48.664Z",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Model-neutral lead coordinates capacity-limited agents on codex/rust-backend-migration. Native implementation, actual consumer wiring, per-packet legacy retirement and targeted checks are separate from strict catalogue certification. One central coordinator owns claims/shared integration/direct non-force pushes. Full acceptance, containers and production preparation follow migration; preserve evidence and external WIP.",
   "catalogue": {
@@ -9291,7 +9291,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16293,
+    "revision": 16294,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -225906,7 +225906,7 @@
       }
     },
     "lastCoordinatorGeneration": 225,
-    "updatedAt": "2026-11-27T19:47:40.846Z",
+    "updatedAt": "2026-11-27T19:48:48.664Z",
     "handoff": {
       "fromRun": "run-20261128-route",
       "verifiedPushedCheckpoint": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
@@ -225932,5 +225932,5 @@
       "deferred": 1
     }
   },
-  "lastPushedSha": "548ab272d96f1721bcc26dbff0f72da3daaafead"
+  "lastPushedSha": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b"
 }
