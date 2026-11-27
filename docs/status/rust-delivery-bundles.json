@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15352,
+    "revision": 15373,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261127-f",
       "agentId": "lead",
       "startedAt": "2026-11-27T02:03:29.663Z",
-      "heartbeatAt": "2026-11-27T02:08:56.919Z",
-      "expiresAt": "2026-11-27T02:38:56.919Z",
+      "heartbeatAt": "2026-11-27T02:18:31.749Z",
+      "expiresAt": "2026-11-27T02:48:31.749Z",
       "generation": 194,
       "tokenHash": "2136d35f96e5dbde2109a42dc96f779f8467e46d2a31c4e5274930bdb3a6a99e"
     },
@@ -117468,18 +117468,38 @@
             "command": "vitest projects unit (135) + tsc root",
             "result": "passed",
             "sourceSha": "d4efdbeff"
+          },
+          {
+            "command": "vitest run tests/unit/projects",
+            "result": "passed-with-preexisting",
+            "sourceSha": "2c31e0139bd1dd8016f1a8ace7284a0cb68c4dff",
+            "note": "274 passed / 2 pre-existing native handoff config failures"
+          },
+          {
+            "command": "literal/n-gram scan packages/server-projects/src",
+            "result": "passed",
+            "sourceSha": "2c31e0139bd1dd8016f1a8ace7284a0cb68c4dff",
+            "note": "0 duplicate SELECT literals; owner writes 0"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-projects/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "2c31e0139bd1dd8016f1a8ace7284a0cb68c4dff",
+            "before": 57,
+            "after": 57,
+            "note": "owner-only dedupe exhausted; 57 need composition/cross-owner cutover"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "Cut 66->65 verified; further cuts need composition + cross-owner paths",
+        "blocker": "released with work preserved",
+        "nextAction": "Owner-only dedupe exhausted at 57; next packet needs composition mounts + feature/workplace/apps cutover",
         "handoff": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-projects",
-          "at": "2026-11-25T17:49:46.543Z",
-          "previousStatus": "in_progress",
-          "reason": "handoff",
-          "nextAction": "Lead commits the reported work; next family recorded"
+          "runId": "run-20261127-f",
+          "agentId": "worker-projects",
+          "at": "2026-11-27T02:13:36.789Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Owner-only dedupe exhausted at 57; next packet needs composition mounts + feature/workplace/apps cutover"
         },
         "scopeRefinementRequired": false
       },
@@ -136680,18 +136700,32 @@
             "command": "tsc benefits",
             "result": "passed",
             "sourceSha": "b2ca1c8a6"
+          },
+          {
+            "command": "vitest benefits r29/r30 dedupe",
+            "result": "passed",
+            "sourceSha": "1ba302a1120d310202375aee5dc8ec827d837145",
+            "note": "11 passed"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-benefits/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1ba302a1120d310202375aee5dc8ec827d837145",
+            "before": 26,
+            "after": 25,
+            "note": "r30 assignment read head folded"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "Owner 29 unique generators/probes; next cut needs new claim, composition and cross-owner consumers",
+        "blocker": "released with work preserved",
+        "nextAction": "r30 fold 26->25; residual families need composition/cross-owner native ports",
         "handoff": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-benefits",
-          "at": "2026-11-25T17:17:23.108Z",
-          "previousStatus": "in_progress",
-          "reason": "handoff",
-          "nextAction": "Owner 29 unique generators/probes; next cut needs new claim, composition and cross-owner consumers"
+          "runId": "run-20261127-f",
+          "agentId": "lead",
+          "at": "2026-11-27T02:18:27.344Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "r30 fold 26->25; residual families need composition/cross-owner native ports"
         },
         "scopeRefinementRequired": false
       },
@@ -136731,18 +136765,32 @@
             "command": "vitest learning transports (169) + tsc learning",
             "result": "passed",
             "sourceSha": "33c609188"
+          },
+          {
+            "command": "vitest learning unit suite",
+            "result": "passed",
+            "sourceSha": "1ba302a1120d310202375aee5dc8ec827d837145",
+            "note": "338 passed"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-learning/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1ba302a1120d310202375aee5dc8ec827d837145",
+            "before": 21,
+            "after": 20,
+            "note": "r25 assignment course head folded"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "Residual 32 SELECTs need a lead-owned native executive-metric route/mount plus oracle migration",
+        "blocker": "released with work preserved",
+        "nextAction": "r25 fold 21->20; executive-metric family needs lead-owned native route/mount",
         "handoff": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-learning",
-          "at": "2026-11-25T17:27:29.232Z",
-          "previousStatus": "in_progress",
-          "reason": "handoff",
-          "nextAction": "Lead commits the verified report; next family recorded"
+          "runId": "run-20261127-f",
+          "agentId": "lead",
+          "at": "2026-11-27T02:18:27.682Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "r25 fold 21->20; executive-metric family needs lead-owned native route/mount"
         },
         "scopeRefinementRequired": false
       },
@@ -155321,17 +155369,44 @@
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "vitest workflow r54/r34/r36/r39",
+            "result": "passed",
+            "sourceSha": "1ba302a1120d310202375aee5dc8ec827d837145",
+            "note": "16 passed"
+          },
+          {
+            "command": "bunx tsc -p packages/server-workflow/tsconfig.json --noEmit",
+            "result": "passed",
+            "sourceSha": "1ba302a1120d310202375aee5dc8ec827d837145",
+            "note": "clean"
+          },
+          {
+            "command": "cargo check -p erpx-server-workflow --locked",
+            "result": "passed",
+            "sourceSha": "1ba302a1120d310202375aee5dc8ec827d837145",
+            "note": "compiles"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-workflow/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1ba302a1120d310202375aee5dc8ec827d837145",
+            "before": 23,
+            "after": 20,
+            "note": "three approval guard heads bound to native fragments"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "Reported round committed/verified; next family recorded",
+        "blocker": "released with work preserved",
+        "nextAction": "Approval guard heads folded 23->20; next safe owner-only family approval-projection-sources 5 literals",
         "handoff": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-workflow",
-          "at": "2026-11-25T17:51:44.613Z",
+          "runId": "run-20261127-f",
+          "agentId": "lead",
+          "at": "2026-11-27T02:18:27.513Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Reported round committed/verified; next family recorded"
+          "reason": "released with work preserved",
+          "nextAction": "Approval guard heads folded 23->20; next safe owner-only family approval-projection-sources 5 literals"
         },
         "scopeRefinementRequired": false
       },
@@ -216115,7 +216190,7 @@
       }
     },
     "lastCoordinatorGeneration": 194,
-    "updatedAt": "2026-11-27T02:08:56.923Z",
+    "updatedAt": "2026-11-27T02:18:31.753Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
