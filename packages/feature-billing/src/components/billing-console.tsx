@@ -986,6 +986,11 @@ export function BillingConsole({
                               Download document
                             </a>
                           )}
+                          {platform && i.stripe_id && (
+                            <a href={`?holdingId=${encodeURIComponent(holding)}&printInvoice=${encodeURIComponent(i.id)}`} target="_blank" rel="noopener">
+                              Open invoice PDF view
+                            </a>
+                          )}
                           {platform && writable && ["open", "uncollectible"].includes(i.status) && (
                             <Button appearance="standard"
                               type="submit"

@@ -12,6 +12,7 @@
     "./components/next-month-forecast.module.css": "./src/components/next-month-forecast.module.css",
     "./components/target-billing-panel": "./src/components/target-billing-panel.tsx",
     "./components/billing-console": "./src/components/billing-console.tsx",
+    "./components/platform-invoice-print": "./src/components/platform-invoice-print.tsx",
     "./lib/billing-target-pricing": "./src/lib/billing-target-pricing.ts",
     "./lib/company-stripe": "./src/lib/company-stripe.ts",
     "./lib/billing-forecast": "./src/lib/billing-forecast.ts",
