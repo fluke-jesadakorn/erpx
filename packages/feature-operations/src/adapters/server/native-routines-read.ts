@@ -2,6 +2,26 @@ import 'server-only';
 import { request as httpRequest } from 'node:http';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import type {ScheduleRow} from '@erpx/server-operations/public/routines';
+import type {RoutinePurchase,RoutinePurchases} from '@erpx/server-operations/public/rules/routine-purchase-controls';
+
+/** Complete native routine editor context. The Rust owner composes every field;
+ *  the Next transport accepts all of it and prepares no owner SQL or authority. */
+export type NativeRoutineEditorContext = {
+  projects: Array<{id: string; title: string}>;
+  options: {
+    people: Array<{
+      user_id: string;
+      legal_name: string;
+      department_id: string | null;
+      level_id: string | null;
+      level_name: string | null;
+    }>;
+    levels: Array<{id: string; name: string; rank: number}>;
+    departments: Array<{id: string; display_name: string}>;
+  };
+  canWrite: boolean;
+  purchases: RoutinePurchases | null;
+};
 
 /**
  * Strict transport for the native routine-template list read. The Rust owner
@@ -43,6 +63,35 @@ const id = (value: unknown): value is string => text(value, 200) && value.length
 const optionalId = (value: unknown): value is string | null => value === null || id(value);
 const integer = (value: unknown, min = 0): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= min;
+const shape = (value: unknown, keys: readonly string[]): value is Record<string, unknown> =>
+  record(value) && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key));
+
+const purchase = (value: unknown): value is RoutinePurchase =>
+  shape(value, ['newWork', 'settleExisting', 'history', 'revision']) &&
+  typeof value.newWork === 'boolean' && typeof value.settleExisting === 'boolean' &&
+  typeof value.history === 'boolean' && text(value.revision, 2000);
+const purchases = (value: unknown): value is RoutinePurchases | null =>
+  value === null || (shape(value, ['work', 'projects', 'context']) &&
+    purchase(value.work) && purchase(value.projects) && text(value.context, 200));
+
+function editorContext(value: unknown): value is NativeRoutineEditorContext {
+  if (!shape(value, ['projects', 'options', 'canWrite', 'purchases'])) return false;
+  if (!Array.isArray(value.projects) ||
+      !value.projects.every(p => shape(p, ['id', 'title']) && id(p.id) && typeof p.title === 'string')) return false;
+  const options = value.options;
+  if (!shape(options, ['people', 'levels', 'departments'])) return false;
+  if (!Array.isArray(options.people) ||
+      !options.people.every(p => shape(p, ['user_id', 'legal_name', 'department_id', 'level_id', 'level_name']) &&
+        id(p.user_id) && typeof p.legal_name === 'string' && optionalId(p.department_id) &&
+        optionalId(p.level_id) && (p.level_name === null || typeof p.level_name === 'string'))) return false;
+  if (!Array.isArray(options.levels) ||
+      !options.levels.every(l => shape(l, ['id', 'name', 'rank']) &&
+        id(l.id) && typeof l.name === 'string' && Number.isSafeInteger(l.rank))) return false;
+  if (!Array.isArray(options.departments) ||
+      !options.departments.every(d => shape(d, ['id', 'display_name']) &&
+        id(d.id) && typeof d.display_name === 'string')) return false;
+  return typeof value.canWrite === 'boolean' && purchases(value.purchases);
+}
 
 type RoutineReadTransport = (url: string, init: RequestInit) => Promise<Response>;
 type RoutineWorkSelection = {
@@ -64,6 +113,25 @@ export function routineReadHeaders(input: HeadersInit, actor: RoutineWorkSelecti
   headers.delete('x-erpx-workspace-department');
   if (actor.scope.branchSlug) headers.set('x-erpx-workspace-branch', actor.scope.branchSlug);
   if (actor.scope.departmentSlug) headers.set('x-erpx-workspace-department', actor.scope.departmentSlug);
+  return headers;
+}
+
+/** Forward the selected work context and the registered Holding Host verbatim. */
+function routineHeaders(request: Request, userId: string): Headers {
+  const headers = new Headers({
+    host: request.headers.get('host') ?? '',
+    accept: 'application/json',
+    'cache-control': 'no-cache',
+  });
+  for (const name of [
+    'cookie', 'origin', 'x-erpx-context-company', 'x-erpx-context-assignment',
+    'x-erpx-context-revision', 'x-erpx-context-assignment-version',
+    'x-erpx-workspace-branch', 'x-erpx-workspace-department',
+  ]) {
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  headers.set('x-erpx-context-user', userId);
   return headers;
 }
 
@@ -165,20 +233,7 @@ export async function nativeRoutineTemplateList(
   const config = configuration();
   if (!new URL(request.url).host) throw invalid();
   if (!id(holdingSlug) || !id(userId)) throw invalid();
-  const headers = new Headers({
-    host: request.headers.get('host') ?? '',
-    accept: 'application/json',
-    'cache-control': 'no-cache',
-  });
-  for (const name of [
-    'cookie', 'origin', 'x-erpx-context-company', 'x-erpx-context-assignment',
-    'x-erpx-context-revision', 'x-erpx-context-assignment-version',
-    'x-erpx-workspace-branch', 'x-erpx-workspace-department',
-  ]) {
-    const value = request.headers.get(name);
-    if (value) headers.set(name, value);
-  }
-  headers.set('x-erpx-context-user', userId);
+  const headers = routineHeaders(request, userId);
   const url = `${config.privateBaseUrl}/api/v1/holdings/${encodeURIComponent(holdingSlug)}/routine-templates`;
   let response: Response;
   try {
@@ -198,6 +253,39 @@ export async function nativeRoutineTemplateList(
       headers.get('x-erpx-context-company') ?? '')))
     throw invalid();
   return data as NativeRoutineTemplateRow[];
+}
+
+/** Read the complete native routine editor context for both SSR callers. The
+ *  Rust owner is authoritative for picker options, Projects, write authority
+ *  and purchase controls; the response envelope is checked against the same
+ *  work context headers. No TypeScript business read or fallback is consulted. */
+export async function nativeRoutineEditorContext(
+  request: Request,
+  holdingSlug: string,
+  userId: string,
+  transport: RoutineReadTransport = direct,
+): Promise<NativeRoutineEditorContext> {
+  const config = configuration();
+  if (!new URL(request.url).host) throw invalid();
+  if (!id(holdingSlug) || !/^[a-z0-9_-]+$/.test(holdingSlug)) throw invalid();
+  if (!id(userId)) throw invalid();
+  const headers = routineHeaders(request, userId);
+  if (process.env.NODE_ENV === 'production') headers.set('x-erpx-routine-compiled-render', '1');
+  const url = `${config.privateBaseUrl}/api/v1/holdings/${encodeURIComponent(holdingSlug)}/routine-template-editor-context`;
+  let response: Response;
+  try {
+    response = await transport(url, {
+      method: 'GET', headers, cache: 'no-store',
+      signal: AbortSignal.timeout(config.timeoutMs),
+    });
+  } catch {
+    throw new ApiError(503, 'NATIVE_ROUTINES_UNAVAILABLE', 'The native Operations routine read is unavailable.');
+  }
+  const payload: unknown = await response.json().catch(() => null);
+  if (!response.ok) throw readError(response.status, payload);
+  const data = envelope(payload, headers);
+  if (!editorContext(data)) throw invalid();
+  return data;
 }
 
 /**
@@ -259,20 +347,7 @@ async function readTemplate(
   if (!id(holdingSlug) || !/^[a-z0-9_-]+$/.test(holdingSlug)) throw invalid();
   if (!id(templateId) || !/^[A-Za-z0-9_.:-]+$/.test(templateId)) throw invalid();
   if (!id(userId)) throw invalid();
-  const headers = new Headers({
-    host: request.headers.get('host') ?? '',
-    accept: 'application/json',
-    'cache-control': 'no-cache',
-  });
-  for (const name of [
-    'cookie', 'origin', 'x-erpx-context-company', 'x-erpx-context-assignment',
-    'x-erpx-context-revision', 'x-erpx-context-assignment-version',
-    'x-erpx-workspace-branch', 'x-erpx-workspace-department',
-  ]) {
-    const value = request.headers.get(name);
-    if (value) headers.set(name, value);
-  }
-  headers.set('x-erpx-context-user', userId);
+  const headers = routineHeaders(request, userId);
   const url = `${config.privateBaseUrl}/api/v1/holdings/${encodeURIComponent(holdingSlug)}/routine-templates/${encodeURIComponent(templateId)}${suffix}`;
   let response: Response;
   try {

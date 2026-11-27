@@ -5433,7 +5433,6 @@
 @source "../../../../packages/server-operations/src/adapters/work-cache-deadlines.ts";
 @source "../../../../packages/server-operations/src/adapters/work-package-obligation-sources.ts";
 @source "../../../../packages/server-operations/src/adapters/work-package-obligations.ts";
-@source "../../../../packages/server-operations/src/adapters/work-routine-presentation.ts";
 @source "../../../../packages/server-operations/src/adapters/work-routine-purchases.ts";
 @source "../../../../packages/server-operations/src/adapters/work-task-purchases.ts";
 @source "../../../../packages/server-operations/src/adapters/work-ui-staff-facts.ts";
@@ -5505,7 +5504,6 @@
 @source "../../../../packages/server-operations/src/public/work-cache-deadlines.ts";
 @source "../../../../packages/server-operations/src/public/work-package-obligation-sources.ts";
 @source "../../../../packages/server-operations/src/public/work-package-obligations.ts";
-@source "../../../../packages/server-operations/src/public/work-routine-presentation.ts";
 @source "../../../../packages/server-operations/src/public/work-ui-staff-facts.ts";
 @source "../../../../packages/server-operations/src/public/workflow-document-sources.ts";
 @source "../../../../packages/server-operations/src/public/workflow-flow-routing-facts.ts";
@@ -6849,7 +6847,6 @@
 @source "../../../../packages/server-projects/src/adapters/read-tail-r43.ts";
 @source "../../../../packages/server-projects/src/adapters/read-tail-r45.ts";
 @source "../../../../packages/server-projects/src/adapters/record-purchases.ts";
-@source "../../../../packages/server-projects/src/adapters/routine-project-options.ts";
 @source "../../../../packages/server-projects/src/adapters/social-purchase-sources.ts";
 @source "../../../../packages/server-projects/src/adapters/staff-projects.ts";
 @source "../../../../packages/server-projects/src/adapters/structure.ts";
@@ -6890,7 +6887,6 @@
 @source "../../../../packages/server-projects/src/public/project-structure.ts";
 @source "../../../../packages/server-projects/src/public/purchases.ts";
 @source "../../../../packages/server-projects/src/public/record-purchases.ts";
-@source "../../../../packages/server-projects/src/public/routine-project-options.ts";
 @source "../../../../packages/server-projects/src/public/rules/editor-command-inputs.ts";
 @source "../../../../packages/server-projects/src/public/rules/product-entry.ts";
 @source "../../../../packages/server-projects/src/public/rules/record-command-inputs.ts";

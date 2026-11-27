@@ -127,17 +127,14 @@ describe('operations read-tail r55 EXISTS-head consolidation', () => {
       .toBe(operationsOwnerVersionExists('handbook_articles a', '', 'a.id=1'));
   });
 
-  it('keeps one family-B definition and leaves the routine-source-read use intact', async () => {
-    const [scope, routine] = await Promise.all([
-      src('workforce-actor-scope-source.ts'), src('work-routine-presentation.ts'),
-    ]);
+  it('keeps one family-B definition', async () => {
+    const scope = await src('workforce-actor-scope-source.ts');
     expect(scope.match(/export const operationsActorScopeInputExists/g)).toHaveLength(1);
     expect(scope.match(/export const workforceActorScopeSql/g)).toHaveLength(1);
     expect(scope).toContain("tableSep = ' '");
     const wf = scope.split('\n').find(l => l.includes('export const workforceActorScopeSql'))!;
     expect(wf).toContain("operationsActorScopeInputExists(where, '', '')");
     expect(wf).not.toContain('SELECT 1 FROM');
-    expect((routine.match(/operationsActorScopeInputExists\(scope\.where,''\)/g) ?? [])).toHaveLength(1);
   });
 
   it('leaves viewer clock, native reads, locks and prior r53/r54 helpers untouched', async () => {

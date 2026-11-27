@@ -274,6 +274,10 @@ const server = createServer(async (req, res) => {
   const appUrl = transport && holding ? transport[2]! : requestUrl;
   const scoped = holding && normalizeHoldingNativePath(appUrl, holding.holdingSlug);
   const cutover = holding && scoped && holdingNativeCutoverPath(scoped.url, holding.holdingSlug, req.method);
+  if (cutover === "routine-editor-private") {
+    nativeApiError(res, 404, "NOT_FOUND", "Not found.");
+    return;
+  }
   const nativeUrl = cutover && scoped ? scoped.url : appUrl;
   if (cutover || (nativeBase && nativeApiPath(environment, nativeUrl, req.headers.host, req.method))) {
     try {

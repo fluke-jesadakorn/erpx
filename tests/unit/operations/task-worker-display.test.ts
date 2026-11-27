@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { createElement, isValidElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-const ports = vi.hoisted(() => ({ presentation: vi.fn(), schedules: vi.fn() }));
+const ports = vi.hoisted(() => ({ presentation: vi.fn(), schedules: vi.fn(), editor: vi.fn() }));
 vi.mock("@erpx/server-work_projection/public/presentation-context-queries", () => ({ staffPresentationQueries: ports.presentation }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers({host: "acme.jesadakorn.com"}) }));
 vi.mock("@erpx/feature-operations/public/native-routines-read", async load => ({
@@ -9,6 +9,7 @@ vi.mock("@erpx/feature-operations/public/native-routines-read", async load => ({
   nativeRoutineTemplatesAvailable: () => true,
   nativeRoutineTemplateList: async () => [],
   nativeRoutineTemplateSchedules: ports.schedules,
+  nativeRoutineEditorContext: ports.editor,
 }));
 vi.mock("@erpx/workplace/components/flow-panel", () => ({ documentFlow: async () => ({ canAct: true }), FlowPanel: () => null }));
 vi.mock("@erpx/server-runtime/public/administration",()=>({administrationAccess:async()=>({sections:[],manageOrganization:false})}));
@@ -39,6 +40,7 @@ function taskPresentation(){return { actor: { userId: "worker", companyId: "comp
       taskDetail: async () => ({ task: { id: "task", title: "Task", state: "in_progress", description: "Instructions", due_at: null, project_id: null, creator_name: "Worker", assignee_name: "Worker", revision: 1, version: 2 }, permittedActions: ["revise", "cancel", "delegate"], approval: null }) } };}
 beforeEach(() => {
   ports.presentation.mockClear();
+  ports.editor.mockReset();
   ports.presentation.mockResolvedValue(taskPresentation());
 });
 it("projects private worker identities out of the actual new Task Client props while retaining picker filters", async () => {
@@ -66,17 +68,29 @@ it("preserves actual staff department and level picker labels using display fiel
   for (const label of ["Department filter", "Level filter", "Engineering", "Engineer · rank 4", "Worker · Engineer"]) expect(html).toContain(label);
   for (const field of ["private-person", "private-engagement", "private-manager", "private-head", "private-level-code"]) expect(html).not.toContain(field);
 });
+const routineProjects=[{id:'project',title:'Original project option'}];
+function mockRoutineEditor() {
+  projectTaskPorts.actor.mockResolvedValueOnce({...projectTaskActor,beta:false,authority:{sessionId:'test-session',revision:7,assignmentVersion:3}});
+  ports.editor.mockResolvedValueOnce({options:expected,projects:routineProjects,canWrite:true,purchases:null});
+}
+function expectNativeEditor() {
+  expect(ports.presentation).not.toHaveBeenCalled();
+  expect(ports.editor).toHaveBeenCalledExactlyOnceWith(expect.any(Request),'acme','worker');
+  const [request]=ports.editor.mock.calls[0];
+  expect(request.headers.get('x-erpx-context-revision')).toBe('7');
+  expect(request.headers.get('x-erpx-context-assignment-version')).toBe('3');
+}
 it('opens actual standalone Routine collection with explicit optional Projects and display-only worker and Project choices',async()=>{
- ports.presentation.mockResolvedValueOnce({actor:{userId:'worker',companyId:'company',assignmentId:'assignment',beta:false,scope:{kind:'holding'},authority:{revision:7,assignmentVersion:3}},base:'/holdings/acme',options:source,projects:[{id:'project',title:'Original project option',created_by:'private-project-creator',branch_id:'private-project-branch'}],staff:{user_id:'worker'},queries:{listTemplates:async()=>[],routinePurchases:async()=>undefined}});
- const page=await Routines({params:Promise.resolve({holdingSlug:'acme'}),searchParams:Promise.resolve({})});expect(ports.presentation).toHaveBeenCalledExactlyOnceWith('acme',{routineProjects:true});expect(optionProps(page)).toEqual([expected]);expect(projectProps(page)).toEqual([[{id:'project',title:'Original project option'}]]);expect(JSON.stringify([optionProps(page),projectProps(page)])).not.toContain('private-');
+ mockRoutineEditor();
+ const page=await Routines({params:Promise.resolve({holdingSlug:'acme'}),searchParams:Promise.resolve({})});expectNativeEditor();expect(optionProps(page)).toEqual([expected]);expect(projectProps(page)).toEqual([[{id:'project',title:'Original project option'}]]);expect(JSON.stringify([optionProps(page),projectProps(page)])).not.toContain('private-');
 });
 it('retains actual Routine detail edit and clone authority while projecting every optional picker to display fields',async()=>{
  ports.schedules.mockResolvedValueOnce({
    template:{id:'routine-source',title:'Original routine',description:'Reviewed source',creator_user_id:'worker',assignee_user_id:'worker',project_id:null,published:1,version:3,start_approvers_json:'[]',completion_approvers_json:'["reviewer"]'},
    canEdit:true,schedules:[],
  });
- ports.presentation.mockResolvedValueOnce({actor:{userId:'worker',companyId:'company',assignmentId:'assignment',scope:{kind:'holding'},authority:{revision:7,assignmentVersion:3},beta:false},base:'/holdings/acme',options:source,projects:[{id:'project',title:'Original project option',version:53,created_by:'private-project-creator'}],staff:{user_id:'worker'},queries:{routinePurchases:async()=>undefined}});
- const page=await Routine({params:Promise.resolve({holdingSlug:'acme',id:'routine-source'})});expect(ports.presentation).toHaveBeenCalledExactlyOnceWith('acme',{routineProjects:true});expect(optionProps(page)).toEqual([expected,expected]);expect(projectProps(page)).toEqual([[{id:'project',title:'Original project option'}],[{id:'project',title:'Original project option'}]]);expect(JSON.stringify([optionProps(page),projectProps(page)])).not.toContain('private-');
+ mockRoutineEditor();
+ const page=await Routine({params:Promise.resolve({holdingSlug:'acme',id:'routine-source'})});expectNativeEditor();expect(optionProps(page)).toEqual([expected,expected]);expect(projectProps(page)).toEqual([[{id:'project',title:'Original project option'}],[{id:'project',title:'Original project option'}]]);expect(JSON.stringify([optionProps(page),projectProps(page)])).not.toContain('private-');
  const [request, holding, template, user] = ports.schedules.mock.calls.at(-1)!;
  expect([holding, template, user]).toEqual(['acme', 'routine-source', 'worker']);
  expect(request.headers.get('x-erpx-context-revision')).toBe('7');

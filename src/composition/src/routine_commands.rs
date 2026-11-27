@@ -4,6 +4,7 @@
 //! supplies the current Account/IAM selection and the People, Projects,
 //! Organization and Identity facts the retained routine validation consumes.
 use crate::business_http::BusinessScopeSlugs;
+use erpx_server_commercial::public::capability_decision::{PurchasedAccess, purchased_accesses};
 use erpx_server_commercial::public::purchase_after::write_purchase_shadow_checked_observation;
 use erpx_server_commercial::public::purchase_command_boundary::{
     PurchaseCommandBoundary, PurchaseCommandScope, lock_company_purchase_read_sources,
@@ -57,11 +58,15 @@ use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{DatabasePool, PgTransactionError};
 use erpx_server_shared::public::{
     AssignmentId, BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId,
+    TimestampMillis,
 };
+use erpx_server_workflow::public::commands::CommandJson;
 use erpx_server_workflow::public::staff_approval::{
     OpenStaffApproval, StaffApprovalStep, open_staff_approval,
 };
+use sha2::{Digest, Sha256};
 use sqlx::PgConnection;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 type Error = PgTransactionError<BusinessError>;
@@ -585,6 +590,157 @@ fn routine_purchase_mode(name: &'static str) -> Result<PackageEnforcementMode, B
         ));
     }
     Ok(mode)
+}
+
+const WORK_EDITOR_CAPABILITIES: [&str; 2] = ["work.actions", "work.advanced-routines"];
+const PROJECT_EDITOR_CAPABILITIES: [&str; 2] = ["projects.wbs", "projects.tasks"];
+
+fn grouped_editor_purchase(
+    accesses: &BTreeMap<String, PurchasedAccess>,
+    capabilities: [&str; 2],
+) -> Result<serde_json::Value, BusinessError> {
+    let first = accesses.get(capabilities[0]).ok_or_else(unavailable)?;
+    let second = accesses.get(capabilities[1]).ok_or_else(unavailable)?;
+    Ok(serde_json::json!({
+        "newWork": first.new_work && second.new_work,
+        "settleExisting": first.settle_existing && second.settle_existing,
+        "history": first.history && second.history,
+        "revision": format!("{}:{}", first.revision, second.revision),
+    }))
+}
+
+fn routine_editor_context_digest(current: &AuthorizedWorkContext) -> Result<String, BusinessError> {
+    #[derive(serde::Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Authority<'a> {
+        session_id: &'a str,
+        revision: i64,
+        assignment_version: i64,
+    }
+    let selected = current.selection();
+    let workspace = selected.workspace();
+    let assignment = selected.assignment();
+    let iam = erpx_server_identity_access::public::command_metadata::project_command_iam(current)?;
+    let wire = CommandJson::from_serializable(&(
+        workspace.company_id.as_str(),
+        workspace.branch_id.as_ref().map(|id| id.as_str()),
+        workspace.department_id.as_ref().map(|id| id.as_str()),
+        current.user_id().as_str(),
+        assignment.id.as_str(),
+        &assignment.role,
+        Authority {
+            session_id: current.session_id().as_str(),
+            revision: selected.revision(),
+            assignment_version: assignment.version,
+        },
+        iam,
+    ))?;
+    Ok(hex::encode(Sha256::digest(wire.as_str())))
+}
+
+async fn read_routine_editor_context(
+    connection: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+    strict_picker: bool,
+    production_render: bool,
+    now: TimestampMillis,
+) -> Result<serde_json::Value, Error> {
+    use PackageEnforcementMode::{Disabled, Enforced};
+    let apps_mode = routine_purchase_mode("ERPX_APPS_PACKAGE_ENFORCEMENT")?;
+    let projects_mode = routine_purchase_mode("ERPX_PROJECTS_PACKAGE_ENFORCEMENT")?;
+    let company = &current.selection().workspace().company_id;
+    let user = current.user_id().as_str();
+    if (strict_picker || projects_mode != Disabled) && !current.has_permission("records.read") {
+        return Err(BusinessError::new(
+            FailureKind::Forbidden,
+            "PROJECT_ACCESS_CHANGED",
+            "Choose a current Project assignment.",
+        )
+        .into());
+    }
+    let catalogue = current_package_catalogue()?;
+    let facts = if strict_picker || apps_mode != Disabled || projects_mode != Disabled {
+        PgCompanyPurchaseReader::new(
+            current.holding_id().clone(),
+            company.clone(),
+            connection,
+            &catalogue,
+        )
+        .read(company)
+        .await?
+    } else {
+        erpx_server_commercial::public::purchases::CompanyPurchaseFacts {
+            grants: Vec::new(),
+            history: Vec::new(),
+        }
+    };
+    let project_capabilities = PROJECT_EDITOR_CAPABILITIES.map(str::to_owned);
+    let project_access = purchased_accesses(
+        &catalogue,
+        &facts,
+        company.as_str(),
+        &project_capabilities,
+        projects_mode,
+        now,
+    )?;
+    let picker_history = if strict_picker {
+        catalogue
+            .purchased_capability(
+                &facts.grants,
+                company.as_str(),
+                "projects.wbs",
+                CapabilityPurpose::History,
+                now.get(),
+                &facts.history,
+            )
+            .allowed
+    } else if projects_mode == Enforced {
+        project_access
+            .get("projects.wbs")
+            .ok_or_else(unavailable)?
+            .history
+    } else {
+        true
+    };
+    // The Apps editor has no isolated engineering attestation (only the
+    // Service child can receive that exception). Projects is outside the
+    // current production release scope, so its conjunction is false for a
+    // strict production render. Development only excludes beta Companies.
+    let picker_ready = picker_history && !(strict_picker && (production_render || current.beta()));
+    let projects = if picker_ready {
+        erpx_server_projects::public::native_lane_27::read_routine_project_options(
+            connection,
+            company.as_str(),
+            user,
+        )
+        .await?
+    } else {
+        Vec::new()
+    };
+    let purchases = if apps_mode == Disabled {
+        serde_json::Value::Null
+    } else {
+        let work = purchased_accesses(
+            &catalogue,
+            &facts,
+            company.as_str(),
+            &WORK_EDITOR_CAPABILITIES.map(str::to_owned),
+            apps_mode,
+            now,
+        )?;
+        serde_json::json!({
+            "work": grouped_editor_purchase(&work, WORK_EDITOR_CAPABILITIES)?,
+            "projects": grouped_editor_purchase(&project_access, PROJECT_EDITOR_CAPABILITIES)?,
+            "context": routine_editor_context_digest(current)?,
+        })
+    };
+    let mut data =
+        crate::routine_editor_staff::routine_editor_staff(connection, company.as_str(), user)
+            .await?;
+    let fields = data.as_object_mut().ok_or_else(unavailable)?;
+    fields.insert("projects".into(), serde_json::json!(projects));
+    fields.insert("purchases".into(), purchases);
+    Ok(data)
 }
 
 async fn require_routine_history(
@@ -1960,6 +2116,66 @@ impl<C: Clock + Send + Sync + 'static> RoutineHttpBackend for RoutineBackend<C> 
                                 current,
                                 data["template"]["project_id"].as_str(),
                                 clock.now().get(),
+                            )
+                            .await?;
+                            Ok(RoutineHttpResponse {
+                                data,
+                                context: context(current),
+                            })
+                        })
+                    },
+                )
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn editor_context<'a>(
+        &'a self,
+        host: &'a str,
+        headers: &'a HeaderMap,
+    ) -> RoutineHttpFuture<'a, RoutineHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(headers, false)?;
+            let holding = self.service.configuration.holding.clone();
+            let company = self.service.company().clone();
+            let clock = self.service.clock.clone();
+            // In development this is the Holding Apps editor. The optional
+            // private SSR hint can only narrow the picker for a compiled render.
+            let strict_picker = self.policy.environment == "development";
+            let production_render = std::env::var("NODE_ENV").as_deref() == Ok("production")
+                || unique_request_header(headers, "x-erpx-routine-compiled-render")? == Some("1");
+            self.service
+                .authorizer
+                .execute(
+                    host,
+                    proof,
+                    selection,
+                    WorkAuthorizationRequest {
+                        permission: WorkPermissionRequirement::AnyOf(vec![
+                            "operations.read".into(),
+                            "module.operations.read".into(),
+                        ]),
+                        module: Some("operations".into()),
+                        destination: "staff-tasks".into(),
+                        api: true,
+                    },
+                    move |connection, current| {
+                        let holding = holding.clone();
+                        let company = company.clone();
+                        let clock = clock.clone();
+                        Box::pin(async move {
+                            if current.holding_id() != &holding
+                                || current.selection().workspace().company_id != company
+                            {
+                                return Err(scope().into());
+                            }
+                            let data = read_routine_editor_context(
+                                connection,
+                                current,
+                                strict_picker,
+                                production_render,
+                                clock.now(),
                             )
                             .await?;
                             Ok(RoutineHttpResponse {

@@ -87,8 +87,8 @@ describe("Owner presentation query composition", () => {
     await query.queries.getProject(actor, "project");
     expect(state.project).toHaveBeenCalledExactlyOnceWith(state.db, actor, "project");
   });
-  it('requests optional Project choices only for the explicit Routine presentation while preserving the default required context call',async()=>{
-    await staffPresentationQueries('acme',{routineProjects:true});expect(state.staff).toHaveBeenLastCalledWith('acme',{routineProjects:true});await staffPresentationQueries('acme');expect(state.staff).toHaveBeenLastCalledWith('acme');
+  it('preserves the default required context call',async()=>{
+    await staffPresentationQueries('acme');expect(state.staff).toHaveBeenCalledExactlyOnceWith('acme');
   });
   it('requests optional Project choices explicitly for standalone Tasks without exposing the server-only picker mode',async()=>{
     state.staff.mockResolvedValueOnce({write:state.db,actor,base:'/holdings/acme',options:{levels:[]},projects:[],staff:null,projectPickerStrict:true});

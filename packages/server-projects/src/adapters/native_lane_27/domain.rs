@@ -145,6 +145,13 @@ pub fn check_project(row: &ProjectRow) -> Result<(), BusinessError> {
     Ok(())
 }
 
+/// The display fields retained from the Company Project list.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct RoutineProjectOption {
+    pub id: String,
+    pub title: String,
+}
+
 pub fn invalid() -> BusinessError {
     BusinessError::invalid(
         "PROJECT_ACTUALS_LANE27_REQUEST_INVALID",

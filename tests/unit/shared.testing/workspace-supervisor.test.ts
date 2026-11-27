@@ -416,6 +416,10 @@ it('routes retired Holding entries and their transport aliases directly to Axum'
     const schedules = '/api/v1/holdings/acme/routine-schedules/schedule-1';
     expect((await get(3104, host, schedules)).status).toBe(401);
     const {holdingNativeCutoverPath} = await import('../../../scripts/local/native-cutover-routes');
+    const editor = '/api/v1/holdings/acme/routine-template-editor-context';
+    expect((await get(3104, host, editor)).status).toBe(404);
+    expect((await get(3104, host, '/__erpx/apps' + editor)).status).toBe(404);
+    expect(holdingNativeCutoverPath(editor + '/unrelated', 'acme', 'GET')).toBeUndefined();
     expect(holdingNativeCutoverPath(routines, 'acme', 'HEAD')).toBe('routine-templates');
     for (const suffix of ['', '/template-1', '/template-1/clone', '/template-1/run', '/template-1/schedules', '/template-1/schedules/schedule-1'])
       expect(holdingNativeCutoverPath(routines + suffix, 'acme', 'POST')).toBe('routine-command');

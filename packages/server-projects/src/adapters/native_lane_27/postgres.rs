@@ -6,10 +6,11 @@
 use super::application::{ActualsFuture, ProjectActualsRead};
 use super::domain::{
     ActualsScope, CostAllocationRow, HandoffProject, HandoffRow, HandoffScope, HandoffWorkRow,
-    ProjectRow, WorkLogRow, minor_to_decimal, unavailable,
+    ProjectRow, RoutineProjectOption, WorkLogRow, minor_to_decimal, unavailable,
 };
 use erpx_server_runtime::public::postgres::DatabasePool;
-use sqlx::Row;
+use erpx_server_shared::public::BusinessError;
+use sqlx::{PgConnection, Row};
 
 /// The exact work-log statement. Bind order stays user,user,user,company,
 /// project,user,user as in the replaced TypeScript reader.
@@ -63,6 +64,14 @@ const VISIBLE_PROJECTS: &str = "SELECT p.id,p.company_id,p.branch_id,p.departmen
        AND (p.owner_user_id=$2 OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=$3))\
      ORDER BY p.updated_at DESC";
 
+/// The narrow routine picker statement: the exact `listProjects`
+/// Company/owner-or-member predicate and `updated_at DESC` order, projecting
+/// only `{id,title}`. It adds no privilege, ordering or cross-owner policy.
+const ROUTINE_PROJECT_OPTIONS: &str = "SELECT p.id,p.title \
+      FROM staff_projects p WHERE p.company_id=$1 \
+        AND (p.owner_user_id=$2 OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=$3)) \
+      ORDER BY p.updated_at DESC";
+
 pub struct PgProjectActualsRead {
     pool: DatabasePool,
 }
@@ -70,6 +79,24 @@ pub struct PgProjectActualsRead {
 impl PgProjectActualsRead {
     pub fn new(pool: DatabasePool) -> Self {
         Self { pool }
+    }
+
+    pub(crate) async fn routine_project_options(
+        connection: &mut PgConnection,
+        company_id: &str,
+        user_id: &str,
+    ) -> Result<Vec<RoutineProjectOption>, BusinessError> {
+        let rows = sqlx::query_as::<_, (String, String)>(ROUTINE_PROJECT_OPTIONS)
+            .bind(company_id)
+            .bind(user_id)
+            .bind(user_id)
+            .fetch_all(connection)
+            .await
+            .map_err(|_| unavailable())?;
+        Ok(rows
+            .into_iter()
+            .map(|(id, title)| RoutineProjectOption { id, title })
+            .collect())
     }
 }
 
@@ -376,6 +403,28 @@ mod tests {
         for sql in [VISIBLE_PROJECT, VISIBLE_PROJECTS] {
             assert!(sql.contains("p.lifecycle_status"));
             assert!(!sql.contains("SELECT p.*"));
+        }
+    }
+
+    #[test]
+    fn routine_picker_statement_keeps_the_list_projects_visibility_and_order() {
+        let predicate = "AND (p.owner_user_id=$2 OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=$3))";
+        assert!(
+            ROUTINE_PROJECT_OPTIONS
+                .starts_with("SELECT p.id,p.title FROM staff_projects p WHERE p.company_id=$1")
+        );
+        assert!(ROUTINE_PROJECT_OPTIONS.contains(predicate));
+        assert!(ROUTINE_PROJECT_OPTIONS.ends_with("ORDER BY p.updated_at DESC"));
+        assert!(!ROUTINE_PROJECT_OPTIONS.contains("$4"));
+        let normalized = VISIBLE_PROJECTS
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(normalized.contains(predicate));
+        assert!(normalized.ends_with("ORDER BY p.updated_at DESC"));
+        let upper = ROUTINE_PROJECT_OPTIONS.to_ascii_uppercase();
+        for forbidden in ["INSERT ", "UPDATE ", "DELETE ", "LOCK "] {
+            assert!(!upper.contains(forbidden));
         }
     }
 }

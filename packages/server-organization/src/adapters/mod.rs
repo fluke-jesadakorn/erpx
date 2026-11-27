@@ -3,6 +3,7 @@ pub(crate) mod people_staff_placement;
 pub(crate) mod postgres_authority_seats;
 pub(crate) mod postgres_hierarchy;
 pub(crate) mod records_request_department_head;
+pub(crate) mod routine_editor_staff;
 pub(crate) mod staff_department_route;
 
 pub(crate) mod journal_flow_department;

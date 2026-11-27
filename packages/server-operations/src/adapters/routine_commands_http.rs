@@ -95,6 +95,12 @@ pub trait RoutineHttpBackend: Send + Sync {
         headers: &'a HeaderMap,
         template_id: String,
     ) -> RoutineHttpFuture<'a, RoutineHttpResponse>;
+
+    fn editor_context<'a>(
+        &'a self,
+        host: &'a str,
+        headers: &'a HeaderMap,
+    ) -> RoutineHttpFuture<'a, RoutineHttpResponse>;
 }
 
 pub struct RoutineHttpTarget {
@@ -210,6 +216,12 @@ pub fn routine_commands_router(targets: Vec<RoutineHttpTarget>) -> Result<Router
     }
     Ok(Router::new()
         .route(
+            "/api/v1/holdings/{holding_slug}/routine-template-editor-context",
+            any(|| async { StatusCode::METHOD_NOT_ALLOWED })
+                .get(read_editor_context)
+                .options(editor_options),
+        )
+        .route(
             "/api/v1/holdings/{holding_slug}/routine-templates",
             post(command_template_create).options(template_options),
         )
@@ -262,6 +274,38 @@ pub fn routine_commands_router(targets: Vec<RoutineHttpTarget>) -> Result<Router
         .with_state(Arc::new(RoutineHttpState {
             targets: configured,
         })))
+}
+
+async fn editor_options() -> Response {
+    let mut response = StatusCode::NO_CONTENT.into_response();
+    response.headers_mut().insert(
+        header::ALLOW,
+        HeaderValue::from_static("GET, HEAD, OPTIONS"),
+    );
+    response
+}
+
+async fn read_editor_context(
+    State(state): State<Arc<RoutineHttpState>>,
+    Path(slug): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    let result = async {
+        if public_transport(&headers)? {
+            return Err(missing());
+        }
+        let target = target(&state, &headers, &slug)?;
+        let reply = target
+            .backend
+            .editor_context(&target.host, &headers)
+            .await?;
+        Ok::<_, BusinessError>(reply.value())
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
 }
 
 async fn template_options() -> Response {

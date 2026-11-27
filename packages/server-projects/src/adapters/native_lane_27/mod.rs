@@ -14,7 +14,7 @@ pub use application::{
     read_visible_projects, read_work_logs,
 };
 pub use domain::{
-    ActualsScope, CostAllocationRow, HandoffScope, LaneTarget, ProjectRow, WorkLogRow,
+    ActualsScope, CostAllocationRow, HandoffScope, LaneTarget, ProjectRow, RoutineProjectOption, WorkLogRow,
     check_project, company_scope, minor_to_decimal, scope,
 };
 pub use http::{router, router_for_holdings, router_with_reader};

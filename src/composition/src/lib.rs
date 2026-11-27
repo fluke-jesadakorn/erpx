@@ -240,6 +240,7 @@ pub mod records;
 #[cfg(any(feature = "existing-business", feature = "records-command"))]
 pub mod records_command;
 pub mod routine_commands;
+pub mod routine_editor_staff;
 #[cfg(feature = "existing-business")]
 pub mod sales;
 #[cfg(feature = "existing-business")]

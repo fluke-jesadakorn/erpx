@@ -45,6 +45,11 @@ export async function startCompiledWorkspaceGateway(routing: CompiledGatewayRout
       const holdingSlug = /^\/api\/v1\/holdings\/([a-z0-9-]+)\//.exec(url)?.[1];
       const scoped = holdingSlug === undefined ? undefined : normalizeHoldingNativePath(url, holdingSlug);
       const cutover = holdingSlug && scoped && holdingNativeCutoverPath(scoped.url, holdingSlug, req.method);
+      if (cutover === 'routine-editor-private') {
+        res.writeHead(404, {'Cache-Control':'private, no-store'});
+        res.end();
+        return;
+      }
       void proxyNativeApi({ base: new URL(`http://127.0.0.1:${target.port}`), environment: process.env, req, res,
         url: cutover && scoped ? scoped.url : url, workspace: cutover && scoped ? scoped.workspace : undefined,
         requiresSession: (cutover === 'routine-templates' || cutover === 'routine-schedules') && ['GET', 'HEAD'].includes(req.method ?? ''),

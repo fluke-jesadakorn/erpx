@@ -1,22 +1,21 @@
 import {RoutineTemplateEditor} from '@erpx/feature-operations/components/routine-template-editor';
 import {
-  nativeRoutineTemplateSchedules, routineReadHeaders,
+  nativeRoutineEditorContext, nativeRoutineTemplateSchedules, routineReadHeaders,
 } from '@erpx/feature-operations/public/native-routines-read';
-import {staffPickerDisplayOptions} from '@erpx/feature-work_projection/lib/staff-picker-display';
+import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
+import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
-import { staffPresentationQueries } from "@erpx/server-work_projection/public/presentation-context-queries";
 import { headers } from "next/headers";
 
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@erpx/feature-shared/components/features/feature-page";
 import { RoutineScheduleControls } from "@erpx/feature-records/components/loaders/modules--staff-work-controls";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 
-
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 async function nativeTemplate(
   holdingSlug: string,
   id: string,
-  actor: Awaited<ReturnType<typeof staffPresentationQueries>>["actor"],
+  actor: Awaited<ReturnType<typeof requireWorkContext>>,
 ) {
   const request = new Request(
     `http://native-routines.invalid/api/v1/holdings/${encodeURIComponent(holdingSlug)}/routine-templates/${encodeURIComponent(id)}/schedules`,
@@ -24,17 +23,27 @@ async function nativeTemplate(
   );
   return nativeRoutineTemplateSchedules(request, holdingSlug, id, actor.userId);
 }
+async function nativeEditor(holdingSlug: string, actor: Awaited<ReturnType<typeof requireWorkContext>>) {
+  const request = new Request(
+    `http://native-routines.invalid/api/v1/holdings/${encodeURIComponent(holdingSlug)}/routine-template-editor-context`,
+    { headers: routineReadHeaders(await headers(), actor) },
+  );
+  return nativeRoutineEditorContext(request, holdingSlug, actor.userId);
+}
 export default async function Routine({
   params,
 }: {
   params: Promise<{ holdingSlug: string; id: string }>;
 }) {
   const { holdingSlug, id } = await params,
-    { actor, queries, base, options, projects,staff } = await staffPresentationQueries(holdingSlug,{routineProjects:true}),
+    actor = await requireWorkContext(holdingSlug),
+    base = workspaceBase(publicScope(actor)),
     {template, canEdit, schedules} = await nativeTemplate(holdingSlug, id, actor).catch((e) => {
       return pageError(e, holdingSlug);
     }),
-    purchases=await queries.routinePurchases();
+    {projects, options, canWrite, purchases} = await nativeEditor(holdingSlug, actor).catch((e) => {
+      return pageError(e, holdingSlug);
+    });
   return (
     <FeaturePage className="ui-page-content" data-source="live">
       <Link href={canonicalUiHref(`${base}/routine-templates`)}>← Routine templates</Link>
@@ -49,23 +58,23 @@ export default async function Routine({
         <RoutineTemplateEditor appearance="standard"
           key={template.version}
           base={base}
-          options={staffPickerDisplayOptions(options)}
-          projects={projects.map(({id,title})=>({id,title}))}
+          options={options}
+          projects={projects}
           userId={actor.userId}
           template={template}
-          purchases={purchases}
-          canWrite={!!staff}
+          purchases={purchases??undefined}
+          canWrite={canWrite}
         />
       )}
       <RoutineTemplateEditor appearance="standard"
         key={`clone-${template.version}`}
         base={base}
-        options={staffPickerDisplayOptions(options)}
-        projects={projects.map(({id,title})=>({id,title}))}
+        options={options}
+        projects={projects}
         userId={actor.userId}
         template={template}
-        purchases={purchases}
-          canWrite={!!staff}
+        purchases={purchases??undefined}
+        canWrite={canWrite}
         clone
       />
       </FeatureWidget><FeatureWidget appearance="standard" id="routine-schedule" title="Schedule"><RoutineScheduleControls appearance="standard"
@@ -73,8 +82,8 @@ export default async function Routine({
         template={template}
         schedules={schedules}
         canEdit={canEdit}
-        canRun={!!staff}
-        purchases={purchases}
+        canRun={canWrite}
+        purchases={purchases??undefined}
       />
     </FeatureWidget></WidgetGrid></FeaturePage>
   );

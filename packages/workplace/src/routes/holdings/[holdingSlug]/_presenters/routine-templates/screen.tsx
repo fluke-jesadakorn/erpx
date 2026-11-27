@@ -1,25 +1,25 @@
 import {RoutineTemplateEditor} from '@erpx/feature-operations/components/routine-template-editor';
-import {staffPickerDisplayOptions} from '@erpx/feature-work_projection/lib/staff-picker-display';
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
-import { staffPresentationQueries } from "@erpx/server-work_projection/public/presentation-context-queries";
+import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { FeaturePage, FeatureWidget,WidgetGrid } from "@erpx/feature-shared/components/features/feature-page";
 import { ServiceNavigation } from "@erpx/feature-field_service/components/service-navigation";
 import {StaffTaskLinks} from '@erpx/feature-work_projection/components/staff-work-controls';
 import { ListFilters } from "@erpx/ui/components/list-filters";
 import { EmptyState,PageHeader } from "@erpx/ui/components/primitives";
 import { administrationAccess } from "@erpx/server-runtime/public/administration";
+import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { headers } from "next/headers";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import {
+  nativeRoutineEditorContext,
   nativeRoutineTemplateList,
   nativeRoutineTemplatesAvailable,
   routineReadHeaders,
 } from "@erpx/feature-operations/public/native-routines-read";
 
-
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { Card } from "@erpx/ui/components/foundation";
-async function nativeTemplates(holdingSlug: string, actor: Awaited<ReturnType<typeof staffPresentationQueries>>["actor"]) {
+async function nativeTemplates(holdingSlug: string, actor: Awaited<ReturnType<typeof requireWorkContext>>) {
   if (!nativeRoutineTemplatesAvailable())
     throw new ApiError(503, "NATIVE_ROUTINES_UNAVAILABLE", "The native Operations routine read is unavailable.");
   const request = new Request(
@@ -27,6 +27,13 @@ async function nativeTemplates(holdingSlug: string, actor: Awaited<ReturnType<ty
     { headers: routineReadHeaders(await headers(), actor) },
   );
   return nativeRoutineTemplateList(request, holdingSlug, actor.userId);
+}
+async function nativeEditor(holdingSlug: string, actor: Awaited<ReturnType<typeof requireWorkContext>>) {
+  const request = new Request(
+    `http://native-routines.invalid/api/v1/holdings/${encodeURIComponent(holdingSlug)}/routine-template-editor-context`,
+    { headers: routineReadHeaders(await headers(), actor) },
+  );
+  return nativeRoutineEditorContext(request, holdingSlug, actor.userId);
 }
 export default async function Routines({
   params,
@@ -36,9 +43,10 @@ export default async function Routines({
   searchParams: Promise<{q?:string;status?:string}>;
 }) {
   const { holdingSlug } = await params,
-    { actor, queries, base, options, projects, staff } =
-      await staffPresentationQueries(holdingSlug,{routineProjects:true}),
-    templates = await nativeTemplates(holdingSlug, actor),purchases=await queries.routinePurchases();
+    actor = await requireWorkContext(holdingSlug),
+    base = workspaceBase(publicScope(actor)),
+    templates = await nativeTemplates(holdingSlug, actor),
+    { projects, options, canWrite, purchases } = await nativeEditor(holdingSlug, actor);
   const query=await searchParams;
   const visible=templates.filter(t=>(!query.q||t.title.toLowerCase().includes(query.q.toLowerCase()))&&(!query.status||query.status==="all"||(query.status==="published"?t.published:!t.published)));
   const access = await administrationAccess(actor);
@@ -65,13 +73,13 @@ export default async function Routines({
           activeId="projects-routines"
         />
       )}
-      {staff && (
+      {canWrite && (
         <RoutineTemplateEditor appearance="standard"
-          purchases={purchases}
-          canWrite={!!staff}
+          purchases={purchases??undefined}
+          canWrite={canWrite}
           base={base}
-          options={staffPickerDisplayOptions(options)}
-          projects={projects.map(({id,title})=>({id,title}))}
+          options={options}
+          projects={projects}
           userId={actor.userId}
         />
       )}

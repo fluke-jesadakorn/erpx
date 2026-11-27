@@ -1,4 +1,3 @@
-import {workRoutinePresentation} from '@erpx/server-operations/public/work-routine-presentation';
 import {projectPurchaseControls} from "@erpx/server-projects/public/purchases";
 import "server-only";
 import { staffPage } from "@erpx/server-work_projection/public/staff-page";
@@ -19,7 +18,6 @@ export async function staffPresentationQueries(holdingSlug: string,presentation?
   const { write, actor, base, options, projects, staff,projectPickerStrict } = await (presentation?staffPage(holdingSlug,presentation):staffPage(holdingSlug));
   return { actor, base, options, projects, staff, queries: {
     projectPurchases:()=>projectPickerStrict?projectPurchaseControls(write,actor,{strictProduct:true}):projectPurchaseControls(write,actor),
-    routinePurchases:()=>workRoutinePresentation(write,actor),
     getProject: (...args: ReadArguments<typeof getProject>) => getProject(write, ...args),
     listTasks: (...args: ReadArguments<typeof listTasks>) => listTasks(write, ...args),
     listProjectMilestones: (...args: ReadArguments<typeof nativeProjectMilestones>) => nativeProjectMilestones(write, ...args),

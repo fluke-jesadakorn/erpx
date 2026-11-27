@@ -65,6 +65,19 @@ impl RoutineHttpBackend for Backend {
             })
         })
     }
+
+    fn editor_context<'a>(
+        &'a self,
+        _: &'a str,
+        _: &'a erpx_server_runtime::public::http_support::HeaderMap,
+    ) -> RoutineHttpFuture<'a, RoutineHttpResponse> {
+        Box::pin(async {
+            Ok(RoutineHttpResponse {
+                data: json!({"projects":[],"options":{"people":[],"levels":[],"departments":[]},"canWrite":false,"purchases":null}),
+                context: json!({"userId":"runner"}),
+            })
+        })
+    }
 }
 
 fn router(backend: Arc<Backend>) -> Router {
@@ -122,6 +135,34 @@ async fn request(
         .and_then(|value| value.parse::<u16>().ok())
         .unwrap();
     (status, serde_json::from_str(body).unwrap_or(Value::Null))
+}
+
+#[tokio::test]
+async fn routine_editor_context_only_serves_the_private_ssr_transport() {
+    let backend = Arc::new(Backend::new());
+    let (address, task) = start(backend.clone()).await;
+    let path = "/api/v1/holdings/acme/routine-template-editor-context";
+    let (status, reply) = request(address, "GET", path, &[], "").await;
+    assert_eq!(status, 200);
+    assert_eq!(reply["data"]["options"]["people"], json!([]));
+    assert_eq!(reply["data"]["canWrite"], false);
+    assert_eq!(reply["context"]["userId"], "runner");
+    assert_eq!(
+        request(
+            address,
+            "GET",
+            path,
+            &[("x-erpx-api-transport", "public")],
+            ""
+        )
+        .await
+        .0,
+        404
+    );
+    assert_eq!(request(address, "POST", path, &[], "").await.0, 405);
+    assert_eq!(request(address, "OPTIONS", path, &[], "").await.0, 204);
+    assert_eq!(backend.commands.load(Ordering::SeqCst), 0);
+    task.abort();
 }
 
 #[tokio::test]

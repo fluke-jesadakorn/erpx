@@ -43,6 +43,14 @@ pub mod rfq_request_scope;
 pub mod roster;
 pub mod staff_department_route;
 
+/// Minimal Organization picker facts for the native routine editor.
+pub mod routine_editor_staff {
+    pub use crate::adapters::routine_editor_staff::{
+        RoutineEditorDepartmentFact, RoutineEditorLevelFact, routine_editor_departments,
+        routine_editor_levels,
+    };
+}
+
 /// Organization-owned placement port composed into native People commands.
 pub mod people_staff_placement {
     pub use crate::adapters::people_staff_placement::{

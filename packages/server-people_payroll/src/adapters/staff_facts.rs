@@ -34,6 +34,29 @@ pub struct StaffPersonFact {
     pub engagement_version: i64,
 }
 
+/// The retained `staffPeople` source predicate and ordering. Every caller binds
+/// only the Company id; current UTC dates and assignment freshness are decided
+/// by PostgreSQL on the caller's connection. The narrow picker projection and
+/// the full staff fact therefore share one shortlist.
+macro_rules! staff_people_query {
+    ($select:literal) => {
+        concat!(
+            $select,
+            " FROM hr_people p \
+             JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id \
+             LEFT JOIN staff_levels l ON l.id=e.level_id AND l.company_id=e.company_id \
+             LEFT JOIN organization_positions pos ON pos.id=e.position_id AND pos.company_id=e.company_id AND pos.active=1 \
+             WHERE p.company_id=$1 AND p.status='active' AND p.merged_into_id IS NULL AND p.user_id IS NOT NULL \
+               AND e.status='active' \
+               AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') \
+               AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')) \
+               AND EXISTS(SELECT 1 FROM assignments a WHERE a.user_id=p.user_id AND a.company_id=p.company_id \
+                 AND a.revoked_at IS NULL AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND a.valid_from<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND a.valid_until>floor(extract(epoch FROM clock_timestamp())*1000)::bigint) \
+             ORDER BY p.legal_name,e.start_date DESC,e.id"
+        )
+    };
+}
+
 fn unavailable() -> BusinessError {
     BusinessError::new(
         FailureKind::Unavailable,
@@ -56,18 +79,7 @@ pub async fn staff_people(
 ) -> Result<Vec<StaffPersonFact>, BusinessError> {
     let company = CompanyId::new(company_id)?;
     let rows = sqlx::query_as::<_, (String, String, String, Option<String>, Option<String>, Option<i32>, Option<String>, String, i64)>(
-        "SELECT p.id,p.user_id,p.legal_name,e.department_id,e.position_id,l.level_number,e.manager_person_id,e.id,e.version \
-         FROM hr_people p \
-         JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id \
-         LEFT JOIN staff_levels l ON l.id=e.level_id AND l.company_id=e.company_id \
-         LEFT JOIN organization_positions pos ON pos.id=e.position_id AND pos.company_id=e.company_id AND pos.active=1 \
-         WHERE p.company_id=$1 AND p.status='active' AND p.merged_into_id IS NULL AND p.user_id IS NOT NULL \
-           AND e.status='active' \
-           AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') \
-           AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')) \
-           AND EXISTS(SELECT 1 FROM assignments a WHERE a.user_id=p.user_id AND a.company_id=p.company_id \
-             AND a.revoked_at IS NULL AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND a.valid_from<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND a.valid_until>floor(extract(epoch FROM clock_timestamp())*1000)::bigint) \
-         ORDER BY p.legal_name,e.start_date DESC,e.id",
+        staff_people_query!("SELECT p.id,p.user_id,p.legal_name,e.department_id,e.position_id,l.level_number,e.manager_person_id,e.id,e.version"),
     )
     .bind(company.as_str())
     .fetch_all(c)
@@ -96,6 +108,56 @@ pub async fn staff_people(
                 manager_person_id,
                 engagement_id,
                 engagement_version,
+            },
+        )
+        .collect())
+}
+
+/// The five columns kept by `staffPickerDisplayOptions(staffSettings(actor))`
+/// for each current `staffPeople` row.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StaffPickerPersonFact {
+    pub user_id: String,
+    pub legal_name: String,
+    pub department_id: Option<String>,
+    pub level_id: Option<String>,
+    pub level_name: Option<String>,
+}
+
+/// The narrow picker projection of the same `staffPeople` shortlist as
+/// [`staff_people`], including its ordering and optional nulls. It reads only
+/// People-owned rows on the caller's connection and makes no permission or
+/// assignment decision.
+pub async fn staff_picker_people(
+    c: &mut PgConnection,
+    company_id: &str,
+) -> Result<Vec<StaffPickerPersonFact>, BusinessError> {
+    let company = CompanyId::new(company_id)?;
+    let rows = sqlx::query_as::<
+        _,
+        (
+            String,
+            String,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+        ),
+    >(staff_people_query!(
+        "SELECT p.user_id,p.legal_name,e.department_id,e.level_id,l.name"
+    ))
+    .bind(company.as_str())
+    .fetch_all(c)
+    .await
+    .map_err(|_| unavailable())?;
+    Ok(rows
+        .into_iter()
+        .map(
+            |(user_id, legal_name, department_id, level_id, level_name)| StaffPickerPersonFact {
+                user_id,
+                legal_name,
+                department_id,
+                level_id,
+                level_name,
             },
         )
         .collect())

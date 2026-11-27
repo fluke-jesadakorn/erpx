@@ -723,8 +723,7 @@ describe('Operations read-tail r38 dedupe',()=>{
   expect(operationsActorScopeInputExists(scope)).toBe(`SELECT 1 FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope WHERE ${scope}`);
   expect(operationsActorScopeInputExists('x').match(/SELECT /g)).toHaveLength(2);
  });
- test('the three actor-scope readers compose the canonical clauses and keep no local literal',()=>{
-  expect(source('work-routine-presentation.ts')).toContain('operationsActorScopeInputExists(scope.where,\'\')');
+ test('the retained actor-scope readers compose the canonical clauses and keep no local literal',()=>{
   expect(source('task-attachment-purchases.ts')).toContain('operationsActorScopeInputExists(current.where)');
   expect(source('work-task-purchases.ts')).toContain('operationsActorScopeInputExists(');
   const purchases=source('record-purchases.ts');
