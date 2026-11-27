@@ -1213,6 +1213,23 @@ impl<C: Clock + Send + Sync + 'static> QualityBackend<C> {
         ))
     }
 
+    fn read_context(
+        &self,
+        headers: &HeaderMap,
+    ) -> Result<(DeviceProof, HoldingWorkspaceRequest), BusinessError> {
+        let (proof, selection) = self.context(headers)?;
+        if unique_request_header(headers, "x-erpx-api-transport")? != Some("public") {
+            return Ok((proof, selection));
+        }
+        let selection = CapturedHoldingMutation::capture(
+            headers,
+            selection.branch_slug,
+            selection.department_slug,
+        )
+        .resolve_rendered_read()?;
+        Ok((proof, selection))
+    }
+
     fn command_context(
         &self,
         headers: &HeaderMap,
@@ -1306,17 +1323,7 @@ impl<C: Clock + Send + Sync + 'static> QualityHttpBackend for QualityBackend<C> 
         request: QualityHttpReadRequest<'a>,
     ) -> QualityHttpFuture<'a, QualityHttpReadReply> {
         Box::pin(async move {
-            let (proof, mut selection) = self.context(request.headers)?;
-            if request.id.is_none()
-                && unique_request_header(request.headers, "x-erpx-api-transport")? == Some("public")
-            {
-                selection = CapturedHoldingMutation::capture(
-                    request.headers,
-                    selection.branch_slug,
-                    selection.department_slug,
-                )
-                .resolve_rendered_read()?;
-            }
+            let (proof, selection) = self.read_context(request.headers)?;
             if let Some(id) = request.id {
                 self.service
                     .detail(request.host, proof, move || Ok(selection), id.to_owned())
@@ -1434,7 +1441,7 @@ impl<C: Clock + Send + Sync + 'static> QualityHttpBackend for QualityBackend<C> 
         request: QualityHttpHistoryRequest<'a>,
     ) -> QualityHttpFuture<'a, QualityHttpHistoryReply> {
         Box::pin(async move {
-            let (proof, selection) = self.context(request.headers)?;
+            let (proof, selection) = self.read_context(request.headers)?;
             self.service
                 .history(
                     request.host,

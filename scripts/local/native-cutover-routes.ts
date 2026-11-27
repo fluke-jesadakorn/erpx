@@ -5,22 +5,43 @@ function validId(segment: string): boolean {
 
 export type HoldingNativeWorkspace = { branch?: string; department?: string };
 
+function canonicalQualityHistory(url: string, prefix: string): string {
+  const match = /^quality\/([^/?]+)\/([^/?]+)(\?.*)?$/.exec(url.slice(prefix.length));
+  if (!match?.[2]?.includes("%")) return url;
+  try {
+    if (decodeURIComponent(match[2]) === "cancellations")
+      return `${prefix}quality/${match[1]}/cancellations${match[3] ?? ""}`;
+  } catch {
+    return url;
+  }
+  return url;
+}
+
 export function normalizeHoldingNativePath(url: string, holdingSlug: string): { url: string; workspace?: HoldingNativeWorkspace } {
   const prefix = `/api/v1/holdings/${holdingSlug}/`;
   if (!url.startsWith(prefix)) return { url };
   const scoped = /^(?:branches\/([a-z0-9_-]{1,128})\/(?:departments\/([a-z0-9_-]{1,128})\/)?|departments\/([a-z0-9_-]{1,128})\/)(.+)$/.exec(url.slice(prefix.length));
-  if (!scoped) return { url };
+  if (!scoped) return { url: canonicalQualityHistory(url, prefix) };
   const [, branch, nestedDepartment, department, path] = scoped;
-  return { url: prefix + path, workspace: { branch, department: nestedDepartment ?? department } };
+  return { url: canonicalQualityHistory(prefix + path, prefix), workspace: { branch, department: nestedDepartment ?? department } };
 }
 
 /** Native Holding operations and paths reserved for private SSR. */
-export function holdingNativeCutoverPath(url: string, holdingSlug: string, method: string | undefined): "records" | "record-action" | "routine-templates" | "routine-schedules" | "routine-command" | "routine-editor-private" | "quality-workspace" | undefined {
+export function holdingNativeCutoverPath(url: string, holdingSlug: string, method: string | undefined): "records" | "record-action" | "routine-templates" | "routine-schedules" | "routine-command" | "routine-editor-private" | "quality-read" | undefined {
   const [path] = url.split("?", 1);
   const prefix = `/api/v1/holdings/${holdingSlug}/`;
   if (!path?.startsWith(prefix)) return;
   const [owner, segment, ...tail] = path.slice(prefix.length).split("/");
-  if (owner === "quality" && segment === undefined && (method === "GET" || method === "HEAD")) return "quality-workspace";
+  if (owner === "quality" && (method === "GET" || method === "HEAD")) {
+    if (segment === undefined) return "quality-read";
+    try {
+      if (!validId(segment)) return;
+      if (tail.length === 1 && tail[0] === "cancellations") return "quality-read";
+      if (tail.length === 0 && !["alerts", "read-plan", "specifications"].includes(decodeURIComponent(segment))) return "quality-read";
+    } catch {
+      return;
+    }
+  }
   if (owner === "routine-template-editor-context" && segment === undefined) return "routine-editor-private";
   if (owner === "routine-templates" || owner === "routine-schedules") {
     try {

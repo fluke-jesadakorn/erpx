@@ -138,9 +138,9 @@ const commandContextAssertions = [
 ] as const;
 const recordRequestHeaders = ["origin", "content-type", "idempotency-key", ...commandContextAssertions];
 
-export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.ProcessEnv; req: IncomingMessage; res: ServerResponse; url?: string; requiresSession?: boolean; recordAction?: boolean; routineCommand?: boolean; qualityWorkspace?: boolean; workspace?: HoldingNativeWorkspace }): Promise<void> {
-  const { base, environment, req, res, recordAction, routineCommand, qualityWorkspace } = options;
-  const requiresSession = options.requiresSession || qualityWorkspace;
+export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.ProcessEnv; req: IncomingMessage; res: ServerResponse; url?: string; requiresSession?: boolean; recordAction?: boolean; routineCommand?: boolean; qualityRead?: boolean; workspace?: HoldingNativeWorkspace }): Promise<void> {
+  const { base, environment, req, res, recordAction, routineCommand, qualityRead } = options;
+  const requiresSession = options.requiresSession || qualityRead;
   const workspace = req.method === "OPTIONS" ? undefined : options.workspace;
   const routineUnavailable = () => nativeApiError(res, 503, "NATIVE_ROUTINES_UNAVAILABLE", `The native Operations routine ${routineCommand ? "command" : "read"} is unavailable.`);
   const url = options.url ?? req.url ?? "/";
@@ -163,7 +163,7 @@ export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.
         res.end(error.body);
         return;
       }
-      if (qualityWorkspace) return nativeQualityUnavailable(res);
+      if (qualityRead) return nativeQualityUnavailable(res);
       if (requiresSession || routineCommand) return routineUnavailable();
       return nativeApiError(res, 503, "NATIVE_RECORD_REGISTRY_UNAVAILABLE", "The native Records registry service is unavailable.");
     }
@@ -187,7 +187,7 @@ export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.
     upstream.once("error", () => {
       if (res.headersSent) res.destroy();
       else if (recordAction) nativeApiError(res, 503, "NATIVE_RECORD_REGISTRY_UNAVAILABLE", "The native Records registry service is unavailable.");
-      else if (qualityWorkspace) nativeQualityUnavailable(res);
+      else if (qualityRead) nativeQualityUnavailable(res);
       else if (routineCommand || requiresSession) routineUnavailable();
       else {
         res.writeHead(502, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "private, no-store" });

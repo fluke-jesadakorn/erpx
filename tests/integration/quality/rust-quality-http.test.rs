@@ -1,13 +1,14 @@
 //! Native Quality HTTP transport facts over a real loopback listener.
 use erpx_server_quality::public::quality_http::{
-    QualityHttpBackend, QualityHttpCommandRequest, QualityHttpFuture, QualityHttpHoldCreateRequest,
-    QualityHttpReadReply, QualityHttpReadRequest, QualityHttpTarget,
-    parse_quality_history_query, quality_router,
+    QualityHttpBackend, QualityHttpCommandRequest, QualityHttpFuture, QualityHttpHistoryReply,
+    QualityHttpHistoryRequest, QualityHttpHoldCreateRequest, QualityHttpReadReply,
+    QualityHttpReadRequest, QualityHttpTarget, parse_quality_history_query, quality_router,
 };
 use erpx_server_quality::public::quality_commands::QualityHoldReceipt;
 use erpx_server_quality::public::quality_read::{
-    CancellationAction, HoldStatus, QualityCancellationReceipt, QualityDecision, QualityDetail, QualityDetailCore,
-    QualityHold, QualityHoldProduct, QualityHoldView, QualityWorkspace,
+    CancellationAction, HoldStatus, QualityCancellation, QualityCancellationReceipt, QualityDecision,
+    QualityDetail, QualityDetailCore, QualityHold, QualityHoldProduct, QualityHoldView, QualityMetric,
+    QualityWorkspace,
 };
 use erpx_server_runtime::public::http_support::serde_json::{self, Value, json};
 use erpx_server_runtime::public::http_support::{Router, serve};
@@ -44,6 +45,19 @@ fn history_cursor_requires_complete_canonical_unambiguous_input() {
         let input = format!("before={value}&head=201&revision=qch1%3A{}", "a".repeat(64));
         assert!(parse_quality_history_query(Some(&input)).is_err());
     }
+    // The Next relay measured the raw serialized query and accepted only the
+    // three canonical keys, in any order, with percent-decoded values.
+    let valid = format!("head=201&revision=qch1%3A{}&before=200", "a".repeat(64));
+    assert_eq!(parse_quality_history_query(Some(&valid)).unwrap().before, Some(200));
+    let encoded_key = format!("%62efore=200&head=201&revision=qch1%3A{}", "a".repeat(64));
+    assert_eq!(parse_quality_history_query(Some(&encoded_key)).unwrap().head, Some(201));
+    for invalid in [
+        "&".to_owned(),
+        format!("before=2&head=3&revision=qch1%3A{}&pad={}", "a".repeat(64), "x".repeat(200)),
+        format!("before=2&head=3&revision=qch1%3A{}&revision=qch1%3A{}", "a".repeat(64), "b".repeat(64)),
+        format!("before=%202&head=3&revision=qch1%3A{}", "a".repeat(64)),
+        format!("before=2&head=3&revision=qch1%3A{}", "a".repeat(63)),
+    ] { assert!(parse_quality_history_query(Some(&invalid)).is_err(), "{invalid}"); }
 }
 
 fn hold() -> QualityHold {
@@ -100,12 +114,28 @@ fn product() -> QualityHoldProduct {
     }
 }
 
+fn metric() -> QualityMetric {
+    QualityMetric {
+        id: "metric-weight".into(),
+        spec_id: Some("spec-1".into()),
+        code: "weight".into(),
+        label: "Weight".into(),
+        unit: "kg".into(),
+        minimum: Some("9.9".into()),
+        maximum: Some("10.1".into()),
+        ordinal: 0,
+    }
+}
+
 struct Backend {
     reads: AtomicUsize,
     cancels: AtomicUsize,
     creates: AtomicUsize,
+    histories: AtomicUsize,
     seen_host: std::sync::Mutex<String>,
     seen_key: std::sync::Mutex<String>,
+    seen_query: std::sync::Mutex<String>,
+    history_page: Option<QualityHttpHistoryReply>,
     fail: Option<BusinessError>,
 }
 
@@ -115,14 +145,23 @@ impl Backend {
             reads: AtomicUsize::new(0),
             cancels: AtomicUsize::new(0),
             creates: AtomicUsize::new(0),
+            histories: AtomicUsize::new(0),
             seen_host: std::sync::Mutex::new(String::new()),
             seen_key: std::sync::Mutex::new(String::new()),
+            seen_query: std::sync::Mutex::new(String::new()),
+            history_page: None,
             fail: None,
         }
     }
     fn failing(error: BusinessError) -> Self {
         Self {
             fail: Some(error),
+            ..Self::new()
+        }
+    }
+    fn with_history(page: QualityHttpHistoryReply) -> Self {
+        Self {
+            history_page: Some(page),
             ..Self::new()
         }
     }
@@ -189,7 +228,7 @@ impl QualityHttpBackend for Backend {
                     measurements: vec![],
                     cancellations: vec![],
                     dispositions: vec![],
-                    spec_metrics: vec![],
+                    spec_metrics: vec![metric()],
                     alerts: vec![],
                 }))),
                 Some(_) => Err(BusinessError::new(
@@ -235,6 +274,47 @@ impl QualityHttpBackend for Backend {
                 cancellation_id: format!("quality-cancel-{}", request.key.as_str()),
                 status: HoldStatus::CancelPending,
                 version: 2,
+            })
+        })
+    }
+
+    /// Mirrors the composition read: the raw cursor reaches the owner after
+    /// admission, is parsed there, and the page is returned as one reply.
+    fn history<'a>(
+        &'a self,
+        request: QualityHttpHistoryRequest<'a>,
+    ) -> QualityHttpFuture<'a, QualityHttpHistoryReply> {
+        self.histories.fetch_add(1, Ordering::SeqCst);
+        *self.seen_query.lock().unwrap() = request.raw_query.unwrap_or("").to_owned();
+        Box::pin(async move {
+            if let Some(error) = self.fail.clone() {
+                return Err(error);
+            }
+            let Some(page) = &self.history_page else {
+                return Err(BusinessError::new(
+                    FailureKind::Unavailable,
+                    "QUALITY_HISTORY_UNAVAILABLE",
+                    "Quality cancellation history is unavailable.",
+                ));
+            };
+            let cursor = parse_quality_history_query(request.raw_query)?;
+            if cursor.head.is_some_and(|head| head != page.head_version)
+                || cursor.revision.as_deref().is_some_and(|revision| revision != page.history_revision)
+            {
+                return Err(BusinessError::new(
+                    FailureKind::Conflict,
+                    "QUALITY_HISTORY_CHANGED",
+                    "Reload Quality cancellation history.",
+                ));
+            }
+            let items: Vec<_> = page.items.iter()
+                .filter(|item| cursor.before.is_none_or(|before| item.version < before))
+                .cloned().collect();
+            Ok(QualityHttpHistoryReply {
+                next_before: page.next_before.filter(|_| !items.is_empty()),
+                items,
+                head_version: page.head_version,
+                history_revision: page.history_revision.clone(),
             })
         })
     }
@@ -360,6 +440,152 @@ async fn reads_the_registered_holding_with_session_headers_and_bounded_headers()
     let (status, value) = call(address, "GET", "/api/v1/holdings/acme/quality/hold-a/cancellations?before=bad", &[], None).await;
     assert_eq!(status, 503);
     assert_eq!(value["error"]["code"], "QUALITY_HISTORY_UNAVAILABLE");
+    task.abort();
+}
+
+#[tokio::test]
+async fn public_detail_uses_the_next_wire_and_private_ssr_keeps_metric_aliases() {
+    let backend = Arc::new(Backend::new());
+    let (address, task) = start(backend).await;
+    let (status, private) = call(
+        address,
+        "GET",
+        "/api/v1/holdings/acme/quality/hold-a",
+        &[],
+        None,
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(private["data"].as_object().unwrap().keys().len(), 7);
+    let private_metric = &private["data"]["specMetrics"][0];
+    assert_eq!(private_metric["minimum"], "9.9");
+    assert_eq!(private_metric["maximum"], "10.1");
+    assert_eq!(private_metric["minimumValue"], "9.9");
+    assert_eq!(private_metric["maximumValue"], "10.1");
+
+    let (status, public) = call(
+        address,
+        "GET",
+        "/api/v1/holdings/acme/quality/hold-a",
+        &[("x-erpx-api-transport", "public")],
+        None,
+    )
+    .await;
+    assert_eq!(status, 200);
+    let public_metric = &public["data"]["specMetrics"][0];
+    assert_eq!(public_metric["minimum"], "9.9");
+    assert_eq!(public_metric["maximum"], "10.1");
+    assert!(public_metric.get("minimumValue").is_none());
+    assert!(public_metric.get("maximumValue").is_none());
+    let mut private_data = private["data"].clone();
+    private_data["specMetrics"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("minimumValue");
+    private_data["specMetrics"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("maximumValue");
+    assert_eq!(public["data"], private_data);
+    task.abort();
+}
+
+#[tokio::test]
+async fn forwards_the_raw_history_cursor_and_returns_the_typed_page_envelope() {
+    let revision = format!("qch1:{}", "a".repeat(64));
+    let page = QualityHttpHistoryReply {
+        items: vec![
+            QualityCancellation {
+                id: "cancel-2".into(),
+                hold_id: "hold-a".into(),
+                version: 7,
+                action: CancellationAction::Approve,
+                reason: "Independent review".into(),
+                actor_id: "reviewer".into(),
+                created_at: 2,
+            },
+            QualityCancellation {
+                id: "cancel-1".into(),
+                hold_id: "hold-a".into(),
+                version: 5,
+                action: CancellationAction::Request,
+                reason: "Incorrect scope".into(),
+                actor_id: "maker".into(),
+                created_at: 1,
+            },
+        ],
+        next_before: Some(5),
+        head_version: 9,
+        history_revision: revision.clone(),
+    };
+    let backend = Arc::new(Backend::with_history(page));
+    let (address, task) = start(backend.clone()).await;
+    let (status, value) = call(
+        address,
+        "GET",
+        "/api/v1/holdings/acme/quality/hold-a/cancellations",
+        &[],
+        None,
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(
+        value.as_object().unwrap().keys().map(String::as_str).collect::<Vec<_>>(),
+        ["data"]
+    );
+    let data = &value["data"];
+    let mut keys = data.as_object().unwrap().keys().map(String::as_str).collect::<Vec<_>>();
+    keys.sort_unstable();
+    assert_eq!(keys, ["headVersion", "historyRevision", "items", "nextBefore"]);
+    assert_eq!(data["items"], json!([
+        {"id":"cancel-2","holdId":"hold-a","version":7,"action":"approve","reason":"Independent review","actorId":"reviewer","createdAt":2},
+        {"id":"cancel-1","holdId":"hold-a","version":5,"action":"request","reason":"Incorrect scope","actorId":"maker","createdAt":1},
+    ]));
+    assert_eq!(data["nextBefore"], 5);
+    assert_eq!(data["headVersion"], 9);
+    assert_eq!(data["historyRevision"], revision);
+    assert_eq!(*backend.seen_query.lock().unwrap(), "");
+
+    let raw = format!("before=8&head=9&revision=qch1%3A{}", "a".repeat(64));
+    let (status, next) = call(
+        address,
+        "GET",
+        &format!("/api/v1/holdings/acme/quality/hold-a/cancellations?{raw}"),
+        &[],
+        None,
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(next["data"]["items"], data["items"]);
+    assert_eq!(*backend.seen_query.lock().unwrap(), raw);
+    assert_eq!(backend.histories.load(Ordering::SeqCst), 2);
+
+    let public = [("x-erpx-api-transport", "public")];
+    let (status, first) = call(address, "GET",
+        "/api/v1/holdings/acme/quality/hold-a/cancellations?&&", &public, None).await;
+    assert_eq!(status, 200);
+    assert_eq!(first["data"], *data);
+
+    let empty_continuation = format!(
+        "/api/v1/holdings/acme/quality/hold-a/cancellations?before=0&head=9&revision=qch1%3A{}", "a".repeat(64),
+    );
+    let (status, empty) = call(address, "GET", &empty_continuation, &[], None).await;
+    assert_eq!(status, 200);
+    assert_eq!(empty["data"]["items"], json!([]));
+    let (status, error) = call(address, "GET", &empty_continuation, &public, None).await;
+    assert_eq!(status, 503);
+    assert_eq!(error["error"]["code"], "NATIVE_QUALITY_RESPONSE_INVALID");
+
+    let (status, value) = call(
+        address,
+        "GET",
+        "/api/v1/holdings/acme/quality/hold-a/cancellations?before=bad&head=9&revision=qch1%3Aaaaa",
+        &[],
+        None,
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(value, json!({"error":{"code":"QUALITY_HISTORY_CURSOR_INVALID","message":"Reload Quality cancellation history."}}));
     task.abort();
 }
 

@@ -274,4 +274,36 @@ describe('native Quality transport',()=>{
   expect(body).toBeUndefined();
  });
 
+ it('reads the public detail wire and ignores private metric aliases',async()=>{
+  const wire={data:detail};
+  const transport=vi.fn().mockResolvedValue(ok(wire));
+  const client=createNativeQualityReader(config(),transport);
+  const result=await client.detail(incoming(),'acme','hold-a');
+  expect(Object.keys(result).sort()).toEqual(['alerts','cancellations','dispositions','hold','inspections','measurements','specMetrics']);
+  expect(result.specMetrics).toEqual([metric]);
+  expect(canonicalDestinationLinks(wire)).toEqual(wire);
+  const aliases={...metric,minimumValue:'9.9',maximumValue:'10.1'};
+  const privateClient=createNativeQualityReader(config(),vi.fn().mockResolvedValue(ok({data:{...detail,specMetrics:[aliases]}})));
+  await expect(privateClient.detail(incoming(),'acme','hold-a')).resolves.toMatchObject({specMetrics:[metric]});
+  const [method,url,headers,body]=transport.mock.calls[0];
+  expect(method).toBe('GET');expect(url.pathname).toBe('/api/v1/holdings/acme/quality/hold-a');
+  expect(url.search).toBe('');expect(headers.get('host')).toBe('acme.example.com');
+  expect(body).toBeUndefined();
+ });
+
+ it('keeps the cancellation history envelope exact and free of destination presentation',async()=>{
+  const page={items:[{id:'cancel-1',holdId:'hold-a',version:7,action:'request' as const,reason:'Incorrect scope',actorId:'maker',createdAt:1}],
+    nextBefore:null,headVersion:9,historyRevision:`qch1:${'a'.repeat(64)}`};
+  const wire={data:page};
+  const transport=vi.fn().mockResolvedValue(ok(wire));
+  const client=createNativeQualityReader(config(),transport);
+  await expect(client.cancellationHistory(incoming(),'acme','hold-a')).resolves.toEqual(page);
+  expect(Object.keys(page).sort()).toEqual(['headVersion','historyRevision','items','nextBefore']);
+  expect(canonicalDestinationLinks(wire)).toEqual(wire);
+  const [method,url,headers,body]=transport.mock.calls[0];
+  expect(method).toBe('GET');expect(url.pathname).toBe('/api/v1/holdings/acme/quality/hold-a/cancellations');
+  expect(url.search).toBe('');expect(headers.get('host')).toBe('acme.example.com');
+  expect(body).toBeUndefined();
+ });
+
 });

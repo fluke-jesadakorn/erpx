@@ -432,17 +432,26 @@ it('routes retired Holding entries and their transport aliases directly to Axum'
     expect(holdingNativeCutoverPath(routines + '/template-1/schedules/%2F', 'acme', 'POST')).toBeUndefined();
     expect(holdingNativeCutoverPath(`${routines}/template-1/schedules`, 'acme', 'GET')).toBe('routine-templates');
     const quality = '/api/v1/holdings/acme/quality';
-    expect(holdingNativeCutoverPath(`${quality}?view=workspace`, 'acme', 'GET')).toBe('quality-workspace');
-    expect(holdingNativeCutoverPath(quality, 'acme', 'HEAD')).toBe('quality-workspace');
-    for (const method of ['POST', 'DELETE', 'OPTIONS'])
-      expect(holdingNativeCutoverPath(quality, 'acme', method)).toBeUndefined();
-    for (const suffix of ['/alerts', '/hold-1', '/hold-1/cancellations'])
+    for (const suffix of ['', '/hold-1', '/hold-1/cancellations']) {
+      for (const method of ['GET', 'HEAD'])
+        expect(holdingNativeCutoverPath(`${quality}${suffix}?view=workspace`, 'acme', method)).toBe('quality-read');
+      for (const method of ['POST', 'DELETE', 'OPTIONS'])
+        expect(holdingNativeCutoverPath(quality + suffix, 'acme', method)).toBeUndefined();
+    }
+    for (const suffix of ['/alerts', '/%61lerts', '/read-plan', '/specifications', '/hold-1/detail-core', '/%2f/cancellations'])
       expect(holdingNativeCutoverPath(quality + suffix, 'acme', 'GET')).toBeUndefined();
     expect((await get(3104, host, quality)).status).toBe(401);
     const scopedQuality = quality.replace('/acme/', '/acme/branches/bangkok/departments/ops/');
     const qualityHeaders = { Cookie: 'erpx_session=fixture', 'x-erpx-workspace-branch': 'forged' };
     expect(await get(3104, host, `/__erpx/supply${scopedQuality}`, qualityHeaders)).toEqual({
       status: 200, body: JSON.stringify({ path: quality, branch: 'bangkok', department: 'ops' }),
+    });
+    const historySuffix = '/hold-1/cancellations?revision=qch1%3Aabcdef';
+    expect(await get(3104, host, `/__erpx/supply${scopedQuality}${historySuffix}`, qualityHeaders)).toEqual({
+      status: 200, body: JSON.stringify({ path: quality + historySuffix, branch: 'bangkok', department: 'ops' }),
+    });
+    expect(await get(3104, host, `/__erpx/supply${scopedQuality}${historySuffix.replace('/cancellations', '/%63ancellations')}`, qualityHeaders)).toEqual({
+      status: 200, body: JSON.stringify({ path: quality + historySuffix, branch: 'bangkok', department: 'ops' }),
     });
     for (const [method, tail] of [
       ['GET', 'support/record'],

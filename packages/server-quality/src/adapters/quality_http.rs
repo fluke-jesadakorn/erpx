@@ -747,7 +747,7 @@ fn workspace(value: &QualityWorkspace, public_transport: bool) -> Value {
     })
 }
 
-fn detail(value: &QualityDetail) -> Value {
+fn detail(value: &QualityDetail, public_transport: bool) -> Value {
     json!({
         "data": {
             "hold": hold_json(&value.hold.hold, &value.hold.product, value.hold.decision, value.hold.next_action),
@@ -755,7 +755,7 @@ fn detail(value: &QualityDetail) -> Value {
             "measurements": value.measurements.iter().map(measurement).collect::<Vec<_>>(),
             "cancellations": value.cancellations.iter().map(cancellation).collect::<Vec<_>>(),
             "dispositions": value.dispositions.iter().map(disposition).collect::<Vec<_>>(),
-            "specMetrics": value.spec_metrics.iter().map(|row| metric(row, true)).collect::<Vec<_>>(),
+            "specMetrics": value.spec_metrics.iter().map(|row| metric(row, !public_transport)).collect::<Vec<_>>(),
             "alerts": value.alerts.iter().map(alert).collect::<Vec<_>>(),
         }
     })
@@ -1086,6 +1086,10 @@ async fn read_detail(
     Path((slug, id)): Path<(String, String)>,
     request: Request,
 ) -> Response {
+    // The former Next relay emitted the canonical bounds without the aliases
+    // retained on private owner reads.
+    let public_transport = request.headers().get("x-erpx-api-transport")
+        .is_some_and(|value| value == "public");
     let result = async move {
         let target = target(&state, request.headers(), &slug)?;
         let id = RecordId::new(id)?;
@@ -1101,7 +1105,7 @@ async fn read_detail(
     }
     .await;
     match result {
-        Ok(QualityHttpReadReply::Detail(data)) => bounded(detail(&data)),
+        Ok(QualityHttpReadReply::Detail(data)) => bounded(detail(&data, public_transport)),
         Ok(QualityHttpReadReply::Workspace(_)) => error_response(missing()),
         Err(error) => error_response(error),
     }
@@ -1173,6 +1177,18 @@ async fn read_history(
     Path((slug, id)): Path<(String, String)>,
     request: Request,
 ) -> Response {
+    let public_transport = request
+        .headers()
+        .get("x-erpx-api-transport")
+        .is_some_and(|value| value == "public");
+    let has_cursor = request
+        .uri()
+        .query()
+        .is_some_and(|raw| {
+            let empty_public_query =
+                public_transport && raw.len() <= 256 && raw.bytes().all(|byte| byte == b'&');
+            !raw.is_empty() && !empty_public_query
+        });
     let result = async move {
         let target = target(&state, request.headers(), &slug)?;
         let id = RecordId::new(id)?;
@@ -1183,12 +1199,23 @@ async fn read_history(
                 holding_slug: &target.holding_slug,
                 headers: request.headers(),
                 id: id.as_str(),
-                raw_query: request.uri().query(),
+                raw_query: request
+                    .uri()
+                    .query()
+                    .filter(|_| !public_transport || has_cursor),
             })
             .await
     }
     .await;
     match result {
+        // The previous public reader rejects an empty continuation page.
+        Ok(page) if public_transport && has_cursor && page.items.is_empty() => {
+            error_response(BusinessError::new(
+                FailureKind::Unavailable,
+                "NATIVE_QUALITY_RESPONSE_INVALID",
+                "The native Quality reader is unavailable.",
+            ))
+        }
         Ok(page) => bounded(json!({"data": {
             "items": page.items.iter().map(cancellation).collect::<Vec<_>>(),
             "nextBefore": page.next_before,

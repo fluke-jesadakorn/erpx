@@ -286,12 +286,12 @@ const server = createServer(async (req, res) => {
       if (!nativeBase) {
         if (cutover === "routine-templates" || cutover === "routine-schedules") nativeApiError(res, 503, "NATIVE_ROUTINES_UNAVAILABLE", "The native Operations routine read is unavailable.");
         else if (cutover === "routine-command") nativeApiError(res, 503, "NATIVE_ROUTINES_UNAVAILABLE", "The native Operations routine command is unavailable.");
-        else if (cutover === "quality-workspace") nativeQualityUnavailable(res);
+        else if (cutover === "quality-read") nativeQualityUnavailable(res);
         else nativeApiError(res, 503, "NATIVE_RECORD_REGISTRY_UNAVAILABLE", "The native Records registry is unavailable.");
       } else {
         await proxyNativeApi({ base: nativeBase, environment, req, res, url: nativeUrl, workspace: cutover && scoped ? scoped.workspace : undefined,
           requiresSession: (cutover === "routine-templates" || cutover === "routine-schedules") && ["GET", "HEAD"].includes(req.method ?? ""),
-          recordAction: cutover === "record-action", routineCommand: cutover === "routine-command", qualityWorkspace: cutover === "quality-workspace" });
+          recordAction: cutover === "record-action", routineCommand: cutover === "routine-command", qualityRead: cutover === "quality-read" });
       }
     } catch (error) { failed(res, error); }
     return;
