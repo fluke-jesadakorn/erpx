@@ -92,7 +92,7 @@ describe('benefits read-tail r27 related-fact head dedupe', () => {
     expect(src('package-obligations.ts')).toContain('IN SHARE MODE');
   });
 
-  test('retirement:ts-statements is 26, strictly below the r27 BEFORE=33 baseline', () => {
+  test('retirement:ts-statements is 25, strictly below the r27 BEFORE=33 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -102,7 +102,7 @@ describe('benefits read-tail r27 related-fact head dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(26);
+    expect(total).toBe(25);
     expect(total).toBeLessThan(33);
   });
 });

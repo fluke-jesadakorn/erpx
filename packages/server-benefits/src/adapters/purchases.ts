@@ -11,12 +11,13 @@ import {peoplePackageEnforcementMode,readPurchasedAccess} from "@erpx/server-com
 import {requirePeopleCurrentAuthority} from "@erpx/server-people_payroll/public/people-purchases";
 import {benefitPeopleSourceLocks} from "@erpx/server-people_payroll/public/benefits-owner-facts";
 import {benefitEligibilitySourceLocks} from "@erpx/server-learning/public/benefit-source-facts";
+import {selectOneFrom} from "@erpx/server-benefits/adapters/benefits-read-sql";
 
 export type BenefitPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 const permission=(review:boolean)=>review?"benefits.review":"records.write";
 
 export const benefitAssignmentModulePredicate="((selected.role LIKE 'custom_%' AND iam_role_allows(selected.role,selected.company_id,'module.benefits')) OR (selected.role NOT LIKE 'custom_%' AND (jsonb_array_length(selected.modules_json::jsonb)=0 OR selected.modules_json::jsonb @> jsonb_build_array('benefits'::text))))";
-export const benefitAssignmentSelectSql=`SELECT 1 FROM assignments selected WHERE selected.id=? AND ${benefitAssignmentModulePredicate}`;
+export const benefitAssignmentSelectSql=selectOneFrom('assignments selected',` WHERE selected.id=? AND ${benefitAssignmentModulePredicate}`);
 async function current(database:SqlDatabase,actor:WorkContext,key:string,write:boolean,review=false){
  if(!hasModuleAccess(actor.modules,"benefits"))throw new ApiError(403,"MODULE_FORBIDDEN","Your current role cannot access Benefits.");
  await requirePeopleCurrentAuthority(database,actor,key,write?"records.write":"records.read");
