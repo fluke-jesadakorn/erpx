@@ -11,9 +11,29 @@ export function nativeApiBase(environment: NodeJS.ProcessEnv): URL | undefined {
   return base;
 }
 
-export function nativeApiPath(environment: NodeJS.ProcessEnv, url: string, host?: string): boolean {
+function matchesNativeTemplate(template: string, path: string): boolean {
+  if (!template.startsWith("/api/")) return false;
+  const pattern = template.split("/");
+  const segments = path.split("/");
+  return pattern.length === segments.length && pattern.every((part, index) => {
+    const segment = segments[index]!;
+    if (!/^\{[A-Za-z_][A-Za-z0-9_]*\}$/.test(part)) return part === segment;
+    try {
+      const decoded = decodeURIComponent(segment);
+      return !!decoded && decoded !== "." && decoded !== ".." && !/[/\\]/.test(decoded);
+    } catch { return false; }
+  });
+}
+
+export function nativeApiPath(environment: NodeJS.ProcessEnv, url: string, host?: string, method?: string): boolean {
   const path = url.split("?")[0];
   return (environment.ERPX_DEV_NATIVE_PATHS ?? "").split(",").filter(Boolean).some(entry => {
+    const fields = entry.split("|");
+    if (fields.length === 3) {
+      const [entryHost, entryMethod, template] = fields;
+      return !!entryHost && entryHost === host && !!entryMethod && entryMethod === method && matchesNativeTemplate(template!, path);
+    }
+    if (fields.length > 3) return false;
     const separator = entry.indexOf("|");
     const entryHost = separator < 0 ? undefined : entry.slice(0, separator);
     const prefix = separator < 0 ? entry : entry.slice(separator + 1);
@@ -37,8 +57,8 @@ export function stripInternalHeaders(headers: IncomingHttpHeaders): IncomingHttp
     !key.startsWith("x-erpx-") && !key.startsWith("x-forwarded-") && key !== "forwarded"));
 }
 
-export async function nativeSessionContext(base: URL, req: IncomingMessage): Promise<Record<string, string>> {
-  const slug = /^\/api\/v1\/holdings\/([^/]+)\//.exec(req.url ?? "")?.[1];
+export async function nativeSessionContext(base: URL, req: IncomingMessage, url = req.url ?? ""): Promise<Record<string, string>> {
+  const slug = /^\/api\/v1\/holdings\/([^/]+)\//.exec(url)?.[1];
   if (!slug || !req.headers.cookie) return {};
   const requested = req.headers["x-erpx-requested-company"];
   const target = `/internal/session-context?holding=${encodeURIComponent(slug)}`;
@@ -83,15 +103,16 @@ export async function nativeSessionContext(base: URL, req: IncomingMessage): Pro
   return Object.fromEntries(Object.entries(headers).filter(([, item]) => item !== undefined)) as Record<string, string>;
 }
 
-export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.ProcessEnv; req: IncomingMessage; res: ServerResponse }): Promise<void> {
+export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.ProcessEnv; req: IncomingMessage; res: ServerResponse; url?: string }): Promise<void> {
   const { base, environment, req, res } = options;
-  const context = await nativeSessionContext(base, req).catch(() => ({}));
+  const url = options.url ?? req.url ?? "/";
+  const context = await nativeSessionContext(base, req, url).catch(() => ({}));
   await new Promise<void>(done => {
     const upstream = httpRequest({
       host: base.hostname,
       port: Number(base.port || 80),
       method: req.method,
-      path: nativeApiRewrite(environment ?? process.env, req.url ?? "/"),
+      path: nativeApiRewrite(environment ?? process.env, url),
       headers: { ...stripInternalHeaders(req.headers), ...context },
     }, response => {
       res.writeHead(response.statusCode ?? 502, response.headers);

@@ -309,6 +309,13 @@ it('routes /api to the native service, strips browser context and resolves sessi
  expect(nativeApiPath({NODE_ENV:'test',ERPX_DEV_NATIVE_PATHS:'finance.fixture.invalid|/api/a,/api/b'},'/api/a/x','finance.fixture.invalid')).toBe(true);
  expect(nativeApiPath({NODE_ENV:'test',ERPX_DEV_NATIVE_PATHS:'finance.fixture.invalid|/api/a,/api/b'},'/api/a/x','other.fixture.invalid')).toBe(false);
  expect(nativeApiPath({NODE_ENV:'test',ERPX_DEV_NATIVE_PATHS:'finance.fixture.invalid|/api/a,/api/b'},'/api/b','other.fixture.invalid')).toBe(true);
+ const routeEnv = {NODE_ENV:'test' as const, ERPX_DEV_NATIVE_PATHS:'finance.fixture.invalid|GET|/api/v1/holdings/{holding}/records/{module}'};
+ const nativePath = '/api/v1/holdings/acme/records/case';
+ expect(nativeApiPath(routeEnv, `${nativePath}?q=a%2Fb`, 'finance.fixture.invalid', 'GET')).toBe(true);
+ expect(nativeApiPath(routeEnv, nativePath, 'finance.fixture.invalid', 'POST')).toBe(false);
+ expect(nativeApiPath(routeEnv, nativePath, 'other.fixture.invalid', 'GET')).toBe(false);
+ expect(nativeApiPath(routeEnv, `${nativePath}/suggestions`, 'finance.fixture.invalid', 'GET')).toBe(false);
+ expect(nativeApiPath(routeEnv, `${nativePath}%2Fsuggestions`, 'finance.fixture.invalid', 'GET')).toBe(false);
  const seen:Array<{path:string;company:string|undefined;user:string|undefined;modules:string|undefined;requested:string|undefined}>=[];
  const api=createServer((req,res)=>{
   if((req.url??'').startsWith('/internal/session-context')){
@@ -338,6 +345,34 @@ it('routes /api to the native service, strips browser context and resolves sessi
   expect(page).toEqual({status:200,body:'{"app":true}'});
  }finally{await gateway.close();await new Promise<void>(done=>api.close(()=>done()));await new Promise<void>(done=>app.close(()=>done()));}
 },20000);
+
+it('routes an exact Holding API transport alias to Axum with its original query', async () => {
+  await free(3104);
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'erpx-native-selector-')));
+  const upstream = createServer((req, res) => { res.end(req.url); });
+  let gateway: Awaited<ReturnType<typeof startWorkspaceGateway>> | undefined;
+  try {
+    await writeFile(join(root, 'package.json'), JSON.stringify({ name: 'erpx' }));
+    await new Promise<void>(done => upstream.listen(0, '127.0.0.1', done));
+    const address = upstream.address();
+    if (!address || typeof address === 'string') throw new Error('FIXTURE_LISTENER_MISSING');
+    const host = 'acme.jesadakorn.com';
+    gateway = await startWorkspaceGateway({ root, node: process.execPath, port: 3104, preview: false, fallback: null,
+      environment: { NODE_ENV: 'development', ERPX_ENVIRONMENT: 'local', ERPX_PRODUCT_ENVIRONMENT: 'development', ERPX_HOLDING_ROUTING: 'enabled', ERPX_DEV_NATIVE_API: `http://127.0.0.1:${address.port}`,
+        ERPX_DEV_NATIVE_PATHS: `${host}|GET|/api/v1/holdings/{holding}/records/{module}` },
+      settings: () => ({ version: 1, activeApps: ['apps'], maxApps: 1, idleMinutes: 10, bundlers: {}, defaultBundler: 'webpack' }),
+    });
+    const path = '/api/v1/holdings/acme/records/case?cursor=a%2Fb';
+    expect(await get(3104, host, path)).toEqual({ status: 200, body: path });
+    expect(await get(3104, host, `/__erpx/apps${path}`)).toEqual({ status: 200, body: path });
+    expect((await get(3104, host, `/__erpx/sales${path}`)).status).toBe(404);
+    expect((await get(3104, host, path.replace('/acme/', '/northstar/'))).status).toBe(404);
+  } finally {
+    await gateway?.close();
+    await new Promise<void>(done => upstream.close(() => done()));
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 it('prewarms only exact contributor authorities and declared app health paths',async()=>{
   await free(3104);const seen:{host:string|undefined;path:string|undefined}[]=[];

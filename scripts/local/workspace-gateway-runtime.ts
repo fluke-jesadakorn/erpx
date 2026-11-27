@@ -10,7 +10,7 @@ import { recoverGatewayApps, inspectProcessIdentity, assertRetiredLeasePortsAvai
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import {readContributorActionKey, type ContributorActionApp} from "./contributor-action-keys";
 import { appDefinitions, appDirectory, appForHost, unregisteredDevelopmentProductHost } from "@erpx/contracts/apps";
-import {holdingRoutingEnabled,holdingHostForHost,contributorExactOrigin,contributorOriginProfile,originProfile} from '@erpx/feature-runtime/lib/holding-hosts';
+import {holdingRoutingEnabled,holdingHostForHost,holdingPathMatches,contributorExactOrigin,contributorOriginProfile,originProfile} from '@erpx/feature-runtime/lib/holding-hosts';
 import {holdingGatewayApp,holdingGatewayLocation} from './holding-gateway';
 import { consoleWorkspaceCutoverBlockers } from "./console-workspace-cutover";
 import {consoleRetirementResult,developmentConsoleRetired} from '@erpx/contracts/console-retirement';
@@ -267,9 +267,19 @@ const server = createServer(async (req, res) => {
     if(retired){settings();res.writeHead(retired.status,retired.headers);res.end(retired.body);return;}
   }catch(error){failed(res,error);return;}
   const nativeBase = nativeApiBase(environment);
-  if (nativeBase && nativeApiPath(environment, req.url ?? "/", req.headers.host)) {
-    try { await proxyNativeApi({ base: nativeBase, environment, req, res }); } catch { failed(res, new Error("NATIVE_GATEWAY_FAILED")); }
-    return;
+  if (nativeBase) {
+    const requestUrl = req.url ?? "/";
+    const transport = /^\/__erpx\/([^/]+)(\/api\/[^?]*(?:\?.*)?)$/.exec(requestUrl);
+    const holding = holdingRoutingEnabled(environment) ? holdingHostForHost(req.headers.host) : undefined;
+    const nativeUrl = transport && holding ? transport[2]! : requestUrl;
+    if (nativeApiPath(environment, nativeUrl, req.headers.host, req.method)) {
+      try {
+        if (holding && !holdingPathMatches(holding.holdingSlug, nativeUrl.split('?')[0]!)) throw new Error('HOLDING_ROUTE_NOT_FOUND');
+        if (nativeUrl !== requestUrl && target(req) !== transport?.[1]) throw new Error('HOLDING_ROUTE_NOT_FOUND');
+        await proxyNativeApi({ base: nativeBase, environment, req, res, url: nativeUrl });
+      } catch (error) { failed(res, error); }
+      return;
+    }
   }
   // A temporary host-only routing preference lets the normal browser review a
   // candidate app before its public host mapping changes. It grants no access.
