@@ -4,6 +4,7 @@ import {
   nativeRoutineEditorContext,
   nativeRoutineTemplateList,
   nativeRoutineTemplatesAvailable,
+  routineReadHeaders,
   type NativeRoutineEditorContext,
   type NativeRoutineTemplateRow,
 } from '@erpx/feature-operations/public/native-routines-read';
@@ -107,6 +108,18 @@ describe('native routine-template list has complete payload parity', () => {
 });
 
 describe('native routine editor context has complete payload parity', () => {
+  it('uses only the Apps admission set by the server presenter', async () => {
+    const incoming = new Headers(editorRequest().headers);
+    const marker = 'x-erpx-routine-apps-admission';
+    incoming.set(marker, 'deferred');
+    const actor = {
+      companyId: 'company', assignmentId: 'assignment-1',
+      authority: {revision: 7, assignmentVersion: 3}, scope: {kind: 'holding'},
+    };
+    expect(routineReadHeaders(incoming, actor).get(marker)).toBeNull();
+    expect(routineReadHeaders(incoming, actor, 'purchased').get(marker)).toBe('purchased');
+  });
+
   it('returns every native editor field from the private envelope on the editor context path', async () => {
     process.env.ERPX_NATIVE_OPERATIONS_ROUTINES_CONFIG = config;
     const transport = vi.fn<(url: string | URL | Request, init?: RequestInit) => Promise<Response>>(

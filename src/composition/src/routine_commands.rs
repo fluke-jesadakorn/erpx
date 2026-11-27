@@ -595,6 +595,77 @@ fn routine_purchase_mode(name: &'static str) -> Result<PackageEnforcementMode, B
 const WORK_EDITOR_CAPABILITIES: [&str; 2] = ["work.actions", "work.advanced-routines"];
 const PROJECT_EDITOR_CAPABILITIES: [&str; 2] = ["projects.wbs", "projects.tasks"];
 
+fn routine_read_authorization(standalone: bool) -> WorkAuthorizationRequest {
+    let mut permissions = vec!["operations.read".into(), "module.operations.read".into()];
+    if standalone {
+        permissions.push("records.read".into());
+    }
+    WorkAuthorizationRequest {
+        permission: WorkPermissionRequirement::AnyOf(permissions),
+        module: (!standalone).then(|| "operations".into()),
+        destination: "staff-tasks".into(),
+        api: true,
+    }
+}
+
+async fn authorize_standalone_routine_read(
+    connection: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+    admission_deferred: bool,
+    now: TimestampMillis,
+) -> Result<(), Error> {
+    if current
+        .modules()
+        .iter()
+        .any(|module| module == "operations")
+        && (current.has_permission("operations.read")
+            || current.has_permission("module.operations.read"))
+    {
+        return Ok(());
+    }
+    let denied = || {
+        BusinessError::new(
+            FailureKind::Forbidden,
+            "ROUTINE_ACCESS_REQUIRED",
+            "The current role cannot open standalone Routines.",
+        )
+    };
+    if current.beta() || !current.has_permission("records.read") {
+        return Err(denied().into());
+    }
+    if admission_deferred
+        && routine_purchase_mode("ERPX_APPS_PACKAGE_ENFORCEMENT")?
+            == PackageEnforcementMode::Disabled
+    {
+        return Ok(());
+    }
+
+    let company = &current.selection().workspace().company_id;
+    let catalogue = current_package_catalogue()?;
+    let facts = PgCompanyPurchaseReader::new(
+        current.holding_id().clone(),
+        company.clone(),
+        connection,
+        &catalogue,
+    )
+    .read(company)
+    .await?;
+    if !catalogue
+        .purchased_capability(
+            &facts.grants,
+            company.as_str(),
+            "work.advanced-routines",
+            CapabilityPurpose::History,
+            now.get(),
+            &facts.history,
+        )
+        .allowed
+    {
+        return Err(denied().into());
+    }
+    Ok(())
+}
+
 fn grouped_editor_purchase(
     accesses: &BTreeMap<String, PurchasedAccess>,
     capabilities: [&str; 2],
@@ -1997,6 +2068,21 @@ impl<C: Clock + Send + Sync + 'static> RoutineBackend<C> {
         }
     }
 
+    fn standalone_ssr_admission(&self, headers: &HeaderMap) -> Result<Option<bool>, BusinessError> {
+        if self.policy.environment != "development"
+            || unique_request_header(headers, "x-erpx-api-transport")? == Some("public")
+        {
+            return Ok(None);
+        }
+        Ok(
+            match unique_request_header(headers, "x-erpx-routine-apps-admission")? {
+                Some("purchased") => Some(false),
+                Some("deferred") => Some(true),
+                _ => None,
+            },
+        )
+    }
+
     fn context(
         &self,
         headers: &HeaderMap,
@@ -2071,6 +2157,7 @@ impl<C: Clock + Send + Sync + 'static> RoutineHttpBackend for RoutineBackend<C> 
     ) -> RoutineHttpFuture<'a, RoutineHttpResponse> {
         Box::pin(async move {
             let (proof, selection) = self.context(headers, false)?;
+            let standalone = self.standalone_ssr_admission(headers)?;
             let holding = self.service.configuration.holding.clone();
             let company = self.service.company().clone();
             let clock = self.service.clock.clone();
@@ -2080,15 +2167,7 @@ impl<C: Clock + Send + Sync + 'static> RoutineHttpBackend for RoutineBackend<C> 
                     host,
                     proof,
                     selection,
-                    WorkAuthorizationRequest {
-                        permission: WorkPermissionRequirement::AnyOf(vec![
-                            "operations.read".into(),
-                            "module.operations.read".into(),
-                        ]),
-                        module: Some("operations".into()),
-                        destination: "staff-tasks".into(),
-                        api: true,
-                    },
+                    routine_read_authorization(standalone.is_some()),
                     move |connection, current| {
                         let holding = holding.clone();
                         let company = company.clone();
@@ -2099,6 +2178,13 @@ impl<C: Clock + Send + Sync + 'static> RoutineHttpBackend for RoutineBackend<C> 
                                 || current.selection().workspace().company_id != company
                             {
                                 return Err(scope().into());
+                            }
+                            let now = clock.now();
+                            if let Some(deferred) = standalone {
+                                authorize_standalone_routine_read(
+                                    connection, current, deferred, now,
+                                )
+                                .await?;
                             }
                             let holding_owner = current.selection().assignment().scope_kind
                                 == WorkScopeKind::Holding
@@ -2115,7 +2201,7 @@ impl<C: Clock + Send + Sync + 'static> RoutineHttpBackend for RoutineBackend<C> 
                                 connection,
                                 current,
                                 data["template"]["project_id"].as_str(),
-                                clock.now().get(),
+                                now.get(),
                             )
                             .await?;
                             Ok(RoutineHttpResponse {
@@ -2137,6 +2223,7 @@ impl<C: Clock + Send + Sync + 'static> RoutineHttpBackend for RoutineBackend<C> 
     ) -> RoutineHttpFuture<'a, RoutineHttpResponse> {
         Box::pin(async move {
             let (proof, selection) = self.context(headers, false)?;
+            let standalone = self.standalone_ssr_admission(headers)?;
             let holding = self.service.configuration.holding.clone();
             let company = self.service.company().clone();
             let clock = self.service.clock.clone();
@@ -2151,15 +2238,7 @@ impl<C: Clock + Send + Sync + 'static> RoutineHttpBackend for RoutineBackend<C> 
                     host,
                     proof,
                     selection,
-                    WorkAuthorizationRequest {
-                        permission: WorkPermissionRequirement::AnyOf(vec![
-                            "operations.read".into(),
-                            "module.operations.read".into(),
-                        ]),
-                        module: Some("operations".into()),
-                        destination: "staff-tasks".into(),
-                        api: true,
-                    },
+                    routine_read_authorization(standalone.is_some()),
                     move |connection, current| {
                         let holding = holding.clone();
                         let company = company.clone();
@@ -2170,12 +2249,19 @@ impl<C: Clock + Send + Sync + 'static> RoutineHttpBackend for RoutineBackend<C> 
                             {
                                 return Err(scope().into());
                             }
+                            let now = clock.now();
+                            if let Some(deferred) = standalone {
+                                authorize_standalone_routine_read(
+                                    connection, current, deferred, now,
+                                )
+                                .await?;
+                            }
                             let data = read_routine_editor_context(
                                 connection,
                                 current,
                                 strict_picker,
                                 production_render,
-                                clock.now(),
+                                now,
                             )
                             .await?;
                             Ok(RoutineHttpResponse {

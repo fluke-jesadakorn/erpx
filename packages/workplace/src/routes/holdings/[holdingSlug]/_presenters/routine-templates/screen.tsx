@@ -8,13 +8,12 @@ import { ListFilters } from "@erpx/ui/components/list-filters";
 import { EmptyState,PageHeader } from "@erpx/ui/components/primitives";
 import { administrationAccess } from "@erpx/server-runtime/public/administration";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import { headers } from "next/headers";
+import { routineReadRequest } from "./routine-read-request";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import {
   nativeRoutineEditorContext,
   nativeRoutineTemplateList,
   nativeRoutineTemplatesAvailable,
-  routineReadHeaders,
 } from "@erpx/feature-operations/public/native-routines-read";
 
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
@@ -22,17 +21,11 @@ import { Card } from "@erpx/ui/components/foundation";
 async function nativeTemplates(holdingSlug: string, actor: Awaited<ReturnType<typeof requireWorkContext>>) {
   if (!nativeRoutineTemplatesAvailable())
     throw new ApiError(503, "NATIVE_ROUTINES_UNAVAILABLE", "The native Operations routine read is unavailable.");
-  const request = new Request(
-    `http://native-routines.invalid/api/v1/holdings/${encodeURIComponent(holdingSlug)}/routine-templates`,
-    { headers: routineReadHeaders(await headers(), actor) },
-  );
+  const request = await routineReadRequest(holdingSlug, 'routine-templates', actor);
   return nativeRoutineTemplateList(request, holdingSlug, actor.userId);
 }
 async function nativeEditor(holdingSlug: string, actor: Awaited<ReturnType<typeof requireWorkContext>>) {
-  const request = new Request(
-    `http://native-routines.invalid/api/v1/holdings/${encodeURIComponent(holdingSlug)}/routine-template-editor-context`,
-    { headers: routineReadHeaders(await headers(), actor) },
-  );
+  const request = await routineReadRequest(holdingSlug, 'routine-template-editor-context', actor);
   return nativeRoutineEditorContext(request, holdingSlug, actor.userId);
 }
 export default async function Routines({

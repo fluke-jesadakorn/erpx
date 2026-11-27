@@ -1,11 +1,11 @@
 import {RoutineTemplateEditor} from '@erpx/feature-operations/components/routine-template-editor';
 import {
-  nativeRoutineEditorContext, nativeRoutineTemplateSchedules, routineReadHeaders,
+  nativeRoutineEditorContext, nativeRoutineTemplateSchedules,
 } from '@erpx/feature-operations/public/native-routines-read';
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
-import { headers } from "next/headers";
+import { routineReadRequest } from "../routine-read-request";
 
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@erpx/feature-shared/components/features/feature-page";
 import { RoutineScheduleControls } from "@erpx/feature-records/components/loaders/modules--staff-work-controls";
@@ -17,17 +17,11 @@ async function nativeTemplate(
   id: string,
   actor: Awaited<ReturnType<typeof requireWorkContext>>,
 ) {
-  const request = new Request(
-    `http://native-routines.invalid/api/v1/holdings/${encodeURIComponent(holdingSlug)}/routine-templates/${encodeURIComponent(id)}/schedules`,
-    { headers: routineReadHeaders(await headers(), actor) },
-  );
+  const request = await routineReadRequest(holdingSlug, `routine-templates/${encodeURIComponent(id)}/schedules`, actor);
   return nativeRoutineTemplateSchedules(request, holdingSlug, id, actor.userId);
 }
 async function nativeEditor(holdingSlug: string, actor: Awaited<ReturnType<typeof requireWorkContext>>) {
-  const request = new Request(
-    `http://native-routines.invalid/api/v1/holdings/${encodeURIComponent(holdingSlug)}/routine-template-editor-context`,
-    { headers: routineReadHeaders(await headers(), actor) },
-  );
+  const request = await routineReadRequest(holdingSlug, 'routine-template-editor-context', actor);
   return nativeRoutineEditorContext(request, holdingSlug, actor.userId);
 }
 export default async function Routine({

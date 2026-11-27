@@ -101,10 +101,14 @@ type RoutineWorkSelection = {
   scope: { kind: string; branchSlug?: string; departmentSlug?: string };
 };
 
-export function routineReadHeaders(input: HeadersInit, actor: RoutineWorkSelection): Headers {
+export function routineReadHeaders(
+  input: HeadersInit, actor: RoutineWorkSelection, appsAdmission?: 'purchased' | 'deferred',
+): Headers {
   if (!actor.authority)
     throw new ApiError(409, 'WORK_CONTEXT_CHANGED', 'Reload your workspace and try again.');
   const headers = new Headers(input);
+  headers.delete('x-erpx-routine-apps-admission');
+  if (appsAdmission) headers.set('x-erpx-routine-apps-admission', appsAdmission);
   headers.set('x-erpx-context-company', actor.companyId);
   headers.set('x-erpx-context-assignment', actor.assignmentId);
   headers.set('x-erpx-context-revision', String(actor.authority.revision));
@@ -126,7 +130,7 @@ function routineHeaders(request: Request, userId: string): Headers {
   for (const name of [
     'cookie', 'origin', 'x-erpx-context-company', 'x-erpx-context-assignment',
     'x-erpx-context-revision', 'x-erpx-context-assignment-version',
-    'x-erpx-workspace-branch', 'x-erpx-workspace-department',
+    'x-erpx-workspace-branch', 'x-erpx-workspace-department', 'x-erpx-routine-apps-admission',
   ]) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
