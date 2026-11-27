@@ -2,6 +2,7 @@
 pub use crate::adapters::record_context::PgRecordContext;
 pub use crate::application::record_context::{
     RecordContextFuture, RecordContextGuard, RecordContextRepository, record_context,
+    record_context_document,
 };
 pub use crate::domain::record_context::{
     BacklinkEdge, BacklinkView, CONTRACT_VERSION, HistoryRow, LinkTarget, MentionRow,

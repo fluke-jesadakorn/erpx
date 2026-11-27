@@ -8,7 +8,9 @@
 use crate::domain::record_context::valid_module;
 use crate::domain::record_registry::RegistryQuery;
 use crate::domain::record_social::{
-    AddPrincipalMentionInput, mention_input_invalid, validate_mention_input,
+    AddPrincipalMentionInput, SuggestionDecisionInput, SuggestionInput, decision_input_invalid,
+    mention_input_invalid, suggestion_input_invalid, validate_decision_input,
+    validate_mention_input, validate_suggestion_input,
 };
 use crate::domain::record_write::{
     ArchiveRecordInput, CreateRecordInput, MAX_SAFE, ReferenceRecordInput, TransitionRecordInput,
@@ -69,6 +71,19 @@ pub enum RecordsRegistryHttpCommand {
         module_id: String,
         record_id: String,
         input: AddPrincipalMentionInput,
+        key: Option<CommandKey>,
+    },
+    RequestSuggestion {
+        module_id: String,
+        record_id: String,
+        input: SuggestionInput,
+        key: Option<CommandKey>,
+    },
+    DecideSuggestion {
+        module_id: String,
+        record_id: String,
+        suggestion_id: String,
+        input: SuggestionDecisionInput,
         key: Option<CommandKey>,
     },
     Transition {
@@ -394,6 +409,18 @@ pub fn records_registry_http_router(
                 .options(command_options),
         )
         .route(
+            "/api/v1/holdings/{holding_slug}/records/{module_id}/{record_id}/suggestions",
+            any(|| async { StatusCode::METHOD_NOT_ALLOWED })
+                .post(add_suggestion)
+                .options(command_options),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/records/{module_id}/{record_id}/suggestions/{suggestion_id}",
+            any(|| async { StatusCode::METHOD_NOT_ALLOWED })
+                .post(decide_suggestion)
+                .options(command_options),
+        )
+        .route(
             "/api/v1/holdings/{holding_slug}/records/{module_id}/{record_id}/transition",
             post(transition_record).options(command_options),
         )
@@ -685,6 +712,119 @@ async fn add_mention(
         Ok(reply) => {
             let mut response = bounded(serde_json::json!({"data": reply.data}));
             *response.status_mut() = StatusCode::CREATED;
+            response
+        }
+        Err(error) => error_response(error),
+    }
+}
+
+async fn add_suggestion(
+    State(state): State<Arc<RecordsRegistryHttpState>>,
+    Path((slug, module_id, record_id)): Path<(String, String, String)>,
+    request: Request,
+) -> Response {
+    write_suggestion(state, slug, module_id, record_id, None, request).await
+}
+
+async fn decide_suggestion(
+    State(state): State<Arc<RecordsRegistryHttpState>>,
+    Path((slug, module_id, record_id, suggestion_id)): Path<(String, String, String, String)>,
+    request: Request,
+) -> Response {
+    write_suggestion(
+        state,
+        slug,
+        module_id,
+        record_id,
+        Some(suggestion_id),
+        request,
+    )
+    .await
+}
+
+async fn write_suggestion(
+    state: Arc<RecordsRegistryHttpState>,
+    slug: String,
+    module_id: String,
+    record_id: String,
+    suggestion_id: Option<String>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let status = if suggestion_id.is_some() {
+        StatusCode::OK
+    } else {
+        StatusCode::CREATED
+    };
+    let result = async move {
+        let target = target(&state, &headers, &slug)?;
+        if unique_header(&headers, header::ORIGIN)?.is_none_or(|origin| origin != target.origin) {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            ));
+        }
+        let valid_id = crate::domain::record_context::valid_id;
+        if !valid_module(&module_id)
+            || !valid_id(&record_id)
+            || suggestion_id.as_deref().is_some_and(|id| !valid_id(id))
+        {
+            return Err(missing());
+        }
+        let key = unique_header(&headers, HeaderName::from_static("idempotency-key"))?
+            .map(CommandKey::new)
+            .transpose()?;
+        let invalid = if suggestion_id.is_some() {
+            decision_input_invalid
+        } else {
+            suggestion_input_invalid
+        };
+        let input_error = |error: BusinessError| {
+            if error.code == "REQUEST_TOO_LARGE" {
+                error
+            } else {
+                invalid()
+            }
+        };
+        let command = match suggestion_id {
+            Some(suggestion_id) => {
+                let input = read_action_body(request).await.map_err(input_error)?;
+                validate_decision_input(&input)?;
+                RecordsRegistryHttpCommand::DecideSuggestion {
+                    module_id,
+                    record_id,
+                    suggestion_id,
+                    input,
+                    key,
+                }
+            }
+            None => {
+                let input = read_action_body(request).await.map_err(input_error)?;
+                validate_suggestion_input(&input)?;
+                RecordsRegistryHttpCommand::RequestSuggestion {
+                    module_id,
+                    record_id,
+                    input,
+                    key,
+                }
+            }
+        };
+        target
+            .backend
+            .execute(RecordsRegistryHttpRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                command,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(reply) => {
+            let mut response = bounded(serde_json::json!({"data": reply.data}));
+            *response.status_mut() = status;
             response
         }
         Err(error) => error_response(error),

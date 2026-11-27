@@ -430,25 +430,35 @@ it('routes retired Holding entries and their transport aliases directly to Axum'
       ['POST', 'support/record/references'],
       ['POST', 'support/record/transition'],
       ['POST', 'support/record/mentions'],
+      ['POST', 'support/record/suggestions'],
+      ['POST', 'support/record/suggestions/suggestion-1'],
     ] as const)
       expect(holdingNativeCutoverPath(`/api/v1/holdings/acme/records/${tail}`, 'acme', method)).toBe('record-action');
     for (const tail of ['search', 'native-search', '%73earch', 'support%2Frecord', 'support/%2F',
-      'support/record/suggestions', 'support/record/references/extra', 'support/record/detail'])
+      'support/record/suggestions/%2F', 'support/record/suggestions/suggestion-1/extra',
+      'support/record/references/extra', 'support/record/detail'])
       expect(holdingNativeCutoverPath(`/api/v1/holdings/acme/records/${tail}`, 'acme', 'GET')).toBeUndefined();
     await new Promise<void>(done => upstream.close(() => done()));
-    const unavailable = await new Promise<{status: number; body: string}>((done, reject) => {
-      const req = request({host: '127.0.0.1', port: 3104, path: `/__erpx/apps${schedules}/pause`,
-        method: 'POST', headers: {Host: host, Cookie: 'erpx_session=fixture'}}, res => {
-        let body = '';
-        res.setEncoding('utf8');
-        res.on('data', chunk => body += chunk);
-        res.once('end', () => done({status: res.statusCode ?? 0, body}));
+    const suggestions = '/api/v1/holdings/acme/records/support/record/suggestions';
+    for (const [path, code] of [
+      [`${schedules}/pause`, 'NATIVE_ROUTINES_UNAVAILABLE'],
+      [suggestions, 'NATIVE_RECORD_REGISTRY_UNAVAILABLE'],
+      [`${suggestions}/suggestion-1`, 'NATIVE_RECORD_REGISTRY_UNAVAILABLE'],
+    ] as const) {
+      const unavailable = await new Promise<{status: number; body: string}>((done, reject) => {
+        const req = request({host: '127.0.0.1', port: 3104, path: `/__erpx/apps${path}`,
+          method: 'POST', headers: {Host: host, Cookie: 'erpx_session=fixture'}}, res => {
+          let body = '';
+          res.setEncoding('utf8');
+          res.on('data', chunk => body += chunk);
+          res.once('end', () => done({status: res.statusCode ?? 0, body}));
+        });
+        req.once('error', reject);
+        req.end();
       });
-      req.once('error', reject);
-      req.end();
-    });
-    expect(unavailable.status).toBe(503);
-    expect(JSON.parse(unavailable.body)).toMatchObject({error: {code: 'NATIVE_ROUTINES_UNAVAILABLE'}});
+      expect(unavailable.status).toBe(503);
+      expect(JSON.parse(unavailable.body)).toMatchObject({error: {code}});
+    }
   } finally {
     await gateway?.close();
     await new Promise<void>(done => upstream.close(() => done()));

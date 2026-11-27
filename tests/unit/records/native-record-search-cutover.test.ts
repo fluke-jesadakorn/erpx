@@ -160,7 +160,7 @@ describe('native Records search owner execution and payload parity', () => {
     const mount = read('src/composition/src/native_lane_mounts.rs');
     expect(mount).toContain('record_search::SearchTarget');
     expect(mount).toContain('record_search_http::router_for_holdings');
-    expect(mount).toContain('records_search_admission()');
+    expect(mount).toContain('records_search_admission(pools[0].clone(), pools[i + 1].clone())');
     expect(mount).toContain('PRIVATE_API_RECORDS_SEARCH_INVALID');
     expect(mount).toContain('impl SearchAdmission for RecordsSearchAdmission');
     expect(mount).not.toContain('include_str!');

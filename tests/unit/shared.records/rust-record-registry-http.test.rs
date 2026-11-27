@@ -110,6 +110,34 @@ impl RecordsRegistryHttpBackend for Probe {
                     ),
                     serde_json::json!({"mentions": [{"targetId": input.target_id}]}),
                 ),
+                RecordsRegistryHttpCommand::RequestSuggestion {
+                    module_id,
+                    record_id,
+                    input,
+                    key,
+                } => (
+                    format!(
+                        "suggest|{module_id}|{record_id}|{}|{}",
+                        key.as_ref().map_or("", |key| key.as_str()),
+                        input.field_key
+                    ),
+                    serde_json::json!({"suggestions": []}),
+                ),
+                RecordsRegistryHttpCommand::DecideSuggestion {
+                    module_id,
+                    record_id,
+                    suggestion_id,
+                    input,
+                    key,
+                } => (
+                    format!(
+                        "decide|{module_id}|{record_id}|{suggestion_id}|{}|{}|{}",
+                        key.as_ref().map_or("", |key| key.as_str()),
+                        input.expected_version,
+                        input.action.as_str()
+                    ),
+                    serde_json::json!({"suggestions": []}),
+                ),
                 RecordsRegistryHttpCommand::Transition {
                     module_id,
                     record_id,
@@ -809,6 +837,61 @@ async fn mentions_use_created_data_envelope_and_strip_unknown_input_fields() {
     let calls = seen.lock().unwrap();
     assert_eq!(calls.len(), 1);
     assert!(calls[0].contains("mention|support|record-1|records:mention-key-1|u-1"));
+}
+
+#[tokio::test]
+async fn suggestions_keep_created_and_decision_contracts() {
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let router = records_registry_http_router(vec![target(
+        "acme.example.test",
+        "acme",
+        seen.clone(),
+        false,
+    )])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let _server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+    let root = "/api/v1/holdings/acme/records/support/record-1/suggestions";
+    let decision = format!("{root}/sug-1");
+    for (path, body, want) in [
+        (root, r#"{"fieldKey":"priority","ignored":true}"#, 201),
+        (
+            &decision,
+            r#"{"expectedVersion":1.0,"action":"apply"}"#,
+            200,
+        ),
+    ] {
+        let (status, body, _) = http(
+            addr,
+            post(
+                path,
+                "acme.example.test",
+                "https://acme.example.test",
+                "records:suggestion-key",
+                body,
+            ),
+        )
+        .await;
+        assert_eq!(status, want);
+        assert_eq!(body, serde_json::json!({"data":{"suggestions":[]}}));
+    }
+    let (status, body, _) = http(
+        addr,
+        post(
+            &decision,
+            "acme.example.test",
+            "https://acme.example.test",
+            "records:suggestion-bad",
+            r#"{"expectedVersion":1.5,"action":"apply"}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(body["error"]["message"], "Choose apply or reject.");
+    assert_eq!(seen.lock().unwrap().len(), 2);
 }
 
 #[tokio::test]

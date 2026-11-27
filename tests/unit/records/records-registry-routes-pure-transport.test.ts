@@ -13,27 +13,10 @@ const registryPaths = [
   '[module]/[id]/route',
   '[module]/[id]/references/route',
   '[module]/[id]/mentions/route',
+  '[module]/[id]/suggestions/route',
+  '[module]/[id]/suggestions/[suggestionId]/route',
   '[module]/[id]/transition/route',
 ] as const;
-
-// Suggestions retain their TypeScript owner implementation.
-const retained = [
-  [`${directory}/[module]/[id]/suggestions/route.ts`, 'requestSuggestion'],
-  [`${directory}/[module]/[id]/suggestions/[suggestionId]/route.ts`, 'decideSuggestion'],
-] as const;
-
-describe('routes without a native target keep their HEAD TS implementation', () => {
-  it('calls the owner through requireWorkContext instead of failing closed', () => {
-    for (const [path, fn] of retained) {
-      const source = read(path);
-      expect(source, path).toContain('requireWorkContext');
-      expect(source, path).toContain('canonicalDestinationLinks');
-      expect(source, path).toContain(fn);
-      expect(source, path).toContain('@erpx/server-records/public/records');
-      expect(source, path).not.toContain('nativeRecordRegistryUnsupported');
-    }
-  });
-});
 
 describe('search route is pure native transport', () => {
   it('calls the native owner transport with no TS SQL fallback', () => {
@@ -50,7 +33,7 @@ describe('search route is pure native transport', () => {
   });
 });
 
-describe('axum mount and method-surface parity for the five delegated families', () => {
+describe('axum mount and method-surface parity for the seven delegated families', () => {
   const axumRouter = () => {
     const source = read('packages/server-records/src/adapters/record_registry_http.rs');
     const start = source.indexOf('pub fn records_registry_http_router');
@@ -58,14 +41,16 @@ describe('axum mount and method-surface parity for the five delegated families',
     return source.slice(start, end).replace(/\s+/g, ' ').replace(/\s+\./g, '.');
   };
 
-  it('registers exactly the five axum path families with the delegated methods', () => {
+  it('registers exactly the seven axum path families with the delegated methods', () => {
     const axum = axumRouter();
-    expect(axum.match(/\.route\(/g)).toHaveLength(5);
+    expect(axum.match(/\.route\(/g)).toHaveLength(7);
     for (const [path, methods] of [
       ['/api/v1/holdings/{holding_slug}/records/{module_id}', 'get(read_registry).post(create_record).options(collection_options)'],
       ['/api/v1/holdings/{holding_slug}/records/{module_id}/{record_id}', 'patch(update_record).delete(delete_record).options(record_options)'],
       ['/api/v1/holdings/{holding_slug}/records/{module_id}/{record_id}/references', 'post(add_reference).options(command_options)'],
       ['/api/v1/holdings/{holding_slug}/records/{module_id}/{record_id}/mentions', 'any(|| async { StatusCode::METHOD_NOT_ALLOWED }).post(add_mention).options(command_options)'],
+      ['/api/v1/holdings/{holding_slug}/records/{module_id}/{record_id}/suggestions', 'any(|| async { StatusCode::METHOD_NOT_ALLOWED }).post(add_suggestion).options(command_options)'],
+      ['/api/v1/holdings/{holding_slug}/records/{module_id}/{record_id}/suggestions/{suggestion_id}', 'any(|| async { StatusCode::METHOD_NOT_ALLOWED }).post(decide_suggestion).options(command_options)'],
       ['/api/v1/holdings/{holding_slug}/records/{module_id}/{record_id}/transition', 'post(transition_record).options(command_options)'],
     ] as const)
       expect(axum, `${path} method surface`).toContain(`"${path}", ${methods}`);
@@ -109,6 +94,8 @@ describe('exact literal module selector preserves /records/search', () => {
         `${host}|DELETE|/api/v1/holdings/acme/records/${module}/{id}`,
         `${host}|POST|/api/v1/holdings/acme/records/${module}/{id}/references`,
         `${host}|POST|/api/v1/holdings/acme/records/${module}/{id}/mentions`,
+        `${host}|POST|/api/v1/holdings/acme/records/${module}/{id}/suggestions`,
+        `${host}|POST|/api/v1/holdings/acme/records/${module}/{id}/suggestions/{suggestionId}`,
         `${host}|POST|/api/v1/holdings/acme/records/${module}/{id}/transition`,
       ])
       .join(','),
@@ -119,7 +106,7 @@ describe('exact literal module selector preserves /records/search', () => {
       expect(nativeApiPath(wildcard, path, host, 'GET'), `${path} must expose the wildcard hazard`).toBe(true);
   });
 
-  it('keeps all five delegated families per exact module and excludes search', () => {
+  it('keeps all seven delegated families per exact module and excludes search', () => {
     for (const module of modules)
       for (const [suffix, method] of [
         ['', 'GET'],
@@ -129,6 +116,8 @@ describe('exact literal module selector preserves /records/search', () => {
         ['/rec-1', 'DELETE'],
         ['/rec-1/references', 'POST'],
         ['/rec-1/mentions', 'POST'],
+        ['/rec-1/suggestions', 'POST'],
+        ['/rec-1/suggestions/sug-1', 'POST'],
         ['/rec-1/transition', 'POST'],
       ] as const)
         expect(
@@ -137,7 +126,7 @@ describe('exact literal module selector preserves /records/search', () => {
         ).toBe(true);
     for (const path of reserved)
       expect(nativeApiPath(exact, path, host, 'GET'), `${path} must stay on the Next search route`).toBe(false);
-    expect(nativeApiPath(exact, '/api/v1/holdings/acme/records/operations/rec-1/suggestions', host, 'POST')).toBe(false);
+    expect(nativeApiPath(exact, '/api/v1/holdings/acme/records/operations/rec-1/suggestions/sug-1/extra', host, 'POST')).toBe(false);
   });
 
   it('does not rely on the Rust module validator to reserve search literals', () => {

@@ -12,11 +12,15 @@ use erpx_server_records::public::native_command::{
     NativeCommand, PgNativeCommandRepository, execute_native_command,
 };
 use erpx_server_records::public::record_context::{
-    PgRecordContext, RecordContextActor, RecordContextRepository, record_context,
+    PgRecordContext, RecordContextActor, RecordContextDocument, RecordContextRepository,
+    record_context, record_context_document,
 };
 use erpx_server_records::public::record_social::{
-    AddPrincipalMentionInput, MENTION_STATEMENT, MentionWrite, OP_MENTION,
-    mention_target_not_eligible, mention_target_unavailable, plan_mention, validate_mention_input,
+    AddPrincipalMentionInput, FIELD_WRITE_STATEMENT, MENTION_STATEMENT, MentionWrite, OP_MENTION,
+    OP_SUGGESTION, OP_SUGGESTION_DECIDE, SUGGESTION_STATE_STATEMENT, SUGGESTION_STATEMENT,
+    SuggestionInput, guard_social_owner, mention_target_not_eligible, mention_target_unavailable,
+    parse_proposed_value, parse_sources, plan_mention, plan_suggestion_request,
+    suggestion_conflict, suggestion_unavailable, validate_mention_input,
 };
 use erpx_server_records::public::record_write::{
     ArchiveRecordInput, CreateRecordInput, MAX_REFERENCES, MAX_SAFE, RecordFieldInput,
@@ -33,6 +37,7 @@ use erpx_server_workflow::public::commands::{
     CommandActor, CommandDisposition, CommandField, CommandJson, PgCommandAuthority,
     PgCommandLedger, PgOwnerCommandEffects, WorkAuthority, WorkflowOutput, WorkflowRequest,
 };
+use sha2::{Digest, Sha256};
 use sqlx::{Connection, PgConnection};
 use std::sync::Arc;
 
@@ -758,6 +763,307 @@ impl PgOwnerCommandEffects for MentionEffects<'_> {
             Ok(())
         } else {
             Err(changed().into())
+        }
+    }
+}
+
+#[derive(Clone)]
+pub(crate) enum SuggestionOperation {
+    Request {
+        field_key: String,
+    },
+    Decide {
+        suggestion_id: String,
+        expected_version: i64,
+        apply: bool,
+    },
+}
+
+impl SuggestionOperation {
+    fn receipt_input(&self, module_id: &str) -> Result<(&'static str, CommandJson), BusinessError> {
+        #[derive(serde::Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Request<'a> {
+            module_id: &'a str,
+            field_key: &'a str,
+        }
+        #[derive(serde::Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Decision<'a> {
+            module_id: &'a str,
+            suggestion_id: &'a str,
+            expected_version: i64,
+            action: &'a str,
+        }
+        match self {
+            Self::Request { field_key } => Ok((
+                OP_SUGGESTION,
+                CommandJson::from_serializable(&Request {
+                    module_id,
+                    field_key,
+                })?,
+            )),
+            Self::Decide {
+                suggestion_id,
+                expected_version,
+                apply,
+            } => Ok((
+                OP_SUGGESTION_DECIDE,
+                CommandJson::from_serializable(&Decision {
+                    module_id,
+                    suggestion_id,
+                    expected_version: *expected_version,
+                    action: if *apply { "apply" } else { "reject" },
+                })?,
+            )),
+        }
+    }
+}
+
+struct StagedSuggestion {
+    id: String,
+    state: &'static str,
+    version: i64,
+    writes: Vec<NativeCommand>,
+}
+
+struct SuggestionEffects<'a> {
+    actor: &'a RecordContextActor,
+    module_id: &'a str,
+    record_id: &'a str,
+    operation: &'a SuggestionOperation,
+    now: i64,
+    staged: Option<StagedSuggestion>,
+}
+
+fn suggestion_write(now: i64, kind: &str, values: Vec<serde_json::Value>) -> NativeCommand {
+    NativeCommand {
+        kind: kind.into(),
+        values,
+        now,
+    }
+}
+
+impl SuggestionEffects<'_> {
+    fn stage_request(
+        &self,
+        actor: &CommandActor,
+        context: RecordContextDocument,
+        field_key: &str,
+    ) -> Result<StagedSuggestion, BusinessError> {
+        let fields: Vec<RecordFieldInput> = serde_json::from_value(context.record.fields)
+            .map_err(|_| erpx_server_records::public::record_context::source_invalid())?;
+        let id = Ids.next().as_str().to_owned();
+        let plan = plan_suggestion_request(
+            &SuggestionInput {
+                field_key: field_key.into(),
+            },
+            self.module_id,
+            self.record_id,
+            &fields,
+            &context.references,
+            &id,
+            |raw| {
+                Ok(hex::encode(Sha256::digest(
+                    CommandJson::parse(raw)?.as_str(),
+                )))
+            },
+        )?;
+        Ok(StagedSuggestion {
+            id,
+            state: "ready",
+            version: context.record.version,
+            writes: vec![suggestion_write(
+                self.now,
+                SUGGESTION_STATEMENT,
+                plan.values(actor.user_id.as_str(), self.now),
+            )],
+        })
+    }
+}
+
+impl PgOwnerCommandEffects for SuggestionEffects<'_> {
+    async fn lock_sources(
+        &mut self,
+        connection: &mut PgConnection,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        sqlx::query(
+            "LOCK TABLE workspace_records,record_reference_edges,record_field_suggestions \
+             IN SHARE ROW EXCLUSIVE MODE NOWAIT",
+        )
+        .execute(&mut *connection)
+        .await
+        .map_err(
+            erpx_server_runtime::public::postgres::PersistenceError::pre_snapshot_lock_conflict,
+        )?;
+        Ok(())
+    }
+
+    async fn prepare(
+        &mut self,
+        connection: &mut PgConnection,
+        current: &CommandActor,
+        _: &WorkflowRequest,
+    ) -> Result<WorkflowOutput, Error> {
+        let mut repository = PgRecordContext::new(connection);
+        let context = record_context_document(
+            &mut repository,
+            &mut crate::records::RecordsContextGuardImpl,
+            self.actor,
+            self.module_id,
+            self.record_id,
+            self.now,
+        )
+        .await?;
+        let original_version = context.record.version;
+        let staged = match self.operation {
+            SuggestionOperation::Request { field_key } => {
+                self.stage_request(current, context, field_key)?
+            }
+            SuggestionOperation::Decide {
+                suggestion_id,
+                expected_version,
+                apply,
+            } => {
+                let stored = context
+                    .suggestions
+                    .iter()
+                    .find(|row| row.id == *suggestion_id && row.state == "ready")
+                    .ok_or_else(suggestion_unavailable)?;
+                if original_version != *expected_version {
+                    return Err(suggestion_conflict().into());
+                }
+                let mut writes = Vec::new();
+                let mut version = original_version;
+                let state = if *apply {
+                    // The preview-only Modules in the current workspace catalogue.
+                    let preview = matches!(
+                        self.module_id,
+                        "brand"
+                            | "commercial"
+                            | "organization"
+                            | "platform_administration"
+                            | "quality"
+                            | "manage_erpx"
+                    );
+                    guard_social_owner(self.module_id, preview)?;
+                    for source in parse_sources(&stored.source_versions_json)? {
+                        let (module, id) = source
+                            .record
+                            .split_once('/')
+                            .ok_or_else(suggestion_conflict)?;
+                        if !self.actor.permits_module(module) {
+                            return Err(forbidden().into());
+                        }
+                        let fact = repository
+                            .link_target(self.actor, module, id)
+                            .await?
+                            .ok_or_else(record_not_found)?;
+                        if fact.version != source.version {
+                            return Err(BusinessError::new(
+                                FailureKind::Conflict,
+                                "CONFLICT",
+                                "The record changed, a reference is unavailable, or this value already exists. Refresh and review again.",
+                            ).into());
+                        }
+                    }
+                    let mut fields = context.record.fields;
+                    let field = fields
+                        .as_array_mut()
+                        .and_then(|fields| {
+                            fields.iter_mut().find(|field| {
+                                field.get("key").and_then(serde_json::Value::as_str)
+                                    == Some(&stored.field_key)
+                            })
+                        })
+                        .and_then(|field| field.get_mut("value"))
+                        .ok_or_else(suggestion_conflict)?;
+                    *field = parse_proposed_value(&stored.proposed_value_json)?;
+                    writes.push(suggestion_write(
+                        self.now,
+                        FIELD_WRITE_STATEMENT,
+                        vec![
+                            CommandJson::from_serializable(&fields)?.as_str().into(),
+                            current.user_id.as_str().into(),
+                            self.now.into(),
+                            self.module_id.into(),
+                            self.record_id.into(),
+                        ],
+                    ));
+                    version += 1;
+                    "applied"
+                } else {
+                    "rejected"
+                };
+                writes.push(suggestion_write(
+                    self.now,
+                    SUGGESTION_STATE_STATEMENT,
+                    vec![
+                        state.into(),
+                        current.user_id.as_str().into(),
+                        self.now.into(),
+                        suggestion_id.clone().into(),
+                    ],
+                ));
+                StagedSuggestion {
+                    id: suggestion_id.clone(),
+                    state,
+                    version,
+                    writes,
+                }
+            }
+        };
+        self.staged = Some(staged);
+        Ok(WorkflowOutput {
+            version: original_version,
+            result: CommandJson::from_serializable(&serde_json::json!({"id": self.record_id}))?,
+            event_scope: None,
+        })
+    }
+
+    async fn apply(
+        &mut self,
+        connection: &mut PgConnection,
+        _: &CommandActor,
+        command: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        let staged = self.staged.as_ref().ok_or_else(unavailable)?;
+        let mut repository = PgNativeCommandRepository::new(connection);
+        for write in &staged.writes {
+            if execute_native_command(write, &command.key, &mut repository)
+                .await?
+                .rows
+                != 1
+            {
+                return Err(suggestion_conflict().into());
+            }
+        }
+        Ok(())
+    }
+
+    async fn retain(
+        &mut self,
+        connection: &mut PgConnection,
+        _: &CommandActor,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        let staged = self.staged.as_ref().ok_or_else(unavailable)?;
+        let mut repository = PgRecordContext::new(connection);
+        let record = repository
+            .record(self.actor, self.module_id, self.record_id)
+            .await?;
+        let suggestions = repository
+            .suggestions(self.module_id, self.record_id)
+            .await?;
+        if record.is_some_and(|record| record.version == staged.version)
+            && suggestions
+                .iter()
+                .any(|row| row.id == staged.id && row.state == staged.state)
+        {
+            Ok(())
+        } else {
+            Err(suggestion_conflict().into())
         }
     }
 }
@@ -1558,6 +1864,96 @@ impl<C: Clock + Send + Sync + 'static> RecordsCommandService<C> {
                             input: &mention,
                             now,
                             write: None,
+                        };
+                        let mut ids = Ids;
+                        PgCommandLedger::new(
+                            company,
+                            connection,
+                            &mut authority,
+                            clock.as_ref(),
+                            &mut ids,
+                        )
+                        .execute(&request, &mut effects)
+                        .await?;
+                        let data = record_context(
+                            &mut PgRecordContext::new(connection),
+                            &mut crate::records::RecordsContextGuardImpl,
+                            &actor,
+                            &module_id,
+                            &request.record_id,
+                            now,
+                        )
+                        .await?;
+                        Ok((data, crate::records::context_value(current)))
+                    })
+                },
+            )
+            .await
+    }
+
+    pub(crate) async fn suggestion_with_context<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        module_id: String,
+        record_id: String,
+        operation: SuggestionOperation,
+        key: Option<CommandKey>,
+    ) -> Result<(serde_json::Value, serde_json::Value), Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        erpx_server_records::public::record_context::validate_request(&module_id, &record_id)?;
+        let holding = self.configuration.holding_id().clone();
+        let company = self.configuration.company().clone();
+        let clock = self.clock.clone();
+        let key = match key {
+            Some(key) => key,
+            None => CommandKey::new(Ids.next().as_str())?,
+        };
+        let (name, wire) = operation.receipt_input(&module_id)?;
+        let request = WorkflowRequest {
+            key: key.as_str().to_owned(),
+            operation: name.into(),
+            record_id,
+            input: wire,
+        };
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(&module_id),
+                crate::records::RecordsSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let module_id = module_id.clone();
+                    let operation = operation.clone();
+                    let request = request.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.read")?;
+                        let actor = crate::records::records_actor(current)?;
+                        let now = clock.now().get();
+                        let mut authority = Authority {
+                            current,
+                            request: &request,
+                            clock: clock.as_ref(),
+                        };
+                        let mut effects = SuggestionEffects {
+                            actor: &actor,
+                            module_id: &module_id,
+                            record_id: &request.record_id,
+                            operation: &operation,
+                            now,
+                            staged: None,
                         };
                         let mut ids = Ids;
                         PgCommandLedger::new(

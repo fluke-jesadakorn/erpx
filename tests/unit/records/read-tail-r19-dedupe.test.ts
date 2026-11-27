@@ -60,14 +60,14 @@ describe('Records read-tail r19 existsGuardSql family', () => {
     readOnly(actual);
   });
 
-  test('the family is one generator literal with four callers and no inlined guard', () => {
+  test('the three retained callers share one generator and the suggestion guard is retired', () => {
     expect(shared.match(/export const existsGuardSql\s*=/g) ?? []).toHaveLength(1);
     expect((shared.match(/SELECT /g) ?? []).length).toBe(1);
-    expect(records.match(/existsGuardSql\(/g) ?? []).toHaveLength(3);
+    expect(records.match(/existsGuardSql\(/g) ?? []).toHaveLength(2);
     expect(requestAi.match(/existsGuardSql\(/g) ?? []).toHaveLength(1);
     expect(records).not.toContain(pre.recordVersion.sql);
     expect(records).not.toContain(pre.companyVersion.sql);
-    expect(records).not.toContain(pre.suggestionReady.sql);
+    expect(records).not.toContain(pre.suggestionReady.table);
     expect(requestAi).not.toContain(pre.proposalLease.sql);
     expect(shared).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
   });

@@ -35,7 +35,8 @@ export function holdingNativeCutoverPath(url: string, holdingSlug: string, metho
     if (!/^[a-z0-9_-]+$/.test(module) || module === "search" || module === "native-search") return;
     if (tail.length === 0) return owner;
     if (!validId(tail[0]!)) return;
-    if (tail.length === 1 || tail.length === 2 && ["references", "transition", "mentions"].includes(tail[1]!)) return "record-action";
+    if (tail.length === 1 || tail.length === 2 && ["references", "transition", "mentions", "suggestions"].includes(tail[1]!)) return "record-action";
+    if (tail.length === 3 && tail[1] === "suggestions" && validId(tail[2]!)) return "record-action";
   } catch {
     return;
   }

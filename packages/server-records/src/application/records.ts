@@ -6,7 +6,7 @@ import { z } from "zod";
 import { hasModuleAccess } from "@erpx/catalogue/module-access";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { readListPage } from "@erpx/server-work_projection/public/list-page";
-import { type RecordField, type WorkspaceRecord, type RecordRow, updateRecordSchema, createRecordSchema, transitionSchema, addReferenceSchema, suggestionSchema, suggestionDecisionSchema, nextStatus } from '@erpx/server-records/domain/records';
+import { type RecordField, type WorkspaceRecord, type RecordRow, updateRecordSchema, createRecordSchema, transitionSchema, addReferenceSchema, nextStatus } from '@erpx/server-records/domain/records';
 import { BusinessRuleError, type Clock, type IdentifierSource } from '@erpx/server-shared/index';
 import type { RecordsCommands } from '@erpx/server-records/domain/commands';
 type Tail<Value extends unknown[]> = Value extends [
@@ -71,11 +71,6 @@ export interface RecordsRepository<Effect> {
         count: number;
     } | null>;
     stageAddReferenceEffect(moduleId: string, id: string, targetModule: string, targetId: string, kind: "dependsOn" | "blocks" | "billedBy" | "fulfills" | "authoredWith", moduleId2: string, id2: string, userId: string, now: number): Effect;
-    stageRequestSuggestionEffect(suggestionId: string, moduleId: string, id: string, key: string, value: string, value2: string, value3: string, value4: string, value5: "ready", userId: string, now: number, now2: number): Effect;
-    guard24(key: string, value: "suggestion-ready", suggestionId: string): Effect;
-    guard25(key: string, value: string, mod: string, sourceId: string, version: number): Effect;
-    stageDecideSuggestionEffect(value: string, userId: string, now: number, moduleId: string, id: string): Effect;
-    stageDecideSuggestionEffect2(value: "rejected" | "applied", userId: string, now: number, suggestionId: string): Effect;
 }
 export interface RecordsPorts<Effect> {
     repository: RecordsRepository<Effect>;
@@ -88,7 +83,6 @@ export interface RecordsPorts<Effect> {
     policyRead<Result>(key: string, read: () => Promise<Result>): Promise<Result>;
     policyNow(): number;
     prepareControl(): Promise<void>;
-    hash(value: unknown): Promise<string>;
     pageRecords(actor: WorkContext, moduleId: string, sectionId: string, query: {
         q?: string;
         cursor?: string;
@@ -288,58 +282,6 @@ export function createRecordsApplication<Effect>(ports: RecordsPorts<Effect>) {
         await recordMutation(actor, moduleId, id, current.version, "record.reference", input, [r.stageAddReferenceEffect(moduleId, id, input.targetModule, input.targetId, input.kind, moduleId, id, actor.userId, ports.clock.now())], key);
         return recordContext(actor, moduleId, id);
     }
-    async function digest(value: unknown) { return ports.hash(value); }
-    async function requestSuggestion(actor: WorkContext, moduleId: string, id: string, input: z.infer<typeof suggestionSchema>, key = ports.identifiers.next()) {
-        const context = await recordContext(actor, moduleId, id);
-        const field = context.record.fields.find((item) => item.key === input.fieldKey);
-        if (!field)
-            throw new BusinessRuleError(422, "UNKNOWN_FIELD", "Choose an editable field.");
-        const refs = (context.references as Array<{
-            target_module: string;
-            target_id: string;
-            title: string;
-            version: number;
-            access: string;
-        }>).filter(ref => ref.access === "available");
-        if (!refs.length)
-            throw new BusinessRuleError(409, "EVIDENCE_REQUIRED", "Add at least one readable @ reference before requesting a suggestion.");
-        const proposed = field.type === "number" ? refs.length : `${refs.map((ref) => `@${ref.target_module}/${ref.target_id}`).join(", ")} — reviewed for ${field.label.toLowerCase()}`;
-        const now = ports.clock.now(), suggestionId = ports.identifiers.next();
-        await ports.prepare(actor.holdingId);
-        const sources = refs.map((ref) => ({ record: `${ref.target_module}/${ref.target_id}`, version: ref.version }));
-        const provenance = { provider_kind: "development", model_ref: "erpx-evidence-assistant-v1", prompt_digest: await digest({ moduleId, field: field.key, sources }) };
-        await recordMutation(actor, moduleId, id, context.record.version, "record.suggestion", input, [r.stageRequestSuggestionEffect(suggestionId, moduleId, id, field.key, JSON.stringify(proposed), await digest(field.value), JSON.stringify(sources), JSON.stringify(provenance), "ready", actor.userId, now, now)], key);
-        return recordContext(actor, moduleId, id);
-    }
-    async function decideSuggestion(actor: WorkContext, moduleId: string, id: string, suggestionId: string, input: z.infer<typeof suggestionDecisionSchema>, key = ports.identifiers.next()) {
-        await ports.prepare(actor.holdingId);
-        if (await ports.commands.replay(actor, key, "record.suggestion.decide", id, { moduleId, suggestionId, ...input }))
-            return recordContext(actor, moduleId, id);
-        const context = await recordContext(actor, moduleId, id), suggestion = (context.suggestions as Array<Record<string, unknown>>).find(item => item.id === suggestionId);
-        if (!suggestion || suggestion.state !== "ready")
-            throw new BusinessRuleError(409, "SUGGESTION_UNAVAILABLE", "This suggestion is no longer ready.");
-        const now = ports.clock.now();
-        if (context.record.version !== input.expectedVersion)
-            throw new BusinessRuleError(409, "SUGGESTION_CONFLICT", "The record changed. Request a new suggestion.");
-        const statements: Effect[] = [r.guard24(key, "suggestion-ready", suggestionId)];
-        if (input.action === "apply") {
-            assertGenericRecordOwner(moduleId, actor);
-            for (const source of JSON.parse(String(suggestion.source_versions_json)) as Array<{
-                record: string;
-                version: number;
-            }>) {
-                const [mod, ...rest] = source.record.split("/"), sourceId = rest.join("/");
-                await getRecord(actor, mod, sourceId);
-                statements.push(r.guard25(key, `source-${statements.length}`, mod, sourceId, source.version));
-            }
-            const value = JSON.parse(String(suggestion.proposed_value_json)) as string | number | boolean;
-            const fields = context.record.fields.map(field => keyValue(field, { [String(suggestion.field_key)]: value }));
-            statements.push(r.stageDecideSuggestionEffect(JSON.stringify(fields), actor.userId, now, moduleId, id));
-        }
-        statements.push(r.stageDecideSuggestionEffect2(input.action === "apply" ? "applied" : "rejected", actor.userId, now, suggestionId));
-        await recordMutation(actor, moduleId, id, context.record.version, "record.suggestion.decide", { suggestionId, ...input }, statements, key);
-        return recordContext(actor, moduleId, id);
-    }
     async function recordsPage(actor: WorkContext, moduleId: string, sectionId: string, query: {
         q?: string;
         cursor?: string;
@@ -349,5 +291,5 @@ export function createRecordsApplication<Effect>(ports: RecordsPorts<Effect>) {
         const page = await ports.pageRecords(actor, moduleId, sectionId, query);
         return { ...page, items: page.items.map(mapRecord) };
     }
-    return { listRecords, getRecord, createRecord, archiveRecord, updateRecord, transitionRecord, recordContext, searchReferences, addReference, requestSuggestion, decideSuggestion, recordsPage };
+    return { listRecords, getRecord, createRecord, archiveRecord, updateRecord, transitionRecord, recordContext, searchReferences, addReference, recordsPage };
 }

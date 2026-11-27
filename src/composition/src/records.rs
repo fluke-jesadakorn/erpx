@@ -1,4 +1,5 @@
 use crate::business_http::BusinessScopeSlugs;
+use crate::records_command::SuggestionOperation;
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
     account_inbound_http::{
@@ -33,7 +34,7 @@ use erpx_server_records::public::record_registry_http::{
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{DatabasePool, PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
-    AssignmentId, BusinessError, Clock, CompanyId, FailureKind, HoldingId,
+    AssignmentId, BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId,
 };
 use serde_json::Value;
 use sqlx::PgConnection;
@@ -426,7 +427,9 @@ impl<C: Clock + Send + Sync + 'static> RecordsService<C> {
             RecordsRegistryHttpCommand::Reference { .. } => {
                 return Err(unavailable().into());
             }
-            RecordsRegistryHttpCommand::Mention { .. } => {
+            RecordsRegistryHttpCommand::Mention { .. }
+            | RecordsRegistryHttpCommand::RequestSuggestion { .. }
+            | RecordsRegistryHttpCommand::DecideSuggestion { .. } => {
                 return Err(unavailable().into());
             }
             RecordsRegistryHttpCommand::Transition { .. } => {
@@ -571,6 +574,47 @@ impl<C: Clock + Send + Sync + 'static> RecordsBackend<C> {
         ))
     }
 
+    fn captured_mutation(
+        &self,
+        headers: &HeaderMap,
+    ) -> Result<(DeviceProof, CapturedHoldingMutation), BusinessError> {
+        let inbound = parse_inbound_account_request(&self.policy, headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(not_found());
+        }
+        let (branch, department) = self.scopes.slugs(headers)?;
+        Ok((
+            inbound.into_proof(),
+            CapturedHoldingMutation::capture(headers, branch, department),
+        ))
+    }
+
+    async fn execute_suggestion(
+        &self,
+        host: &str,
+        headers: &HeaderMap,
+        module_id: String,
+        record_id: String,
+        operation: SuggestionOperation,
+        key: Option<CommandKey>,
+    ) -> Result<RecordsRegistryHttpResponse, BusinessError> {
+        let (proof, selected) = self.captured_mutation(headers)?;
+        let (data, context) = self
+            .command
+            .suggestion_with_context(
+                host,
+                proof,
+                move || selected.resolve(),
+                module_id,
+                record_id,
+                operation,
+                key,
+            )
+            .await
+            .map_err(business)?;
+        Ok(RecordsRegistryHttpResponse { data, context })
+    }
+
     fn context_request(
         &self,
         headers: &HeaderMap,
@@ -655,25 +699,51 @@ impl<C: Clock + Send + Sync + 'static> RecordsRegistryHttpBackend for RecordsBac
         request: RecordsRegistryHttpRequest<'a>,
     ) -> RecordsRegistryHttpFuture<'a, RecordsRegistryHttpResponse> {
         Box::pin(async move {
+            let command = match request.command {
+                RecordsRegistryHttpCommand::RequestSuggestion {
+                    module_id,
+                    record_id,
+                    input,
+                    key,
+                } => {
+                    return self
+                        .execute_suggestion(
+                            request.host,
+                            request.headers,
+                            module_id,
+                            record_id,
+                            SuggestionOperation::Request {
+                                field_key: input.field_key,
+                            },
+                            key,
+                        )
+                        .await;
+                }
+                RecordsRegistryHttpCommand::DecideSuggestion {
+                    module_id,
+                    record_id,
+                    suggestion_id,
+                    input,
+                    key,
+                } => {
+                    return self.execute_suggestion(request.host, request.headers, module_id, record_id,
+                        SuggestionOperation::Decide { suggestion_id, expected_version: input.expected_version, apply: input.action == erpx_server_records::public::record_social::SuggestionDecision::Apply }, key).await;
+                }
+                command => command,
+            };
             if let RecordsRegistryHttpCommand::Mention {
                 module_id,
                 record_id,
                 input,
                 key,
-            } = request.command
+            } = command
             {
-                let inbound = parse_inbound_account_request(&self.policy, request.headers)?;
-                if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
-                    return Err(not_found());
-                }
-                let (branch, department) = self.scopes.slugs(request.headers)?;
-                let selected =
-                    CapturedHoldingMutation::capture(request.headers, branch, department);
+                let (proof, selected) = self.captured_mutation(request.headers)?;
                 let (data, context) = self
                     .command
                     .mention_with_context(
                         request.host,
-                        inbound.into_proof(),
+                        proof,
                         move || selected.resolve(),
                         self.control.clone(),
                         module_id,
@@ -686,7 +756,7 @@ impl<C: Clock + Send + Sync + 'static> RecordsRegistryHttpBackend for RecordsBac
                 return Ok(RecordsRegistryHttpResponse { data, context });
             }
             let create = matches!(
-                request.command,
+                command,
                 RecordsRegistryHttpCommand::Create { .. }
                     | RecordsRegistryHttpCommand::Update { .. }
                     | RecordsRegistryHttpCommand::Archive { .. }
@@ -698,7 +768,7 @@ impl<C: Clock + Send + Sync + 'static> RecordsRegistryHttpBackend for RecordsBac
             } else {
                 self.context_request(request.headers)?
             };
-            match request.command.clone() {
+            match command {
                 RecordsRegistryHttpCommand::Create {
                     module_id,
                     input,

@@ -103,6 +103,24 @@ pub async fn record_context<R: RecordContextRepository, G: RecordContextGuard>(
 where
     R::Error: From<G::Error>,
 {
+    Ok(
+        record_context_document(repository, guard, actor, module_id, id, now)
+            .await?
+            .to_wire(),
+    )
+}
+
+pub async fn record_context_document<R: RecordContextRepository, G: RecordContextGuard>(
+    repository: &mut R,
+    guard: &mut G,
+    actor: &RecordContextActor,
+    module_id: &str,
+    id: &str,
+    now: i64,
+) -> Result<RecordContextDocument, R::Error>
+where
+    R::Error: From<G::Error>,
+{
     actor.require_read(now)?;
     validate_request(module_id, id)?;
     if !actor.permits_module(module_id) {

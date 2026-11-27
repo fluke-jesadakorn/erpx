@@ -607,7 +607,7 @@ pub fn validate_document(
     document: RecordContextDocument,
     module_id: &str,
     id: &str,
-) -> Result<Value, BusinessError> {
+) -> Result<RecordContextDocument, BusinessError> {
     if document.record.module_id != module_id
         || document.record.id != id
         || document.references.len() > MAX_REFERENCES
@@ -618,7 +618,7 @@ pub fn validate_document(
     {
         return Err(source_invalid());
     }
-    Ok(document.to_wire())
+    Ok(document)
 }
 
 /// Serialize an exact owner context. Kept public so the HTTP adapter can build

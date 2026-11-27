@@ -48,7 +48,7 @@ import { ApiError as NativeApiError } from '@erpx/server-runtime/public/http';
 import { createNativeRecordContextClient, nativeRecordContextConfiguration, nativeRecordContextFailure } from '../public/native-record-context';
 import { projectionColumnHeadSql } from './read-tail-r32-sql';
 import { nativeRecordsStatement } from '@erpx/feature-records/adapters/server/native-records-command';
-import { type RecordRow, updateRecordSchema, createRecordSchema, transitionSchema, addReferenceSchema, suggestionSchema, suggestionDecisionSchema } from '@erpx/server-records/domain/records';
+import { type RecordRow, updateRecordSchema, createRecordSchema, transitionSchema, addReferenceSchema } from '@erpx/server-records/domain/records';
 import { createRecordsApplication, type RecordsRepository } from '@erpx/server-records/application/records';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import { RecordsIdentityAccessFacts } from '@erpx/server-identity_access/public/records-records-facts';
@@ -58,9 +58,7 @@ export { updateRecordSchema } from '@erpx/server-records/domain/records';
 export { createRecordSchema } from '@erpx/server-records/domain/records';
 export { transitionSchema } from '@erpx/server-records/domain/records';
 export { addReferenceSchema } from '@erpx/server-records/domain/records';
-export { suggestionSchema } from '@erpx/server-records/domain/records';
-export { suggestionDecisionSchema } from '@erpx/server-records/domain/records';
-// Shared owner-local version fence for record guards (guard3/guard25); identical SQL.
+// The remaining generic record version guard.
 const recordVersionExistsSql = existsGuardSql('workspace_records', 'module_id=? AND id=? AND version=? AND archived_at IS NULL');
 // Shared owner-local workspace-record projection for list/get/page reads. The
 // spaced read head now renders through the r32 renderer; the columns argument
@@ -122,17 +120,11 @@ function application(provided?: SqlDatabase,actor?:WorkContext) {
         readAddReferenceCount() { throw new NativeApiError(503,'NATIVE_RECORDS_UNAVAILABLE','The native Records reference reader is unavailable.'); },
         /** Retired: record references execute in the native Rust records command route. */
         stageAddReferenceEffect() { throw new NativeApiError(503,'NATIVE_RECORDS_UNAVAILABLE','The native Records command is unavailable.'); },
-        stageRequestSuggestionEffect(suggestionId: string, moduleId: string, id: string, key: string, value: string, value2: string, value3: string, value4: string, value5: "ready", userId: string, now: number, now2: number) {
-            return nativeRecordsStatement('records_stmt_19', { companyId: actor?.companyId, actor, now: Date.now() }).bind(suggestionId, moduleId, id, key, value, value2, value3, value4, value5, userId, now, now2);
-        },
-        guard24(key: string, value: "suggestion-ready", suggestionId: string) { return assertion(database, key, value, existsGuardSql('record_field_suggestions', "id=? AND state='ready'"), [suggestionId]); },
-        guard25(key: string, value: string, mod: string, sourceId: string, version: number) { return assertion(database, key, value, recordVersionExistsSql, [mod, sourceId, version]); },
-        stageDecideSuggestionEffect(value: string, userId: string, now: number, moduleId: string, id: string) { return nativeRecordsStatement('records_stmt_20', { companyId: actor?.companyId, actor, now: Date.now() }).bind(value, userId, now, moduleId, id); },
-        stageDecideSuggestionEffect2(value: "rejected" | "applied", userId: string, now: number, suggestionId: string) { return nativeRecordsStatement('records_stmt_21', { companyId: actor?.companyId, actor, now: Date.now() }).bind(value, userId, now, suggestionId); } };
+    };
     return createRecordsApplication({ repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, commands: { replay: (...args) => nativeReplayCommand(database, ...args), commit: (...args) => nativeExecuteCommand(database, ...args) }, prepare: async (holding) => {
             if (!provided)
                 database = (await nativeHoldingResources(holding)).write;
-        }, production: process.env.NODE_ENV === 'production', batch: effects => database.batch(effects), policyRead: (key, read) => nativePolicyRead(database, key, read), policyNow: nativePolicyNow, prepareControl: async () => { control = (await runtimeEnv()).CONTROL_DB; }, hash: async (value) => { const bytes = new TextEncoder().encode(JSON.stringify(value)); return [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(item => item.toString(16).padStart(2, '0')).join(''); }, pageRecords: async (actor, moduleId, sectionId, query) => {
+        }, production: process.env.NODE_ENV === 'production', batch: effects => database.batch(effects), policyRead: (key, read) => nativePolicyRead(database, key, read), policyNow: nativePolicyNow, prepareControl: async () => { control = (await runtimeEnv()).CONTROL_DB; }, pageRecords: async (actor, moduleId, sectionId, query) => {
             return withExpenseWorkspaceRecordRead(database,actor,async database=>{
             if(moduleId==="finance")await requireFinanceWorkspaceHistory(database,actor);
             const scope = scopeSql(actor),basePeople=await peopleSourceReadScope(database,actor,"records"),commerce=await commerceSourceReadScope(database,actor,"records"),payroll=await payrollSourceReadScope(database,actor,"records"),count=await countSourceReadScope(database,actor,"records"),procurement=await procurementSourceReadScope(database,actor,"records"),transfer=await transferSourceReadScope(database,actor,"records"),projects=await projectSourceReadScope(database,actor,"records"),quality=await qualitySourceReadScope(database,actor,"records"),learning=await learningSourceReadScope(database,actor,"records"),assets=await assetSourceReadScope(database,actor,"records"),landedCost=await landedCostSourceReadScope(database,actor,"records"),manufacturing=await manufacturingSourceReadScope(database,actor,"records"),talent=await talentSourceReadScope(database,actor,"records"),legal=await legalSourceReadScope(database,actor,"records"),crm=await crmSourceReadScope(database,actor,"records"),marketing=await marketingSourceReadScope(database,actor,"records"),followups=await followupSourceReadScope(database,actor,"records"),workforce=await workforceSourceReadScope(database,actor,"records"),benefits=await benefitSourceReadScope(database,actor,"records"),service=await serviceSourceReadScope(database,actor,"records"),work=await workSourceReadScope(database,actor,"records");
@@ -203,8 +195,6 @@ export async function recordContext(actor: WorkContext, moduleId: string, id: st
 }
 export async function searchReferences(actor: WorkContext, query: string) { return invoke(() => application(undefined,actor).searchReferences(actor, query)); }
 export async function addReference(actor: WorkContext, moduleId: string, id: string, input: z.infer<typeof addReferenceSchema>, key = crypto.randomUUID()) { return invoke(() => application(undefined,actor).addReference(actor, moduleId, id, input, key)); }
-export async function requestSuggestion(actor: WorkContext, moduleId: string, id: string, input: z.infer<typeof suggestionSchema>, key = crypto.randomUUID()) { return invoke(() => application(undefined,actor).requestSuggestion(actor, moduleId, id, input, key)); }
-export async function decideSuggestion(actor: WorkContext, moduleId: string, id: string, suggestionId: string, input: z.infer<typeof suggestionDecisionSchema>, key = crypto.randomUUID()) { return invoke(() => application(undefined,actor).decideSuggestion(actor, moduleId, id, suggestionId, input, key)); }
 export async function recordsPage(actor: WorkContext, moduleId: string, sectionId: string, query: {
     q?: string;
     cursor?: string;

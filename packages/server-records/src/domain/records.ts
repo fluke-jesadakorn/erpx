@@ -46,11 +46,6 @@ export const addReferenceSchema = z.object({
     targetModule: z.string().min(1), targetId: z.string().min(1),
     kind: z.enum(["dependsOn", "blocks", "billedBy", "fulfills", "authoredWith"]),
 });
-export const suggestionSchema = z.object({ fieldKey: z.string().min(1).max(80) });
-export const suggestionDecisionSchema = z.object({
-    expectedVersion: z.number().int().positive(),
-    action: z.enum(["apply", "reject"]),
-});
 export const nextStatus: Record<string, Partial<Record<z.infer<typeof transitionSchema>["action"], WorkspaceRecord["status"]>>> = {
     draft: { submit: "in_review" }, in_review: { approve: "approved", reject: "rejected" },
     approved: { complete: "completed", reopen: "draft" }, rejected: { reopen: "draft" }, completed: { reopen: "draft" },
