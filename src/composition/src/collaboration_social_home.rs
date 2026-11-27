@@ -7,7 +7,7 @@ use super::{
 use erpx_server_collaboration::public::inbox::encode_uri_component;
 use erpx_server_collaboration::public::social::{
     SocialHomeAdditions, SocialHomeCandidate, SocialHomePolicy, SocialHomePolicyFuture,
-    SocialHomeSelection, social_audience_teams,
+    SocialHomeSelection, read_social_thread_candidate, social_audience_teams,
 };
 use erpx_server_collaboration::public::social_http::{
     SocialAudienceOptionsData, SocialPageData, SocialPresentationData,
@@ -18,8 +18,10 @@ use erpx_server_commercial::public::capability_decision::{
 use erpx_server_commercial::public::purchases::CapabilityPurpose;
 use erpx_server_identity_access::public::{
     DeviceProof,
-    effective_authority::WorkPermissionRequirement,
+    account_work_roles::{lock_account_work_roles, read_account_work_roles},
+    effective_authority::{HoldingWorkSourcePreparation, WorkPermissionRequirement},
     pms_social_event_recipients::{pms_social_conversation_readable, pms_social_source_readable},
+    work_context::HoldingWorkContextInspector,
 };
 use erpx_server_operations::public::record_source::{SocialTaskSource, read_social_task_source};
 use erpx_server_organization::public::organization_nodes::{
@@ -30,9 +32,103 @@ use erpx_server_projects::public::staff_facts::{
     SocialProjectAccess, SocialProjectReference, social_project_audiences,
     social_project_reference, staff_project,
 };
+use erpx_server_runtime::public::postgres::PgWorkFuture;
+use erpx_server_shared::public::{AssignmentId, RecordId};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
+
+pub(super) struct SourceEntryInput {
+    pub(super) post_id: RecordId,
+    pub(super) assignment: AssignmentId,
+    pub(super) version: i64,
+}
+
+#[derive(Clone, Copy)]
+struct CandidateRoleSources;
+
+impl HoldingWorkSourcePreparation for CandidateRoleSources {
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(lock_account_work_roles(c, false))
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> SocialService<C> {
+    pub(super) async fn source_entry(
+        &self,
+        inspector: &HoldingWorkContextInspector,
+        host: &str,
+        proof: DeviceProof,
+        workspace: HoldingWorkspaceRequest,
+        input: SourceEntryInput,
+    ) -> Result<bool, Error> {
+        let clock = self.clock.clone();
+        let input = Arc::new(input);
+        let holding = self.configuration.holding.clone();
+        inspector
+            .with_account_work(
+                host,
+                proof,
+                workspace,
+                CandidateRoleSources,
+                move |c, account| {
+                    let clock = clock.clone();
+                    let input = input.clone();
+                    let holding = holding.clone();
+                    Box::pin(async move {
+                        let request = account.request();
+                        if request.holding_id != holding {
+                            return Err(scope_error().into());
+                        }
+                        let now = clock.now().get();
+                        let roles = read_account_work_roles(c, account, now, true).await?;
+                        let Some(permissions) = roles
+                            .eligible_role_permissions(
+                                c,
+                                &input.assignment,
+                                input.version,
+                                &["records.read", "finance.read"],
+                            )
+                            .await?
+                        else {
+                            return Ok(false);
+                        };
+                        let [records, finance] = permissions.as_slice() else {
+                            return Err(super::unavailable().into());
+                        };
+                        let workspace = roles.workspace();
+                        let reader = SocialScope::new(
+                            workspace.company_id.as_str(),
+                            roles.user_id().as_str(),
+                            input.assignment.as_str(),
+                            "",
+                            now,
+                        )?
+                        .assignment_version(input.version)
+                        .branch(workspace.branch_id.as_ref().map(RecordId::as_str))?
+                        .department(workspace.department_id.as_ref().map(RecordId::as_str))?;
+                        let purchase = PagePurchase::load(c, &workspace.company_id, now, "", true)
+                            .await?
+                            .enforce_source_history();
+                        let eligible = included_source_entry(
+                            c,
+                            &reader,
+                            input.post_id.as_str(),
+                            &purchase,
+                            SourcePermissions {
+                                records: *records,
+                                finance: *finance,
+                            },
+                        )
+                        .await?;
+                        roles.require_current(c, account, clock.now().get()).await?;
+                        Ok(eligible)
+                    })
+                },
+            )
+            .await
+    }
+}
 
 #[derive(Clone)]
 pub(super) struct PageInput {
@@ -265,7 +361,9 @@ async fn audience_options(
             format!("Team · {name}{within}"),
         ));
     }
-    if !purchase.projects || purchase.project_granted(current, CapabilityPurpose::History) {
+    if !purchase.projects
+        || purchase.project_granted(SourcePermissions::from(current), CapabilityPurpose::History)
+    {
         for project in social_project_audiences(
             connection,
             scope.company_id.as_str(),
@@ -405,15 +503,13 @@ impl PagePurchase {
             })
     }
 
-    fn project_granted(&self, current: &AuthorizedWorkContext, purpose: CapabilityPurpose) -> bool {
-        self.release
-            && current.has_permission("records.read")
-            && self.allows("projects.wbs", purpose)
+    fn project_granted(&self, permissions: SourcePermissions, purpose: CapabilityPurpose) -> bool {
+        self.release && permissions.records && self.allows("projects.wbs", purpose)
     }
 
     fn pms_granted(
         &self,
-        current: &AuthorizedWorkContext,
+        permissions: SourcePermissions,
         source: &PmsSocialSource,
         purpose: CapabilityPurpose,
     ) -> bool {
@@ -423,7 +519,7 @@ impl PagePurchase {
                 .is_some_and(|code| self.allows(code, purpose))
                 || purpose == CapabilityPurpose::History
                     && matches!(source.kind.as_str(), "guest_account" | "transfer")
-                    && current.has_permission("finance.read")
+                    && permissions.finance
                     && (self.allows("finance.hotel-posting", purpose)
                         || self.allows("finance.accounting", purpose)))
     }
@@ -468,6 +564,21 @@ impl LinkedSource {
     }
 }
 
+#[derive(Clone, Copy)]
+struct SourcePermissions {
+    records: bool,
+    finance: bool,
+}
+
+impl From<&AuthorizedWorkContext> for SourcePermissions {
+    fn from(current: &AuthorizedWorkContext) -> Self {
+        Self {
+            records: current.has_permission("records.read"),
+            finance: current.has_permission("finance.read"),
+        }
+    }
+}
+
 struct PagePolicy<'a> {
     current: &'a AuthorizedWorkContext,
     purchase: PagePurchase,
@@ -478,154 +589,189 @@ struct PagePolicy<'a> {
     source_only: bool,
 }
 
-impl PagePolicy<'_> {
-    async fn sources(
-        &self,
-        connection: &mut PgConnection,
-        scope: &SocialScope,
-        candidate: &SocialHomeCandidate,
-    ) -> Result<Option<Vec<LinkedSource>>, Error> {
-        let company = scope.company_id.as_str();
-        let user = scope.user_id.as_str();
-        let pms_ids = candidate
-            .sources
-            .iter()
-            .filter(|source| source.kind == "pms_record")
-            .map(|source| source.id.clone())
-            .collect::<Vec<_>>();
-        if !pms_social_conversation_readable(
-            connection,
-            company,
-            user,
-            &pms_ids,
-            candidate.branch_id.as_deref(),
-            candidate.department_id.as_deref(),
-        )
-        .await?
-        {
-            return Ok(None);
-        }
-        let mut result = Vec::with_capacity(candidate.sources.len());
-        for source in &candidate.sources {
-            result.push(match source.kind.as_str() {
-                "staff_project" => LinkedSource::Project {
-                    id: source.id.clone(),
-                    exists: staff_project(connection, company, &source.id)
-                        .await?
-                        .is_some(),
-                    handover_reader: social_project_reference(
-                        connection,
-                        company,
-                        user,
-                        &source.id,
-                        SocialProjectAccess::Handover,
-                    )
+async fn read_sources(
+    connection: &mut PgConnection,
+    scope: &SocialScope,
+    candidate: &SocialHomeCandidate,
+) -> Result<Option<Vec<LinkedSource>>, Error> {
+    let company = scope.company_id.as_str();
+    let user = scope.user_id.as_str();
+    let pms_ids = candidate
+        .sources
+        .iter()
+        .filter(|source| source.kind == "pms_record")
+        .map(|source| source.id.clone())
+        .collect::<Vec<_>>();
+    if !pms_social_conversation_readable(
+        connection,
+        company,
+        user,
+        &pms_ids,
+        candidate.branch_id.as_deref(),
+        candidate.department_id.as_deref(),
+    )
+    .await?
+    {
+        return Ok(None);
+    }
+    let mut result = Vec::with_capacity(candidate.sources.len());
+    for source in &candidate.sources {
+        result.push(match source.kind.as_str() {
+            "staff_project" => LinkedSource::Project {
+                id: source.id.clone(),
+                exists: staff_project(connection, company, &source.id)
                     .await?
                     .is_some(),
-                },
-                "staff_task" => LinkedSource::Task(
-                    read_social_task_source(
-                        connection,
-                        &scope.company_id,
-                        &source.id,
-                        user,
-                        scope.now,
-                    )
+                handover_reader: social_project_reference(
+                    connection,
+                    company,
+                    user,
+                    &source.id,
+                    SocialProjectAccess::Handover,
+                )
+                .await?
+                .is_some(),
+            },
+            "staff_task" => LinkedSource::Task(
+                read_social_task_source(connection, &scope.company_id, &source.id, user, scope.now)
                     .await?,
-                ),
-                "pms_record" => {
-                    let Some(hotel) =
-                        pms_social_source_for_company(connection, &source.id, company).await?
-                    else {
-                        return Ok(None);
-                    };
-                    LinkedSource::Pms(Box::new(hotel))
-                }
-                _ => return Ok(None),
-            });
-        }
-        if candidate.purpose == "handover"
-            && result.iter().any(|source| match source {
-                LinkedSource::Project {
-                    handover_reader, ..
-                } => !handover_reader,
-                LinkedSource::Task(task) => {
-                    task.as_ref().is_none_or(|task| !task.handover_participant)
-                }
-                LinkedSource::Pms(_) => false,
-            })
-        {
-            return Ok(None);
-        }
-        Ok(Some(result))
-    }
-
-    fn admitted(
-        &self,
-        purchase: &PagePurchase,
-        candidate: &SocialHomeCandidate,
-        project_audience: bool,
-        sources: &[LinkedSource],
-        purpose: CapabilityPurpose,
-        card: bool,
-    ) -> bool {
-        if purchase.projects {
-            if candidate.audience_kind.as_deref() == Some("project")
-                && (!project_audience || !purchase.project_granted(self.current, purpose))
-            {
-                return false;
-            }
-            if sources.iter().any(|source| {
-                let reader = match source {
-                    LinkedSource::Project {
-                        exists: true,
-                        handover_reader,
-                        ..
-                    } => *handover_reader,
-                    LinkedSource::Task(Some(task)) if task.project_id.is_some() => {
-                        task.handover_participant && purchase.allows("projects.tasks", purpose)
-                    }
-                    _ => return false,
+            ),
+            "pms_record" => {
+                let Some(hotel) =
+                    pms_social_source_for_company(connection, &source.id, company).await?
+                else {
+                    return Ok(None);
                 };
-                !reader
-                    || !purchase.project_granted(self.current, purpose)
-                    || card
-                        && purchase.work
-                        && candidate.operational_handover
-                        && !purchase.allows("projects.handover", purpose)
-            }) {
-                return false;
+                LinkedSource::Pms(Box::new(hotel))
             }
+            _ => return Ok(None),
+        });
+    }
+    if candidate.purpose == "handover"
+        && result.iter().any(|source| match source {
+            LinkedSource::Project {
+                handover_reader, ..
+            } => !handover_reader,
+            LinkedSource::Task(task) => task.as_ref().is_none_or(|task| !task.handover_participant),
+            LinkedSource::Pms(_) => false,
+        })
+    {
+        return Ok(None);
+    }
+    Ok(Some(result))
+}
+
+fn admitted(
+    permissions: SourcePermissions,
+    purchase: &PagePurchase,
+    candidate: &SocialHomeCandidate,
+    project_audience: bool,
+    sources: &[LinkedSource],
+    purpose: CapabilityPurpose,
+    card: bool,
+) -> bool {
+    if purchase.projects {
+        if candidate.audience_kind.as_deref() == Some("project")
+            && (!project_audience || !purchase.project_granted(permissions, purpose))
+        {
+            return false;
         }
-        if purchase.pms && sources.iter().any(|source| {
-            matches!(source, LinkedSource::Pms(hotel) if !purchase.pms_granted(self.current, hotel, purpose))
+        if sources.iter().any(|source| {
+            let reader = match source {
+                LinkedSource::Project {
+                    exists: true,
+                    handover_reader,
+                    ..
+                } => *handover_reader,
+                LinkedSource::Task(Some(task)) if task.project_id.is_some() => {
+                    task.handover_participant && purchase.allows("projects.tasks", purpose)
+                }
+                _ => return false,
+            };
+            !reader
+                || !purchase.project_granted(permissions, purpose)
+                || card
+                    && purchase.work
+                    && candidate.operational_handover
+                    && !purchase.allows("projects.handover", purpose)
         }) {
             return false;
         }
-        if !purchase.work {
-            return true;
-        }
-        if !purchase.release {
+    }
+    if purchase.pms && sources.iter().any(|source| {
+            matches!(source, LinkedSource::Pms(hotel) if !purchase.pms_granted(permissions, hotel, purpose))
+        }) {
             return false;
         }
-        if candidate.operational_handover {
-            return sources.iter().all(|source| {
-                let LinkedSource::Task(Some(task)) = source else {
-                    return true;
-                };
-                task.project_id.is_some()
-                    || task.preview_participant
-                        && purchase.allows("work.actions", purpose)
-                        && (task.template_id.is_none()
-                            || purchase.allows("work.advanced-routines", purpose))
-            });
-        }
-        let native = candidate.kind != "system"
-            && (sources.is_empty() || sources.iter().any(|source| !source.included()));
-        purchase.allows("work.social", purpose)
-            || !native && sources.iter().all(LinkedSource::exists)
+    if !purchase.work {
+        return true;
     }
+    if !purchase.release {
+        return false;
+    }
+    if candidate.operational_handover {
+        return sources.iter().all(|source| {
+            let LinkedSource::Task(Some(task)) = source else {
+                return true;
+            };
+            task.project_id.is_some()
+                || task.preview_participant
+                    && purchase.allows("work.actions", purpose)
+                    && (task.template_id.is_none()
+                        || purchase.allows("work.advanced-routines", purpose))
+        });
+    }
+    let native = candidate.kind != "system"
+        && (sources.is_empty() || sources.iter().any(|source| !source.included()));
+    purchase.allows("work.social", purpose) || !native && sources.iter().all(LinkedSource::exists)
+}
 
+async fn included_source_entry(
+    c: &mut PgConnection,
+    scope: &SocialScope,
+    post_id: &str,
+    purchase: &PagePurchase,
+    permissions: SourcePermissions,
+) -> Result<bool, Error> {
+    let Some(candidate) = read_social_thread_candidate(c, scope, post_id).await? else {
+        return Ok(false);
+    };
+    if candidate.kind == "system" {
+        return Ok(false);
+    }
+    let Some(sources) = read_sources(c, scope, &candidate).await? else {
+        return Ok(false);
+    };
+    if !sources.iter().any(LinkedSource::included) {
+        return Ok(false);
+    }
+    let project_audience = match (
+        candidate.audience_kind.as_deref(),
+        candidate.audience_id.as_deref(),
+    ) {
+        (Some("project"), Some(id)) => social_project_reference(
+            c,
+            scope.company_id.as_str(),
+            scope.user_id.as_str(),
+            id,
+            SocialProjectAccess::AudienceOrPreview,
+        )
+        .await?
+        .is_some(),
+        _ => false,
+    };
+    Ok(admitted(
+        permissions,
+        purchase,
+        &candidate,
+        project_audience,
+        &sources,
+        CapabilityPurpose::History,
+        false,
+    ))
+}
+
+impl PagePolicy<'_> {
     async fn task_visible(
         &mut self,
         connection: &mut PgConnection,
@@ -638,7 +784,7 @@ impl PagePolicy<'_> {
         if !task.preview_participant
             || task.project_id.is_some()
                 && purchase.projects
-                && (!purchase.project_granted(self.current, history)
+                && (!purchase.project_granted(SourcePermissions::from(self.current), history)
                     || !purchase.allows("projects.tasks", history))
             || task.project_id.is_none()
                 && purchase.work
@@ -683,7 +829,9 @@ impl PagePolicy<'_> {
         let (kind, visible) = match source {
             LinkedSource::Project { id, .. } => {
                 let project = if !self.purchase.projects
-                    || self.purchase.project_granted(self.current, history)
+                    || self
+                        .purchase
+                        .project_granted(SourcePermissions::from(self.current), history)
                 {
                     social_project_reference(
                         connection,
@@ -804,7 +952,7 @@ impl SocialHomePolicy for PagePolicy<'_> {
                 }
                 _ => None,
             };
-            let Some(sources) = self.sources(connection, scope, candidate).await? else {
+            let Some(sources) = read_sources(connection, scope, candidate).await? else {
                 return Ok(None);
             };
             // Classify the exact selected thread before loading its text or comments.
@@ -815,7 +963,8 @@ impl SocialHomePolicy for PagePolicy<'_> {
                     && sources.iter().any(LinkedSource::included)
                 {
                     let source_purchase = self.purchase.enforce_source_history();
-                    if self.admitted(
+                    if admitted(
+                        SourcePermissions::from(self.current),
                         &source_purchase,
                         candidate,
                         project.is_some(),
@@ -837,7 +986,8 @@ impl SocialHomePolicy for PagePolicy<'_> {
                     return Ok(None);
                 }
             }
-            if !self.admitted(
+            if !admitted(
+                SourcePermissions::from(self.current),
                 &self.purchase,
                 candidate,
                 project.is_some(),
@@ -896,7 +1046,8 @@ impl SocialHomePolicy for PagePolicy<'_> {
                 .collect();
             if self.purchase.work || self.purchase.projects || self.purchase.pms {
                 let allow = |purpose| {
-                    self.admitted(
+                    admitted(
+                        SourcePermissions::from(self.current),
                         &self.purchase,
                         candidate,
                         candidate.audience_kind.as_deref() == Some("project"),

@@ -524,6 +524,30 @@ describe('Native aggregate Social page request', () => {
   expect(url.searchParams.has('sourceOnly')).toBe(false);
  });
 
+ test('checks a proposed source role using the signed Account and its exact version without a selected role', async () => {
+  vi.stubEnv('ERPX_NATIVE_COLLABORATION_CONFIG', JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:3105', timeoutMs: 1000 }));
+  const transport = await import('@erpx/server-runtime/public/native-http');
+  const request = vi.spyOn(transport, 'nativeRequest')
+   .mockResolvedValueOnce(Response.json({data:{eligible:true}}))
+   .mockResolvedValueOnce(Response.json({data:{eligible:false}}));
+  const { nativeSocialSourceEntry } = await import('@erpx/server-collaboration/public/native-social-page');
+  const access = {
+   scope: { kind: 'department' as const, holdingId: actor.holdingId, holdingSlug: 'holding', holdingName: 'Holding', companyId: 'company',
+    branchId: 'branch-id', branchSlug: 'phuket', departmentId: 'department-id', departmentSlug: 'showroom', departmentName: 'Showroom' },
+   requestHeaders: new Headers({host:'holding.example.test',cookie:'session=fictional','x-erpx-context-assignment':'unused-from-browser'}),
+  };
+  const assignment = {id:'proposed',version:7};
+  await expect(nativeSocialSourceEntry(access, assignment, 'hotel-post')).resolves.toEqual({purchasePurpose:'history'});
+  await expect(nativeSocialSourceEntry(access, assignment, 'missing-post')).resolves.toBeNull();
+  const [url, init] = request.mock.calls[0]!;
+  expect(url.pathname).toBe('/api/v1/holdings/holding/posts/hotel-post/source-entry');
+  expect(Object.fromEntries(url.searchParams)).toEqual({companyId:'company',assignmentId:'proposed',assignmentVersion:'7'});
+  expect(init.headers).toEqual({host:'holding.example.test',accept:'application/json',cookie:'session=fictional',
+   'x-erpx-workspace-branch':'phuket','x-erpx-workspace-department':'showroom'});
+  await expect(nativeSocialSourceEntry(access, {id:'invalid',version:0}, 'hotel-post')).resolves.toBeNull();
+  expect(request).toHaveBeenCalledTimes(2);
+ });
+
  test('refuses to infer Company or role from the incoming headers when the rendered authority is missing', async () => {
   vi.stubEnv('ERPX_NATIVE_COLLABORATION_CONFIG', JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:3105', timeoutMs: 1000 }));
   const incoming = new Headers({ host: 'holding.example.test', 'x-erpx-context-company': 'stale-company' });

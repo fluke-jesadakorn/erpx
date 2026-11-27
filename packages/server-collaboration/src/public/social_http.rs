@@ -4,7 +4,7 @@ pub const CONTRACT_VERSION: &str = "collaboration.social.http.v1";
 pub use crate::adapters::social_http::{
     CommentsQuery, FeedQuery, SocialAudienceOptionsData, SocialCommentsData, SocialFeedData,
     SocialHttpBackend, SocialHttpCommandRequest, SocialHttpCommentsRequest, SocialHttpFuture,
-    SocialHttpPageRequest, SocialHttpReadReply, SocialHttpReadRequest, SocialHttpRevisionsRequest,
+    SocialHttpPageRequest, SocialHttpReadReply, SocialHttpReadRequest, SocialHttpRevisionsRequest, SocialHttpSourceEntryRequest, SocialSourceEntryData,
     SocialHttpState, SocialHttpTarget, SocialPageData, SocialPageQuery, SocialPresentationData,
     SocialReadKind, SocialThreadData, ThreadQuery, cancel_comment_upload, cancel_edit_upload,
     comment_action, create_comment, create_comment_upload, create_edit_upload, create_post,

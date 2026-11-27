@@ -11,7 +11,7 @@ pub use crate::adapters::social::{
 };
 pub use crate::adapters::social_home::{
     SocialHomeAdditions, SocialHomeCandidate, SocialHomePolicy, SocialHomePolicyFuture,
-    SocialHomeSelection, social_audience_teams,
+    SocialHomeSelection, read_social_thread_candidate, social_audience_teams,
 };
 pub use crate::adapters::social_pg::{
     PgSocialUnit, SocialRecordFuture, SocialRecordPort, SocialScope, UnavailableSocialRecords,

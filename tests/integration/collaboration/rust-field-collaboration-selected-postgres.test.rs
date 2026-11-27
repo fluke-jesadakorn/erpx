@@ -3639,6 +3639,7 @@ async fn field_reservation_alert_source_refuses_lost_savepoint_locks() {
 async fn native_social_page_admits_only_the_exact_paid_source_thread_under_current_iam() {
     use axum::{body::Body, http::Request};
     use erpx_server_collaboration::public::social_http::social_router;
+    use erpx_server_identity_access::public::work_context::HoldingWorkContextInspector;
     use erpx_service::collaboration::{SocialBackend, SocialConfiguration, SocialService, social_target};
     use erpx_service::finance_journal_detail_http::FinanceJournalReadScopeHeaders;
     use tower::ServiceExt;
@@ -3658,36 +3659,51 @@ async fn native_social_page_admits_only_the_exact_paid_source_thread_under_curre
                    ('hotel-folio','hotel','guest_account','{"state":"open"}',1,1);
             INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status)
             VALUES ('*','native_hotel_social_reader','Hotel Social reader',false,1,'active'),
-                   ('*','native_finance_social_reader','Finance history reader',false,1,'active');
+                   ('*','native_finance_social_reader','Finance history reader',false,1,'active'),
+                   ('*','native_project_social_reader','Project reader',false,1,'active');
             INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)
             VALUES ('*','native_hotel_social_reader',1,'["pms.read","pms.housekeeping"]','[]','["holding"]','fixture',1),
-                   ('*','native_finance_social_reader',1,'["finance.read","finance.approve","module.finance.read","pms.reports"]','[]','["holding"]','fixture',1);
+                   ('*','native_finance_social_reader',1,'["finance.read","finance.approve","module.finance.read","pms.reports"]','[]','["holding"]','fixture',1),
+                   ('*','native_project_social_reader',1,'["records.read"]','[]','["holding"]','fixture',1);
             UPDATE assignments SET role='native_hotel_social_reader',modules_json='["pms"]',valid_from=0
             WHERE id='finance-fixture-b';
             UPDATE assignments SET role='native_finance_social_reader',valid_from=0 WHERE id='finance-fixture-a';
-            INSERT INTO social_posts(id,author_id,author_name,company_id,body,audience_kind,purpose,created_at,updated_at)
-            VALUES ('hotel-handoff','fixture-a','Maker','company','Exact Hotel handoff text','participants','handover',1,1),
-                   ('finance-folio','fixture-b','Reviewer','company','Finance retained Hotel text','company','update',1,1),
-                   ('ordinary-post','fixture-a','Maker','company','Ordinary private Work','company','update',1,1);
+            INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind)
+            VALUES ('hotel-pick-b','fixture-b','native_hotel_social_reader','["pms"]','company',0,9000000000000,1,'holding'),
+                   ('project-pick-b','fixture-b','native_project_social_reader','[]','company',0,9000000000000,1,'holding');
+            INSERT INTO staff_projects(id,company_id,title,description,owner_user_id,lifecycle_status,version,created_at,updated_at)
+            VALUES ('included-project','company','Synthetic Project','Fixture','fixture-a','active',1,1,1);
+            INSERT INTO staff_project_members(project_id,user_id,added_by,created_at) VALUES ('included-project','fixture-b','fixture-a',1);
+            INSERT INTO social_posts(id,author_id,author_name,company_id,body,audience_kind,audience_id,purpose,created_at,updated_at)
+            VALUES ('hotel-handoff','fixture-a','Maker','company','Exact Hotel handoff text','participants',NULL,'handover',1,1),
+                   ('finance-folio','fixture-b','Reviewer','company','Finance retained Hotel text','company',NULL,'update',1,1),
+                   ('ordinary-post','fixture-a','Maker','company','Ordinary private Work','company',NULL,'update',1,1),
+                   ('project-post','fixture-a','Maker','company','Exact Project text','project','included-project','update',1,1);
             INSERT INTO social_post_participants(post_id,user_id)
             VALUES ('hotel-handoff','fixture-b');
             INSERT INTO social_post_sources(post_id,ordinal,source_kind,source_id)
             VALUES ('hotel-handoff',0,'pms_record','hotel-task'),
-                   ('finance-folio',0,'pms_record','hotel-folio');
+                   ('finance-folio',0,'pms_record','hotel-folio'),
+                   ('project-post',0,'staff_project','included-project');
             INSERT INTO social_comments(id,post_id,author_id,author_name,body,created_at,updated_at)
             VALUES ('hotel-reply','hotel-handoff','fixture-a','Maker','Checked the handoff',2,2);
             "#,
         ).execute(db).await.unwrap();
 
+        let policy = facts::account::fixture::account::policy();
+        let inspector = HoldingWorkContextInspector::new(
+            p.system.control.clone(), p.system.holdings[0].clone(), HoldingId::new("h001").unwrap(),
+            policy.clone(), clock.clone(), facts::account::fixture::account::holding_registry(),
+        ).unwrap();
         let backend = SocialBackend::new(
-            Arc::new(facts::account::fixture::account::policy()),
+            Arc::new(policy),
             Arc::new(FinanceJournalReadScopeHeaders),
             Arc::new(SocialService::new(
                 p.authorizer.clone(),
                 SocialConfiguration::new(HoldingId::new("h001").unwrap(), CompanyId::new("company").unwrap()),
                 clock.clone(),
             )),
-        );
+        ).with_entry_inspector(Arc::new(inspector));
         let router = social_router(vec![social_target(
             "acme.example.test".into(), "acme".into(), "https://acme.example.test".into(),
             Arc::new(backend),
@@ -3714,6 +3730,31 @@ async fn native_social_page_admits_only_the_exact_paid_source_thread_under_curre
                 (status, payload)
             }
         };
+        let central = facts::account::login(&p.system, "b@example.test", None).await;
+        let child = facts::account::child(&p.system, &central, facts::account::ACME).await;
+        let candidate_cookie = format!("__Host-erpx-product={}", child.token.expose());
+        let admission = |post: &str, assignment: &str, version: &str, company: &str, session: &str| {
+            let request = Request::builder()
+                .uri(format!("/api/v1/holdings/acme/posts/{post}/source-entry?companyId={company}&assignmentId={assignment}&assignmentVersion={version}"))
+                .header("host","acme.example.test")
+                .header("cookie", session)
+                .body(Body::empty()).unwrap();
+            let router = router.clone();
+            async move {
+                let response = router.oneshot(request).await.unwrap();
+                let status = response.status().as_u16();
+                if status == 200 {
+                    assert_eq!(response.headers()["cache-control"], "private, no-store");
+                }
+                let body: serde_json::Value = serde_json::from_slice(
+                    &axum::body::to_bytes(response.into_body(), 1024 * 1024).await.unwrap(),
+                ).unwrap();
+                (status, body)
+            }
+        };
+        let candidate = |post, role, version| admission(post, role, version, "company", &candidate_cookie);
+        let (status, data) = candidate("hotel-handoff", "hotel-pick-b", "1").await;
+        assert_eq!((status, data["data"].clone()), (200, json!({"eligible": false})));
         let current = |query| request(&reader, "finance-fixture-b", "3", query);
         let (status, denied) = current("&postId=hotel-handoff").await;
         assert_eq!(status, 404, "{denied}");
@@ -3745,6 +3786,38 @@ async fn native_social_page_admits_only_the_exact_paid_source_thread_under_curre
             }
         };
         set_grant("pms", "active").await;
+        let (status, data) = candidate("hotel-handoff", "hotel-pick-b", "1").await;
+        assert_eq!((status, data["data"].clone()), (200, json!({"eligible": true})));
+        let (status, data) = candidate("hotel-handoff", "hotel-pick-b", "2").await;
+        assert_eq!((status, data["data"].clone()), (200, json!({"eligible": false})));
+        let (status, data) = candidate("hotel-handoff", "finance-fixture-a", "3").await;
+        assert_eq!((status, data["data"].clone()), (200, json!({"eligible": false})));
+        let (status, data) = candidate("ordinary-post", "hotel-pick-b", "1").await;
+        assert_eq!((status, data["data"].clone()), (200, json!({"eligible": false})));
+        assert_eq!(admission("hotel-handoff", "hotel-pick-b", "1", "company", "").await.0, 401);
+        assert_ne!(admission("hotel-handoff", "hotel-pick-b", "1", "elsewhere", &candidate_cookie).await.1["data"]["eligible"], true);
+
+        let (status, data) = candidate("project-post", "project-pick-b", "1").await;
+        assert_eq!((status, data["data"].clone()), (200, json!({"eligible": false})));
+        set_grant("projects", "active").await;
+        let (status, data) = candidate("project-post", "project-pick-b", "1").await;
+        assert_eq!((status, data["data"].clone()), (200, json!({"eligible": true})));
+        let (status, data) = candidate("project-post", "hotel-pick-b", "1").await;
+        assert_eq!((status, data["data"].clone()), (200, json!({"eligible": false})));
+        set_grant("projects", "draining").await;
+        let (status, data) = candidate("project-post", "project-pick-b", "1").await;
+        assert_eq!((status, data["data"].clone()), (200, json!({"eligible": true})));
+        sqlx::query("DELETE FROM staff_project_members WHERE project_id='included-project' AND user_id='fixture-b'")
+            .execute(db).await.unwrap();
+        let (status, data) = candidate("project-post", "project-pick-b", "1").await;
+        assert_eq!((status, data["data"].clone()), (200, json!({"eligible": false})));
+        let selected_count: i64 = sqlx::query_scalar("SELECT count(*) FROM active_work_contexts WHERE session_id=$1")
+            .bind(&child.result.session_id).fetch_one(db).await.unwrap();
+        assert_eq!(selected_count, 0);
+        let unchanged: String = sqlx::query_scalar("SELECT assignment_id FROM active_work_contexts WHERE user_id='fixture-b'")
+            .fetch_one(db).await.unwrap();
+        assert_eq!(unchanged, "finance-fixture-b");
+
 
         let (status, response) = current("&postId=hotel-handoff").await;
         assert_eq!(status, 200, "{response}");
@@ -3774,6 +3847,10 @@ async fn native_social_page_admits_only_the_exact_paid_source_thread_under_curre
         assert_eq!(retired["data"]["post"]["purchase"]["history"], true);
         assert_eq!(retired["data"]["post"]["purchase"]["settleExisting"], false);
         set_grant("finance", "active").await;
+        let (status, data) = admission("finance-folio", "finance-fixture-a", "3", "company", &finance).await;
+        assert_eq!((status, data["data"].clone()), (200, json!({"eligible": true})));
+        let (status, data) = admission("hotel-handoff", "finance-fixture-a", "3", "company", &finance).await;
+        assert_eq!((status, data["data"].clone()), (200, json!({"eligible": false})));
         let (status, folio) = request(&finance, "finance-fixture-a", "3", "&postId=finance-folio").await;
         assert_eq!(status, 200, "{folio}");
         assert_eq!(folio["data"]["sourceOnly"], true);
@@ -3791,5 +3868,7 @@ async fn native_social_page_admits_only_the_exact_paid_source_thread_under_curre
             .bind(clock.now().get()).execute(db).await.unwrap();
         let (status, revoked) = current("&postId=hotel-handoff").await;
         assert!(![200, 500].contains(&status), "{revoked}");
+        let (status, data) = candidate("hotel-handoff", "finance-fixture-b", "3").await;
+        assert_eq!((status, data["data"].clone()), (200, json!({"eligible": false})));
     }).await;
 }

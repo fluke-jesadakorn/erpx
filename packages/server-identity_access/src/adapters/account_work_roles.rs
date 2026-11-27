@@ -489,6 +489,37 @@ impl CurrentAccountWorkRoles {
             .iter()
             .filter(|c| assignment_applies(&c.assignment, &self.captured.workspace))
     }
+    /// Published role permissions for an eligible candidate in this read unit.
+    /// No selected context or business authority is minted.
+    pub async fn eligible_role_permissions(
+        &self,
+        c: &mut PgConnection,
+        assignment_id: &AssignmentId,
+        version: i64,
+        permissions: &[&str],
+    ) -> Result<Option<Vec<bool>>, Error> {
+        if super::selected_command_authority::selected_unit(c).await? != self.unit {
+            return Err(changed());
+        }
+        let Some(role) = self
+            .eligible()
+            .map(AccountWorkRoleChoice::assignment)
+            .find(|role| &role.id == assignment_id && role.version == version)
+        else {
+            return Ok(None);
+        };
+        let result = sqlx::query_scalar(
+            "SELECT iam_role_allows($1,$2,p.permission)
+             FROM unnest($3::text[]) WITH ORDINALITY p(permission,position) ORDER BY p.position",
+        )
+        .bind(&role.role)
+        .bind(role.company_id.as_str())
+        .bind(permissions)
+        .fetch_all(c)
+        .await?;
+        Ok(Some(result))
+    }
+
     pub fn selection(&self) -> Option<&AccountWorkSelection> {
         self.captured.selection.as_ref()
     }

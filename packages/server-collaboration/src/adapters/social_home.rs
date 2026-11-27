@@ -176,6 +176,49 @@ struct AcceptedPost {
     additions: SocialHomeAdditions,
 }
 
+fn decode_candidate(row: &PgRow) -> Result<SocialHomeCandidate, sqlx::Error> {
+    Ok(SocialHomeCandidate {
+        id: row.try_get("id")?,
+        kind: row.try_get("kind")?,
+        version: row.try_get("version")?,
+        author_id: row.try_get("author_id")?,
+        purpose: row.try_get("purpose")?,
+        audience_kind: row.try_get("audience_kind")?,
+        audience_id: row.try_get("audience_id")?,
+        department_id: row.try_get("department_id")?,
+        branch_id: row.try_get("branch_id")?,
+        linked_module: row.try_get("linked_module")?,
+        linked_record_id: row.try_get("linked_record_id")?,
+        sources: row.try_get::<Json<Vec<_>>, _>("sources")?.0,
+        task_origin: row.try_get("task_origin")?,
+        operational_handover: row.try_get("operational_handover")?,
+    })
+}
+
+/// Read the minimum protected metadata required to assess a proposed
+/// workspace role for a conversation. This never projects its text or files.
+pub async fn read_social_thread_candidate(
+    connection: &mut PgConnection,
+    scope: &SocialScope,
+    post_id: &str,
+) -> Result<Option<SocialHomeCandidate>, Error> {
+    let row = sqlx::query(CANDIDATES)
+        .bind(scope.company_id.as_str())
+        .bind(scope.user_id.as_str())
+        .bind(scope.assignment_id.as_str())
+        .bind(scope.now)
+        .bind(scope.branch_id.as_deref())
+        .bind(post_id)
+        .bind(Option::<&str>::None)
+        .bind(false)
+        .bind(Option::<i64>::None)
+        .bind(Option::<&str>::None)
+        .bind(1_i64)
+        .fetch_optional(connection)
+        .await?;
+    Ok(row.as_ref().map(decode_candidate).transpose()?)
+}
+
 pub(super) async fn read_home_posts(
     connection: &mut PgConnection,
     scope: &SocialScope,
@@ -207,22 +250,7 @@ pub(super) async fn read_home_posts(
             .await?;
         let more = candidates.len() as i64 == CANDIDATE_BATCH && post_id.is_none();
         for row in candidates {
-            let candidate = SocialHomeCandidate {
-                id: row.try_get("id")?,
-                kind: row.try_get("kind")?,
-                version: row.try_get("version")?,
-                author_id: row.try_get("author_id")?,
-                purpose: row.try_get("purpose")?,
-                audience_kind: row.try_get("audience_kind")?,
-                audience_id: row.try_get("audience_id")?,
-                department_id: row.try_get("department_id")?,
-                branch_id: row.try_get("branch_id")?,
-                linked_module: row.try_get("linked_module")?,
-                linked_record_id: row.try_get("linked_record_id")?,
-                sources: row.try_get::<Json<Vec<_>>, _>("sources")?.0,
-                task_origin: row.try_get("task_origin")?,
-                operational_handover: row.try_get("operational_handover")?,
-            };
+            let candidate = decode_candidate(&row)?;
             before = Some((row.try_get("created_at")?, candidate.id.clone()));
             let Some(additions) = policy.present(connection, scope, &candidate).await? else {
                 continue;

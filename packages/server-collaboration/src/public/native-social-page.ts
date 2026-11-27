@@ -2,7 +2,7 @@ import 'server-only';
 import { createHash } from 'node:crypto';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import { nativeRequest } from '@erpx/server-runtime/public/native-http';
-import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
+import type { AccountAccessContext, WorkContext } from '@erpx/server-identity_access/public/authorization';
 import type { HomePost, SocialPageData } from './native-social-page-types';
 
 /** Strict owner transport for the native Collaboration social feed router. */
@@ -441,4 +441,41 @@ export async function nativeSocialPageDataSSR(
       payload?.error?.message ?? 'The Collaboration request failed.',
     );
   return asPage(payload?.data);
+}
+
+
+/** Read source eligibility before the Account has selected a working role. */
+export async function nativeSocialSourceEntry(
+  { scope, requestHeaders }: Pick<AccountAccessContext, 'scope' | 'requestHeaders'>,
+  assignment: { id: string; version?: number },
+  postId: string,
+): Promise<{ purchasePurpose: 'history' } | null> {
+  const version = assignment.version;
+  if (version === undefined || !Number.isSafeInteger(version) || version < 1) return null;
+  const host = requestHeaders.get('host');
+  if (!host) throw new ApiError(404, 'NOT_FOUND', 'Not found.');
+  const { privateBaseUrl, timeoutMs } = configuration();
+  const url = new URL(`/api/v1/holdings/${encodeURIComponent(scope.holdingSlug)}/posts/${encodeURIComponent(postId)}/source-entry`, privateBaseUrl);
+  url.search = new URLSearchParams({ companyId: scope.companyId, assignmentId: assignment.id, assignmentVersion: String(version) }).toString();
+  const headers: Record<string, string> = { host, accept: 'application/json' };
+  const cookie = requestHeaders.get('cookie');
+  if (cookie) headers.cookie = cookie;
+  if (scope.kind !== 'holding' && scope.branchSlug) headers['x-erpx-workspace-branch'] = scope.branchSlug;
+  if (scope.kind === 'department') headers['x-erpx-workspace-department'] = scope.departmentSlug;
+  let response: Response;
+  try {
+    response = await nativeRequest(url, { headers }, timeoutMs);
+  } catch {
+    throw new ApiError(503, 'NATIVE_COLLABORATION_UNAVAILABLE', 'The native Collaboration service is unavailable.');
+  }
+  const payload = await response.json().catch(() => null) as {
+    data?: { eligible?: unknown }; error?: { code?: string; message?: string };
+  } | null;
+  if (!response.ok) throw new ApiError(
+    response.status,
+    payload?.error?.code ?? 'NATIVE_COLLABORATION_FAILED',
+    payload?.error?.message ?? 'The Collaboration request failed.',
+  );
+  if (typeof payload?.data?.eligible !== 'boolean') return failed();
+  return payload.data.eligible ? { purchasePurpose: 'history' } : null;
 }

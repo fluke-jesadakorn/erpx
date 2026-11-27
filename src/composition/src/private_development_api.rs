@@ -4899,6 +4899,16 @@ async fn assemble_checked(
                 }
                 #[cfg(feature = "existing-business")]
                 {
+                    let entry_inspector = Arc::new(
+                        erpx_server_identity_access::public::work_context::HoldingWorkContextInspector::new(
+                            pools[0].clone(),
+                            pools[i + 1].clone(),
+                            holding.registration.holding_id.clone(),
+                            (*config.policy).clone(),
+                            clock.clone(),
+                            config.holdings_registry.clone(),
+                        ).map_err(|_| "PRIVATE_API_SOCIAL_ENTRY_INSPECTOR_INVALID")?,
+                    );
                     social_targets.push(crate::collaboration::social_target(
                         holding.host.clone(),
                         holding.registration.slug.clone(),
@@ -4914,7 +4924,7 @@ async fn assemble_checked(
                                 ),
                                 Arc::new(SharedClock(clock.clone())),
                             )),
-                        )),
+                        ).with_entry_inspector(entry_inspector)),
                     ));
                 }
                 #[cfg(feature = "existing-business")]
@@ -12918,6 +12928,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         && matches!(
             path.split('/').collect::<Vec<_>>().as_slice(),
             ["", "api", "v1", "holdings", _, "page"]
+                | ["", "api", "v1", "holdings", _, "posts", _, "source-entry"]
         )
         && state.policy.holdings.iter().any(|holding| holding.host == host);
     let crm_sales_report = state.oasis_demo_staging && host == OASIS_DEMO_HOLDING_HOST

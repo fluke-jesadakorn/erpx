@@ -217,7 +217,7 @@ use erpx_server_collaboration::public::social::{
 };
 use erpx_server_collaboration::public::social_http::{
     SocialCommentsData, SocialFeedData, SocialHttpBackend, SocialHttpCommandRequest,
-    SocialHttpCommentsRequest, SocialHttpFuture, SocialHttpPageRequest, SocialHttpReadReply,
+    SocialHttpCommentsRequest, SocialHttpFuture, SocialHttpPageRequest, SocialHttpSourceEntryRequest, SocialSourceEntryData, SocialHttpReadReply,
     SocialHttpReadRequest, SocialPageData,
     SocialHttpRevisionsRequest, SocialHttpTarget, SocialReadKind, SocialThreadData,
 };
@@ -245,7 +245,7 @@ use erpx_server_identity_access::public::{
         AuthorizedWorkContext, HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
         WorkAuthorizationRequest,
     },
-    work_context::{HoldingWorkspaceRequest, WorkScopeKind},
+    work_context::{HoldingWorkContextInspector, HoldingWorkspaceRequest, WorkScopeKind},
 };
 use erpx_server_records::public::record_context::{
     PgRecordContext, RecordContextActor, record_context,
@@ -757,6 +757,7 @@ pub struct SocialBackend<C> {
     policy: Arc<AccountPolicy>,
     scopes: Arc<dyn BusinessScopeSlugs>,
     service: Arc<SocialService<C>>,
+    entry_inspector: Option<Arc<HoldingWorkContextInspector>>,
 }
 
 impl<C: Clock + Send + Sync + 'static> SocialBackend<C> {
@@ -769,7 +770,13 @@ impl<C: Clock + Send + Sync + 'static> SocialBackend<C> {
             policy,
             scopes,
             service,
+            entry_inspector: None,
         }
+    }
+
+    pub fn with_entry_inspector(mut self, inspector: Arc<HoldingWorkContextInspector>) -> Self {
+        self.entry_inspector = Some(inspector);
+        self
     }
 
     fn context(
@@ -805,6 +812,36 @@ impl<C: Clock + Send + Sync + 'static> SocialHttpBackend for SocialBackend<C> {
                 .read(request.host, proof, selection, request.kind)
                 .await
                 .map_err(business)
+        })
+    }
+
+    fn source_entry<'a>(
+        &'a self,
+        request: SocialHttpSourceEntryRequest<'a>,
+    ) -> SocialHttpFuture<'a, SocialSourceEntryData> {
+        Box::pin(async move {
+            let inbound = parse_inbound_account_request(&self.policy, request.headers)?;
+            if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+                return Err(not_found());
+            }
+            let (branch_slug, department_slug) = self.scopes.slugs(request.headers)?;
+            let inspector = self.entry_inspector.as_ref().ok_or_else(unavailable)?;
+            let workspace = HoldingWorkspaceRequest {
+                company_id: CompanyId::new(request.company_id)?,
+                branch_slug,
+                department_slug,
+                expected: None,
+                mutation: false,
+            };
+            let input = social_home::SourceEntryInput {
+                post_id: erpx_server_shared::public::RecordId::new(request.post_id)?,
+                assignment: erpx_server_shared::public::AssignmentId::new(request.assignment_id)?,
+                version: request.assignment_version,
+            };
+            let eligible = self.service.source_entry(
+                inspector, request.host, inbound.into_proof(), workspace, input,
+            ).await.map_err(business)?;
+            Ok(SocialSourceEntryData { eligible })
         })
     }
 

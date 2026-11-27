@@ -182,6 +182,21 @@ pub struct SocialHttpPageRequest<'a> {
     pub source_only: bool,
 }
 
+/// Account-scoped admission for a proposed role, before selection.
+pub struct SocialHttpSourceEntryRequest<'a> {
+    pub host: &'a str,
+    pub headers: &'a HeaderMap,
+    pub post_id: &'a str,
+    pub company_id: &'a str,
+    pub assignment_id: &'a str,
+    pub assignment_version: i64,
+}
+
+#[derive(Serialize)]
+pub struct SocialSourceEntryData {
+    pub eligible: bool,
+}
+
 pub enum SocialHttpReadReply {
     Feed(Box<SocialFeedData>),
     Thread(Box<SocialThreadData>),
@@ -224,6 +239,19 @@ pub trait SocialHttpBackend: Send + Sync {
                 FailureKind::Unavailable,
                 "SOCIAL_REVISIONS_PORT_UNAVAILABLE",
                 "The native Social revision reader is unavailable.",
+            ))
+        })
+    }
+
+    fn source_entry<'a>(
+        &'a self,
+        _request: SocialHttpSourceEntryRequest<'a>,
+    ) -> SocialHttpFuture<'a, SocialSourceEntryData> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "SOCIAL_SOURCE_ENTRY_UNAVAILABLE",
+                "Social role admission is unavailable.",
             ))
         })
     }
@@ -410,6 +438,10 @@ pub fn social_router(targets: Vec<SocialHttpTarget>) -> Result<Router, BusinessE
             post(archive_story),
         )
         .route("/api/v1/holdings/{holding_slug}/page", get(read_page))
+        .route(
+            "/api/v1/holdings/{holding_slug}/posts/{post_id}/source-entry",
+            get(read_source_entry),
+        )
         .with_state(Arc::new(state)))
 }
 
@@ -658,6 +690,44 @@ pub async fn read_page(
     .await;
     match result {
         Ok(page) => bounded(page),
+        Err(error) => error_response(error),
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SourceEntryQuery {
+    company_id: String,
+    assignment_id: String,
+    assignment_version: i64,
+}
+
+async fn read_source_entry(
+    State(state): State<Arc<SocialHttpState>>,
+    Path((slug, post_id)): Path<(String, String)>,
+    Query(query): Query<SourceEntryQuery>,
+    request: Request,
+) -> Response {
+    let headers = request.headers();
+    let result = async {
+        let target = target(&state, headers, &slug)?;
+        if !(1..=9_007_199_254_740_991).contains(&query.assignment_version) {
+            return Err(BusinessError::invalid(
+                "SOCIAL_SOURCE_ENTRY_VERSION_INVALID",
+                "The proposed assignment version is invalid.",
+            ));
+        }
+        target.backend.source_entry(SocialHttpSourceEntryRequest {
+            host: &target.host,
+            headers,
+            post_id: &post_id,
+            company_id: &query.company_id,
+            assignment_id: &query.assignment_id,
+            assignment_version: query.assignment_version,
+        }).await
+    }.await;
+    match result {
+        Ok(data) => bounded(data),
         Err(error) => error_response(error),
     }
 }
