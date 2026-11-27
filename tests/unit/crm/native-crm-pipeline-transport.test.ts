@@ -7,6 +7,8 @@ import {
   NativeCrmPipelineError,
   type NativeCrmPipelinePageContext,
 } from '../../../packages/feature-sales/src/public/native-crm-pipeline';
+import { nativeCrmPipeline } from '../../../packages/feature-sales/src/public/native-crm-pipeline-page';
+import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44995',
@@ -52,6 +54,16 @@ const input={holdingSlug:'acme',search:'office',stage:'open' as const,
 const ok=(value:unknown)=>new Response(JSON.stringify(value),{status:200,headers:{'content-type':'application/json'}});
 
 describe('native CRM pipeline transport',()=>{
+  it('leaves Holdings outside the configured development cohort on their existing reader', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('ERPX_NATIVE_CRM_PIPELINE_CONFIG', config());
+    try {
+      const internal = { holdingId: 'h003', holdingSlug: 'erpx' } as WorkContext;
+      await expect(nativeCrmPipeline(internal, {})).resolves.toBeUndefined();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
  it('forwards the configured Holding, session, CAS and pipeline query',async()=>{
   const transport=vi.fn().mockResolvedValue(ok(page([lead])));
   const client=createNativeCrmPipelineClient(nativeCrmPipelineConfiguration(config()),transport);

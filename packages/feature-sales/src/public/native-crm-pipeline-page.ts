@@ -59,22 +59,27 @@ function scope(actor: NativeCrmPipelinePageContext) {
   };
 }
 
-function client() {
+function client(actor: Pick<WorkContext, 'holdingId' | 'holdingSlug'>) {
   const raw = process.env.ERPX_NATIVE_CRM_PIPELINE_CONFIG;
   if (raw === undefined) return undefined;
-  return createNativeCrmPipelineClient(nativeCrmPipelineConfiguration(raw));
+  const configuration = nativeCrmPipelineConfiguration(raw);
+  const native = createNativeCrmPipelineClient(configuration);
+  if (process.env.NODE_ENV === 'development' && !configuration.holdings.some(
+    ({ holdingId, holdingSlug }) => holdingId === actor.holdingId && holdingSlug === actor.holdingSlug,
+  )) return undefined;
+  return native;
 }
 
 /**
- * Native pipeline list read. An unset configuration retains the TypeScript
- * workspace; once configured, an invalid or failed native read is surfaced and
- * never silently replaced.
+ * Native pipeline list read. A development Holding joins the cohort through
+ * its exact configured identity. An invalid or failed native read surfaces to
+ * the caller.
  */
 export async function nativeCrmPipeline(
   actor: WorkContext,
   query: { q?: string; stage?: string; cursor?: string },
 ): Promise<NativeCrmPipelinePage | undefined> {
-  const native = client();
+  const native = client(actor);
   if (!native) return undefined;
   const pageContext = nativeCrmPipelinePageContext(actor);
   const input: NativeCrmPipelineReadInput = {
