@@ -51,7 +51,7 @@ export default async function ProductEntryPage({ searchParams, applications = fa
     : undefined);
   if (direct) redirect(direct);
   const nativeServiceEntry = host === "service" && holdingRoutingEnabled(process.env) && process.env.ERPX_NATIVE_FIELD_SERVICE_WORKSPACE_CONFIG !== undefined;
-  const existingWorkspaces = !nativeServiceEntry && (host === "apps" || host === "admin" || choices.length === 0) ? await measureReadPhase("product_entry_recovery", existingWorkspaceLaunchChoices) : [];
+  const existingWorkspaces = !holding && !nativeServiceEntry && (host === "apps" || host === "admin" || choices.length === 0) ? await measureReadPhase("product_entry_recovery", existingWorkspaceLaunchChoices) : [];
   const launcherCompanies = host === "apps" ? buildAppsCompanies(
     choices.map(choice => ({...choice, label: choice.productId === "apps" ? (language === "th" ? "ฟีด" : "Feed") : product(choice.productId)!.label[language], accessLabel: productAccessLabel(choice, language)})),
     adminChoices,
