@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16057,
+    "revision": 16069,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": null,
@@ -223763,15 +223763,45 @@
         "title": "Bind the native aggregate Social read for the shared Holding Feed",
         "dependsOn": [],
         "requiredPorts": [],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "baseSha": "451d2a079885475c9aa55163dee98471e23f1f3a",
+        "implementedCommit": "8aae5db0b596b1e57b3a748c0ad9ab908811832c",
+        "lastPushedSha": "8aae5db0b596b1e57b3a748c0ad9ab908811832c",
+        "checks": [
+          {
+            "command": "vitest run --config tests/config/vitest.unit.config.mts tests/unit/collaboration/collaboration-services.test.ts tests/unit/shared.ui/apps-launcher.test.ts",
+            "result": "passed",
+            "sourceSha": "8aae5db0b596b1e57b3a748c0ad9ab908811832c",
+            "details": "150 tests passed including rendered Company, Assignment version, Department, tag and signed session forwarding."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "8aae5db0b596b1e57b3a748c0ad9ab908811832c"
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-collaboration/src/adapters/social-page.ts",
+            "removalTaskId": "cutover.collaboration.rich-home-native-ssr",
+            "removalCondition": "Bind and verify the Axum aggregate with the full existing SSR presenter and normal authenticated Holding routes, then remove the retained query."
+          },
+          {
+            "path": "packages/server-collaboration/src/adapters/social-home.ts",
+            "removalTaskId": "cutover.collaboration.rich-home-native-ssr",
+            "removalCondition": "Retire the legacy page-specific readers once the native aggregate preserves audience and source authorization, title/link access, tags, and presentation. Other consumers require their own owner cutover."
+          }
+        ],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "oasis-shared-apps-release-20261127",
+          "agentId": "codex",
+          "at": "2026-11-27T14:37:13.198Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Implement SocialHttpBackend::page with the full owner projection under the rendered Company and assignment. Port audience and purchase/source predicates and bind authorized Projects, Operations and PMS sources. Mount the GET route only after parity, then rerun exact Admin SSO, real Feed and Billing PDF with both roles."
+        },
         "resources": [
           "collaboration-rich-home-native-ssr"
         ],
@@ -223789,7 +223819,95 @@
           "Bind complete Axum aggregate presentation and mount it through the exact registered Holding routes",
           "Verify the new Admin Holding root reaches real Feed after normal SSO and retained Social contracts still pass"
         ],
-        "nextAction": "Trace GET /api/v1/holdings/{holding_slug}/page from nativeSocialPageDataSSR. The exact Admin canary received 404 and SocialHttpBackend::page remains unimplemented in composition. Compare the existing SocialPage projection and mount the full Rust contract."
+        "nextAction": "Implement SocialHttpBackend::page with the full owner projection under the rendered Company and assignment. Port audience and purchase/source predicates and bind authorized Projects, Operations and PMS sources. Mount the GET route only after parity, then rerun exact Admin SSO, real Feed and Billing PDF with both roles."
+      },
+      {
+        "id": "ux.apps.stable-switcher",
+        "goalId": "G4",
+        "owner": "apps",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Keep a stable app grid and a separate accessible app switcher",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/workplace/src/components/apps-launcher.tsx",
+          "packages/workplace/src/components/apps-launcher.module.css",
+          "packages/workplace/src/components/office-product-menus.tsx",
+          "packages/feature-work_projection/src/lib/apps-launcher.ts",
+          "tests/unit/shared.ui/apps-launcher.test.ts",
+          "packages/workplace/src/routes/choose-work-role/native-role-form.tsx"
+        ],
+        "resources": [
+          "holding-apps-switcher-ux"
+        ],
+        "status": "done",
+        "claim": null,
+        "baseSha": "451d2a079885475c9aa55163dee98471e23f1f3a",
+        "implementedCommit": "2cdad746fce7fd136b270ac8052e01fd6e45807e",
+        "lastPushedSha": "2cdad746fce7fd136b270ac8052e01fd6e45807e",
+        "checks": [
+          {
+            "command": "Chrome public development Holding launcher at 390×844 and 820×1180",
+            "result": "passed",
+            "sourceSha": "9ae5f6579b9576297270054c35f4c81ed2dbdf4d",
+            "details": "Normal Account SSO; stable ordering across 15 authorized product tiles; Sales tile expanded; dock and current-app resume; browser Back and direct-hash Escape."
+          },
+          {
+            "command": "OASIS public Chrome Sales then Back to Feed",
+            "result": "failed",
+            "sourceSha": "9ae5f6579b9576297270054c35f4c81ed2dbdf4d",
+            "details": "The accepted Sales role chooser was a previous history entry and redirected back to Sales. The chooser now replaces that entry."
+          },
+          {
+            "command": "OASIS public Chrome Sales then Back to Feed",
+            "result": "passed",
+            "sourceSha": "2cdad746fce7fd136b270ac8052e01fd6e45807e",
+            "details": "Normal SSO, fixed tile grid, active-app resume, full launch motion, browser Back to original Feed via its role confirmation when needed, Escape, mobile/tablet dock and reduced motion confirmed."
+          },
+          {
+            "command": "bun scripts/local/prepare-workspace-release.ts --oasis-demo --candidate=2cdad746fce7fd136b270ac8052e01fd6e45807e",
+            "result": "passed",
+            "sourceSha": "2cdad746fce7fd136b270ac8052e01fd6e45807e",
+            "details": "Frozen Apps, Sales and Account Next standalone plus Rust --release. Manifest and inventories validated. Dedicated OASIS loopback and public Holding/Account health are 200."
+          },
+          {
+            "command": "OASIS public two-role browser quotation, report and PDF recheck",
+            "result": "passed",
+            "sourceSha": "2cdad746fce7fd136b270ac8052e01fd6e45807e",
+            "details": "Both roles reopened QT-2026-000004 at THB 85,500. Manager opened filtered Sales Reports and printed the same one-page A4 PDF. Read-only after previous mutation rehearsal."
+          },
+          {
+            "command": "Vitest Apps launcher and Collaboration services",
+            "result": "passed",
+            "sourceSha": "2cdad746fce7fd136b270ac8052e01fd6e45807e",
+            "details": "150/150 cases passed."
+          },
+          {
+            "command": "Vitest Identity Access product-workspace",
+            "result": "failed",
+            "sourceSha": "451d2a079885475c9aa55163dee98471e23f1f3a",
+            "details": "Baseline comparison reproduced the same 3 failures: two role mocks omit the forwarded Headers argument and one Payroll presentation mock omits ownedPeoplePayrollRuns."
+          },
+          {
+            "command": "Vitest Identity Access product-workspace",
+            "result": "failed",
+            "sourceSha": "2cdad746fce7fd136b270ac8052e01fd6e45807e",
+            "details": "74/77 passed. The same three tests failed on the pre-change release source in a clean scratch snapshot."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": {
+          "runId": "oasis-shared-apps-release-20261127",
+          "agentId": "codex",
+          "at": "2026-11-27T14:40:33.454Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Keep Feed and product tiles stable, mark the current app in a bottom recent-app dock, then verify on mobile and tablet."
+        },
+        "scope": "Shared Holding Apps navigation, accessible focus and browser history, without changing SSO or native app authority.",
+        "nextAction": "The shared Apps frontend and OASIS replacement release are verified. Continue cutover.collaboration.rich-home-native-ssr for the remaining Admin Feed gate. The interview case stays reserved for live use."
       }
     ],
     "migrationProgress": {
@@ -223801,18 +223919,18 @@
       "totalPackets": 2472,
       "migratedPackets": 370,
       "statusCounts": {
-        "pending": 15,
+        "pending": 14,
         "in_progress": 0,
         "ready_for_integration": 159,
         "integrating": 0,
         "migrated": 370,
-        "blocked": 1926,
+        "blocked": 1927,
         "deferred": 2,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 213,
-    "updatedAt": "2026-11-27T14:18:53.022Z",
+    "lastCoordinatorGeneration": 214,
+    "updatedAt": "2026-11-27T14:48:00.649Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
