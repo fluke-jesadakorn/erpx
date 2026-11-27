@@ -51,6 +51,6 @@ describe('legal read-tail r33 ordered-history family folds into the single point
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(36);
+    expect(total).toBe(35);
   });
 });

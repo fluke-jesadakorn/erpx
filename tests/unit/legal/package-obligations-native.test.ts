@@ -228,6 +228,6 @@ describe('native Legal package-obligation cutover', () => {
     };
     await walk(resolve(__dirname, '../../../packages/server-legal/src'));
     expect(total).toBeLessThan(41);
-    expect(total).toBe(36);
+    expect(total).toBe(35);
   });
 });
