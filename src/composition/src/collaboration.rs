@@ -236,7 +236,7 @@ use erpx_server_files::public::messaging_files::{
 use erpx_server_identity_access::public::selected_command_authority::require_selected_actor_current;
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
-    account_inbound_http::{parse_inbound_account_request, unique_request_header},
+    account_inbound_http::{CapturedHoldingMutation, parse_inbound_account_request, unique_request_header},
     effective_authority::{
         AuthorizedWorkContext, HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
         WorkAuthorizationRequest,
@@ -787,22 +787,20 @@ impl<C: Clock + Send + Sync + 'static> SocialBackend<C> {
     fn context(
         &self,
         headers: &HeaderMap,
+        mutation: bool,
     ) -> Result<(DeviceProof, HoldingWorkspaceRequest), BusinessError> {
         let inbound = parse_inbound_account_request(&self.policy, headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(not_found());
         }
         let (branch, department) = self.scopes.slugs(headers)?;
-        Ok((
-            inbound.into_proof(),
-            HoldingWorkspaceRequest {
-                company_id: self.service.company().clone(),
-                branch_slug: branch,
-                department_slug: department,
-                expected: None,
-                mutation: false,
-            },
-        ))
+        let context = CapturedHoldingMutation::capture(headers, branch, department);
+        let selection = if mutation {
+            context.resolve()?
+        } else {
+            context.resolve_read(self.service.company().clone())?
+        };
+        Ok((inbound.into_proof(), selection))
     }
 }
 
@@ -812,7 +810,7 @@ impl<C: Clock + Send + Sync + 'static> SocialHttpBackend for SocialBackend<C> {
         request: SocialHttpReadRequest<'a>,
     ) -> SocialHttpFuture<'a, SocialHttpReadReply> {
         Box::pin(async move {
-            let (proof, selection) = self.context(request.headers)?;
+            let (proof, selection) = self.context(request.headers, false)?;
             self.service
                 .read(request.host, proof, selection, request.kind)
                 .await
@@ -825,7 +823,7 @@ impl<C: Clock + Send + Sync + 'static> SocialHttpBackend for SocialBackend<C> {
         request: SocialHttpCommandRequest<'a>,
     ) -> SocialHttpFuture<'a, erpx_server_collaboration::public::social::Receipt> {
         Box::pin(async move {
-            let (proof, selection) = self.context(request.headers)?;
+            let (proof, selection) = self.context(request.headers, true)?;
             self.service
                 .command(
                     request.host,
@@ -845,7 +843,7 @@ impl<C: Clock + Send + Sync + 'static> SocialHttpBackend for SocialBackend<C> {
         request: SocialHttpCommentsRequest<'a>,
     ) -> SocialHttpFuture<'a, SocialCommentsData> {
         Box::pin(async move {
-            let (proof, selection) = self.context(request.headers)?;
+            let (proof, selection) = self.context(request.headers, false)?;
             self.service
                 .comments_page(
                     request.host,
@@ -865,7 +863,7 @@ impl<C: Clock + Send + Sync + 'static> SocialHttpBackend for SocialBackend<C> {
         request: SocialHttpRevisionsRequest<'a>,
     ) -> SocialHttpFuture<'a, Vec<erpx_server_collaboration::public::social::RevisionRow>> {
         Box::pin(async move {
-            let (proof, selection) = self.context(request.headers)?;
+            let (proof, selection) = self.context(request.headers, false)?;
             self.service
                 .revisions(request.host, proof, selection, request.post_id.to_owned())
                 .await
