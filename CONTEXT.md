@@ -308,6 +308,12 @@ _Avoid_: Module, Commercial Package when describing a workspace.
 
 **Module / โมดูล**: The owner of a business process and its records, policies and transitions. A Module may support several Products or be shared without a separate Product.
 
+**Plugin / ปลั๊กอิน**: An optional ERPX extension with Tiles or Cards that a Company can choose to make available in Apps.
+
+**Plugin Version / เวอร์ชันปลั๊กอิน**: A specific edition of a Plugin that the ERPX project owner has approved for Company installation.
+
+**Company Installation / การติดตั้งปลั๊กอินของบริษัท**: A Company's decision to enable a specific Plugin Version. A withdrawal records who ended that Company's installation and when.
+
 **Company Package Grant**: A time-bounded, evidenced entitlement of a Company to a specific version of a Commercial Package. Its lifecycle is active, draining and inactive.
 
 **Draining Package**: A package that accepts no new work while its existing obligations are settled under their owners' policies. Expiry does not erase history, outstanding liabilities or Legal holds.

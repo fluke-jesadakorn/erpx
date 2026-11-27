@@ -1,4 +1,5 @@
 pub mod capability_decision;
+pub mod company_plugins;
 pub mod package_review;
 pub mod purchases;
 pub mod subscriptions;

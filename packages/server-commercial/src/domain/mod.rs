@@ -1,6 +1,7 @@
 pub mod capability_decision;
 pub(crate) mod collation;
 pub mod company_access;
+pub(crate) mod company_plugins;
 pub mod owner_read;
 pub mod owner_write;
 pub mod packages;

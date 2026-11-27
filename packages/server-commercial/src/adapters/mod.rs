@@ -1,5 +1,6 @@
 pub mod capability_decision_postgres;
 pub mod company_packages_http;
+pub(crate) mod company_plugins;
 pub mod package_catalogue;
 pub mod package_grants_http;
 pub mod package_review;
