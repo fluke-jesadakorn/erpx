@@ -7,7 +7,8 @@
     "records/search",
     "benefits",
     "stock-transfers",
-    "ai-providers"
+    "ai-providers",
+    "handbook"
   ],
   "holdingPaths": [
     { "method": "GET", "path": "brand" },
@@ -20,7 +21,10 @@
     { "method": "GET", "path": "customer-notes" },
     { "method": "POST", "path": "customer-notes" },
     { "method": "GET", "path": "customer-identity" },
-    { "method": "POST", "path": "customer-identity" }
+    { "method": "POST", "path": "customer-identity" },
+    { "method": "POST", "path": "stories/{id}/archive" },
+    { "method": "GET", "path": "executive/connections" },
+    { "method": "POST", "path": "executive/connections" }
   ],
   "platform": [
     { "host": "admin.jesadakorn.com", "method": "GET", "path": "/api/v1/platform/operations" },
