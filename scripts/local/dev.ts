@@ -6,6 +6,7 @@ import { execFileSync } from "node:child_process";
 import { appDefinition } from "@erpx/contracts/apps";
 import {holdingRoutingEnabled,activeHoldingHosts,accountDevelopmentOrigin} from '@erpx/feature-runtime/lib/holding-hosts';
 import { prepareNextDevelopment } from "./prepare-next-development";
+import { expandNativeApiPaths, loadNativeApiPaths } from "./native-api-paths";
 import { pinnedNode } from "./app-task";
 
 const root = resolve(import.meta.dirname, "../..");
@@ -49,6 +50,14 @@ const descriptor = openSync(lock, "wx", 0o600); writeFileSync(descriptor, String
 let styleWatcher:ReturnType<typeof import('./workspace-style-watcher').watchWorkspaceStyleSources>|undefined;
 try {
   prepareNextDevelopment(root);
+  if (!process.env.ERPX_DEV_NATIVE_PATHS) {
+    const file = resolve(root, "scripts/local/native-api-paths.json");
+    if (existsSync(file)) {
+      const expanded = expandNativeApiPaths(loadNativeApiPaths(file), activeHoldingHosts());
+      if (expanded.paths) process.env.ERPX_DEV_NATIVE_PATHS = expanded.paths;
+      if (expanded.rewrites && !process.env.ERPX_DEV_NATIVE_REWRITES) process.env.ERPX_DEV_NATIVE_REWRITES = expanded.rewrites;
+    }
+  }
   const styles=await import('../assets/workspace-styles');
   styleWatcher=(await import('./workspace-style-watcher')).watchWorkspaceStyleSources(root,styles.refreshWorkspaceStyles().files);
   const bundled = await Bun.build({ entrypoints: [resolve(root, "scripts/local/dev-gateway.ts")], outdir: directory,
