@@ -1,10 +1,13 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
+import { headers } from 'next/headers';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { nativeRequest } from '@erpx/server-runtime/public/native-http';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import type { TimePreference } from '@erpx/server-identity_access/domain/account-time-preference';
 import { currentSession } from '@erpx/server-identity_access/adapters/authorization';
 import { defaultTimePreference } from '@erpx/server-identity_access/domain/account-time-preference';
+import { nativeAccountConfiguration } from './native-session';
 
 /**
  * The write side of account time preferences is a native axum command (see the
@@ -97,20 +100,22 @@ function parsePreference(value: unknown): TimePreference {
 
 /** Native read companion of the command router. No SQL and no fallback: a
  * missing or malformed native runtime fails closed with an explicit 503. */
-async function readNativeTimePreference(userId: string): Promise<TimePreference> {
-  const config = nativeConfig();
-  const headers = new Headers({
-    host: config.host,
-    accept: 'application/json',
-    'cache-control': 'no-cache',
-    'x-erpx-context-user': userId,
-  });
+async function readNativeTimePreference(incoming: Pick<Headers, 'get'>): Promise<TimePreference> {
+  const raw = process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG;
+  const host = incoming.get('host');
+  const cookie = incoming.get('cookie');
   let response: Response;
   try {
-    response = await fetch(
-      `${config.base}/api/v1/holdings/${encodeURIComponent(config.holdingSlug)}/account/time-preference`,
-      { method: 'GET', headers, cache: 'no-store', signal: AbortSignal.timeout(config.timeoutMs) },
-    );
+    if (!raw || !host || !cookie) throw new Error('TIME_PREFERENCE_SESSION_REQUIRED');
+    const config = nativeAccountConfiguration(raw);
+    const base = new URL(config.privateBaseUrl);
+    if (base.protocol !== 'http:' || !['127.0.0.1', '[::1]'].includes(base.hostname) || base.href !== base.origin + '/'
+      || !Number.isInteger(config.timeoutMs) || config.timeoutMs < 250 || config.timeoutMs > 30_000) {
+      throw new Error('TIME_PREFERENCE_CONFIGURATION_INVALID');
+    }
+    response = await nativeRequest(new URL('/api/v1/account/time-preference', base), {
+      headers: { host, cookie, accept: 'application/json' },
+    }, config.timeoutMs);
   } catch {
     throw new ApiError(503, 'TIME_PREFERENCE_UNAVAILABLE', 'The native time preference service is unavailable.');
   }
@@ -122,13 +127,13 @@ async function readNativeTimePreference(userId: string): Promise<TimePreference>
       value?.error?.message ?? 'The time preference could not be read.',
     );
   }
-  const value = await response.json().catch(() => null) as { preference?: unknown } | null;
-  return value && 'preference' in value ? parsePreference(value.preference) : defaultTimePreference;
+  const value = await response.json().catch(() => null) as { data?: unknown } | null;
+  return parsePreference(value?.data);
 }
 
 /** Native-only read side. The axum read router owns the SQL and projection. */
-export const accountTimePreference = (userId: string) => exposed(async () => {
-  return testRead ? (await testRead(userId)) ?? defaultTimePreference : await readNativeTimePreference(userId);
+export const accountTimePreference = (userId: string, incoming?: Pick<Headers, 'get'>) => exposed(async () => {
+  return testRead ? (await testRead(userId)) ?? defaultTimePreference : await readNativeTimePreference(incoming ?? await headers());
 });
 
 /** Native command write side. The preference is committed by the axum router. */

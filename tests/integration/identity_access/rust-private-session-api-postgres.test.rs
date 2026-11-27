@@ -121,6 +121,62 @@ async fn assembled_router_uses_real_account_and_both_sso_children_and_current_ho
     .await;
 }
 #[tokio::test]
+async fn signed_account_and_holding_time_preference_uses_one_control_row_and_receipt() {
+    account::with_system(|system| async move {
+        let central = account::login(&system, "a@example.test", None).await;
+        let issued = account::child(&system, &central, account::ACME).await;
+        let router = erpx_service::account_time_preference_http::browser_time_preference_router(
+            system.control.clone(),
+            Arc::new(account::fixture::account::policy()),
+            account::fixture::account::holding_registry(),
+            system.scenario.clock.clone(),
+        );
+        let holding_cookie = format!("__Host-erpx-product={}", issued.token.expose());
+        let time_request = |method: &str, host: &str, session: &str, origin: &str, body: serde_json::Value| {
+            let request = Request::builder()
+                .uri("/api/v1/account/time-preference")
+                .method(method)
+                .header("host", host)
+                .header("origin", origin)
+                .header("cookie", session)
+                .header("x-erpx-context-user", "fixture-b")
+                .body(Body::from(body.to_string()))
+                .unwrap();
+            let app = router.clone();
+            async move {
+                let response = app.oneshot(request).await.unwrap();
+                let status = response.status();
+                let bytes = to_bytes(response.into_body(), 32_768).await.unwrap();
+                (status, serde_json::from_slice::<serde_json::Value>(&bytes).unwrap())
+            }
+        };
+        let default = serde_json::json!({"data":{"mode":"system","timeZone":null,"hourCycle":"h23","version":0}});
+        let patch = serde_json::json!({"mode":"manual","timeZone":"Asia/Bangkok","hourCycle":"h12","version":0});
+        let origin = "https://acme.example.test";
+        assert_eq!(time_request("GET", "acme.example.test", &holding_cookie, origin, serde_json::Value::Null).await,
+            (StatusCode::OK, default.clone()));
+        assert_eq!(time_request("PATCH", "acme.example.test", &holding_cookie, "https://outside.example.test", patch.clone()).await.0,
+            StatusCode::FORBIDDEN);
+        let saved = time_request("PATCH", "acme.example.test", &holding_cookie, origin, patch.clone()).await;
+        assert_eq!(saved.0, StatusCode::OK, "{}", saved.1);
+        assert_eq!(saved.1["data"], serde_json::json!({"mode":"manual","timeZone":"Asia/Bangkok","hourCycle":"h12","version":1}));
+        assert_eq!(time_request("PATCH", "acme.example.test", &holding_cookie, origin, patch.clone()).await, saved);
+        let mut stale = patch;
+        stale["timeZone"] = serde_json::json!("UTC");
+        assert_eq!(time_request("PATCH", "acme.example.test", &holding_cookie, origin, stale).await.0, StatusCode::CONFLICT);
+        assert_eq!(time_request("GET", "account.example.test", &cookie(&central), "https://account.example.test", serde_json::Value::Null).await, saved);
+        assert_eq!(time_request("GET", "northstar.example.test", &holding_cookie, "https://northstar.example.test", serde_json::Value::Null).await.0,
+            StatusCode::UNAUTHORIZED);
+        let other = account::login(&system, "b@example.test", None).await;
+        assert_eq!(time_request("GET", "account.example.test", &cookie(&other), "https://account.example.test", serde_json::Value::Null).await,
+            (StatusCode::OK, default));
+        let writes: i64 = sqlx::query_scalar("SELECT count(*) FROM iam_receipts WHERE actor_id='fixture-a' AND id LIKE 'time-preference-%'")
+            .fetch_one(system.control.raw()).await.unwrap();
+        assert_eq!(writes, 1);
+    })
+    .await;
+}
+#[tokio::test]
 async fn session_only_router_keeps_anonymous_null_and_closed_host_proxy_method_cookie_and_readiness_boundaries()
  {
     account::with_system(|system| async move {

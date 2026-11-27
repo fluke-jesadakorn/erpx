@@ -254,6 +254,8 @@ it('routes only the OASIS walkthrough APIs to Rust and rejects foreign hosts, te
   expect(target('/login', 'GET', account)).toMatchObject({port:3287, native:false});
   for (const [host, method, path] of [
     [account, 'POST', '/api/auth/sign-in/email'], [account, 'GET', '/sso/authorize'], [holding, 'GET', '/sso/start'],
+    [account, 'GET', '/api/v1/account/time-preference'], [holding, 'GET', '/api/v1/account/time-preference'],
+    [holding, 'PATCH', '/api/v1/account/time-preference'],
     [holding, 'GET', '/sso/callback'], [holding, 'POST', `${base}/assignments/active`], [holding, 'POST', `${base}/companies/active`],
     [holding, 'POST', `${base}/crm/activities`], [holding, 'POST', `${base}/crm/activities/activity-1/changes`],
     [holding, 'POST', `${base}/crm/leads/lead-1/changes`], [holding, 'POST', `${base}/crm/leads/lead-1/opportunity/changes`],
@@ -263,6 +265,12 @@ it('routes only the OASIS walkthrough APIs to Rust and rejects foreign hosts, te
     [holding, 'GET', `${base}/feed`], [holding, 'POST', `${base}/feed`],
     [holding, 'GET', `${base}/posts/post-1/comments`], [holding, 'POST', `${base}/posts/post-1/comments`],
   ]) expect(target(path!, method, host)).toMatchObject({port:3382, native:true, path});
+  expect(target('/__erpx/apps/api/v1/workspace-preference', 'POST')).toMatchObject({
+    port:3382, native:true, path:`${base}/workspace-preference`, workspacePreference:true,
+  });
+  expect(target('/api/v1/workspace-preference')).toEqual({status:405, allow:'POST'});
+  expect(target('/api/v1/workspace-preference', 'POST', account)).toEqual({status:404});
+  expect(target(`${base}/workspace-preference`, 'POST')).toEqual({status:404});
   expect(target(`/__erpx/sales${base}/branches/phuket/departments/sales/crm/activities?x=a%2Fb`, 'POST')).toEqual({
     port:3382, native:true, path:`${base}/crm/activities?x=a%2Fb`, workspace:{branch:'phuket', department:'sales'}, workContext:true,
   });

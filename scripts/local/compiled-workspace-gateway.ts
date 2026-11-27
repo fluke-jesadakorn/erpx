@@ -37,7 +37,7 @@ function unavailable(response: ServerResponse) {
   response.writeHead(503, {'Cache-Control':'no-store','Content-Type':'text/plain; charset=utf-8'});response.end('Application unavailable.');
 }
 type OasisTarget = { status: 404 | 405 | 421; allow?: string } |
-  { port: number; native: true; path: string; workspace?: HoldingNativeWorkspace; workContext?: true } | { port: number; native: false; path: string };
+  { port: number; native: true; path: string; workspace?: HoldingNativeWorkspace; workContext?: true; workspacePreference?: true } | { port: number; native: false; path: string };
 
 export function selectOasisDemoTarget(host: string | undefined, url: string, method: string): OasisTarget {
   if (host !== oasisDemoAccountHost && host !== oasisDemoHolding.hostname) return { status: 421 };
@@ -50,7 +50,8 @@ export function selectOasisDemoTarget(host: string | undefined, url: string, met
   const native = oasisDemoNativeRoute(host, candidate);
   if (native) {
     if (!native.methods.includes(method)) return { status: 405, allow: native.methods.join(', ') };
-    return { port: oasisDemoRouting.api, native: true, path: native.url, workspace: native.workspace, workContext: native.workContext };
+    return { port: oasisDemoRouting.api, native: true, path: native.url, workspace: native.workspace, workContext: native.workContext,
+      ...(native.workspacePreference ? {workspacePreference:true} : {}) };
   }
   if (/^\/(?:api|internal|sso)(?:\/|$)/.test(path) || transport || /\/api(?:\/|$)/.test(path) && path.startsWith('/__erpx/')) return { status: 404 };
   if (method !== 'GET' && method !== 'HEAD') return { status: 405, allow: 'GET, HEAD' };
@@ -80,8 +81,9 @@ function oasisNextLocation(host: string, requestPath: string, location: string):
   return holdingUiUrl(target.href, requestUrl.searchParams.get('company') ?? requestUrl.searchParams.get('companyId') ?? undefined, 'oasis-demo-staging') ?? location;
 }
 
-const oasisRenderedContextHeaders = ['x-erpx-context-company', 'x-erpx-context-assignment', 'x-erpx-context-revision',
-  'x-erpx-context-assignment-version', 'x-erpx-workspace-branch', 'x-erpx-workspace-department'];
+const oasisRolePreconditions = ['x-erpx-context-company', 'x-erpx-context-assignment', 'x-erpx-context-revision',
+  'x-erpx-context-assignment-version'];
+const oasisRenderedContextHeaders = [...oasisRolePreconditions, 'x-erpx-workspace-branch', 'x-erpx-workspace-department'];
 
 function oasisCompanySelector(value: string | string[] | undefined) {
   return typeof value === 'string' && /^[a-zA-Z0-9_:-]{1,128}$/.test(value) ? value : undefined;
@@ -145,6 +147,13 @@ async function proxyOasisDemo(req: IncomingMessage, res: ServerResponse) {
     headers['x-erpx-api-transport'] = 'public';
     if (target.workspace?.branch) headers['x-erpx-workspace-branch'] = target.workspace.branch;
     if (target.workspace?.department) headers['x-erpx-workspace-department'] = target.workspace.department;
+    if (target.workspacePreference) {
+      // The owner compares these preconditions against the signed session and
+      // the branch/department from the canonical workspace path in the body.
+      for (const name of oasisRolePreconditions) {
+        if (req.headers[name] !== undefined) headers[name] = req.headers[name];
+      }
+    }
     if (target.path.split('?',1)[0]?.endsWith('/assignments/active')) {
       // This is a Company selector. The native IAM owner resolves membership and scope.
       const company = oasisCompanySelector(req.headers['x-erpx-requested-company'] ?? req.headers['x-erpx-context-company']);

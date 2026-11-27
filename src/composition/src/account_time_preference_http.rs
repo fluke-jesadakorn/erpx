@@ -8,7 +8,13 @@
 //! serializable Control transaction per command, and injects the owner adapter.
 //! No SQL and no business rules live here.
 use erpx_server_identity_access::public::account_time_preference::{
-    PgTimePreferenceCommand, change_time_preference,
+    PgTimePreferenceCommand, PgTimePreferenceReader, TimePreference, change_time_preference,
+};
+use erpx_server_identity_access::public::{
+    AccountPolicy,
+    account_holding_bindings::ConfiguredHoldingRegistry,
+    account_inbound_http::{parse_inbound_account_request, unique_request_header},
+    account_sessions::verify_session_in_transaction,
 };
 use erpx_server_identity_access::public::account_time_preference_http::{
     AccountTimePreferenceHttpBackend, AccountTimePreferenceHttpFuture,
@@ -21,12 +27,16 @@ use erpx_server_identity_access::public::identity_write_http::{
     IdentityWriteBackend, IdentityWriteFuture, IdentityWriteRequest, IdentityWriteTarget,
     identity_write_company_router, identity_write_router,
 };
-use erpx_server_runtime::public::http_support::{HeaderMap, HeaderName, Router};
+use erpx_server_runtime::public::http_support::{
+    HeaderMap, HeaderName, IntoResponse, Json, Request, Response, Router, State, StatusCode,
+    body::to_bytes, routing::get,
+};
 use erpx_server_runtime::public::postgres::{
     DatabasePool, PgTransactionError, PgUnitOfWork, TransactionOptions,
 };
-use erpx_server_shared::public::{BusinessError, Clock, FailureKind};
+use erpx_server_shared::public::{BusinessError, Clock, CommandKey, FailureKind};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use std::sync::Arc;
 
 type Error = PgTransactionError<BusinessError>;
@@ -45,6 +55,143 @@ fn business(error: Error) -> BusinessError {
     match error {
         PgTransactionError::Business(error) => error,
         PgTransactionError::Persistence(_) => unavailable(),
+    }
+}
+
+struct BrowserTimePreferences<C> {
+    control: DatabasePool,
+    policy: Arc<AccountPolicy>,
+    holdings: Arc<ConfiguredHoldingRegistry>,
+    clock: Arc<C>,
+}
+
+/// The browser and SSR use the signed session cookie for the exact Account
+/// audience. They never supply the preference's aggregate identity.
+pub fn browser_time_preference_router<C: Clock + Send + Sync + 'static>(
+    control: DatabasePool,
+    policy: Arc<AccountPolicy>,
+    holdings: Arc<ConfiguredHoldingRegistry>,
+    clock: Arc<C>,
+) -> Router {
+    Router::new()
+        .route(
+            "/api/v1/account/time-preference",
+            get(browser_preference::<C>).patch(browser_preference::<C>),
+        )
+        .with_state(Arc::new(BrowserTimePreferences {
+            control,
+            policy,
+            holdings,
+            clock,
+        }))
+}
+
+async fn browser_preference<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<BrowserTimePreferences<C>>>,
+    request: Request,
+) -> Response {
+    let result: Result<TimePreference, Error> = async {
+        let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
+        let audience = inbound.audience().clone();
+        let change = if request.method() == axum::http::Method::PATCH {
+            if unique_request_header(request.headers(), "origin")?
+                != Some(inbound.expected_origin())
+            {
+                return Err(BusinessError::new(
+                    FailureKind::Forbidden,
+                    "ORIGIN_FORBIDDEN",
+                    "Use the application origin.",
+                )
+                .into());
+            }
+            let invalid = || {
+                BusinessError::invalid("TIME_PREFERENCE_INVALID", "Choose a valid time preference.")
+            };
+            let bytes = to_bytes(request.into_body(), 4096)
+                .await
+                .map_err(|_| invalid())?;
+            let value: Value = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
+            Some(
+                value
+                    .as_object()
+                    .filter(|body| !body.contains_key("userId"))
+                    .ok_or_else(invalid)?
+                    .clone(),
+            )
+        } else {
+            None
+        };
+        let proof = inbound.into_proof();
+        PgUnitOfWork::new(state.control.clone())
+            .run(TransactionOptions::default(), move |connection| {
+                let (state, audience, proof, change) = (
+                    state.clone(),
+                    audience.clone(),
+                    proof.clone(),
+                    change.clone(),
+                );
+                Box::pin(async move {
+                    let now = state.clock.now();
+                    let session = verify_session_in_transaction(
+                        connection,
+                        &proof,
+                        &audience,
+                        &state.policy.environment,
+                        now.get(),
+                        &state.holdings,
+                    )
+                    .await?
+                    .ok_or_else(|| {
+                        BusinessError::new(
+                            FailureKind::Unauthenticated,
+                            "SIGN_IN_REQUIRED",
+                            "Sign in to access your time settings.",
+                        )
+                    })?;
+                    let user = &session.user.id;
+                    if let Some(change) = change {
+                        let input = serde_json::json!({
+                            "mode": change.get("mode"),
+                            "timeZone": change.get("timeZone"),
+                            "hourCycle": change.get("hourCycle"),
+                            "version": change.get("version"),
+                            "userId": user,
+                        });
+                        // A retry of the same version and settings returns its
+                        // existing receipt alongside the original audit/outbox.
+                        let key =
+                            CommandKey::new(format!("{:x}", Sha256::digest(input.to_string())))?;
+                        let mut owner = PgTimePreferenceCommand::new(connection, "control");
+                        change_time_preference(user, &input, Some(&key), &mut owner, now).await
+                    } else {
+                        Ok(PgTimePreferenceReader::new(connection)
+                            .current(user)
+                            .await?
+                            .unwrap_or_default())
+                    }
+                })
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(preference) => Json(serde_json::json!({"data": preference})).into_response(),
+        Err(error) => {
+            let error = business(error);
+            let status = match error.kind {
+                FailureKind::InvalidInput => StatusCode::UNPROCESSABLE_ENTITY,
+                FailureKind::Unauthenticated => StatusCode::UNAUTHORIZED,
+                FailureKind::Forbidden => StatusCode::FORBIDDEN,
+                FailureKind::NotFound => StatusCode::NOT_FOUND,
+                FailureKind::Conflict => StatusCode::CONFLICT,
+                FailureKind::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
+            };
+            (
+                status,
+                Json(serde_json::json!({"error": {"code": error.code, "message": error.message}})),
+            )
+                .into_response()
+        }
     }
 }
 

@@ -11,6 +11,7 @@ export type HoldingNativeWorkspace = { branch?: string; department?: string };
 const read = ['GET', 'HEAD'];
 const write = ['POST'];
 const readWrite = [...read, ...write];
+const timePreferenceMethods = [...read, 'PATCH'];
 const oasisAccountRoutes: Readonly<Record<string, readonly string[]>> = {
   '/api/auth/get-session': read,
   '/api/auth/sign-in/email': write,
@@ -19,11 +20,13 @@ const oasisAccountRoutes: Readonly<Record<string, readonly string[]>> = {
   '/api/v1/account/device-accounts/initialize': write,
   '/api/v1/account/device-accounts/active': write,
   '/api/v1/account/device-accounts/sign-in': write,
+  '/api/v1/account/time-preference': timePreferenceMethods,
   '/sso/authorize': ['GET'],
 };
 const oasisHoldingRoutes: Readonly<Record<string, readonly string[]>> = {
   '/api/auth/get-session': read,
   '/api/auth/sign-out': write,
+  '/api/v1/account/time-preference': timePreferenceMethods,
   '/sso/start': ['GET'],
   '/sso/callback': ['GET'],
 };
@@ -40,13 +43,18 @@ const oasisSalesRoutes: Readonly<Record<string, readonly string[]>> = {
 };
 
 /** Public methods of the walkthrough. Private SSR transport is never exposed here. */
-export function oasisDemoNativeRoute(host: string, url: string): { url: string; methods: readonly string[]; workspace?: HoldingNativeWorkspace; workContext?: true } | undefined {
+export function oasisDemoNativeRoute(host: string, url: string): { url: string; methods: readonly string[]; workspace?: HoldingNativeWorkspace; workContext?: true; workspacePreference?: true } | undefined {
   if (host !== oasisDemoAccountHost && host !== oasisDemoHolding.hostname) return;
   const [path] = url.split('?', 1);
   if (path === '/api/health' || path === '/api/ready') return {url, methods: read};
   const methods = (host === oasisDemoAccountHost ? oasisAccountRoutes : oasisHoldingRoutes)[path!];
   if (methods) return {url, methods};
   if (host !== oasisDemoHolding.hostname) return;
+  if (path === '/api/v1/workspace-preference') return {
+    url: `/api/v1/holdings/${oasisDemoHolding.holdingSlug}/workspace-preference`,
+    methods: write,
+    workspacePreference: true,
+  };
   const scoped = normalizeHoldingNativePath(url, oasisDemoHolding.holdingSlug);
   const canonical = scoped.url.split('?', 1)[0]!;
   const prefix = `/api/v1/holdings/${oasisDemoHolding.holdingSlug}/`;

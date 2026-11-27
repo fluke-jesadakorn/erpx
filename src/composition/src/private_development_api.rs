@@ -2795,7 +2795,14 @@ async fn assemble_checked(
     let directory_sign_in_mounted = directory_sign_in.is_some();
     let directory_source_mounted = directory_source.is_some();
     let directory_connection_mounted = directory_connection.is_some();
-    let mut router = foundation_router();
+    let mut router = foundation_router().merge(
+        crate::account_time_preference_http::browser_time_preference_router(
+            pools[0].clone(),
+            config.policy.clone(),
+            config.holdings_registry.clone(),
+            Arc::new(SharedClock(clock.clone())),
+        ),
+    );
     if config.profile == Profile::Test {
         router = router.merge(test_account_password_hash_router());
     }
@@ -10668,6 +10675,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             request.uri().path(),
             "/api/v1/account/iam/mfa/enroll" | "/api/v1/account/iam/mfa/verify"
         );
+    let time_preference = path == "/api/v1/account/time-preference";
     let service_packages = state.service_package_provider_host.as_deref() == Some(host)
         && matches!(
             (request.method(), request.uri().path()),
@@ -11808,6 +11816,9 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             | "access"
             | "context",
         ] => state
+            .work_role_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        ["", "api", "v1", "holdings", slug, "workspace-preference"] => state
             .work_role_targets
             .contains(&(host.to_owned(), (*slug).to_owned())),
         ["", "api", "v1", "holdings", "oasis-demo", "assignments", "active"] => {
@@ -13744,6 +13755,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         request.uri().path(),
         "/api/auth/get-session" | "/api/health" | "/api/ready"
     ) || account_mfa
+        || time_preference
         || pos_command
         || operations
         || platform_operations
@@ -13848,6 +13860,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             || directory_source
             || directory_connection
             || account_mfa
+            || time_preference
             || service_packages
             || field_work_roles
             || field_inbox_state

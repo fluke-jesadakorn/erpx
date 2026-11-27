@@ -86,6 +86,10 @@ pub(crate) fn native_work_roles_router_with_selection<C: Clock + Send + Sync + '
             axum::routing::post(save_workspace::<C>),
         )
         .route(
+            "/api/v1/holdings/{holding_slug}/workspace-preference",
+            axum::routing::post(save_browser_workspace::<C>),
+        )
+        .route(
             "/api/v1/holdings/{holding_slug}/field-service/work-roles/preferences",
             get(read_preferences::<C>).post(select_company::<C>),
         )
@@ -217,56 +221,84 @@ async fn save_workspace<C: Clock + Send + Sync + 'static>(
     Path(slug): Path<String>,
     request: Request,
 ) -> Response {
+    respond(remember_workspace(s, slug, request, false).await)
+}
+
+async fn save_browser_workspace<C: Clock + Send + Sync + 'static>(
+    State(s): State<Arc<RoleState<C>>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    respond(
+        remember_workspace(s, slug, request, true)
+            .await
+            .map(|_| serde_json::json!({"saved": true})),
+    )
+}
+
+async fn remember_workspace<C: Clock + Send + Sync + 'static>(
+    s: Arc<RoleState<C>>,
+    slug: String,
+    request: Request,
+    browser: bool,
+) -> RoleResult<crate::native_account_preferences::NativeAccountPreferences> {
     let (parts, body) = request.into_parts();
     let headers = parts.headers;
-    let result: Result<_, PgTransactionError<BusinessError>> = async {
-        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target = s
-            .targets
-            .get(&(host.into(), slug.clone()))
-            .ok_or_else(missing)?;
-        let inbound = parse_inbound_account_request(&s.policy, &headers)?;
-        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
-            return Err(missing().into());
-        }
-        if unique_request_header(&headers, "origin")? != Some(inbound.expected_origin()) {
-            return Err(BusinessError::new(
-                FailureKind::Forbidden,
-                "ORIGIN_FORBIDDEN",
-                "Use the application origin.",
-            )
-            .into());
-        }
-        let bytes = to_bytes(body, 16384).await.map_err(|_| input())?;
-        let raw: serde_json::Value = serde_json::from_slice(&bytes).map_err(|_| input())?;
-        let path = raw.get("path").and_then(|v| v.as_str()).ok_or_else(input)?;
-        let selector =
-            erpx_server_work_projection::public::workspace_preference::workspace_preference_scope(
-                path, &slug,
-            )?;
-        let requested = CapturedHoldingMutation::capture(
-            &headers,
-            selector.branch_slug,
-            selector.department_slug,
-        )
-        .resolve()?;
-        if raw
-            .get("companyId")
-            .is_some_and(|v| v.as_str() != Some(requested.company_id.as_str()))
-        {
-            return Err(BusinessError::new(
-                FailureKind::Conflict,
-                "WORK_CONTEXT_CHANGED",
-                "Review your current Company.",
-            )
-            .into());
-        }
-        preference_service(&s, target)
-            .remember_workspace(host.into(), inbound.into_proof(), path.into(), requested)
-            .await
+    let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+    let target = s
+        .targets
+        .get(&(host.into(), slug.clone()))
+        .ok_or_else(missing)?;
+    let inbound = parse_inbound_account_request(&s.policy, &headers)?;
+    if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+        return Err(missing().into());
     }
-    .await;
-    respond(result)
+    if unique_request_header(&headers, "origin")? != Some(inbound.expected_origin()) {
+        return Err(BusinessError::new(
+            FailureKind::Forbidden,
+            "ORIGIN_FORBIDDEN",
+            "Use the application origin.",
+        )
+        .into());
+    }
+    let bytes = to_bytes(body, 16384).await.map_err(|_| input())?;
+    let raw: serde_json::Value = serde_json::from_slice(&bytes).map_err(|_| input())?;
+    let path = if browser {
+        let base = raw
+            .get("base")
+            .and_then(|v| v.as_str())
+            .filter(|base| base.len() <= 512)
+            .ok_or_else(|| {
+                BusinessError::invalid("INVALID_WORKSPACE", "Choose an available workspace.")
+            })?;
+        format!("{base}/home")
+    } else {
+        raw.get("path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(input)?
+            .to_owned()
+    };
+    let selector =
+        erpx_server_work_projection::public::workspace_preference::workspace_preference_scope(
+            &path, &slug,
+        )?;
+    let requested =
+        CapturedHoldingMutation::capture(&headers, selector.branch_slug, selector.department_slug)
+            .resolve()?;
+    if raw
+        .get("companyId")
+        .is_some_and(|v| v.as_str() != Some(requested.company_id.as_str()))
+    {
+        return Err(BusinessError::new(
+            FailureKind::Conflict,
+            "WORK_CONTEXT_CHANGED",
+            "Review your current Company.",
+        )
+        .into());
+    }
+    preference_service(&s, target)
+        .remember_workspace(host.into(), inbound.into_proof(), path, requested)
+        .await
 }
 async fn read_preferences<C: Clock + Send + Sync + 'static>(
     State(s): State<Arc<RoleState<C>>>,

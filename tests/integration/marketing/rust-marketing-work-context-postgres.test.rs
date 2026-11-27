@@ -21,6 +21,32 @@ async fn real_account_work_role_response_reaches_typescript_mapper() {
   let inspector=Arc::new(HoldingWorkContextInspector::new(p.system.control.clone(),p.system.holdings[0].clone(),HoldingId::new("h001").unwrap(),review::account::fixture::account::policy(),p.system.scenario.clock.clone(),review::account::fixture::account::holding_registry()).unwrap());
   let app=native_work_roles_router(Arc::new(review::account::fixture::account::policy()),review::account::fixture::account::holding_registry(),Arc::new(FieldServiceReadScopeHeaders),p.system.scenario.clock.clone(),vec![NativeWorkRoleTarget{control:p.system.control.clone(),host:"acme.example.test".into(),holding_slug:"acme".into(),inspector}]).unwrap();
   let db=p.system.holdings[0].raw();
+  let remember = |base: &str, revision: i64| {
+   let request = Request::builder().method("POST")
+     .uri("/api/v1/holdings/acme/workspace-preference")
+     .header("host", "acme.example.test")
+     .header("origin", "https://acme.example.test")
+     .header("cookie", format!("__Host-erpx-product={}", p.maker_token.expose()))
+     .header("x-erpx-context-company", "company")
+     .header("x-erpx-context-assignment", "finance-fixture-a")
+     .header("x-erpx-context-revision", revision.to_string())
+     .header("x-erpx-context-assignment-version", "3")
+     .body(Body::from(serde_json::json!({"base":base}).to_string())).unwrap();
+   let router = app.clone();
+   async move {
+    let response = router.oneshot(request).await.unwrap();
+    let status = response.status();
+    let bytes = to_bytes(response.into_body(), 32_768).await.unwrap();
+    (status.as_u16(), serde_json::from_slice::<serde_json::Value>(&bytes).unwrap())
+   }
+  };
+  let saved = remember("/holdings/acme", 7).await;
+  assert_eq!(saved, (200, serde_json::json!({"data":{"saved":true}})));
+  assert_eq!(remember("/holdings/acme", 6).await.0, 409);
+  assert_eq!(remember("/holdings/northstar", 7).await.0, 422);
+  let stored: String = sqlx::query_scalar("SELECT workspace_path FROM account_workspace_preferences WHERE user_id='fixture-a'")
+    .fetch_one(p.system.control.raw()).await.unwrap();
+  assert_eq!(stored, "/holdings/acme/home");
   for (role,revision) in [("r".repeat(128),7i64),("r".repeat(129),7),("é".repeat(65),7),("r".repeat(128),0),("r".repeat(128),9_007_199_254_740_991),("r".repeat(128),9_007_199_254_740_992)] {
    sqlx::query("INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status) VALUES('*',$1,'Boundary role',false,1,'active') ON CONFLICT DO NOTHING").bind(&role).execute(db).await.unwrap();
    sqlx::query("INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*',$1,1,'[\"finance.read\",\"finance.write\",\"module.finance.read\"]','[]','[\"holding\"]','fixture',0) ON CONFLICT DO NOTHING").bind(&role).execute(db).await.unwrap();
