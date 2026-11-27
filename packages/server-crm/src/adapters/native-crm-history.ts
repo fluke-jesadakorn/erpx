@@ -25,8 +25,7 @@ const record = (v: unknown): v is Record<string, unknown> => v !== null && typeo
 const identifier = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && new TextEncoder().encode(v).length <= 200;
 const reservedPorts = new Set([3000, 3001, 3100, 3101, 3103, 5432, 5433, 5435, 8080]);
 
-function configuration(): Settings {
-  const raw = process.env.ERPX_NATIVE_CRM_CONFIG;
+function configuration(raw: string | undefined): Settings {
   if (!raw) return unavailable();
   let value: unknown;
   try { value = JSON.parse(raw); } catch { return unavailable(); }
@@ -66,8 +65,11 @@ function row(value: unknown): Row {
 
 /** Read one lead's immutable case-event history from the native owner GET. */
 export async function nativeCrmCaseEventHistory(actor: WorkContext, leadId: string): Promise<Row[]> {
-  const config = configuration();
-  const holding = config.holdings.find(h => h.holdingSlug === actor.holdingSlug && h.holdingId === actor.holdingId && h.companyId === actor.companyId);
+  const matches = (h: Holding) => h.holdingSlug === actor.holdingSlug && h.holdingId === actor.holdingId && h.companyId === actor.companyId;
+  const rawHistory = process.env.ERPX_NATIVE_CRM_HISTORY_CONFIG;
+  const history = rawHistory === undefined ? undefined : configuration(rawHistory);
+  const config = history?.holdings.some(matches) ? history : configuration(process.env.ERPX_NATIVE_CRM_CONFIG);
+  const holding = config.holdings.find(matches);
   if (!holding || typeof leadId !== 'string' || !leadId || leadId.length > 200 || /[\u0000-\u001f\u007f]/.test(leadId)) {
     throw new ApiError(422, 'CRM_HISTORY_LEAD_INVALID', 'Choose one bounded CRM lead.');
   }

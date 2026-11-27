@@ -12,6 +12,10 @@ import {
   NativeCrmCommandError,
 } from '../../../packages/feature-sales/src/public/native-crm-command';
 vi.mock('server-only',()=>({}));
+const historyTransport=vi.hoisted(()=>vi.fn());
+vi.mock('next/headers',()=>({headers:async()=>new Headers({cookie:'__Host-erpx-product=fixture'})}));
+vi.mock('@erpx/server-runtime/public/native-http',()=>({nativeRequest:historyTransport}));
+import {nativeCrmCaseEventHistory} from '../../../packages/server-crm/src/adapters/native-crm-history';
 import type {WorkContext} from '../../../packages/server-identity_access/src/public/authorization';
 
 const config=()=>JSON.stringify({
@@ -38,6 +42,23 @@ const ok=(value:unknown)=>new Response(JSON.stringify(value),{status:200,headers
 afterEach(()=>{delete process.env.ERPX_NATIVE_CRM_COMMAND_CONFIG;vi.restoreAllMocks();});
 
 describe('native CRM command transport',()=>{
+ it('routes CRM history to the explicitly configured Company while keeping the shared route for other Companies',async()=>{
+  const settings=JSON.parse(config());
+  vi.stubEnv('ERPX_NATIVE_CRM_HISTORY_CONFIG',JSON.stringify({...settings,holdings:[{...settings.holdings[0],companyId:'company'}]}));
+  vi.stubEnv('ERPX_NATIVE_CRM_CONFIG',JSON.stringify({...settings,privateBaseUrl:'http://127.0.0.1:44996',holdings:[{...settings.holdings[0],companyId:'other-company'}]}));
+  historyTransport.mockImplementation(async()=>ok({data:[]}));
+  try {
+   await expect(nativeCrmCaseEventHistory(actor,'lead-1')).resolves.toEqual([]);
+   await expect(nativeCrmCaseEventHistory({...actor,companyId:'other-company'},'lead-1')).resolves.toEqual([]);
+   expect(historyTransport.mock.calls.map(([url])=>[url.port,url.pathname])).toEqual([
+    ['44995','/api/v1/holdings/acme/crm/case-events'],
+    ['44996','/api/v1/holdings/acme/crm/case-events'],
+   ]);
+  } finally {
+   historyTransport.mockReset();
+   vi.unstubAllEnvs();
+  }
+ });
  it('keeps exactly the owner-complete action slice',()=>{
   expect([...NATIVE_CRM_LEAD_ACTIONS]).toEqual(['reassign','disqualify','qualify','reopen']);
   expect([...NATIVE_CRM_OPPORTUNITY_ACTIONS]).toEqual([
