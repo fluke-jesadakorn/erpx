@@ -131,16 +131,21 @@ function inventory() {
   console.log(JSON.stringify({ manifest: relative(root, manifestFile), ...manifest.summary }, null, 2));
 }
 
+function counts() {
+  const app = walk(join(root, "apps"), []).filter((file) => file.includes("/src/app/api/")).length;
+  const handlers = walk(join(root, "packages"), []).filter((file) => file.includes("/src/routes/api/")).length;
+  return { sourceSha: execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim(), app, handlers, total: app + handlers };
+}
+
 function check() {
   const manifest = JSON.parse(readFileSync(manifestFile, "utf8")) as { sourceSha: string; routes: Route[]; summary: Record<string, unknown> };
-  const currentSha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
-  if (manifest.sourceSha !== currentSha) throw new Error(`API_CUTOVER_MANIFEST_STALE:${manifest.sourceSha}:${currentSha}`);
-  const live = walk(join(root, "apps"), []).filter((file) => file.includes("/src/app/api/")) .length
-    + walk(join(root, "packages"), []).filter((file) => file.includes("/src/routes/api/")).length;
+  const current = counts();
+  if (manifest.sourceSha !== current.sourceSha) throw new Error(`API_CUTOVER_MANIFEST_STALE:${manifest.sourceSha}:${current.sourceSha}`);
   const expected = (manifest.summary.appRouteFiles as number) + (manifest.summary.businessRouteFiles as number);
-  if (live !== expected) throw new Error(`API_CUTOVER_ROUTE_COUNT_CHANGED:${expected}:${live}`);
-  console.log(JSON.stringify({ sourceSha: currentSha, routes: live }, null, 2));
+  if (current.total !== expected) throw new Error(`API_CUTOVER_ROUTE_COUNT_CHANGED:${expected}:${current.total}`);
+  console.log(JSON.stringify(current, null, 2));
 }
 
 if (process.argv[2] === "check") check();
+else if (process.argv[2] === "count") console.log(JSON.stringify(counts(), null, 2));
 else inventory();

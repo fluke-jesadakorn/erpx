@@ -78,6 +78,8 @@ A SQL-plan or `include_str!` contract that leaves TypeScript preparing and execu
 
 Tracked route retirement counts the 95 shared workplace route handlers and 969 app re-exports (inventory in `.scratch/lanes/route-inventory.json` at run start); these counts and the list of deleted routes belong in the handoff next to the retirement KPI.
 
+The development gateway cuts over with `ERPX_DEV_NATIVE_API` and `ERPX_DEV_NATIVE_PATHS` (each entry is `path` or `exact-host|path`), applying `ERPX_DEV_NATIVE_REWRITES` before forwarding. It strips every browser-supplied `x-erpx-*`/forwarded header and injects only the loopback session-context values; the context bridge now carries `userId` and the selected assignment `modules` in addition to Company/assignment/revision/branch/department. The release gateway routes `/api/*` to its optional `api` port with the same stripping. `retirement:next-routes` records the before/after route-file count for `cutover.*` packets; `migrate.*` packets still require the TypeScript statement/write KPI.
+
 Copyable goal template for any AI: `Continue <goal-id> / <task-id> from docs/production-plan.md#rust-migration-current and the tracked executionPlan. Read status and handoff, request the lead's central claim, change only its paths, pass the targeted migration gate, and report source/checks/retirement/next action for the lead to record. Keep acceptance deferred; use only codex/rust-backend-migration.`
 
 ### Startup, claims and resumption across AIs

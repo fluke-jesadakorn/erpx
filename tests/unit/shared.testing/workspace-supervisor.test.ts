@@ -309,13 +309,13 @@ it('routes /api to the native service, strips browser context and resolves sessi
  expect(nativeApiPath({ERPX_DEV_NATIVE_PATHS:'finance.fixture.invalid|/api/a,/api/b'},'/api/a/x','finance.fixture.invalid')).toBe(true);
  expect(nativeApiPath({ERPX_DEV_NATIVE_PATHS:'finance.fixture.invalid|/api/a,/api/b'},'/api/a/x','other.fixture.invalid')).toBe(false);
  expect(nativeApiPath({ERPX_DEV_NATIVE_PATHS:'finance.fixture.invalid|/api/a,/api/b'},'/api/b','other.fixture.invalid')).toBe(true);
- const seen:Array<{path:string;company:string|undefined;requested:string|undefined}>=[];
+ const seen:Array<{path:string;company:string|undefined;user:string|undefined;modules:string|undefined;requested:string|undefined}>=[];
  const api=createServer((req,res)=>{
   if((req.url??'').startsWith('/internal/session-context')){
    if(req.headers.origin!=='http://127.0.0.1:3299'){res.statusCode=403;res.end('non-loopback');return;}
-   res.setHeader('Content-Type','application/json');res.end(JSON.stringify({data:{companyId:'native-company'}}));return;
+   res.setHeader('Content-Type','application/json');res.end(JSON.stringify({data:{companyId:'native-company',userId:'native-user',modules:['finance.read','work.read']}}));return;
   }
-  seen.push({path:req.url!,company:req.headers['x-erpx-context-company'] as string|undefined,requested:req.headers['x-erpx-requested-company'] as string|undefined});
+  seen.push({path:req.url!,company:req.headers['x-erpx-context-company'] as string|undefined,user:req.headers['x-erpx-context-user'] as string|undefined,modules:req.headers['x-erpx-context-modules'] as string|undefined,requested:req.headers['x-erpx-requested-company'] as string|undefined});
   res.setHeader('Content-Type','application/json');res.end(JSON.stringify({native:true}));
  });
  const app=createServer((_,res)=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify({app:true}));});
@@ -329,7 +329,7 @@ it('routes /api to the native service, strips browser context and resolves sessi
    });req.once('error',reject);req.end();
   });
   expect(response).toEqual({status:200,body:'{"native":true}'});
-  expect(seen).toEqual([{path:'/api/v1/holdings/acme/finance/journals',company:'native-company',requested:undefined}]);
+  expect(seen).toEqual([{path:'/api/v1/holdings/acme/finance/journals',company:'native-company',user:'native-user',modules:'finance.read,work.read',requested:undefined}]);
   const page=await new Promise<{status:number;body:string}>((done,reject)=>{
    const req=request({host:'127.0.0.1',port:3104,path:'/page',headers:{Host:'finance.fixture.invalid'},agent:false},res=>{
     const chunks:Buffer[]=[];res.on('data',chunk=>chunks.push(Buffer.from(chunk)));res.once('end',()=>done({status:res.statusCode??0,body:Buffer.concat(chunks).toString()}));

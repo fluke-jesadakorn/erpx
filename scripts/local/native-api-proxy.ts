@@ -72,9 +72,11 @@ export async function nativeSessionContext(base: URL, req: IncomingMessage): Pro
   const text = (key: string) => typeof value[key] === "string" && value[key] !== "" ? String(value[key]) : undefined;
   const headers: Record<string, string | undefined> = {
     "x-erpx-context-company": text("companyId"),
+    "x-erpx-context-user": text("userId"),
     "x-erpx-context-assignment": text("assignmentId"),
     "x-erpx-context-revision": typeof value.revision === "number" ? String(value.revision) : undefined,
     "x-erpx-context-assignment-version": typeof value.assignmentVersion === "number" ? String(value.assignmentVersion) : undefined,
+    "x-erpx-context-modules": Array.isArray(value.modules) ? value.modules.filter((item): item is string => typeof item === "string").join(",") : undefined,
     "x-erpx-workspace-branch": text("branchSlug"),
     "x-erpx-workspace-department": text("departmentSlug"),
   };
