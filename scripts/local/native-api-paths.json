@@ -1,0 +1,26 @@
+{
+  "holdingPrefixes": [
+    "field-service",
+    "support",
+    "service-teams",
+    "pms/reports",
+    "records/search"
+  ],
+  "platform": [
+    { "host": "admin.jesadakorn.com", "method": "GET", "path": "/api/v1/platform/operations" },
+    { "host": "admin.jesadakorn.com", "method": "POST", "path": "/api/v1/platform/operations/migrate" },
+    { "host": "admin.jesadakorn.com", "method": "POST", "path": "/api/v1/platform/operations/recover" },
+    { "host": "admin.jesadakorn.com", "method": "GET", "path": "/api/v1/platform/billing/ai-gateway" },
+    { "host": "admin.jesadakorn.com", "method": "POST", "path": "/api/v1/platform/billing/ai-gateway" },
+    { "host": "admin.jesadakorn.com", "method": "GET", "path": "/api/v1/platform/executive" },
+    { "host": "erpx-internal.jesadakorn.com", "method": "GET", "path": "/api/v1/platform/operations" },
+    { "host": "erpx-internal.jesadakorn.com", "method": "POST", "path": "/api/v1/platform/operations/migrate" },
+    { "host": "erpx-internal.jesadakorn.com", "method": "POST", "path": "/api/v1/platform/operations/recover" },
+    { "host": "erpx-internal.jesadakorn.com", "method": "GET", "path": "/api/v1/platform/billing/ai-gateway" },
+    { "host": "erpx-internal.jesadakorn.com", "method": "POST", "path": "/api/v1/platform/billing/ai-gateway" },
+    { "host": "erpx-internal.jesadakorn.com", "method": "GET", "path": "/api/v1/platform/executive" }
+  ],
+  "rewrites": [
+    "/records/search=/records/native-search"
+  ]
+}

@@ -351,6 +351,13 @@ it('compiled gateway preserves streaming, cookies, mutation bytes and upgraded h
 },20000);
 
 
+it('expands checked-in native cutover paths for dev holding hosts',async()=>{
+ const {expandNativeApiPaths}=await import('../../../scripts/local/native-api-paths');
+ const expanded=expandNativeApiPaths({holdingPrefixes:['field-service','pms/reports'],platform:[{host:'admin.example.test',method:'GET',path:'/api/v1/platform/operations'}],rewrites:['/records/search=/records/native-search']},[{hostname:'acme.example.test',holdingSlug:'acme'}]);
+ expect(expanded.paths).toBe('acme.example.test|/api/v1/holdings/acme/field-service,acme.example.test|/api/v1/holdings/acme/pms/reports,admin.example.test|GET|/api/v1/platform/operations');
+ expect(expanded.rewrites).toBe('/records/search=/records/native-search');
+});
+
 it('routes /api to the native service, strips browser context and resolves session context',async()=>{
  await free(3104);await free(3298);await free(3299);
  const {startCompiledWorkspaceGateway}=await import('../../../scripts/local/compiled-workspace-gateway');
