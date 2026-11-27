@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { existsSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 vi.mock('server-only', () => ({}));
 vi.mock('next/headers', () => ({
   headers: async () =>
@@ -52,6 +53,7 @@ import { platformAdminActor, nativePlatformAdminAvailable, nativePlatformMigrate
 import { GET as forecastGet } from '@erpx/feature-admin/routes/api/v1/platform/billing/forecast/route';
 import { canonicalDestinationLinks } from '@erpx/feature-work_projection/lib/destination-links';
 import { nativeApiPath } from '../../../scripts/local/native-api-proxy';
+import { loadNativeApiPaths } from '../../../scripts/local/native-api-paths';
 
 const config = (overrides: Record<string, unknown> = {}) =>
   JSON.stringify({
@@ -758,27 +760,21 @@ describe('native platform billing forecast GET route parity', () => {
  *  gateway selects the exact Axum owner route and the owner `{data}` payload is
  *  already accepted by the existing browser/feature consumers. */
 describe('native Admin API route retirement', () => {
-  const adminHost = 'admin-dev-erpx.jesadakorn.com';
   const holdingHosts = ['acme.jesadakorn.com', 'northstar.jesadakorn.com', 'admin.jesadakorn.com'];
-  const gatewayEntries = [
-    `${adminHost}|GET|/api/v1/platform/operations`,
-    `${adminHost}|POST|/api/v1/platform/operations/migrate`,
-    `${adminHost}|POST|/api/v1/platform/operations/recover`,
-    `${adminHost}|GET|/api/v1/platform/billing/ai-gateway`,
-    `${adminHost}|POST|/api/v1/platform/billing/ai-gateway`,
-    `${adminHost}|GET|/api/v1/platform/executive`,
-    ...holdingHosts.flatMap((host) => [
-      `${host}|GET|/api/v1/holdings/{holding_slug}/brand`,
-      `${host}|POST|/api/v1/holdings/{holding_slug}/brand`,
-      `${host}|GET|/api/v1/holdings/{holding_slug}/ai-providers`,
-      `${host}|POST|/api/v1/holdings/{holding_slug}/ai-providers`,
-      `${host}|GET|/api/v1/holdings/{holding_slug}/ai-providers/{provider}/models`,
-      `${host}|POST|/api/v1/holdings/{holding_slug}/ai-providers/{provider}`,
-      `${host}|POST|/api/v1/holdings/{holding_slug}/ai-providers/{provider}/{action}`,
-      `${host}|POST|/api/v1/holdings/{holding_slug}/ai-providers/discover`,
-      `${host}|POST|/api/v1/holdings/{holding_slug}/ai-providers/selection`,
-    ]),
-  ];
+  const checkedIn = loadNativeApiPaths(fileURLToPath(new URL('../../../scripts/local/native-api-paths.json', import.meta.url)));
+  const platformEntries = (checkedIn.platform ?? []).map(({ host, method, path }) => `${host}|${method}|${path}`);
+  const holdingEntries = holdingHosts.flatMap((host) => [
+    `${host}|GET|/api/v1/holdings/{holding_slug}/brand`,
+    `${host}|POST|/api/v1/holdings/{holding_slug}/brand`,
+    `${host}|GET|/api/v1/holdings/{holding_slug}/ai-providers`,
+    `${host}|POST|/api/v1/holdings/{holding_slug}/ai-providers`,
+    `${host}|GET|/api/v1/holdings/{holding_slug}/ai-providers/{provider}/models`,
+    `${host}|POST|/api/v1/holdings/{holding_slug}/ai-providers/{provider}`,
+    `${host}|POST|/api/v1/holdings/{holding_slug}/ai-providers/{provider}/{action}`,
+    `${host}|POST|/api/v1/holdings/{holding_slug}/ai-providers/discover`,
+    `${host}|POST|/api/v1/holdings/{holding_slug}/ai-providers/selection`,
+  ]);
+  const gatewayEntries = [...platformEntries, ...holdingEntries];
   const retiredFiles = [
     'packages/feature-admin/src/routes/api/v1/platform/operations/route.ts',
     'packages/feature-admin/src/routes/api/v1/platform/operations/migrate/route.ts',
@@ -815,32 +811,24 @@ describe('native Admin API route retirement', () => {
   });
 
   it('routes every retired path and method to the native owner by exact gateway entry', () => {
-    expect(gatewayEntries).toEqual([
-      `${adminHost}|GET|/api/v1/platform/operations`,
-      `${adminHost}|POST|/api/v1/platform/operations/migrate`,
-      `${adminHost}|POST|/api/v1/platform/operations/recover`,
-      `${adminHost}|GET|/api/v1/platform/billing/ai-gateway`,
-      `${adminHost}|POST|/api/v1/platform/billing/ai-gateway`,
-      `${adminHost}|GET|/api/v1/platform/executive`,
-      ...holdingHosts.flatMap((host) => [
-        `${host}|GET|/api/v1/holdings/{holding_slug}/brand`,
-        `${host}|POST|/api/v1/holdings/{holding_slug}/brand`,
-        `${host}|GET|/api/v1/holdings/{holding_slug}/ai-providers`,
-        `${host}|POST|/api/v1/holdings/{holding_slug}/ai-providers`,
-        `${host}|GET|/api/v1/holdings/{holding_slug}/ai-providers/{provider}/models`,
-        `${host}|POST|/api/v1/holdings/{holding_slug}/ai-providers/{provider}`,
-        `${host}|POST|/api/v1/holdings/{holding_slug}/ai-providers/{provider}/{action}`,
-        `${host}|POST|/api/v1/holdings/{holding_slug}/ai-providers/discover`,
-        `${host}|POST|/api/v1/holdings/{holding_slug}/ai-providers/selection`,
-      ]),
+    expect(platformEntries).toEqual([
+      'admin.jesadakorn.com|GET|/api/v1/platform/operations',
+      'admin.jesadakorn.com|POST|/api/v1/platform/operations/migrate',
+      'admin.jesadakorn.com|POST|/api/v1/platform/operations/recover',
+      'admin.jesadakorn.com|GET|/api/v1/platform/billing/ai-gateway',
+      'admin.jesadakorn.com|POST|/api/v1/platform/billing/ai-gateway',
+      'admin.jesadakorn.com|GET|/api/v1/platform/executive',
+      'erpx-internal.jesadakorn.com|GET|/api/v1/platform/operations',
+      'erpx-internal.jesadakorn.com|POST|/api/v1/platform/operations/migrate',
+      'erpx-internal.jesadakorn.com|POST|/api/v1/platform/operations/recover',
+      'erpx-internal.jesadakorn.com|GET|/api/v1/platform/billing/ai-gateway',
+      'erpx-internal.jesadakorn.com|POST|/api/v1/platform/billing/ai-gateway',
+      'erpx-internal.jesadakorn.com|GET|/api/v1/platform/executive',
     ]);
-    const cases: [host: string, method: string, url: string][] = [
-      [adminHost, 'GET', '/api/v1/platform/operations'],
-      [adminHost, 'POST', '/api/v1/platform/operations/migrate'],
-      [adminHost, 'POST', '/api/v1/platform/operations/recover'],
-      [adminHost, 'GET', '/api/v1/platform/billing/ai-gateway?holdingId=h003'],
-      [adminHost, 'POST', '/api/v1/platform/billing/ai-gateway'],
-      [adminHost, 'GET', '/api/v1/platform/executive?from=2026-06-01'],
+    const platformCases: [host: string, method: string, url: string][] = (checkedIn.platform ?? []).map(
+      ({ host, method, path }) => [host, method, path],
+    );
+    const holdingCases: [host: string, method: string, url: string][] = [
       ['acme.jesadakorn.com', 'GET', '/api/v1/holdings/acme/brand'],
       ['acme.jesadakorn.com', 'POST', '/api/v1/holdings/acme/brand'],
       ['acme.jesadakorn.com', 'GET', '/api/v1/holdings/acme/ai-providers'],
@@ -853,11 +841,12 @@ describe('native Admin API route retirement', () => {
       ['admin.jesadakorn.com', 'POST', '/api/v1/holdings/erpx/ai-providers/selection'],
     ];
     const environment = { NODE_ENV: 'test' as const, ERPX_DEV_NATIVE_PATHS: gatewayEntries.join(',') };
-    for (const [host, method, url] of cases) {
+    for (const [host, method, url] of [...platformCases, ...holdingCases]) {
       expect(nativeApiPath(environment, url, host, method), `${host} ${method} ${url}`).toBe(true);
       expect(nativeApiPath(environment, url, 'unregistered.example.test', method)).toBe(false);
     }
-    expect(nativeApiPath(environment, '/api/v1/platform/billing/forecast?holdingId=h001', adminHost, 'GET')).toBe(false);
+    expect(nativeApiPath(environment, '/api/v1/platform/executive', 'admin.jesadakorn.com', 'POST')).toBe(false);
+    expect(nativeApiPath(environment, '/api/v1/platform/billing/forecast?holdingId=h001', 'admin.jesadakorn.com', 'GET')).toBe(false);
     expect(nativeApiPath(environment, '/api/v1/holdings/acme/billing/forecast', 'acme.jesadakorn.com', 'GET')).toBe(false);
   });
 
