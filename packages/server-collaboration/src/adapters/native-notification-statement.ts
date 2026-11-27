@@ -1,5 +1,6 @@
 import 'server-only';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { nativeRequest } from '@erpx/server-runtime/public/native-http';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import type { SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
@@ -12,14 +13,72 @@ type Settings = Readonly<{
 
 type Statement = Readonly<{ sql: string; values: unknown[] }>;
 
+const RESERVED_PORTS = new Set([3000, 3001, 3100, 3101, 3103, 5432, 5433, 5435, 8080]);
+
 function configuration(): Settings {
   const raw = process.env.ERPX_NATIVE_COLLABORATION_CONFIG;
   if (!raw) throw new ApiError(503, 'NATIVE_COLLABORATION_UNAVAILABLE', 'The native Collaboration service is unavailable.');
-  try {
-    return JSON.parse(raw) as Settings;
-  } catch {
+  const invalid = (): never => {
     throw new ApiError(503, 'NATIVE_COLLABORATION_CONFIGURATION_INVALID', 'Collaboration transport is misconfigured.');
+  };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return invalid();
   }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return invalid();
+  const config = parsed as Record<string, unknown>;
+  if (
+    typeof config.privateBaseUrl !== 'string' ||
+    typeof config.timeoutMs !== 'number' ||
+    !Number.isSafeInteger(config.timeoutMs) ||
+    config.timeoutMs < 250 ||
+    config.timeoutMs > 30_000 ||
+    !Array.isArray(config.holdings)
+  )
+    return invalid();
+  let base: URL;
+  try {
+    base = new URL(config.privateBaseUrl);
+  } catch {
+    return invalid();
+  }
+  const port = Number(base.port);
+  if (
+    base.protocol !== 'http:' ||
+    !['127.0.0.1', '[::1]'].includes(base.hostname) ||
+    !base.port ||
+    RESERVED_PORTS.has(port) ||
+    (port >= 3200 && port <= 3299) ||
+    base.username ||
+    base.password ||
+    config.privateBaseUrl !== base.origin
+  )
+    return invalid();
+  const holdings: { origin: string; holdingSlug: string; holdingId: string }[] = [];
+  for (const item of config.holdings) {
+    if (item === null || typeof item !== 'object' || Array.isArray(item)) return invalid();
+    const holding = item as Record<string, unknown>;
+    if (
+      typeof holding.origin !== 'string' ||
+      !holding.origin ||
+      typeof holding.holdingSlug !== 'string' ||
+      !holding.holdingSlug ||
+      typeof holding.holdingId !== 'string' ||
+      !holding.holdingId
+    )
+      return invalid();
+    let origin: URL;
+    try {
+      origin = new URL(holding.origin);
+    } catch {
+      return invalid();
+    }
+    if (origin.protocol !== 'https:' || origin.username || origin.password) return invalid();
+    holdings.push({ origin: holding.origin, holdingSlug: holding.holdingSlug, holdingId: holding.holdingId });
+  }
+  return { privateBaseUrl: config.privateBaseUrl, timeoutMs: config.timeoutMs, holdings };
 }
 
 /** Ask the native Collaboration owner for the authoritative notification INSERT.
@@ -83,17 +142,21 @@ export async function nativeNotificationStatement(
   });
   if (actor.branchId) headers.set('x-erpx-workspace-branch', actor.branchId);
   if (actor.departmentId) headers.set('x-erpx-workspace-department', actor.departmentId);
+  const requestBody = JSON.stringify({ ...input, now, idempotencyKey: key });
   let response: Response;
   try {
-    response = await fetch(
-      `${config.privateBaseUrl}/api/v1/holdings/${encodeURIComponent(actor.holdingSlug)}/collaboration/notification-statement`,
+    response = await nativeRequest(
+      new URL(
+        `/api/v1/holdings/${encodeURIComponent(actor.holdingSlug)}/collaboration/notification-statement`,
+        config.privateBaseUrl,
+      ),
       {
         method: 'POST',
-        headers,
-        body: JSON.stringify({ ...input, now, idempotencyKey: key }),
-        cache: 'no-store',
+        headers: Object.fromEntries(headers),
+        body: requestBody,
         signal: AbortSignal.timeout(config.timeoutMs),
       },
+      config.timeoutMs,
     );
   } catch {
     throw new ApiError(503, 'NATIVE_COLLABORATION_UNAVAILABLE', 'The native Collaboration service is unavailable.');
