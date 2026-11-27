@@ -23,6 +23,10 @@ export const RD_COUNT_ACTIVE_PRODUCTS = 'commerce_rd_count_active_products';
 export const RD_EXPENSE_SETTINGS_IMAGE = 'commerce_rd_expense_settings_image';
 export const RD_MFG_EXISTING_SETTINGS_IMAGE = 'commerce_rd_mfg_existing_settings_image';
 
+/** Allow-listed r30 posting-setup receipt-image reads resolved by the mounted owner command-plan route. */
+export const RD_EXPENSE_RECEIPT_IMAGE = 'commerce_rd_expense_receipt_image';
+export const RD_MFG_EXISTING_RECEIPT_IMAGE = 'commerce_rd_mfg_existing_receipt_image';
+
 /** Allow-listed r26 attachment source-image reads resolved by the mounted owner command-plan route. */
 export const RD_SUPPORT_ORDER_SOURCE_IMAGE = 'commerce_rd_support_order_source_image';
 export const RD_CRM_ORDER_SOURCE_IMAGE = 'commerce_rd_crm_order_source_image';

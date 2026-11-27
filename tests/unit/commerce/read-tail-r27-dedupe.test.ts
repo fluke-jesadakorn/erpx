@@ -77,7 +77,10 @@ describe('Commerce r27 settings-image family native cutover', () => {
     // Sibling SHARE ROW EXCLUSIVE locks and neighbouring source reads stay live.
     expect(read('expense-posting-setup.ts')).toContain('LOCK TABLE command_receipts,commerce_settings IN SHARE ROW EXCLUSIVE MODE');
     expect(read('manufacturing-existing-posting-setup.ts')).toContain('LOCK TABLE command_receipts IN SHARE ROW EXCLUSIVE MODE');
-    expect(read('expense-posting-setup.ts')).toContain('SELECT to_jsonb(r)::text image FROM command_receipts r WHERE r.command_id=?');
+    expect(read('expense-posting-setup.ts')).not.toContain('SELECT to_jsonb(r)::text image FROM command_receipts r WHERE r.command_id=? AND r.operation=?');
+    expect(read('expense-posting-setup.ts')).toContain('nativeCommerceReadFirst<string>(RD_EXPENSE_RECEIPT_IMAGE,[key,operation,actor.userId,actor.companyId,actor.companyId],database)');
+    expect(read('manufacturing-existing-posting-setup.ts')).not.toContain('SELECT to_jsonb(r)::text image FROM command_receipts r WHERE r.operation=? AND r.record_id=?');
+    expect(read('manufacturing-existing-posting-setup.ts')).toContain('nativeCommerceReadFirst<string>(RD_MFG_EXISTING_RECEIPT_IMAGE,[operation,companyId,companyId,key??null,key??null],database)');
     expect(read('manufacturing-existing-posting-setup.ts')).not.toContain('SELECT to_jsonb(s)::text image FROM commerce_mfg_existing_posting_confirmations s WHERE company_id=?');
     expect(read('manufacturing-existing-posting-setup.ts')).toContain('nativeCommerceReadFirst<string>(RD_MFG_EXISTING_POSTING_CONFIRMATION_IMAGE,[companyId],database)');
   });
@@ -94,7 +97,7 @@ describe('Commerce r27 settings-image family native cutover', () => {
       expect(plans).toContain(`"${site.sql}"`);
       expect(plans).toContain(`kind: ${constant},`);
     }
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 63);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 65);');
     expect(plans).toContain('fn posting_setup_settings_image_reads_keep_their_exact_literals()');
     expect(sha(FAMILY.map((site) => site.sql).join('\n'))).toBe('b41fa29dda25eb56b97ddf900caf59512e1d12211e5bca16954a5f844d2706a8');
   });
@@ -114,9 +117,83 @@ describe('Commerce r27 settings-image family native cutover', () => {
     expect(read('supply-package-sources.ts')).toContain('LOCK TABLE commerce_orders,commerce_order_lines,commerce_fulfillments,commerce_fulfillment_lines,commerce_returns,commerce_return_lines,commerce_warehouses,commerce_products,commerce_goods_valuations,commerce_invoice_goods_carrying IN SHARE MODE');
   });
 
-  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 344 (before 345)', () => {
-    expect(count(src, /SELECT /g)).toBe(344);
-    expect((read('expense-posting-setup.ts').match(/SELECT /g) ?? []).length).toBe(1);
-    expect((read('manufacturing-existing-posting-setup.ts').match(/SELECT /g) ?? []).length).toBe(1);
+  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 339 (before 341)', () => {
+    expect(count(src, /SELECT /g)).toBe(339);
+    expect((read('expense-posting-setup.ts').match(/SELECT /g) ?? []).length).toBe(0);
+    expect((read('manufacturing-existing-posting-setup.ts').match(/SELECT /g) ?? []).length).toBe(0);
+  });
+});
+
+/** r30 follow-up of the same renderer family: the two posting-setup command
+ * receipt `::text image` reads share a byte-identical head and keep distinct
+ * WHERE tails and five-bind wire order. Both delegate to mounted native kinds. */
+const R30_HEAD = 'SELECT to_jsonb(r)::text image FROM command_receipts r WHERE ';
+const R30_EXPENSE_TAIL = "r.command_id=? AND r.operation=? AND r.actor_id=? AND r.record_id=? AND r.authority_json::jsonb->>'companyId'=?";
+const R30_MFG_TAIL = "r.operation=? AND r.record_id=? AND r.authority_json::jsonb->>'companyId'=? AND (?::text IS NULL OR r.command_id=?) ORDER BY r.created_at,r.command_id LIMIT 1";
+
+const R30_FAMILY = [
+  {
+    id: 'expense-receipt-image',
+    file: 'expense-posting-setup.ts',
+    sql: `${R30_HEAD}${R30_EXPENSE_TAIL}`,
+    kind: 'commerce_rd_expense_receipt_image',
+    call: 'nativeCommerceReadFirst<string>(RD_EXPENSE_RECEIPT_IMAGE,[key,operation,actor.userId,actor.companyId,actor.companyId],database)',
+    digest: 'f9bc4a4293bb21c19588e5aed2e66eadabfba7b9b876909a71b9fc928fd98d37',
+  },
+  {
+    id: 'mfg-existing-receipt-image',
+    file: 'manufacturing-existing-posting-setup.ts',
+    sql: `${R30_HEAD}${R30_MFG_TAIL}`,
+    kind: 'commerce_rd_mfg_existing_receipt_image',
+    call: 'nativeCommerceReadFirst<string>(RD_MFG_EXISTING_RECEIPT_IMAGE,[operation,companyId,companyId,key??null,key??null],database)',
+    digest: '41fef2145277397b757a39e6effe654576757bf19b5941abb0ce50de7f192aa4',
+  },
+];
+
+describe('Commerce r30 receipt-image family native cutover', () => {
+  test('both posting-setup receipt images delegate to mounted native owner reads', () => {
+    expect(existsSync(resolve(adapters, 'read-tail-r30-dedupe-sql.ts'))).toBe(false);
+    for (const site of R30_FAMILY) {
+      const text = read(site.file);
+      expect(norm(text), `${site.id} native call`).toContain(norm(site.call));
+      expect(text, `${site.id} retired literal`).not.toContain(site.sql);
+      expect((text.match(/SELECT /g) ?? []).length, `${site.id} TS SELECT tail`).toBe(0);
+    }
+    const bridge = read('native-commerce-read.ts');
+    expect(bridge).toContain("export const RD_EXPENSE_RECEIPT_IMAGE = 'commerce_rd_expense_receipt_image';");
+    expect(bridge).toContain("export const RD_MFG_EXISTING_RECEIPT_IMAGE = 'commerce_rd_mfg_existing_receipt_image';");
+    expect(bridge).not.toContain('SELECT ');
+    // Neighbouring locks, guards and settings-image reads stay live.
+    expect(read('expense-posting-setup.ts')).toContain('LOCK TABLE command_receipts,commerce_settings IN SHARE ROW EXCLUSIVE MODE');
+    expect(read('manufacturing-existing-posting-setup.ts')).toContain('LOCK TABLE command_receipts IN SHARE ROW EXCLUSIVE MODE');
+    expect(read('expense-posting-setup.ts')).toContain('COMMERCE_EXPENSE_RECEIPT_IMAGE_SQL');
+    expect(read('manufacturing-existing-posting-setup.ts')).toContain('nativeCommerceReadFirst<string>(RD_MFG_EXISTING_SETTINGS_IMAGE, [actor.companyId], database)');
+  });
+
+  test('exact retired literals and five-bind wire order live in the native registry', () => {
+    const plans = read('native_commerce_read_sql.rs');
+    for (const site of R30_FAMILY) {
+      expect(sha(site.sql), site.id).toBe(site.digest);
+      expect(site.sql, site.id).toContain(R30_HEAD);
+      expect((site.sql.match(/SELECT /g) ?? []).length, site.id).toBe(1);
+      expect((site.sql.match(/\?/g) ?? []).length, site.id).toBe(5);
+      expect(site.sql, site.id).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|;/);
+      const constant = site.kind.replace('commerce_rd_', 'RD_').toUpperCase();
+      expect(plans).toContain(`pub const ${constant}: &str = "${site.kind}";`);
+      expect(plans).toContain(`"${site.sql}"`);
+      expect(plans).toContain(`kind: ${constant},`);
+      expect(plans).toMatch(new RegExp(`\\(\\s*${constant},\\s*SQL_${constant.slice(3)},\\s*5usize,?\\s*\\)`));
+    }
+    // Distinct kinds: the two different tails are never semantically merged.
+    expect(sha(R30_EXPENSE_TAIL)).not.toBe(sha(R30_MFG_TAIL));
+    expect((plans.match(/to_jsonb\(r\)::text image FROM command_receipts r WHERE r\.(command_id|operation)=\?/g) ?? []).length).toBe(2);
+    expect(plans).toContain('fn posting_setup_receipt_image_reads_keep_their_exact_literals()');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 65);');
+  });
+
+  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 339 (before 341)', () => {
+    expect(count(src, /SELECT /g)).toBe(339);
+    expect(count(src, /to_jsonb\(r\)::text image FROM command_receipts r WHERE r\.command_id=\? AND r\.operation=\?/g)).toBe(0);
+    expect(count(src, /to_jsonb\(r\)::text image FROM command_receipts r WHERE r\.operation=\? AND r\.record_id=\?/g)).toBe(0);
   });
 });

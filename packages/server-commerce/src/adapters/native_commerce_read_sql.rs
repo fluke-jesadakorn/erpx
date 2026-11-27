@@ -284,6 +284,30 @@ const READ_MFG_EXISTING_SETTINGS_IMAGE: NativeCommerceReadStatement = NativeComm
     bind_count: 1,
 };
 
+/// Native successor of the r30 Expense receipt-image read. The caller binds
+/// `[command_id, operation, actor_id, record_id, company_id]` in wire order;
+/// the `r` alias and every predicate stay byte-for-byte.
+pub const RD_EXPENSE_RECEIPT_IMAGE: &str = "commerce_rd_expense_receipt_image";
+const SQL_EXPENSE_RECEIPT_IMAGE: &str =
+    "SELECT to_jsonb(r)::text image FROM command_receipts r WHERE r.command_id=? AND r.operation=? AND r.actor_id=? AND r.record_id=? AND r.authority_json::jsonb->>'companyId'=?";
+const READ_EXPENSE_RECEIPT_IMAGE: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_EXPENSE_RECEIPT_IMAGE,
+    sql: SQL_EXPENSE_RECEIPT_IMAGE,
+    bind_count: 5,
+};
+
+/// Native successor of the r30 existing Manufacturing receipt-image read. The
+/// caller binds `[operation, record_id, company_id, command_id, command_id]`;
+/// the nullable command predicate and ordering stay byte-for-byte.
+pub const RD_MFG_EXISTING_RECEIPT_IMAGE: &str = "commerce_rd_mfg_existing_receipt_image";
+const SQL_MFG_EXISTING_RECEIPT_IMAGE: &str =
+    "SELECT to_jsonb(r)::text image FROM command_receipts r WHERE r.operation=? AND r.record_id=? AND r.authority_json::jsonb->>'companyId'=? AND (?::text IS NULL OR r.command_id=?) ORDER BY r.created_at,r.command_id LIMIT 1";
+const READ_MFG_EXISTING_RECEIPT_IMAGE: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_MFG_EXISTING_RECEIPT_IMAGE,
+    sql: SQL_MFG_EXISTING_RECEIPT_IMAGE,
+    bind_count: 5,
+};
+
 /// Native successor of the r26 Support attachment source-image read. The
 /// caller binds `[id, company_id]`; the two predicates stay in wire order.
 pub const RD_SUPPORT_ORDER_SOURCE_IMAGE: &str = "commerce_rd_support_order_source_image";
@@ -830,6 +854,8 @@ const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_WAREHOUSE_BRANCH_ACTIVE,
     READ_EXPENSE_SETTINGS_IMAGE,
     READ_MFG_EXISTING_SETTINGS_IMAGE,
+    READ_EXPENSE_RECEIPT_IMAGE,
+    READ_MFG_EXISTING_RECEIPT_IMAGE,
     READ_SUPPORT_ORDER_SOURCE_IMAGE,
     READ_CRM_ORDER_SOURCE_IMAGE,
     READ_BILLING_TEST_FINANCE_SCHEMA,
@@ -914,6 +940,12 @@ mod tests {
                 RD_MFG_EXISTING_SETTINGS_IMAGE,
                 SQL_MFG_EXISTING_SETTINGS_IMAGE,
                 1usize,
+            ),
+            (RD_EXPENSE_RECEIPT_IMAGE, SQL_EXPENSE_RECEIPT_IMAGE, 5usize),
+            (
+                RD_MFG_EXISTING_RECEIPT_IMAGE,
+                SQL_MFG_EXISTING_RECEIPT_IMAGE,
+                5usize,
             ),
             (
                 RD_SUPPORT_ORDER_SOURCE_IMAGE,
@@ -1074,7 +1106,7 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), bind_count);
         }
-        assert_eq!(STATEMENTS.len(), 63);
+        assert_eq!(STATEMENTS.len(), 65);
     }
 
     /// The order source-id lookup keeps its exact projection and single bind.
@@ -1509,6 +1541,35 @@ mod tests {
         for statement in [expense, mfg] {
             assert_eq!(statement.bind_count, 1);
             assert_eq!(statement.sql.matches('?').count(), 1);
+            assert!(statement.sql.starts_with("SELECT "));
+            assert!(!statement.sql.contains(';'));
+            assert!(!statement.sql.contains("FOR UPDATE"));
+        }
+    }
+
+    /// The two r30 receipt-image reads share a byte-exact head and differ only
+    /// in their WHERE tail and ORDER BY; each keeps its retired literal and the
+    /// exact five-bind wire order of its call site.
+    #[test]
+    fn posting_setup_receipt_image_reads_keep_their_exact_literals() {
+        let head = "SELECT to_jsonb(r)::text image FROM command_receipts r WHERE ";
+        let expense = read_statement(RD_EXPENSE_RECEIPT_IMAGE).expect("expense receipt image read");
+        let mfg = read_statement(RD_MFG_EXISTING_RECEIPT_IMAGE).expect("mfg receipt image read");
+        assert_eq!(
+            expense.sql,
+            format!(
+                "{head}r.command_id=? AND r.operation=? AND r.actor_id=? AND r.record_id=? AND r.authority_json::jsonb->>'companyId'=?"
+            )
+        );
+        assert_eq!(
+            mfg.sql,
+            format!(
+                "{head}r.operation=? AND r.record_id=? AND r.authority_json::jsonb->>'companyId'=? AND (?::text IS NULL OR r.command_id=?) ORDER BY r.created_at,r.command_id LIMIT 1"
+            )
+        );
+        for statement in [expense, mfg] {
+            assert_eq!(statement.bind_count, 5);
+            assert_eq!(statement.sql.matches('?').count(), 5);
             assert!(statement.sql.starts_with("SELECT "));
             assert!(!statement.sql.contains(';'));
             assert!(!statement.sql.contains("FOR UPDATE"));

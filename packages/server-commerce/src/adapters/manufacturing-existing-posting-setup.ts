@@ -24,7 +24,7 @@ import {manufacturingExistingPostingMarker} from '@erpx/server-commerce/adapters
 import {manufacturingExistingPostingSetupSchema,type ManufacturingExistingPostingSetupResult,type ManufacturingExistingPostingSetupView} from '@erpx/server-commerce/domain/manufacturing-existing-posting-setup';
 import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 import { COMMERCE_MFG_INITIALIZED_GUARD_SQL } from "./guarded-source-dedupe-sql";
-import { nativeCommerceReadFirst, RD_MFG_EXISTING_POSTING_SCHEMA, RD_MFG_EXISTING_SETTINGS_IMAGE, RD_MFG_EXISTING_POSTING_CONFIRMATION_IMAGE } from './native-commerce-read';
+import { nativeCommerceReadFirst, RD_MFG_EXISTING_POSTING_SCHEMA, RD_MFG_EXISTING_SETTINGS_IMAGE, RD_MFG_EXISTING_POSTING_CONFIRMATION_IMAGE, RD_MFG_EXISTING_RECEIPT_IMAGE } from './native-commerce-read';
 
 /** Native owner statement for the existing-posting confirmation. No SQL is
  * staged in TypeScript: the axum command owns the write and the statement's
@@ -53,7 +53,7 @@ async function snapshot(database:SqlDatabase,actor:WorkContext){
  ]);
  return {configuration,mapping,finance,image:JSON.stringify([mapping,finance.image,documents.image,production.image,stock.image,financialHistory.image])};
 }
-async function receiptImage(database:SqlDatabase,companyId:string,key?:string){return database.prepare(`SELECT to_jsonb(r)::text image FROM command_receipts r WHERE r.operation=? AND r.record_id=? AND r.authority_json::jsonb->>'companyId'=? AND (?::text IS NULL OR r.command_id=?) ORDER BY r.created_at,r.command_id LIMIT 1`).bind(operation,companyId,companyId,key??null,key??null).first<string>('image');}
+async function receiptImage(database:SqlDatabase,companyId:string,key?:string){return nativeCommerceReadFirst<string>(RD_MFG_EXISTING_RECEIPT_IMAGE,[operation,companyId,companyId,key??null,key??null],database);}
 async function nativeImage(database:SqlDatabase,companyId:string){return nativeCommerceReadFirst<string>(RD_MFG_EXISTING_POSTING_CONFIRMATION_IMAGE,[companyId],database);}
 function contextKey(actor:WorkContext,state:Awaited<ReturnType<typeof snapshot>>,confirmation:string|null){return createHash('sha256').update(JSON.stringify([authorityImage(actor),state.image,confirmation])).digest('hex');}
 const unavailable=(companyId:string,unavailableReason:ManufacturingExistingPostingSetupView['unavailableReason']):ManufacturingExistingPostingSetupView=>({companyId,available:false,schemaAvailable:false,configured:null,confirmed:null,version:null,canConfirm:false,contextKey:null,configuration:null,previewChart:null,previewAccounts:[],effectiveSalesConfiguration:null,expectedSalesDefaults:null,unavailableReason});

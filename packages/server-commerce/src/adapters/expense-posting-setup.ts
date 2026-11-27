@@ -30,7 +30,7 @@ import {expensePostingSetupSchema,type ExpensePostingSetupInput,type ExpensePost
 import type {CommercePostingSetupConfiguration} from '@erpx/server-commerce/domain/posting-setup';
 import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 import { COMMERCE_EXPENSE_RECEIPT_IMAGE_SQL } from "./guarded-source-dedupe-sql";
-import { nativeCommerceReadFirst, RD_EXPENSE_SETTINGS_IMAGE } from './native-commerce-read';
+import { nativeCommerceReadFirst, RD_EXPENSE_SETTINGS_IMAGE, RD_EXPENSE_RECEIPT_IMAGE } from './native-commerce-read';
 const operation='commerce.expense-posting-setup.initialize',capabilities=['people.directory','people.expenses'] as const;
 const columns={chartId:'chart_id',currency:'currency',receivableAccountId:'receivable_account_id',payableAccountId:'payable_account_id',revenueAccountId:'revenue_account_id',inventoryAccountId:'inventory_account_id',clearingAccountId:'clearing_account_id',cogsAccountId:'cogs_account_id',inputTaxAccountId:'input_tax_account_id',outputTaxAccountId:'output_tax_account_id',cashAccountId:'cash_account_id'} as const;
 const fields=Object.keys(columns) as (keyof typeof columns)[];
@@ -72,7 +72,7 @@ export async function expensePostingSetup(actor:WorkContext):Promise<ExpensePost
 export async function initializeExpensePostingSetup(actor:WorkContext,raw:unknown,key:string):Promise<ExpensePostingSetupResult>{
  const input=expensePostingSetupSchema.parse(raw);
  try{return await (await owner(actor)).transaction(async database=>{
-  await leases(database,actor.companyId,true);const current=await requireExpensePostingFinanceAuthority(database,actor),receipt=await database.prepare("SELECT to_jsonb(r)::text image FROM command_receipts r WHERE r.command_id=? AND r.operation=? AND r.actor_id=? AND r.record_id=? AND r.authority_json::jsonb->>'companyId'=?").bind(key,operation,actor.userId,actor.companyId,actor.companyId).first<string>('image'),purpose=receipt?'history' as const:'new-work' as const;
+  await leases(database,actor.companyId,true);const current=await requireExpensePostingFinanceAuthority(database,actor),receipt=await nativeCommerceReadFirst<string>(RD_EXPENSE_RECEIPT_IMAGE,[key,operation,actor.userId,actor.companyId,actor.companyId],database),purpose=receipt?'history' as const:'new-work' as const;
   for(const capability of capabilities)await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability,purpose});
   const before=await state(database,actor.companyId),finance=await expensePostingFinanceState(database,actor),guard=`expense-posting-setup:${randomUUID()}`,boundaries=capabilities.map((capability,index)=>({key:`${guard}:${index}`,boundary:purchaseCommandBoundary(database,'enforced',`${guard}:${index}`,{companyId:actor.companyId,capability,purpose})!}));await database.batch(boundaries.flatMap(item=>item.boundary.before));
   let result:ExpensePostingSetupResult;

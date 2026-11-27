@@ -470,7 +470,7 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
         `export const ${kind} = '${wire}';`,
       );
     }
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 63);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 65);');
     expect(plans).toContain('fn schema_ready_probes_keep_their_exact_literals()');
     expect(readFileSync(adapters('read-tail-r15-dedupe-sql.ts'), 'utf8')).not.toContain('to_regclass');
   });
@@ -507,7 +507,7 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
     expect(plans).toContain(`"${sql}"`);
     expect(plans).toContain('kind: RD_LEGACY_ATTACHMENT_SCOPE,');
     expect(plans).toContain('fn legacy_attachment_scope_keeps_its_exact_literal()');
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 63);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 65);');
     expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
       "export const RD_LEGACY_ATTACHMENT_SCOPE = 'commerce_rd_legacy_attachment_scope';",
     );
@@ -674,7 +674,8 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
     expect(source).toContain(
       'nativeCommerceReadFirst<string>(RD_MFG_EXISTING_POSTING_CONFIRMATION_IMAGE,[companyId],database)',
     );
-    expect(source).toContain('SELECT to_jsonb(r)::text image FROM command_receipts r');
+    expect(source).not.toContain('SELECT to_jsonb(r)::text image FROM command_receipts r WHERE');
+    expect(source).toContain('RD_MFG_EXISTING_RECEIPT_IMAGE');
   });
 
   it('owns the sales delivery-notification line read as a native kind', async () => {
