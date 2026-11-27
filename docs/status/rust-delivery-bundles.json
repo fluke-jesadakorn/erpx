@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15383,
+    "revision": 15387,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -213756,7 +213756,7 @@
         "goalId": "G4",
         "owner": "procurement",
         "kind": "migration",
-        "status": "integrating",
+        "status": "ready_for_integration",
         "title": "feature-procurement routes native execution",
         "scope": "Inventory feature-procurement routes and port one bounded read/command to Rust with real SQL execution and complete payload parity.",
         "workflowIds": [],
@@ -213771,15 +213771,8 @@
           "owner:procurement",
           "route:procurement-feature"
         ],
-        "nextAction": "Native supplier-bill detail compiled/tested; composition backend and route cutover pending.",
-        "claim": {
-          "runId": "run-20261127-f",
-          "agentId": "worker-procurement",
-          "claimedAt": "2026-11-27T02:21:12.859Z",
-          "heartbeatAt": "2026-11-27T02:27:26.459Z",
-          "expiresAt": "2026-11-27T02:57:26.459Z",
-          "generation": 194
-        },
+        "nextAction": "Owned detail port + export committed; next mount SupplierBillDetailHttpBackend/router, cut feature-supply route + workplace presenter, then delete TS reader",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": "3cbd0350c675ab420131cdd1870ed5d73c07a224",
         "lastPushedSha": "3cbd0350c675ab420131cdd1870ed5d73c07a224",
@@ -213808,17 +213801,41 @@
             "command": "cargo test -p erpx-server-procurement --lib --locked",
             "result": "passed",
             "sourceSha": "3cbd0350c675ab420131cdd1870ed5d73c07a224"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "1965d375c34588b3f61e27703a2563c58c4c90ab",
+            "note": "root clean"
+          },
+          {
+            "command": "vitest procurement native read plan",
+            "result": "passed",
+            "sourceSha": "1965d375c34588b3f61e27703a2563c58c4c90ab",
+            "note": "24 passed"
+          },
+          {
+            "command": "cargo test -p erpx-server-procurement --lib --locked",
+            "result": "passed",
+            "sourceSha": "1965d375c34588b3f61e27703a2563c58c4c90ab",
+            "note": "47 passed"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "1965d375c34588b3f61e27703a2563c58c4c90ab",
+            "note": "layout valid"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-i",
+          "runId": "run-20261127-f",
           "agentId": "lead",
-          "at": "2026-11-26T13:47:25.632Z",
+          "at": "2026-11-27T02:32:19.801Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Native supplier-bill detail compiled/tested; composition backend and route cutover pending."
+          "reason": "released with work preserved",
+          "nextAction": "Owned detail port + export committed; next mount SupplierBillDetailHttpBackend/router, cut feature-supply route + workplace presenter, then delete TS reader"
         },
         "scopeRefinementRequired": false
       },
@@ -216237,8 +216254,8 @@
       "statusCounts": {
         "pending": 14,
         "in_progress": 0,
-        "ready_for_integration": 144,
-        "integrating": 2,
+        "ready_for_integration": 145,
+        "integrating": 1,
         "migrated": 369,
         "blocked": 1915,
         "deferred": 2,
@@ -216246,7 +216263,7 @@
       }
     },
     "lastCoordinatorGeneration": 194,
-    "updatedAt": "2026-11-27T02:27:26.840Z",
+    "updatedAt": "2026-11-27T02:32:19.805Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
