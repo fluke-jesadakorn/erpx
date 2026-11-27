@@ -131,7 +131,10 @@ export function holdingUiUrl(value: string, company?: string, profile: OriginPro
     if (!branch && !department && company) url.searchParams.set('company', company);
     return origin + url.pathname + url.search + url.hash;
   }
-  const tail = destination === landing ? '' : root && (destination === root || destination.startsWith(root + '/')) ? destination.slice(root.length).replace(/^\//, '') : destination;
+  // The unscoped /apps address opens the workspace chooser. A Company Feed
+  // must round-trip to its owner page after the selected launch completes.
+  const feed = app === 'apps' && destination === 'home' && !branch && !department;
+  const tail = destination === landing && !feed ? '' : root && (destination === root || destination.startsWith(root + '/')) ? destination.slice(root.length).replace(/^\//, '') : destination;
   url.pathname = [branch ?? (department ? 'departments' : ''), department, app, tail].filter(Boolean).join('/');
   if (!branch && !department && company) url.searchParams.set('company', company);
   return origin + url.pathname + url.search + url.hash;

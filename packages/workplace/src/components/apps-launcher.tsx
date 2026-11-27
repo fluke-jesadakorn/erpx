@@ -121,7 +121,7 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
   const apps = workspace ? visibleApps(workspace.apps, current.memory.recent[company!.id] ?? [], appQuery) : [];
   return <>
     <Button ref={trigger} appearance="standard" variant="ghost" className={styles.trigger} data-apps-launcher-trigger aria-label={[productLabel ?? t("แอป", "Apps"),workspaceLabel].filter(Boolean).join(" · ")} aria-haspopup="dialog" aria-expanded={open} onClick={() => window.dispatchEvent(new Event("erpx:open-apps"))}>
-      <Grid2X2 size={18} aria-hidden="true" /><span>{productLabel ?? t("แอปและพื้นที่ทำงาน", "Apps and workspaces")}{workspaceLabel && <small>{workspaceLabel}</small>}</span><ChevronDown size={16} aria-hidden="true" />
+      <Grid2X2 size={18} aria-hidden="true" /><span>{productLabel ?? t("แอป", "Apps")}{workspaceLabel && <small>{workspaceLabel}</small>}</span><ChevronDown size={16} aria-hidden="true" />
     </Button>
     <Dialog appearance="standard" presentation="fullscreen" open={open} onClose={close} title={t("แอป", "Apps")} className={styles.modal} bodyClassName={styles.modalBody} finalFocus={() => trigger.current} closeLabel={t("ปิดแอป", "Close Apps")}>
       {(notice || current.invalid) && <InlineNotice tone="info">{t("พื้นที่ที่จำไว้ไม่อยู่ในสิทธิ์ปัจจุบันแล้ว กรุณาเลือกใหม่", "Your remembered workspace is no longer available. Choose again.")}</InlineNotice>}

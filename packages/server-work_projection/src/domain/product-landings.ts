@@ -25,10 +25,16 @@ function navigationContext(input: ProductLandingContext): NavigationContext {
     availableAppIds: availableNavigationAppIds(input.readyModules.map(id => ({ id, state: "Available", permitted: true }))) };
 }
 
+function feedAvailable(input: ProductLandingContext) {
+  return input.readyModules.includes("collaboration") &&
+    (input.commercialAdmissionDeferred || input.capabilities.includes("work.social"));
+}
+
 /** The same discovery predicates as owner menus. Owners still authorize the
  * actual page, record and command after entry; this is never a record grant. */
 export function productDestinationAvailable(id: ProductId, path: string, input: ProductLandingContext) {
   if (destinationProduct(path) !== id) return false;
+  if (id === "apps" && path === "home" && input.capabilities.includes("work.social")) return feedAvailable(input);
   // Financial continuation requires its named current-owner proof. The Assets
   // source menu also serves Maintenance roles and cannot discover this work.
   if (id === "assets" && assetsFinancialEntry(path)) return false;
@@ -66,7 +72,12 @@ export function productDestinationAvailable(id: ProductId, path: string, input: 
 export function productOfficeLanding(id: ProductId, input: ProductLandingContext) {
   const definition = product(id);
   if (!definition) return null;
-  if (id === "apps") return input.readyModules.includes("operations") && (input.commercialAdmissionDeferred || input.capabilities.includes("work.today")) ? definition.landing : null;
+  if (id === "apps") {
+    if (feedAvailable(input)) return definition.landing;
+    if (input.capabilities.includes("work.social") && !input.commercialAdmissionDeferred) return null;
+    return input.readyModules.includes("operations") &&
+      (input.commercialAdmissionDeferred || input.capabilities.includes("work.today")) ? definition.landing : null;
+  }
   if (!definition.modules.some(moduleId => input.modules.includes(moduleId) && input.readyModules.includes(moduleId))) return null;
   if (productDestinationAvailable(id, definition.landing, input)) return definition.landing;
   return destinations.find(item => destinationProduct(item.path) === id && productDestinationAvailable(id, item.path, input))?.path ?? null;

@@ -16,6 +16,15 @@ import {developmentModuleAdmissionDeferred} from '@erpx/contracts/development-mo
 import {productIds} from '@erpx/contracts/product-registry';
 import {products} from '@erpx/server-commercial/public/rules/product-registry';
 
+it("opens the Apps Feed for a collaboration role without requiring Operations readiness", () => {
+  const scope = { scopeKind: "holding" as const, beta: false, capabilities: ["work.today", "work.social"] };
+  const employee = { ...scope, modules: ["collaboration"], readyModules: ["collaboration"] };
+  const sales = { ...scope, modules: ["sales"], readyModules: ["sales", "operations"] };
+  expect(productOfficeLanding("apps", employee)).toBe("home");
+  expect(productDestinationAvailable("apps", "home", employee)).toBe(true);
+  expect(productDestinationAvailable("apps", "home", sales)).toBe(false);
+});
+
 const choices = (): WorkspaceChoice[] => [buildWorkspaceHoldingChoice("acme", "Acme Holding", [
   { companyId: "c1", companyName: "Company One", scopeKind: "holding", scopeNodeId: null },
   { companyId: "c2", companyName: "Company Two", scopeKind: "department", scopeNodeId: "d2" },
