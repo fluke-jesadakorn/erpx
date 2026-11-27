@@ -213,12 +213,17 @@ impl<C: Clock + Send + Sync + 'static> BrandingService<C> {
         let holding = self.configuration.holding.clone();
         let company = self.configuration.company.clone();
         let clock = self.clock.clone();
+        let mut access = Self::access(false);
+        if kind == BrandingPresentationReadKind::Workspace {
+            // Every selected workspace uses its Holding/Branch branding in the shell.
+            access.module = None;
+        }
         self.authorizer
             .execute_with_sources_deferred(
                 host,
                 proof,
                 move || Ok(input),
-                Self::access(false),
+                access,
                 BrandSources,
                 move |connection, current| {
                     let holding = holding.clone();
