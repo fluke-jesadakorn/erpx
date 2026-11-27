@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15504,
+    "revision": 15541,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-goal-records-operations-tail-01",
       "agentId": "codex-lead",
       "startedAt": "2026-11-27T05:08:07.556Z",
-      "heartbeatAt": "2026-11-27T05:19:05.552Z",
-      "expiresAt": "2026-11-27T05:49:05.552Z",
+      "heartbeatAt": "2026-11-27T05:43:44.185Z",
+      "expiresAt": "2026-11-27T06:13:44.185Z",
       "generation": 198,
       "tokenHash": "0689ac6c71ac7c240cee2e4e50eda3cd55266eee5a439cb321aaddb035ef5619"
     },
@@ -217274,35 +217274,121 @@
           "apps/compat/src/app/api/v1/holdings/[holdingSlug]/routine-templates",
           "packages/server-operations/src/adapters/native_routines_detail_read",
           "packages/server-operations/src/adapters/routine_commands_http.rs",
-          "tests/unit/operations/rust-routine-run-http.test.rs"
+          "tests/unit/operations/rust-routine-run-http.test.rs",
+          "packages/server-operations/src/public/native_routines_detail_read.rs",
+          "packages/feature-apps/package.json",
+          "tests/unit/operations/native-routines-route.test.ts",
+          "tests/catalogue/suite-manifest.json",
+          "apps/compat/src/app/globals.css",
+          "apps/launcher/src/app/globals.css"
         ],
         "resources": [
           "path:cutover.operations.routine-template-retained"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-goal-records-operations-tail-01",
-          "agentId": "hy4-operations-implementation",
-          "claimedAt": "2026-11-27T05:14:42.951Z",
-          "heartbeatAt": "2026-11-27T05:19:05.552Z",
-          "expiresAt": "2026-11-27T05:49:05.552Z",
-          "generation": 198
-        },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": "e8311c3a1512c00df2c4fc97102c48adab0abb66",
+        "implementedCommit": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+        "lastPushedSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+        "checks": [
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api (frozen native candidate)",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-operations --test routine_run_http --test routine_commands --test routine_run (25 passed)",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "Bun Operations route, services and presenter unit suites (159 passed)",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "Bun workspace-supervisor suite (13 passed, scoped Holding aliases)",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "Bun tsc --noEmit tests/config/tsconfig.json",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "structure:check",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "test:catalogue (33 modules, 2425 suites)",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "Acme public HTTPS native routine template and schedule API (6 POST and 5 nested GET path registrations, replay, stale CAS/role, origin, 401/403/404/409, 204 OPTIONS)",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "Acme dev PostgreSQL receipt/audit/outbox (6 each), schedule lineage (2), one schedule version 2 and one manual task",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "retirement:next-routes",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed",
+            "before": 1426,
+            "after": 1423,
+            "appBefore": 1198,
+            "appAfter": 1196,
+            "sharedBefore": 228,
+            "sharedAfter": 227,
+            "methodPathDelta": 11,
+            "removedBranches": 3,
+            "removedMethodExports": 2,
+            "deletedFiles": 3
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/routine-schedules/[[...path]]/route.ts",
+            "removalTaskId": "cutover.operations.routine-schedule-state",
+            "removalCondition": "Verify all schedule-state actions on the Axum gateway and remove their Next transport."
+          },
+          {
+            "path": "packages/server-operations/src/public/native-routines-page.ts",
+            "removalTaskId": "cutover.operations.routine-schedule-state",
+            "removalCondition": "Remove the last TypeScript command proxy when the sibling route is retired."
+          },
+          {
+            "path": "packages/server-projects/src/adapters/purchases.ts",
+            "removalTaskId": "cutover.operations.routine-ssr-dependencies",
+            "removalCondition": "Use native current authority/project picker and verify the canonical authenticated SSR page at 200."
+          },
+          {
+            "path": "packages/server-operations/src/adapters/routines.ts",
+            "removalTaskId": "retire.operations.routines",
+            "removalCondition": "Retire the remaining legacy Operations read oracles after replacing existing test consumers with the native contract."
+          }
+        ],
         "blocker": null,
         "handoff": {
           "runId": "run-goal-records-operations-tail-01",
-          "agentId": "hy4-operations",
-          "at": "2026-11-27T05:14:34.439Z",
+          "agentId": "hy4-operations-implementation",
+          "at": "2026-11-27T05:27:41.684Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "HY4 verified 12 Operations tests. Add an actual owner-native authorized template schedules read for the retained long GET; six Axum command mount shapes need public data envelope and authenticated parity. Retire wrappers after runtime proof."
+          "nextAction": "HY4 implemented public {data} and draft schedules read. Lead candidate exposed overlapping Axum parameter names on /schedules. Reuse the routine route registration and move selected IAM decision into the authorized composition transaction before runtime verification."
         },
-        "nextAction": "HY4 verified 12 Operations tests. Add an actual owner-native authorized template schedules read for the retained long GET; six Axum command mount shapes need public data envelope and authenticated parity. Retire wrappers after runtime proof."
+        "nextAction": "One shared Operations API milestone: 6 POST + 5 nested GET Axum registrations, 2 Next method exports/3 dispatch branches and 3 route files retired. Continue cutover.operations.routine-schedule-state and cutover.operations.routine-ssr-dependencies.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "cutover.runtime.records-actions-ingress",
@@ -217552,10 +217638,536 @@
           "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/suggestions/[suggestionId]/route.ts",
           "apps/compat/src/app/api/v1/holdings/[holdingSlug]/records/[module]/[id]/suggestions/[suggestionId]/route.ts",
           "packages/server-records/src/adapters/record_registry_http.rs",
-          "packages/server-records/src/domain/record_write.rs"
+          "packages/server-records/src/domain/record_write.rs",
+          "packages/server-records/src/domain/record_social.rs",
+          "packages/server-records/src/domain/mod.rs",
+          "packages/server-records/src/public/record_social.rs",
+          "packages/server-records/src/public/mod.rs"
         ],
         "resources": [
           "path:cutover.records.registry-social-actions"
+        ],
+        "status": "blocked",
+        "claim": null,
+        "baseSha": "e8311c3a1512c00df2c4fc97102c48adab0abb66",
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-goal-records-operations-tail-01",
+          "agentId": "hy4-records-social",
+          "at": "2026-11-27T05:35:23.571Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Review parked HY4 owner input/policy draft in .scratch/dev/rust-migration/parked/records-social-goal. Replace hand-implemented digest with standard SHA-256 and wire mention before suggestions in the authorized Rust PostgreSQL unit. HY4 rustfmt parse and diff checks passed. No ingress/runtime retirement claimed."
+        },
+        "nextAction": "Review parked HY4 owner input/policy draft in .scratch/dev/rust-migration/parked/records-social-goal. Replace hand-implemented digest with standard SHA-256 and wire mention before suggestions in the authorized Rust PostgreSQL unit. HY4 rustfmt parse and diff checks passed. No ingress/runtime retirement claimed."
+      },
+      {
+        "id": "cutover.runtime.routine-command-ingress",
+        "owner": "operations",
+        "title": "Bind public routine commands to the verified work selection",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/routine_commands.rs",
+          "scripts/local/native-api-proxy.ts",
+          "scripts/local/native-cutover-routes.ts",
+          "scripts/local/workspace-gateway-runtime.ts",
+          "scripts/local/compiled-workspace-gateway.ts",
+          "tests/unit/shared.testing/workspace-supervisor.test.ts"
+        ],
+        "resources": [
+          "path:cutover.runtime.routine-command-ingress",
+          "build:heavy",
+          "service:dev-postgres-browser"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": "e8311c3a1512c00df2c4fc97102c48adab0abb66",
+        "implementedCommit": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+        "lastPushedSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+        "checks": [
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api (frozen native candidate)",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-operations --test routine_run_http --test routine_commands --test routine_run (25 passed)",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "Bun Operations route, services and presenter unit suites (159 passed)",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "Bun workspace-supervisor suite (13 passed, scoped Holding aliases)",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "Bun tsc --noEmit tests/config/tsconfig.json",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "structure:check",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "test:catalogue (33 modules, 2425 suites)",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "Acme public HTTPS native routine template and schedule API (6 POST and 5 nested GET path registrations, replay, stale CAS/role, origin, 401/403/404/409, 204 OPTIONS)",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "Acme dev PostgreSQL receipt/audit/outbox (6 each), schedule lineage (2), one schedule version 2 and one manual task",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "retirement:next-routes",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed",
+            "before": 1426,
+            "after": 1423,
+            "appBefore": 1198,
+            "appAfter": 1196,
+            "sharedBefore": 228,
+            "sharedAfter": 227,
+            "methodPathDelta": 11,
+            "removedBranches": 3,
+            "removedMethodExports": 2,
+            "deletedFiles": 3
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/routine-schedules/[[...path]]/route.ts",
+            "removalTaskId": "cutover.operations.routine-schedule-state",
+            "removalCondition": "Verify all schedule-state actions on the Axum gateway and remove their Next transport."
+          },
+          {
+            "path": "packages/server-operations/src/public/native-routines-page.ts",
+            "removalTaskId": "cutover.operations.routine-schedule-state",
+            "removalCondition": "Remove the last TypeScript command proxy when the sibling route is retired."
+          },
+          {
+            "path": "packages/server-projects/src/adapters/purchases.ts",
+            "removalTaskId": "cutover.operations.routine-ssr-dependencies",
+            "removalCondition": "Use native current authority/project picker and verify the canonical authenticated SSR page at 200."
+          },
+          {
+            "path": "packages/server-operations/src/adapters/routines.ts",
+            "removalTaskId": "retire.operations.routines",
+            "removalCondition": "Retire the remaining legacy Operations read oracles after replacing existing test consumers with the native contract."
+          }
+        ],
+        "blocker": null,
+        "handoff": {
+          "runId": "run-goal-records-operations-tail-01",
+          "agentId": "hy4-operations",
+          "at": "2026-11-27T05:14:34.439Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "HY4 verified 12 Operations tests. Add an actual owner-native authorized template schedules read for the retained long GET; six Axum command mount shapes need public data envelope and authenticated parity. Retire wrappers after runtime proof."
+        },
+        "nextAction": "One shared Operations API milestone: 6 POST + 5 nested GET Axum registrations, 2 Next method exports/3 dispatch branches and 3 route files retired. Continue cutover.operations.routine-schedule-state and cutover.operations.routine-ssr-dependencies.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
+      },
+      {
+        "id": "cutover.operations.routine-template-ssr",
+        "owner": "operations",
+        "title": "Read routine template schedule state from Axum during SSR",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-operations/src/adapters/server/native-routines-read.ts",
+          "packages/feature-operations/src/public/native-routines-read.ts",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/routine-templates/[id]/screen.tsx",
+          "packages/server-work_projection/src/adapters/presentation-context-queries.ts",
+          "tests/unit/operations/native-routines-detail.test.ts"
+        ],
+        "resources": [
+          "path:cutover.operations.routine-template-ssr"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "e8311c3a1512c00df2c4fc97102c48adab0abb66",
+        "implementedCommit": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+        "lastPushedSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+        "checks": [
+          {
+            "command": "Bun Operations presenter/native client typed tests",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "Authenticated public Acme routine detail SSR with explicit Company",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "failed",
+            "reason": "The existing Projects picker passes a native Workflow write descriptor to a TypeScript raw SQL batch (CROSS_DATABASE_TRANSACTION) before any routine data renders. Initial Finance configuration verified against the existing native mount and fixed locally."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/routine-schedules/[[...path]]/route.ts",
+            "removalTaskId": "cutover.operations.routine-schedule-state",
+            "removalCondition": "Verify all schedule-state actions on the Axum gateway and remove their Next transport."
+          },
+          {
+            "path": "packages/server-operations/src/public/native-routines-page.ts",
+            "removalTaskId": "cutover.operations.routine-schedule-state",
+            "removalCondition": "Remove the last TypeScript command proxy when the sibling route is retired."
+          },
+          {
+            "path": "packages/server-projects/src/adapters/purchases.ts",
+            "removalTaskId": "cutover.operations.routine-ssr-dependencies",
+            "removalCondition": "Use native current authority/project picker and verify the canonical authenticated SSR page at 200."
+          },
+          {
+            "path": "packages/server-operations/src/adapters/routines.ts",
+            "removalTaskId": "retire.operations.routines",
+            "removalCondition": "Retire the remaining legacy Operations read oracles after replacing existing test consumers with the native contract."
+          }
+        ],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-goal-records-operations-tail-01",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T05:46:29.867Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Repair Projects guard/picker seam, recheck native Finance and Brand config, then verify canonical authenticated Acme SSR end to end. Source and API are already pushed."
+        },
+        "nextAction": "Repair Projects guard/picker seam, recheck native Finance and Brand config, then verify canonical authenticated Acme SSR end to end. Source and API are already pushed."
+      },
+      {
+        "id": "cutover.operations.routine-schedule-authority",
+        "owner": "operations",
+        "title": "Repair native schedule command lineage bindings",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-operations/src/adapters/routine_commands.rs"
+        ],
+        "resources": [
+          "path:cutover.operations.routine-schedule-authority"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": "e8311c3a1512c00df2c4fc97102c48adab0abb66",
+        "implementedCommit": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+        "lastPushedSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+        "checks": [
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api (frozen native candidate)",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-operations --test routine_run_http --test routine_commands --test routine_run (25 passed)",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "Bun Operations route, services and presenter unit suites (159 passed)",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "Bun workspace-supervisor suite (13 passed, scoped Holding aliases)",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "Bun tsc --noEmit tests/config/tsconfig.json",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "structure:check",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "test:catalogue (33 modules, 2425 suites)",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "Acme public HTTPS native routine template and schedule API (6 POST and 5 nested GET path registrations, replay, stale CAS/role, origin, 401/403/404/409, 204 OPTIONS)",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "Acme dev PostgreSQL receipt/audit/outbox (6 each), schedule lineage (2), one schedule version 2 and one manual task",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "retirement:next-routes",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed",
+            "before": 1426,
+            "after": 1423,
+            "appBefore": 1198,
+            "appAfter": 1196,
+            "sharedBefore": 228,
+            "sharedAfter": 227,
+            "methodPathDelta": 11,
+            "removedBranches": 3,
+            "removedMethodExports": 2,
+            "deletedFiles": 3
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/routine-schedules/[[...path]]/route.ts",
+            "removalTaskId": "cutover.operations.routine-schedule-state",
+            "removalCondition": "Verify all schedule-state actions on the Axum gateway and remove their Next transport."
+          },
+          {
+            "path": "packages/server-operations/src/public/native-routines-page.ts",
+            "removalTaskId": "cutover.operations.routine-schedule-state",
+            "removalCondition": "Remove the last TypeScript command proxy when the sibling route is retired."
+          },
+          {
+            "path": "packages/server-projects/src/adapters/purchases.ts",
+            "removalTaskId": "cutover.operations.routine-ssr-dependencies",
+            "removalCondition": "Use native current authority/project picker and verify the canonical authenticated SSR page at 200."
+          },
+          {
+            "path": "packages/server-operations/src/adapters/routines.ts",
+            "removalTaskId": "retire.operations.routines",
+            "removalCondition": "Retire the remaining legacy Operations read oracles after replacing existing test consumers with the native contract."
+          }
+        ],
+        "blocker": null,
+        "handoff": {
+          "runId": "run-goal-records-operations-tail-01",
+          "agentId": "hy4-operations-implementation",
+          "at": "2026-11-27T05:27:41.684Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "HY4 implemented public {data} and draft schedules read. Lead candidate exposed overlapping Axum parameter names on /schedules. Reuse the routine route registration and move selected IAM decision into the authorized composition transaction before runtime verification."
+        },
+        "nextAction": "One shared Operations API milestone: 6 POST + 5 nested GET Axum registrations, 2 Next method exports/3 dispatch branches and 3 route files retired. Continue cutover.operations.routine-schedule-state and cutover.operations.routine-ssr-dependencies.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
+      },
+      {
+        "id": "cutover.operations.routine-template-staff-authority",
+        "owner": "operations",
+        "title": "Remove the displaced Operations staff API branch and transport helper",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-work_projection/src/application/staff-api.ts",
+          "packages/server-work_projection/src/adapters/staff-api.ts",
+          "packages/server-work_projection/src/domain/staff-api.ts",
+          "packages/server-operations/src/public/native-routines-page.ts",
+          "tests/unit/operations/task-worker-display.test.ts",
+          "tests/unit/operations/operations-services.test.ts"
+        ],
+        "resources": [
+          "path:cutover.operations.routine-template-staff-authority"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": "e8311c3a1512c00df2c4fc97102c48adab0abb66",
+        "implementedCommit": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+        "lastPushedSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+        "checks": [
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api (frozen native candidate)",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-operations --test routine_run_http --test routine_commands --test routine_run (25 passed)",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "Bun Operations route, services and presenter unit suites (159 passed)",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "Bun workspace-supervisor suite (13 passed, scoped Holding aliases)",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "Bun tsc --noEmit tests/config/tsconfig.json",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "structure:check",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "test:catalogue (33 modules, 2425 suites)",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "Acme public HTTPS native routine template and schedule API (6 POST and 5 nested GET path registrations, replay, stale CAS/role, origin, 401/403/404/409, 204 OPTIONS)",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "Acme dev PostgreSQL receipt/audit/outbox (6 each), schedule lineage (2), one schedule version 2 and one manual task",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed"
+          },
+          {
+            "command": "retirement:next-routes",
+            "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "result": "passed",
+            "before": 1426,
+            "after": 1423,
+            "appBefore": 1198,
+            "appAfter": 1196,
+            "sharedBefore": 228,
+            "sharedAfter": 227,
+            "methodPathDelta": 11,
+            "removedBranches": 3,
+            "removedMethodExports": 2,
+            "deletedFiles": 3
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/routine-schedules/[[...path]]/route.ts",
+            "removalTaskId": "cutover.operations.routine-schedule-state",
+            "removalCondition": "Verify all schedule-state actions on the Axum gateway and remove their Next transport."
+          },
+          {
+            "path": "packages/server-operations/src/public/native-routines-page.ts",
+            "removalTaskId": "cutover.operations.routine-schedule-state",
+            "removalCondition": "Remove the last TypeScript command proxy when the sibling route is retired."
+          },
+          {
+            "path": "packages/server-projects/src/adapters/purchases.ts",
+            "removalTaskId": "cutover.operations.routine-ssr-dependencies",
+            "removalCondition": "Use native current authority/project picker and verify the canonical authenticated SSR page at 200."
+          },
+          {
+            "path": "packages/server-operations/src/adapters/routines.ts",
+            "removalTaskId": "retire.operations.routines",
+            "removalCondition": "Retire the remaining legacy Operations read oracles after replacing existing test consumers with the native contract."
+          }
+        ],
+        "blocker": null,
+        "handoff": {
+          "runId": "run-goal-records-operations-tail-01",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T05:39:21.273Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Update retired StaffResource regression oracle, then check TypeScript and the workspace routes."
+        },
+        "nextAction": "One shared Operations API milestone: 6 POST + 5 nested GET Axum registrations, 2 Next method exports/3 dispatch branches and 3 route files retired. Continue cutover.operations.routine-schedule-state and cutover.operations.routine-ssr-dependencies.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
+      },
+      {
+        "id": "cutover.operations.routine-ssr-dependencies",
+        "owner": "operations",
+        "title": "Unblock canonical Holding Operations routine detail SSR",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-projects/src/adapters/purchases.ts",
+          "packages/server-projects/src/adapters/optional-project-options.ts",
+          "packages/server-projects/src/adapters/routine-project-options.ts"
+        ],
+        "resources": [
+          "path:cutover.operations.routine-ssr-dependencies"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-goal-records-operations-tail-01",
+          "agentId": "hy4-ssr",
+          "claimedAt": "2026-11-27T05:43:44.628Z",
+          "heartbeatAt": "2026-11-27T05:43:44.628Z",
+          "expiresAt": "2026-11-27T06:13:44.628Z",
+          "generation": 198
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": {
+          "runId": "run-goal-records-operations-tail-01",
+          "agentId": "hy4-operations-implementation",
+          "at": "2026-11-27T05:27:41.684Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "HY4 implemented public {data} and draft schedules read. Lead candidate exposed overlapping Axum parameter names on /schedules. Reuse the routine route registration and move selected IAM decision into the authorized composition transaction before runtime verification."
+        },
+        "nextAction": "Use the authenticated Acme Company URL, reproduce CROSS_DATABASE_TRANSACTION in projectPurchaseControls, verify same-database statement ownership and migrate the Projects picker authority seam to Rust. Verify Finance and Operations native client config first."
+      },
+      {
+        "id": "cutover.operations.routine-schedule-state",
+        "owner": "operations",
+        "title": "Cut over native pause, resume and end and retire routine-schedules catch-all",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [
+          "cutover.operations.routine-template-retained"
+        ],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/routine-schedules/[[...path]]",
+          "apps/launcher/src/app/api/v1/holdings/[holdingSlug]/routine-schedules/[[...path]]",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/routine-schedules/[[...path]]",
+          "packages/server-operations/src/public/native-routines-page.ts"
+        ],
+        "resources": [
+          "path:cutover.operations.routine-schedule-state"
         ],
         "status": "pending",
         "claim": null,
@@ -217567,13 +218179,13 @@
         "blocker": null,
         "handoff": {
           "runId": "run-goal-records-operations-tail-01",
-          "agentId": "hy4-records",
-          "at": "2026-11-27T05:14:33.962Z",
+          "agentId": "hy4-operations-implementation",
+          "at": "2026-11-27T05:27:41.684Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "HY4 audit confirmed three native route families and three neighboring TS paths. Acme authenticated PostgreSQL candidate now passes the five main methods including archive after the clock fix. Lead to implement OPTIONS parity, rerun and remove the six wrappers/re-exports."
+          "nextAction": "HY4 implemented public {data} and draft schedules read. Lead candidate exposed overlapping Axum parameter names on /schedules. Reuse the routine route registration and move selected IAM decision into the authorized composition transaction before runtime verification."
         },
-        "nextAction": "Trace mention and suggestion command input, scope, replay, and PostgreSQL writes end to end. Implement a native owner transaction and then verify public and Next retirement jointly with the lead."
+        "nextAction": "Verify pause, resume and end against a real Acme native fixture with the current selection and captured schedule lineage. Reconcile state replay and remove the adjacent Next catch-all and its two app re-exports after runtime evidence."
       }
     ],
     "migrationProgress": {
@@ -217596,7 +218208,7 @@
       }
     },
     "lastCoordinatorGeneration": 198,
-    "updatedAt": "2026-11-27T05:20:29.592Z",
+    "updatedAt": "2026-11-27T05:46:29.871Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
