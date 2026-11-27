@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15819,
+    "revision": 15864,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": null,
@@ -212378,11 +212378,11 @@
           "owner:quality",
           "route:quality-feature"
         ],
-        "nextAction": "Quality alert-queue native slice committed; backend mounted on quality router; cut TS alerts read next.",
+        "nextAction": "Quality public catch-all retired and dev proof recorded. Any later owner work resumes separately from the tracked migration ledger.",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "b9e69ba469b0ac06e6d633a40114574f5fa16b08",
-        "lastPushedSha": "b9e69ba469b0ac06e6d633a40114574f5fa16b08",
+        "implementedCommit": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+        "lastPushedSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
         "checks": [
           {
             "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
@@ -212403,19 +212403,249 @@
             "command": "cargo test -p erpx-server-quality --lib --locked",
             "result": "passed",
             "sourceSha": "b9e69ba469b0ac06e6d633a40114574f5fa16b08"
+          },
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api",
+            "result": "passed",
+            "sourceSha": "4e3a86c09712f97204624f2ffad50de40c64fea4"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-quality --test quality_http --test quality_alert_acknowledge",
+            "result": "passed",
+            "sourceSha": "4e3a86c09712f97204624f2ffad50de40c64fea4",
+            "tests": 13
+          },
+          {
+            "command": "bunx vitest run tests/unit/shared.testing/workspace-supervisor.test.ts",
+            "result": "passed",
+            "sourceSha": "4e3a86c09712f97204624f2ffad50de40c64fea4",
+            "tests": 13,
+            "upstreamFailuresWithoutFallback": 4
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "4e3a86c09712f97204624f2ffad50de40c64fea4"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "4e3a86c09712f97204624f2ffad50de40c64fea4"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "4e3a86c09712f97204624f2ffad50de40c64fea4"
+          },
+          {
+            "command": "bun run architecture:check",
+            "result": "failed",
+            "sourceSha": "4e3a86c09712f97204624f2ffad50de40c64fea4",
+            "baselineIdentical": true
+          },
+          {
+            "command": "bun run docs:check",
+            "result": "failed",
+            "sourceSha": "4e3a86c09712f97204624f2ffad50de40c64fea4",
+            "baselineIdentical": true,
+            "reason": "Pre-existing stale capability-delivery-matrix.md"
+          },
+          {
+            "command": "dev-https:quality-hold-commands",
+            "result": "passed",
+            "sourceSha": "4e3a86c09712f97204624f2ffad50de40c64fea4",
+            "create": 200,
+            "inspect": 200,
+            "release": 200,
+            "disposition": 200,
+            "cancelViaRetainedNext": 200,
+            "aliasReplay": 200,
+            "staleSelection": 409,
+            "wrongOrigin": 403,
+            "malformedJson": 500,
+            "validJsonAsTextValidation": 422,
+            "postgresReceiptCount": 9,
+            "governedActors": 3
+          },
+          {
+            "command": "dev-https:quality-read-contract",
+            "result": "passed",
+            "sourceSha": "4e3a86c09712f97204624f2ffad50de40c64fea4",
+            "alerts": [
+              503,
+              503
+            ],
+            "readPlan": [
+              405,
+              405
+            ],
+            "specifications": [
+              405,
+              405
+            ],
+            "unknownChild": [
+              404,
+              404
+            ],
+            "authenticatedSSR": 200,
+            "directNextCreateRelease": [
+              404,
+              404
+            ],
+            "directNextNamedGet": 405,
+            "options": 204
+          },
+          {
+            "command": "dev-health:gateway-console-private-production",
+            "result": "passed",
+            "sourceSha": "4e3a86c09712f97204624f2ffad50de40c64fea4",
+            "gateway": 200,
+            "console": 200,
+            "privateProd": 200,
+            "retiredConsole": 404
+          },
+          {
+            "command": "retirement:next-routes:quality-hold-commands",
+            "result": "passed",
+            "sourceSha": "4e3a86c09712f97204624f2ffad50de40c64fea4",
+            "before": 1414,
+            "after": 1414,
+            "publicNativeMethodPathsCutOver": 4,
+            "publicCompatibilityMethodPathsCutOver": 6,
+            "nextDispatchBranchesRetired": 5,
+            "nextRouteFilesDeleted": 0,
+            "unusedRelayModulesDeleted": 1,
+            "sharedMilestone": "exec.quality.routes and cutover.quality.catchall-ingress"
+          },
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06"
+          },
+          {
+            "command": "cargo test --locked -p erpx-service --features existing-business --test quality_commands_postgres",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "tests": 5
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-quality --test quality_http",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "tests": 11
+          },
+          {
+            "command": "bunx vitest run tests/unit/shared.testing/workspace-supervisor.test.ts",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "tests": 13
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06"
+          },
+          {
+            "command": "architecture:compare-known-baseline",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "repositoryResult": "failed",
+            "newViolations": 0
+          },
+          {
+            "command": "docs:compare-known-baseline",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "repositoryResult": "failed",
+            "newViolations": 0
+          },
+          {
+            "command": "dev-https:quality-cancel",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "request": 200,
+            "approve": 200,
+            "reject": 200,
+            "aliasReplay": 200,
+            "changedPayload": 409,
+            "selfApproval": 403,
+            "postgresReceipts": 6,
+            "postgresAudit": 6,
+            "postgresOutbox": 6,
+            "postgresHistory": 6,
+            "authenticatedSSR": 200,
+            "directRetiredNext": 404,
+            "options": 204
+          },
+          {
+            "command": "dev-https:quality-named-reads",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "alerts": [
+              503,
+              503
+            ],
+            "readPlan": [
+              405,
+              405
+            ],
+            "specifications": [
+              405,
+              405
+            ],
+            "unknownChild": [
+              404,
+              404
+            ]
+          },
+          {
+            "command": "dev-health:gateway-console-private-production",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "gateway": 200,
+            "console": 200,
+            "privateProd": 200,
+            "retiredConsole": 404
+          },
+          {
+            "command": "retirement:next-routes:quality-catchall",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "before": 1414,
+            "after": 1411,
+            "publicNativeMethodPathsCutOver": 1,
+            "nextDispatchBranchesRetired": 1,
+            "nextRouteFilesDeleted": 3,
+            "typescriptPreflightFilesDeleted": 1,
+            "sharedMilestone": "cutover.quality.catchall-ingress and cutover.quality.cancel-http"
           }
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261126-h",
-          "agentId": "w-quality",
-          "at": "2026-11-26T12:25:43.167Z",
+          "runId": "run-quality-tail",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T09:37:53.934Z",
           "previousStatus": "ready_for_integration",
           "reason": "handoff",
-          "nextAction": "Quality alert-queue native slice committed; backend mounted on quality router; cut TS alerts read next."
+          "nextAction": "Quality public catch-all retired and dev proof recorded. Any later owner work resumes separately from the tracked migration ledger."
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "exec.ecommerce.routes",
@@ -221628,6 +221858,614 @@
           "routeAuthority": true,
           "presenterParity": true
         }
+      },
+      {
+        "id": "cutover.quality.catchall-ingress",
+        "goalId": "G4",
+        "owner": "quality",
+        "workflowIds": [],
+        "kind": "integration",
+        "title": "Retire the Quality Next catch-all",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "scripts/local/native-cutover-routes.ts",
+          "scripts/local/native-api-proxy.ts",
+          "scripts/local/workspace-gateway-runtime.ts",
+          "scripts/local/compiled-workspace-gateway.ts",
+          "tests/unit/shared.testing/workspace-supervisor.test.ts",
+          "src/composition/src/quality.rs",
+          "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route.ts",
+          "apps/supply/src/app/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route.ts",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route.ts",
+          "packages/feature-supply/package.json",
+          "packages/feature-quality/package.json",
+          "apps/supply/src/app/globals.css",
+          "apps/compat/src/app/globals.css"
+        ],
+        "resources": [
+          "path:quality-ack-ingress",
+          "service:dev-postgres-browser"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+        "lastPushedSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+        "checks": [
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api",
+            "result": "passed",
+            "sourceSha": "4e3a86c09712f97204624f2ffad50de40c64fea4"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-quality --test quality_http --test quality_alert_acknowledge",
+            "result": "passed",
+            "sourceSha": "4e3a86c09712f97204624f2ffad50de40c64fea4",
+            "tests": 13
+          },
+          {
+            "command": "bunx vitest run tests/unit/shared.testing/workspace-supervisor.test.ts",
+            "result": "passed",
+            "sourceSha": "4e3a86c09712f97204624f2ffad50de40c64fea4",
+            "tests": 13,
+            "upstreamFailuresWithoutFallback": 4
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "4e3a86c09712f97204624f2ffad50de40c64fea4"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "4e3a86c09712f97204624f2ffad50de40c64fea4"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "4e3a86c09712f97204624f2ffad50de40c64fea4"
+          },
+          {
+            "command": "bun run architecture:check",
+            "result": "failed",
+            "sourceSha": "4e3a86c09712f97204624f2ffad50de40c64fea4",
+            "baselineIdentical": true
+          },
+          {
+            "command": "bun run docs:check",
+            "result": "failed",
+            "sourceSha": "4e3a86c09712f97204624f2ffad50de40c64fea4",
+            "baselineIdentical": true,
+            "reason": "Pre-existing stale capability-delivery-matrix.md"
+          },
+          {
+            "command": "dev-https:quality-hold-commands",
+            "result": "passed",
+            "sourceSha": "4e3a86c09712f97204624f2ffad50de40c64fea4",
+            "create": 200,
+            "inspect": 200,
+            "release": 200,
+            "disposition": 200,
+            "cancelViaRetainedNext": 200,
+            "aliasReplay": 200,
+            "staleSelection": 409,
+            "wrongOrigin": 403,
+            "malformedJson": 500,
+            "validJsonAsTextValidation": 422,
+            "postgresReceiptCount": 9,
+            "governedActors": 3
+          },
+          {
+            "command": "dev-https:quality-read-contract",
+            "result": "passed",
+            "sourceSha": "4e3a86c09712f97204624f2ffad50de40c64fea4",
+            "alerts": [
+              503,
+              503
+            ],
+            "readPlan": [
+              405,
+              405
+            ],
+            "specifications": [
+              405,
+              405
+            ],
+            "unknownChild": [
+              404,
+              404
+            ],
+            "authenticatedSSR": 200,
+            "directNextCreateRelease": [
+              404,
+              404
+            ],
+            "directNextNamedGet": 405,
+            "options": 204
+          },
+          {
+            "command": "dev-health:gateway-console-private-production",
+            "result": "passed",
+            "sourceSha": "4e3a86c09712f97204624f2ffad50de40c64fea4",
+            "gateway": 200,
+            "console": 200,
+            "privateProd": 200,
+            "retiredConsole": 404
+          },
+          {
+            "command": "retirement:next-routes:quality-hold-commands",
+            "result": "passed",
+            "sourceSha": "4e3a86c09712f97204624f2ffad50de40c64fea4",
+            "before": 1414,
+            "after": 1414,
+            "publicNativeMethodPathsCutOver": 4,
+            "publicCompatibilityMethodPathsCutOver": 6,
+            "nextDispatchBranchesRetired": 5,
+            "nextRouteFilesDeleted": 0,
+            "unusedRelayModulesDeleted": 1,
+            "sharedMilestone": "exec.quality.routes and cutover.quality.catchall-ingress"
+          },
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06"
+          },
+          {
+            "command": "cargo test --locked -p erpx-service --features existing-business --test quality_commands_postgres",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "tests": 5
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-quality --test quality_http",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "tests": 11
+          },
+          {
+            "command": "bunx vitest run tests/unit/shared.testing/workspace-supervisor.test.ts",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "tests": 13
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06"
+          },
+          {
+            "command": "architecture:compare-known-baseline",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "repositoryResult": "failed",
+            "newViolations": 0
+          },
+          {
+            "command": "docs:compare-known-baseline",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "repositoryResult": "failed",
+            "newViolations": 0
+          },
+          {
+            "command": "dev-https:quality-cancel",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "request": 200,
+            "approve": 200,
+            "reject": 200,
+            "aliasReplay": 200,
+            "changedPayload": 409,
+            "selfApproval": 403,
+            "postgresReceipts": 6,
+            "postgresAudit": 6,
+            "postgresOutbox": 6,
+            "postgresHistory": 6,
+            "authenticatedSSR": 200,
+            "directRetiredNext": 404,
+            "options": 204
+          },
+          {
+            "command": "dev-https:quality-named-reads",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "alerts": [
+              503,
+              503
+            ],
+            "readPlan": [
+              405,
+              405
+            ],
+            "specifications": [
+              405,
+              405
+            ],
+            "unknownChild": [
+              404,
+              404
+            ]
+          },
+          {
+            "command": "dev-health:gateway-console-private-production",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "gateway": 200,
+            "console": 200,
+            "privateProd": 200,
+            "retiredConsole": 404
+          },
+          {
+            "command": "retirement:next-routes:quality-catchall",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "before": 1414,
+            "after": 1411,
+            "publicNativeMethodPathsCutOver": 1,
+            "nextDispatchBranchesRetired": 1,
+            "nextRouteFilesDeleted": 3,
+            "typescriptPreflightFilesDeleted": 1,
+            "sharedMilestone": "cutover.quality.catchall-ingress and cutover.quality.cancel-http"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Quality public catch-all retired and dev proof recorded. Any later owner work resumes separately from the tracked migration ledger.",
+        "handoff": {
+          "runId": "run-quality-tail",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T09:18:37.130Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Finish migrate.quality.cancel-purchase-lineage and verify hold source capability combinations in ERPX dev. Cut over cancel only once lineage and replay are proven, then delete the three catch-all route files and their package/CSS references."
+        },
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
+      },
+      {
+        "id": "audit.quality.catchall-seed",
+        "goalId": "G4",
+        "owner": "quality",
+        "workflowIds": [],
+        "kind": "inventory",
+        "title": "Quality hold command contract and fixture audit",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          ".scratch/dev/quality-tail-fixture-notes.md"
+        ],
+        "resources": [
+          "audit:quality-hold-fixture"
+        ],
+        "status": "done",
+        "claim": null,
+        "baseSha": "d1fb60ce9bdee7dc1a08ea46093e7e3cda69e94b",
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Lead executes the verified 3-actor baseline and candidate scripts, compares the 9 PostgreSQL receipts and validates cancellation admission in the owner transaction.",
+        "handoff": null
+      },
+      {
+        "id": "migrate.quality.cancel-purchase-lineage",
+        "goalId": "G4",
+        "owner": "quality",
+        "workflowIds": [],
+        "kind": "migration",
+        "title": "Bind original Quality hold purchase lineage to native cancellation",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/quality_commands.rs",
+          "src/composition/src/quality_count_origin.rs",
+          "tests/integration/quality/rust-quality-commands-postgres.test.rs"
+        ],
+        "resources": [
+          "quality:cancel-purchase-lineage"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+        "lastPushedSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+        "checks": [
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06"
+          },
+          {
+            "command": "cargo test --locked -p erpx-service --features existing-business --test quality_commands_postgres",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "tests": 5
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-quality --test quality_http",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "tests": 11
+          },
+          {
+            "command": "bunx vitest run tests/unit/shared.testing/workspace-supervisor.test.ts",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "tests": 13
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06"
+          },
+          {
+            "command": "architecture:compare-known-baseline",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "repositoryResult": "failed",
+            "newViolations": 0
+          },
+          {
+            "command": "docs:compare-known-baseline",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "repositoryResult": "failed",
+            "newViolations": 0
+          },
+          {
+            "command": "dev-https:quality-cancel",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "request": 200,
+            "approve": 200,
+            "reject": 200,
+            "aliasReplay": 200,
+            "changedPayload": 409,
+            "selfApproval": 403,
+            "postgresReceipts": 6,
+            "postgresAudit": 6,
+            "postgresOutbox": 6,
+            "postgresHistory": 6,
+            "authenticatedSSR": 200,
+            "directRetiredNext": 404,
+            "options": 204
+          },
+          {
+            "command": "dev-https:quality-named-reads",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "alerts": [
+              503,
+              503
+            ],
+            "readPlan": [
+              405,
+              405
+            ],
+            "specifications": [
+              405,
+              405
+            ],
+            "unknownChild": [
+              404,
+              404
+            ]
+          },
+          {
+            "command": "dev-health:gateway-console-private-production",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "gateway": 200,
+            "console": 200,
+            "privateProd": 200,
+            "retiredConsole": 404
+          },
+          {
+            "command": "retirement:next-routes:quality-catchall",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "before": 1414,
+            "after": 1411,
+            "publicNativeMethodPathsCutOver": 1,
+            "nextDispatchBranchesRetired": 1,
+            "nextRouteFilesDeleted": 3,
+            "typescriptPreflightFilesDeleted": 1,
+            "sharedMilestone": "cutover.quality.catchall-ingress and cutover.quality.cancel-http"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Quality public catch-all retired and dev proof recorded. Any later owner work resumes separately from the tracked migration ledger.",
+        "handoff": {
+          "runId": "run-quality-tail",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T09:37:54.243Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Quality public catch-all retired and dev proof recorded. Any later owner work resumes separately from the tracked migration ledger."
+        },
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
+      },
+      {
+        "id": "cutover.quality.cancel-http",
+        "goalId": "G4",
+        "owner": "quality",
+        "workflowIds": [],
+        "kind": "integration",
+        "title": "Prepare native cancellation HTTP contract",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-quality/src/adapters/quality_http.rs",
+          "tests/integration/quality/rust-quality-http.test.rs"
+        ],
+        "resources": [
+          "quality:cancel-transport"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+        "lastPushedSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+        "checks": [
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06"
+          },
+          {
+            "command": "cargo test --locked -p erpx-service --features existing-business --test quality_commands_postgres",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "tests": 5
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-quality --test quality_http",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "tests": 11
+          },
+          {
+            "command": "bunx vitest run tests/unit/shared.testing/workspace-supervisor.test.ts",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "tests": 13
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06"
+          },
+          {
+            "command": "architecture:compare-known-baseline",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "repositoryResult": "failed",
+            "newViolations": 0
+          },
+          {
+            "command": "docs:compare-known-baseline",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "repositoryResult": "failed",
+            "newViolations": 0
+          },
+          {
+            "command": "dev-https:quality-cancel",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "request": 200,
+            "approve": 200,
+            "reject": 200,
+            "aliasReplay": 200,
+            "changedPayload": 409,
+            "selfApproval": 403,
+            "postgresReceipts": 6,
+            "postgresAudit": 6,
+            "postgresOutbox": 6,
+            "postgresHistory": 6,
+            "authenticatedSSR": 200,
+            "directRetiredNext": 404,
+            "options": 204
+          },
+          {
+            "command": "dev-https:quality-named-reads",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "alerts": [
+              503,
+              503
+            ],
+            "readPlan": [
+              405,
+              405
+            ],
+            "specifications": [
+              405,
+              405
+            ],
+            "unknownChild": [
+              404,
+              404
+            ]
+          },
+          {
+            "command": "dev-health:gateway-console-private-production",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "gateway": 200,
+            "console": 200,
+            "privateProd": 200,
+            "retiredConsole": 404
+          },
+          {
+            "command": "retirement:next-routes:quality-catchall",
+            "result": "passed",
+            "sourceSha": "b5d4fed603799655911d6c7fdcd19348d3066f06",
+            "before": 1414,
+            "after": 1411,
+            "publicNativeMethodPathsCutOver": 1,
+            "nextDispatchBranchesRetired": 1,
+            "nextRouteFilesDeleted": 3,
+            "typescriptPreflightFilesDeleted": 1,
+            "sharedMilestone": "cutover.quality.catchall-ingress and cutover.quality.cancel-http"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Quality public catch-all retired and dev proof recorded. Any later owner work resumes separately from the tracked migration ledger.",
+        "handoff": {
+          "runId": "run-quality-tail",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T09:37:53.140Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Quality public catch-all retired and dev proof recorded. Any later owner work resumes separately from the tracked migration ledger."
+        },
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       }
     ],
     "migrationProgress": {
@@ -221636,12 +222474,12 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2453,
+      "totalPackets": 2454,
       "migratedPackets": 370,
       "statusCounts": {
         "pending": 14,
         "in_progress": 0,
-        "ready_for_integration": 145,
+        "ready_for_integration": 146,
         "integrating": 0,
         "migrated": 370,
         "blocked": 1922,
@@ -221649,8 +222487,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 209,
-    "updatedAt": "2026-11-27T09:00:41.950Z",
+    "lastCoordinatorGeneration": 210,
+    "updatedAt": "2026-11-27T09:37:54.407Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
