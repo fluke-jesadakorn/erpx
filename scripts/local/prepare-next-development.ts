@@ -120,7 +120,8 @@ export function guardDebugChunkCycles(source: string): string {
 export function prepareNextDevelopment(root = process.cwd()) {
   const next = join(root, "node_modules/next");
   const version = JSON.parse(readFileSync(join(next, "package.json"), "utf8")).version;
-  if (version !== "16.4.3") throw new Error("Review the development debug-cycle workaround when changing Next 16.4.3.");
+  if (version !== "16.4.3" && version !== "16.4.6")
+    throw new Error("Review the development debug-cycle workaround when changing the installed Next.js version.");
   const compiled = join(next, "dist/compiled");
   const files = readdirSync(join(compiled, "next-server"))
     .filter(name => /^app-page.*\.runtime\.dev\.js$/.test(name))

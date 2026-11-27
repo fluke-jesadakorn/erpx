@@ -589,7 +589,7 @@ Installed private production and staging are outside this delivery. Commercial e
 ## Development foundation and current limitations
 
 - The gateway runs on3100 and lazily starts owned applications on3200–3299. Account and Apps share the process budget; the default is4 and the explicit local override is1–12. Active requests/HMR are never interrupted to free capacity.
-- Tooling is pinned to Bun1.4.3, Node26.11.1, Next16.4.3 and React19.3.1. Shared PostgreSQL18.6 serves separate development and installed database roles. Private production remains Node24.20.0 until a reviewed release.
+- Tooling is pinned to Bun1.4.3, Node26.11.1, Next16.4.6 and React19.3.1. Shared PostgreSQL18.6 serves separate development and installed database roles. Private production remains Node24.20.0 until a reviewed release.
 - Active compiler selection is in the [workspace settings](../scripts/local/workspace-settings.json): POS uses Webpack and the other20 apps use Turbopack. Earlier22-app compiler/HMR and combined-release receipts remain bound to that earlier topology; they are not a new21-app acceptance run.
 - Cross-server-owner runtime cycles are checked independently from the remaining reciprocal type/UI package-manifest dependencies and Turborepo warnings. Do not describe the entire package graph as acyclic.
 - Source-derived app tasks, isolated typechecks/builds, disposable PostgreSQL fixtures and complete-input caches support scoped development. Reuse an artifact only when its actual inputs, toolchain, scope and inventory match. A cache hit is not a new behavioral observation.
