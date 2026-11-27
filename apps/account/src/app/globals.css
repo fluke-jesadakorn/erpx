@@ -1322,6 +1322,7 @@
 @source "../../../../packages/server-identity_access/src/adapters/native-account-security.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-control-read-plan.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-directory-operations.ts";
+@source "../../../../packages/server-identity_access/src/adapters/native-iam-session-probe.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-identity-write.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-lane-10/client.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-lane-11/client.ts";
@@ -2898,6 +2899,7 @@
 @source "../../../../packages/server-runtime/src/public/runtime.ts";
 @source "../../../../packages/server-runtime/src/public/runtime/env.ts";
 @source "../../../../packages/server-runtime/src/public/runtime/filesystem.ts";
+@source "../../../../packages/server-runtime/src/public/runtime/holding-scope.ts";
 @source "../../../../packages/server-runtime/src/public/runtime/https.ts";
 @source "../../../../packages/server-runtime/src/public/runtime/maintenance.ts";
 @source "../../../../packages/server-runtime/src/public/runtime/minio.ts";

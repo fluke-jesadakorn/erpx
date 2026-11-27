@@ -569,7 +569,6 @@
 @source "../../../../packages/server-collaboration/src/adapters/pms-home-read-facts.ts";
 @source "../../../../packages/server-collaboration/src/adapters/pms-source-authorization.ts";
 @source "../../../../packages/server-collaboration/src/adapters/presentation-queries.ts";
-@source "../../../../packages/server-collaboration/src/adapters/product-entry.ts";
 @source "../../../../packages/server-collaboration/src/adapters/profile-posts.ts";
 @source "../../../../packages/server-collaboration/src/adapters/read-tail-sql.ts";
 @source "../../../../packages/server-collaboration/src/adapters/records-ai-usage-projection.ts";
@@ -629,6 +628,8 @@
 @source "../../../../packages/server-collaboration/src/public/messaging-read.ts";
 @source "../../../../packages/server-collaboration/src/public/messaging.ts";
 @source "../../../../packages/server-collaboration/src/public/native-inbox-page.ts";
+@source "../../../../packages/server-collaboration/src/public/native-push-settings.ts";
+@source "../../../../packages/server-collaboration/src/public/native-social-page.ts";
 @source "../../../../packages/server-collaboration/src/public/operations-guided-intake-facts.ts";
 @source "../../../../packages/server-collaboration/src/public/organization-channels.ts";
 @source "../../../../packages/server-collaboration/src/public/organization-node-channels.ts";
@@ -636,7 +637,6 @@
 @source "../../../../packages/server-collaboration/src/public/pms-home-read-facts.ts";
 @source "../../../../packages/server-collaboration/src/public/pms-source-authorization.ts";
 @source "../../../../packages/server-collaboration/src/public/presentation-queries.ts";
-@source "../../../../packages/server-collaboration/src/public/product-entry.ts";
 @source "../../../../packages/server-collaboration/src/public/profile-posts.ts";
 @source "../../../../packages/server-collaboration/src/public/records-ai-usage-projection.ts";
 @source "../../../../packages/server-collaboration/src/public/rules/product-entry.ts";
@@ -2238,7 +2238,6 @@
 @source "../../../../packages/server-manage_erpx/src/adapters/attachments-service-facts.ts";
 @source "../../../../packages/server-manage_erpx/src/adapters/beta-bootstrap-point-sql.ts";
 @source "../../../../packages/server-manage_erpx/src/adapters/beta-email.ts";
-@source "../../../../packages/server-manage_erpx/src/adapters/beta-http.ts";
 @source "../../../../packages/server-manage_erpx/src/adapters/beta-policy-limit-sql.ts";
 @source "../../../../packages/server-manage_erpx/src/adapters/company-provisioning-attachment-read-sources.ts";
 @source "../../../../packages/server-manage_erpx/src/adapters/company-provisioning-attachment-read.ts";
@@ -2260,7 +2259,6 @@
 @source "../../../../packages/server-manage_erpx/src/public/attachments-finance-facts.ts";
 @source "../../../../packages/server-manage_erpx/src/public/attachments-service-facts.ts";
 @source "../../../../packages/server-manage_erpx/src/public/beta-email.ts";
-@source "../../../../packages/server-manage_erpx/src/public/beta-http.ts";
 @source "../../../../packages/server-manage_erpx/src/public/company-provisioning-attachment-read.ts";
 @source "../../../../packages/server-manage_erpx/src/public/document-page-storage-limit.ts";
 @source "../../../../packages/server-manage_erpx/src/public/finance-ai-quota-sources.ts";
@@ -2425,7 +2423,6 @@
 @source "../../../../packages/server-operations/src/adapters/operations-alias-select-all.ts";
 @source "../../../../packages/server-operations/src/adapters/operations-exceptions.ts";
 @source "../../../../packages/server-operations/src/adapters/operations-staff-task-exists.ts";
-@source "../../../../packages/server-operations/src/adapters/people-app-entrypoint-facts.ts";
 @source "../../../../packages/server-operations/src/adapters/people-directory-facts.ts";
 @source "../../../../packages/server-operations/src/adapters/people-evaluation-work-facts.ts";
 @source "../../../../packages/server-operations/src/adapters/people-payroll-final-owner-projections.ts";
@@ -2442,7 +2439,6 @@
 @source "../../../../packages/server-operations/src/adapters/read-tail-r61-sources.ts";
 @source "../../../../packages/server-operations/src/adapters/record-purchases.ts";
 @source "../../../../packages/server-operations/src/adapters/routine-source-read.ts";
-@source "../../../../packages/server-operations/src/adapters/routines.ts";
 @source "../../../../packages/server-operations/src/adapters/social-task-origin-exists.ts";
 @source "../../../../packages/server-operations/src/adapters/staff-facts.ts";
 @source "../../../../packages/server-operations/src/adapters/staff-policy.ts";
@@ -2455,16 +2451,12 @@
 @source "../../../../packages/server-operations/src/adapters/task-delegation-source.ts";
 @source "../../../../packages/server-operations/src/adapters/work-cache-deadlines.ts";
 @source "../../../../packages/server-operations/src/adapters/work-package-obligation-sources.ts";
-@source "../../../../packages/server-operations/src/adapters/work-routine-presentation.ts";
-@source "../../../../packages/server-operations/src/adapters/work-routine-purchases.ts";
 @source "../../../../packages/server-operations/src/adapters/work-task-purchases.ts";
-@source "../../../../packages/server-operations/src/adapters/work-ui-staff-facts.ts";
 @source "../../../../packages/server-operations/src/adapters/workflow-document-sources.ts";
 @source "../../../../packages/server-operations/src/adapters/workflow-flow-routing-facts.ts";
 @source "../../../../packages/server-operations/src/adapters/workforce-actor-scope-source.ts";
 @source "../../../../packages/server-operations/src/application/guided-intake.ts";
 @source "../../../../packages/server-operations/src/application/operations-exceptions.ts";
-@source "../../../../packages/server-operations/src/application/routines.ts";
 @source "../../../../packages/server-operations/src/application/staff-policy.ts";
 @source "../../../../packages/server-operations/src/application/staff-settings.ts";
 @source "../../../../packages/server-operations/src/application/staff-tasks.ts";
@@ -2494,7 +2486,6 @@
 @source "../../../../packages/server-operations/src/public/leave-self-service-facts.ts";
 @source "../../../../packages/server-operations/src/public/native-staff-work-page.ts";
 @source "../../../../packages/server-operations/src/public/operations-exceptions.ts";
-@source "../../../../packages/server-operations/src/public/people-app-entrypoint-facts.ts";
 @source "../../../../packages/server-operations/src/public/people-directory-facts.ts";
 @source "../../../../packages/server-operations/src/public/people-evaluation-work-facts.ts";
 @source "../../../../packages/server-operations/src/public/people-payroll-final-owner-projections.ts";
@@ -2503,7 +2494,6 @@
 @source "../../../../packages/server-operations/src/public/project-structure-sources.ts";
 @source "../../../../packages/server-operations/src/public/project-task-record-policy.ts";
 @source "../../../../packages/server-operations/src/public/record-purchases.ts";
-@source "../../../../packages/server-operations/src/public/routines.ts";
 @source "../../../../packages/server-operations/src/public/rules/editor-command-inputs.ts";
 @source "../../../../packages/server-operations/src/public/rules/guided-intake.ts";
 @source "../../../../packages/server-operations/src/public/staff-facts.ts";
@@ -2515,8 +2505,6 @@
 @source "../../../../packages/server-operations/src/public/task-attachment-read.ts";
 @source "../../../../packages/server-operations/src/public/work-cache-deadlines.ts";
 @source "../../../../packages/server-operations/src/public/work-package-obligation-sources.ts";
-@source "../../../../packages/server-operations/src/public/work-routine-presentation.ts";
-@source "../../../../packages/server-operations/src/public/work-ui-staff-facts.ts";
 @source "../../../../packages/server-operations/src/public/workflow-document-sources.ts";
 @source "../../../../packages/server-operations/src/public/workflow-flow-routing-facts.ts";
 @source "../../../../packages/server-organization/src/adapters/access.ts";
@@ -3540,7 +3528,6 @@
 @source "../../../../packages/server-projects/src/adapters/read-tail-r43.ts";
 @source "../../../../packages/server-projects/src/adapters/read-tail-r45.ts";
 @source "../../../../packages/server-projects/src/adapters/record-purchases.ts";
-@source "../../../../packages/server-projects/src/adapters/routine-project-options.ts";
 @source "../../../../packages/server-projects/src/adapters/social-purchase-sources.ts";
 @source "../../../../packages/server-projects/src/adapters/staff-projects.ts";
 @source "../../../../packages/server-projects/src/adapters/structure.ts";
@@ -3579,7 +3566,6 @@
 @source "../../../../packages/server-projects/src/public/project-structure.ts";
 @source "../../../../packages/server-projects/src/public/purchases.ts";
 @source "../../../../packages/server-projects/src/public/record-purchases.ts";
-@source "../../../../packages/server-projects/src/public/routine-project-options.ts";
 @source "../../../../packages/server-projects/src/public/rules/editor-command-inputs.ts";
 @source "../../../../packages/server-projects/src/public/rules/product-entry.ts";
 @source "../../../../packages/server-projects/src/public/rules/record-command-inputs.ts";
@@ -3782,6 +3768,7 @@
 @source "../../../../packages/server-runtime/src/public/rules/canvas-domain.ts";
 @source "../../../../packages/server-runtime/src/public/runtime.ts";
 @source "../../../../packages/server-runtime/src/public/runtime/filesystem.ts";
+@source "../../../../packages/server-runtime/src/public/runtime/holding-scope.ts";
 @source "../../../../packages/server-runtime/src/public/runtime/https.ts";
 @source "../../../../packages/server-runtime/src/public/runtime/maintenance.ts";
 @source "../../../../packages/server-runtime/src/public/runtime/minio.ts";
@@ -4048,7 +4035,6 @@
 @source "../../../../packages/server-work_projection/src/domain/list-page.ts";
 @source "../../../../packages/server-work_projection/src/domain/page-layouts.ts";
 @source "../../../../packages/server-work_projection/src/domain/product-landings.ts";
-@source "../../../../packages/server-work_projection/src/domain/work-card-preferences.ts";
 @source "../../../../packages/server-work_projection/src/domain/work-cards.ts";
 @source "../../../../packages/server-work_projection/src/domain/work-items.ts";
 @source "../../../../packages/server-work_projection/src/domain/work-reports.ts";
@@ -4084,7 +4070,6 @@
 @source "../../../../packages/server-work_projection/src/public/staff-page.ts";
 @source "../../../../packages/server-work_projection/src/public/work-cache.ts";
 @source "../../../../packages/server-work_projection/src/public/work-capabilities.ts";
-@source "../../../../packages/server-work_projection/src/public/work-card-preferences.ts";
 @source "../../../../packages/server-work_projection/src/public/work-items.ts";
 @source "../../../../packages/server-work_projection/src/public/work-reports.ts";
 @source "../../../../packages/server-work_projection/src/public/work-review.ts";
@@ -4251,6 +4236,7 @@
 @source "../../../../packages/workplace/src/components/apps-workspace-memory.tsx";
 @source "../../../../packages/workplace/src/components/auth-shell.tsx";
 @source "../../../../packages/workplace/src/components/coming-soon-page.tsx";
+@source "../../../../packages/workplace/src/components/company-plugin-catalogue.tsx";
 @source "../../../../packages/workplace/src/components/console-ui-utilities.tsx";
 @source "../../../../packages/workplace/src/components/context-switch-context.ts";
 @source "../../../../packages/workplace/src/components/context-switch-provider.tsx";
@@ -4320,7 +4306,6 @@
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/media-publications/order/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/media-publications/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/money/[[...path]]/route.ts";
-@source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/navigation/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/page-layouts/[pageKey]/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/people-public-directory/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts";
@@ -4338,12 +4323,12 @@
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/staff-tasks/[[...path]]/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/uploads/[id]/content/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/uploads/route.ts";
-@source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/work/card-preferences/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/work/intake/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/work/reports/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/work/review/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/work/summary/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/me/page-layouts/[pageKey]/route.ts";
+@source "../../../../packages/workplace/src/routes/choose-work-role/native-role-form.tsx";
 @source "../../../../packages/workplace/src/routes/choose-work-role/page.tsx";
 @source "../../../../packages/workplace/src/routes/error.tsx";
 @source "../../../../packages/workplace/src/routes/forbidden.tsx";

@@ -787,7 +787,6 @@
 @source "../../../../packages/server-identity_access/src/public/account-preferences.ts";
 @source "../../../../packages/server-identity_access/src/public/account-profile-native.ts";
 @source "../../../../packages/server-identity_access/src/public/account-recovery.ts";
-@source "../../../../packages/server-identity_access/src/public/account-session.ts";
 @source "../../../../packages/server-identity_access/src/public/account-time-preference.ts";
 @source "../../../../packages/server-identity_access/src/public/attachment-read.ts";
 @source "../../../../packages/server-identity_access/src/public/attachments-finance-facts.ts";
@@ -1585,6 +1584,7 @@
 @source "../../../../packages/server-runtime/src/public/native-http.ts";
 @source "../../../../packages/server-runtime/src/public/runtime.ts";
 @source "../../../../packages/server-runtime/src/public/runtime/filesystem.ts";
+@source "../../../../packages/server-runtime/src/public/runtime/holding-scope.ts";
 @source "../../../../packages/server-runtime/src/public/runtime/https.ts";
 @source "../../../../packages/server-runtime/src/public/runtime/maintenance.ts";
 @source "../../../../packages/server-runtime/src/public/runtime/minio.ts";

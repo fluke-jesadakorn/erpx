@@ -1642,6 +1642,7 @@
 @source "../../../../packages/server-runtime/src/public/runtime.ts";
 @source "../../../../packages/server-runtime/src/public/runtime/env.ts";
 @source "../../../../packages/server-runtime/src/public/runtime/filesystem.ts";
+@source "../../../../packages/server-runtime/src/public/runtime/holding-scope.ts";
 @source "../../../../packages/server-runtime/src/public/runtime/https.ts";
 @source "../../../../packages/server-runtime/src/public/runtime/maintenance.ts";
 @source "../../../../packages/server-runtime/src/public/runtime/minio.ts";
