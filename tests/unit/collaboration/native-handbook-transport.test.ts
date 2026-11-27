@@ -1,4 +1,4 @@
-import {readFileSync} from 'node:fs';
+import {existsSync,readFileSync} from 'node:fs';
 import {afterEach,describe,expect,it,vi} from 'vitest';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
@@ -44,12 +44,8 @@ function transport(body:unknown,status=200){
   return {calls,handler};
 }
 describe('native collaboration handbook transport',()=>{
-  it('fails closed in the Next transport instead of calling the legacy owner service',()=>{
-    const source=readFileSync(new URL('../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/handbook/[[...path]]/route.ts',import.meta.url),'utf8');
-    expect(source).toContain('ERPX_NATIVE_HANDBOOK_CONFIG');
-    expect(source).toContain('NATIVE_HANDBOOK_UNAVAILABLE');
-    expect(source).not.toContain('saveHandbookArticle');
-    expect(source).not.toContain('actOnHandbook');
+  it('has no shared Next handbook route left as a TypeScript fallback',()=>{
+    expect(existsSync(new URL('../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/handbook/[[...path]]/route.ts',import.meta.url))).toBe(false);
   });
   it('reads the list through the exact registered Host and forwards the selected context',async()=>{
     const fake=transport({access:{editor:true},articles:[],hasMore:false});
@@ -234,4 +230,79 @@ describe('handbook read selection',()=>{
     await expect(nativeHandbookReads({...pageActor,holdingSlug:'northstar'},'acme')).rejects.toMatchObject({status:409,code:'NATIVE_HANDBOOK_CONTEXT_CHANGED'});
     expect(headerState.headers).not.toHaveBeenCalled();
   });
+});
+
+const repoFile=(path:string)=>new URL(`../../../${path}`,import.meta.url);
+const repoSource=(path:string)=>readFileSync(repoFile(path),'utf8');
+describe('collaboration Next API route retirement',()=>{
+ const retired=[
+  'packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/handbook/[[...path]]/route.ts',
+  'packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/stories/[id]/archive/route.ts',
+  'packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/executive/connections/route.ts',
+  'apps/compat/src/app/api/v1/holdings/[holdingSlug]/handbook/[[...path]]/route.ts',
+  'apps/compat/src/app/api/v1/holdings/[holdingSlug]/stories/[id]/archive/route.ts',
+  'apps/compat/src/app/api/v1/holdings/[holdingSlug]/executive/connections/route.ts',
+  'apps/launcher/src/app/api/v1/holdings/[holdingSlug]/handbook/[[...path]]/route.ts',
+  'apps/launcher/src/app/api/v1/holdings/[holdingSlug]/stories/[id]/archive/route.ts',
+  'apps/launcher/src/app/api/v1/holdings/[holdingSlug]/executive/connections/route.ts',
+ ];
+ it('removes the shared handlers and every compat/launcher re-export',()=>{
+  for(const path of retired)expect(existsSync(repoFile(path)),path).toBe(false);
+ });
+ it('keeps the stories list/create route',()=>{
+  expect(existsSync(repoFile('packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/stories/route.ts'))).toBe(true);
+ });
+ it('keeps the checked-in development-gateway entries for all three capabilities',()=>{
+  const gateway=JSON.parse(repoSource('scripts/local/native-api-paths.json')) as {holdingPrefixes:string[];holdingPaths:{method:string;path:string}[]};
+  expect(gateway.holdingPrefixes).toContain('handbook');
+  expect(gateway.holdingPaths).toContainEqual({method:'POST',path:'stories/{id}/archive'});
+  for(const method of ['GET','POST'])expect(gateway.holdingPaths).toContainEqual({method,path:'executive/connections'});
+ });
+ it('pins the exact native route strings and transport methods',()=>{
+  const handbook=repoSource('packages/server-collaboration/src/adapters/handbook_http.rs');
+  for(const path of [
+   '/api/v1/holdings/{holding_slug}/handbook',
+   '/api/v1/holdings/{holding_slug}/handbook/editors',
+   '/api/v1/holdings/{holding_slug}/handbook/{record_id}',
+   '/api/v1/holdings/{holding_slug}/handbook/{record_id}/actions',
+  ])expect(handbook,`native handbook route ${path}`).toContain(`"${path}"`);
+  expect(handbook).toContain('get(read_list).post(create_article)');
+  const social=repoSource('packages/server-collaboration/src/adapters/social_http.rs');
+  expect(social).toContain('"/api/v1/holdings/{holding_slug}/stories/{story_id}/archive"');
+  expect(social).toContain('post(archive_story)');
+  expect(social).toContain('"social.story.archive"');
+  const executive=repoSource('packages/server-runtime/src/adapters/executive_connections_http.rs');
+  expect(executive.split('"/api/v1/holdings/{holding_slug}/executive/connections"')).toHaveLength(3);
+  expect(executive).toContain('get(read_connections)');
+  expect(executive).toContain('post(command_connections)');
+ });
+ it('pins native SQL execution and the owner data/error envelope',()=>{
+  const handbook=repoSource('packages/server-collaboration/src/adapters/handbook.rs');
+  expect(handbook).toContain('INSERT INTO handbook_articles');
+  expect(handbook).toContain('UPDATE handbook_articles');
+  expect(handbook).toContain('INSERT INTO handbook_revisions');
+  const social=repoSource('packages/server-collaboration/src/adapters/social.rs');
+  expect(social).toContain("UPDATE social_stories SET state='archived'");
+  expect(social).toContain('INSERT INTO command_receipts');
+  const tokens=repoSource('packages/server-runtime/src/adapters/executive_connections_postgres.rs');
+  expect(tokens).toContain('INSERT INTO executive_external_tokens');
+  expect(tokens).toContain('UPDATE executive_external_tokens SET revoked_at=');
+  const ingress=repoSource('packages/server-collaboration/src/adapters/http_ingress.rs');
+  expect(ingress).toContain('Json(json!({ "data": body }))');
+  expect(ingress).toContain('Json(json!({"error":{"code":error.code,"message":error.message}}))');
+  const executive=repoSource('packages/server-runtime/src/adapters/executive_connections_http.rs');
+  expect(executive).toContain('Json(json!({"data": data}))');
+  expect(executive).toContain('Json(json!({"error":{"code":error.code,"message":error.message}}))');
+  expect(repoSource('packages/server-collaboration/src/adapters/social_http.rs')).toContain('Ok(receipt) => bounded(receipt)');
+ });
+ it('keeps native transport coverage for handbook, story archive and executive connections',()=>{
+  for(const url of [
+   '/api/v1/holdings/acme/handbook?',
+   '/api/v1/holdings/acme/handbook/article-1?edit=1&revision=2',
+   '/api/v1/holdings/acme/handbook/editors',
+  ])expect(repoSource('tests/unit/collaboration/native-handbook-transport.test.ts'),`handbook transport ${url}`).toContain(url);
+  expect(repoSource('tests/integration/collaboration/rust-social-postgres.test.rs')).toContain('story_publish_and_archive_round_trip_with_replay_and_author_guard');
+  expect(repoSource('packages/server-runtime/src/public/executive/native-connections.ts')).toContain('/api/v1/holdings/${encodeURIComponent(slug)}/executive/connections');
+  expect(repoSource('tests/integration/shared.executive/executive-mcp.test.ts')).toContain('ERPX_NATIVE_EXECUTIVE_CONNECTIONS_CONFIG');
+ });
 });
