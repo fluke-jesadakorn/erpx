@@ -51,7 +51,8 @@ export function createNativeFieldReportReader(raw:string,send:typeof nativeField
  };
 }
 export async function readNativeFieldReport(actor:WorkContext,query:NativeFieldExecutiveQuery){
- const raw=process.env.ERPX_NATIVE_FIELD_SERVICE_SOURCE_RECORD_CONFIG;if(!raw)fail('NATIVE_FIELD_REPORT_CONFIGURATION_REQUIRED');
+ const raw=process.env.ERPX_NATIVE_FIELD_SERVICE_EXECUTIVE_CONFIG??process.env.ERPX_NATIVE_FIELD_SERVICE_SOURCE_RECORD_CONFIG;
+ if(!raw)fail('NATIVE_FIELD_REPORT_CONFIGURATION_REQUIRED');
  return createNativeFieldReportReader(raw)(await headers(),actor,query);
 }
 
