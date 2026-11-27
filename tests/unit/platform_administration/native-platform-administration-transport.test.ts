@@ -762,7 +762,10 @@ describe('native platform billing forecast GET route parity', () => {
 describe('native Admin API route retirement', () => {
   const holdingHosts = ['acme.jesadakorn.com', 'northstar.jesadakorn.com', 'admin.jesadakorn.com'];
   const checkedIn = loadNativeApiPaths(fileURLToPath(new URL('../../../scripts/local/native-api-paths.json', import.meta.url)));
-  const platformEntries = (checkedIn.platform ?? []).map(({ host, method, path }) => `${host}|${method}|${path}`);
+  const platformEntries = [
+    ...(checkedIn.platform ?? []).map(({ host, method, path }) => `${host}|${method}|${path}`),
+    ...(checkedIn.platformPrefixes ?? []).map(({ host, path }) => `${host}|${path}`),
+  ];
   const holdingEntries = holdingHosts.flatMap((host) => [
     `${host}|GET|/api/v1/holdings/{holding_slug}/brand`,
     `${host}|POST|/api/v1/holdings/{holding_slug}/brand`,
@@ -815,19 +818,21 @@ describe('native Admin API route retirement', () => {
       'admin.jesadakorn.com|GET|/api/v1/platform/operations',
       'admin.jesadakorn.com|POST|/api/v1/platform/operations/migrate',
       'admin.jesadakorn.com|POST|/api/v1/platform/operations/recover',
-      'admin.jesadakorn.com|GET|/api/v1/platform/billing/ai-gateway',
-      'admin.jesadakorn.com|POST|/api/v1/platform/billing/ai-gateway',
       'admin.jesadakorn.com|GET|/api/v1/platform/executive',
       'erpx-internal.jesadakorn.com|GET|/api/v1/platform/operations',
       'erpx-internal.jesadakorn.com|POST|/api/v1/platform/operations/migrate',
       'erpx-internal.jesadakorn.com|POST|/api/v1/platform/operations/recover',
-      'erpx-internal.jesadakorn.com|GET|/api/v1/platform/billing/ai-gateway',
-      'erpx-internal.jesadakorn.com|POST|/api/v1/platform/billing/ai-gateway',
       'erpx-internal.jesadakorn.com|GET|/api/v1/platform/executive',
+      'admin.jesadakorn.com|/api/v1/platform/billing/ai-gateway',
+      'erpx-internal.jesadakorn.com|/api/v1/platform/billing/ai-gateway',
     ]);
-    const platformCases: [host: string, method: string, url: string][] = (checkedIn.platform ?? []).map(
-      ({ host, method, path }) => [host, method, path],
-    );
+    const platformCases: [host: string, method: string, url: string][] = [
+      ...(checkedIn.platform ?? []).map(({ host, method, path }): [string, string, string] => [host, method, path]),
+      ...(checkedIn.platformPrefixes ?? []).flatMap(({ host, path }): [string, string, string][] => [
+        [host, 'GET', `${path}?holdingId=h003`],
+        [host, 'POST', path],
+      ]),
+    ];
     const holdingCases: [host: string, method: string, url: string][] = [
       ['acme.jesadakorn.com', 'GET', '/api/v1/holdings/acme/brand'],
       ['acme.jesadakorn.com', 'POST', '/api/v1/holdings/acme/brand'],
