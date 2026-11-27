@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { ArrowUpRight, CalendarDays, Puzzle } from "lucide-react";
 import { Button } from "@erpx/ui/components/button";
 import { Dialog } from "@erpx/ui/components/dialog";
@@ -19,6 +19,13 @@ type Command = { action: "install"; id: string; version: string } | { action: "w
 const github = "https://github.com";
 const topicSearch = `${github}/search?q=topic%3Aerpx-plugin+archived%3Afalse&type=repositories`;
 
+async function readCatalogue(api: string, full: boolean, signal?: AbortSignal): Promise<Catalogue> {
+  const response = await workFetch(full ? api : `${api}?catalogue=0`, { signal });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error?.message ?? "Unable to load plugins.");
+  return payload.data as Catalogue;
+}
+
 export function CompanyPluginCatalogue({ api, language, appQuery, onLaunch }: {
   api: string; language: "en" | "th"; appQuery: string; onLaunch: (event: MouseEvent<HTMLAnchorElement>) => void;
 }) {
@@ -31,18 +38,13 @@ export function CompanyPluginCatalogue({ api, language, appQuery, onLaunch }: {
   const [open, setOpen] = useState(false);
   const manageTrigger = useRef<HTMLButtonElement>(null);
 
-  const load = useCallback(async (full: boolean, signal?: AbortSignal) => {
-    const response = await workFetch(full ? api : `${api}?catalogue=0`, { signal });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error?.message ?? "Unable to load plugins.");
-    if (!signal?.aborted) setCatalogue(payload.data as Catalogue);
-  }, [api]);
-
   useEffect(() => {
     const request = new AbortController();
-    void load(open, request.signal).catch(cause => { if (open && !request.signal.aborted) setMessage(cause.message); });
+    void readCatalogue(api, open, request.signal).then(result => {
+      if (!request.signal.aborted) setCatalogue(result);
+    }).catch(cause => { if (open && !request.signal.aborted) setMessage(cause.message); });
     return () => request.abort();
-  }, [load, open]);
+  }, [api, open]);
 
   async function submit(command: Command) {
     if (requesting) return;
@@ -54,7 +56,7 @@ export function CompanyPluginCatalogue({ api, language, appQuery, onLaunch }: {
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error?.message ?? "Unable to update the installation.");
-      await load(true);
+      setCatalogue(await readCatalogue(api, true));
     } catch (cause) {
       setMessage(cause instanceof Error ? cause.message : "Unable to update the installation.");
     } finally {

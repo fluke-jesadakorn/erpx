@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 import { ArrowUpRight, Building2, CalendarDays, ChevronDown, CircleHelp, ClipboardList, Factory, FileText, FolderKanban, GraduationCap, Grid2X2, Hotel, MapPin, MessageCircle, Package, Search, Settings, ShoppingBag, UsersRound, Wallet, Wrench } from "lucide-react";
 import { Button } from "@erpx/ui/components/button";
 import { Dialog } from "@erpx/ui/components/dialog";
@@ -110,6 +110,14 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
   const company = companies.find(item => item.id === current.memory.companyId);
   const workspace = company?.workspaces.find(item => item.id === current.memory.workspaceId);
 
+  const showHere = useCallback(() => {
+    if (window.location.hash !== launcherHash) {
+      feedScroll.current = { x: window.scrollX, y: window.scrollY };
+      window.history.pushState({ erpxAppsLauncher: true }, "", launcherHash);
+    }
+    setOpen(true);
+  }, []);
+
   useEffect(() => {
     if (initialized.current === accountId) return;
     initialized.current = accountId;
@@ -153,7 +161,7 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
       flight.current?.animation.cancel();
       flight.current?.layer.remove();
     };
-  }, []);
+  }, [showHere]);
 
   useEffect(() => {
     if (entry || currentProductId !== "apps" || !currentCompanyId || !currentWorkspaceId) return;
@@ -195,14 +203,6 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
       window.removeEventListener("pageshow", restore);
     };
   }, [accountId, entry, currentCompanyId, currentWorkspaceId, currentProductId]);
-
-  function showHere() {
-    if (window.location.hash !== launcherHash) {
-      feedScroll.current = { x: window.scrollX, y: window.scrollY };
-      window.history.pushState({ erpxAppsLauncher: true }, "", launcherHash);
-    }
-    setOpen(true);
-  }
 
   function close() {
     if (window.location.hash === launcherHash) {
