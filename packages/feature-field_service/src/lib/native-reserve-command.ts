@@ -84,6 +84,17 @@ function confirmed(value:unknown,attempt:Attempt): boolean {
 
 }
 const owner=(s:FieldServiceSource)=>JSON.stringify([s.base,s.recordId]);
+/** Direct Axum readback paths; the retired GET query selectors are gone. */
+export function nativeReadbackPath(base:string,input:Input,key:string):string {
+ const root=`/api/v1${base}/field-service`,seg=(v:string)=>encodeURIComponent(v);
+ if('entity' in input&&input.entity==='agreement')return !('id' in input)?`${root}/agreements/creates/${seg(key)}`:`${root}/agreements/reviews/${seg(key)}`;
+ if('entity' in input)return `${root}/requests/${seg(key)}`;
+ if(!('id' in input))return `${root}/orders/${seg(key)}`;
+ if(input.action==='release-billing')return `${root}/billings/${seg(key)}`;
+ if(input.action==='issue-part')return `${root}/${seg(input.id)}/issues/${seg(key)}`;
+ if(input.action==='reserve-part')return `${root}/${seg(input.id)}/parts-reservations/${seg(`field-part-${key}`)}`;
+ return `${root}/visits/${seg(key)}`;
+}
 export function createNativeReserveCommands(current:()=>FieldServiceSource|null,initialContext:ReserveContext|undefined,ownerKey:string){
  let currentContext=initialContext;const context=()=>currentContext;const get=()=>retained.get(ownerKey);
  async function run(attempt:Attempt):Promise<Outcome>{
@@ -102,8 +113,7 @@ export function createNativeReserveCommands(current:()=>FieldServiceSource|null,
     else {const status=attempt.input.action==='schedule'?'scheduled':attempt.input.action==='dispatch'?'dispatched':attempt.input.action==='start'?'in_visit':attempt.input.action==='complete'?'completed':attempt.input.action==='exception'?'exception':attempt.input.action==='resume'?'in_visit':attempt.input.action==='cancel'?'cancelled':attempt.input.action==='release-billing'?'billed':original?.status;if(!record(data)||Object.keys(data).sort().join(',')!=='id,status,version'||data.id!==attempt.input.id||data.version!==attempt.input.expectedVersion+1||data.status!==status)throw Error('Unable to confirm the original parts request. Retry the original request.');attempt.receipt={id:data.id as string,status:data.status as string,version:data.version as number};}publish(ownerKey);
    }
    if(!stillCurrent())throw Error('Service request saved; readback is pending.');
-   const query=new URLSearchParams('entity' in attempt.input&&attempt.input.entity==='agreement'&&!('id' in attempt.input)?{nativeAgreementCreateKey:attempt.key}:'entity' in attempt.input&&attempt.input.entity==='agreement'?{nativeAgreementReviewKey:attempt.key}:'entity' in attempt.input?{nativeRequestKey:attempt.key}:!('id' in attempt.input)?{nativeOrderCreateKey:attempt.key}:attempt.input.action==='release-billing'?{nativeBillingKey:attempt.key}:attempt.input.action==='cancel'?{nativeCancelKey:attempt.key}:['exception','resume'].includes(attempt.input.action)?{nativeVisitRecoveryKey:attempt.key}:attempt.input.action==='complete'?{nativeVisitCompletionKey:attempt.key}:['schedule','dispatch','start'].includes(attempt.input.action)?{nativeVisitKey:attempt.key}:attempt.input.action==='reserve-part'?{nativeReserveOrder:attempt.input.id,nativeReserveId:`field-part-${attempt.key}`}:{nativeIssueOrder:attempt.input.id,nativeIssueKey:attempt.key});
-   const response=await holdingFetch(`/api/v1${attempt.source.base}/field-service?${query}`,{headers,cache:'no-store'});const value:unknown=await response.json();
+   const response=await holdingFetch(nativeReadbackPath(attempt.source.base,attempt.input,attempt.key),{headers,cache:'no-store'});const value:unknown=await response.json();
    if(!response.ok||!confirmed(value,attempt)||!stillCurrent())throw Error('Service request saved; readback is pending. Retry confirmation.');
    const receipt=attempt.receipt!;
    return {receipt,agreement:'entity' in attempt.input&&attempt.input.entity==='agreement',completion:attempt.completion,unchanged(){const form=attempt.completion();return attempt.hadCompletion?!!form&&form.form.isConnected&&form.form.getAttribute('data-erpx-edit-version')===form.formEditVersion:true;},acknowledge(){if(!stillCurrent()||retained.get(ownerKey)!==attempt)return false;retained.delete(ownerKey);publish(ownerKey);const form=attempt.completion();if(form&&typeof window!=='undefined')window.dispatchEvent(new CustomEvent('erpx:record-command-saved',{detail:{...form,fieldServiceAcknowledged:true}}));announceWorkChange();return true;}};
