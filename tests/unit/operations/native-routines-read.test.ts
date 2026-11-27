@@ -1,3 +1,4 @@
+import {createServer} from 'node:http';
 import {afterEach,describe,expect,it,vi} from 'vitest';
 import {
   nativeRoutineTemplateList,
@@ -5,6 +6,7 @@ import {
   type NativeRoutineTemplateRow,
 } from '@erpx/feature-operations/public/native-routines-read';
 
+let transportOverride: Parameters<typeof nativeRoutineTemplateList>[3];
 const config = JSON.stringify({privateBaseUrl: 'http://127.0.0.1:44993', timeoutMs: 1000});
 const row: NativeRoutineTemplateRow = {
   id: 'routine-1',
@@ -43,7 +45,7 @@ const reply = (data: unknown, replyContext: unknown = context) =>
 
 afterEach(() => {
   vi.unstubAllEnvs();
-  vi.unstubAllGlobals();
+  transportOverride = undefined;
 });
 
 describe('native routine-template list has complete payload parity', () => {
@@ -53,8 +55,8 @@ describe('native routine-template list has complete payload parity', () => {
     const transport = vi.fn<(url: string | URL | Request, init?: RequestInit) => Promise<Response>>(
       async () => reply([row]),
     );
-    vi.stubGlobal('fetch', transport);
-    expect(await nativeRoutineTemplateList(request(), 'acme', 'user-1')).toEqual([row]);
+    transportOverride = transport;
+    expect(await nativeRoutineTemplateList(request(), 'acme', 'user-1', transportOverride)).toEqual([row]);
     const [url, init] = transport.mock.calls[0]!;
     expect(String(url)).toBe('http://127.0.0.1:44993/api/v1/holdings/acme/routine-templates');
     expect(init).toMatchObject({method: 'GET', cache: 'no-store'});
@@ -63,11 +65,11 @@ describe('native routine-template list has complete payload parity', () => {
 
   it('fails closed on a changed context or a truncated row', async () => {
     process.env.ERPX_NATIVE_OPERATIONS_ROUTINES_CONFIG = config;
-    vi.stubGlobal('fetch', vi.fn(async () => reply([row], {...context, revision: 8})));
-    await expect(nativeRoutineTemplateList(request(), 'acme', 'user-1'))
+    transportOverride = vi.fn(async () => reply([row], {...context, revision: 8}));
+    await expect(nativeRoutineTemplateList(request(), 'acme', 'user-1', transportOverride))
       .rejects.toMatchObject({code: 'NATIVE_ROUTINES_RESPONSE_INVALID'});
-    vi.stubGlobal('fetch', vi.fn(async () => reply([{id: row.id}])));
-    await expect(nativeRoutineTemplateList(request(), 'acme', 'user-1'))
+    transportOverride = vi.fn(async () => reply([{id: row.id}]));
+    await expect(nativeRoutineTemplateList(request(), 'acme', 'user-1', transportOverride))
       .rejects.toMatchObject({code: 'NATIVE_ROUTINES_RESPONSE_INVALID'});
   });
 
@@ -75,9 +77,32 @@ describe('native routine-template list has complete payload parity', () => {
     delete process.env.ERPX_NATIVE_OPERATIONS_ROUTINES_CONFIG;
     expect(nativeRoutineTemplatesAvailable()).toBe(false);
     const transport = vi.fn();
-    vi.stubGlobal('fetch', transport);
-    await expect(nativeRoutineTemplateList(request(), 'acme', 'user-1'))
+    transportOverride = transport;
+    await expect(nativeRoutineTemplateList(request(), 'acme', 'user-1', transportOverride))
       .rejects.toMatchObject({code: 'NATIVE_ROUTINES_UNAVAILABLE'});
     expect(transport).not.toHaveBeenCalled();
   });
+});
+
+it('keeps the registered Holding Host on a real loopback read', async () => {
+  const seen: Array<{host?: string; path?: string}> = [];
+  const owner = createServer((incoming, response) => {
+    seen.push({host: incoming.headers.host, path: incoming.url});
+    response.end(JSON.stringify({data: [row], context}));
+  });
+  await new Promise<void>((resolveListen, reject) => {
+    owner.once('error', reject);
+    owner.listen(0, '127.0.0.1', resolveListen);
+  });
+  try {
+    const listener = owner.address();
+    if (!listener || typeof listener === 'string') throw Error('Expected a fixture TCP listener');
+    vi.stubEnv('ERPX_NATIVE_OPERATIONS_ROUTINES_CONFIG', JSON.stringify({
+      privateBaseUrl: `http://127.0.0.1:${listener.port}`, timeoutMs: 1000,
+    }));
+    await expect(nativeRoutineTemplateList(request(), 'acme', 'user-1')).resolves.toEqual([row]);
+    expect(seen).toEqual([{host: 'acme.jesadakorn.com', path: '/api/v1/holdings/acme/routine-templates'}]);
+  } finally {
+    await new Promise<void>((resolveClose, reject) => owner.close(error => error ? reject(error) : resolveClose()));
+  }
 });

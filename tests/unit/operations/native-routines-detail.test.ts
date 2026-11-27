@@ -5,6 +5,7 @@ import {
   type NativeRoutineTemplateRow,
 } from '@erpx/feature-operations/public/native-routines-read';
 
+let transportOverride: Parameters<typeof nativeRoutineTemplateDetail>[4];
 const config = JSON.stringify({privateBaseUrl: 'http://127.0.0.1:44993', timeoutMs: 1000});
 const row: NativeRoutineTemplateRow = {
   id: 'routine-1',
@@ -43,7 +44,7 @@ const reply = (data: unknown, replyContext: unknown = context) =>
 
 afterEach(() => {
   vi.unstubAllEnvs();
-  vi.unstubAllGlobals();
+  transportOverride = undefined;
 });
 
 describe('native routine-template detail has complete payload parity', () => {
@@ -52,8 +53,8 @@ describe('native routine-template detail has complete payload parity', () => {
     const transport = vi.fn<(url: string | URL | Request, init?: RequestInit) => Promise<Response>>(
       async () => reply(row),
     );
-    vi.stubGlobal('fetch', transport);
-    expect(await nativeRoutineTemplateDetail(request(), 'acme', 'routine-1', 'user-1')).toEqual(row);
+    transportOverride = transport;
+    expect(await nativeRoutineTemplateDetail(request(), 'acme', 'routine-1', 'user-1', transportOverride)).toEqual(row);
     const [url, init] = transport.mock.calls[0]!;
     expect(String(url)).toBe('http://127.0.0.1:44993/api/v1/holdings/acme/routine-templates/routine-1');
     expect(init).toMatchObject({method: 'GET', cache: 'no-store'});
@@ -62,25 +63,25 @@ describe('native routine-template detail has complete payload parity', () => {
 
   it('returns null when the owner has no such template', async () => {
     process.env.ERPX_NATIVE_OPERATIONS_ROUTINES_CONFIG = config;
-    vi.stubGlobal('fetch', vi.fn(async () => reply(null)));
-    expect(await nativeRoutineTemplateDetail(request(), 'acme', 'routine-1', 'user-1')).toBeNull();
+    transportOverride = vi.fn(async () => reply(null));
+    expect(await nativeRoutineTemplateDetail(request(), 'acme', 'routine-1', 'user-1', transportOverride)).toBeNull();
   });
 
   it('fails closed on a changed context or a truncated row', async () => {
     process.env.ERPX_NATIVE_OPERATIONS_ROUTINES_CONFIG = config;
-    vi.stubGlobal('fetch', vi.fn(async () => reply(row, {...context, revision: 8})));
-    await expect(nativeRoutineTemplateDetail(request(), 'acme', 'routine-1', 'user-1'))
+    transportOverride = vi.fn(async () => reply(row, {...context, revision: 8}));
+    await expect(nativeRoutineTemplateDetail(request(), 'acme', 'routine-1', 'user-1', transportOverride))
       .rejects.toMatchObject({code: 'NATIVE_ROUTINES_RESPONSE_INVALID'});
-    vi.stubGlobal('fetch', vi.fn(async () => reply({id: row.id})));
-    await expect(nativeRoutineTemplateDetail(request(), 'acme', 'routine-1', 'user-1'))
+    transportOverride = vi.fn(async () => reply({id: row.id}));
+    await expect(nativeRoutineTemplateDetail(request(), 'acme', 'routine-1', 'user-1', transportOverride))
       .rejects.toMatchObject({code: 'NATIVE_ROUTINES_RESPONSE_INVALID'});
   });
 
   it('rejects an unbounded template id before any request', async () => {
     process.env.ERPX_NATIVE_OPERATIONS_ROUTINES_CONFIG = config;
     const transport = vi.fn();
-    vi.stubGlobal('fetch', transport);
-    await expect(nativeRoutineTemplateDetail(request(), 'acme', "x' OR 1=1", 'user-1'))
+    transportOverride = transport;
+    await expect(nativeRoutineTemplateDetail(request(), 'acme', "x' OR 1=1", 'user-1', transportOverride))
       .rejects.toMatchObject({code: 'NATIVE_ROUTINES_RESPONSE_INVALID'});
     expect(transport).not.toHaveBeenCalled();
   });
@@ -88,8 +89,8 @@ describe('native routine-template detail has complete payload parity', () => {
   it('fails closed without the native configuration', async () => {
     delete process.env.ERPX_NATIVE_OPERATIONS_ROUTINES_CONFIG;
     const transport = vi.fn();
-    vi.stubGlobal('fetch', transport);
-    await expect(nativeRoutineTemplateDetail(request(), 'acme', 'routine-1', 'user-1'))
+    transportOverride = transport;
+    await expect(nativeRoutineTemplateDetail(request(), 'acme', 'routine-1', 'user-1', transportOverride))
       .rejects.toMatchObject({code: 'NATIVE_ROUTINES_UNAVAILABLE'});
     expect(transport).not.toHaveBeenCalled();
   });
@@ -108,16 +109,16 @@ it('binds the schedule read to the same template, Company and work selection', a
   const transport = vi.fn<(url: string | URL | Request, init?: RequestInit) => Promise<Response>>(
     async () => reply(data),
   );
-  vi.stubGlobal('fetch', transport);
-  await expect(nativeRoutineTemplateSchedules(request(), 'acme', row.id, 'user-1')).resolves.toEqual(data);
+  transportOverride = transport;
+  await expect(nativeRoutineTemplateSchedules(request(), 'acme', row.id, 'user-1', transportOverride)).resolves.toEqual(data);
   expect(String(transport.mock.calls[0]?.[0])).toMatch(/\/routine-templates\/routine-1\/schedules$/);
 
   transport.mockImplementation(async () => reply({...data, schedules: [{...schedule, company_id: 'other'}]}));
-  await expect(nativeRoutineTemplateSchedules(request(), 'acme', row.id, 'user-1')).rejects.toMatchObject({
+  await expect(nativeRoutineTemplateSchedules(request(), 'acme', row.id, 'user-1', transportOverride)).rejects.toMatchObject({
     code: 'NATIVE_ROUTINES_RESPONSE_INVALID',
   });
   transport.mockImplementation(async () => reply(data, {...context, revision: 8}));
-  await expect(nativeRoutineTemplateSchedules(request(), 'acme', row.id, 'user-1')).rejects.toMatchObject({
+  await expect(nativeRoutineTemplateSchedules(request(), 'acme', row.id, 'user-1', transportOverride)).rejects.toMatchObject({
     code: 'NATIVE_ROUTINES_RESPONSE_INVALID',
   });
 });

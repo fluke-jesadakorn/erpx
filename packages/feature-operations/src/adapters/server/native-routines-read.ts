@@ -1,4 +1,5 @@
 import 'server-only';
+import { request as httpRequest } from 'node:http';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import type {ScheduleRow} from '@erpx/server-operations/public/routines';
 
@@ -42,6 +43,52 @@ const id = (value: unknown): value is string => text(value, 200) && value.length
 const optionalId = (value: unknown): value is string | null => value === null || id(value);
 const integer = (value: unknown, min = 0): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= min;
+
+type RoutineReadTransport = (url: string, init: RequestInit) => Promise<Response>;
+type RoutineWorkSelection = {
+  companyId: string;
+  assignmentId: string;
+  authority?: { revision: number; assignmentVersion: number };
+  scope: { kind: string; branchSlug?: string; departmentSlug?: string };
+};
+
+export function routineReadHeaders(input: HeadersInit, actor: RoutineWorkSelection): Headers {
+  if (!actor.authority)
+    throw new ApiError(409, 'WORK_CONTEXT_CHANGED', 'Reload your workspace and try again.');
+  const headers = new Headers(input);
+  headers.set('x-erpx-context-company', actor.companyId);
+  headers.set('x-erpx-context-assignment', actor.assignmentId);
+  headers.set('x-erpx-context-revision', String(actor.authority.revision));
+  headers.set('x-erpx-context-assignment-version', String(actor.authority.assignmentVersion));
+  headers.delete('x-erpx-workspace-branch');
+  headers.delete('x-erpx-workspace-department');
+  if (actor.scope.branchSlug) headers.set('x-erpx-workspace-branch', actor.scope.branchSlug);
+  if (actor.scope.departmentSlug) headers.set('x-erpx-workspace-department', actor.scope.departmentSlug);
+  return headers;
+}
+
+/** Node fetch replaces Host with the private loopback address. */
+const direct: RoutineReadTransport = (url, init) => new Promise((resolve, reject) => {
+  const request = httpRequest(url, {
+    method: 'GET', headers: Object.fromEntries(new Headers(init.headers)), signal: init.signal ?? undefined, agent: false,
+  }, response => {
+    const status = response.statusCode ?? 502;
+    const chunks: Uint8Array[] = [];
+    let length = 0;
+    response.on('data', (chunk: Buffer) => {
+      length += chunk.length;
+      if (length > 16 * 1024 * 1024) response.destroy(new Error('NATIVE_ROUTINES_RESPONSE_TOO_LARGE'));
+      else chunks.push(chunk);
+    });
+    response.once('error', reject);
+    response.once('end', () => {
+      const body = [204, 205, 304].includes(status) ? null : Buffer.concat(chunks).toString('utf8');
+      resolve(new Response(body, {status}));
+    });
+  });
+  request.once('error', reject);
+  request.end();
+});
 
 function configuration(): Config {
   const raw = process.env.ERPX_NATIVE_OPERATIONS_ROUTINES_CONFIG;
@@ -113,6 +160,7 @@ export async function nativeRoutineTemplateList(
   request: Request,
   holdingSlug: string,
   userId: string,
+  transport: RoutineReadTransport = direct,
 ): Promise<NativeRoutineTemplateRow[]> {
   const config = configuration();
   if (!new URL(request.url).host) throw invalid();
@@ -134,7 +182,7 @@ export async function nativeRoutineTemplateList(
   const url = `${config.privateBaseUrl}/api/v1/holdings/${encodeURIComponent(holdingSlug)}/routine-templates`;
   let response: Response;
   try {
-    response = await fetch(url, {
+    response = await transport(url, {
       method: 'GET', headers, cache: 'no-store',
       signal: AbortSignal.timeout(config.timeoutMs),
     });
@@ -143,10 +191,7 @@ export async function nativeRoutineTemplateList(
   }
   const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {
-    const code = record(payload) && text(payload.code, 200) ? payload.code : 'NATIVE_ROUTINES_FAILED';
-    const message = record(payload) && text(payload.message, 2000)
-      ? payload.message : 'The routine read failed.';
-    throw new ApiError(response.status, code, message);
+    throw readError(response.status, payload);
   }
   const data = envelope(payload, headers);
   if (!Array.isArray(data) || data.length > 5000 || !data.every((item) => row(item,
@@ -167,8 +212,9 @@ export async function nativeRoutineTemplateDetail(
   holdingSlug: string,
   templateId: string,
   userId: string,
+  transport: RoutineReadTransport = direct,
 ): Promise<NativeRoutineTemplateRow | null> {
-  const {data, companyId} = await readTemplate(request, holdingSlug, templateId, userId, '');
+  const {data, companyId} = await readTemplate(request, holdingSlug, templateId, userId, '', transport);
   if (data === null) return null;
   if (!row(data, companyId) || data.id !== templateId) throw invalid();
   return data;
@@ -179,8 +225,9 @@ export async function nativeRoutineTemplateSchedules(
   holdingSlug: string,
   templateId: string,
   userId: string,
+  transport: RoutineReadTransport = direct,
 ): Promise<{template: NativeRoutineTemplateRow; schedules: ScheduleRow[]; canEdit: boolean}> {
-  const {data, companyId} = await readTemplate(request, holdingSlug, templateId, userId, '/schedules');
+  const {data, companyId} = await readTemplate(request, holdingSlug, templateId, userId, '/schedules', transport);
   if (!record(data) || !row(data.template, companyId) || data.template.id !== templateId ||
       !Array.isArray(data.schedules) || !data.schedules.every(value => scheduleRow(value, companyId, templateId)) ||
       typeof data.canEdit !== 'boolean') throw invalid();
@@ -205,6 +252,7 @@ async function readTemplate(
   templateId: string,
   userId: string,
   suffix: '' | '/schedules',
+  transport: RoutineReadTransport,
 ) {
   const config = configuration();
   if (!new URL(request.url).host) throw invalid();
@@ -228,7 +276,7 @@ async function readTemplate(
   const url = `${config.privateBaseUrl}/api/v1/holdings/${encodeURIComponent(holdingSlug)}/routine-templates/${encodeURIComponent(templateId)}${suffix}`;
   let response: Response;
   try {
-    response = await fetch(url, {
+    response = await transport(url, {
       method: 'GET', headers, cache: 'no-store',
       signal: AbortSignal.timeout(config.timeoutMs),
     });
@@ -236,12 +284,13 @@ async function readTemplate(
     throw new ApiError(503, 'NATIVE_ROUTINES_UNAVAILABLE', 'The native Operations routine read is unavailable.');
   }
   const payload: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
-    const error = record(payload) && record(payload.error) ? payload.error : payload;
-    const code = record(error) && text(error.code, 200) ? error.code : 'NATIVE_ROUTINES_FAILED';
-    const message = record(error) && text(error.message, 2000)
-      ? error.message : 'The routine read failed.';
-    throw new ApiError(response.status, code, message);
-  }
+  if (!response.ok) throw readError(response.status, payload);
   return {data: envelope(payload, headers), companyId: headers.get('x-erpx-context-company') ?? ''};
+}
+
+function readError(status: number, payload: unknown) {
+  const error = record(payload) && record(payload.error) ? payload.error : payload;
+  const code = record(error) && text(error.code, 200) ? error.code : 'NATIVE_ROUTINES_FAILED';
+  const message = record(error) && text(error.message, 2000) ? error.message : 'The routine read failed.';
+  return new ApiError(status, code, message);
 }

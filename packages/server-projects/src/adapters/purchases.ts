@@ -15,6 +15,7 @@ import {projectsPackageEnforcementMode,readPurchasedAccesses,checkPurchasedCapab
 import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packages";
 import {flushFinanceDeferredEffects} from "@erpx/server-finance/public/finance-transactions";
 import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
+import {isNativeWorkflowWrite} from "@erpx/server-workflow/public/native-workflow-evidence";
 import {projectMemberRows} from "@erpx/server-projects/adapters/work-ui-staff-facts";
 import {projectAssignmentAuthorityReadSql} from './read-tail-r23';
 import {projectMemberExistsSql} from './read-tail-r27';
@@ -43,10 +44,20 @@ async function current(database:SqlDatabase,actor:StaffActor,key:string,permissi
  // Explicit Project membership can cross a staff branch. Preserve that owner
  // policy while validating the actual selected assignment, never another role.
  const scope={company_id:actor.companyId,branch_id:actor.branchId,department_id:actor.departmentId};
- const found=await database.prepare(projectAssignmentAuthorityReadSql("project_scope",permission,true))
-  .bind(actor.assignmentId,actor.userId,actor.role,scope.company_id,scope.branch_id,scope.department_id).first<{allowed:boolean}>();
- if(!found?.allowed)throw new ApiError(403,"PROJECT_ACCESS_CHANGED","Choose a current Project assignment.");
- await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),clearWorkflowCommandAssertions(database, key)]);
+ const check=async(unit:SqlDatabase)=>{
+  const found=await unit.prepare(projectAssignmentAuthorityReadSql("project_scope",permission,true))
+   .bind(actor.assignmentId,actor.userId,actor.role,scope.company_id,scope.branch_id,scope.department_id).first<{allowed:boolean}>();
+  if(!found?.allowed)throw new ApiError(403,"PROJECT_ACCESS_CHANGED","Choose a current Project assignment.");
+  const guards=[...workContextGuards(unit,actor,key),...iamMutationGuards(unit,actor,key)];
+  for(const guard of guards){
+   if(isNativeWorkflowWrite(guard))await guard.withContext({db:unit,companyId:actor.companyId,key,now:Date.now()}).run();
+   else await guard.run();
+  }
+  await clearWorkflowCommandAssertions(unit,key).run();
+ };
+ if(units.get(database)?.companyId===actor.companyId)return check(database);
+ if(!isTransactionalSqlDatabase(database))throw new ApiError(503,"PROJECT_TRANSACTION_REQUIRED","Project authority requires its current Holding transaction.");
+ await database.transaction(check);
 }
 export async function projectPurchaseControls(database:SqlDatabase,actor:StaffActor,options?:{strictProduct:true}){
  const mode=options?.strictProduct?'enforced':await projectsPackageEnforcementMode();if(mode==="disabled")return undefined;

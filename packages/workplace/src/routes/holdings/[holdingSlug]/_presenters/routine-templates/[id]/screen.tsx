@@ -1,11 +1,10 @@
 import {RoutineTemplateEditor} from '@erpx/feature-operations/components/routine-template-editor';
 import {
-  nativeRoutineTemplateSchedules,
+  nativeRoutineTemplateSchedules, routineReadHeaders,
 } from '@erpx/feature-operations/public/native-routines-read';
 import {staffPickerDisplayOptions} from '@erpx/feature-work_projection/lib/staff-picker-display';
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
 import { staffPresentationQueries } from "@erpx/server-work_projection/public/presentation-context-queries";
-import { ApiError } from "@erpx/server-runtime/public/http";
 import { headers } from "next/headers";
 
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@erpx/feature-shared/components/features/feature-page";
@@ -19,22 +18,9 @@ async function nativeTemplate(
   id: string,
   actor: Awaited<ReturnType<typeof staffPresentationQueries>>["actor"],
 ) {
-  if (!actor.authority)
-    throw new ApiError(409, "WORK_CONTEXT_CHANGED", "Reload your workspace and try again.");
-  const incoming = new Headers(await headers());
-  incoming.set("x-erpx-context-company", actor.companyId);
-  incoming.set("x-erpx-context-assignment", actor.assignmentId);
-  incoming.set("x-erpx-context-revision", String(actor.authority.revision));
-  incoming.set("x-erpx-context-assignment-version", String(actor.authority.assignmentVersion));
-  incoming.delete("x-erpx-workspace-branch");
-  incoming.delete("x-erpx-workspace-department");
-  if (actor.scope.kind !== "holding" && actor.scope.branchSlug)
-    incoming.set("x-erpx-workspace-branch", actor.scope.branchSlug);
-  if (actor.scope.kind === "department")
-    incoming.set("x-erpx-workspace-department", actor.scope.departmentSlug);
   const request = new Request(
     `http://native-routines.invalid/api/v1/holdings/${encodeURIComponent(holdingSlug)}/routine-templates/${encodeURIComponent(id)}/schedules`,
-    { headers: incoming },
+    { headers: routineReadHeaders(await headers(), actor) },
   );
   return nativeRoutineTemplateSchedules(request, holdingSlug, id, actor.userId);
 }

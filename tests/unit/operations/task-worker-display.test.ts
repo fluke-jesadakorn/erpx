@@ -4,7 +4,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 const ports = vi.hoisted(() => ({ presentation: vi.fn(), schedules: vi.fn() }));
 vi.mock("@erpx/server-work_projection/public/presentation-context-queries", () => ({ staffPresentationQueries: ports.presentation }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers({host: "acme.jesadakorn.com"}) }));
-vi.mock("@erpx/feature-operations/public/native-routines-read", () => ({
+vi.mock("@erpx/feature-operations/public/native-routines-read", async load => ({
+  ...(await load<typeof import("@erpx/feature-operations/public/native-routines-read")>()),
   nativeRoutineTemplatesAvailable: () => true,
   nativeRoutineTemplateList: async () => [],
   nativeRoutineTemplateSchedules: ports.schedules,
@@ -66,7 +67,7 @@ it("preserves actual staff department and level picker labels using display fiel
   for (const field of ["private-person", "private-engagement", "private-manager", "private-head", "private-level-code"]) expect(html).not.toContain(field);
 });
 it('opens actual standalone Routine collection with explicit optional Projects and display-only worker and Project choices',async()=>{
- ports.presentation.mockResolvedValueOnce({actor:{userId:'worker',companyId:'company',assignmentId:'assignment',beta:false,scope:{kind:'holding'}},base:'/holdings/acme',options:source,projects:[{id:'project',title:'Original project option',created_by:'private-project-creator',branch_id:'private-project-branch'}],staff:{user_id:'worker'},queries:{listTemplates:async()=>[],routinePurchases:async()=>undefined}});
+ ports.presentation.mockResolvedValueOnce({actor:{userId:'worker',companyId:'company',assignmentId:'assignment',beta:false,scope:{kind:'holding'},authority:{revision:7,assignmentVersion:3}},base:'/holdings/acme',options:source,projects:[{id:'project',title:'Original project option',created_by:'private-project-creator',branch_id:'private-project-branch'}],staff:{user_id:'worker'},queries:{listTemplates:async()=>[],routinePurchases:async()=>undefined}});
  const page=await Routines({params:Promise.resolve({holdingSlug:'acme'}),searchParams:Promise.resolve({})});expect(ports.presentation).toHaveBeenCalledExactlyOnceWith('acme',{routineProjects:true});expect(optionProps(page)).toEqual([expected]);expect(projectProps(page)).toEqual([[{id:'project',title:'Original project option'}]]);expect(JSON.stringify([optionProps(page),projectProps(page)])).not.toContain('private-');
 });
 it('retains actual Routine detail edit and clone authority while projecting every optional picker to display fields',async()=>{
