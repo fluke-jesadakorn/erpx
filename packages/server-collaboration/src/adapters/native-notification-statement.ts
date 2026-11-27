@@ -1,4 +1,5 @@
 import 'server-only';
+import { headers as requestHeaders } from 'next/headers';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import { nativeRequest } from '@erpx/server-runtime/public/native-http';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
@@ -140,6 +141,13 @@ export async function nativeNotificationStatement(
     'x-erpx-context-revision': String(actor.authority?.revision ?? 0),
     'x-erpx-context-assignment-version': String(actor.authority?.assignmentVersion ?? 0),
   });
+  try {
+    const incoming = await requestHeaders();
+    const cookie = incoming.get('cookie');
+    if (incoming.get('host') === headers.get('host') && cookie) headers.set('cookie', cookie);
+  } catch (error) {
+    if (!(error instanceof Error && error.message.includes('outside a request scope'))) throw error;
+  }
   if (actor.branchId) headers.set('x-erpx-workspace-branch', actor.branchId);
   if (actor.departmentId) headers.set('x-erpx-workspace-department', actor.departmentId);
   const requestBody = JSON.stringify({ ...input, now, idempotencyKey: key });

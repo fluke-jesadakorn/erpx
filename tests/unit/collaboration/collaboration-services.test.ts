@@ -1,4 +1,5 @@
 import {existsSync,readFileSync} from 'node:fs';
+import {createServer} from 'node:http';
 import {resolve} from 'node:path';
 import {afterEach,describe,expect,test,vi} from 'vitest';
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
@@ -352,6 +353,37 @@ describe('native Field Inbox transport',()=>{
    const rows=await createNativeFieldInboxReader(config,async()=>({status:200,body:reply}))(incoming(),scoped,{all:true,search:'',limit:100});expect(rows[0].source_type).toBe(kind);expect(rows[0].native_field_item?.href).toBe(href);expect(rows[0].native_field_item).not.toHaveProperty('source');}
  });
 
+});
+
+test('forwards the current SSR session only to the matching native Holding',async()=>{
+ const received: {host?:string;cookie?:string}[]=[];
+ const server=createServer((request,response)=>{
+  received.push({host:request.headers.host,cookie:request.headers.cookie});
+  request.resume();
+  response.writeHead(200,{'content-type':'application/json'}).end(JSON.stringify({data:{sql:'SELECT 1',values:[]}}));
+ });
+ await new Promise<void>(done=>server.listen(0,'127.0.0.1',done));
+ const address=server.address();
+ if(!address||typeof address==='string')throw new Error('Expected a loopback address');
+ vi.stubEnv('ERPX_NATIVE_COLLABORATION_CONFIG',JSON.stringify({privateBaseUrl:`http://127.0.0.1:${address.port}`,timeoutMs:1000,holdings:[{origin:'https://acme.example.test',holdingSlug:actor.holdingSlug,holdingId:actor.holdingId}]}));
+ let host='acme.example.test';
+ vi.resetModules();
+ vi.doMock('next/headers',()=>({headers:async()=>new Headers({host,cookie:'session=fixture'})}));
+ try {
+  const {nativeNotificationStatement}=await import('../../../packages/server-collaboration/src/adapters/native-notification-statement');
+  const statement={bind:vi.fn()};
+  const db={prepare:()=>statement} as unknown as Parameters<typeof nativeNotificationStatement>[0];
+  const input={companyId:actor.companyId,userId:actor.userId,recordType:'pos_register',recordId:'registers',recordVersion:1,message:'Fixture'};
+  await nativeNotificationStatement(db,actor,input,'fixture-key',1);
+  host='other.example.test';
+  await nativeNotificationStatement(db,actor,input,'fixture-key',1);
+  expect(received).toEqual([{host:'acme.example.test',cookie:'session=fixture'},{host:'acme.example.test',cookie:undefined}]);
+ } finally {
+  vi.doUnmock('next/headers');
+  vi.resetModules();
+  vi.unstubAllEnvs();
+  await new Promise<void>(done=>server.close(()=>done()));
+ }
 });
 
 test('a direct server read outside a request scope yields no native overlay instead of throwing',async()=>{
