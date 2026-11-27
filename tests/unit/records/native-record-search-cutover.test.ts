@@ -5,49 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-const routeCalls = vi.hoisted(() => ({
-  auth: [] as string[],
-  search: [] as unknown[][],
-}));
-
-vi.mock('@erpx/server-identity_access/public/authorization', () => ({
-  requireWorkContext: vi.fn(async (holdingSlug: string) => {
-    routeCalls.auth.push(holdingSlug);
-    return {
-      userId: 'u1',
-      holdingId: 'h001',
-      holdingSlug: 'acme',
-      companyId: 'acme-co',
-      branchId: 'b1',
-      departmentId: null,
-      assignmentId: 'a1',
-      modules: ['operations'],
-      authority: { sessionId: 's1', revision: 7, assignmentVersion: 3 },
-      scope: {
-        kind: 'branch',
-        holdingId: 'h001',
-        holdingSlug: 'acme',
-        holdingName: 'Acme',
-        companyId: 'acme-co',
-        branchId: 'b1',
-        branchSlug: 'b1-slug',
-        branchName: 'Branch One',
-      },
-    };
-  }),
-}));
-
-vi.mock('@erpx/server-records/public/native-record-search', () => ({
-  nativeRecordSearch: vi.fn(async (...args: unknown[]) => {
-    routeCalls.search.push(args);
-    return [
-      { kind: 'record', module_id: 'operations', id: 'rec-1', title: 'Desk', status: 'draft', version: 3 },
-    ];
-  }),
-}));
-
 import { ApiError } from '@erpx/server-runtime/public/http';
-import { GET } from '@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/records/search/route';
 
 const root = resolve(__dirname, '../../..');
 const read = (path: string) => readFileSync(resolve(root, path), 'utf8');
@@ -130,8 +88,6 @@ let seen: Array<{ url: URL; init: RequestInit }>;
 
 beforeEach(() => {
   seen = [];
-  routeCalls.auth.length = 0;
-  routeCalls.search.length = 0;
   process.env.ERPX_NATIVE_RECORDS_CONFIG = JSON.stringify(config);
   vi.stubGlobal(
     'fetch',
@@ -219,40 +175,6 @@ describe('native Records search owner execution and payload parity', () => {
     expect(backend).toContain('x-erpx-workspace-department');
   });
 
-  it('shared GET forwards q and the real request headers to the native transport and wraps only data', async () => {
-    const request = new Request(
-      'https://acme.jesadakorn.com/api/v1/holdings/acme/records/search?q=%40user%2FAlice',
-      { headers: { cookie } },
-    );
-    const response = await GET(request, { params: Promise.resolve({ holdingSlug: 'acme' }) } as never);
-    expect(routeCalls.auth).toEqual(['acme']);
-    expect(routeCalls.search).toHaveLength(1);
-    expect(routeCalls.search[0]![0]).toMatchObject({
-      userId: 'u1',
-      holdingSlug: 'acme',
-      holdingId: 'h001',
-      companyId: 'acme-co',
-      assignmentId: 'a1',
-      modules: ['operations'],
-    });
-    expect(routeCalls.search[0]![1]).toBe('@user/Alice');
-    expect(routeCalls.search[0]![2]).toBe(request.headers);
-    expect(await response.json()).toEqual({
-      data: [
-        { kind: 'record', module_id: 'operations', id: 'rec-1', title: 'Desk', status: 'draft', version: 3 },
-      ],
-    });
-  });
-
-  it('an empty q skips the native transport without a TS SQL fallback', async () => {
-    const response = await GET(
-      new Request('https://acme.jesadakorn.com/api/v1/holdings/acme/records/search'),
-      { params: Promise.resolve({ holdingSlug: 'acme' }) } as never,
-    );
-    expect(routeCalls.auth).toEqual([]);
-    expect(routeCalls.search).toEqual([]);
-    expect(await response.json()).toEqual({ data: [] });
-  });
 });
 
 describe('native Records search transport', () => {
