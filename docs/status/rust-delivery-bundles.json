@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15780,
+    "revision": 15804,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": null,
@@ -220383,6 +220383,17 @@
             "command": "python3 .scratch/dev/hy4-expense-producers-pg.py",
             "result": "passed",
             "detail": "Type-checked real PostgreSQL queries for same-person aliases, direct assignment roles, and separate Workflow participant and recorded decisions against ERPX dev fixtures. Live approval/Treasury enforcement still requires composition."
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-people-payroll --lib expense_records_search",
+            "result": "passed",
+            "tests": 21,
+            "source": "reviewed HY4 scratch patch outside the released candidate"
+          },
+          {
+            "command": "python3 .scratch/dev/hy4-expense-treasury-pg.py",
+            "result": "passed",
+            "detail": "Independent Treasury, prepared receipt and terminal cancel SQL executed read-only on ERPX dev fixture relations."
           }
         ],
         "retainedLegacy": [
@@ -220394,14 +220405,14 @@
         ],
         "blocker": "handoff",
         "handoff": {
-          "runId": "run-goal-quality-detail",
+          "runId": "run-goal-quality-ack-resume",
           "agentId": "hy4-expense",
-          "at": "2026-11-27T08:34:59.083Z",
+          "at": "2026-11-27T08:49:57.504Z",
           "previousStatus": "blocked",
           "reason": "handoff",
-          "nextAction": "Resume .scratch/dev/goal-expense-with-producers.patch, then port live approval.canDecide and independent Treasury prepared/cancelled evidence. Continue enforced Records binding only after owner transaction ports pass."
+          "nextAction": "Resume .scratch/dev/goal-expense-with-treasury.patch, verify exact live Workflow and Commercial binding with all transaction authority before enabling the enforced Records branch."
         },
-        "nextAction": "Resume .scratch/dev/goal-expense-with-producers.patch, then port live approval.canDecide and independent Treasury prepared/cancelled evidence. Continue enforced Records binding only after owner transaction ports pass.",
+        "nextAction": "Resume .scratch/dev/goal-expense-with-treasury.patch, verify exact live Workflow and Commercial binding with all transaction authority before enabling the enforced Records branch.",
         "scopeRefinementRequired": false
       },
       {
@@ -221088,6 +221099,229 @@
           "routeAuthority": true,
           "presenterParity": true
         }
+      },
+      {
+        "id": "cutover.quality.alert-acknowledge",
+        "goalId": "G4",
+        "owner": "quality",
+        "workflowIds": [],
+        "kind": "integration",
+        "title": "Cut over Quality alert acknowledgement POST to Axum",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-quality/src/adapters/quality_http.rs",
+          "tests/integration/quality/rust-quality-alert-acknowledge.test.rs",
+          "tests/unit/quality/native-quality-transport.test.ts",
+          "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route.ts"
+        ],
+        "resources": [
+          "path:quality-ack-owner"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "21ec92175cb8d404e47cee5d812fc88007297605",
+        "lastPushedSha": "21ec92175cb8d404e47cee5d812fc88007297605",
+        "checks": [
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api",
+            "result": "passed",
+            "sourceSha": "21ec92175cb8d404e47cee5d812fc88007297605"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-quality --test quality_alert_acknowledge",
+            "result": "passed",
+            "sourceSha": "21ec92175cb8d404e47cee5d812fc88007297605",
+            "tests": 3
+          },
+          {
+            "command": "bunx vitest run workspace-supervisor",
+            "result": "passed",
+            "sourceSha": "21ec92175cb8d404e47cee5d812fc88007297605",
+            "tests": 13
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "21ec92175cb8d404e47cee5d812fc88007297605"
+          },
+          {
+            "command": "dev-https:quality-acknowledge-and-replay",
+            "result": "passed",
+            "sourceSha": "21ec92175cb8d404e47cee5d812fc88007297605",
+            "write": 200,
+            "aliasReplay": 200,
+            "changedPayload": 409,
+            "staleSelection": 409,
+            "missingSelection": 409,
+            "missingKey": 422,
+            "foreignOrigin": 403,
+            "readOnlyRole": 403,
+            "anonymous": 401,
+            "malformedJson": 500,
+            "validJsonAsText": 200,
+            "directRetiredNext": 404,
+            "authenticatedSSR": 200,
+            "postgresReceiptCount": 1,
+            "alertVersion": 2
+          },
+          {
+            "command": "dev-health:gateway-console-private-production",
+            "result": "passed",
+            "sourceSha": "21ec92175cb8d404e47cee5d812fc88007297605",
+            "gateway": 200,
+            "console": 200,
+            "privateProd": 200,
+            "retiredConsole": 404
+          },
+          {
+            "command": "retirement:next-routes:quality-alert-acknowledge",
+            "result": "passed",
+            "sourceSha": "21ec92175cb8d404e47cee5d812fc88007297605",
+            "before": 1414,
+            "after": 1414,
+            "publicNativeMethodPathsCutOver": 1,
+            "nextDispatchBranchesRetired": 1,
+            "nextRouteFilesDeleted": 0,
+            "sharedMilestone": "cutover.quality.alert-acknowledge and cutover.quality.alert-acknowledge-ingress"
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route.ts",
+            "removalTaskId": "exec.quality.routes",
+            "removalCondition": "Finish remaining Quality commands and named GET contract before removing the catch-all and each app re-export."
+          }
+        ],
+        "blocker": "handoff",
+        "nextAction": "Continue exec.quality.routes with established Quality POST CAS transport and distinct scoped command receipts.",
+        "handoff": {
+          "runId": "run-goal-quality-ack-resume",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T08:52:39.734Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Continue exec.quality.routes with established Quality POST CAS transport and distinct scoped command receipts."
+        },
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
+      },
+      {
+        "id": "cutover.quality.alert-acknowledge-ingress",
+        "goalId": "G4",
+        "owner": "quality",
+        "workflowIds": [],
+        "kind": "integration",
+        "title": "Cut over Quality alert acknowledgement POST to Axum",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "scripts/local/native-cutover-routes.ts",
+          "scripts/local/native-api-proxy.ts",
+          "scripts/local/workspace-gateway-runtime.ts",
+          "scripts/local/compiled-workspace-gateway.ts",
+          "tests/unit/shared.testing/workspace-supervisor.test.ts",
+          "src/composition/src/quality.rs"
+        ],
+        "resources": [
+          "path:quality-ack-ingress",
+          "service:dev-postgres-browser"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "21ec92175cb8d404e47cee5d812fc88007297605",
+        "lastPushedSha": "21ec92175cb8d404e47cee5d812fc88007297605",
+        "checks": [
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api",
+            "result": "passed",
+            "sourceSha": "21ec92175cb8d404e47cee5d812fc88007297605"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-quality --test quality_alert_acknowledge",
+            "result": "passed",
+            "sourceSha": "21ec92175cb8d404e47cee5d812fc88007297605",
+            "tests": 3
+          },
+          {
+            "command": "bunx vitest run workspace-supervisor",
+            "result": "passed",
+            "sourceSha": "21ec92175cb8d404e47cee5d812fc88007297605",
+            "tests": 13
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "21ec92175cb8d404e47cee5d812fc88007297605"
+          },
+          {
+            "command": "dev-https:quality-acknowledge-and-replay",
+            "result": "passed",
+            "sourceSha": "21ec92175cb8d404e47cee5d812fc88007297605",
+            "write": 200,
+            "aliasReplay": 200,
+            "changedPayload": 409,
+            "staleSelection": 409,
+            "missingSelection": 409,
+            "missingKey": 422,
+            "foreignOrigin": 403,
+            "readOnlyRole": 403,
+            "anonymous": 401,
+            "malformedJson": 500,
+            "validJsonAsText": 200,
+            "directRetiredNext": 404,
+            "authenticatedSSR": 200,
+            "postgresReceiptCount": 1,
+            "alertVersion": 2
+          },
+          {
+            "command": "dev-health:gateway-console-private-production",
+            "result": "passed",
+            "sourceSha": "21ec92175cb8d404e47cee5d812fc88007297605",
+            "gateway": 200,
+            "console": 200,
+            "privateProd": 200,
+            "retiredConsole": 404
+          },
+          {
+            "command": "retirement:next-routes:quality-alert-acknowledge",
+            "result": "passed",
+            "sourceSha": "21ec92175cb8d404e47cee5d812fc88007297605",
+            "before": 1414,
+            "after": 1414,
+            "publicNativeMethodPathsCutOver": 1,
+            "nextDispatchBranchesRetired": 1,
+            "nextRouteFilesDeleted": 0,
+            "sharedMilestone": "cutover.quality.alert-acknowledge and cutover.quality.alert-acknowledge-ingress"
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route.ts",
+            "removalTaskId": "exec.quality.routes",
+            "removalCondition": "Finish remaining Quality commands and named GET contract before removing the catch-all and each app re-export."
+          }
+        ],
+        "blocker": "handoff",
+        "nextAction": "Continue exec.quality.routes with established Quality POST CAS transport and distinct scoped command receipts.",
+        "handoff": {
+          "runId": "run-goal-quality-ack-resume",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T08:52:40.053Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Continue exec.quality.routes with established Quality POST CAS transport and distinct scoped command receipts."
+        },
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       }
     ],
     "migrationProgress": {
@@ -221109,8 +221343,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 206,
-    "updatedAt": "2026-11-27T08:39:51.389Z",
+    "lastCoordinatorGeneration": 208,
+    "updatedAt": "2026-11-27T08:52:40.210Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
