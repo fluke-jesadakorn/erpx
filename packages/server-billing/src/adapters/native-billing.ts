@@ -823,9 +823,9 @@ function boundedHeader(
  *   assignment (`require_cost_command`), so the cross-Holding target is a
  *   routing choice, never an authority grant.
  *
- * The loopback request carries the resolved target Host/Origin so the owner
- * router matches its `(host, holdingSlug)` target and applies its own exact
- * Origin check. A non-platform actor can never widen the Host binding.
+ * The ERPX management workspace keeps its own session audience. Its customer
+ * Holding is a typed selector on the native Billing read rather than a Host.
+ * Other Billing routes carry the resolved target Host/Origin.
  */
 function ownerCall(
   transport: NativeBillingTransport,
@@ -856,8 +856,11 @@ function ownerCall(
     return Promise.reject(
       new NativeBillingError("NATIVE_BILLING_AUTHORITY_INVALID"),
     );
+  const platformWorkspace = actor.platform && requesting.holdingId === "h003"
+    && method === "GET" && route === "";
+  const authority = platformWorkspace ? requesting : holding;
   const headers = new Headers({
-    host: holding.host,
+    host: authority.host,
     accept: "application/json",
     "cache-control": "no-cache",
   });
@@ -877,6 +880,12 @@ function ownerCall(
     const value = boundedHeader(incoming, name);
     if (value !== undefined) headers.set(name, value);
   }
+  if (platformWorkspace) {
+    const selected = headers.get("x-erpx-platform-assignment");
+    if (selected && selected !== actor.assignmentId)
+      return Promise.reject(new NativeBillingError("NATIVE_BILLING_CONTEXT_CHANGED"));
+    headers.set("x-erpx-platform-assignment", actor.assignmentId);
+  }
   if (method === "POST") {
     if (!key || !/^[a-zA-Z0-9:_.-]{8,180}$/.test(key))
       return Promise.reject(new NativeBillingError("NATIVE_BILLING_REQUEST_INVALID"));
@@ -890,9 +899,10 @@ function ownerCall(
     headers.set("origin", holding.origin);
   }
   const url = new URL(
-    `/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/billing${route}`,
+    `/api/v1/holdings/${encodeURIComponent(authority.holdingSlug)}/billing${route}`,
     config.base,
   );
+  if (platformWorkspace) url.searchParams.set("holdingId", input.holdingId);
   const controller = new AbortController();
   const cancel = () => controller.abort();
   signal?.addEventListener("abort", cancel, { once: true });

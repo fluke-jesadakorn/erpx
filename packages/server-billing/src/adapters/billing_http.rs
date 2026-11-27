@@ -28,6 +28,7 @@ pub struct BillingWorkspaceHttpRequest<'a> {
     pub host: &'a str,
     pub holding_slug: &'a str,
     pub headers: &'a HeaderMap,
+    pub platform_customer: Option<HoldingId>,
 }
 
 pub struct BillingCommandHttpRequest<'a> {
@@ -335,9 +336,22 @@ impl BillingHttpState {
         holding_slug: &str,
         query: Option<&str>,
     ) -> Result<Response, BusinessError> {
-        if query.is_some() {
-            return Err(request_invalid());
-        }
+        let platform_customer = match query {
+            None => None,
+            Some(query) if holding_slug == "erpx" => {
+                let id = query.strip_prefix("holdingId=").ok_or_else(request_invalid)?;
+                if id.is_empty()
+                    || id.len() > 64
+                    || !id.bytes().all(|byte| {
+                        byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'_' | b'-')
+                    })
+                {
+                    return Err(request_invalid());
+                }
+                Some(holding(id)?)
+            }
+            Some(_) => return Err(request_invalid()),
+        };
         let target = self.target(headers, holding_slug)?;
         let response = target
             .target
@@ -346,6 +360,7 @@ impl BillingHttpState {
                 host: target.host,
                 holding_slug: &target.target.holding_slug,
                 headers,
+                platform_customer,
             })
             .await?;
         let data: BillingWorkspace =

@@ -158,6 +158,30 @@ function context(overrides: Record<string, unknown> = {}) {
 }
 
 describe('native Billing transport', () => {
+  it('keeps the Admin audience when a Platform actor opens a customer invoice', async () => {
+    const calls: Parameters<NativeBillingTransport>[] = [];
+    const client = createNativeBillingClient({
+      ...configuration,
+      holdings: [...configuration.holdings, {
+        origin: 'https://admin.example.test',
+        holdingSlug: 'erpx',
+        holdingId: 'h003',
+      }],
+    }, async (...args) => {
+      calls.push(args);
+      return response({ data: workspace(), context: context() });
+    });
+    const incoming = headers({ host: 'admin.example.test' });
+    incoming.delete('x-erpx-platform-assignment');
+    await client.billing(incoming, actor, { holdingId: 'h001', holdingSlug: 'acme' });
+    const [method, url, forwarded] = calls[0]!;
+    expect(method).toBe('GET');
+    expect(String(url)).toBe('http://127.0.0.1:3110/api/v1/holdings/erpx/billing?holdingId=h001');
+    expect(forwarded.get('host')).toBe('admin.example.test');
+    expect(forwarded.get('x-erpx-platform-assignment')).toBe(actor.assignmentId);
+    expect(forwarded.get('cookie')).toBe(incoming.get('cookie'));
+  });
+
   it('forwards the exact registered Holding and bounded session context', async () => {
     const calls: Parameters<NativeBillingTransport>[] = [];
     const transport: NativeBillingTransport = async (...args) => {

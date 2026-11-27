@@ -58,10 +58,12 @@ use erpx_server_identity_access::public::{
         AuthorizedWorkContext, HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
         WorkAuthorizationRequest,
     },
-    work_context::HoldingWorkspaceRequest,
+    work_context::{HoldingWorkspaceRequest, WorkScopeKind},
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
-use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
+use erpx_server_runtime::public::postgres::{
+    PgTransactionError, PgUnitOfWork, PgWorkFuture, TransactionOptions,
+};
 use erpx_server_shared::public::{
     AssignmentId, BusinessError, Clock, CompanyId, FailureKind, HoldingId, TimestampMillis,
 };
@@ -287,6 +289,104 @@ impl<C: Clock + Send + Sync + 'static> BillingService<C> {
                             data: serde_json::to_value(data).map_err(|_| unavailable())?,
                             context: actor_context(&actor, &holding)?,
                         })
+                    })
+                },
+            )
+            .await
+    }
+
+    /// The browser session is bound to ERPX's Holding. The customer Holding
+    /// identifies a Billing record in Control, outside the session audience.
+    async fn platform_workspace(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        selection: HoldingWorkspaceRequest,
+        assignment_id: AssignmentId,
+        customer: HoldingId,
+    ) -> Result<BillingHttpResponse, Error> {
+        if self.configuration.holding.as_str() != "h003"
+            || selection.branch_slug.is_some()
+            || selection.department_slug.is_some()
+        {
+            return Err(scope().into());
+        }
+        let clock = self.clock.clone();
+        let control = self.control.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(move || Ok(selection)),
+                WorkAuthorizationRequest {
+                    permission: "manage_erpx.access".into(),
+                    module: None,
+                    destination: "erpx-management/billing".into(),
+                    api: true,
+                },
+                BillingSources,
+                move |_connection, current| {
+                    let clock = clock.clone();
+                    let control = control.clone();
+                    let assignment_id = assignment_id.clone();
+                    let customer = customer.clone();
+                    Box::pin(async move {
+                        if current.selection().assignment().scope_kind != WorkScopeKind::Holding {
+                            return Err(scope().into());
+                        }
+                        let user_id = current.user_id().clone();
+                        let session_id = current.session_id().clone();
+                        let expires_at = current.expires_at();
+                        PgUnitOfWork::new(control)
+                            .run_once(TransactionOptions::default(), move |connection| {
+                                Box::pin(async move {
+                                    let now = clock.now();
+                                    let (role, assignment_expiry) = sqlx::query_as::<_, (String, i64)>(
+                                        "SELECT role, valid_until FROM platform_assignments
+                                         WHERE id = $1 AND user_id = $2
+                                           AND iam_assignment_active(id, $3)
+                                           AND iam_principal_active(user_id, 'platform', $3)
+                                           AND NOT EXISTS (
+                                             SELECT 1 FROM iam_revoked_sessions
+                                             WHERE session_id = $4 AND company_id = 'platform'
+                                               AND user_id = $2
+                                           )",
+                                    )
+                                    .bind(assignment_id.as_str())
+                                    .bind(user_id.as_str())
+                                    .bind(now.get())
+                                    .bind(session_id.as_str())
+                                    .fetch_optional(&mut *connection)
+                                    .await?
+                                    .ok_or_else(scope)?;
+                                    let actor = BillingActor {
+                                        user_id,
+                                        assignment_id,
+                                        holding_id: None,
+                                        platform: true,
+                                        role,
+                                        expires_at: Some(expires_at.min(assignment_expiry)),
+                                    };
+                                    actor.require_read(&customer, now)?;
+                                    let registered = sqlx::query_scalar::<_, bool>(
+                                        "SELECT EXISTS(SELECT 1 FROM holding_bindings
+                                         WHERE holding_id = $1 AND status = 'active')",
+                                    )
+                                    .bind(customer.as_str())
+                                    .fetch_one(&mut *connection)
+                                    .await?;
+                                    if !registered {
+                                        return Err(not_found().into());
+                                    }
+                                    let mut repository = PgBillingWorkspace::new(connection);
+                                    let data = billing_workspace(&actor, &customer, &mut repository, now).await?;
+                                    Ok(BillingHttpResponse {
+                                        data: serde_json::to_value(data).map_err(|_| unavailable())?,
+                                        context: actor_context(&actor, &customer)?,
+                                    })
+                                })
+                            })
+                            .await
                     })
                 },
             )
@@ -828,6 +928,19 @@ impl<C: Clock + Send + Sync + 'static> BillingHttpBackend for BillingBackend<C> 
     ) -> BillingHttpFuture<'a, BillingHttpResponse> {
         Box::pin(async move {
             let (proof, selection) = self.context(request.headers)?;
+            if let Some(customer) = request.platform_customer {
+                let mut values = request.headers.get_all("x-erpx-platform-assignment").iter();
+                let assignment = values
+                    .next()
+                    .and_then(|value| value.to_str().ok())
+                    .filter(|_| values.next().is_none())
+                    .ok_or_else(scope)?;
+                let assignment = AssignmentId::new(assignment).map_err(|_| scope())?;
+                return self.service
+                    .platform_workspace(request.host, proof, selection, assignment, customer)
+                    .await
+                    .map_err(business);
+            }
             self.service
                 .workspace(request.host, proof, move || Ok(selection))
                 .await

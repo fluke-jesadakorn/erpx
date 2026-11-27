@@ -42,9 +42,12 @@ impl BillingHttpBackend for Probe {
         request: BillingWorkspaceHttpRequest<'a>,
     ) -> BillingHttpFuture<'a, BillingHttpResponse> {
         Box::pin(async move {
+            let customer = request.platform_customer
+                .map(|holding| format!("|{}", holding.as_str()))
+                .unwrap_or_default();
             self.seen.lock().unwrap().push(format!(
-                "workspace|{}|{}",
-                request.host, request.holding_slug
+                "workspace|{}|{}{customer}",
+                request.host, request.holding_slug,
             ));
             if let Some(error) = self.fail.clone() {
                 return Err(error);
@@ -165,6 +168,41 @@ fn workspace_forwards_the_exact_target_and_returns_private_json() {
             probe.seen.lock().unwrap().as_slice(),
             ["workspace|acme.example.test|acme"]
         );
+    });
+}
+
+#[test]
+fn platform_read_keeps_the_internal_holding_and_parses_one_customer() {
+    sqlx::test_block_on(async {
+        let probe = Arc::new(Probe::default());
+        let state = BillingHttpState::new(vec![
+            target(probe.clone()),
+            BillingHttpTarget {
+                host: "admin.example.test".into(),
+                holding_slug: "erpx".into(),
+                origin: "https://admin.example.test".into(),
+                backend: probe.clone(),
+            },
+        ]).unwrap();
+        let admin = headers(&[
+            ("host", "admin.example.test"),
+            ("origin", "https://admin.example.test"),
+        ]);
+        assert_eq!(
+            state.workspace(&admin, "erpx", Some("holdingId=h001")).await.status(),
+            StatusCode::OK,
+        );
+        for query in ["holdingId=", "holdingId=h001&holdingId=h002", "lookUp=h001"] {
+            assert_eq!(
+                state.workspace(&admin, "erpx", Some(query)).await.status(),
+                StatusCode::UNPROCESSABLE_ENTITY,
+            );
+        }
+        assert_eq!(
+            state.workspace(&headers(&[]), "acme", Some("holdingId=h002")).await.status(),
+            StatusCode::UNPROCESSABLE_ENTITY,
+        );
+        assert_eq!(probe.seen.lock().unwrap().as_slice(), ["workspace|admin.example.test|erpx|h001"]);
     });
 }
 
