@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+const { nativeRequest } = vi.hoisted(() => ({ nativeRequest: vi.fn() }));
+vi.mock("@erpx/server-runtime/public/native-http", () => ({ nativeRequest }));
 import { nativeFinanceAttachmentVersionStep } from "../../../packages/server-finance/src/adapters/native-finance-owner-write";
 
 const KEY = "ERPX_NATIVE_FINANCE_OWNER_WRITE_CONFIG";
@@ -20,9 +22,9 @@ const input = {
 describe("native Finance attachment version step port", () => {
   beforeEach(() => {
     delete process.env[KEY];
+    nativeRequest.mockReset();
   });
   afterEach(() => {
-    vi.unstubAllGlobals();
     if (original === undefined) delete process.env[KEY];
     else process.env[KEY] = original;
   });
@@ -40,7 +42,7 @@ describe("native Finance attachment version step port", () => {
       timeoutMs: 1000,
       holdings: [{ origin: "https://acme.jesadakorn.com", holdingSlug: "acme", holdingId: "h001" }],
     });
-    const fetchMock = vi.fn(async () => new Response(
+    nativeRequest.mockResolvedValueOnce(new Response(
       JSON.stringify({ data: {
         ok: true,
         targetType: input.targetType,
@@ -51,15 +53,19 @@ describe("native Finance attachment version step port", () => {
       } }),
       { status: 200, headers: { "content-type": "application/json" } },
     ));
-    vi.stubGlobal("fetch", fetchMock);
     const step = nativeFinanceAttachmentVersionStep(input);
     const result = await step.run();
     expect(result.success).toBe(true);
     expect(result.results).toEqual([]);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0]! as unknown as [URL, RequestInit];
+    expect(nativeRequest).toHaveBeenCalledTimes(1);
+    const [url, init, timeoutMs] = nativeRequest.mock.calls[0]! as unknown as [URL, Record<string, unknown>, number];
     expect(String(url)).toBe("http://127.0.0.1:4100/api/v1/companies/company-1/finance/attachment-version/step");
-    expect((init.headers as Record<string, string>)["idempotency-key"]).toMatch(/^fow-finance_attachment_step-[0-9a-f]{8}$/);
+    expect(init.method).toBe("POST");
+    expect(timeoutMs).toBe(1000);
+    const headers = init.headers as Record<string, string>;
+    expect(headers["content-type"]).toBe("application/json");
+    expect(headers["x-erpx-context-company"]).toBe("company-1");
+    expect(headers["idempotency-key"]).toMatch(/^fow-finance_attachment_step-[0-9a-f]{8}$/);
     expect(JSON.parse(init.body as string)).toEqual({
       targetType: input.targetType,
       targetId: input.targetId,
@@ -78,10 +84,10 @@ describe("native Finance attachment version step port", () => {
       timeoutMs: 1000,
       holdings: [{ origin: "https://acme.jesadakorn.com", holdingSlug: "acme", holdingId: "h001" }],
     });
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(
+    nativeRequest.mockResolvedValueOnce(new Response(
       JSON.stringify({ data: { ok: false } }),
       { status: 200, headers: { "content-type": "application/json" } },
-    )));
+    ));
     await expect(nativeFinanceAttachmentVersionStep(input).run()).rejects.toThrow(
       "The native Finance owner write is unavailable.",
     );
