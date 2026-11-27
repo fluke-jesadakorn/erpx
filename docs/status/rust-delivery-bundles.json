@@ -9291,15 +9291,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16488,
+    "revision": 16528,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-main-ux-runtime",
       "agentId": "codex-lead",
       "startedAt": "2026-11-27T20:18:08.571Z",
-      "heartbeatAt": "2026-11-27T21:09:52.512Z",
-      "expiresAt": "2026-11-27T21:39:52.512Z",
+      "heartbeatAt": "2026-11-27T21:45:31.560Z",
+      "expiresAt": "2026-11-27T22:15:31.560Z",
       "generation": 226,
       "tokenHash": "95a7f4010461446ff4aff388ab3801b3cfeaf23f711a0b3d7b1b41a5b98ed762"
     },
@@ -11979,14 +11979,14 @@
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "POS exception/refund-connect jobs 160->158; workspace parity decision remains lead",
+        "nextAction": "Chrome signed Acme showed register, menu and stock and opened Cash shifts. Northstar Rotterdam shows Not ready; erpx_dev_h002_write has no POS settings or register. Use a scoped demo fixture through POS owner setup, then verify cash-shift and sale draft. Rust read payload still lacks full Next POS workspace parity.",
         "handoff": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-pos",
-          "at": "2026-11-25T18:20:25.731Z",
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-dev-pos",
+          "at": "2026-11-27T21:53:47.075Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "POS exception/refund-connect jobs 160->158; workspace parity decision remains lead"
+          "nextAction": "Chrome signed Acme showed register, menu and stock and opened Cash shifts. Northstar Rotterdam shows Not ready; erpx_dev_h002_write has no POS settings or register. Use a scoped demo fixture through POS owner setup, then verify cash-shift and sale draft. Rust read payload still lacks full Next POS workspace parity."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-pos",
@@ -16805,7 +16805,7 @@
         "resources": [
           "owner:files"
         ],
-        "status": "ready_for_integration",
+        "status": "blocked",
         "claim": null,
         "baseSha": "0807b7d6ff9921cac319f5bc37fb02233edcbb52",
         "implementedCommit": "e9ace7f2b92ba08a9c18b77fc833df943bd0e1c1",
@@ -17000,15 +17000,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
-        "nextAction": "Scan-pending witness already native-owned (190/190); re-baseline 8 stale broad pins 208->209, then re-scope next Files cut",
+        "blocker": "handoff",
+        "nextAction": "Dev MinIO 19100 and ClamAV/preview/jobs health are ready. Scoped HEAD for five available Acme social images found one original and no previews; four originals missing. Verify and regenerate the surviving original through clean owner pipeline, locate exact dev backup for others, retain quarantine for destroyed files. Generic Feed content remains TS.",
         "handoff": {
-          "runId": "run-20261127-e",
-          "agentId": "worker-files",
-          "at": "2026-11-27T01:40:04.777Z",
-          "previousStatus": "ready_for_integration",
-          "reason": "released with work preserved",
-          "nextAction": "Scan-pending witness already native-owned (190/190); re-baseline 8 stale broad pins 208->209, then re-scope next Files cut"
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-dev-images",
+          "at": "2026-11-27T21:53:47.342Z",
+          "previousStatus": "integrating",
+          "reason": "handoff",
+          "nextAction": "Dev MinIO 19100 and ClamAV/preview/jobs health are ready. Scoped HEAD for five available Acme social images found one original and no previews; four originals missing. Verify and regenerate the surviving original through clean owner pipeline, locate exact dev backup for others, retain quarantine for destroyed files. Generic Feed content remains TS."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-files",
@@ -116768,14 +116768,14 @@
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "Integrated; mount live; cutover queued.",
+        "nextAction": "Northstar role selection now reaches Planning but page still errors. HY4 owner Rust tests 61 and transport 9 pass; broader DB tests need isolated admin. Preserved .scratch/dev/oasis-demo/finish-dev-manufacturing-unmounted.patch. Bind exact authorized Company/record and preserve owner transaction snapshot before mounting.",
         "handoff": {
-          "runId": "run-20261123-j",
-          "agentId": "wGC3man2",
-          "at": "2026-11-24T04:43:06.663Z",
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-dev-mfg",
+          "at": "2026-11-27T21:53:47.605Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Integrated; mount live; cutover queued."
+          "nextAction": "Northstar role selection now reaches Planning but page still errors. HY4 owner Rust tests 61 and transport 9 pass; broader DB tests need isolated admin. Preserved .scratch/dev/oasis-demo/finish-dev-manufacturing-unmounted.patch. Bind exact authorized Company/record and preserve owner transaction snapshot before mounting."
         },
         "scopeRefinementRequired": false
       },
@@ -225721,19 +225721,19 @@
         ],
         "blocker": "handoff",
         "handoff": {
-          "runId": "codex-feed-owner-work-facts-20261128",
-          "agentId": "codex-lead",
-          "at": "2026-11-27T18:21:19.414Z",
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-dev-work",
+          "at": "2026-11-27T21:53:47.869Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Wire Inventory native Stock count Work facts to the existing origin markers, purchase and Quality gates, and flow.current owner/routing facts. Compare initial count variants and pending workflow actions against the same signed fixture. Keep rich GET closed until the remaining owner sources and full expense/routing parity are executable."
+          "nextAction": "Chrome Acme Feed lists unavailable owner sources. HY4 Rust work snapshot 117 unit tests pass; partial patch still lacks Stock count, expense creation and routing parity. Continue from current WIP and verify actual My Work actions in both Holdings."
         },
         "scope": "The normal Acme branch Feed render has one residual full legacy Work query fan-out (1854 queries and 16.2s in the recorded Development visit). Reuse the mounted but unexposed Rust Work navigation owner port, replacing conservative Beta/Inventory/Expense/routing defaults before switching authority. Keep actual Work cues, package limits and scoped operations.",
         "deliverables": [
           "Signed Holding browser and SSR navigation data use a bounded authoritative native read",
           "Acme/Apps trace shows the Feed and launcher work without the retained full TS Work snapshot on that request"
         ],
-        "nextAction": "Wire Inventory native Stock count Work facts to the existing origin markers, purchase and Quality gates, and flow.current owner/routing facts. Compare initial count variants and pending workflow actions against the same signed fixture. Keep rich GET closed until the remaining owner sources and full expense/routing parity are executable."
+        "nextAction": "Chrome Acme Feed lists unavailable owner sources. HY4 Rust work snapshot 117 unit tests pass; partial patch still lacks Stock count, expense creation and routing parity. Continue from current WIP and verify actual My Work actions in both Holdings."
       },
       {
         "id": "cutover.apps.sales-quotation-approvals",
@@ -226850,14 +226850,14 @@
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "5555b6ff6 normal SSO and quotation row canonical 200. Reopen the row, wait for Commerce business sections and verify Follow-up new=1. No handler retired.",
+        "nextAction": "4499d1f96 on remote; 51 route tests passed. Complete signed quote CTA/drawer and verify real Follow-up create/assign. Quotation was slow and a prior route logged missing native return-line context. Existing Sales native command is mounted; the presenter still uses a TS read.",
         "handoff": {
           "runId": "run-main-ux-runtime",
-          "agentId": "codex-lead",
-          "at": "2026-11-27T21:09:52.777Z",
+          "agentId": "hy4-dev-followup",
+          "at": "2026-11-27T21:53:48.124Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "5555b6ff6 normal SSO and quotation row canonical 200. Reopen the row, wait for Commerce business sections and verify Follow-up new=1. No handler retired."
+          "nextAction": "4499d1f96 on remote; 51 route tests passed. Complete signed quote CTA/drawer and verify real Follow-up create/assign. Quotation was slow and a prior route logged missing native return-line context. Existing Sales native command is mounted; the presenter still uses a TS read."
         }
       },
       {
@@ -227496,6 +227496,196 @@
           "nextAction": "a3c29fea7 pinned Node26 fetch 404 versus exact loopback Host 200. Six transport tests pass and existing owner SELECT count pin expects 276 versus 274. Verify signed POS stock payload."
         },
         "nextAction": "a3c29fea7 pinned Node26 fetch 404 versus exact loopback Host 200. Six transport tests pass and existing owner SELECT count pin expects 276 versus 274. Verify signed POS stock payload."
+      },
+      {
+        "id": "integrate.identity_access.dev-role-origin",
+        "goalId": "G4",
+        "owner": "identity_access",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Bind the same-origin Holding role form to Axum role selection",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/adapters/product-workspace.ts",
+          "tests/unit/identity_access/product-workspace.test.ts",
+          "packages/server-identity_access/src/adapters/authorization.ts"
+        ],
+        "resources": [
+          "dev-role-origin"
+        ],
+        "status": "done",
+        "claim": null,
+        "baseSha": "547147e197c9518a5de851450f4bee76f0609ebb",
+        "implementedCommit": "8d211382c7fdb6645e734a53fbdf577b7129efd9",
+        "lastPushedSha": "8d211382c7fdb6645e734a53fbdf577b7129efd9",
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": {
+          "runId": "run-main-ux-runtime",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T21:16:22.583Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Normalize validated form origin before native account context access as shown by Chrome trace."
+        },
+        "nextAction": "Chrome SSO verified Acme People Manager and Northstar Finance Approver with switch back to Holding Owner. Five origin tests passed. Continue Planning owner composition and Finance invoice latency separately."
+      },
+      {
+        "id": "integrate.runtime.dev-executive-generation",
+        "goalId": "G4",
+        "owner": "runtime",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Restore Executive report creation and generation on Holding dev hosts",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/executive/**",
+          "packages/feature-apps/src/routes/holdings/[holdingSlug]/insights/executive/**",
+          "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/executive/**",
+          "packages/feature-runtime/src/components/executive/**",
+          "packages/server-runtime/src/adapters/executive/**",
+          "packages/server-runtime/src/application/executive/**",
+          "tests/unit/shared.executive/**",
+          "tests/unit/shared.runtime/runtime-executive-services.test.ts"
+        ],
+        "resources": [
+          "dev-executive-generation"
+        ],
+        "status": "done",
+        "claim": null,
+        "baseSha": "a64b286c7d4738a8ca107b2b9144f68cac408070",
+        "implementedCommit": "4eceb5eda290eb608d18519cd70d5085e13a6f51",
+        "lastPushedSha": "4eceb5eda290eb608d18519cd70d5085e13a6f51",
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": {
+          "runId": "run-main-ux-runtime",
+          "agentId": "hy4-dev-executive",
+          "at": "2026-11-27T21:45:31.829Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "HY4 delivered reviewed source and targeted tests. Codex takes over runtime validation and switches the lease consumer from SELECT to Axum returned rows."
+        },
+        "nextAction": "Acme and Northstar Chrome Create, Generate, Apply passed and saved Revision 2. Executive plus Runtime targeted tests 61/61. Dev-only Ollama qwen2.5:3b. Continue migrating Next authoring API and TypeScript provider orchestration."
+      },
+      {
+        "id": "integrate.field.dev-executive-target",
+        "goalId": "G4",
+        "owner": "field_service",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Select the private Axum Executive source target",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-field_service/src/adapters/native-executive.ts"
+        ],
+        "resources": [
+          "field-executive-dev-transport"
+        ],
+        "status": "done",
+        "claim": null,
+        "baseSha": "4499d1f968009fe9ef8a2f815d6a7c1b448ee585",
+        "implementedCommit": "a64b286c7d4738a8ca107b2b9144f68cac408070",
+        "lastPushedSha": "a64b286c7d4738a8ca107b2b9144f68cac408070",
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Compiled Axum on loopback 3194 verified both exact Holding hosts and signed Executive generation. Keep dedicated Field target until the shared candidate enables both required Field read gates."
+      },
+      {
+        "id": "integrate.runtime.dev-executive-native-owner",
+        "goalId": "G4",
+        "owner": "runtime",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Commit Executive report and revision atomically through Axum",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-runtime/src/adapters/native_command_sql.rs",
+          "src/composition/src/runtime_wave2_native.rs",
+          "packages/feature-runtime/src/adapters/server/native-runtime-command.ts"
+        ],
+        "resources": [
+          "executive-runtime-owner"
+        ],
+        "status": "done",
+        "claim": null,
+        "baseSha": "a64b286c7d4738a8ca107b2b9144f68cac408070",
+        "implementedCommit": "4eceb5eda290eb608d18519cd70d5085e13a6f51",
+        "lastPushedSha": "4eceb5eda290eb608d18519cd70d5085e13a6f51",
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Compiled Axum build and five native command tests passed. Chrome verified both Holdings saved Revision 2. Next authoring API remains. Move remaining report operations as separate cutovers."
+      },
+      {
+        "id": "integrate.agent.dev-executive-usage",
+        "goalId": "G4",
+        "owner": "agent",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Bind Executive AI usage writes to the selected dev Holding",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-agent/src/adapters/native-owner-write.ts",
+          "packages/server-agent/src/adapters/owner_write_postgres.rs"
+        ],
+        "resources": [
+          "dev-executive-usage"
+        ],
+        "status": "done",
+        "claim": null,
+        "baseSha": "a64b286c7d4738a8ca107b2b9144f68cac408070",
+        "implementedCommit": "4eceb5eda290eb608d18519cd70d5085e13a6f51",
+        "lastPushedSha": "4eceb5eda290eb608d18519cd70d5085e13a6f51",
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": {
+          "runId": "run-main-ux-runtime",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T21:52:07.238Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Usage route reached Axum; normalize JSON text bound to PostgreSQL audit columns."
+        },
+        "nextAction": "Compiled Axum and signed generation on both Holdings passed with native usage enabled. Keep TypeScript provider orchestration queued."
+      },
+      {
+        "id": "integrate.people_payroll.dev-directory-search",
+        "goalId": "G4",
+        "owner": "people_payroll",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Preserve typed HR directory search on Holding dev routes",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-people_payroll/src/components/people-structure-workspace.tsx",
+          "tests/unit/organization/organization-explorer.test.ts"
+        ],
+        "resources": [
+          "hr-directory-search"
+        ],
+        "status": "done",
+        "claim": null,
+        "baseSha": "4eceb5eda290eb608d18519cd70d5085e13a6f51",
+        "implementedCommit": "20adecbe3a095e9ad0283223a2e7d484e18dce10",
+        "lastPushedSha": "20adecbe3a095e9ad0283223a2e7d484e18dce10",
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Chromium sequential typing and visible results passed for Bangkok Operations and Rotterdam Logistics. Organization explorer tests 12/12. Continue directory authorization and native SSR read coverage separately."
       }
     ],
     "migrationProgress": {
@@ -227509,16 +227699,16 @@
       "statusCounts": {
         "pending": 14,
         "in_progress": 0,
-        "ready_for_integration": 166,
+        "ready_for_integration": 165,
         "integrating": 0,
         "migrated": 378,
-        "blocked": 1927,
+        "blocked": 1928,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 226,
-    "updatedAt": "2026-11-27T21:09:53.825Z",
+    "updatedAt": "2026-11-27T22:03:53.239Z",
     "handoff": {
       "fromRun": "run-20261128-route",
       "verifiedPushedCheckpoint": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
