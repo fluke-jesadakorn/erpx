@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { resolve } from 'node:path';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import { canonicalDestinationLinks } from '@erpx/feature-work_projection/lib/destination-links';
 
 vi.mock('server-only', () => ({}));
+const { nativeRequest } = vi.hoisted(() => ({ nativeRequest: vi.fn() }));
+vi.mock('@erpx/server-runtime/public/native-http', () => ({ nativeRequest }));
 
 import {
   configuration,
@@ -113,11 +116,24 @@ const DEV_CONFIG = {
 const NATIVE_CONFIG = JSON.stringify(DEV_CONFIG);
 
 const previousConfig = process.env.ERPX_NATIVE_ORGANIZATION_CONFIG;
+const previousDirectoryConfig = process.env.ERPX_NATIVE_ORGANIZATION_DIRECTORY_CONFIG;
 afterEach(() => {
   vi.unstubAllGlobals();
+  nativeRequest.mockReset();
   if (previousConfig === undefined) delete process.env.ERPX_NATIVE_ORGANIZATION_CONFIG;
   else process.env.ERPX_NATIVE_ORGANIZATION_CONFIG = previousConfig;
+  if (previousDirectoryConfig === undefined) delete process.env.ERPX_NATIVE_ORGANIZATION_DIRECTORY_CONFIG;
+  else process.env.ERPX_NATIVE_ORGANIZATION_DIRECTORY_CONFIG = previousDirectoryConfig;
 });
+
+const useSharedConfig = (raw: string = NATIVE_CONFIG): void => {
+  process.env.ERPX_NATIVE_ORGANIZATION_CONFIG = raw;
+  delete process.env.ERPX_NATIVE_ORGANIZATION_DIRECTORY_CONFIG;
+};
+const jsonResponse = (payload: unknown, status = 200): Response =>
+  new Response(JSON.stringify(payload), { status, headers: { 'content-type': 'application/json' } });
+type TransportCall = [URL, { method?: string; headers: Record<string, string>; body?: string }, number];
+const transportCall = (index = 0): TransportCall => nativeRequest.mock.calls[index] as unknown as TransportCall;
 
 describe('native lane 23 — organization directory hierarchy', () => {
   it('retired all three literal TS SELECTs and kept only the thin client', () => {
@@ -170,32 +186,25 @@ describe('native lane 23 — organization directory hierarchy', () => {
   });
 
   it('fails closed on a rejected transport with no SQL fallback', async () => {
-    process.env.ERPX_NATIVE_ORGANIZATION_CONFIG = NATIVE_CONFIG;
-    const fetchMock = vi.fn().mockRejectedValue(new Error('native service down'));
-    vi.stubGlobal('fetch', fetchMock);
+    useSharedConfig();
+    nativeRequest.mockRejectedValueOnce(new Error('native service down'));
     const source = new Headers({ host: 'acme.jesadakorn.com' });
     await expect(nativeDirectoryHierarchy(source)).rejects.toMatchObject({
       status: 503,
       code: 'ORGANIZATION_DIRECTORY_HIERARCHY_UNAVAILABLE',
     });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(String(fetchMock.mock.calls[0]![0])).toContain(
-      '/api/v1/holdings/acme/organization/directory-hierarchy',
-    );
+    expect(nativeRequest).toHaveBeenCalledTimes(1);
+    expect(transportCall()[0].pathname).toBe('/api/v1/holdings/acme/organization/directory-hierarchy');
   });
 
   it('accepts a valid native payload over the exact holding route', async () => {
-    process.env.ERPX_NATIVE_ORGANIZATION_CONFIG = NATIVE_CONFIG;
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => PAYLOAD,
-    });
-    vi.stubGlobal('fetch', fetchMock);
+    useSharedConfig();
+    nativeRequest.mockResolvedValueOnce(jsonResponse(PAYLOAD));
     const facts = await nativeDirectoryHierarchy(new Headers({ host: 'acme.jesadakorn.com' }));
     expect(facts).toEqual(validateDirectoryHierarchy(PAYLOAD));
-    const request = fetchMock.mock.calls[0]![1] as RequestInit;
-    expect((request.headers as Headers).get('host')).toBe('acme.jesadakorn.com');
+    const [, init] = transportCall();
+    expect(init.method).toBe('GET');
+    expect(init.headers['host']).toBe('acme.jesadakorn.com');
   });
 
   it('accepts 1..64 holdings and rejects empty, oversized, duplicate or mismatched entries', () => {
@@ -250,26 +259,47 @@ describe('native lane 23 — organization directory hierarchy', () => {
   });
 
   it('routes an actor-selected Holding to its own pool path and optional company scope', async () => {
-    process.env.ERPX_NATIVE_ORGANIZATION_CONFIG = JSON.stringify({
+    useSharedConfig(JSON.stringify({
       ...DEV_CONFIG,
       holdings: DEV_HOLDINGS.map((holding, i) => ({
         ...holding,
         ...(i === 2 ? { companyId: 'erpx-company' } : {}),
       })),
-    });
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => PAYLOAD });
-    vi.stubGlobal('fetch', fetchMock);
+    }));
+    nativeRequest.mockResolvedValueOnce(jsonResponse(PAYLOAD));
     await nativeDirectoryHierarchy(
       { holdingId: 'h003', holdingSlug: 'erpx' },
       new Headers({ cookie: 'session=x' }),
     );
-    const url = String(fetchMock.mock.calls[0]![0]);
-    const request = fetchMock.mock.calls[0]![1] as RequestInit;
-    expect(url).toContain('/api/v1/holdings/erpx/organization/directory-hierarchy');
-    expect(url).not.toContain('/holdings/acme/');
-    expect((request.headers as Headers).get('host')).toBe('erpx-internal.jesadakorn.com');
-    expect((request.headers as Headers).get('x-erpx-context-company')).toBe('erpx-company');
-    expect((request.headers as Headers).get('cookie')).toBe('session=x');
+    const [url, init] = transportCall();
+    expect(url.pathname).toBe('/api/v1/holdings/erpx/organization/directory-hierarchy');
+    expect(url.href).not.toContain('/holdings/acme/');
+    expect(init.headers['host']).toBe('erpx-internal.jesadakorn.com');
+    expect(init.headers['x-erpx-context-company']).toBe('erpx-company');
+    expect(init.headers['cookie']).toBe('session=x');
+  });
+
+  it('prefers the directory config over the inherited shared config for lane 23', async () => {
+    process.env.ERPX_NATIVE_ORGANIZATION_CONFIG = NATIVE_CONFIG;
+    process.env.ERPX_NATIVE_ORGANIZATION_DIRECTORY_CONFIG = JSON.stringify({
+      ...DEV_CONFIG,
+      privateBaseUrl: 'http://127.0.0.1:3199',
+    });
+    nativeRequest.mockResolvedValueOnce(jsonResponse(PAYLOAD));
+    await nativeDirectoryHierarchy(new Headers({ host: 'northstar.jesadakorn.com' }));
+    const [url, init] = transportCall();
+    expect(url.origin).toBe('http://127.0.0.1:3199');
+    expect(init.headers['host']).toBe('northstar.jesadakorn.com');
+  });
+
+  it('fails closed on an invalid directory config without falling back to the shared config', async () => {
+    useSharedConfig();
+    process.env.ERPX_NATIVE_ORGANIZATION_DIRECTORY_CONFIG = '{not-json';
+    await expect(nativeDirectoryHierarchy(new Headers({ host: 'acme.jesadakorn.com' }))).rejects.toMatchObject({
+      status: 503,
+      code: 'ORGANIZATION_DIRECTORY_HIERARCHY_CONFIG_INVALID',
+    });
+    expect(nativeRequest).not.toHaveBeenCalled();
   });
 });
 
@@ -335,31 +365,29 @@ describe('native lane 23 — organization node references', () => {
   });
 
   it('fails closed on an invalid reference scope with no TS fallback', async () => {
-    process.env.ERPX_NATIVE_ORGANIZATION_CONFIG = NATIVE_CONFIG;
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+    useSharedConfig();
     await expect(
       nativeNodeReferences(
         { holdingId: 'h001', holdingSlug: 'acme' },
         { companyId: 'bad id', nodeId: 'node-1' },
       ),
     ).rejects.toMatchObject({ status: 503, code: 'ORGANIZATION_DIRECTORY_HIERARCHY_INVALID' });
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(nativeRequest).not.toHaveBeenCalled();
   });
 
   it('routes the reference read to the selected Holding with bounded query', async () => {
-    process.env.ERPX_NATIVE_ORGANIZATION_CONFIG = NATIVE_CONFIG;
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => REF_PAYLOAD });
-    vi.stubGlobal('fetch', fetchMock);
+    useSharedConfig();
+    nativeRequest.mockResolvedValueOnce(jsonResponse(REF_PAYLOAD));
     const facts = await nativeNodeReferences(
       { holdingId: 'h002', holdingSlug: 'northstar' },
       { companyId: 'company-1', nodeId: 'node-1' },
     );
     expect(facts).toEqual(validateNodeReferences(REF_PAYLOAD));
-    const url = String(fetchMock.mock.calls[0]![0]);
-    expect(url).toContain('/api/v1/holdings/northstar/organization/node-references?companyId=company-1&nodeId=node-1');
-    const request = fetchMock.mock.calls[0]![1] as RequestInit;
-    expect((request.headers as Headers).get('host')).toBe('northstar.jesadakorn.com');
+    const [url, init] = transportCall();
+    expect(`${url.pathname}${url.search}`).toBe(
+      '/api/v1/holdings/northstar/organization/node-references?companyId=company-1&nodeId=node-1',
+    );
+    expect(init.headers['host']).toBe('northstar.jesadakorn.com');
   });
 });
 
@@ -425,9 +453,7 @@ describe('native lane 23 — organization executive evidence', () => {
   });
 
   it('fails closed on an invalid evidence request with no TS fallback', async () => {
-    process.env.ERPX_NATIVE_ORGANIZATION_CONFIG = NATIVE_CONFIG;
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+    useSharedConfig();
     await expect(
       nativeExecutiveEvidence({ holdingId: 'h001', holdingSlug: 'acme' }, {
         kind: 'node-evidence', companyId: 'company-1', limit: 501,
@@ -438,27 +464,74 @@ describe('native lane 23 — organization executive evidence', () => {
         kind: 'unsupported' as 'node-evidence', companyId: 'company-1',
       }),
     ).rejects.toMatchObject({ status: 503, code: 'ORGANIZATION_DIRECTORY_HIERARCHY_INVALID' });
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(nativeRequest).not.toHaveBeenCalled();
   });
 
   it('posts a bounded evidence body to the selected Holding', async () => {
-    process.env.ERPX_NATIVE_ORGANIZATION_CONFIG = NATIVE_CONFIG;
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => EVIDENCE_PAYLOAD });
-    vi.stubGlobal('fetch', fetchMock);
+    useSharedConfig();
+    nativeRequest.mockResolvedValueOnce(jsonResponse(EVIDENCE_PAYLOAD));
     const facts = await nativeExecutiveEvidence(
       { holdingId: 'h002', holdingSlug: 'northstar' },
       { kind: 'node-evidence', companyId: 'company-1', values: [null, 'node-1'], nodeId: 'node-2' },
     );
     expect(facts.rows[0]!.id).toBe('node-1');
-    const url = String(fetchMock.mock.calls[0]![0]);
-    expect(url).toContain('/api/v1/holdings/northstar/organization/executive-evidence');
-    const init = fetchMock.mock.calls[0]![1] as RequestInit;
+    const [url, init] = transportCall();
+    expect(url.pathname).toBe('/api/v1/holdings/northstar/organization/executive-evidence');
     expect(init.method).toBe('POST');
-    expect((init.headers as Headers).get('content-type')).toBe('application/json');
-    expect(JSON.parse(String(init.body))).toEqual({
+    expect(init.headers['content-type']).toBe('application/json');
+    expect(JSON.parse(init.body!)).toEqual({
       kind: 'node-evidence', companyId: 'company-1', values: [null, 'node-1'], nodeId: 'node-2',
     });
-    expect((init.headers as Headers).get('host')).toBe('northstar.jesadakorn.com');
+    expect(init.headers['host']).toBe('northstar.jesadakorn.com');
+  });
+
+  it('preserves the exact Host, cookie, method and JSON body over a real Node loopback transport', async () => {
+    const seen: { host?: string; cookie?: string; method?: string; url?: string; body: string }[] = [];
+    const server = createServer((req, res) => {
+      let body = '';
+      req.setEncoding('utf8');
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', () => {
+        seen.push({ host: req.headers.host, cookie: req.headers.cookie, method: req.method, url: req.url, body });
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify(EVIDENCE_PAYLOAD));
+      });
+    });
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('missing loopback port');
+      process.env.ERPX_NATIVE_ORGANIZATION_DIRECTORY_CONFIG = JSON.stringify({
+        privateBaseUrl: `http://127.0.0.1:${address.port}`,
+        timeoutMs: 2000,
+        holdings: DEV_HOLDINGS,
+      });
+      delete process.env.ERPX_NATIVE_ORGANIZATION_CONFIG;
+      const actual = await vi.importActual<typeof import('@erpx/server-runtime/public/native-http')>(
+        '@erpx/server-runtime/public/native-http',
+      );
+      nativeRequest.mockImplementationOnce((...args) =>
+        actual.nativeRequest(...(args as Parameters<typeof actual.nativeRequest>)),
+      );
+
+      const facts = await nativeExecutiveEvidence(
+        new Headers({ host: 'northstar.jesadakorn.com', cookie: 'session=loopback', origin: 'https://northstar.jesadakorn.com' }),
+        { kind: 'node-evidence', companyId: 'company-1', values: [null, 'node-1'] },
+      );
+      expect(facts.rows[0]!.id).toBe('node-1');
+      expect(seen).toHaveLength(1);
+      expect(seen[0]).toMatchObject({
+        host: 'northstar.jesadakorn.com',
+        cookie: 'session=loopback',
+        method: 'POST',
+        url: '/api/v1/holdings/northstar/organization/executive-evidence',
+      });
+      expect(JSON.parse(seen[0]!.body)).toEqual({
+        kind: 'node-evidence', companyId: 'company-1', values: [null, 'node-1'],
+      });
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    }
   });
 });
 

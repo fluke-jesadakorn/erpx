@@ -1,5 +1,6 @@
 import 'server-only';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { nativeRequest } from '@erpx/server-runtime/public/native-http';
 
 /**
  * Strict transport for the native Organization directory hierarchy read.
@@ -138,6 +139,8 @@ const CONTEXT_HEADERS = [
   'x-erpx-workspace-department',
 ] as const;
 const RESERVED_PORTS = new Set([3000, 3001, 3100, 3101, 3103, 5432, 5433, 5435, 8080]);
+const DIRECTORY_CONFIG_ENV = 'ERPX_NATIVE_ORGANIZATION_DIRECTORY_CONFIG';
+const SHARED_CONFIG_ENV = 'ERPX_NATIVE_ORGANIZATION_CONFIG';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'ORGANIZATION_DIRECTORY_HIERARCHY_UNAVAILABLE', 'The native Organization directory hierarchy is unavailable.');
@@ -473,23 +476,29 @@ async function request(
   path: string,
   body?: unknown,
 ): Promise<unknown> {
-  const config = configuration(process.env.ERPX_NATIVE_ORGANIZATION_CONFIG);
+  // Lane 23 alone accepts a directory-specific config so a single app can
+  // override the inherited shared ERPX native config without changing it.
+  const raw = process.env[DIRECTORY_CONFIG_ENV] ?? process.env[SHARED_CONFIG_ENV];
+  const config = configuration(raw);
   const holding = holdingFor(target, config);
   const from = headersLike(target) ? target : (source ?? new Headers());
   const companyId = record(target) && typeof target.companyId === 'string' ? target.companyId : undefined;
   const headers = requestHeaders(from, holding, companyId);
   if (body !== undefined) headers.set('content-type', 'application/json');
+  const url = new URL(
+    `${config.base.origin}/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/organization${path}`,
+  );
   let response: Response;
   try {
-    response = await fetch(
-      `${config.base.origin}/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/organization${path}`,
+    response = await nativeRequest(
+      url,
       {
         method: body === undefined ? 'GET' : 'POST',
-        headers,
+        headers: Object.fromEntries(headers.entries()),
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-        cache: 'no-store',
         signal: AbortSignal.timeout(config.timeout),
       },
+      config.timeout,
     );
   } catch {
     return unavailable();
