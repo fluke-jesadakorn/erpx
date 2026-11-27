@@ -110,21 +110,6 @@ async function call(
   return payload?.data;
 }
 
-export function nativeFeed(request: Request, holdingSlug: string, filter: string, cursor?: string) {
-  const query = new URLSearchParams({ filter });
-  if (cursor) query.set("cursor", cursor);
-  return call(request, holdingSlug, `/feed?${query.toString()}`);
-}
-
-export function nativeCreatePost(
-  request: Request,
-  holdingSlug: string,
-  body: unknown,
-  key: string,
-) {
-  return call(request, holdingSlug, '/feed', { body, key });
-}
-
 export function nativeCreateStory(
   request: Request,
   holdingSlug: string,
@@ -204,16 +189,6 @@ export function nativeReportPost(
 }
 
 /** Paged comments with the retained ancestors the conversation client renders. */
-export function nativePostComments(
-  request: Request,
-  holdingSlug: string,
-  id: string,
-  cursor?: string,
-) {
-  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
-  return call(request, holdingSlug, `/feed/${encodeURIComponent(id)}/comments${query}`);
-}
-
 /** Author-only revision history of one readable post. */
 export function nativePostRevisions(request: Request, holdingSlug: string, id: string) {
   return call(request, holdingSlug, `/feed/${encodeURIComponent(id)}/revisions`);

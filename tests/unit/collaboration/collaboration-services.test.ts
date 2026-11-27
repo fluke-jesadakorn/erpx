@@ -1,4 +1,4 @@
-import {readFileSync} from 'node:fs';
+import {existsSync,readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {afterEach,describe,expect,test,vi} from 'vitest';
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
@@ -385,37 +385,10 @@ test('a non-scope header failure is not swallowed as an absent overlay',async()=
  }
 });
 
-describe('Native social feed, comment and revision read transport',()=>{
+describe('Native social revision read transport',()=>{
  const configuration=JSON.stringify({privateBaseUrl:'http://127.0.0.1:3105',timeoutMs:1000});
  const session=()=>new Request('https://acme.jesadakorn.com/posts/post-1',{method:'GET',headers:{cookie:'__Host-erpx-product=session','x-erpx-context-company':'company'}});
  afterEach(()=>{vi.unstubAllGlobals();delete process.env.ERPX_NATIVE_COLLABORATION_CONFIG;});
-
- test('forwards a native feed cursor with the original filter and session',async()=>{
-  process.env.ERPX_NATIVE_COLLABORATION_CONFIG=configuration;
-  const {nativeFeed}=await import('@erpx/server-collaboration/public/native-social-page');
-  const calls:{url:string;headers:Headers}[]=[];
-  vi.stubGlobal('fetch',vi.fn(async(url:string,init:RequestInit)=>{calls.push({url,headers:new Headers(init.headers)});return Response.json({data:{items:[{id:'post-2'}],nextCursor:null,hasMore:false}});}));
-  expect(await nativeFeed(session(),'acme','following','1700000000000:post 1')).toEqual({items:[{id:'post-2'}],nextCursor:null,hasMore:false});
-  const url=new URL(calls[0]!.url);
-  expect(url.pathname).toBe('/api/v1/holdings/acme/feed');
-  expect(url.searchParams.get('filter')).toBe('following');
-  expect(url.searchParams.get('cursor')).toBe('1700000000000:post 1');
-  expect(calls[0]!.headers.get('cookie')).toBe('__Host-erpx-product=session');
- });
-
- test('reads a bounded comment page through the exact Holding path and opaque cursor',async()=>{
-  process.env.ERPX_NATIVE_COLLABORATION_CONFIG=configuration;
-  const {nativePostComments}=await import('@erpx/server-collaboration/public/native-social-page');
-  const calls:{url:string;method:string;headers:Headers}[]=[];
-  vi.stubGlobal('fetch',vi.fn(async(url:string,init:RequestInit)=>{calls.push({url,method:String(init.method),headers:new Headers(init.headers)});return Response.json({data:{items:[],nextCursor:null,hasMore:false}});}));
-  expect(await nativePostComments(session(),'acme','post 1','1700000000000:comment-1')).toEqual({items:[],nextCursor:null,hasMore:false});
-  expect(calls).toHaveLength(1);
-  expect(calls[0]!.method).toBe('GET');
-  expect(calls[0]!.url).toBe('http://127.0.0.1:3105/api/v1/holdings/acme/feed/post%201/comments?cursor=1700000000000%3Acomment-1');
-  expect(calls[0]!.headers.get('cookie')).toBe('__Host-erpx-product=session');
-  expect(calls[0]!.headers.get('x-erpx-context-company')).toBe('company');
-  expect(calls[0]!.headers.get('idempotency-key')).toBeNull();
- });
 
  test('reads the author-only revision history without a command key',async()=>{
   process.env.ERPX_NATIVE_COLLABORATION_CONFIG=configuration;
@@ -442,11 +415,15 @@ describe('Apps API v1 native route cutover',()=>{
  const routes='packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/';
  afterEach(()=>{vi.unstubAllGlobals();delete process.env.ERPX_NATIVE_COLLABORATION_CONFIG;});
 
- test('feed, collaboration and stories routes carry no TypeScript workspace/feed fallback',()=>{
-  const feed=read(routes+'feed/route.ts'),collab=read(routes+'collaboration/route.ts'),stories=read(routes+'stories/route.ts');
-  expect(feed).not.toContain('listFeed');
-  expect(feed).not.toContain('nativeSocialAvailable');
-  expect(feed).toContain('nativeFeed(request, holdingSlug');
+ test('Feed list and comments use Rust ingress and collaboration/stories retain their declarations',()=>{
+  const collab=read(routes+'collaboration/route.ts'),stories=read(routes+'stories/route.ts');
+  for(const folder of [routes,'apps/launcher/src/app/api/v1/holdings/[holdingSlug]/','apps/compat/src/app/api/v1/holdings/[holdingSlug]/']){
+   expect(existsSync(resolve(root,folder+'feed/route.ts'))).toBe(false);
+   expect(existsSync(resolve(root,folder+'posts/[id]/comments/route.ts'))).toBe(false);
+  }
+  const gateway=read('scripts/local/native-cutover-routes.ts');
+  expect(gateway).toContain('owner === "feed" && segment === undefined) return "social"');
+  expect(gateway).toContain('tail[0] === "comments"');
   expect(collab).not.toContain('collaborationWorkspace');
   expect(collab).not.toContain('nativeCollaborationAvailable');
   expect(collab).toContain('nativeCollaborationWorkspace(r,');
