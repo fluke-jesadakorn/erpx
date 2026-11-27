@@ -1,8 +1,8 @@
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
+import { createServer } from 'node:http';
 import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
-import { ApiError } from '../../../packages/server-runtime/src/public/http';
 import {
   controlPlaneReadConfigured,
   parseControlPlaneConfig,
@@ -117,16 +117,39 @@ describe('runtime r18 catalog-presence family cut over to the native port', () =
 });
 
 const ENV = 'ERPX_NATIVE_RUNTIME_CONTROL_PLANE_CONFIG';
-const cfg = JSON.stringify({
-  privateBaseUrl: 'http://127.0.0.1:4200',
-  timeoutMs: 1000,
-  holdings: [{ origin: 'https://acme.jesadakorn.com', holdingSlug: 'acme', holdingId: 'h001' }],
+let cfg: string;
+let response: { body: unknown; status: number };
+let observed: { url: string; host: string | undefined; body: string };
+const server = createServer(async (request, result) => {
+  const chunks: Buffer[] = [];
+  for await (const chunk of request) chunks.push(Buffer.from(chunk));
+  observed = {
+    url: request.url ?? '',
+    host: request.headers.host,
+    body: Buffer.concat(chunks).toString('utf8'),
+  };
+  result.writeHead(response.status, { 'content-type': 'application/json' });
+  result.end(JSON.stringify(response.body));
 });
+beforeAll(async () => {
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('Expected a loopback listener');
+  cfg = JSON.stringify({
+    privateBaseUrl: `http://127.0.0.1:${address.port}`,
+    timeoutMs: 1000,
+    holdings: [{ origin: 'https://acme.jesadakorn.com', holdingSlug: 'acme', holdingId: 'h001' }],
+  });
+});
+beforeEach(() => { response = { body: {}, status: 503 }; });
+afterAll(() => new Promise<void>((resolve, reject) => {
+  server.close(error => error ? reject(error) : resolve());
+}));
 const env = (raw: string | undefined = cfg): Record<string, string | undefined> => ({ [ENV]: raw });
-const reply = (body: unknown, status = 200) =>
-  vi.fn(async () => ({ status, json: async () => body, body: { cancel: async () => {} } }));
-
-afterEach(() => vi.unstubAllGlobals());
+const reply = (body: unknown, status = 200) => { response = { body, status }; };
 
 describe('native runtime control-plane read client', () => {
   test('emits no SQL and plans only registered kinds', () => {
@@ -156,33 +179,29 @@ describe('native runtime control-plane read client', () => {
       JSON.stringify({ ...JSON.parse(cfg), privateBaseUrl: 'http://127.0.0.1:3100' }),
       JSON.stringify({ ...JSON.parse(cfg), timeoutMs: 100 }),
       JSON.stringify({ ...JSON.parse(cfg), holdings: [] }),
-    ]) expect(() => parseControlPlaneConfig(raw)).toThrow(ApiError);
+    ]) expect(() => parseControlPlaneConfig(raw)).toThrow("The native Runtime control-plane service is unavailable.");
   });
 
   test('plans pass through owner SQL and binds byte-for-byte', async () => {
     const sql = 'SELECT checksum FROM erpx_migrations WHERE name=$1';
-    const fetchMock = reply({ data: { sql, values: ['a.sql'] } });
-    vi.stubGlobal('fetch', fetchMock);
+    reply({ data: { sql, values: ['a.sql'] } });
     expect(await planRuntimeControlPlane(RD_MIGRATION_CHECKSUM, ['a.sql'], env())).toEqual({
       sql,
       values: ['a.sql'],
     });
-    const [url, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
-    expect(String(url)).toBe(
-      'http://127.0.0.1:4200/api/v1/holdings/acme/runtime/control-plane-read-port',
-    );
-    expect((init.headers as Record<string, string>).host).toBe('acme.jesadakorn.com');
-    expect(init.body).toBe(JSON.stringify({ kind: RD_MIGRATION_CHECKSUM, values: ['a.sql'] }));
+    expect(observed.url).toBe('/api/v1/holdings/acme/runtime/control-plane-read-port');
+    expect(observed.host).toBe('acme.jesadakorn.com');
+    expect(observed.body).toBe(JSON.stringify({ kind: RD_MIGRATION_CHECKSUM, values: ['a.sql'] }));
   });
 
   test('rejects unknown kinds, arity mismatch and malformed replies', async () => {
-    await expect(planRuntimeControlPlane('SELECT 1', [], env())).rejects.toThrow(ApiError);
-    vi.stubGlobal('fetch', reply({ data: { sql: 'SELECT 1', values: [] } }));
-    await expect(planRuntimeControlPlane(RD_MIGRATION_CHECKSUM, ['a.sql'], env())).rejects.toThrow(ApiError);
-    vi.stubGlobal('fetch', reply({ data: { sql: 'UPDATE x SET y=1', values: [] } }));
-    await expect(planRuntimeControlPlane(RD_MIGRATION_RECEIPTS, [], env())).rejects.toThrow(ApiError);
-    vi.stubGlobal('fetch', reply({}, 503));
-    await expect(planRuntimeControlPlane(RD_MIGRATION_RECEIPTS, [], env())).rejects.toThrow(ApiError);
+    await expect(planRuntimeControlPlane('SELECT 1', [], env())).rejects.toMatchObject({ status: 503, code: "RUNTIME_CONTROL_PLANE_READ_INVALID" });
+    reply({ data: { sql: 'SELECT 1', values: [] } });
+    await expect(planRuntimeControlPlane(RD_MIGRATION_CHECKSUM, ['a.sql'], env())).rejects.toMatchObject({ status: 503, code: "NATIVE_RUNTIME_CONTROL_PLANE_RESPONSE_INVALID" });
+    reply({ data: { sql: 'UPDATE x SET y=1', values: [] } });
+    await expect(planRuntimeControlPlane(RD_MIGRATION_RECEIPTS, [], env())).rejects.toMatchObject({ status: 503, code: "NATIVE_RUNTIME_CONTROL_PLANE_RESPONSE_INVALID" });
+    reply({}, 503);
+    await expect(planRuntimeControlPlane(RD_MIGRATION_RECEIPTS, [], env())).rejects.toMatchObject({ status: 503, code: "RUNTIME_CONTROL_PLANE_READ_FAILED" });
   });
 });
 
@@ -211,17 +230,13 @@ describe('runtime UTC-date read family cut over to the native port', () => {
   });
 
   test('the planned UTC read executes on the caller unit without binds', async () => {
-    const fetchMock = reply({ data: { sql: utcSql, values: [] } });
-    vi.stubGlobal('fetch', fetchMock);
+    reply({ data: { sql: utcSql, values: [] } });
     const plan = await planRuntimeControlPlane('runtime_rd_utc_date', [], env());
     expect(plan).toEqual({ sql: utcSql, values: [] });
-    expect(initBody(fetchMock)).toBe(JSON.stringify({ kind: 'runtime_rd_utc_date', values: [] }));
+    expect(observed.body).toBe(JSON.stringify({ kind: 'runtime_rd_utc_date', values: [] }));
   });
 });
 
-function initBody(mock: ReturnType<typeof reply>): unknown {
-  return (mock.mock.calls[0] as unknown as [URL, RequestInit])[1].body;
-}
 
 describe('runtime session-health read family cut over to the native port', () => {
   const healthSql = "SELECT current_setting('lock_timeout') AS value";
@@ -246,11 +261,10 @@ describe('runtime session-health read family cut over to the native port', () =>
   });
 
   test('the planned health read keeps its projection and bind count', async () => {
-    const fetchMock = reply({ data: { sql: healthSql, values: [] } });
-    vi.stubGlobal('fetch', fetchMock);
+    reply({ data: { sql: healthSql, values: [] } });
     const plan = await planRuntimeControlPlane('runtime_rd_runtime_health', [], env());
     expect(plan).toEqual({ sql: healthSql, values: [] });
-    expect(initBody(fetchMock)).toBe(
+    expect(observed.body).toBe(
       JSON.stringify({ kind: 'runtime_rd_runtime_health', values: [] }),
     );
   });
@@ -290,13 +304,12 @@ describe('runtime object advisory-lock family cut over to the native planner', (
   });
 
   test('the planned lock keeps the exact key bind and reply shape', async () => {
-    const fetchMock = reply({ data: { sql: lockSql, values: ['attachment-object:c:k'] } });
-    vi.stubGlobal('fetch', fetchMock);
+    reply({ data: { sql: lockSql, values: ['attachment-object:c:k'] } });
     expect(await planRuntimeControlPlane('runtime_rd_object_lock', ['attachment-object:c:k'], env())).toEqual({
       sql: lockSql,
       values: ['attachment-object:c:k'],
     });
-    expect(initBody(fetchMock)).toBe(
+    expect(observed.body).toBe(
       JSON.stringify({ kind: 'runtime_rd_object_lock', values: ['attachment-object:c:k'] }),
     );
   });
@@ -332,13 +345,12 @@ describe('runtime pair-key transaction lock family cut over to the native planne
   });
 
   test('a planned pair lock keeps namespace/key bind order', async () => {
-    const fetchMock = reply({ data: { sql: pairLockSql, values: ['transaction', 'aggregate-1'] } });
-    vi.stubGlobal('fetch', fetchMock);
+    reply({ data: { sql: pairLockSql, values: ['transaction', 'aggregate-1'] } });
     expect(await planRuntimeControlPlane('runtime_rd_pair_lock', ['transaction', 'aggregate-1'], env())).toEqual({
       sql: pairLockSql,
       values: ['transaction', 'aggregate-1'],
     });
-    expect(initBody(fetchMock)).toBe(
+    expect(observed.body).toBe(
       JSON.stringify({ kind: 'runtime_rd_pair_lock', values: ['transaction', 'aggregate-1'] }),
     );
   });
@@ -375,13 +387,12 @@ describe('runtime migration advisory-lock family cut over to the native planner'
   });
 
   test('the planned migration lock is bind-free', async () => {
-    const fetchMock = reply({ data: { sql: lockSql, values: [] } });
-    vi.stubGlobal('fetch', fetchMock);
+    reply({ data: { sql: lockSql, values: [] } });
     expect(await planRuntimeControlPlane('runtime_rd_migration_lock', [], env())).toEqual({
       sql: lockSql,
       values: [],
     });
-    expect(initBody(fetchMock)).toBe(
+    expect(observed.body).toBe(
       JSON.stringify({ kind: 'runtime_rd_migration_lock', values: [] }),
     );
   });
@@ -419,13 +430,12 @@ describe('runtime lock-timeout session family cut over to the native planner', (
   });
 
   test('restore keeps the prior timeout bind and the health projection is unchanged', async () => {
-    const fetchMock = reply({ data: { sql: restoreSql, values: ['5s'] } });
-    vi.stubGlobal('fetch', fetchMock);
+    reply({ data: { sql: restoreSql, values: ['5s'] } });
     expect(await planRuntimeControlPlane('runtime_rd_lock_timeout_restore', ['5s'], env())).toEqual({
       sql: restoreSql,
       values: ['5s'],
     });
-    expect(initBody(fetchMock)).toBe(
+    expect(observed.body).toBe(
       JSON.stringify({ kind: 'runtime_rd_lock_timeout_restore', values: ['5s'] }),
     );
     expect(src('runtime/postgres.ts')).toContain('planRuntimeControlPlane(RD_RUNTIME_HEALTH)');

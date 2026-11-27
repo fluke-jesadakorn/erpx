@@ -1,4 +1,5 @@
 import "server-only";
+import { Agent, request } from "node:http";
 import { ApiError } from "@erpx/server-runtime/public/http";
 
 /**
@@ -112,6 +113,51 @@ export function parseControlPlaneConfig(raw: string | undefined): Config {
   return { base: base.origin, timeoutMs: value.timeoutMs as number, holdings };
 }
 
+// The private listener is loopback, while authority depends on the registered
+// Holding Host. Node fetch replaces that header with the listener address.
+function requestPlan(url: URL, target: Holding, body: string, timeoutMs: number): Promise<{ status: number; payload: unknown }> {
+  return new Promise((resolve, reject) => {
+    const agent = new Agent({ keepAlive: false, proxyEnv: {} as import("node:http").ProxyEnv });
+    const outgoing = request(url, {
+      method: "POST",
+      agent,
+      signal: AbortSignal.timeout(timeoutMs),
+      headers: {
+        host: target.host,
+        origin: target.origin,
+        accept: "application/json",
+        "content-type": "application/json",
+        "content-length": Buffer.byteLength(body),
+        "cache-control": "no-cache",
+      },
+    }, incoming => {
+      incoming.once("error", reject);
+      const status = incoming.statusCode ?? 502;
+      if (status !== 200) {
+        incoming.resume();
+        resolve({ status, payload: null });
+        return;
+      }
+      const chunks: Buffer[] = [];
+      let bytes = 0;
+      incoming.on("data", (chunk: Buffer) => {
+        bytes += chunk.length;
+        if (bytes > 2 * 1024 * 1024) incoming.destroy(new Error("RUNTIME_CONTROL_PLANE_RESPONSE_TOO_LARGE"));
+        else chunks.push(chunk);
+      });
+      incoming.once("end", () => {
+        let payload: unknown;
+        try { payload = JSON.parse(Buffer.concat(chunks).toString("utf8")); }
+        catch { payload = null; }
+        resolve({ status, payload });
+      });
+    });
+    outgoing.once("error", reject);
+    outgoing.once("close", () => agent.destroy());
+    outgoing.end(body);
+  });
+}
+
 /** Plan one registered control-plane read. The SQL is owned by the axum port. */
 export async function planRuntimeControlPlane(
   kind: string,
@@ -149,30 +195,14 @@ export async function planRuntimeControlPlane(
     `/api/v1/holdings/${encodeURIComponent(target.holdingSlug)}/runtime/control-plane-read-port`,
     cfg.base,
   );
-  let response: Response;
+  let reply: { status: number; payload: unknown };
   try {
-    response = await fetch(url, {
-      method: "POST",
-      headers: {
-        host: target.host,
-        origin: target.origin,
-        accept: "application/json",
-        "content-type": "application/json",
-        "cache-control": "no-cache",
-      },
-      body,
-      cache: "no-store",
-      redirect: "error",
-      signal: AbortSignal.timeout(cfg.timeoutMs),
-    });
+    reply = await requestPlan(url, target, body, cfg.timeoutMs);
   } catch {
     return unavailable();
   }
-  if (response.status !== 200) {
-    void response.body?.cancel().catch(() => undefined);
-    return unavailable("RUNTIME_CONTROL_PLANE_READ_FAILED");
-  }
-  const payload: unknown = await response.json().catch(() => null);
+  if (reply.status !== 200) return unavailable("RUNTIME_CONTROL_PLANE_READ_FAILED");
+  const { payload } = reply;
   const data = object(payload) ? payload.data : undefined;
   if (
     !object(data) ||
