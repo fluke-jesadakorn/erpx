@@ -35,6 +35,8 @@ import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {salesEditorOptions,type SalesEditorOptions} from "@erpx/server-commerce/public/sales-editor";
 
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
+import { followupCreationHref } from "@erpx/feature-records/lib/record-drawer";
+import { customerFollowupWorkspace } from "@erpx/server-sales/public/customer-followups";
 import { supplierPromiseDetail } from "@erpx/server-procurement/public/supplier-promises";
 import { ownedSupplierPromiseDetail, ownedSupplierPromiseHistory } from "@erpx/feature-procurement/public/native-supplier-promise-history-owned";
 import { SupplierBillCapture } from "@erpx/feature-records/components/loaders/modules--supplier-bill-console";
@@ -177,6 +179,12 @@ export default async function OrderPage({
   const reconciliationControls = Object.fromEntries(await Promise.all(data.customerNotifications.filter(row=>row.status==="unknown").map(async row=>[String(row.id),await customerNotificationReconciliationControls(actor,String(row.id))] as const)));
   const permissions = commercePermissions(actor);
   const canEdit = order.kind === "purchase" ? permissions.purchase : permissions.sales;
+  // A follow-up is a CRM action on an actual Sales source, not an order edit.
+  // The order-editor purchase flag must not hide it; the follow-up owner's own
+  // scoped workspace decides whether this source can be assigned.
+  const canAssignFollowup = !printing && order.kind !== "purchase" && hasPermission(actor, "commerce.sales")
+    ? await customerFollowupWorkspace(actor, id).then(entry => entry.canCreate === true && !!entry.order).catch(() => false)
+    : false;
   const emptySalesOptions:SalesEditorOptions={currency:"",products:[],parties:[],warehouses:[],nodes:[],priceLists:[],priceListItems:[]};
   const options = canEdit && order.state === "draft" ? order.kind === "purchase" ? await commerceOverview(actor) : order.kind === "quote" || order.kind === "sales" ? purchase?.newWork===false ? emptySalesOptions : await salesEditorOptions(actor,order.kind) : null : null;
   const linkedRequest = await (await commercePresentationQueries(actor.holdingId)).commerceEntrypointRecordFacts().linkedRequest(actor.companyId,id);
@@ -281,8 +289,8 @@ export default async function OrderPage({
       {!printing && order.kind !== "purchase" && (
         <Link href={canonicalUiHref(`${base}/commerce/orders/${id}/notes`)}>Customer contact notes (internal)</Link>
       )}
-      {!printing && order.kind !== "purchase" && canEdit && purchase?.newWork !== false && (
-        <Link href={canonicalUiHref(`${base}/customer-followups?new=1&orderId=${encodeURIComponent(id)}`)}>
+      {canAssignFollowup && (
+        <Link href={followupCreationHref(base, id)}>
           Assign customer follow-up
         </Link>
       )}

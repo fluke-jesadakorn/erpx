@@ -5,6 +5,9 @@ import {recordRoutes,recordSections,defaultRecordSection,recordBasePath,type Rec
 export {recordRoutes,recordSections,defaultRecordSection,isRecordKind} from '@erpx/feature-records/lib/record-route-definitions';
 export type {RecordKind,RecordTarget} from '@erpx/feature-records/lib/record-route-definitions';
 export function recordRouteTemplate(kind:RecordKind,args:Record<string,string>={}){return recordBasePath(kind,args,routePath);}
+/** Order-linked creation stays a collection action: it opens the Sales follow-up
+ * drawer with the actual quotation or order as its source, never a fake record ID. */
+export function followupCreationHref(base:string,orderId:string){const url=new URL(base+'/customer-followups','https://erpx.invalid');url.searchParams.set('new','1');url.searchParams.set('orderId',orderId);return canonicalUiHref(url.pathname+url.search);}
 export function recordTarget(href: string, base: string): RecordTarget | null {
  let url:URL;try{url=new URL(href,'https://erpx.invalid');}catch{return null;}
  if(url.origin!=='https://erpx.invalid'||url.searchParams.get('print')==='1')return null;

@@ -36,14 +36,18 @@ import { HubCreate, HubCursor, HubFilters, HubTable, hubPage } from "@erpx/featu
 import styles from "@erpx/feature-sales/components/customers/hub.module.css";
 
 export async function SalesTodayView({ actor, base, query }: { actor: WorkContext; base: string; query: HubQuery }) {
-  const data = await salesToday(actor, query), rows = hubPage(data.items, query);
-  const newForm = data.canCreateFollowup && query.new === "1";
+  // An order-linked CTA bypasses the CRM pipeline hub gate: the follow-up
+  // owner port has already scoped this actual quotation or Sales order.
+  const linkedSource = query.new === "1" && !!queryValue(query, "orderId");
+  const data = await salesToday(actor, linkedSource ? { ...query, kind: "all" } : query), rows = hubPage(data.items, query);
+  const newForm = query.new === "1" && (data.canCreateFollowup || linkedSource);
   const source = newForm && query.orderId ? await customerFollowupWorkspace(actor, queryValue(query, "orderId")) : null;
   const orders = newForm && !source ? (await workOrderRows(actor)).filter(row => ["quote", "sales"].includes(String(row.kind))) : [];
+  const showCreate = data.canCreateFollowup || (linkedSource && !!source);
   return <>
     <div className={styles.filterRow}>
       <HubSegments base={base} hub="sales" query={query} name="owner" selected={queryValue(query, "owner", "mine")} label="Work ownership" values={[["mine", "My work"], ["team", "Team"]]} />
-      {data.canCreateFollowup && <HubCreate base={base} hub="sales" query={query} label="New follow-up">
+      {showCreate && <HubCreate base={base} hub="sales" query={query} label="New follow-up">
         {newForm && (source ? (
           source.canCreate && source.order
             ? <CustomerFollowupForm base={base} order={source.order} recipients={source.recipients} purchase={source.purchase} inlineCreate />

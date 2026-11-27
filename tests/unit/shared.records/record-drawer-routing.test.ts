@@ -3,7 +3,7 @@ import {build} from 'esbuild';
 import {chromium,expect as browserExpect} from '@playwright/test';
 import {existsSync,readFileSync} from 'node:fs';
 import {createServer} from 'node:http';
-import {recordTarget,recordDrawerHref,recordCanonicalHref,withoutRecordDrawer} from '@erpx/feature-records/lib/record-drawer';
+import {recordTarget,recordDrawerHref,recordCanonicalHref,withoutRecordDrawer,followupCreationHref} from '@erpx/feature-records/lib/record-drawer';
 import {canonicalUiHref,destinations,destinationTrail} from '@erpx/feature-work_projection/lib/destination-registry';
 import {canonicalDestinationLinks} from '@erpx/feature-work_projection/lib/destination-links';
 import {destinationProduct} from '@erpx/contracts/product-registry';
@@ -59,6 +59,39 @@ it('opens a quotation in the selected Company and preserves the exact public lis
   } finally {
     vi.unstubAllEnvs();
   }
+});
+
+it('opens an order-scoped follow-up creation drawer from a genuine quotation',()=>{
+ vi.stubEnv('ERPX_COMPANY_ADDRESS_ROUTING','acme');
+ try {
+  const href=followupCreationHref(base,'quote-1');
+  expect(href).toBe(`${base}/customers-sales/sales/followups?new=1&orderId=quote-1`);
+  expect(canonicalUiHref(href)).toBe(href);
+  // Creation is a collection action, never a record ID that could be forged.
+  expect(recordTarget(href,base)).toBeNull();
+  const scope={audience:'sales' as const,holdingSlug:'acme',companySlug:'acme-co'};
+  const navigation=productNavigationHref(href,scope),opened=new URL(navigation.href);
+  expect(opened.pathname).toBe('/acme-co/sales/followups');
+  expect(opened.searchParams.get('new')).toBe('1');
+  expect(opened.searchParams.get('orderId')).toBe('quote-1');
+  // Same-app navigation keeps the Sales client runtime, so the form drawer hydrates.
+  expect(navigation.handoff).toBe(false);
+ } finally {
+  vi.unstubAllEnvs();
+ }
+});
+
+it('wires the quoted-order CTA to a scoped, hydrated follow-up creation drawer',()=>{
+ const presenter=readFileSync('packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/commerce/orders/[id]/screen.tsx','utf8');
+ expect(presenter).toContain('customerFollowupWorkspace(actor, id)');
+ expect(presenter).toContain('{canAssignFollowup && (');
+ expect(presenter).toContain('followupCreationHref(base, id)');
+ expect(presenter).not.toMatch(/canAssignFollowup[^\n]*purchase\?\.newWork/);
+ const view=readFileSync('packages/feature-sales/src/components/customers/sales-views.tsx','utf8');
+ expect(view).toContain('linkedSource ? { ...query, kind: "all" } : query');
+ expect(view).toContain('newForm = query.new === "1" && (data.canCreateFollowup || linkedSource)');
+ expect(view).toContain('showCreate && <HubCreate');
+ expect(view).toMatch(/<CustomerFollowupForm base=\{base\} order=\{source\.order\}[^\n]*inlineCreate \/>/);
 });
 
 it('opens distinct Support cases from the product entry and returns to its original filters',()=>{
