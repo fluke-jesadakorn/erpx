@@ -118,6 +118,12 @@ pub mod service_package_settlement;
 
 pub mod journal_list;
 
+/// Finance owner WHERE port for the native Records Search read. Composition
+/// supplies the actor CTE and Company scope; this module carries no binds.
+pub mod records_search_policy {
+    pub use crate::adapters::records_search_policy::records_search_finance_predicate;
+}
+
 pub mod sales_invoice_list;
 
 pub mod sales_invoice_create;

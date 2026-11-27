@@ -19,6 +19,7 @@ pub(crate) mod money_snapshot;
 pub(crate) mod postgres_journal;
 pub(crate) mod postgres_journal_facts;
 pub(crate) mod postgres_journal_review;
+pub(crate) mod records_search_policy;
 pub(crate) mod raw_field_invoice_marker;
 pub(crate) mod raw_field_journal_marker;
 pub(crate) mod raw_field_payment_allocation_marker;

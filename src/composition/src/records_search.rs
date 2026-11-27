@@ -1,4 +1,11 @@
 //! Records search on the Holding transaction which validated the current Work selection.
+use erpx_server_commercial::public::{
+    capability_decision::PgCapabilityDecisionReader,
+    purchases::{
+        CapabilityPurpose, PackageEnforcementMode, current_package_catalogue,
+        lock_commercial_authority_sources,
+    },
+};
 use erpx_server_identity_access::public::{
     AccountPolicy, RequestAudience,
     account_inbound_http::{
@@ -13,9 +20,9 @@ use erpx_server_identity_access::public::{
 };
 use erpx_server_records::public::{
     record_search::{
-        PrincipalHit, RecordHit, RecordSearchRead, SearchActor, SearchFuture, SearchQuery,
-        SearchResponse, execute_search, read_search_candidates, request_invalid, unavailable,
-        valid_slug,
+        PrincipalHit, RecordHit, RecordSearchGuards, RecordSearchRead, SearchActor, SearchFuture,
+        SearchQuery, SearchResponse, execute_search, read_search_candidates, request_invalid,
+        unavailable, valid_slug,
     },
     record_search_http::RecordSearchBackend,
 };
@@ -23,7 +30,7 @@ use erpx_server_runtime::public::{
     http_support::HeaderMap,
     postgres::{PgTransactionError, PgWorkFuture},
 };
-use erpx_server_shared::public::{BusinessError, Clock, FailureKind};
+use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, TimestampMillis};
 use sqlx::PgConnection;
 use std::sync::Arc;
 
@@ -35,14 +42,74 @@ impl HoldingWorkSourcePreparation for SearchSources {
         &'c self,
         connection: &'c mut PgConnection,
     ) -> PgWorkFuture<'c, (), BusinessError> {
-        Box::pin(lock_account_work_presentation_sources(connection))
+        Box::pin(async {
+            lock_commercial_authority_sources(connection).await?;
+            lock_account_work_presentation_sources(connection).await
+        })
     }
 }
 
 struct SearchRead<'c> {
     holding: &'c mut PgConnection,
     control: &'c mut PgConnection,
-    field_probe: &'static str,
+    guards: RecordSearchGuards<'c>,
+}
+
+fn finance_enforcement_mode() -> Result<PackageEnforcementMode, BusinessError> {
+    let raw =
+        std::env::var("ERPX_FINANCE_PACKAGE_ENFORCEMENT").unwrap_or_else(|_| "disabled".to_owned());
+    let mode = match raw.as_str() {
+        "disabled" => PackageEnforcementMode::Disabled,
+        "shadow" => PackageEnforcementMode::Shadow,
+        "enforced" => PackageEnforcementMode::Enforced,
+        _ => {
+            return Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "PACKAGE_ENFORCEMENT_CONFIGURATION",
+                "Package enforcement is unavailable.",
+            ));
+        }
+    };
+    if mode != PackageEnforcementMode::Disabled
+        && std::env::var("ERPX_ENVIRONMENT").as_deref() != Ok("local")
+    {
+        return Err(BusinessError::new(
+            FailureKind::Unavailable,
+            "PACKAGE_ENFORCEMENT_ENVIRONMENT",
+            "Package enforcement is unavailable in this environment.",
+        ));
+    }
+    Ok(mode)
+}
+
+async fn finance_accounting_history(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    mode: PackageEnforcementMode,
+    now: TimestampMillis,
+) -> Result<bool, PgTransactionError<BusinessError>> {
+    if mode == PackageEnforcementMode::Disabled {
+        return Ok(true);
+    }
+    let catalogue = current_package_catalogue()?;
+    let check = PgCapabilityDecisionReader::new(company.clone(), connection, &catalogue)
+        .check("finance.accounting", CapabilityPurpose::History, mode, now)
+        .await?;
+    if mode == PackageEnforcementMode::Shadow {
+        eprintln!(
+            "{}",
+            serde_json::json!({
+                "event": "commercial.purchase.shadow",
+                "phase": "read",
+                "companyId": company.as_str(),
+                "capability": "finance.accounting",
+                "purpose": "history",
+                "code": check.decision.as_ref().map(|decision| decision.code),
+                "purchaseRevision": check.revision,
+            }),
+        );
+    }
+    Ok(check.allowed_by_mode)
 }
 
 impl RecordSearchRead for SearchRead<'_> {
@@ -55,7 +122,7 @@ impl RecordSearchRead for SearchRead<'_> {
             self.holding,
             actor,
             query,
-            self.field_probe,
+            &self.guards,
         ))
     }
 
@@ -147,7 +214,8 @@ impl RecordSearchBackend for RecordsSearchBackend {
                             )
                             .resolve_rendered_read()?;
                             let scope = account.workspace(selection);
-                            let now = clock.now().get();
+                            let search_time = clock.now();
+                            let now = search_time.get();
                             let presentation = read_account_work_presentation(
                                 connection,
                                 &scope,
@@ -173,10 +241,31 @@ impl RecordSearchBackend for RecordsSearchBackend {
                                     .map(|id| id.as_str().to_owned()),
                                 modules: current.modules().to_vec(),
                             };
+                            let finance_mode = finance_enforcement_mode()?;
+                            let finance_predicate = if actor.modules.iter().any(|module| module == "finance") {
+                                let accounting_history = finance_accounting_history(
+                                    connection,
+                                    &workspace.company_id,
+                                    finance_mode,
+                                    search_time,
+                                ).await?;
+                                erpx_server_finance::public::records_search_policy::records_search_finance_predicate(
+                                    finance_mode == PackageEnforcementMode::Enforced,
+                                    accounting_history,
+                                    std::env::var("NODE_ENV").as_deref() == Ok("production"),
+                                )
+                            } else {
+                                "TRUE".to_owned()
+                            };
                             let mut read = SearchRead {
                                 holding: connection,
                                 control,
-                                field_probe,
+                                guards: RecordSearchGuards {
+                                    field_probe,
+                                    finance_predicate: &finance_predicate,
+                                    assignment_role: &selected.assignment().role,
+                                    now_ms: now,
+                                },
                             };
                             let result = execute_search(&mut read, &actor, &query, now).await?;
                             if clock.now().get() >= current.expires_at() {
