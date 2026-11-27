@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type MouseEvent } from "react";
-import { ArrowUpRight, Building2, ChevronDown, Grid2X2, MapPin, MessageCircle, Settings, ShoppingBag } from "lucide-react";
+import { ArrowUpRight, Building2, ChevronDown, CircleHelp, FileText, GraduationCap, Grid2X2, MapPin, MessageCircle, Package, Settings, ShoppingBag, UsersRound, Wallet } from "lucide-react";
 import { Button } from "@erpx/ui/components/button";
 import { Dialog } from "@erpx/ui/components/dialog";
 import { TextInput } from "@erpx/ui/components/input";
@@ -11,6 +11,16 @@ import { emptyAppsMemory, readAppsMemory, writeAppsMemory, restoreAppsSelection,
 import styles from "./apps-launcher.module.css";
 
 const launcherHash = "#apps";
+const appIcons = {
+  apps: MessageCircle,
+  sales: ShoppingBag,
+  finance: Wallet,
+  people: UsersRound,
+  supply: Package,
+  legal: FileText,
+  learn: GraduationCap,
+  support: CircleHelp,
+};
 
 /** The tree previews choices. Only an authorized owner launch link changes context. */
 export function AppsLauncher({ companies, accountId, language, provider, existingWorkspaces = [], currentCompanyId, currentWorkspaceId, productLabel, workspaceLabel, entry = false }: {
@@ -29,6 +39,7 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
   const trigger = useRef<HTMLButtonElement>(null);
   const initialized = useRef<string | null>(null);
   const launched = useRef(false);
+  const flight = useRef<{ layer: HTMLElement; animation: Animation } | null>(null);
   const current = restoreAppsSelection(companies, memory);
   const company = companies.find(item => item.id === current.memory.companyId);
   const workspace = company?.workspaces.find(item => item.id === current.memory.workspaceId);
@@ -58,6 +69,9 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
 
   useEffect(() => {
     const sync = () => {
+      flight.current?.animation.cancel();
+      flight.current?.layer.remove();
+      flight.current = null;
       launched.current = false;
       setOpen(window.location.hash === launcherHash);
     };
@@ -73,6 +87,8 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
       window.removeEventListener("erpx:open-apps", show);
       window.removeEventListener("popstate", sync);
       window.removeEventListener("pageshow", restore);
+      flight.current?.animation.cancel();
+      flight.current?.layer.remove();
     };
   }, []);
 
@@ -106,11 +122,18 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
       navigate();
       return;
     }
-    const animation = tile.animate(
-      [{ transform: "scale(1)" }, { transform: "scale(1.085)", filter: "brightness(1.12)" }],
-      { duration: 155, easing: "cubic-bezier(.2,.75,.25,1)" },
-    );
-    animation.finished.then(navigate, navigate);
+    const rect = tile.getBoundingClientRect();
+    const layer = document.createElement("div");
+    layer.className = styles.flight;
+    layer.ariaHidden = "true";
+    layer.style.backgroundColor = window.getComputedStyle(tile).backgroundColor;
+    document.body.append(layer);
+    const animation = layer.animate([
+      { transform: `translate3d(${rect.left}px,${rect.top}px,0) scale(${rect.width / window.innerWidth},${rect.height / window.innerHeight})`, borderRadius: "12px", opacity: 0.24 },
+      { transform: "translate3d(0,0,0) scale(1,1)", borderRadius: "0px", opacity: 1 },
+    ], { duration: 230, easing: "cubic-bezier(.22,.76,.2,1)", fill: "forwards" });
+    flight.current = { layer, animation };
+    animation.finished.then(() => { if (flight.current?.animation === animation) navigate(); }, () => {});
   }
   const matches = (text: string) => text.toLocaleLowerCase().includes(areaQuery.trim().toLocaleLowerCase());
   function areaButton(item: AppsCompany, area: AppsWorkspace) {
@@ -126,7 +149,7 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
     <Dialog appearance="standard" presentation="fullscreen" open={open} onClose={close} title={t("แอป", "Apps")} className={styles.modal} bodyClassName={styles.modalBody} finalFocus={() => trigger.current} closeLabel={t("ปิดแอป", "Close Apps")}>
       {(notice || current.invalid) && <InlineNotice tone="info">{t("พื้นที่ที่จำไว้ไม่อยู่ในสิทธิ์ปัจจุบันแล้ว กรุณาเลือกใหม่", "Your remembered workspace is no longer available. Choose again.")}</InlineNotice>}
       {workspace && <Button className={styles.areaToggle} appearance="standard" variant="ghost" aria-expanded={showAreas} onClick={() => setShowAreas(!showAreas)}><MapPin size={17} aria-hidden="true" />{t("เปลี่ยนพื้นที่ทำงาน", "Change workspace")}</Button>}
-      <div className={styles.panes}>
+      <div className={styles.panes} data-holding-slug={company?.holdingSlug}>
         <nav className={styles.tree} data-mobile-hidden={!!workspace && !showAreas} aria-label={t("พื้นที่ทำงาน", "Workspaces")}>
           <label className={styles.search}><span>{t("ค้นหาพื้นที่ทำงาน", "Search workspaces")}</span><TextInput data-autofocus={!workspace || undefined} appearance="standard" type="search" value={areaQuery} onChange={event => setAreaQuery(event.target.value)} /></label>
           <ul>{holdings.map(holding => {
@@ -158,9 +181,9 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
           {workspace && <>
             <label className={styles.search}><span>{t("ค้นหาแอปทั้งหมด", "Search all apps")}</span><TextInput appearance="standard" type="search" value={appQuery} onChange={event => setAppQuery(event.target.value)} /></label>
             <div className={styles.grid}>{apps.map(app => {
-              const Icon = app.productId === "sales" ? ShoppingBag : app.productId === "apps" ? MessageCircle : Grid2X2;
+              const Icon = appIcons[app.productId as keyof typeof appIcons] ?? Grid2X2;
               return <a data-product-switch data-app-id={app.productId} className={styles.app} href={app.href} key={app.productId} onClick={event => launch(event, app.productId)}>
-                <Icon size={23} aria-hidden="true" /><ArrowUpRight className={styles.openIcon} size={17} aria-hidden="true" />
+                <span className={styles.appIcon}><Icon size={25} strokeWidth={1.7} aria-hidden="true" /></span><ArrowUpRight className={styles.openIcon} size={17} aria-hidden="true" />
                 <strong>{app.label}</strong>{app.accessLabel && <small>{app.accessLabel}</small>}
               </a>;
             })}</div>
