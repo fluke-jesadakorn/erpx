@@ -14,13 +14,12 @@ function access(facts:Partial<ExecutiveAccessPorts['repository']>={}){return cre
 describe('Executive report date defaults use the injected clock',()=>{
  test('uses the explicit UTC year at its boundary regardless of the host year',()=>{expect(explicitDefaultFilters(new Date('2031-01-01T00:00:00Z'))).toEqual({from:'2031-01-01',to:'2031-12-31',currency:'THB'});expect(explicitDefaultFilters(new Date('2030-12-31T23:59:59Z')).to).toBe('2030-12-31');});
  test('creates the original report and revision filters from the supplied application clock',async()=>{
-  const first=vi.fn(()=> 'report'),revision=vi.fn(()=> 'revision'),commitSpy=vi.fn(),now=Date.parse('2031-01-01T00:00:00Z');
+  const create=vi.fn(()=> 'native-create'),commitSpy=vi.fn(),now=Date.parse('2031-01-01T00:00:00Z');
   const commit:ExecutiveReportPorts<string>['commands']['commit']=async(...args)=>{commitSpy(...args);return args[6];};
-  const app=createExecutiveReportApplication(strict<ExecutiveReportPorts<string>>({clock:{now:()=>now},requireAuthor:async()=>{},commands:strict<ExecutiveReportPorts<string>['commands']>({commit}),repository:strict<ExecutiveReportPorts<string>['repository']>({stageCreateReportEffect:first,stageCreateReportEffect2:revision})}));
+  const app=createExecutiveReportApplication(strict<ExecutiveReportPorts<string>>({clock:{now:()=>now},requireAuthor:async()=>{},commands:strict<ExecutiveReportPorts<string>['commands']>({commit}),repository:strict<ExecutiveReportPorts<string>['repository']>({stageCreateReport:create})}));
   expect(await app.createReport(actor,'key','Annual report')).toEqual({id:'report-key'});
-  expect(first).toHaveBeenCalledWith('report-key','company','owner',expect.any(String),JSON.stringify({from:'2031-01-01',to:'2031-12-31',currency:'THB'}),now,now);
-  expect(revision).toHaveBeenCalledWith('report-key',expect.any(String),JSON.stringify({from:'2031-01-01',to:'2031-12-31',currency:'THB'}),'owner',now);
-  expect(commitSpy).toHaveBeenCalledWith(actor,'key','executive.report.create',{title:'Annual report'},'report-key',1,{id:'report-key'},['report','revision']);
+  expect(create).toHaveBeenCalledWith('report-key','company','owner',expect.any(String),JSON.stringify({from:'2031-01-01',to:'2031-12-31',currency:'THB'}),now);
+  expect(commitSpy).toHaveBeenCalledWith(actor,'key','executive.report.create',{title:'Annual report'},'report-key',1,{id:'report-key'},['native-create']);
  });
 });
 describe('Runtime executive access uses current actor facts',()=>{
@@ -46,6 +45,16 @@ const metric:MetricData={schemaVersion:2,metric:'headcount',total:'21',rows:Arra
 function context(overrides:Partial<ExecutiveContextPorts>={}){return createExecutiveContextApplication({clock:{now:()=>42},currentAuthority:async()=>{},catalog:async()=>[],metric:async()=>metric,nodes:async()=>[],positions:async()=>[],...overrides});}
 describe('Executive model context contains only authorized bounded facts',()=>{
  test('unavailable catalogue metrics are never sent to metric adapters',async()=>{const read=vi.fn(async()=>metric),app=context({catalog:async()=>[{id:'headcount',label:'People',description:'People',unit:'count',dateBasis:'current',available:false}],metric:read});expect((await app.executiveAiContext(actor,filters)).snapshots).toEqual([]);expect(read).not.toHaveBeenCalled();});
+ test('unavailable owner metrics are excluded while another authorized metric remains usable',async()=>{
+  const unavailable=Error('unavailable');
+  const app=context({catalog:async()=>[
+   {id:'headcount',label:'People',description:'People',unit:'count',dateBasis:'current',available:true},
+   {id:'receivables',label:'Receivables',description:'Receivables',unit:'money',dateBasis:'current',available:true},
+  ],metric:async(_actor,id)=>{if(id==='receivables')throw unavailable;return metric;},sourceUnavailable:error=>error===unavailable});
+  const result=await app.executiveAiContext(actor,filters);
+  expect(result.catalog.map(m=>m.id)).toEqual(['headcount']);
+  expect(result.unavailableMetrics).toEqual(['receivables']);
+ });
  test('authorized snapshot rows are capped at20 and truthfully marked truncated',async()=>{const app=context({catalog:async()=>[{id:'headcount',label:'People',description:'People',unit:'count',dateBasis:'current',available:true}]});expect((await app.executiveAiContext(actor,filters)).snapshots[0]).toMatchObject({rows:metric.rows.slice(0,20),rowsTruncated:true,total:'21'});});
  test('out-of-snapshot manager references are removed from the model context',async()=>{const app=context({positions:async()=>[{id:'one',reports_to_position_id:'two'},{id:'two',reports_to_position_id:'hidden'}]});expect((await app.executiveAiContext(actor,filters)).organization).toMatchObject({positions:[{id:'one',reports_to_position_id:'two'},{id:'two',reports_to_position_id:null}]});});
  test('revocation after snapshots prevents returning any generated context',async()=>{let reads=0;const app=context({currentAuthority:async()=>{if(++reads===2)throw Error('revoked during read');}});await expect(app.executiveAiContext(actor,filters)).rejects.toThrow('revoked during read');});

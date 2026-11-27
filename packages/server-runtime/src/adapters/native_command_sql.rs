@@ -12,6 +12,18 @@ pub struct NativeStatement {
 
 const STATEMENTS: &[NativeStatement] = &[
     NativeStatement {
+        kind: "executive_create_report",
+        sql: r#"WITH created AS (
+            INSERT INTO executive_reports(id,company_id,owner_id,definition_json,filters_json,created_at,updated_at)
+            VALUES($1,$2,$3,$4,$5,$6,$6)
+            RETURNING id,owner_id,definition_json,filters_json,created_at
+        )
+        INSERT INTO executive_report_revisions(report_id,version,definition_json,filters_json,author_id,created_at)
+        SELECT id,1,definition_json,filters_json,owner_id,created_at FROM created"#,
+        bind_count: 6,
+        scope: "holding",
+    },
+    NativeStatement {
         kind: "runtime_stmt_1",
         sql: r#"INSERT INTO executive_reports(id,company_id,owner_id,definition_json,filters_json,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7)"#,
         bind_count: 7,
@@ -91,8 +103,8 @@ const STATEMENTS: &[NativeStatement] = &[
     }, // generation.ts
     NativeStatement {
         kind: "runtime_stmt_14",
-        sql: r#"UPDATE executive_generation_jobs SET state='ready',proposal_json=$1,updated_at=$2 WHERE id=$3"#,
-        bind_count: 3,
+        sql: r#"UPDATE executive_generation_jobs SET state='ready',proposal_json=$1,updated_at=$2 WHERE id=$3 AND state='running' AND lease_token=$4 AND company_id=$5"#,
+        bind_count: 5,
         scope: "holding",
     }, // generation.ts
     NativeStatement {
@@ -172,6 +184,7 @@ mod tests {
                     || s.sql.trim_start().starts_with("UPDATE")
                     || s.sql.trim_start().starts_with("DELETE")
                     || s.sql.trim_start().starts_with("SELECT")
+                    || (s.kind == "executive_create_report" && s.sql.trim_start().starts_with("WITH created AS"))
             );
             let max = s
                 .sql

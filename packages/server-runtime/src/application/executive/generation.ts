@@ -7,8 +7,8 @@ import type { Job } from '@erpx/server-runtime/domain/executive/generation';
 import { BusinessRuleError, type Clock, type IdentifierSource } from '@erpx/server-shared/index';
 import type { OwnerCommands } from '@erpx/server-workflow/public/owner-command-contract';
 import type { aiRequestQuotaLock } from "@erpx/server-agent/public/ai-quota";
-import type { aiSnapshotGuard, aiUsageStatement, resolveAiProvider } from "@erpx/server-agent/public/ai-providers";
-import type { generateProviderJson, withAiGatewayScope } from "@erpx/server-agent/public/ai-transport";
+import type { aiSnapshotGuard, aiUsageStatement, AiProviderSnapshot } from "@erpx/server-agent/public/ai-providers";
+import type { AiEndpoint, generateProviderJson, withAiGatewayScope } from "@erpx/server-agent/public/ai-transport";
 import type { requireAuthor } from "@erpx/server-runtime/public/executive/access";
 import type { reportAccess } from "@erpx/server-runtime/public/executive/reports";
 import type { executiveAiContext } from "@erpx/server-runtime/public/executive/context";
@@ -45,9 +45,9 @@ export interface ExecutiveGenerationRepository<Effect> {
     }>;
     source11(token: string, value: number, now: number): Promise<Job | null>;
     guard13(id: string, value: "generation-lease", id2: string, token: string, now: number): Effect;
-    source13(value: string, now: number, id: string): Effect;
+    source13(value: string, now: number, id: string, token: string, companyId: string): Effect;
     source14(id: string, companyId: string): Promise<Effect>;
-    source15(value: string, now: number, id: string, token: string): Effect;
+    source15(value: string, now: number, id: string, token: string): Promise<void>;
     source16(value: string, companyId: string): Promise<Effect>;
 }
 export interface ExecutiveGenerationPorts<Effect> {
@@ -63,12 +63,12 @@ export interface ExecutiveGenerationPorts<Effect> {
     }[]): void;
     generate: typeof generateProviderJson;
     withAiGatewayScope: typeof withAiGatewayScope;
-    resolveAiProvider(company: string, kind: 'text'): ReturnType<typeof resolveAiProvider>;
+    resolveAiProvider(company: string, kind: 'text'): Promise<{ endpoint: AiEndpoint; snapshot: AiProviderSnapshot }>;
     generationFeatureGuards(key: string, company: string): Effect[];
     aiRequestQuotaLock(...args: Tail<Parameters<typeof aiRequestQuotaLock>>): PortResult<ReturnType<typeof aiRequestQuotaLock>, Effect>;
     requireAuthor(...args: Tail<Parameters<typeof requireAuthor>>): PortResult<ReturnType<typeof requireAuthor>, Effect>;
     reportAccess(...args: Tail<Parameters<typeof reportAccess>>): PortResult<ReturnType<typeof reportAccess>, Effect>;
-    executiveAiContext(...args: Tail<Parameters<typeof executiveAiContext>>): PortResult<ReturnType<typeof executiveAiContext>, Effect>;
+    executiveAiContext(actor: WorkContext, filters: Parameters<typeof executiveAiContext>[2], question?: string): PortResult<ReturnType<typeof executiveAiContext>, Effect>;
     assertProductionModuleEnabled(...args: Tail<Parameters<typeof assertProductionModuleEnabled>>): PortResult<ReturnType<typeof assertProductionModuleEnabled>, Effect>;
     aiSnapshotGuard(...args: Tail<Parameters<typeof aiSnapshotGuard>>): PortResult<ReturnType<typeof aiSnapshotGuard>, Effect>;
     aiUsageStatement(...args: Tail<Parameters<typeof aiUsageStatement>>): PortResult<ReturnType<typeof aiUsageStatement>, Effect>;
@@ -114,7 +114,7 @@ export function createExecutiveGenerationApplication<Effect>(ports: ExecutiveGen
         const j = await r.source11(token, ports.clock.now() + 120000, ports.clock.now());
         if (!j)
             return false;
-        let provider: Awaited<ReturnType<typeof resolveAiProvider>> | undefined;
+        let provider: Awaited<ReturnType<ExecutiveGenerationPorts<Effect>['resolveAiProvider']>> | undefined;
         try {
             const a = JSON.parse(j.actor_json) as WorkContext;
             await ports.assertProductionModuleEnabled(j.company_id, "operations");
@@ -134,7 +134,7 @@ export function createExecutiveGenerationApplication<Effect>(ports: ExecutiveGen
             provider = await ports.resolveAiProvider(a.companyId, "text");
             if (JSON.stringify(provider.snapshot) !== j.provider_json)
                 throw new BusinessRuleError(409, "PROVIDER_CHANGED", "The AI provider changed. Start a new generation.");
-            const context = await ports.executiveAiContext(a, x.filters);
+            const context = await ports.executiveAiContext(a, x.filters, j.question);
             const catalog = context.catalog;
             await ports.requireAuthor(a, "executive.report.edit");
             const result = await ports.generate({ ...ports.withAiGatewayScope(provider.endpoint, j.id, "executive-canvas", a.branchId), timeoutMs: 90000, sessionId: await ports.sha256(`executive:${a.userId}:${a.assignmentId}:${j.report_id}`) }, [
@@ -145,7 +145,7 @@ Return a complete JSON proposal matching: ${JSON.stringify(z.toJSONSchema(propos
                 { role: "user", content: JSON.stringify({ authorizedContext: context, existing: input.definition, filters: input.filters, selectedWidget: input.selectedWidget, question: j.question }) },
             ], 10000);
             const proposal = proposalSchema.parse(result.result);
-            if (proposal.definition.widgets.some(w => !catalog.some(m => m.id === w.metric) || !metricBreakdowns(w.metric).includes(w.breakdown ?? "default")))
+            if (proposal.definition.widgets.some(w => !catalog.some(m => m.id === w.metric && (m.breakdowns ?? metricBreakdowns(w.metric)).includes(w.breakdown ?? "default"))))
                 throw new BusinessRuleError(422, "AI_METRIC_INVALID", "AI proposed an unavailable metric. Try a narrower request.");
             if (input.selectedWidget) {
                 const replacement = proposal.definition.widgets.find(w => w.id === input.selectedWidget);
@@ -161,7 +161,7 @@ Return a complete JSON proposal matching: ${JSON.stringify(z.toJSONSchema(propos
                 ...ports.generationFeatureGuards(`${j.id}:complete`, j.company_id),
                 r.guard13(j.id, "generation-lease", j.id, token, ports.clock.now()),
                 ports.aiSnapshotGuard(`${j.id}:complete`, provider.snapshot),
-                r.source13(JSON.stringify(proposal), ports.clock.now(), j.id),
+                r.source13(JSON.stringify(proposal), ports.clock.now(), j.id, token, j.company_id),
                 ports.aiUsageStatement(j.id, provider.snapshot, "executive-canvas", "succeeded", result.inputTokens, result.outputTokens, a.branchId),
                 await r.source14(j.id, j.company_id),
             ]));
@@ -169,9 +169,9 @@ Return a complete JSON proposal matching: ${JSON.stringify(z.toJSONSchema(propos
         catch (e) {
             if (e instanceof z.ZodError)
                 ports.schemaRejected(e.issues.map(({ path, code }) => ({ path, code })));
+            await r.source15(e instanceof BusinessRuleError ? e.message : "AI could not produce a valid English report. Your saved report is unchanged. Try a simpler request.", ports.clock.now(), j.id, token);
             await ports.batch(await Promise.all([
                 ...ports.generationFeatureGuards(`${j.id}:failed`, j.company_id),
-                r.source15(e instanceof BusinessRuleError ? e.message : "AI could not produce a valid English report. Your saved report is unchanged. Try a simpler request.", ports.clock.now(), j.id, token),
                 ...(provider ? [ports.aiUsageStatement(j.id, provider.snapshot, "executive-canvas", "failed", 0, 0, (JSON.parse(j.actor_json) as WorkContext).branchId)] : []),
                 await r.source16(`${j.id}:failed`, j.company_id),
             ]));

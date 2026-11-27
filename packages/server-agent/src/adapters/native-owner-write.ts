@@ -2,6 +2,7 @@ import 'server-only';
 import { Agent, request as httpRequest } from 'node:http';
 import { Readable } from 'node:stream';
 import type { SqlStatement } from '@erpx/server-runtime/public/runtime/types';
+import { currentHoldingId } from '@erpx/server-runtime/public/runtime/holding-scope';
 
 /** Canonical no-op readback statement returned after a successful native owner
  * write. It keeps existing caller batches in shape without carrying any
@@ -140,7 +141,14 @@ export async function nativeOwnerWrite(
   options: OwnerWriteOptions,
   noop: () => SqlStatement,
 ): Promise<SqlStatement> {
-  const config = configuration(process.env.ERPX_NATIVE_AGENT_OWNER_WRITE_CONFIG);
+  const holding = currentHoldingId();
+  const executiveUsage = process.env.NODE_ENV === 'development' && kind === 'ag_provider_usage_insert' && values[5] === 'executive-canvas';
+  const scopedConfiguration = executiveUsage
+    ? holding === 'h001' && options.companyId === 'acme-co' ? process.env.ERPX_NATIVE_AGENT_EXECUTIVE_ACME_CONFIG
+      : holding === 'h002' && options.companyId === 'northstar-co' ? process.env.ERPX_NATIVE_AGENT_EXECUTIVE_NORTHSTAR_CONFIG
+      : undefined
+    : undefined;
+  const config = configuration(scopedConfiguration ?? process.env.ERPX_NATIVE_AGENT_OWNER_WRITE_CONFIG);
   if (
     !/^[a-z0-9_]{1,120}$/.test(kind) || values.length < 1 || values.length > 64 ||
     !/^[A-Za-z0-9:_.-]{8,180}$/.test(key) ||

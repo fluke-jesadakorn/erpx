@@ -17,7 +17,7 @@ use erpx_server_runtime::public::postgres::{
 };
 use erpx_server_shared::public::{BusinessError, Clock, FailureKind};
 use serde_json::json;
-use sqlx::PgConnection;
+use sqlx::{AssertSqlSafe, PgConnection};
 use std::sync::Arc;
 
 type Error = PgTransactionError<BusinessError>;
@@ -119,7 +119,7 @@ async fn ledger(
     .execute(&mut *connection).await?;
     sqlx::query(
         "INSERT INTO outbox_events(id,command_id,event_type,aggregate_type,aggregate_id,aggregate_version,payload_json,created_at) \
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(id) DO NOTHING",
+         VALUES($1,$2,$3,$4,$5,$6,$7::text,$8) ON CONFLICT(id) DO NOTHING",
     )
     .bind(format!("runtime-native-outbox-{key}")).bind(key).bind(kind).bind(&record_type).bind(kind).bind(1_i64).bind(&result).bind(now)
     .execute(&mut *connection).await?;
@@ -178,6 +178,11 @@ impl<C: Clock + Send + Sync + 'static> NativeCommandHttpBackend for RuntimeNativ
             };
             let key = request.key.to_owned();
             let kind = command.kind.clone();
+            if kind == "runtime_stmt_21"
+                && (!request.holding_slug.is_empty() || !self.companies.contains_key(&caller.company_id))
+            {
+                return Err(unavailable());
+            }
             let now = if command.now > 0 {
                 command.now
             } else {
@@ -205,8 +210,9 @@ impl<C: Clock + Send + Sync + 'static> NativeCommandHttpBackend for RuntimeNativ
                     let kind = kind.clone();
                     let policy = policy.clone();
                     Box::pin(async move {
-                        let mut repository = PgNativeCommandRepository::new(connection);
                         let kind_name = write_command.kind.clone();
+                        let mut claimed_job = None;
+                        let mut repository = PgNativeCommandRepository::new(connection);
                         let rows = if is_dynamic_statement(&kind_name) {
                             // Render the cross-owner predicate through the owner
                             // port; production fails closed when it is absent.
@@ -234,15 +240,50 @@ impl<C: Clock + Send + Sync + 'static> NativeCommandHttpBackend for RuntimeNativ
                                     ),
                                 ));
                             }
-                            let sql: &'static str = Box::leak(sql.into_boxed_str());
-                            execute_dynamic_command(
-                                sql,
-                                write_command.values.clone(),
-                                &write_key,
-                                &mut repository,
-                            )
-                            .await
-                            .map_err(PgTransactionError::Business)?
+                            if kind_name == "runtime_stmt_21" {
+                                use erpx_server_runtime::public::native_command::NativeCommandRepository;
+                                let scoped = sql.replacen(
+                                    "queued WHERE state='queued' AND",
+                                    "queued WHERE state='queued' AND queued.company_id=$4 AND",
+                                    1,
+                                );
+                                if scoped == sql {
+                                    return Err(PgTransactionError::Business(unavailable()));
+                                }
+                                let projection = format!(
+                                    "WITH claimed AS ({scoped}) SELECT to_jsonb(claimed) FROM claimed"
+                                );
+                                let [token, lease_until, started_at] = write_command.values.as_slice()
+                                else {
+                                    return Err(PgTransactionError::Business(unavailable()));
+                                };
+                                let (Some(token), Some(lease_until), Some(started_at)) =
+                                    (token.as_str(), lease_until.as_i64(), started_at.as_i64())
+                                else {
+                                    return Err(PgTransactionError::Business(unavailable()));
+                                };
+                                let pg = repository.connection().ok_or_else(|| PgTransactionError::Business(unavailable()))?;
+                                claimed_job = sqlx::query_scalar::<_, serde_json::Value>(
+                                    AssertSqlSafe(projection.as_str()),
+                                )
+                                .bind(token)
+                                .bind(lease_until)
+                                .bind(started_at)
+                                .bind(&caller.company_id)
+                                .fetch_optional(pg)
+                                .await
+                                .map_err(|_| PgTransactionError::Business(unavailable()))?;
+                                u64::from(claimed_job.is_some())
+                            } else {
+                                execute_dynamic_command(
+                                    Box::leak(sql.into_boxed_str()),
+                                    write_command.values.clone(),
+                                    &write_key,
+                                    &mut repository,
+                                )
+                                .await
+                                .map_err(PgTransactionError::Business)?
+                            }
                         } else {
                             execute_native_command(&write_command, &write_key, &mut repository)
                                 .await
@@ -253,14 +294,26 @@ impl<C: Clock + Send + Sync + 'static> NativeCommandHttpBackend for RuntimeNativ
                             kind: write_command.kind.clone(),
                             rows,
                         };
+                        if kind_name == "runtime_stmt_14" && rows != 1 {
+                            return Err(BusinessError::new(
+                                FailureKind::Conflict,
+                                "EXECUTIVE_GENERATION_LEASE_CHANGED",
+                                "Generation was cancelled or its lease changed.",
+                            )
+                            .into());
+                        }
                         drop(repository);
                         // Control-scoped infrastructure writes have no Holding
                         // receipt/audit/outbox ledger; that ledger lives only
                         // in Holding databases.
-                        if !is_control {
+                        if !is_control && (outcome.rows > 0 || !is_dynamic_statement(&kind)) {
                             ledger(connection, &caller, &kind, &write_key, now, outcome.rows).await?;
                         }
-                        Ok((outcome.rows, json!({"kind": kind, "rows": outcome.rows})))
+                        let mut reply = json!({"kind": kind, "rows": outcome.rows});
+                        if let Some(job) = claimed_job {
+                            reply["records"] = json!([job]);
+                        }
+                        Ok((outcome.rows, reply))
                     })
                 })
                 .await

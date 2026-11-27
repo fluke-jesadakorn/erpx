@@ -93,6 +93,7 @@ impl OwnerWritePort for PgOwnerWrite<'_> {
         let audit_id = format!("agent-owner-write-audit:{}:{}", command.kind, key);
         let outbox_id = format!("agent-owner-write-outbox:{}:{}", command.kind, key);
         let result = json!({"kind": command.kind, "companyId": command.company_id});
+        let result_text = result.to_string();
         sqlx::query(
             "INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json) \
              VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(command_id) DO NOTHING",
@@ -102,9 +103,9 @@ impl OwnerWritePort for PgOwnerWrite<'_> {
         .bind(command.actor_id)
         .bind(key)
         .bind(command.company_id)
-        .bind(&result)
+        .bind(&result_text)
         .bind(command.now)
-        .bind(json!({}))
+        .bind("{}")
         .execute(&mut *self.connection)
         .await?;
         sqlx::query(
@@ -121,7 +122,7 @@ impl OwnerWritePort for PgOwnerWrite<'_> {
         .bind(1_i64)
         .bind("Agent native owner write")
         .bind(command.now)
-        .bind(json!({}))
+        .bind("{}")
         .execute(&mut *self.connection)
         .await?;
         sqlx::query(
@@ -134,7 +135,7 @@ impl OwnerWritePort for PgOwnerWrite<'_> {
         .bind("owner_write")
         .bind(command.company_id)
         .bind(1_i64)
-        .bind(&result)
+        .bind(&result_text)
         .bind(command.now)
         .execute(&mut *self.connection)
         .await?;

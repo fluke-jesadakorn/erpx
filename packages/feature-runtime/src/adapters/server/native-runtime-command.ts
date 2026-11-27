@@ -15,7 +15,7 @@ import type { SqlResult, SqlStatement } from '@erpx/server-runtime/public/runtim
  */
 type Holding = Readonly<{ origin: string; holdingSlug: string; holdingId: string; companyId: string }>;
 type Settings = Readonly<{ privateBaseUrl: string; timeoutMs: number; holdings: readonly Holding[] }>;
-type Reply = Readonly<{ data?: { kind?: unknown; rows?: unknown }; error?: { code?: string; message?: string } }>;
+type Reply = Readonly<{ data?: { kind?: unknown; rows?: unknown; records?: unknown }; error?: { code?: string; message?: string } }>;
 export type NativeRuntimeResult = Readonly<{ rows: Record<string, unknown>[]; rowCount: number; kind: string }>;
 
 const unavailable = (): never => { throw new ApiError(503, 'RUNTIME_NATIVE_COMMAND_UNAVAILABLE', 'The native runtime service is unavailable.'); };
@@ -23,8 +23,14 @@ const record = (v: unknown): v is Record<string, unknown> => v !== null && typeo
 const identifier = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && new TextEncoder().encode(v).length <= 200;
 const reservedPorts = new Set([3000, 3001, 3100, 3101, 3103, 5432, 5433, 5435, 8080]);
 
-function configuration(): Settings {
-  const raw = process.env.ERPX_NATIVE_RUNTIME_CONFIG;
+function configuration(kind: string, holdingId?: string, companyId?: string): Settings {
+  const executiveHolding = holdingId === 'h001' || holdingId === 'h002'
+    || !holdingId && (companyId === 'acme-co' || companyId === 'northstar-co');
+  const executiveCommand = kind === 'executive_create_report'
+    || /^runtime_stmt_(?:[1-9]|1[0-5]|20|21|23)$/.test(kind);
+  const raw = process.env.NODE_ENV === 'development' && executiveHolding && executiveCommand
+    ? process.env.ERPX_NATIVE_EXECUTIVE_RUNTIME_CONFIG ?? process.env.ERPX_NATIVE_RUNTIME_CONFIG
+    : process.env.ERPX_NATIVE_RUNTIME_CONFIG;
   if (!raw) return unavailable();
   let value: unknown;
   try { value = JSON.parse(raw); } catch { return unavailable(); }
@@ -50,7 +56,11 @@ function reply(value: unknown): NativeRuntimeResult {
   if (!record(value)) return unavailable();
   const body = value as Reply;
   if (!record(body.data) || typeof body.data.kind !== 'string' || !Number.isSafeInteger(body.data.rows) || Number(body.data.rows) < 0) return unavailable();
-  return { rows: [], rowCount: Number(body.data.rows), kind: body.data.kind };
+  const records = body.data.records;
+  if (records !== undefined && (body.data.kind !== 'runtime_stmt_21' || !Array.isArray(records)
+    || records.length !== body.data.rows || records.length > 1 || !records.every(record))) return unavailable();
+  if (body.data.kind === 'runtime_stmt_21' && body.data.rows === 1 && records === undefined) return unavailable();
+  return { rows: records ?? [], rowCount: Number(body.data.rows), kind: body.data.kind };
 }
 
 function keyFor(kind: string, values: readonly unknown[]): string {
@@ -92,7 +102,7 @@ export function nativeRuntimeStatementAvailable(): boolean { return process.env.
 export async function RUNTIME_NATIVECommand(
   actor: WorkContext, kind: string, values: unknown[], key = keyFor(kind, values), now = Date.now(),
 ): Promise<NativeRuntimeResult> {
-  const config = configuration();
+  const config = configuration(kind, actor.holdingId, actor.companyId);
   const holding = config.holdings.find(h => h.holdingSlug === actor.holdingSlug && h.holdingId === actor.holdingId);
   if (!holding || !identifier(kind) || !/^[A-Za-z0-9:_.-]{8,180}$/.test(key)) return unavailable();
   const headers = target(config, holding, actor.companyId);
@@ -113,9 +123,9 @@ export async function RUNTIME_NATIVECommand(
 export async function RUNTIME_NATIVECommandSystem(
   companyId: string, kind: string, values: unknown[], key = keyFor(kind, values), now = Date.now(),
 ): Promise<NativeRuntimeResult> {
-  const config = configuration();
-  if (!identifier(kind) || !/^[A-Za-z0-9:_.-]{8,180}$/.test(key)) return unavailable();
   const scoped = currentHoldingId();
+  const config = configuration(kind, scoped, companyId);
+  if (!identifier(kind) || !/^[A-Za-z0-9:_.-]{8,180}$/.test(key)) return unavailable();
   const resolved =
     identifier(companyId)
       ? companyId

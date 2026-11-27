@@ -71,12 +71,15 @@ export async function POST(request:Request,context:Context) {
     while(true){const p=await reader.read();if(p.done)break;bytes+=p.value.byteLength;if(bytes>256000){await reader.cancel();throw new ApiError(413,"BODY_TOO_LARGE","This report request is too large.");}body+=decoder.decode(p.value,{stream:true});}
     let raw:unknown;try{raw=JSON.parse(body+decoder.decode());}catch{throw new ApiError(422,"INVALID_JSON","Use valid JSON.");}
     const {holdingSlug,path=[]}=await context.params,a=await requireWorkContext(holdingSlug),{write}=await holdingResources(a.holdingId),[id,action]=path;
+    const {withHolding}=await import('@erpx/server-runtime/public/runtime/holding-scope');
+    return await withHolding(a.holdingId,async()=>{
     let data:unknown;
     if(!id)data=await createReport(write,a,key,z.object({title:z.string().max(120).optional()}).parse(raw).title);
     else if(action==="save")data=await saveReport(write,a,id,saveSchema.parse(raw),key);
     else if(action==="generate") {
-      const env=await runtimeEnv();data=await queueGeneration(write,a,env,id,generateSchema.parse(raw),key);
-      after(async()=>{await drainExecutiveGeneration(write,env);});
+      const env=await runtimeEnv();
+      data=await queueGeneration(write,a,env,id,generateSchema.parse(raw),key);
+      after(()=>withHolding(a.holdingId,async()=>{await drainExecutiveGeneration(write,env);}));
     }else if(action==="cancel")data=await cancelGeneration(write,a,id,z.object({jobId:z.string()}).parse(raw).jobId,key);
     else if(action==="share")data=await saveShare(write,a,id,shareSchema.parse(raw),key);
     else if(action==="preview")data=await previewShare(write,a,id,sharePreviewSchema.parse(raw));
@@ -85,5 +88,6 @@ export async function POST(request:Request,context:Context) {
     else if(action==="restore"){const input=z.object({version:z.number().int().positive(),expectedVersion:z.number().int().positive()}).parse(raw);data=await restoreReport(write,a,id,input.version,input.expectedVersion,key);}
     else throw new ApiError(404,"NOT_FOUND","This Executive action does not exist.");
     return Response.json(canonicalDestinationLinks({data}),{headers});
+    });
   }catch(e){return errorResponse(e);}
 }

@@ -61,8 +61,7 @@ export interface ExecutiveReportRepository<Effect> {
             ready: boolean;
         })[];
     }>;
-    stageCreateReportEffect(id: string, companyId: string, userId: string, value: string, value2: string, now: number, now2: number): Effect;
-    stageCreateReportEffect2(id: string, value: string, value2: string, userId: string, now: number): Effect;
+    stageCreateReport(id: string, companyId: string, userId: string, definition: string, filters: string, now: number): Effect;
     stageSaveReportEffect(id: string): Effect;
     guard11(key: string, value: "report-version", id: string, expectedVersion: number): Effect;
     guard12(key: string, value: "report-share", id: string, version: number, now: number): Effect;
@@ -193,8 +192,7 @@ export function createExecutiveReportApplication<Effect>(ports: ExecutiveReportP
         await ports.requireAuthor(a);
         const definition = emptyDefinition(title), filters = defaultFilters(new Date(ports.clock.now())), id = `report-${key}`, now = ports.clock.now();
         return ports.commands.commit(a, key, "executive.report.create", { title }, id, 1, { id }, [
-            repository.stageCreateReportEffect(id, a.companyId, a.userId, JSON.stringify(definition), JSON.stringify(filters), now, now),
-            repository.stageCreateReportEffect2(id, JSON.stringify(definition), JSON.stringify(filters), a.userId, now),
+            repository.stageCreateReport(id, a.companyId, a.userId, JSON.stringify(definition), JSON.stringify(filters), now),
         ]);
     }
     async function saveReport(a: WorkContext, id: string, input: z.infer<typeof saveSchema>, key: string) {
