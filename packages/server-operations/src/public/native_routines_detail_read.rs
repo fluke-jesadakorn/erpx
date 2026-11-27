@@ -4,6 +4,7 @@
 
 pub use crate::adapters::native_routines_detail_read::{
     router, router_for_holdings, router_with_scope, PgTemplateDetailRead, TemplateDetailTarget,
+    read_template_schedules,
 };
 pub use crate::application::routine_template_detail_read::{
     TemplateDetailFuture, TemplateDetailHandler, TemplateDetailRead,

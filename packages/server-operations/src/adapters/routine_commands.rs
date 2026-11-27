@@ -285,11 +285,11 @@ async fn capture_authorization(
         "INSERT INTO work_routine_execution_authorizations(\
          command_id,schedule_id,template_id,company_id,kind,actor_id,assignment_id,\
          authority_json,source_hash,template_version,schedule_version,initial_occurrence_at,created_at) \
-         SELECT $1,s.id,t.id,t.company_id,$6,$7,$8,$9,\
+         SELECT $1,s.id,t.id,t.company_id,$5,$6,$7,$8,\
          encode(sha256(convert_to(jsonb_build_object('template',to_jsonb(t),\
          'schedule',to_jsonb(s)-ARRAY['next_occurrence_at','last_generated_at','last_error',\
          'updated_at','paused_at','state'])::text,'UTF8')),'hex'),\
-         t.version,s.version,s.next_occurrence_at,$10 \
+         t.version,s.version,s.next_occurrence_at,$9 \
          FROM routine_templates t JOIN routine_schedules s \
          ON s.template_id=t.id AND s.company_id=t.company_id \
          WHERE t.id=$2 AND s.id=$3 AND t.company_id=$4",

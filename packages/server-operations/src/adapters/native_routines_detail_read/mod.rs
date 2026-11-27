@@ -7,4 +7,4 @@ mod postgres;
 pub use http::{
     router, router_for_holdings, router_with_scope, TemplateDetailTarget,
 };
-pub use postgres::PgTemplateDetailRead;
+pub use postgres::{PgTemplateDetailRead, read_template_schedules};

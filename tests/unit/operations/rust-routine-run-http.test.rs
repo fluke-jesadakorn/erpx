@@ -1,9 +1,11 @@
 //! Native routine run HTTP ingress facts over a real loopback listener.
 use erpx_server_operations::public::routine_commands_http::{
-    RoutineHttpBackend, RoutineHttpCommandRequest, RoutineHttpFuture,
-    RoutineHttpResponse, RoutineHttpTarget, routine_commands_router,
+    RoutineHttpBackend, RoutineHttpCommandRequest, RoutineHttpFuture, RoutineHttpResponse,
+    RoutineHttpTarget, routine_commands_router,
 };
-use erpx_server_runtime::public::http_support::{Router, serde_json::Value, serde_json::json, serve};
+use erpx_server_runtime::public::http_support::{
+    Router, serde_json::Value, serde_json::json, serve,
+};
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -49,6 +51,20 @@ impl RoutineHttpBackend for Backend {
             })
         })
     }
+
+    fn schedules<'a>(
+        &'a self,
+        _: &'a str,
+        _: &'a erpx_server_runtime::public::http_support::HeaderMap,
+        template_id: String,
+    ) -> RoutineHttpFuture<'a, RoutineHttpResponse> {
+        Box::pin(async move {
+            Ok(RoutineHttpResponse {
+                data: json!({"template":{"id":template_id},"schedules":[],"canEdit":false}),
+                context: json!({"userId":"runner"}),
+            })
+        })
+    }
 }
 
 fn router(backend: Arc<Backend>) -> Router {
@@ -74,8 +90,18 @@ async fn post(
     headers: &[(&str, &str)],
     body: &str,
 ) -> (u16, Value) {
+    request(address, "POST", path, headers, body).await
+}
+
+async fn request(
+    address: std::net::SocketAddr,
+    method: &str,
+    path: &str,
+    headers: &[(&str, &str)],
+    body: &str,
+) -> (u16, Value) {
     let mut request = format!(
-        "POST {path} HTTP/1.1\r\nHost: acme.example.test\r\nConnection: close\r\nContent-Length: {}\r\n",
+        "{method} {path} HTTP/1.1\r\nHost: acme.example.test\r\nConnection: close\r\nContent-Length: {}\r\n",
         body.len()
     );
     for (name, value) in headers {
@@ -96,6 +122,26 @@ async fn post(
         .and_then(|value| value.parse::<u16>().ok())
         .unwrap();
     (status, serde_json::from_str(body).unwrap_or(Value::Null))
+}
+
+#[tokio::test]
+async fn nested_template_read_keeps_legacy_paths_and_public_shape() {
+    let backend = Arc::new(Backend::new());
+    let (address, task) = start(backend.clone()).await;
+    for tail in ["schedules", "schedules/old-id", "run", "other/legacy"] {
+        let path = format!("/api/v1/holdings/acme/routine-templates/routine-1/{tail}");
+        let (status, payload) = request(
+            address,
+            "GET",
+            &path,
+            &[("x-erpx-api-transport", "public")],
+            "",
+        ).await;
+        assert_eq!(status, 200);
+        assert_eq!(payload, json!({"data":{"template":{"id":"routine-1"},"schedules":[],"canEdit":false}}));
+    }
+    assert_eq!(backend.commands.load(Ordering::SeqCst), 0);
+    task.abort();
 }
 const BODY: &str = r#"{"dueAt":"2026-12-01T02:00:00Z"}"#;
 const HEADERS: &[(&str, &str)] = &[
@@ -124,7 +170,11 @@ async fn forwards_the_manual_run_with_the_exact_path_key_and_due_at() {
     assert_eq!(backend.commands.load(Ordering::SeqCst), 1);
     let seen = backend.seen.lock().unwrap().join("\n");
     assert!(seen.contains("acme.example.test:acme:run-key-0001"));
-    assert!(seen.contains("RunTemplate { template_id: \"template-1\", due_at: \"2026-12-01T02:00:00Z\" }"));
+    assert!(
+        seen.contains(
+            "RunTemplate { template_id: \"template-1\", due_at: \"2026-12-01T02:00:00Z\" }"
+        )
+    );
     task.abort();
 }
 
@@ -167,6 +217,109 @@ async fn keeps_the_retained_origin_key_and_body_bounds() {
     assert_eq!(status, 422);
     assert_eq!(body["error"]["code"], "ROUTINE_INPUT_INVALID");
     assert_eq!(backend.commands.load(Ordering::SeqCst), 0);
+    task.abort();
+}
+
+#[tokio::test]
+async fn public_transport_keeps_only_the_retired_data_envelope() {
+    let backend = Arc::new(Backend::new());
+    let (address, task) = start(backend.clone()).await;
+    let headers: Vec<(&str, &str)> = HEADERS
+        .iter()
+        .copied()
+        .chain([("x-erpx-api-transport", "public")])
+        .collect();
+    let (status, body) = post(
+        address,
+        "/api/v1/holdings/acme/routine-templates/template-1/run",
+        &headers,
+        BODY,
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(
+        body,
+        json!({"data": {"id": "task-run-key-0001", "state": "ready", "version": 1}})
+    );
+    assert_eq!(backend.commands.load(Ordering::SeqCst), 1);
+    let seen = backend.seen.lock().unwrap().join("\n");
+    assert!(seen.contains("acme.example.test:acme:run-key-0001"));
+    assert!(
+        seen.contains(
+            "RunTemplate { template_id: \"template-1\", due_at: \"2026-12-01T02:00:00Z\" }"
+        )
+    );
+    task.abort();
+}
+
+#[tokio::test]
+async fn public_transport_ignores_the_query_private_rejects() {
+    let backend = Arc::new(Backend::new());
+    let (address, task) = start(backend.clone()).await;
+    let headers: Vec<(&str, &str)> = HEADERS
+        .iter()
+        .copied()
+        .chain([("x-erpx-api-transport", "public")])
+        .collect();
+    let (status, body) = post(
+        address,
+        "/api/v1/holdings/acme/routine-templates/template-1/run?legacy=ignored",
+        &headers,
+        BODY,
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert!(body.get("data").is_some());
+    assert!(body.get("context").is_none());
+    let (status, body) = post(
+        address,
+        "/api/v1/holdings/acme/routine-templates/template-1/run?legacy=ignored",
+        HEADERS,
+        BODY,
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(body["error"]["code"], "ROUTINE_REQUEST_INVALID");
+    assert_eq!(backend.commands.load(Ordering::SeqCst), 1);
+    task.abort();
+}
+
+#[tokio::test]
+async fn public_transport_marker_must_be_single_and_exact() {
+    let backend = Arc::new(Backend::new());
+    let (address, task) = start(backend.clone()).await;
+    let duplicate: Vec<(&str, &str)> = HEADERS
+        .iter()
+        .copied()
+        .chain([
+            ("x-erpx-api-transport", "public"),
+            ("x-erpx-api-transport", "public"),
+        ])
+        .collect();
+    let (status, body) = post(
+        address,
+        "/api/v1/holdings/acme/routine-templates/template-1/run",
+        &duplicate,
+        BODY,
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(body["error"]["code"], "ROUTINE_REQUEST_INVALID");
+    let other: Vec<(&str, &str)> = HEADERS
+        .iter()
+        .copied()
+        .chain([("x-erpx-api-transport", "private")])
+        .collect();
+    let (status, body) = post(
+        address,
+        "/api/v1/holdings/acme/routine-templates/template-1/run",
+        &other,
+        BODY,
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(body["context"]["userId"], "runner");
+    assert_eq!(backend.commands.load(Ordering::SeqCst), 1);
     task.abort();
 }
 

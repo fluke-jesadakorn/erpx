@@ -1,6 +1,7 @@
 import {afterEach,describe,expect,it,vi} from 'vitest';
 import {
   nativeRoutineTemplateDetail,
+  nativeRoutineTemplateSchedules,
   type NativeRoutineTemplateRow,
 } from '@erpx/feature-operations/public/native-routines-read';
 
@@ -91,5 +92,32 @@ describe('native routine-template detail has complete payload parity', () => {
     await expect(nativeRoutineTemplateDetail(request(), 'acme', 'routine-1', 'user-1'))
       .rejects.toMatchObject({code: 'NATIVE_ROUTINES_UNAVAILABLE'});
     expect(transport).not.toHaveBeenCalled();
+  });
+});
+
+it('binds the schedule read to the same template, Company and work selection', async () => {
+  process.env.ERPX_NATIVE_OPERATIONS_ROUTINES_CONFIG = config;
+  const schedule = {
+    id: 'schedule-1', company_id: 'company', template_id: row.id, frequency: 'daily',
+    timezone: 'Asia/Bangkok', occurrence_time: '09:00', start_date: '2026-11-27',
+    end_date: null, weekday: null, month_day: null, due_offset_hours: 24, state: 'paused',
+    next_occurrence_at: null, paused_at: 100, last_generated_at: null, last_error: null,
+    version: 2, created_at: 100, updated_at: 200,
+  };
+  const data = {template: row, schedules: [schedule], canEdit: true};
+  const transport = vi.fn<(url: string | URL | Request, init?: RequestInit) => Promise<Response>>(
+    async () => reply(data),
+  );
+  vi.stubGlobal('fetch', transport);
+  await expect(nativeRoutineTemplateSchedules(request(), 'acme', row.id, 'user-1')).resolves.toEqual(data);
+  expect(String(transport.mock.calls[0]?.[0])).toMatch(/\/routine-templates\/routine-1\/schedules$/);
+
+  transport.mockImplementation(async () => reply({...data, schedules: [{...schedule, company_id: 'other'}]}));
+  await expect(nativeRoutineTemplateSchedules(request(), 'acme', row.id, 'user-1')).rejects.toMatchObject({
+    code: 'NATIVE_ROUTINES_RESPONSE_INVALID',
+  });
+  transport.mockImplementation(async () => reply(data, {...context, revision: 8}));
+  await expect(nativeRoutineTemplateSchedules(request(), 'acme', row.id, 'user-1')).rejects.toMatchObject({
+    code: 'NATIVE_ROUTINES_RESPONSE_INVALID',
   });
 });

@@ -1,7 +1,6 @@
 import {RoutineTemplateEditor} from '@erpx/feature-operations/components/routine-template-editor';
 import {
-  nativeRoutineTemplateDetail,
-  nativeRoutineTemplatesAvailable,
+  nativeRoutineTemplateSchedules,
 } from '@erpx/feature-operations/public/native-routines-read';
 import {staffPickerDisplayOptions} from '@erpx/feature-work_projection/lib/staff-picker-display';
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
@@ -15,16 +14,29 @@ import { pageError } from "@erpx/server-work_projection/public/page-error";
 
 
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
-async function nativeTemplate(holdingSlug: string, id: string, userId: string) {
-  if (!nativeRoutineTemplatesAvailable())
-    throw new ApiError(503, "NATIVE_ROUTINES_UNAVAILABLE", "The native Operations routine read is unavailable.");
+async function nativeTemplate(
+  holdingSlug: string,
+  id: string,
+  actor: Awaited<ReturnType<typeof staffPresentationQueries>>["actor"],
+) {
+  if (!actor.authority)
+    throw new ApiError(409, "WORK_CONTEXT_CHANGED", "Reload your workspace and try again.");
+  const incoming = new Headers(await headers());
+  incoming.set("x-erpx-context-company", actor.companyId);
+  incoming.set("x-erpx-context-assignment", actor.assignmentId);
+  incoming.set("x-erpx-context-revision", String(actor.authority.revision));
+  incoming.set("x-erpx-context-assignment-version", String(actor.authority.assignmentVersion));
+  incoming.delete("x-erpx-workspace-branch");
+  incoming.delete("x-erpx-workspace-department");
+  if (actor.scope.kind !== "holding" && actor.scope.branchSlug)
+    incoming.set("x-erpx-workspace-branch", actor.scope.branchSlug);
+  if (actor.scope.kind === "department")
+    incoming.set("x-erpx-workspace-department", actor.scope.departmentSlug);
   const request = new Request(
-    `http://native-routines.invalid/api/v1/holdings/${encodeURIComponent(holdingSlug)}/routine-templates/${encodeURIComponent(id)}`,
-    { headers: new Headers(await headers() as unknown as Headers) },
+    `http://native-routines.invalid/api/v1/holdings/${encodeURIComponent(holdingSlug)}/routine-templates/${encodeURIComponent(id)}/schedules`,
+    { headers: incoming },
   );
-  const row = await nativeRoutineTemplateDetail(request, holdingSlug, id, userId);
-  if (row === null) throw new ApiError(404, "TEMPLATE_NOT_FOUND", "Routine template not found.");
-  return row;
+  return nativeRoutineTemplateSchedules(request, holdingSlug, id, actor.userId);
 }
 export default async function Routine({
   params,
@@ -33,14 +45,10 @@ export default async function Routine({
 }) {
   const { holdingSlug, id } = await params,
     { actor, queries, base, options, projects,staff } = await staffPresentationQueries(holdingSlug,{routineProjects:true}),
-    template = await nativeTemplate(holdingSlug, id, actor.userId).catch((e) => {
+    {template, canEdit, schedules} = await nativeTemplate(holdingSlug, id, actor).catch((e) => {
       return pageError(e, holdingSlug);
     }),
-    purchases=await queries.routinePurchases(),
-    canEdit = await queries.canEditTemplate(actor, template),
-    schedules = (
-      await queries.routineTemplateSchedules(id, actor.companyId)
-    ).results;
+    purchases=await queries.routinePurchases();
   return (
     <FeaturePage className="ui-page-content" data-source="live">
       <Link href={canonicalUiHref(`${base}/routine-templates`)}>← Routine templates</Link>

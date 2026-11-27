@@ -8,7 +8,6 @@ import type {assignLevel,headSchema,levelAssignmentSchema,levelSchema,saveLevel,
 import type {listTasks,taskDetail} from '@erpx/server-operations/public/staff-tasks';
 import type {listProjectMilestones,projectMilestoneSchema,projectMilestoneTransitionSchema} from "@erpx/server-projects/public/project-milestones";
 import type {listProjectWorkLogs,projectWorkLogDecisionSchema,projectWorkLogSchema} from "@erpx/server-projects/public/project-actuals";
-import type {canEditTemplate,getTemplate,ScheduleRow} from "@erpx/server-operations/public/routines";
 import type {rerouteApproval} from '@erpx/server-workflow/public/approvals';
 import type {changeAppointment} from '@erpx/server-organization/public/department-authority';
 import type {getProject,listProjects,projectSchema} from "@erpx/server-projects/public/staff-projects";
@@ -30,8 +29,6 @@ taskDetail:WithoutDatabase<typeof taskDetail>;
 listProjectMilestones:WithoutDatabase<typeof listProjectMilestones>;
 listProjectWorkLogs:WithoutDatabase<typeof listProjectWorkLogs>;
 projectCommand(command:ProjectCommandPort):Promise<unknown>;
-canEditTemplate:WithoutDatabase<typeof canEditTemplate>;
-getTemplate:WithoutDatabase<typeof getTemplate>;
 rerouteApproval:WithoutDatabase<typeof rerouteApproval>;
 changeAppointment:WithoutDatabase<typeof changeAppointment>;headSchema:typeof headSchema.parse;
 levelAssignmentSchema:typeof levelAssignmentSchema.parse;
@@ -42,7 +39,6 @@ projectMilestoneTransitionSchema:typeof projectMilestoneTransitionSchema.parse;
 projectWorkLogDecisionSchema:typeof projectWorkLogDecisionSchema.parse;
 projectWorkLogSchema:typeof projectWorkLogSchema.parse;
 facts:{projectMembers(value:string):Promise<{results:Record<string,unknown>[]}>;
-templateSchedules(value:string,companyId:string):Promise<{results:ScheduleRow[]}>;
 approvalQueue(companyId:string,value:0 | 1):Promise<{results:Record<string,unknown>[]}>;
 headPlacement(companyId:string,value:string,personId:string):Promise<{position_id:string|null}|null>;
 betaApproval(value:string,companyId:string):Promise<Record<string,unknown>|null>;};};
@@ -82,17 +78,6 @@ const {holdingSlug,path:p=[]}=await context.params;const actor=await ports.requi
                 tasks: await ports.listTasks( actor, p[0]),
               }
             : await ports.listProjects( actor);
-        else if (resource === "routine-templates" && p[0])
-          data = {
-                template: await ports.getTemplate( actor, p[0]),
-                schedules: (
-                  await ports.facts.templateSchedules(p[0],actor.companyId)
-                ).results,
-                canEdit: await ports.canEditTemplate(
-                  actor,
-                  await ports.getTemplate( actor, p[0]),
-                ),
-              };
         else if (
           resource === "approvals" &&
           (await ports.companyAuthority( actor))

@@ -1,5 +1,6 @@
 import 'server-only';
 import {ApiError} from '@erpx/server-runtime/public/http';
+import type {ScheduleRow} from '@erpx/server-operations/public/routines';
 
 /**
  * Strict transport for the native routine-template list read. The Rust owner
@@ -167,6 +168,44 @@ export async function nativeRoutineTemplateDetail(
   templateId: string,
   userId: string,
 ): Promise<NativeRoutineTemplateRow | null> {
+  const {data, companyId} = await readTemplate(request, holdingSlug, templateId, userId, '');
+  if (data === null) return null;
+  if (!row(data, companyId) || data.id !== templateId) throw invalid();
+  return data;
+}
+
+export async function nativeRoutineTemplateSchedules(
+  request: Request,
+  holdingSlug: string,
+  templateId: string,
+  userId: string,
+): Promise<{template: NativeRoutineTemplateRow; schedules: ScheduleRow[]; canEdit: boolean}> {
+  const {data, companyId} = await readTemplate(request, holdingSlug, templateId, userId, '/schedules');
+  if (!record(data) || !row(data.template, companyId) || data.template.id !== templateId ||
+      !Array.isArray(data.schedules) || !data.schedules.every(value => scheduleRow(value, companyId, templateId)) ||
+      typeof data.canEdit !== 'boolean') throw invalid();
+  return {template: data.template, schedules: data.schedules, canEdit: data.canEdit};
+}
+
+function scheduleRow(value: unknown, companyId: string, templateId: string): value is ScheduleRow {
+  if (!record(value) || !id(value.id) || value.company_id !== companyId || value.template_id !== templateId ||
+      !['daily', 'weekly', 'monthly'].includes(String(value.frequency)) ||
+      !['active', 'paused', 'ended'].includes(String(value.state)) ||
+      !text(value.timezone, 128) || !text(value.occurrence_time, 5) || !text(value.start_date, 10) ||
+      !(value.end_date === null || text(value.end_date, 10)) ||
+      !(value.last_error === null || text(value.last_error))) return false;
+  const optionalInteger = (number: unknown) => number === null || integer(number);
+  return [value.weekday, value.month_day, value.next_occurrence_at, value.paused_at, value.last_generated_at].every(optionalInteger) &&
+    [value.due_offset_hours, value.created_at, value.updated_at].every(number => integer(number)) && integer(value.version, 1);
+}
+
+async function readTemplate(
+  request: Request,
+  holdingSlug: string,
+  templateId: string,
+  userId: string,
+  suffix: '' | '/schedules',
+) {
   const config = configuration();
   if (!new URL(request.url).host) throw invalid();
   if (!id(holdingSlug) || !/^[a-z0-9_-]+$/.test(holdingSlug)) throw invalid();
@@ -186,7 +225,7 @@ export async function nativeRoutineTemplateDetail(
     if (value) headers.set(name, value);
   }
   headers.set('x-erpx-context-user', userId);
-  const url = `${config.privateBaseUrl}/api/v1/holdings/${encodeURIComponent(holdingSlug)}/routine-templates/${encodeURIComponent(templateId)}`;
+  const url = `${config.privateBaseUrl}/api/v1/holdings/${encodeURIComponent(holdingSlug)}/routine-templates/${encodeURIComponent(templateId)}${suffix}`;
   let response: Response;
   try {
     response = await fetch(url, {
@@ -198,13 +237,11 @@ export async function nativeRoutineTemplateDetail(
   }
   const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {
-    const code = record(payload) && text(payload.code, 200) ? payload.code : 'NATIVE_ROUTINES_FAILED';
-    const message = record(payload) && text(payload.message, 2000)
-      ? payload.message : 'The routine read failed.';
+    const error = record(payload) && record(payload.error) ? payload.error : payload;
+    const code = record(error) && text(error.code, 200) ? error.code : 'NATIVE_ROUTINES_FAILED';
+    const message = record(error) && text(error.message, 2000)
+      ? error.message : 'The routine read failed.';
     throw new ApiError(response.status, code, message);
   }
-  const data = envelope(payload, headers);
-  if (data === null) return null;
-  if (!row(data, headers.get('x-erpx-context-company') ?? '')) throw invalid();
-  return data as NativeRoutineTemplateRow;
+  return {data: envelope(payload, headers), companyId: headers.get('x-erpx-context-company') ?? ''};
 }

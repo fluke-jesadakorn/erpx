@@ -259,7 +259,6 @@
 @source "../../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/task-source/route.ts";
 @source "../../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/task/route.ts";
 @source "../../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/routine-schedules/[[...path]]/route.ts";
-@source "../../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/routine-templates/[[...path]]/route.ts";
 @source "../../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/staff/[[...path]]/route.ts";
 @source "../../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/stories/[id]/archive/route.ts";
 @source "../../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/stories/route.ts";

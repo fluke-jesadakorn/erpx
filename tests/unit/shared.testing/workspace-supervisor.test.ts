@@ -351,8 +351,17 @@ it('routes retired Holding entries and their transport aliases directly to Axum'
   const root = await realpath(await mkdtemp(join(tmpdir(), 'erpx-native-selector-')));
   const upstream = createServer((req, res) => {
     if (req.url?.startsWith('/internal/session-context?')) {
+      if (req.headers['x-erpx-workspace-branch'] === 'bangkok' && req.headers['x-erpx-workspace-department'] === 'ops') {
+        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({data: {companyId: 'company', assignmentId: 'holding-assignment', revision: 3}}));
+        return;
+      }
       res.writeHead(403, {'Content-Type': 'application/json'});
       res.end('{"error":{"code":"FORBIDDEN","message":"Unavailable to the current role."}}');
+      return;
+    }
+    if (req.headers['x-erpx-workspace-branch'] || req.headers['x-erpx-workspace-department']) {
+      res.end(JSON.stringify({path: req.url, branch: req.headers['x-erpx-workspace-branch'], department: req.headers['x-erpx-workspace-department']}));
       return;
     }
     res.end(req.url);
@@ -375,6 +384,20 @@ it('routes retired Holding entries and their transport aliases directly to Axum'
     expect(await get(3104, host, `/__erpx/apps${record}?view=mention`)).toEqual({ status: 200, body: record });
     expect((await get(3104, host, `/__erpx/sales${path}`)).status).toBe(404);
     expect((await get(3104, host, path.replace('/acme/', '/northstar/'))).status).toBe(404);
+    const scoped = record.replace('/acme/', '/acme/branches/bangkok/departments/ops/');
+    const scopedResponse = await new Promise<{status: number; body: string}>((done, reject) => {
+      const req = request({host: '127.0.0.1', port: 3104, path: `/__erpx/apps${scoped}`,
+        headers: {Host: host, Cookie: 'erpx_session=fixture', 'x-erpx-workspace-branch': 'forged'}}, res => {
+        let body = '';
+        res.setEncoding('utf8');
+        res.on('data', chunk => body += chunk);
+        res.once('end', () => done({status: res.statusCode ?? 0, body}));
+      });
+      req.once('error', reject);
+      req.end();
+    });
+    expect(scopedResponse.status).toBe(200);
+    expect(JSON.parse(scopedResponse.body)).toEqual({path: record, branch: 'bangkok', department: 'ops'});
     const routines = '/api/v1/holdings/acme/routine-templates';
     expect((await get(3104, host, routines)).status).toBe(401);
     const denied = await new Promise<{status: number; body: string}>((done, reject) => {
@@ -392,8 +415,11 @@ it('routes retired Holding entries and their transport aliases directly to Axum'
     expect(JSON.parse(denied.body)).toMatchObject({error: {code: 'FORBIDDEN'}});
     const {holdingNativeCutoverPath} = await import('../../../scripts/local/native-cutover-routes');
     expect(holdingNativeCutoverPath(routines, 'acme', 'HEAD')).toBe('routine-templates');
-    expect(holdingNativeCutoverPath(routines, 'acme', 'POST')).toBeUndefined();
-    expect(holdingNativeCutoverPath(`${routines}/template-1/schedules`, 'acme', 'GET')).toBeUndefined();
+    for (const suffix of ['', '/template-1', '/template-1/clone', '/template-1/run', '/template-1/schedules', '/template-1/schedules/schedule-1'])
+      expect(holdingNativeCutoverPath(routines + suffix, 'acme', 'POST')).toBe('routine-command');
+    expect(holdingNativeCutoverPath(routines + '/template-1/unknown', 'acme', 'POST')).toBe('routine-command');
+    expect(holdingNativeCutoverPath(routines + '/template-1/schedules/%2F', 'acme', 'POST')).toBeUndefined();
+    expect(holdingNativeCutoverPath(`${routines}/template-1/schedules`, 'acme', 'GET')).toBe('routine-templates');
     for (const [method, tail] of [
       ['GET', 'support/record'],
       ['HEAD', 'support/record'],

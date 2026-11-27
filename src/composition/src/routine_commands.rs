@@ -9,15 +9,20 @@ use erpx_server_commercial::public::purchase_command_boundary::{
     PurchaseCommandBoundary, PurchaseCommandScope, lock_company_purchase_read_sources,
 };
 use erpx_server_commercial::public::purchases::{
-    CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, current_package_catalogue,
+    CapabilityPurpose, CommercialCatalogue, CompanyPurchaseReadPort, PackageEnforcementMode,
+    PgCompanyPurchaseReader, current_package_catalogue,
 };
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
-    account_inbound_http::parse_inbound_account_request,
-    effective_authority::{AuthorizedWorkContext, HoldingWorkAuthorizer, WorkAuthorizationRequest},
+    account_inbound_http::{parse_inbound_account_request, unique_request_header},
+    effective_authority::{
+        AuthorizedWorkContext, HoldingWorkAuthorizer, WorkAuthorizationRequest,
+        WorkPermissionRequirement,
+    },
     routine_owner::company_owner,
-    work_context::HoldingWorkspaceRequest,
+    work_context::{ExpectedWorkSelection, HoldingWorkspaceRequest, WorkScopeKind},
 };
+use erpx_server_operations::public::native_routines_detail_read::read_template_schedules;
 use erpx_server_operations::public::routine_commands::{
     PgRoutineCommands, PgRoutineSources, RoutineAuthority, RoutineCapture,
     RoutineCommandRepository, RoutineFuture, RunRoutineTemplateCommand, change_schedule_state,
@@ -51,7 +56,7 @@ use erpx_server_projects::public::staff_facts::staff_project;
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{DatabasePool, PgTransactionError};
 use erpx_server_shared::public::{
-    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId,
+    AssignmentId, BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId,
 };
 use erpx_server_workflow::public::staff_approval::{
     OpenStaffApproval, StaffApprovalStep, open_staff_approval,
@@ -580,6 +585,70 @@ fn routine_purchase_mode(name: &'static str) -> Result<PackageEnforcementMode, B
         ));
     }
     Ok(mode)
+}
+
+async fn require_routine_history(
+    connection: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+    project_id: Option<&str>,
+    now: i64,
+) -> Result<(), Error> {
+    let apps = routine_purchase_mode("ERPX_APPS_PACKAGE_ENFORCEMENT")?;
+    let projects = routine_purchase_mode("ERPX_PROJECTS_PACKAGE_ENFORCEMENT")?;
+    let company = &current.selection().workspace().company_id;
+    let missing = || {
+        BusinessError::new(
+            FailureKind::NotFound,
+            "TEMPLATE_NOT_FOUND",
+            "Routine template not found.",
+        )
+    };
+    if apps == PackageEnforcementMode::Enforced || projects == PackageEnforcementMode::Enforced {
+        if let Some(project_id) = project_id {
+            if staff_project(connection, company.as_str(), project_id)
+                .await?
+                .is_none()
+                || projects == PackageEnforcementMode::Enforced
+                    && !current.has_permission("records.read")
+            {
+                return Err(missing().into());
+            }
+        }
+    }
+    let capabilities: &[&str] = match project_id {
+        None if apps == PackageEnforcementMode::Enforced => {
+            &["work.actions", "work.advanced-routines"]
+        }
+        Some(_) if projects == PackageEnforcementMode::Enforced => {
+            &["projects.wbs", "projects.tasks"]
+        }
+        _ => return Ok(()),
+    };
+    let catalogue = current_package_catalogue()?;
+    let facts = PgCompanyPurchaseReader::new(
+        current.holding_id().clone(),
+        company.clone(),
+        connection,
+        &catalogue,
+    )
+    .read(company)
+    .await?;
+    for capability in capabilities {
+        if !catalogue
+            .purchased_capability(
+                &facts.grants,
+                company.as_str(),
+                capability,
+                CapabilityPurpose::History,
+                now,
+                &facts.history,
+            )
+            .allowed
+        {
+            return Err(missing().into());
+        }
+    }
+    Ok(())
 }
 
 /// The retained `getProject` visibility rule: Company scope plus current
@@ -1775,6 +1844,7 @@ impl<C: Clock + Send + Sync + 'static> RoutineBackend<C> {
     fn context(
         &self,
         headers: &HeaderMap,
+        mutation: bool,
     ) -> Result<(DeviceProof, HoldingWorkspaceRequest), BusinessError> {
         let inbound = parse_inbound_account_request(&self.policy, headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
@@ -1785,14 +1855,39 @@ impl<C: Clock + Send + Sync + 'static> RoutineBackend<C> {
             ));
         }
         let (branch, department) = self.scopes.slugs(headers)?;
+        let company =
+            unique_request_header(headers, "x-erpx-context-company")?.ok_or_else(scope)?;
+        if company != self.service.company().as_str() {
+            return Err(scope());
+        }
+        let assignment =
+            unique_request_header(headers, "x-erpx-context-assignment")?.ok_or_else(scope)?;
+        let revision: i64 = unique_request_header(headers, "x-erpx-context-revision")?
+            .ok_or_else(scope)?
+            .parse()
+            .map_err(|_| scope())?;
+        let assignment_version: i64 =
+            unique_request_header(headers, "x-erpx-context-assignment-version")?
+                .ok_or_else(scope)?
+                .parse()
+                .map_err(|_| scope())?;
+        if !(0..=9_007_199_254_740_991).contains(&revision)
+            || !(1..=9_007_199_254_740_991).contains(&assignment_version)
+        {
+            return Err(scope());
+        }
         Ok((
             inbound.into_proof(),
             HoldingWorkspaceRequest {
                 company_id: self.service.company().clone(),
                 branch_slug: branch,
                 department_slug: department,
-                expected: None,
-                mutation: true,
+                expected: Some(ExpectedWorkSelection {
+                    revision,
+                    assignment_id: AssignmentId::new(assignment)?,
+                    assignment_version,
+                }),
+                mutation,
             },
         ))
     }
@@ -1804,9 +1899,76 @@ impl<C: Clock + Send + Sync + 'static> RoutineHttpBackend for RoutineBackend<C> 
         request: RoutineHttpCommandRequest<'a>,
     ) -> RoutineHttpFuture<'a, RoutineHttpResponse> {
         Box::pin(async move {
-            let (proof, selection) = self.context(request.headers)?;
+            let (proof, selection) = self.context(request.headers, true)?;
             self.service
                 .command(request.host, proof, selection, request.key, request.command)
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn schedules<'a>(
+        &'a self,
+        host: &'a str,
+        headers: &'a HeaderMap,
+        template_id: String,
+    ) -> RoutineHttpFuture<'a, RoutineHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(headers, false)?;
+            let holding = self.service.configuration.holding.clone();
+            let company = self.service.company().clone();
+            let clock = self.service.clock.clone();
+            self.service
+                .authorizer
+                .execute(
+                    host,
+                    proof,
+                    selection,
+                    WorkAuthorizationRequest {
+                        permission: WorkPermissionRequirement::AnyOf(vec![
+                            "operations.read".into(),
+                            "module.operations.read".into(),
+                        ]),
+                        module: Some("operations".into()),
+                        destination: "staff-tasks".into(),
+                        api: true,
+                    },
+                    move |connection, current| {
+                        let holding = holding.clone();
+                        let company = company.clone();
+                        let template_id = template_id.clone();
+                        let clock = clock.clone();
+                        Box::pin(async move {
+                            if current.holding_id() != &holding
+                                || current.selection().workspace().company_id != company
+                            {
+                                return Err(scope().into());
+                            }
+                            let holding_owner = current.selection().assignment().scope_kind
+                                == WorkScopeKind::Holding
+                                && current.has_permission("manage_erpx.access");
+                            let data = read_template_schedules(
+                                connection,
+                                company.as_str(),
+                                current.user_id().as_str(),
+                                &template_id,
+                                holding_owner,
+                            )
+                            .await?;
+                            require_routine_history(
+                                connection,
+                                current,
+                                data["template"]["project_id"].as_str(),
+                                clock.now().get(),
+                            )
+                            .await?;
+                            Ok(RoutineHttpResponse {
+                                data,
+                                context: context(current),
+                            })
+                        })
+                    },
+                )
                 .await
                 .map_err(business)
         })

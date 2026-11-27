@@ -1,4 +1,5 @@
 import { request as httpRequest, type IncomingHttpHeaders, type IncomingMessage, type ServerResponse } from "node:http";
+import type { HoldingNativeWorkspace } from "./native-cutover-routes";
 
 /** Development-only direct transport to the native owner service. No business
  * logic: the gateway preserves Host/cookies and streams the request. */
@@ -68,7 +69,7 @@ export function nativeApiError(res: ServerResponse, status: number, code: string
   res.end(JSON.stringify({error: {code, message}}));
 }
 
-export async function nativeSessionContext(base: URL, req: IncomingMessage, url = req.url ?? ""): Promise<Record<string, string>> {
+export async function nativeSessionContext(base: URL, req: IncomingMessage, url = req.url ?? "", workspace?: HoldingNativeWorkspace): Promise<Record<string, string>> {
   const slug = /^\/api\/v1\/holdings\/([^/]+)\//.exec(url)?.[1];
   if (!slug || !req.headers.cookie) return {};
   const requested = req.headers["x-erpx-requested-company"];
@@ -87,6 +88,8 @@ export async function nativeSessionContext(base: URL, req: IncomingMessage, url 
         origin: base.origin,
         accept: "application/json",
         ...(typeof requested === "string" ? { "x-erpx-requested-company": requested } : {}),
+        ...(workspace?.branch ? { "x-erpx-workspace-branch": workspace.branch } : {}),
+        ...(workspace?.department ? { "x-erpx-workspace-department": workspace.department } : {}),
       },
     }, response => {
       let text = "";
@@ -115,13 +118,13 @@ export async function nativeSessionContext(base: URL, req: IncomingMessage, url 
     "x-erpx-context-revision": typeof value.revision === "number" ? String(value.revision) : undefined,
     "x-erpx-context-assignment-version": typeof value.assignmentVersion === "number" ? String(value.assignmentVersion) : undefined,
     "x-erpx-context-modules": Array.isArray(value.modules) ? value.modules.filter((item): item is string => typeof item === "string").join(",") : undefined,
-    "x-erpx-workspace-branch": text("branchSlug"),
-    "x-erpx-workspace-department": text("departmentSlug"),
+    "x-erpx-workspace-branch": workspace ? workspace.branch : text("branchSlug"),
+    "x-erpx-workspace-department": workspace ? workspace.department : text("departmentSlug"),
   };
   return Object.fromEntries(Object.entries(headers).filter(([, item]) => item !== undefined)) as Record<string, string>;
 }
 
-const recordContextAssertions = [
+const commandContextAssertions = [
   "x-erpx-context-company",
   "x-erpx-context-assignment",
   "x-erpx-context-revision",
@@ -129,10 +132,12 @@ const recordContextAssertions = [
   "x-erpx-workspace-branch",
   "x-erpx-workspace-department",
 ] as const;
-const recordRequestHeaders = ["origin", "content-type", "idempotency-key", ...recordContextAssertions];
+const recordRequestHeaders = ["origin", "content-type", "idempotency-key", ...commandContextAssertions];
 
-export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.ProcessEnv; req: IncomingMessage; res: ServerResponse; url?: string; requiresSession?: boolean; recordAction?: boolean }): Promise<void> {
-  const { base, environment, req, res, requiresSession, recordAction } = options;
+export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.ProcessEnv; req: IncomingMessage; res: ServerResponse; url?: string; requiresSession?: boolean; recordAction?: boolean; routineCommand?: boolean; workspace?: HoldingNativeWorkspace }): Promise<void> {
+  const { base, environment, req, res, requiresSession, recordAction, routineCommand } = options;
+  const workspace = req.method === "OPTIONS" ? undefined : options.workspace;
+  const routineUnavailable = () => nativeApiError(res, 503, "NATIVE_ROUTINES_UNAVAILABLE", `The native Operations routine ${routineCommand ? "command" : "read"} is unavailable.`);
   const url = options.url ?? req.url ?? "/";
   const queryStart = url.indexOf("?");
   if (recordAction && (Buffer.byteLength(req.headers.cookie ?? "") > 8192 ||
@@ -142,22 +147,23 @@ export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.
   if (recordAction && queryStart !== -1 && url.length - queryStart > 4096)
     return nativeApiError(res, 422, "RECORDS_REGISTRY_REQUEST_INVALID", "Choose a bounded Records query.");
   const target = recordAction && queryStart !== -1 && req.method !== "DELETE" ? url.slice(0, queryStart) : url;
-  if (requiresSession && !req.headers.cookie) return nativeApiError(res, 401, "UNAUTHENTICATED", "Sign in to continue.");
+  if ((requiresSession || routineCommand || workspace) && !req.headers.cookie) return nativeApiError(res, 401, "UNAUTHENTICATED", "Sign in to continue.");
   let context: Record<string, string> = {};
   try {
-    context = await nativeSessionContext(base, req, url);
+    context = await nativeSessionContext(base, req, url, workspace);
   } catch (error) {
-    if (requiresSession) {
+    if (requiresSession || routineCommand || workspace) {
       if (error instanceof NativeSessionError) {
         res.writeHead(error.status, { "Content-Type": "application/json", "Cache-Control": "private, no-store" });
         res.end(error.body);
         return;
       }
-      return nativeApiError(res, 503, "NATIVE_ROUTINES_UNAVAILABLE", "The native Operations routine read is unavailable.");
+      if (requiresSession || routineCommand) return routineUnavailable();
+      return nativeApiError(res, 503, "NATIVE_RECORD_REGISTRY_UNAVAILABLE", "The native Records registry service is unavailable.");
     }
   }
-  if (recordAction && ["POST", "PATCH", "DELETE"].includes(req.method ?? "") &&
-      recordContextAssertions.some(name => req.headers[name] !== undefined && req.headers[name] !== context[name])) {
+  if ((routineCommand || recordAction && ["POST", "PATCH", "DELETE"].includes(req.method ?? "")) &&
+      commandContextAssertions.some(name => req.headers[name] !== undefined && req.headers[name] !== context[name])) {
     return nativeApiError(res, 409, "WORK_CONTEXT_CHANGED", "The work context changed.");
   }
   await new Promise<void>(done => {
@@ -175,6 +181,7 @@ export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.
     upstream.once("error", () => {
       if (res.headersSent) res.destroy();
       else if (recordAction) nativeApiError(res, 503, "NATIVE_RECORD_REGISTRY_UNAVAILABLE", "The native Records registry service is unavailable.");
+      else if (routineCommand || requiresSession) routineUnavailable();
       else {
         res.writeHead(502, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "private, no-store" });
         res.end("Bad Gateway\n");

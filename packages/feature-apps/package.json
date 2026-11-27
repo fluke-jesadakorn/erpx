@@ -102,7 +102,6 @@
     "./routes/api/v1/holdings/[holdingSlug]/approvals/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/approvals/[[...path]]/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/messaging/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/messaging/[[...path]]/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/daily-plan/route": "./src/routes/api/v1/holdings/[holdingSlug]/daily-plan/route.ts",
-    "./routes/api/v1/holdings/[holdingSlug]/routine-templates/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/routine-templates/[[...path]]/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/executive/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/executive/[[...path]]/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/executive/connections/route": "./src/routes/api/v1/holdings/[holdingSlug]/executive/connections/route.ts",
     "./routes/api/mcp/executive/route": "./src/routes/api/mcp/executive/route.ts",

@@ -12,16 +12,13 @@ use crate::domain::routine_commands::{
 };
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
-    StatusCode,
-    body::to_bytes,
-    header,
-    routing::post,
-    serde_json,
+    StatusCode, body::to_bytes, header, routing::post, serde_json,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind, RecordId};
 use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Arc};
 
 const BODY_LIMIT: usize = 64 * 1024;
+const API_TRANSPORT: HeaderName = HeaderName::from_static("x-erpx-api-transport");
 
 pub type RoutineHttpFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
@@ -70,12 +67,29 @@ impl RoutineHttpResponse {
     pub fn value(self) -> serde_json::Value {
         serde_json::json!({"data": self.data, "context": self.context})
     }
+
+    /// The public browser route keeps the former Next `{data}` envelope; the
+    /// private SSR transport still receives the full context-bearing wire.
+    pub fn into_body(self, public: bool) -> serde_json::Value {
+        if public {
+            serde_json::json!({"data": self.data})
+        } else {
+            self.value()
+        }
+    }
 }
 
 pub trait RoutineHttpBackend: Send + Sync {
     fn command<'a>(
         &'a self,
         request: RoutineHttpCommandRequest<'a>,
+    ) -> RoutineHttpFuture<'a, RoutineHttpResponse>;
+
+    fn schedules<'a>(
+        &'a self,
+        host: &'a str,
+        headers: &'a HeaderMap,
+        template_id: String,
     ) -> RoutineHttpFuture<'a, RoutineHttpResponse>;
 }
 
@@ -95,10 +109,7 @@ fn missing() -> BusinessError {
     BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.")
 }
 fn malformed() -> BusinessError {
-    BusinessError::invalid(
-        "ROUTINE_REQUEST_INVALID",
-        "Use one routine request.",
-    )
+    BusinessError::invalid("ROUTINE_REQUEST_INVALID", "Use one routine request.")
 }
 fn unique_header(headers: &HeaderMap, name: HeaderName) -> Result<Option<&str>, BusinessError> {
     let mut values = headers.get_all(name).iter();
@@ -110,6 +121,14 @@ fn unique_header(headers: &HeaderMap, name: HeaderName) -> Result<Option<&str>, 
         .map(|value| value.to_str().map_err(|_| malformed()))
         .transpose()
 }
+/// The gateway injects one trusted public marker after stripping every
+/// browser-supplied `x-erpx-*` header. Duplicates remain invalid.
+fn public_transport(headers: &HeaderMap) -> Result<bool, BusinessError> {
+    Ok(unique_header(headers, API_TRANSPORT)?
+        .filter(|value| *value == "public")
+        .is_some())
+}
+
 fn valid_origin(origin: &str) -> bool {
     origin.strip_prefix("https://").is_some_and(|rest| {
         let (host, port) = match rest.rsplit_once(':') {
@@ -188,27 +207,41 @@ pub fn routine_commands_router(targets: Vec<RoutineHttpTarget>) -> Result<Router
     Ok(Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/routine-templates",
-            post(command_template_create),
+            post(command_template_create).options(template_options),
         )
         .route(
             "/api/v1/holdings/{holding_slug}/routine-templates/{id}",
-            post(command_template_update),
+            post(command_template_update).options(template_options),
         )
         .route(
             "/api/v1/holdings/{holding_slug}/routine-templates/{id}/clone",
-            post(command_template_clone),
+            post(command_template_clone)
+                .get(read_schedules)
+                .options(template_options),
         )
         .route(
-            "/api/v1/holdings/{holding_slug}/routine-templates/{template_id}/run",
-            post(command_template_run),
+            "/api/v1/holdings/{holding_slug}/routine-templates/{id}/run",
+            post(command_template_run)
+                .get(read_schedules)
+                .options(template_options),
         )
         .route(
-            "/api/v1/holdings/{holding_slug}/routine-templates/{template_id}/schedules",
-            post(command_schedule_create),
+            "/api/v1/holdings/{holding_slug}/routine-templates/{id}/schedules",
+            post(command_schedule_create)
+                .get(read_schedules)
+                .options(template_options),
         )
         .route(
-            "/api/v1/holdings/{holding_slug}/routine-templates/{template_id}/schedules/{id}",
-            post(command_schedule_update),
+            "/api/v1/holdings/{holding_slug}/routine-templates/{id}/schedules/{schedule_id}",
+            post(command_schedule_update)
+                .get(read_schedules_tail)
+                .options(template_options),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/routine-templates/{id}/{*tail}",
+            post(missing_action)
+                .get(read_schedules_tail)
+                .options(template_options),
         )
         .route(
             "/api/v1/holdings/{holding_slug}/routine-schedules/{id}/pause",
@@ -226,6 +259,60 @@ pub fn routine_commands_router(targets: Vec<RoutineHttpTarget>) -> Result<Router
             targets: configured,
         })))
 }
+
+async fn template_options() -> Response {
+    let mut response = StatusCode::NO_CONTENT.into_response();
+    response.headers_mut().insert(
+        header::ALLOW,
+        HeaderValue::from_static("GET, HEAD, OPTIONS, POST"),
+    );
+    response
+}
+
+async fn missing_action() -> Response {
+    error_response(BusinessError::new(
+        FailureKind::NotFound,
+        "NOT_FOUND",
+        "Staff action not found.",
+    ))
+}
+
+async fn read_schedules(
+    State(state): State<Arc<RoutineHttpState>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    schedule_reply(&state, &slug, id, request.headers()).await
+}
+
+async fn read_schedules_tail(
+    State(state): State<Arc<RoutineHttpState>>,
+    Path((slug, id, _)): Path<(String, String, String)>,
+    request: Request,
+) -> Response {
+    schedule_reply(&state, &slug, id, request.headers()).await
+}
+
+async fn schedule_reply(
+    state: &RoutineHttpState,
+    slug: &str,
+    id: String,
+    headers: &HeaderMap,
+) -> Response {
+    let result = async {
+        let public = public_transport(headers)?;
+        let target = target(state, headers, slug)?;
+        crate::domain::routine_template_detail_read::validate_template_id(&id)?;
+        let reply = target.backend.schedules(&target.host, headers, id).await?;
+        Ok::<_, BusinessError>(reply.into_body(public))
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
 fn command_error(code: &'static str, message: &'static str) -> BusinessError {
     BusinessError::invalid(code, message)
 }
@@ -241,12 +328,7 @@ fn command_origin(target: &RoutineHttpTarget, headers: &HeaderMap) -> Result<(),
 }
 fn command_key(headers: &HeaderMap) -> Result<CommandKey, BusinessError> {
     let key = unique_header(headers, HeaderName::from_static("idempotency-key"))?
-        .ok_or_else(|| {
-            command_error(
-                "COMMAND_KEY_REQUIRED",
-                "Idempotency-Key is required.",
-            )
-        })?;
+        .ok_or_else(|| command_error("COMMAND_KEY_REQUIRED", "Idempotency-Key is required."))?;
     CommandKey::new(key)
 }
 fn command_content_type(headers: &HeaderMap) -> Result<(), BusinessError> {
@@ -363,8 +445,9 @@ async fn run(
     action: Option<&'static str>,
 ) -> Response {
     let result = async move {
+        let public = public_transport(request.headers())?;
         let target = target(&state, request.headers(), &slug)?;
-        if request.uri().query().is_some_and(|query| !query.is_empty()) {
+        if !public && request.uri().query().is_some_and(|query| !query.is_empty()) {
             return Err(malformed());
         }
         command_origin(target, request.headers())?;
@@ -383,10 +466,11 @@ async fn run(
                 command,
             })
             .await
+            .map(|reply| (public, reply))
     }
     .await;
     match result {
-        Ok(reply) => bounded(reply.value()),
+        Ok((public, reply)) => bounded(reply.into_body(public)),
         Err(error) => error_response(error),
     }
 }
