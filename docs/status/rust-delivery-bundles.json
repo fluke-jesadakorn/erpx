@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15736,
+    "revision": 15764,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": null,
@@ -220277,6 +220277,17 @@
             "result": "failed",
             "sourceSha": "34063f1f94aef2c4afd70f8b717d27b76730aacb",
             "detail": "Existing generated docs/status/capability-delivery-matrix.md is stale."
+          },
+          {
+            "command": "bunx vitest run tests/unit/finance/initial-stock-journal-filter.test.ts",
+            "sourceSha": "369c60398823e4bccf86e66d0616b2aa2f9d8212",
+            "result": "passed",
+            "tests": 6
+          },
+          {
+            "command": "bun run typecheck",
+            "sourceSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf",
+            "result": "passed"
           }
         ],
         "retainedLegacy": [
@@ -220288,14 +220299,14 @@
         ],
         "blocker": "handoff",
         "handoff": {
-          "runId": "run-goal-records-owner-guards",
+          "runId": "run-goal-expense-quality",
           "agentId": "codex-lead",
-          "at": "2026-11-27T07:55:25.942Z",
+          "at": "2026-11-27T08:23:44.349Z",
           "previousStatus": "ready_for_integration",
           "reason": "handoff",
-          "nextAction": "Verify valid Sales, Manufacturing, POS and Service initial-stock provenance under the accepted release, then retire the TS search-only SQL with retire.records.search-count-detail."
+          "nextAction": "Verify accepted Release initial-stock provenance for four source families. Finance rollout SQL pin now uses Vitest stubs and passes TypeScript check."
         },
-        "nextAction": "Verify valid Sales, Manufacturing, POS and Service initial-stock provenance under the accepted release, then retire the TS search-only SQL with retire.records.search-count-detail.",
+        "nextAction": "Verify accepted Release initial-stock provenance for four source families. Finance rollout SQL pin now uses Vitest stubs and passes TypeScript check.",
         "scopeRefinementRequired": false
       },
       {
@@ -220333,26 +220344,413 @@
             "result": "passed",
             "source": "reviewed local scratch changes only",
             "detail": "Validated real PostgreSQL source lookup and before-limit predicate for same-Company claims and their own payment drafts. No owner permission decision or runtime cutover wired."
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-people-payroll --lib expense_records_search",
+            "result": "passed",
+            "passed": 15,
+            "source": "reviewed scratch changes outside the live candidate"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-people-payroll --lib",
+            "result": "passed",
+            "passed": 194,
+            "source": "reviewed scratch changes outside the live candidate"
+          },
+          {
+            "command": "python3 .scratch/dev/hy4-expense-schema-check.py",
+            "result": "passed",
+            "detail": "ERPX dev read-only. Confirmed 105 typed fields and current claim/draft approval relationships."
+          },
+          {
+            "command": "python3 .scratch/dev/hy4-expense-image-sql-check.py",
+            "result": "passed",
+            "detail": "Structural source JSON query executed against dev PostgreSQL using isolated relation fixtures. Current raw Rust output is not wired to native Records."
           }
         ],
         "retainedLegacy": [
           {
             "path": "packages/server-people_payroll/src/adapters/expense-record-purchases.ts",
             "removalTaskId": "migrate.people_payroll.expense-records-search",
-            "removalCondition": "Restore reviewed scratch candidate relation after claiming paths and port current reviewer and live approval predicates, cancelled/prepared Treasury and routing witnesses, History plus current assignment, and same-transaction rechecks for enforced mode before binding IDs. Shadow remains observation only."
+            "removalCondition": "Bind current selected identity, Commercial people.expenses History, actual claim/draft Treasury and two Workflow participant decisions, live canDecide and source rechecks. Verify native transaction behavior in enforced mode before withdrawing TS."
           }
         ],
         "blocker": "handoff",
         "handoff": {
-          "runId": "run-goal-records-owner-guards",
-          "agentId": "codex-lead",
-          "at": "2026-11-27T07:55:26.241Z",
+          "runId": "run-goal-expense-quality",
+          "agentId": "hy4-expense",
+          "at": "2026-11-27T08:13:49.442Z",
           "previousStatus": "blocked",
           "reason": "handoff",
-          "nextAction": "After claiming its paths, run git apply --check .scratch/dev/records-owner-expense-resume.patch, restore the typed source lookup, and implement exact current reviewer, Treasury and live approval decisions plus same-transaction purchase and scope rechecks for enforced mode."
+          "nextAction": "After reclaim, git apply --check .scratch/dev/goal-expense-reviewed-owner.patch. Bring up typed Identity, Workflow and Treasury producers before Records binds the enforced predicate; source recheck is available as a reviewed local patch."
         },
-        "nextAction": "After claiming its paths, run git apply --check .scratch/dev/records-owner-expense-resume.patch, restore the typed source lookup, and implement exact current reviewer, Treasury and live approval decisions plus same-transaction purchase and scope rechecks for enforced mode.",
+        "nextAction": "After reclaim, git apply --check .scratch/dev/goal-expense-reviewed-owner.patch. Bring up typed Identity, Workflow and Treasury producers before Records binds the enforced predicate; source recheck is available as a reviewed local patch.",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "cutover.quality.workspace-get",
+        "goalId": "G4",
+        "owner": "quality",
+        "workflowIds": [],
+        "kind": "integration",
+        "title": "Route the Quality workspace and selected reads directly to Axum",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-quality/src/adapters/quality_http.rs",
+          "packages/feature-quality/src/**",
+          "tests/unit/quality/**",
+          "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route.ts"
+        ],
+        "resources": [
+          "path:cutover.quality.workspace-get"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "b24374c4459eb2c4858d34666f8c2e3c53bb16d7",
+        "implementedCommit": "2955034b6f0755a6a18a9d65b000795b104178f6",
+        "lastPushedSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf",
+        "checks": [
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api",
+            "result": "passed",
+            "sourceSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf",
+            "suites": 2425
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf"
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf"
+          },
+          {
+            "command": "bunx vitest run Quality transport/evidence, workspace supervisor, Finance initial stock",
+            "result": "passed",
+            "sourceSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf",
+            "tests": 34
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-quality --lib",
+            "sourceSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf",
+            "result": "passed",
+            "tests": 33
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-quality --test quality_http",
+            "sourceSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf",
+            "result": "passed",
+            "tests": 6
+          },
+          {
+            "command": "dev-https:quality-workspace-selected-session",
+            "sourceSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf",
+            "result": "passed",
+            "canonical": 200,
+            "transportAlias": 200,
+            "head": 200,
+            "headLength": 0,
+            "options": 204,
+            "allow": [
+              "GET",
+              "HEAD",
+              "OPTIONS",
+              "POST"
+            ],
+            "anon": 401,
+            "staleRevision": 409,
+            "wrongCompany": 403,
+            "missingSelection": 409,
+            "cacheControl": "private, no-store",
+            "formerNextWorkspace": 404,
+            "authenticatedSSR": 200,
+            "unauthenticatedSSR": 307,
+            "parity": "Payload equal. Normalize only PostgreSQL stock rows tied in both original ORDER BY names."
+          },
+          {
+            "command": "dev-health:gateway-console-private-production",
+            "sourceSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf",
+            "result": "passed",
+            "gateway": 200,
+            "console": 200,
+            "privateProduction": 200,
+            "retiredConsole": 404
+          },
+          {
+            "command": "bun run docs:check",
+            "sourceSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf",
+            "result": "failed",
+            "detail": "Existing generated docs/status/capability-delivery-matrix.md remains stale."
+          },
+          {
+            "command": "retirement:next-routes:quality-workspace",
+            "sourceSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf",
+            "result": "passed",
+            "before": 1414,
+            "after": 1414,
+            "publicNativeMethodPathsCutOver": 2,
+            "nextDispatchBranchesRetired": 1,
+            "nextRouteFilesDeleted": 0,
+            "sharedMilestone": "cutover.quality.workspace-get and cutover.quality.workspace-ingress"
+          },
+          {
+            "command": "bun run architecture:check",
+            "sourceSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf",
+            "result": "failed",
+            "detail": "Existing owner-private TS imports and legacy Quality detail presenter runtime composition. Workspace cutover touched none of the reported paths."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route.ts",
+            "removalTaskId": "cutover.quality.workspace-get",
+            "removalCondition": "The catch-all still serves detail and cancellation history and command branches. Split exact owner results, close scoped cancellation/command gates and native Allow behavior, then remove the shared route and both app re-exports."
+          },
+          {
+            "path": "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/quality/screen.tsx",
+            "removalTaskId": "exec.quality.routes",
+            "removalCondition": "SSR typed client reads may remain. Replace the separate TypeScript purchase-control read with the Quality Work context read port when its browser contract and authority parity pass."
+          }
+        ],
+        "blocker": "handoff",
+        "nextAction": "Compare the native Quality detail/cancellations envelope and stand up focused authorized command fixtures, then retire the remaining catch-all branches. Existing workspace GET/HEAD verified and its TS branch is gone.",
+        "handoff": {
+          "runId": "run-goal-expense-quality",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T08:23:43.487Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Compare the native Quality detail/cancellations envelope and stand up focused authorized command fixtures, then retire the remaining catch-all branches. Existing workspace GET/HEAD verified and its TS branch is gone."
+        },
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
+      },
+      {
+        "id": "cutover.quality.workspace-ingress",
+        "goalId": "G4",
+        "owner": "quality",
+        "workflowIds": [],
+        "kind": "integration",
+        "title": "Cut over Quality workspace GET and HEAD in Holding ingress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "scripts/local/native-cutover-routes.ts",
+          "scripts/local/native-api-proxy.ts",
+          "scripts/local/workspace-gateway-runtime.ts",
+          "scripts/local/compiled-workspace-gateway.ts",
+          "tests/unit/shared.testing/workspace-supervisor.test.ts",
+          "src/composition/src/quality.rs"
+        ],
+        "resources": [
+          "path:cutover.quality.workspace-ingress",
+          "service:dev-postgres-browser"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "b24374c4459eb2c4858d34666f8c2e3c53bb16d7",
+        "implementedCommit": "2955034b6f0755a6a18a9d65b000795b104178f6",
+        "lastPushedSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf",
+        "checks": [
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api",
+            "result": "passed",
+            "sourceSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf",
+            "suites": 2425
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf"
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf"
+          },
+          {
+            "command": "bunx vitest run Quality transport/evidence, workspace supervisor, Finance initial stock",
+            "result": "passed",
+            "sourceSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf",
+            "tests": 34
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-quality --lib",
+            "sourceSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf",
+            "result": "passed",
+            "tests": 33
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-quality --test quality_http",
+            "sourceSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf",
+            "result": "passed",
+            "tests": 6
+          },
+          {
+            "command": "dev-https:quality-workspace-selected-session",
+            "sourceSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf",
+            "result": "passed",
+            "canonical": 200,
+            "transportAlias": 200,
+            "head": 200,
+            "headLength": 0,
+            "options": 204,
+            "allow": [
+              "GET",
+              "HEAD",
+              "OPTIONS",
+              "POST"
+            ],
+            "anon": 401,
+            "staleRevision": 409,
+            "wrongCompany": 403,
+            "missingSelection": 409,
+            "cacheControl": "private, no-store",
+            "formerNextWorkspace": 404,
+            "authenticatedSSR": 200,
+            "unauthenticatedSSR": 307,
+            "parity": "Payload equal. Normalize only PostgreSQL stock rows tied in both original ORDER BY names."
+          },
+          {
+            "command": "dev-health:gateway-console-private-production",
+            "sourceSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf",
+            "result": "passed",
+            "gateway": 200,
+            "console": 200,
+            "privateProduction": 200,
+            "retiredConsole": 404
+          },
+          {
+            "command": "bun run docs:check",
+            "sourceSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf",
+            "result": "failed",
+            "detail": "Existing generated docs/status/capability-delivery-matrix.md remains stale."
+          },
+          {
+            "command": "retirement:next-routes:quality-workspace",
+            "sourceSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf",
+            "result": "passed",
+            "before": 1414,
+            "after": 1414,
+            "publicNativeMethodPathsCutOver": 2,
+            "nextDispatchBranchesRetired": 1,
+            "nextRouteFilesDeleted": 0,
+            "sharedMilestone": "cutover.quality.workspace-get and cutover.quality.workspace-ingress"
+          },
+          {
+            "command": "bun run architecture:check",
+            "sourceSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf",
+            "result": "failed",
+            "detail": "Existing owner-private TS imports and legacy Quality detail presenter runtime composition. Workspace cutover touched none of the reported paths."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route.ts",
+            "removalTaskId": "cutover.quality.workspace-get",
+            "removalCondition": "The catch-all still serves detail and cancellation history and command branches. Split exact owner results, close scoped cancellation/command gates and native Allow behavior, then remove the shared route and both app re-exports."
+          },
+          {
+            "path": "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/quality/screen.tsx",
+            "removalTaskId": "exec.quality.routes",
+            "removalCondition": "SSR typed client reads may remain. Replace the separate TypeScript purchase-control read with the Quality Work context read port when its browser contract and authority parity pass."
+          }
+        ],
+        "blocker": "handoff",
+        "nextAction": "Compare the native Quality detail/cancellations envelope and stand up focused authorized command fixtures, then retire the remaining catch-all branches. Existing workspace GET/HEAD verified and its TS branch is gone.",
+        "handoff": {
+          "runId": "run-goal-expense-quality",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T08:23:43.770Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Compare the native Quality detail/cancellations envelope and stand up focused authorized command fixtures, then retire the remaining catch-all branches. Existing workspace GET/HEAD verified and its TS branch is gone."
+        },
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
+      },
+      {
+        "id": "migrate.quality.alert-queue-column-width",
+        "goalId": "G4",
+        "owner": "quality",
+        "workflowIds": [],
+        "kind": "migration",
+        "title": "Decode the PostgreSQL quality alert acknowledgement marker",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-quality/src/adapters/quality_alert_queue.rs"
+        ],
+        "resources": [
+          "path:migrate.quality.alert-queue-column-width"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "b24374c4459eb2c4858d34666f8c2e3c53bb16d7",
+        "implementedCommit": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf",
+        "lastPushedSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf",
+        "checks": [
+          {
+            "command": "postgres:quality-alert-queue-width",
+            "sourceSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf",
+            "result": "passed",
+            "rows": 2,
+            "before": "integer",
+            "after": "bigint",
+            "flagDomain": [
+              0,
+              1
+            ]
+          },
+          {
+            "command": "dev-native:quality-alert-queue-and-authenticated-ssr",
+            "sourceSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf",
+            "result": "passed",
+            "oldAdapter": 503,
+            "newAdapter": 200,
+            "rows": 2,
+            "authenticatedSSR": 200,
+            "internalExistingOperationsRestored": 1,
+            "nextDispatchBranchesRetired": 0,
+            "nextRouteFilesDeleted": 0
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-quality --lib",
+            "sourceSha": "3cddd66e37199c9ce9048ec69fc3952a1fe23cbf",
+            "result": "passed",
+            "tests": 33
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Follow exec.quality.routes for remaining alert ingress and native Quality authority; verified the internal queue and SSR on the pushed candidate.",
+        "handoff": {
+          "runId": "run-goal-expense-quality",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T08:23:44.067Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Follow exec.quality.routes for remaining alert ingress and native Quality authority; verified the internal queue and SSR on the pushed candidate."
+        }
       }
     ],
     "migrationProgress": {
@@ -220361,12 +220759,12 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2452,
+      "totalPackets": 2453,
       "migratedPackets": 370,
       "statusCounts": {
         "pending": 14,
         "in_progress": 0,
-        "ready_for_integration": 144,
+        "ready_for_integration": 145,
         "integrating": 0,
         "migrated": 370,
         "blocked": 1922,
@@ -220374,8 +220772,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 204,
-    "updatedAt": "2026-11-27T07:55:26.393Z",
+    "lastCoordinatorGeneration": 205,
+    "updatedAt": "2026-11-27T08:23:44.498Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
