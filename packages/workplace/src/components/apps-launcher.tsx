@@ -111,13 +111,13 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
   function launch(event: MouseEvent<HTMLAnchorElement>, productId: string) {
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     remember(productId);
-    if (window.location.hash !== launcherHash) return;
     event.preventDefault();
     if (launched.current) return;
     launched.current = true;
     const tile = event.currentTarget;
     const href = tile.href;
-    const navigate = () => window.location.replace(href);
+    const returningToPage = window.location.hash === launcherHash;
+    const navigate = () => returningToPage ? window.location.replace(href) : window.location.assign(href);
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || !tile.animate) {
       navigate();
       return;
@@ -126,10 +126,12 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
     const layer = document.createElement("div");
     layer.className = styles.flight;
     layer.ariaHidden = "true";
-    layer.style.backgroundColor = window.getComputedStyle(tile).backgroundColor;
+    layer.dataset.appsLaunchTransition = "";
+    const color = window.getComputedStyle(tile).getPropertyValue("--tile-color").trim();
+    if (color) layer.style.backgroundColor = color;
     document.body.append(layer);
     const animation = layer.animate([
-      { transform: `translate3d(${rect.left}px,${rect.top}px,0) scale(${rect.width / window.innerWidth},${rect.height / window.innerHeight})`, borderRadius: "12px", opacity: 0.24 },
+      { transform: `translate3d(${rect.left}px,${rect.top}px,0) scale(${rect.width / window.innerWidth},${rect.height / window.innerHeight})`, borderRadius: "12px", opacity: 0.54 },
       { transform: "translate3d(0,0,0) scale(1,1)", borderRadius: "0px", opacity: 1 },
     ], { duration: 230, easing: "cubic-bezier(.22,.76,.2,1)", fill: "forwards" });
     flight.current = { layer, animation };

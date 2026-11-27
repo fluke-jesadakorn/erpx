@@ -64,7 +64,7 @@
 .app strong { grid-column: 1 / -1; align-self: end; font-size: clamp(1.08rem, 2vw, 1.45rem); overflow-wrap: anywhere; letter-spacing: -.015em; }
 .app small { grid-column: 1 / -1; }
 .openIcon { opacity: .56; }
-.flight { position: fixed; inset: 0; z-index: 120; pointer-events: none; transform-origin: left top; }
+.flight { position: fixed; inset: 0; z-index: 120; pointer-events: none; transform-origin: left top; background: var(--ui-paper); }
 .administration { display: grid; gap: .5rem; border-top: 1px solid var(--ui-line); padding-top: .75rem; }
 .administration a { display: flex; align-items: center; gap: .5rem; min-height: 44px; color: inherit; }
 .recent {
@@ -86,7 +86,7 @@
 @media (max-width: 767px) {
   .areaToggle { display: inline-flex; align-self: flex-start; margin: .5rem 1rem 0; min-height: 44px; }
   .modalBody { overflow-y: auto; padding-bottom: env(safe-area-inset-bottom); }
-  .panes { display: flex; flex-direction: column; flex: 0 0 auto; }
+  .panes { display: flex; flex-direction: column; flex: 1 0 auto; }
   .tree, .results { overflow-y: visible; }
   .tree { border-inline-end: 0; border-bottom: 1px solid var(--ui-line); }
   .tree[data-mobile-hidden="true"] { display: none; }
