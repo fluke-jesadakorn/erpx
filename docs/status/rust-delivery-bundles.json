@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16087,
+    "revision": 16104,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": null,
@@ -223609,16 +223609,16 @@
         "resources": [
           "dev-admin-host"
         ],
-        "nextAction": "Complete cutover.collaboration.rich-home-native-ssr, rerun exact Admin canary SSO, Feed and PDF with both roles, then publish only the new hostname and confirm the previous host tombstone.",
+        "nextAction": "Public Admin passed normal SSO, Feed, Apps and Billing PDF with both roles and the retired hostname returned 404. Preserve ingress and record remaining migration retirement evidence separately.",
         "workflowIds": [],
         "kind": "migration",
         "dependsOn": [],
         "requiredPorts": [],
-        "status": "blocked",
+        "status": "ready_for_integration",
         "claim": null,
         "baseSha": "338e55bce5e3d9a6406973140bae5d19e1f6c8d3",
-        "implementedCommit": "e44d10bb0e3ffb504f4b9de3c336bed8b723788b",
-        "lastPushedSha": "e44d10bb0e3ffb504f4b9de3c336bed8b723788b",
+        "implementedCommit": "4489f344d6df6211d6142f05a0e7b2c50d32b37a",
+        "lastPushedSha": "4489f344d6df6211d6142f05a0e7b2c50d32b37a",
         "checks": [
           {
             "command": "Billing presenter type check and workspace structure validation",
@@ -223654,17 +223654,35 @@
             "command": "Exact Admin loopback root real Feed SSR received native aggregate HTTP 404, public Cloudflare switch withheld",
             "result": "blocked",
             "sourceSha": "f92d6603d770d02cd75ce4ec028b6a9dd03ae12b"
+          },
+          {
+            "command": "Public Admin Chrome SSO, Feed, Apps, Billing PDF and customer direct-link denial",
+            "result": "passed",
+            "sourceSha": "4489f344d6df6211d6142f05a0e7b2c50d32b37a",
+            "details": "Admin root 200 Feed, fifteen authorized tiles, void THB 1,250 document printed A4. Same signed-in customer URL 403, no print action. Fixture removed."
+          },
+          {
+            "command": "Development gateway and Cloudflare ingress exact host smoke",
+            "result": "passed",
+            "sourceSha": "4489f344d6df6211d6142f05a0e7b2c50d32b37a",
+            "details": "New Admin health 200 through its public Cloudflare edge; previous h003 root generic 404. The existing tunnel routes, private production and OASIS staging were retained."
+          },
+          {
+            "command": "Public Admin active Apps GitHub catalogue read",
+            "result": "passed",
+            "sourceSha": "4489f344d6df6211d6142f05a0e7b2c50d32b37a",
+            "details": "Through the active signed-in Admin Feed, Apps opened the GitHub search/link panel and read the approved registry catalogue with HTTP 200. External contributor PR and genuine owner review are independently pending."
           }
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
         "handoff": {
-          "runId": "oasis-admin-followup-20261127",
+          "runId": "oasis-admin-feed-composition-20261127",
           "agentId": "codex",
-          "at": "2026-11-27T14:18:52.871Z",
-          "previousStatus": "blocked",
+          "at": "2026-11-27T15:50:01.030Z",
+          "previousStatus": "ready_for_integration",
           "reason": "handoff",
-          "nextAction": "Complete cutover.collaboration.rich-home-native-ssr, rerun exact Admin canary SSO, Feed and PDF with both roles, then publish only the new hostname and confirm the previous host tombstone."
+          "nextAction": "Public Admin passed normal SSO, Feed, Apps and Billing PDF with both roles and the retired hostname returned 404. Preserve ingress and record remaining migration retirement evidence separately."
         }
       },
       {
@@ -223766,8 +223784,8 @@
         "status": "blocked",
         "claim": null,
         "baseSha": "451d2a079885475c9aa55163dee98471e23f1f3a",
-        "implementedCommit": "3a44c96b9358ac18fa7fbe717ee04e7d8f51f27e",
-        "lastPushedSha": "3a44c96b9358ac18fa7fbe717ee04e7d8f51f27e",
+        "implementedCommit": "4489f344d6df6211d6142f05a0e7b2c50d32b37a",
+        "lastPushedSha": "4489f344d6df6211d6142f05a0e7b2c50d32b37a",
         "checks": [
           {
             "command": "vitest run --config tests/config/vitest.unit.config.mts tests/unit/collaboration/collaboration-services.test.ts tests/unit/shared.ui/apps-launcher.test.ts",
@@ -223806,6 +223824,54 @@
             "command": "bun run structure:check",
             "result": "passed",
             "sourceSha": "3a44c96b9358ac18fa7fbe717ee04e7d8f51f27e"
+          },
+          {
+            "command": "cargo check --locked --no-default-features --features private-development-api -p erpx-service --bin erpx-server",
+            "result": "passed",
+            "sourceSha": "a8798f7c45ad3af4929ce06a3cff0155ea22ae80",
+            "details": "Private development service builds with the mounted native Holding page, current scope and closed source-only authorization."
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-collaboration -p erpx-server-files --test collaboration_pg_postgres --test social_http --test social_draft_uploads_postgres",
+            "result": "passed",
+            "sourceSha": "a8798f7c45ad3af4929ce06a3cff0155ea22ae80",
+            "details": "15 passed. Actual isolated PostgreSQL served scoped cards, direct threads, current Sources and attachments."
+          },
+          {
+            "command": "vitest run --config tests/config/vitest.unit.config.mts tests/unit/collaboration/collaboration-services.test.ts tests/unit/shared.ui/apps-launcher.test.ts",
+            "result": "passed",
+            "sourceSha": "a8798f7c45ad3af4929ce06a3cff0155ea22ae80",
+            "details": "150 passed, including the scope and presentation header derived by the authenticated Next view."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "a8798f7c45ad3af4929ce06a3cff0155ea22ae80",
+            "details": "Both application and test TypeScript checks passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "a8798f7c45ad3af4929ce06a3cff0155ea22ae80",
+            "details": "Repository layout passed."
+          },
+          {
+            "command": "Chrome public Admin Feed SSR after preserving the exact Holding Host",
+            "result": "passed",
+            "sourceSha": "4489f344d6df6211d6142f05a0e7b2c50d32b37a",
+            "details": "Signed-in Admin root 200 /apps/home; measured home_feed with no TypeScript queries. Direct native unsigned exact host returned 401; unregistered hostname returned 404."
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-collaboration --lib page_",
+            "result": "passed",
+            "sourceSha": "4489f344d6df6211d6142f05a0e7b2c50d32b37a",
+            "details": "5 passed for exact route/auth dispatch, aggregate flag/DTO and fail-closed contracts."
+          },
+          {
+            "command": "cargo build --release --locked --no-default-features --features private-development-api -p erpx-service --bin erpx-server",
+            "result": "passed",
+            "sourceSha": "4489f344d6df6211d6142f05a0e7b2c50d32b37a",
+            "details": "Optimized native binary passed the isolated Admin browser test and was started as the public Development private backend."
           }
         ],
         "retainedLegacy": [
@@ -223842,12 +223908,12 @@
         ],
         "blocker": "handoff",
         "handoff": {
-          "runId": "oasis-admin-feed-linked-20261127",
+          "runId": "oasis-admin-feed-composition-20261127",
           "agentId": "codex",
-          "at": "2026-11-27T15:17:06.606Z",
+          "at": "2026-11-27T15:50:00.883Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Compose SocialHomePolicy::present using the tested Files, Projects, PMS IAM/property and Operations task ports. Bind current Commercial decisions and Social-origin checks, fill composer/role projection, and implement SocialHttpBackend::page before mounting exact registered GET. Rerun exact Admin SSO and Feed/Billing canary, then retire the superseded TypeScript page read."
+          "nextAction": "Port the retained PMS source-only integration test and entry probe to the exact mounted native route, re-prove source purchase and request-context parity, then delete the retained TypeScript page backend and oracle."
         },
         "resources": [
           "collaboration-rich-home-native-ssr"
@@ -223880,14 +223946,19 @@
           "tests/integration/projects/rust-staff-facts-postgres.test.rs",
           "packages/server-operations/src/adapters/record_source.rs",
           "packages/server-operations/src/public/record_source.rs",
-          "tests/integration/operations/rust-record-source-postgres.test.rs"
+          "tests/integration/operations/rust-record-source-postgres.test.rs",
+          "src/composition/src/collaboration_social_home.rs",
+          "packages/server-organization/src/adapters/postgres_organization_nodes.rs",
+          "packages/server-organization/src/public/organization_nodes.rs",
+          "packages/server-agent/src/adapters/provider_postgres.rs",
+          "packages/server-agent/src/public/providers.rs"
         ],
         "scope": "The existing full SocialPage aggregate for a normal signed-in Holding session, including the initial thread, tag, audience/composer options, moderation, and document context. Preserve normal OASIS and CRM paths.",
         "deliverables": [
           "Bind complete Axum aggregate presentation and mount it through the exact registered Holding routes",
           "Verify the new Admin Holding root reaches real Feed after normal SSO and retained Social contracts still pass"
         ],
-        "nextAction": "Compose SocialHomePolicy::present using the tested Files, Projects, PMS IAM/property and Operations task ports. Bind current Commercial decisions and Social-origin checks, fill composer/role projection, and implement SocialHttpBackend::page before mounting exact registered GET. Rerun exact Admin SSO and Feed/Billing canary, then retire the superseded TypeScript page read."
+        "nextAction": "Port the retained PMS source-only integration test and entry probe to the exact mounted native route, re-prove source purchase and request-context parity, then delete the retained TypeScript page backend and oracle."
       },
       {
         "id": "ux.apps.stable-switcher",
@@ -223976,6 +224047,59 @@
         },
         "scope": "Shared Holding Apps navigation, accessible focus and browser history, without changing SSO or native app authority.",
         "nextAction": "The shared Apps frontend and OASIS replacement release are verified. Continue cutover.collaboration.rich-home-native-ssr for the remaining Admin Feed gate. The interview case stays reserved for live use."
+      },
+      {
+        "id": "ux.apps.restore-feed-scroll",
+        "goalId": "G4",
+        "owner": "apps",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Restore Feed position after switching Apps and renewing the selected role",
+        "dependsOn": [
+          "ux.apps.stable-switcher"
+        ],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/workplace/src/components/apps-launcher.tsx",
+          "packages/feature-work_projection/src/lib/apps-launcher.ts",
+          "tests/unit/shared.ui/apps-launcher.test.ts"
+        ],
+        "resources": [
+          "holding-apps-switcher-ux"
+        ],
+        "status": "done",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "4489f344d6df6211d6142f05a0e7b2c50d32b37a",
+        "lastPushedSha": "4489f344d6df6211d6142f05a0e7b2c50d32b37a",
+        "checks": [
+          {
+            "command": "Public OASIS Chrome Sales switch, scoped Feed scroll re-entry, mobile/tablet and reduced motion",
+            "result": "passed",
+            "sourceSha": "4489f344d6df6211d6142f05a0e7b2c50d32b37a",
+            "details": "Actual mobile pointer tapped Apps while Feed was at 360 pixels. Browser Back reopened the original Feed through Account role revalidation and restored 360 pixels. Chrome exercised stable tile order, current Sales resume, full-screen responsive Apps, Escape and reduced motion."
+          },
+          {
+            "command": "Verified frozen OASIS Next standalone and Rust release from a single commit",
+            "result": "passed",
+            "sourceSha": "4489f344d6df6211d6142f05a0e7b2c50d32b37a",
+            "details": "Three optimized applications and the Axum binary inventory verified. Exact public Holding and Account started and returned health 200. Seller and manager reopened the recorded approved quotation at THB 85,500 and the manager opened filtered Sales Reports and print."
+          },
+          {
+            "command": "Apps and Collaboration Vitest plus full TypeScript typecheck",
+            "result": "passed",
+            "sourceSha": "4489f344d6df6211d6142f05a0e7b2c50d32b37a",
+            "details": "152 focused tests passed including one-use exact Account/Company/workspace/filtered-route scroll restoration, corrupted state, and forwarding the rendered workspace and original Host. TypeScript checks passed."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scope": "Preserve the shared Apps Feed position on a same-Account and same-workspace return as browser role revalidation adds a document navigation.",
+        "deliverables": [
+          "Verify actual mobile browser scroll position before leaving for Sales and after browser Back, including the Account role selection path."
+        ],
+        "nextAction": "The exact public OASIS release was browser verified with a pixel-matched Feed return and the approved quotation read and print."
       }
     ],
     "migrationProgress": {
@@ -223989,16 +224113,16 @@
       "statusCounts": {
         "pending": 14,
         "in_progress": 0,
-        "ready_for_integration": 159,
+        "ready_for_integration": 160,
         "integrating": 0,
         "migrated": 370,
-        "blocked": 1927,
+        "blocked": 1926,
         "deferred": 2,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 216,
-    "updatedAt": "2026-11-27T15:17:06.759Z",
+    "lastCoordinatorGeneration": 217,
+    "updatedAt": "2026-11-27T15:50:01.178Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
