@@ -4,6 +4,7 @@ export type NativeApiPathsConfig = {
   holdingPrefixes?: string[];
   holdingPaths?: { method: string; path: string }[];
   platform?: { host: string; method: string; path: string }[];
+  platformPrefixes?: { host: string; path: string }[];
   rewrites?: string[];
 };
 
@@ -28,6 +29,10 @@ export function expandNativeApiPaths(config: NativeApiPathsConfig, hosts: readon
   for (const entry of config.platform ?? []) {
     if (!entry.host || !/^[A-Z]+$/.test(entry.method) || !entry.path.startsWith("/api/")) throw new Error("INVALID_NATIVE_PLATFORM_ENTRY");
     entries.push(`${entry.host}|${entry.method}|${entry.path}`);
+  }
+  for (const entry of config.platformPrefixes ?? []) {
+    if (!entry.host || !entry.path.startsWith("/api/") || entry.path.includes("|") || entry.path.includes(",")) throw new Error("INVALID_NATIVE_PLATFORM_PREFIX");
+    entries.push(`${entry.host}|${entry.path}`);
   }
   return {
     paths: entries.join(","),
