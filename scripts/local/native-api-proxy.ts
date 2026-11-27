@@ -141,9 +141,10 @@ const commandContextAssertions = [
 ] as const;
 const recordRequestHeaders = ["origin", "content-type", "idempotency-key", ...commandContextAssertions];
 
-export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.ProcessEnv; req: IncomingMessage; res: ServerResponse; url?: string; requiresSession?: boolean; recordAction?: boolean; routineCommand?: boolean; qualityRead?: boolean; qualityCommand?: boolean; workspace?: HoldingNativeWorkspace }): Promise<void> {
-  const { base, environment, req, res, recordAction, routineCommand, qualityRead, qualityCommand } = options;
-  const requiresSession = options.requiresSession || qualityRead || qualityCommand;
+export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.ProcessEnv; req: IncomingMessage; res: ServerResponse; url?: string; requiresSession?: boolean; recordAction?: boolean; routineCommand?: boolean; qualityRead?: boolean; qualityCommand?: boolean; qualityMissing?: boolean; workspace?: HoldingNativeWorkspace }): Promise<void> {
+  const { base, environment, req, res, recordAction, routineCommand, qualityRead, qualityCommand, qualityMissing } = options;
+  const quality = qualityRead || qualityCommand || qualityMissing;
+  const requiresSession = options.requiresSession || quality;
   const workspace = req.method === "OPTIONS" ? undefined : options.workspace;
   const routineUnavailable = () => nativeApiError(res, 503, "NATIVE_ROUTINES_UNAVAILABLE", `The native Operations routine ${routineCommand ? "command" : "read"} is unavailable.`);
   const url = options.url ?? req.url ?? "/";
@@ -169,11 +170,12 @@ export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.
         res.end(error.body);
         return;
       }
-      if (qualityRead || qualityCommand) return nativeQualityUnavailable(res);
+      if (quality) return nativeQualityUnavailable(res);
       if (requiresSession || routineCommand) return routineUnavailable();
       return nativeApiError(res, 503, "NATIVE_RECORD_REGISTRY_UNAVAILABLE", "The native Records registry service is unavailable.");
     }
   }
+  if (qualityMissing) return nativeApiError(res, 404, "NOT_FOUND", "Quality route not found.");
   const missingQualitySelection = qualityCommand && renderedSelectionHeaders.some(name => !req.headers[name]);
   const checksCommandContext = qualityCommand || routineCommand || (recordAction && ["POST", "PATCH", "DELETE"].includes(req.method ?? ""));
   const staleCommandContext = checksCommandContext && commandContextAssertions.some(name =>
@@ -196,7 +198,7 @@ export async function proxyNativeApi(options: { base: URL; environment?: NodeJS.
     upstream.once("error", () => {
       if (res.headersSent) res.destroy();
       else if (recordAction) nativeApiError(res, 503, "NATIVE_RECORD_REGISTRY_UNAVAILABLE", "The native Records registry service is unavailable.");
-      else if (qualityRead || qualityCommand) nativeQualityUnavailable(res);
+      else if (quality) nativeQualityUnavailable(res);
       else if (routineCommand || requiresSession) routineUnavailable();
       else {
         res.writeHead(502, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "private, no-store" });

@@ -18,7 +18,6 @@
     "./lib/quality-command-fetch": "./src/lib/quality-command-fetch.ts",
     "./adapters/server/native-quality": "./src/adapters/server/native-quality.ts",
     "./adapters/server/native-quality-page": "./src/adapters/server/native-quality-page.ts",
-    "./lib/native-quality": "./src/lib/native-quality.ts",
     "./adapters/server/native-quality-owned": "./src/adapters/server/native-quality-owned.ts"
   },
   "scripts": {

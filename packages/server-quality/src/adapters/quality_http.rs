@@ -360,11 +360,11 @@ pub fn quality_router(targets: Vec<QualityHttpTarget>) -> Result<Router, Busines
         )
         .route(
             "/api/v1/holdings/{holding_slug}/quality/read-plan",
-            post(read_plan),
+            get(public_write_only_read).post(read_plan),
         )
         .route(
             "/api/v1/holdings/{holding_slug}/quality/specifications",
-            post(save_spec),
+            get(public_write_only_read).post(save_spec),
         )
         .route(
             "/api/v1/holdings/{holding_slug}/quality/specifications/{id}",
@@ -1226,6 +1226,32 @@ async fn read_history(
     }
 }
 
+fn from_public_gateway(request: &Request) -> bool {
+    request
+        .headers()
+        .get("x-erpx-api-transport")
+        .is_some_and(|value| value == "public")
+}
+
+async fn public_write_only_read(
+    State(state): State<Arc<QualityHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    if !from_public_gateway(&request) {
+        return StatusCode::METHOD_NOT_ALLOWED.into_response();
+    }
+    if let Err(error) = target(&state, request.headers(), &slug) {
+        return error_response(error);
+    }
+    let mut response = bounded(json!({"error": {
+        "code": "NATIVE_QUALITY_UNAVAILABLE",
+        "message": "The native Quality request could not be completed."
+    }}));
+    *response.status_mut() = StatusCode::METHOD_NOT_ALLOWED;
+    response
+}
+
 async fn read_alert_queue(
     State(state): State<Arc<QualityHttpState>>,
     Path(slug): Path<String>,
@@ -1233,6 +1259,13 @@ async fn read_alert_queue(
 ) -> Response {
     let result = async move {
         let target = target(&state, request.headers(), &slug)?;
+        if from_public_gateway(&request) {
+            return Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "NATIVE_QUALITY_RESPONSE_INVALID",
+                "The native Quality reader is unavailable.",
+            ));
+        }
         target
             .backend
             .alert_queue(QualityHttpAlertQueueRequest {
@@ -1616,10 +1649,7 @@ async fn parse_relay_command(
     mut request: Request,
     target: &QualityHttpTarget,
 ) -> Result<ParsedQualityCommand, Response> {
-    let public = request
-        .headers()
-        .get("x-erpx-api-transport")
-        .is_some_and(|value| value == "public");
+    let public = from_public_gateway(&request);
     if public {
         request.headers_mut().insert(
             header::CONTENT_TYPE,
@@ -1643,9 +1673,9 @@ async fn create_hold(
     request: Request,
 ) -> Response {
     let result = async move {
-        let target = target(&state, request.headers(), &slug)?;
-        let parsed = parse_quality_command(request, target).await?;
-        let command = parse_hold_create(&parsed.body, parsed.key.clone())?;
+        let target = target(&state, request.headers(), &slug).map_err(error_response)?;
+        let parsed = parse_relay_command(request, target).await?;
+        let command = parse_hold_create(&parsed.body, parsed.key.clone()).map_err(error_response)?;
         target
             .backend
             .hold_create(QualityHttpHoldCreateRequest {
@@ -1656,11 +1686,12 @@ async fn create_hold(
                 key: &command.key,
             })
             .await
+            .map_err(error_response)
     }
     .await;
     match result {
         Ok(receipt) => bounded(hold_receipt_json(&receipt)),
-        Err(error) => error_response(error),
+        Err(response) => response,
     }
 }
 
@@ -1749,10 +1780,10 @@ async fn inspect(
     request: Request,
 ) -> Response {
     let result = async move {
-        let target = target(&state, request.headers(), &slug)?;
-        let parsed = parse_quality_command(request, target).await?;
-        let id = RecordId::new(id)?;
-        let command = parse_inspection(&parsed.body, id.as_str(), parsed.key.clone())?;
+        let target = target(&state, request.headers(), &slug).map_err(error_response)?;
+        let parsed = parse_relay_command(request, target).await?;
+        let id = RecordId::new(id).map_err(error_response)?;
+        let command = parse_inspection(&parsed.body, id.as_str(), parsed.key.clone()).map_err(error_response)?;
         target
             .backend
             .inspect(QualityHttpCommandRequest {
@@ -1764,11 +1795,12 @@ async fn inspect(
                 key: &command.key,
             })
             .await
+            .map_err(error_response)
     }
     .await;
     match result {
         Ok(receipt) => bounded(inspection_receipt_json(&receipt)),
-        Err(error) => error_response(error),
+        Err(response) => response,
     }
 }
 
@@ -1778,10 +1810,10 @@ async fn release(
     request: Request,
 ) -> Response {
     let result = async move {
-        let target = target(&state, request.headers(), &slug)?;
-        let parsed = parse_quality_command(request, target).await?;
-        let id = RecordId::new(id)?;
-        let command = parse_release(&parsed.body, id.as_str(), parsed.key.clone())?;
+        let target = target(&state, request.headers(), &slug).map_err(error_response)?;
+        let parsed = parse_relay_command(request, target).await?;
+        let id = RecordId::new(id).map_err(error_response)?;
+        let command = parse_release(&parsed.body, id.as_str(), parsed.key.clone()).map_err(error_response)?;
         target
             .backend
             .release(QualityHttpCommandRequest {
@@ -1793,11 +1825,12 @@ async fn release(
                 key: &command.key,
             })
             .await
+            .map_err(error_response)
     }
     .await;
     match result {
         Ok(receipt) => bounded(release_receipt_json(&receipt)),
-        Err(error) => error_response(error),
+        Err(response) => response,
     }
 }
 
@@ -1807,10 +1840,10 @@ async fn disposition_command(
     request: Request,
 ) -> Response {
     let result = async move {
-        let target = target(&state, request.headers(), &slug)?;
-        let parsed = parse_quality_command(request, target).await?;
-        let id = RecordId::new(id)?;
-        let command = parse_disposition(&parsed.body, id.as_str(), parsed.key.clone())?;
+        let target = target(&state, request.headers(), &slug).map_err(error_response)?;
+        let parsed = parse_relay_command(request, target).await?;
+        let id = RecordId::new(id).map_err(error_response)?;
+        let command = parse_disposition(&parsed.body, id.as_str(), parsed.key.clone()).map_err(error_response)?;
         target
             .backend
             .disposition(QualityHttpCommandRequest {
@@ -1822,11 +1855,12 @@ async fn disposition_command(
                 key: &command.key,
             })
             .await
+            .map_err(error_response)
     }
     .await;
     match result {
         Ok(receipt) => bounded(disposition_receipt_json(&receipt)),
-        Err(error) => error_response(error),
+        Err(response) => response,
     }
 }
 

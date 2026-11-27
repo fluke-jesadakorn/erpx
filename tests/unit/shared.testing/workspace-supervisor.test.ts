@@ -433,24 +433,42 @@ it('routes retired Holding entries and their transport aliases directly to Axum'
     expect(holdingNativeCutoverPath(`${routines}/template-1/schedules`, 'acme', 'GET')).toBe('routine-templates');
     const quality = '/api/v1/holdings/acme/quality';
     expect(holdingNativeCutoverPath(quality + '/alert-1/acknowledge', 'acme', 'POST')).toBe('quality-command');
-    for (const suffix of ['/specifications', '/specifications/spec-1'])
+    for (const suffix of ['', '/specifications', '/specifications/spec-1', '/hold-1/inspect', '/hold-1/release', '/hold-1/disposition'])
       expect(holdingNativeCutoverPath(quality + suffix, 'acme', 'POST')).toBe('quality-command');
     const encodedSpec = normalizeHoldingNativePath(quality + '/%73pecifications/spec-1?view=draft', 'acme');
     expect(encodedSpec.url).toBe(quality + '/specifications/spec-1?view=draft');
     expect(holdingNativeCutoverPath(encodedSpec.url, 'acme', 'POST')).toBe('quality-command');
-    for (const suffix of ['/alert-1/acknowledge/extra', '/%2F/acknowledge', '/hold-1/cancel', '/read-plan', '/specifications/%2F', '/specifications/spec-1/extra'])
+    const encodedRelease = normalizeHoldingNativePath(quality + '/hold-1/%72elease', 'acme');
+    expect(encodedRelease.url).toBe(quality + '/hold-1/release');
+    expect(holdingNativeCutoverPath(encodedRelease.url, 'acme', 'POST')).toBe('quality-command');
+    for (const suffix of ['/alert-1/acknowledge/extra', '/%2F/acknowledge', '/hold-1/cancel', '/specifications/%2F', '/specifications/spec-1/extra'])
       expect(holdingNativeCutoverPath(quality + suffix, 'acme', 'POST')).toBeUndefined();
-    for (const suffix of ['', '/hold-1', '/hold-1/cancellations']) {
+    for (const suffix of ['', '/hold-1', '/hold-1/cancellations', '/alerts', '/read-plan', '/specifications']) {
       for (const method of ['GET', 'HEAD'])
         expect(holdingNativeCutoverPath(`${quality}${suffix}?view=workspace`, 'acme', method)).toBe('quality-read');
-      for (const method of ['POST', 'DELETE', 'OPTIONS'])
+      for (const method of ['DELETE', 'OPTIONS'])
         expect(holdingNativeCutoverPath(quality + suffix, 'acme', method)).toBeUndefined();
     }
-    for (const suffix of ['/alerts', '/%61lerts', '/read-plan', '/specifications', '/hold-1/detail-core', '/%2f/cancellations'])
-      expect(holdingNativeCutoverPath(quality + suffix, 'acme', 'GET')).toBeUndefined();
+    expect(holdingNativeCutoverPath(quality + '/hold-1/detail-core', 'acme', 'GET')).toBe('quality-missing');
+    expect(holdingNativeCutoverPath(quality + '/read-plan', 'acme', 'POST')).toBe('quality-missing');
+    expect(holdingNativeCutoverPath(quality + '/%2f/cancellations', 'acme', 'GET')).toBeUndefined();
+    for (const [method, status, allow] of [['OPTIONS', 204, 'GET, HEAD, OPTIONS, POST'], ['DELETE', 405, undefined]] as const) {
+      const response = await new Promise<{status: number; allow?: string}>((resolve, reject) => {
+        const req = request({ host: '127.0.0.1', port: 3104, path: '/__erpx/supply' + quality + '/hold-1/cancel', method, headers: { Host: host }, agent: false }, res => {
+          res.resume();
+          res.once('end', () => resolve({ status: res.statusCode!, allow: res.headers.allow }));
+        });
+        req.once('error', reject);
+        req.end();
+      });
+      expect(response).toEqual({ status, allow });
+    }
     expect((await get(3104, host, quality)).status).toBe(401);
     const scopedQuality = quality.replace('/acme/', '/acme/branches/bangkok/departments/ops/');
     const qualityHeaders = { Cookie: 'erpx_session=fixture', 'x-erpx-workspace-branch': 'forged' };
+    const privateQuality = await get(3104, host, `/__erpx/supply${scopedQuality}/hold-1/detail-core`, qualityHeaders);
+    expect(privateQuality.status).toBe(404);
+    expect(JSON.parse(privateQuality.body)).toMatchObject({error: {code: 'NOT_FOUND'}});
     expect(await get(3104, host, `/__erpx/supply${scopedQuality}`, qualityHeaders)).toEqual({
       status: 200, body: JSON.stringify({ path: quality, branch: 'bangkok', department: 'ops' }),
     });
@@ -487,6 +505,10 @@ it('routes retired Holding entries and their transport aliases directly to Axum'
       ['apps', suggestions, 'NATIVE_RECORD_REGISTRY_UNAVAILABLE'],
       ['apps', `${suggestions}/suggestion-1`, 'NATIVE_RECORD_REGISTRY_UNAVAILABLE'],
       ['supply', `${quality}/alert-1/acknowledge`, 'NATIVE_QUALITY_UNAVAILABLE'],
+      ['supply', quality, 'NATIVE_QUALITY_UNAVAILABLE'],
+      ['supply', `${quality}/hold-1/inspect`, 'NATIVE_QUALITY_UNAVAILABLE'],
+      ['supply', `${quality}/hold-1/release`, 'NATIVE_QUALITY_UNAVAILABLE'],
+      ['supply', `${quality}/hold-1/disposition`, 'NATIVE_QUALITY_UNAVAILABLE'],
     ] as const) {
       const unavailable = await new Promise<{status: number; body: string}>((done, reject) => {
         const req = request({host: '127.0.0.1', port: 3104, path: `/__erpx/${app}${path}`,

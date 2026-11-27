@@ -2,18 +2,11 @@ import 'server-only';
 import { headers } from 'next/headers';
 import {
   createNativeQualityReader,
-  type NativeQualityDetail,
   type NativeQualityDetailCore,
   type NativeQualityQueueAlert,
   type NativeQualityCancellationCursor,
   type NativeQualityCancellationPage,
-  type NativeQualityDispositionReceipt,
-  type NativeQualityHoldReceipt,
-  type NativeQualityInspectionReceipt,
-  type NativeQualityAlertAcknowledgementReceipt,
   type NativeQualityReceipt,
-  type NativeQualityReleaseReceipt,
-  type NativeQualitySpecReceipt,
   type NativeQualityWorkspace,
   type QualityTransport,
 } from './native-quality';
@@ -50,16 +43,6 @@ export async function nativeQualityWorkspace(
   return native.workspace(await headers(), holdingSlug);
 }
 
-export async function nativeQualityDetail(
-  holdingSlug: string,
-  id: string,
-  transport?: QualityTransport,
-): Promise<NativeQualityDetail | undefined> {
-  const native = client(transport);
-  if (!native) return undefined;
-  return native.detail(await headers(), holdingSlug, id);
-}
-
 export async function nativeQualityDetailCore(
   holdingSlug: string,
   id: string,
@@ -81,76 +64,6 @@ export async function nativeQualityCancellationHistory(
   return native.cancellationHistory(await headers(), holdingSlug, id, cursor);
 }
 
-export async function nativeQualitySaveSpecification(
-  holdingSlug: string,
-  input: unknown,
-  key: string,
-  transport?: QualityTransport,
-): Promise<NativeQualitySpecReceipt | undefined> {
-  const native = client(transport);
-  if (!native) return undefined;
-  return native.saveSpecification(await headers(), holdingSlug, input, key);
-}
-
-export async function nativeQualityTransitionSpecification(
-  holdingSlug: string,
-  id: string,
-  input: unknown,
-  key: string,
-  transport?: QualityTransport,
-): Promise<NativeQualitySpecReceipt | undefined> {
-  const native = client(transport);
-  if (!native) return undefined;
-  return native.transitionSpecification(await headers(), holdingSlug, id, input, key);
-}
-
-export async function nativeQualityInspect(
-  holdingSlug: string,
-  id: string,
-  input: unknown,
-  key: string,
-  transport?: QualityTransport,
-): Promise<NativeQualityInspectionReceipt | undefined> {
-  const native = client(transport);
-  if (!native) return undefined;
-  return native.inspect(await headers(), holdingSlug, id, input, key);
-}
-
-export async function nativeQualityHoldCreate(
-  holdingSlug: string,
-  input: unknown,
-  key: string,
-  transport?: QualityTransport,
-): Promise<NativeQualityHoldReceipt | undefined> {
-  const native = client(transport);
-  if (!native) return undefined;
-  return native.holdCreate(await headers(), holdingSlug, input, key);
-}
-
-export async function nativeQualityRelease(
-  holdingSlug: string,
-  id: string,
-  input: unknown,
-  key: string,
-  transport?: QualityTransport,
-): Promise<NativeQualityReleaseReceipt | undefined> {
-  const native = client(transport);
-  if (!native) return undefined;
-  return native.release(await headers(), holdingSlug, id, input, key);
-}
-
-export async function nativeQualityDisposition(
-  holdingSlug: string,
-  id: string,
-  input: unknown,
-  key: string,
-  transport?: QualityTransport,
-): Promise<NativeQualityDispositionReceipt | undefined> {
-  const native = client(transport);
-  if (!native) return undefined;
-  return native.disposition(await headers(), holdingSlug, id, input, key);
-}
-
 export async function nativeQualityCancel(
   holdingSlug: string,
   id: string,
@@ -161,18 +74,6 @@ export async function nativeQualityCancel(
   const native = client(transport);
   if (!native) return undefined;
   return native.cancel(await headers(), holdingSlug, id, input, key);
-}
-
-export async function nativeQualityAcknowledgeAlert(
-  holdingSlug: string,
-  id: string,
-  input: unknown,
-  key: string,
-  transport?: QualityTransport,
-): Promise<NativeQualityAlertAcknowledgementReceipt | undefined> {
-  const native = client(transport);
-  if (!native) return undefined;
-  return native.acknowledgeAlert(await headers(), holdingSlug, id, input, key);
 }
 
 export type NativeQualityFailure = Readonly<{
