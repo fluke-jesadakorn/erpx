@@ -9269,7 +9269,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16266,
+    "revision": 16274,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -225569,23 +225569,46 @@
           "owner:organization",
           "route:holding-ui-address"
         ],
-        "status": "in_progress",
-        "claim": {
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "161b5c16999853882de5ad3f4679231704de282e",
+        "implementedCommit": "edb3182b00774940116653d96fbc60bdc1147465",
+        "lastPushedSha": "edb3182b00774940116653d96fbc60bdc1147465",
+        "checks": [
+          {
+            "command": "cargo test --locked -p erpx-server-organization --test hierarchy",
+            "result": "passed",
+            "sourceSha": "edb3182b00774940116653d96fbc60bdc1147465",
+            "details": "9/9 owner hierarchy and Holding address tests"
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration -- tests/integration/organization/rust-hierarchy-postgres.test.rs",
+            "result": "passed",
+            "sourceSha": "edb3182b00774940116653d96fbc60bdc1147465",
+            "details": "6/6 Axum + PostgreSQL structural address tests"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "edb3182b00774940116653d96fbc60bdc1147465"
+          },
+          {
+            "command": "bun scripts/testing/rust-migration-work.ts validate",
+            "result": "passed",
+            "sourceSha": "edb3182b00774940116653d96fbc60bdc1147465"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Frozen owner packet pushed edb3182b0; integration owns the mount, gateway grammar and TS retirement.",
+        "handoff": {
           "runId": "run-20261128-route",
           "agentId": "codex-oasis-holding-address",
-          "claimedAt": "2026-11-27T19:17:23.021Z",
-          "heartbeatAt": "2026-11-27T19:17:23.021Z",
-          "expiresAt": "2026-11-27T19:47:23.021Z",
-          "generation": 225
+          "at": "2026-11-27T19:22:49.946Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Frozen owner packet pushed edb3182b0; integration owns the mount, gateway grammar and TS retirement."
         },
-        "baseSha": "161b5c16999853882de5ad3f4679231704de282e",
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Fluke confirmed the business-order grammar and private contract. Implement GET /internal/organization/holdings/{holding_slug}/workspace-address with selectors company, branch, department and workspace (one segment that may be branch or direct department); return data:{companyId,companySlug,branchSlug,departmentSlug}; company accepts id/slug. Keep the owner read named-field and structural-only; add unit and PostgreSQL tests; report interface and Axum mount request.",
-        "handoff": null,
         "scopeRefinementRequired": false
       },
       {
@@ -225594,42 +225617,87 @@
         "owner": "organization",
         "kind": "integration",
         "title": "Wire and retire the Organization holding UI address resolver",
-        "scope": "Lead-owned integration for the native Organization structural address read. Company slug is the first path segment after the Holding host and is mandatory for every Product/Plugin. Confirmed public grammar: /{companySlug}/{branchSlug}/{departmentSlug}/{product}/... (e.g. /acme-co/bangkok/kitchens/finance); /{companySlug}/{departmentSlug}/{product}/... for a direct department (e.g. /acme-co/accounting/finance); /{companySlug}/{product}/... for Company-only (e.g. /acme-co/finance); Plugins may nest under the Company path (e.g. /acme-co/admin/brand/identity) at every level. Replace the ?company= page URL grammar. Native private contract: GET /internal/organization/holdings/{holding_slug}/workspace-address with selectors company, branch, department and workspace (one segment that may be a branch or a direct department); return data:{companyId,companySlug,branchSlug,departmentSlug}. company accepts id or slug with existing parity; URL creators use the returned slug. Retire workspaceRouteCompany only after the private Axum lookup is exercised in both gateway profiles. Acceptance remains deferred.",
+        "scope": "Codex-owned URL integration for the native Organization structural address read. Fluke confirmed the public grammar: Company slug is the first path segment after the Holding host and is mandatory for every Product/Plugin: /{companySlug}/{branchSlug}/{departmentSlug}/{product}/... (for example /acme-co/bangkok/kitchens/finance); /{companySlug}/{departmentSlug}/{product}/... for a direct department (for example /acme-co/accounting/finance); /{companySlug}/{product}/... for Company-only (for example /acme-co/finance); and Plugins nested under the Company path at every level (for example /acme-co/admin/brand/identity). Replace the ?company= page URL grammar. Native private contract: GET /internal/organization/holdings/{holding_slug}/workspace-address with selectors company, branch, department and workspace (one segment that may be a branch or a direct department); return data:{companyId,companySlug,branchSlug,departmentSlug}. company accepts id or slug with existing parity; URL creators use the returned slug. Mount holding_address_router from the pushed owner packet edb3182b0 in composition with exact registered Holding hosts and leased pools, extend both gateway profiles, update the shared Holding contract and every necessary link producer, replace workspaceRouteCompany in the Holding proxy, and retire the retained TS resolver/public export only after the private Axum lookup is exercised in both gateway profiles. Acceptance remains deferred. The lead retains the central ledger, route-cutover orchestration and Git push serialization; do not edit docs/status or unrelated route files.",
         "workflowIds": [],
-        "dependsOn": [
-          "migrate.organization.holding-ui-address"
-        ],
+        "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
           "packages/contracts/src/holding-hosts.ts",
           "packages/contracts/src/holding-hosts/**",
-          "packages/workplace/src/holding-proxy.ts",
+          "packages/contracts/src/product-registry.ts",
+          "packages/contracts/package.json",
+          "packages/feature-runtime/src/lib/holding-hosts.ts",
+          "packages/feature-runtime/src/lib/holding-paths.ts",
+          "packages/feature-runtime/src/lib/holding-registry.ts",
+          "packages/feature-runtime/src/lib/application-origins.ts",
+          "packages/feature-runtime/src/lib/product-hosts.ts",
+          "packages/feature-runtime/src/lib/product-route-policy.ts",
+          "packages/workplace/src/**",
+          "packages/feature-work_projection/src/lib/**",
+          "packages/feature-records/src/lib/record-drawer.ts",
+          "packages/feature-admin/src/routes/provider/commercial/packages/page.tsx",
+          "packages/server-identity_access/src/adapters/public-surface-entry.ts",
+          "packages/server-identity_access/src/adapters/product-workspace.ts",
+          "packages/server-identity_access/src/adapters/admin-workspace.ts",
+          "packages/server-identity_access/src/adapters/native-account-context.ts",
+          "packages/server-identity_access/src/adapters/native-work-role-transport.ts",
+          "packages/server-pos/src/adapters/pos-stripe.ts",
           "packages/server-organization/src/adapters/workspace-route-company.ts",
           "packages/server-organization/src/public/workspace-route-company.ts",
           "packages/server-organization/src/public/mod.rs",
-          "scripts/local/native-cutover-routes.ts",
+          "packages/server-organization/package.json",
+          "src/composition/src/private_development_api.rs",
+          "src/composition/src/holding_address.rs",
+          "src/composition/src/lib.rs",
+          "scripts/local/native-api-paths.json",
+          "scripts/local/native-api-paths.ts",
           "scripts/local/native-api-proxy.ts",
+          "scripts/local/native-cutover-routes.ts",
           "scripts/local/workspace-gateway-runtime.ts",
           "scripts/local/compiled-workspace-gateway.ts",
-          "src/composition/src/**",
+          "scripts/local/holding-gateway.ts",
+          "scripts/local/dev.ts",
+          "scripts/local/app-proxy.ts",
+          "scripts/local/oasis-demo-stage.ts",
+          "scripts/local/migrate-holding-addresses.ts",
+          "scripts/local/workspace-supervisor.ts",
           "tests/unit/shared.testing/**",
+          "tests/unit/identity_access/**",
+          "tests/unit/shared.runtime/**",
+          "tests/unit/records/records-registry-routes-pure-transport.test.ts",
+          "tests/unit/pms/**",
+          "tests/unit/sales/sales-services.test.ts",
           "tests/integration/identity_access/holding-addresses.test.ts",
-          "docs/status/rust-delivery-bundles.json"
+          "tests/integration/shared.foundation/web-push.test.ts"
         ],
         "resources": [
           "owner:organization",
           "route:holding-ui-address-wire"
         ],
-        "status": "pending",
-        "claim": null,
-        "baseSha": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261128-route",
+          "agentId": "codex-oasis-holding-address",
+          "claimedAt": "2026-11-27T19:26:06.018Z",
+          "heartbeatAt": "2026-11-27T19:26:06.018Z",
+          "expiresAt": "2026-11-27T19:56:06.018Z",
+          "generation": 225
+        },
+        "baseSha": "7e0d0db108612bf1caae014d0d6f60c208b427db",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Bind the confirmed business-order grammar and private workspace-address GET: mount the Axum owner route, update the shared Holding contract and Company-in-path redirects, apply the grammar to every Product/Plugin, replace workspaceRouteCompany, and run the address and proxy tests.",
-        "handoff": null,
+        "nextAction": "Start from pushed base 7e0d0db10 (owner read packet edb3182b0): mount the private workspace-address GET, implement the Company-first business-order grammar and link producers, retire workspaceRouteCompany after both gateway profiles exercise the native lookup, run the address/proxy/type checks, and report the frozen SHA and actual URL checks.",
+        "handoff": {
+          "runId": "run-20261128-route",
+          "agentId": "lead",
+          "at": "2026-11-27T19:26:05.472Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Handed to codex-oasis-holding-address at Fluke request. Codex owns the completed URL integration and may edit only the refined allowed paths; lead retains central ledger, route-cutover orchestration and Git serialization."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -225671,8 +225739,8 @@
       "migratedPackets": 377,
       "statusCounts": {
         "pending": 14,
-        "in_progress": 1,
-        "ready_for_integration": 165,
+        "in_progress": 0,
+        "ready_for_integration": 166,
         "integrating": 0,
         "migrated": 377,
         "blocked": 1926,
@@ -225681,7 +225749,7 @@
       }
     },
     "lastCoordinatorGeneration": 225,
-    "updatedAt": "2026-11-27T19:18:54.909Z",
+    "updatedAt": "2026-11-27T19:26:06.022Z",
     "handoff": {
       "fromRun": "run-20261128-route",
       "verifiedPushedCheckpoint": "161b5c16999853882de5ad3f4679231704de282e",
