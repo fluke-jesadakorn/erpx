@@ -6,6 +6,7 @@ pub use crate::adapters::postgres_organization_nodes::{
 };
 pub use crate::adapters::postgres_organization_nodes::{
     OrganizationChannelEnsureSummary, PgOrganizationNodes, ensure_organization_channels,
+    social_audience_branches, social_department_name,
 };
 pub use crate::application::organization_nodes::{
     CancelChangeCommand, ChangeQueue, ChangeRow, ClockSource, NodeTarget, OrganizationCommand,

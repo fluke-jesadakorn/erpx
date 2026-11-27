@@ -477,6 +477,7 @@ describe('Native aggregate Social page request', () => {
    cookie: 'session=fictional',
    'x-erpx-context-company': 'stale-company',
    'x-erpx-workspace-department': 'stale-department',
+   'x-erpx-social-page-context': 'untrusted',
   });
   const selected = {
    ...actor,
@@ -501,6 +502,7 @@ describe('Native aggregate Social page request', () => {
    'x-erpx-context-assignment-version': '7',
    'x-erpx-workspace-branch': 'phuket',
    'x-erpx-workspace-department': 'showroom',
+   'x-erpx-social-page-context': expect.stringMatching(/^[a-f0-9]{64}$/),
   });
  });
 

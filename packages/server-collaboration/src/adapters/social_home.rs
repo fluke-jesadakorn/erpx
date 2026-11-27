@@ -463,3 +463,20 @@ fn project_card(
     }
     Ok(Value::Object(data))
 }
+
+/// Non-organization teams that the signed-in member can choose in Social.
+pub async fn social_audience_teams(
+    connection: &mut PgConnection,
+    scope: &SocialScope,
+) -> Result<Vec<(String, String)>, Error> {
+    Ok(sqlx::query_as(
+        "SELECT t.id,t.name FROM messaging_teams t WHERE t.company_id=$1
+           AND NOT t.organization_managed AND EXISTS(
+             SELECT 1 FROM messaging_team_members m WHERE m.team_id=t.id AND m.user_id=$2
+           ) ORDER BY t.name,t.id LIMIT 100",
+    )
+    .bind(scope.company_id.as_str())
+    .bind(scope.user_id.as_str())
+    .fetch_all(connection)
+    .await?)
+}

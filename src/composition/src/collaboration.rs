@@ -4,6 +4,9 @@
 //! resolved here. Record mentions resolve through the Records owner read; no
 //! Records SQL is duplicated. Messaging/inbox mounts are separate because they
 //! need the Files and Work-projection ports.
+#[path = "collaboration_social_home.rs"]
+mod social_home;
+
 use crate::business_http::BusinessScopeSlugs;
 use erpx_server_collaboration::public::messaging_file_discard::{
     MessagingFileDiscardPort, MessagingFileWithdrawRequest, discard_file,
@@ -214,7 +217,8 @@ use erpx_server_collaboration::public::social::{
 };
 use erpx_server_collaboration::public::social_http::{
     SocialCommentsData, SocialFeedData, SocialHttpBackend, SocialHttpCommandRequest,
-    SocialHttpCommentsRequest, SocialHttpFuture, SocialHttpReadReply, SocialHttpReadRequest,
+    SocialHttpCommentsRequest, SocialHttpFuture, SocialHttpPageRequest, SocialHttpReadReply,
+    SocialHttpReadRequest, SocialPageData,
     SocialHttpRevisionsRequest, SocialHttpTarget, SocialReadKind, SocialThreadData,
 };
 use erpx_server_commercial::public::capability_decision::{
@@ -801,6 +805,27 @@ impl<C: Clock + Send + Sync + 'static> SocialHttpBackend for SocialBackend<C> {
                 .read(request.host, proof, selection, request.kind)
                 .await
                 .map_err(business)
+        })
+    }
+
+    fn page<'a>(
+        &'a self,
+        request: SocialHttpPageRequest<'a>,
+    ) -> SocialHttpFuture<'a, SocialPageData> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers, false)?;
+            // This opaque value only partitions browser presentation state.
+            // Current work authority is independently attested above.
+            let context = unique_request_header(request.headers, "x-erpx-social-page-context")?
+                .filter(|value| value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit()))
+                .map(str::to_owned);
+            self.service.page(request.host, proof, selection, social_home::PageInput {
+                post_id: request.post_id.map(str::to_owned),
+                tag: request.tag.map(str::to_owned),
+                skip_milestones: request.skip_milestones,
+                source_only: request.source_only,
+                context,
+            }).await.map_err(business)
         })
     }
 

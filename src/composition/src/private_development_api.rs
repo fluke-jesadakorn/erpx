@@ -12914,6 +12914,12 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             state.policy.holdings.iter().any(|holding| holding.host == host),
         _ => false,
     };
+    let collaboration_page = request.method() == axum::http::Method::GET
+        && matches!(
+            path.split('/').collect::<Vec<_>>().as_slice(),
+            ["", "api", "v1", "holdings", _, "page"]
+        )
+        && state.policy.holdings.iter().any(|holding| holding.host == host);
     let crm_sales_report = state.oasis_demo_staging && host == OASIS_DEMO_HOLDING_HOST
         && request.method() == axum::http::Method::GET
         && request.uri().path() == "/api/v1/holdings/oasis-demo/reports/sales-crm"
@@ -13733,6 +13739,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || crm
         || crm_sales_report
         || collaboration_feed
+        || collaboration_page
         || crm_command
         || crm_activity_command
         || crm_activity_workspace

@@ -1,4 +1,5 @@
 import 'server-only';
+import { createHash } from 'node:crypto';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import type { HomePost, SocialPageData } from './native-social-page-types';
@@ -304,7 +305,8 @@ export function nativePublishHandover(
   return call(request, holdingSlug, '/feed/handovers', { body, key });
 }
 
-type SocialPageActor = Pick<WorkContext, 'holdingSlug' | 'companyId' | 'assignmentId' | 'authority' | 'scope'>;
+type SocialPageActor = Pick<WorkContext, 'holdingSlug' | 'companyId' | 'assignmentId' | 'authority' | 'scope'> &
+  Partial<Pick<WorkContext, 'branchId' | 'departmentId' | 'userId' | 'role' | 'iam'>>;
 
 /** Carry the workspace rendered by Next to the owner for current authorization. */
 function ssrHeaders(actor: SocialPageActor, incoming: Pick<Headers, 'get'>): Headers {
@@ -318,6 +320,12 @@ function ssrHeaders(actor: SocialPageActor, incoming: Pick<Headers, 'get'>): Hea
     'x-erpx-context-assignment': actor.assignmentId,
     'x-erpx-context-revision': String(actor.authority.revision),
     'x-erpx-context-assignment-version': String(actor.authority.assignmentVersion),
+    // Match the presentation token used by existing Social controls. Rust
+    // independently validates the selected assignment and its revision.
+    'x-erpx-social-page-context': createHash('sha256').update(JSON.stringify([
+      actor.companyId, actor.branchId, actor.departmentId, actor.userId,
+      actor.assignmentId, actor.role, actor.authority, actor.iam ?? null,
+    ])).digest('hex'),
   });
   const cookie = incoming.get('cookie');
   if (cookie) outgoing.set('cookie', cookie);

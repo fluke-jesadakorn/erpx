@@ -1979,3 +1979,36 @@ fn snapshot_input(input: &crate::domain::organization_nodes::NodeChangeInput) ->
     }
     Value::Object(object)
 }
+
+/// Active branch options for a selected Company workspace.
+pub async fn social_audience_branches(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    branch: Option<&str>,
+) -> Result<Vec<(String, String)>, Error> {
+    Ok(sqlx::query_as(
+        "SELECT id,display_name FROM organization_nodes WHERE kind='branch'
+         AND company_id=$1 AND status='active' AND ($2::text IS NULL OR id=$2)
+         ORDER BY display_name,id",
+    )
+    .bind(company.as_str())
+    .bind(branch)
+    .fetch_all(connection)
+    .await?)
+}
+
+/// Display name for the department already selected by current IAM.
+pub async fn social_department_name(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    department: &str,
+) -> Result<Option<String>, Error> {
+    Ok(sqlx::query_scalar(
+        "SELECT display_name FROM organization_nodes WHERE company_id=$1
+         AND id=$2 AND kind='department' AND status='active'",
+    )
+    .bind(company.as_str())
+    .bind(department)
+    .fetch_optional(connection)
+    .await?)
+}

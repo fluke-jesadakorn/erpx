@@ -5,7 +5,7 @@ pub use crate::adapters::provider_http::{
     AiProviderHttpBackend, AiProviderHttpCommandRequest, AiProviderHttpFuture,
     AiProviderHttpReadRequest, AiProviderHttpTarget, ai_provider_http_router,
 };
-pub use crate::adapters::provider_postgres::{AiProviderError, PgAiProvider};
+pub use crate::adapters::provider_postgres::{AiProviderError, PgAiProvider, social_ai_display_name};
 pub use crate::application::providers::{
     AiActor, AiProviderMutation, AiProviderMutationAction, AiProviderMutationCommon,
     AiProviderPorts, AiUsage, GenerateKind, SealedCredential, activate_ai_connection,

@@ -710,3 +710,15 @@ async fn insert_audit_and_outbox(
     .map_err(statement_error)?;
     Ok(())
 }
+
+/// Read the public display name shown on AI replies in an authorized Company.
+pub async fn social_ai_display_name(
+    connection: &mut PgConnection,
+    company: &erpx_server_shared::public::CompanyId,
+) -> Result<String, erpx_server_runtime::public::postgres::PgTransactionError<BusinessError>> {
+    let name = sqlx::query_scalar("SELECT home_ai_name FROM ai_company_settings WHERE company_id=$1")
+        .bind(company.as_str())
+        .fetch_optional(connection)
+        .await?;
+    Ok(name.unwrap_or_else(|| crate::domain::providers::DEFAULT_AI_NAME.to_owned()))
+}
