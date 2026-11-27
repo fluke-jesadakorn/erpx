@@ -6,6 +6,7 @@ const state = vi.hoisted(() => ({
   actor: undefined as unknown,
   authority: undefined as unknown,
   id: undefined as unknown,
+  modules: ['legal'] as string[],
 }));
 
 vi.mock('../../../packages/server-legal/src/adapters/native-processing-status/client', () => ({
@@ -26,7 +27,7 @@ vi.mock('@erpx/server-identity_access/public/authorization', () => ({
     holdingSlug: 'acme',
     companyId: 'acme-co',
     userId: 'viewer',
-    modules: ['legal'],
+    modules: state.modules,
   }),
 }));
 vi.mock('@erpx/server-runtime/public/runtime', () => ({
@@ -61,6 +62,7 @@ beforeEach(() => {
   state.actor = undefined;
   state.authority = undefined;
   state.id = undefined;
+  state.modules = ['legal'];
 });
 
 it('serves the processing-status GET from the native read with a bounded actor and authority', async () => {
@@ -77,4 +79,13 @@ it('fails closed with 503 when the native read is unavailable', async () => {
   const response = await get();
   expect(response.status).toBe(503);
   expect(await response.json()).toMatchObject({ error: { code: 'NATIVE_LEGAL_PROCESSING_STATUS_UNAVAILABLE' } });
+});
+
+it('passes a false item-access witness when the viewer lacks the Legal module', async () => {
+  state.modules = ['finance'];
+  const response = await get();
+  expect(response.status).toBe(200);
+  expect(state.actor).toEqual({ holdingId: 'h001', holdingSlug: 'acme', companyId: 'acme-co' });
+  expect(state.authority).toEqual({ itemAccessible: false });
+  expect(state.id).toBe('job-1');
 });
