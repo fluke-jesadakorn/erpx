@@ -51,6 +51,8 @@ export async function prepareHoldingRequest(request:NextRequest):Promise<NextReq
   if(route.kind!=='system'&&route.app!==app)return missing();
   if(request.nextUrl.pathname.startsWith('/provider')&&registration.holdingSlug!=='erpx')return missing();
   if(registration.holdingSlug!=='erpx'&&/^\/(?:__erpx\/admin\/)?(?:api\/v1\/platform|provider|platform)(?:\/|$)/.test(request.nextUrl.pathname))return missing();
+  // Next publishes these build assets to every visitor on the registered app.
+  if(route.kind==='transport'&&route.internalPath.startsWith('/_next/static/')&&['GET','HEAD'].includes(request.method))return NextResponse.next();
   let binding:Awaited<ReturnType<typeof holdingBindingBySlug>>;
   try{binding=await holdingBindingBySlug(registration.holdingSlug);}catch(error){if(error instanceof Error&&error.message==='HOLDING_NOT_FOUND')return missing();throw error;}
   if(binding.id!==registration.holdingId)return missing();
