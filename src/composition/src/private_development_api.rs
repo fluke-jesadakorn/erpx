@@ -7236,6 +7236,24 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_ACCOUNT_TIME_PREFERENCE_CONFIGURATION_INVALID")?,
             );
         }
+        router = router.merge(
+            crate::account_time_preference_http::identity_owner_write_router(
+                pools[0].clone(),
+                Arc::new(SharedClock(clock.clone())),
+                config
+                    .holdings
+                    .iter()
+                    .map(|holding| {
+                        (
+                            holding.host.clone(),
+                            holding.registration.slug.clone(),
+                            format!("https://{}", holding.host),
+                        )
+                    })
+                    .collect(),
+            )
+            .map_err(|_| "PRIVATE_API_IDENTITY_OWNER_WRITE_CONFIGURATION_INVALID")?,
+        );
         if !pms_import_targets.is_empty() {
             router = router.merge(
                 erpx_server_pms::public::pms_import::pms_import_router(pms_import_targets)

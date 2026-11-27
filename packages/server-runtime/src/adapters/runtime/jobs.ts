@@ -58,8 +58,10 @@ export async function directoryWork(env: JobEnv) {
   if(control){const delivery=await import("@erpx/server-identity_access/public/account-invitation-delivery");for(const slot of await activeSlots(env))await delivery.promoteAccountInvitationDeliveries(control,registeredResources(env,slot.id).write,slot.id);await delivery.deliverAccountInvitation(control,env);await (await import("@erpx/server-identity_access/public/account-recovery")).deliverAccountRecovery(control,env as JobEnv&{BETTER_AUTH_SECRET:string});}
   for(const slot of await activeSlots(env)) {
     const db=registeredResources(env,slot.id).write as PostgresDatabase;
-    if (!slot.beta) { await drainDirectoryOperations(db); await drainProvisioning(db); await runNativePositionGpoWorker(slot.id); }
-    await (await import("@erpx/server-identity_access/public/user-management")).managementWork(db);
+    await withHolding(slot.id, async () => {
+      if (!slot.beta) { await drainDirectoryOperations(db); await drainProvisioning(db); await runNativePositionGpoWorker(slot.id); }
+      await (await import("@erpx/server-identity_access/public/user-management")).managementWork(db);
+    });
   }
 }
 export async function posQueueWork(env: JobEnv) {

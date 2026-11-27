@@ -86,17 +86,15 @@ pub async fn run_once_file(path: &Path, holding: &str) -> Result<String, &'stati
     if manifest.version != 1 {
         return Err("POSITION_GPO_MANIFEST_VERSION");
     }
-    let profile = profile_path()?;
     let url = holding_url(&manifest, holding)?;
     let pool = open(url).await?;
-    let outcome = run_once(&pool, &profile, holding, now()).await;
+    let outcome = run_once(&pool, holding, now()).await;
     pool.close().await;
     outcome
 }
 
 async fn run_once(
     pool: &DatabasePool,
-    profile: &Path,
     holding: &str,
     now: i64,
 ) -> Result<String, &'static str> {
@@ -127,6 +125,16 @@ async fn run_once(
     .fetch_all(&mut *connection)
     .await
     .map_err(|_| "POSITION_GPO_PERSISTENCE_UNAVAILABLE")?;
+    if relevant.is_empty() {
+        release(&mut connection, &[], true).await;
+        return Ok(serde_json::json!({
+            "holdings": [{"holdingId": holding, "applied": false, "reason": "no-connections"}]
+        })
+        .to_string());
+    }
+    // Connector profiles are only required when an owner connection actually
+    // has GPO work; an unconfigured profile must not fail an idle cycle.
+    let profile = profile_path()?;
     let mut acquired: Vec<String> = Vec::new();
     for connection_id in relevant {
         let key = format!("people-directory:{connection_id}");
@@ -152,7 +160,7 @@ async fn run_once(
         release(&mut connection, &acquired, true).await;
         return Err("POSITION_GPO_PERSISTENCE_UNAVAILABLE");
     }
-    let result = drain(&mut connection, profile, now).await;
+    let result = drain(&mut connection, &profile, now).await;
     let applied = match result {
         Ok(()) => {
             sqlx::query("COMMIT")

@@ -1753,8 +1753,12 @@ pub fn mount(
     router = router.merge(
         crate::legal_wave3::legal_wave3_system(
             Arc::new(crate::legal_wave3::LegalWave3Planner),
-            vec!["h001".to_owned()],
-            vec!["acme-co".to_owned()],
+            config
+                .holdings
+                .iter()
+                .map(|holding| holding.registration.holding_id.as_str().to_owned())
+                .collect(),
+            Vec::new(),
         )
         .map_err(|_| "PRIVATE_API_LEGAL_WAVE3_SYSTEM_INVALID")?,
     );

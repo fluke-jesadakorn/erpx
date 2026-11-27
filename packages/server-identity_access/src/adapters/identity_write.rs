@@ -430,7 +430,7 @@ pub async fn execute(
     let result = serde_json::json!({"kind": kind, "rows": rows});
     let changed = sqlx::query(
         "INSERT INTO iam_receipts(id,company_id,actor_id,request_hash,result,created_at) \
-         VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING",
+         VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(id) DO NOTHING",
     )
     .bind(format!("identity-write-{key}"))
     .bind(scope)
@@ -452,7 +452,7 @@ pub async fn execute(
     let audit = serde_json::json!({"kind": kind, "rows": rows});
     sqlx::query(
         "INSERT INTO iam_audit(id,company_id,actor_id,assignment_id,action,target_id,evidence,created_at) \
-         VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING",
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(id) DO NOTHING",
     )
     .bind(format!("identity-write-audit-{key}"))
     .bind(scope)
@@ -466,7 +466,7 @@ pub async fn execute(
     .await?;
     sqlx::query(
         "INSERT INTO iam_audit(id,company_id,actor_id,assignment_id,action,target_id,evidence,created_at) \
-         VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING",
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(id) DO NOTHING",
     )
     .bind(format!("identity-write-outbox-{key}"))
     .bind(scope)

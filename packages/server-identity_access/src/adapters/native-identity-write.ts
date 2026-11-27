@@ -2,6 +2,8 @@ import 'server-only';
 import { createHash } from 'node:crypto';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import type { SqlStatement } from '@erpx/server-runtime/public/runtime/types';
+import { currentHoldingId } from '@erpx/server-runtime/public/runtime/holding-scope';
+import { nativeRequest } from '@erpx/server-runtime/public/native-http';
 
 /**
  * Single native transport for identity_access owner writes.
@@ -12,13 +14,17 @@ import type { SqlStatement } from '@erpx/server-runtime/public/runtime/types';
  * sends or holds SQL and has no fallback. Missing or invalid configuration
  * fails closed.
  */
-type Config = Readonly<{
-  base: string;
+type Holding = Readonly<{
   host: string;
   holdingSlug: string;
   origin: string;
-  timeoutMs: number;
   companyId: string;
+  holdingId?: string;
+}>;
+type Config = Readonly<{
+  base: string;
+  timeoutMs: number;
+  holdings: readonly Holding[];
 }>;
 
 function configuration(): Config {
@@ -29,16 +35,9 @@ function configuration(): Config {
       'IDENTITY_OWNER_WRITE_UNAVAILABLE',
       'The native identity owner-write service is not configured.',
     );
-  let value: {
-    privateBaseUrl?: unknown;
-    host?: unknown;
-    holdingSlug?: unknown;
-    origin?: unknown;
-    timeoutMs?: unknown;
-    companyId?: unknown;
-  };
+  let value: Record<string, unknown>;
   try {
-    value = JSON.parse(raw) as typeof value;
+    value = JSON.parse(raw) as Record<string, unknown>;
   } catch {
     throw new ApiError(
       503,
@@ -46,10 +45,9 @@ function configuration(): Config {
       'The native identity owner-write transport is misconfigured.',
     );
   }
-  let base: URL, origin: URL;
+  let base: URL;
   try {
     base = new URL(String(value.privateBaseUrl));
-    origin = new URL(String(value.origin));
   } catch {
     throw new ApiError(
       503,
@@ -57,34 +55,61 @@ function configuration(): Config {
       'The native identity owner-write transport is misconfigured.',
     );
   }
+  const timeoutMs = value.timeoutMs;
   if (
     base.protocol !== 'http:' ||
     !['127.0.0.1', '[::1]'].includes(base.hostname) ||
-    origin.protocol !== 'https:' ||
-    typeof value.host !== 'string' ||
-    value.host !== origin.host ||
-    typeof value.holdingSlug !== 'string' ||
-    !/^[a-z0-9_-]{1,128}$/.test(value.holdingSlug) ||
-    typeof value.companyId !== 'string' ||
-    !value.companyId ||
-    value.companyId.length > 200 ||
-    !Number.isInteger(value.timeoutMs) ||
-    (value.timeoutMs as number) < 250 ||
-    (value.timeoutMs as number) > 30_000
+    !Number.isInteger(timeoutMs) ||
+    (timeoutMs as number) < 250 ||
+    (timeoutMs as number) > 30_000
   )
     throw new ApiError(
       503,
       'IDENTITY_OWNER_WRITE_CONFIG_INVALID',
       'The native identity owner-write transport is misconfigured.',
     );
-  return {
-    base: base.origin,
-    host: value.host,
-    holdingSlug: value.holdingSlug,
-    origin: origin.origin,
-    timeoutMs: value.timeoutMs as number,
-    companyId: value.companyId,
-  };
+  const entries = Array.isArray(value.holdings)
+    ? value.holdings
+    : value.host && value.holdingSlug && value.origin && value.companyId
+      ? [value]
+      : null;
+  if (!entries || entries.length < 1 || entries.length > 64)
+    throw new ApiError(
+      503,
+      'IDENTITY_OWNER_WRITE_CONFIG_INVALID',
+      'The native identity owner-write transport is misconfigured.',
+    );
+  const holdings: Holding[] = [];
+  for (const entry of entries) {
+    if (!entry || typeof entry !== 'object') throw new ApiError(503, 'IDENTITY_OWNER_WRITE_CONFIG_INVALID', 'The native identity owner-write transport is misconfigured.');
+    const item = entry as Record<string, unknown>;
+    let origin: URL;
+    try {
+      origin = new URL(String(item.origin));
+    } catch {
+      throw new ApiError(503, 'IDENTITY_OWNER_WRITE_CONFIG_INVALID', 'The native identity owner-write transport is misconfigured.');
+    }
+    if (
+      origin.protocol !== 'https:' ||
+      typeof item.host !== 'string' ||
+      item.host !== origin.host ||
+      typeof item.holdingSlug !== 'string' ||
+      !/^[a-z0-9_-]{1,128}$/.test(item.holdingSlug) ||
+      typeof item.companyId !== 'string' ||
+      !item.companyId ||
+      item.companyId.length > 200 ||
+      (item.holdingId !== undefined && (typeof item.holdingId !== 'string' || !item.holdingId))
+    )
+      throw new ApiError(503, 'IDENTITY_OWNER_WRITE_CONFIG_INVALID', 'The native identity owner-write transport is misconfigured.');
+    holdings.push({
+      host: item.host,
+      holdingSlug: item.holdingSlug,
+      origin: origin.origin,
+      companyId: item.companyId,
+      ...(item.holdingId ? { holdingId: item.holdingId as string } : {}),
+    });
+  }
+  return { base: base.origin, timeoutMs: timeoutMs as number, holdings };
 }
 
 /** Deterministic key for callers without their own idempotency key. */
@@ -146,26 +171,38 @@ export async function nativeIdentityWrite(
   companyId?: string,
 ): Promise<{ kind: string; rows: number }> {
   const config = configuration();
+  const scoped = currentHoldingId();
+  const target =
+    (scoped ? config.holdings.find((holding) => holding.holdingId === scoped) : undefined) ??
+    (companyId ? config.holdings.find((holding) => holding.companyId === companyId) : undefined) ??
+    // The identity owner write always executes on the Control unit; the
+    // registered Holding only selects the private route, so a control-level
+    // recovery/invitation write can use the canonical target explicitly.
+    config.holdings[0];
+  if (!target)
+    throw new ApiError(503, 'IDENTITY_OWNER_WRITE_AUTHORITY_INVALID', 'The native identity owner-write authority is unavailable.');
   const headers = new Headers({
-    host: config.host,
-    origin: config.origin,
+    host: target.host,
+    origin: target.origin,
     accept: 'application/json',
     'content-type': 'application/json',
     'idempotency-key': key ?? contentKey(kind, values),
   });
-  const company = companyId ?? config.companyId;
+  const company = companyId ?? target.companyId;
   const body = JSON.stringify({ kind, values, companyId: company, now: Date.now() });
   let response: Response;
   try {
-    response = await fetch(
-      `${config.base}/api/v1/holdings/${encodeURIComponent(config.holdingSlug)}/identity/owner-write`,
+    response = await nativeRequest(
+      new URL(
+        `${config.base}/api/v1/holdings/${encodeURIComponent(target.holdingSlug)}/identity/owner-write`,
+      ),
       {
         method: 'POST',
-        headers,
+        headers: Object.fromEntries(headers),
         body,
-        cache: 'no-store',
         signal: AbortSignal.timeout(config.timeoutMs),
       },
+      config.timeoutMs,
     );
   } catch {
     throw new ApiError(
@@ -180,12 +217,13 @@ export async function nativeIdentityWrite(
         error?: { code?: string; message?: string };
       }
     | null;
-  if (!response.ok)
+  if (!response.ok) {
     throw new ApiError(
       response.status,
       payload?.error?.code ?? 'IDENTITY_OWNER_WRITE_FAILED',
       payload?.error?.message ?? 'The identity write could not be completed.',
     );
+  }
   if (typeof payload?.data?.kind !== 'string' || typeof payload.data.rows !== 'number')
     throw new ApiError(
       503,
