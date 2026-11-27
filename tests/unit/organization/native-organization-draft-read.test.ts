@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
@@ -166,5 +167,50 @@ describe('nativeOrganizationDraftRead route contract', () => {
     await expect(
       nativeOrganizationDraftRead({ ...actor, iam: { permissions: ['people.manage'] } } as never, 'acme', undefined, incoming),
     ).rejects.toMatchObject({ code: 'NATIVE_ORGANIZATION_AUTHORITY_INVALID' });
+  });
+});
+
+const routeSource = readFileSync(
+  new URL(
+    '../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts',
+    import.meta.url,
+  ),
+  'utf8',
+);
+const lines = routeSource.split('\n');
+
+describe('organization/drafts catch-all cutover', () => {
+  it('serves the exact GET branch from the native reader and fails closed with 503', () => {
+    const branch = lines.find((line) =>
+      line.includes('p[0]==="organization" && p[1]==="drafts"') &&
+      line.includes('nativeOrganizationDraftRead('),
+    );
+    expect(branch).toBeDefined();
+    expect(branch).toContain('nativeOrganizationDraftRead(');
+    expect(branch).toContain('nativeOrganizationFailure(');
+    expect(branch).toContain('503');
+    expect(branch).not.toContain('organizationDraftApi(');
+    expect(branch).not.toContain('getOrganizationDraft');
+    expect(branch).not.toMatch(/\bSELECT\b|\bINSERT\b|\bUPDATE\b|\bDELETE\b/);
+    const nativeImport = lines.find((line) =>
+      line.includes('@erpx/feature-organization/lib/native-organization'),
+    );
+    expect(nativeImport).toContain('nativeOrganizationDraftRead');
+  });
+
+  it('keeps the TS draft read only as a command oracle, never as a GET fallback', () => {
+    const post = lines.find((line) =>
+      line.includes('p[1]==="drafts"') && line.includes('organizationDraftApi('),
+    );
+    expect(post).toBeDefined();
+    expect(post).toContain('organizationDraftApi(');
+    const exported = readFileSync(
+      new URL(
+        '../../../packages/server-organization/src/public/organization-drafts.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+    expect(exported).toContain('getOrganizationDraft');
   });
 });
