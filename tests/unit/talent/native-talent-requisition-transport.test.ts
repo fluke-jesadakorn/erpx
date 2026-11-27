@@ -607,12 +607,13 @@ describe('talent offer/candidate native read port cutover', () => {
     }
   });
 
-  it('keeps the offer and candidate detail reads SQL-free on the native client', async () => {
+  it('keeps the offer and candidate detail reads on the native client only', async () => {
     const [talent, sensitive, bridge] = await Promise.all([
       src('talent.ts'), src('attachments-sensitive-facts.ts'), src('native-talent-read.ts'),
     ]);
-    expect(talent).toContain("nativeTalentReadFirst<Row>('talent_rd_offers',[id],await database())");
-    expect(talent).toContain("nativeTalentReadFirst<Row>('talent_rd_hire_handoffs',[offerId],await database())");
+    expect(talent).not.toContain("nativeTalentReadFirst<Row>('talent_rd_offers',[id],await database())");
+    expect(talent).not.toContain("nativeTalentReadFirst<Row>('talent_rd_hire_handoffs',[offerId],await database())");
+    expect(talent).toContain('NATIVE_TALENT_DETAIL_UNAVAILABLE');
     expect(sensitive).toContain("'talent_rd_sensitive_offer'");
     expect(sensitive).toContain('[facts.targetId,facts.companyId],db)');
     expect(bridge).not.toMatch(/SELECT\s/);
@@ -665,11 +666,11 @@ describe('talent offer/candidate native read port cutover', () => {
     }
   });
 
-  it('pins the owner SELECT KPI at the post-r43 baseline of 11', async () => {
+  it('pins the owner SELECT KPI at the post-detail-cutover baseline of 9', async () => {
     let count = 0;
     const srcDir = new URL('../../../packages/server-talent/src/', import.meta.url);
     for (const file of await tsFiles(srcDir)) count += (await readFile(file, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(10);
+    expect(count).toBe(9);
     expect(count).toBeLessThan(12);
   });
 
@@ -883,5 +884,47 @@ describe('talent offer/candidate native read port cutover', () => {
       if (previous === undefined) delete process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
       else process.env.ERPX_NATIVE_TALENT_READ_CONFIG = previous;
     }
+  });
+});
+
+describe('native-only Talent application detail GET cutover', () => {
+  const routeUrl = new URL('../../../packages/feature-recruit/src/routes/api/v1/holdings/[holdingSlug]/talent/route.ts', import.meta.url);
+  const readerUrl = new URL('../../../packages/server-talent/src/adapters/talent.ts', import.meta.url);
+  const nativeUrl = new URL('../../../packages/server-talent/src/adapters/native_talent_detail/http.rs', import.meta.url);
+  const sqlUrl = new URL('../../../packages/server-talent/src/adapters/native_talent_detail/postgres.rs', import.meta.url);
+
+  it('deletes the shared detail GET and keeps the write POST', async () => {
+    const ts = await import('typescript');
+    const source = await readFile(routeUrl, 'utf8');
+    const tree = ts.createSourceFile('actual-talent-route.ts', source, ts.ScriptTarget.Latest, true);
+    const exported = tree.statements.filter(ts.isFunctionDeclaration)
+      .filter((fn) => fn.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword))
+      .map((fn) => fn.name?.text);
+    expect(exported).toEqual(['POST']);
+    for (const symbol of ['talentDetail', 'talentWorkspace', 'nativeTalentWorkspace', 'searchParams.get("id")']) expect(source).not.toContain(symbol);
+  });
+
+  it('leaves the detail GET to the mounted owner route with real SQL execution', async () => {
+    const http = await readFile(nativeUrl, 'utf8');
+    const pg = await readFile(sqlUrl, 'utf8');
+    expect(http).toContain('/api/v1/holdings/{holding_slug}/talent/applications/{application_id}/detail');
+    expect(http).toContain('get(read_detail)');
+    for (const statement of ['DETAIL_APPLICATION_SQL', 'DETAIL_HISTORY_SQL', 'DETAIL_PROPOSAL_SQL', 'DETAIL_OFFER_SQL', 'DETAIL_HANDOFF_SQL']) expect(pg).toContain(statement);
+    expect(pg).toMatch(/sqlx::query_scalar/);
+    expect(pg).not.toContain('fetch_all');
+  });
+
+  it('fails closed on the compatibility detail reader with no TS SQL', async () => {
+    const ts = await import('typescript');
+    const source = await readFile(readerUrl, 'utf8');
+    expect(source).not.toContain('nativeTalentDetail');
+    expect(source).not.toContain('createTalentDetail(');
+    const tree = ts.createSourceFile('actual-talent-adapter.ts', source, ts.ScriptTarget.Latest, true);
+    const fn = tree.statements.find((node) => ts.isFunctionDeclaration(node) && node.name?.text === 'talentDetail');
+    expect(fn).toBeDefined();
+    const compiled = ts.transpileModule(fn!.getText(tree).replace(/^export\s+/, ''), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
+    const { ApiError } = await import('@erpx/server-runtime/public/http');
+    const read = new Function('ApiError', `${compiled}\nreturn talentDetail;`)(ApiError) as (actor: unknown, id: string) => Promise<unknown>;
+    for (const id of ['app-1', 'app-missing']) await expect(read({ companyId: 'company' }, id)).rejects.toMatchObject({ status: 503, code: 'NATIVE_TALENT_DETAIL_UNAVAILABLE' });
   });
 });

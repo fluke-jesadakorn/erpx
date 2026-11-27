@@ -6,10 +6,8 @@ import { z } from "zod";
 import {
   changeTalentRecord,
   createTalentOffer,
-  talentDetail,
-  talentWorkspace,
 } from "@erpx/server-talent/public/talent";
-import {nativeTalentRequisitionCommand,nativeTalentWorkspace} from "@erpx/feature-talent/public/native-talent-page";
+import {nativeTalentRequisitionCommand} from "@erpx/feature-talent/public/native-talent-page";
 import {nativeTalentLifecycleAvailable,nativeTalentLifecycleCommand} from "@erpx/server-talent/public/native-talent-lifecycle-page";
 import { candidatePrivacySchema,changeCandidatePrivacy } from "@erpx/server-people_payroll/public/people-handoffs";
 type C = { params: Promise<{ holdingSlug: string }> };
@@ -28,29 +26,9 @@ async function readInput(r: Request): Promise<Record<string, unknown>> {
     throw new ApiError(422, "INVALID_BODY", "Request body must be a JSON object.");
   return input as Record<string, unknown>;
 }
-export async function GET(r: Request, c: C) {
-  try {
-    const a = await requireWorkContext((await c.params).holdingSlug),
-      id = new URL(r.url).searchParams.get("id");
-    if (!id) {
-      const workspace = await talentWorkspace(a),
-        native = await nativeTalentWorkspace(a),
-        data = native
-          ? {
-              ...workspace,
-              requisitions: native.requisitions as unknown as typeof workspace.requisitions,
-            }
-          : workspace;
-      return Response.json(canonicalDestinationLinks({ data }), { headers });
-    }
-    return Response.json(
-      canonicalDestinationLinks({ data: await talentDetail(a, id) }),
-      { headers },
-    );
-  } catch (e) {
-    return errorResponse(e);
-  }
-}
+// Application-detail and workspace reads are native-only: the mounted owner
+// route serves /api/v1/holdings/{holdingSlug}/talent/applications/{id}/detail
+// and the native workspace port. This shared route keeps write authority only.
 export async function POST(r: Request, c: C) {
   try {
     if (

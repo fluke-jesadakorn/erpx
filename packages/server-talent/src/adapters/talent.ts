@@ -1,6 +1,5 @@
 import {withTalentPurchasedCommand,withTalentPurchasedRead,talentPurchaseControls} from "@erpx/server-talent/adapters/purchases";
-import {nativeTalentReadAll,nativeTalentReadFirst} from "./native-talent-read";
-import {SensitiveAttachmentTalentFacts} from "@erpx/server-talent/adapters/attachments-sensitive-facts";
+import {nativeTalentReadAll} from "./native-talent-read";
 import {talentActionSchema} from "@erpx/server-talent/domain/talent";
 import {learningTalentSnapshotSources as identityaccessSnapshotSources} from '@erpx/server-identity_access/public/learning-talent-snapshot-sources';
 import {learningTalentSnapshotSources as peoplepayrollSnapshotSources} from '@erpx/server-people_payroll/public/learning-talent-snapshot-sources';
@@ -20,7 +19,7 @@ import {snapshotMoney} from '@erpx/server-finance/public/company-money';
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { decimalToMinor } from "@erpx/feature-finance/lib/finance-money";
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
-import { createTalentWorkspace, createTalentOffer as createTalentOfferApplication, createChangeTalentRecord, createTalentDetail, createTalentWork, type TalentCommandPorts, type TalentCommand, type TalentMutation } from "@erpx/server-talent/application/talent";
+import { createTalentWorkspace, createTalentOffer as createTalentOfferApplication, createChangeTalentRecord, type createTalentDetail, createTalentWork, type TalentCommandPorts, type TalentCommand, type TalentMutation } from "@erpx/server-talent/application/talent";
 import type { TalentKind } from "@erpx/server-talent/domain/talent";
 function access(a: WorkContext, write = false) {
   requirePermission(a, write ? "records.write" : "records.read");
@@ -94,22 +93,20 @@ export function nativeTalentChanges(_source:DatabaseSource){
   return (_a:WorkContext,_kind:TalentKind,_id:string,_raw:unknown,_key:string):Promise<NativeTalentWriteResult>=>Promise.reject(new ApiError(503,'NATIVE_TALENT_UNAVAILABLE','The native Talent record command is unavailable.'));
 }
 export async function changeTalentRecord(a:WorkContext,kind:TalentKind,id:string,raw:unknown,key:string){access(a,true);const input=talentActionSchema.parse(raw);return withTalentPurchasedCommand(a,{key,operation:`talent.${kind}.${input.action}`,capability:kind==="requisition"?"recruit.positions":kind==="offer"?"recruit.offers":"recruit.applications",purpose:["withdraw","decline","reject","reject-proposal","close","cancel","reassign","accept-offer"].includes(input.action)?"settle-existing":"new-work",target:{kind,id},permissions:["records.write","records.review"]},db=>nativeTalentChanges(db??lazyDatabase(a))(a,kind,id,raw,key));}
-export function nativeTalentDetail(source:DatabaseSource){const database=databaseSource(source);return createTalentDetail({authorize:access,error:violation=>new ApiError(violation.status,violation.code,violation.message),
-async application(a,id){const write=await database();return await write
-      .prepare(
-        applicationProjection('r.branch_id,r.department_id,c.legal_name candidate_name,c.email candidate_email,c.retention_until,c.version candidate_version','a.id=? AND a.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?)'),
-      )
-      .bind(id, a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId)
-      .first<Row>();},
-async history(id){return nativeTalentReadAll<Row>('talent_rd_application_events',[id],await database());},
-async proposal(id){return nativeTalentReadFirst<Row>('talent_rd_proposals',[id],await database());},
-async offer(id){return nativeTalentReadFirst<Row>('talent_rd_offers',[id],await database());},
-async handoff(offerId){return nativeTalentReadFirst<Row>('talent_rd_hire_handoffs',[offerId],await database());},
-});}
-export async function talentDetail(a:WorkContext,id:string){return withTalentPurchasedRead(a,["recruit.candidates","recruit.applications","recruit.offers"],async db=>{
- const database=db??await lazyDatabase(a)(),detail=await nativeTalentDetail(database)(a,id),offerDocuments=detail.canManageDocuments&&detail.offer?await SensitiveAttachmentTalentFacts(database).readTalentOffers1({targetId:String(detail.offer.id),companyId:a.companyId}):null;
- return {...detail,offerDocumentsEditable:offerDocuments?.pending_hire_delivery===0,owners:await recruiterReferences(database,a),canWrite:hasPermission(a,"records.write"),purchases:await talentPurchaseControls(a,database)};
-});}
+// Wave 3: application detail reads execute only in the mounted native axum
+// Talent route (/api/v1/holdings/{holding}/talent/applications/{id}/detail).
+// No TypeScript SQL reader remains for this capability; the compatibility
+// export keeps its shape for typed consumers but fails closed, never preparing
+// or executing a statement and never projecting a partial owner payload.
+type TalentDetailView=Awaited<ReturnType<ReturnType<typeof createTalentDetail>>> & {
+ offerDocumentsEditable:boolean;
+ owners:Awaited<ReturnType<typeof recruiterReferences>>;
+ canWrite:boolean;
+ purchases:Awaited<ReturnType<typeof talentPurchaseControls>>;
+};
+export function talentDetail(_a:WorkContext,_id:string):Promise<TalentDetailView>{
+ return Promise.reject(new ApiError(503,'NATIVE_TALENT_DETAIL_UNAVAILABLE','The native Talent application detail read is unavailable.'));
+}
 async function talentWorkOwned(a:WorkContext,provided?:SqlDatabase):Promise<import("@erpx/feature-work_projection/lib/work-item").WorkItem[]>{const database=provided?async()=>provided:lazyDatabase(a);return createTalentWork({authorize:access,async rows(a){const write=await database();return (
       await write
         .prepare(

@@ -34,7 +34,7 @@ describe('talent read-tail r35 application-projection head family dedupe', () =>
   it('declares the shared head once and routes both reads through it', async () => {
     const text = await readFile(file, 'utf8');
     expect(text.split('const applicationProjection =').length - 1).toBe(1);
-    expect(text.split('applicationProjection(').length - 1).toBe(2); // ownedApps + detail call
+    expect(text.split('applicationProjection(').length - 1).toBe(1); // ownedApps only; detail is native-only
     expect(text.split('const ownedApps=applicationProjection(').length - 1).toBe(1);
     expect(text.split('CASE WHEN ${eligibleOwner} THEN 1 ELSE 0 END owner_eligible`)} FROM talent_applications a').length - 1).toBe(1);
     expect(text.split('CASE WHEN ${eligibleOwner} THEN 1 ELSE 0 END owner_eligible`)} FROM talent_applications a JOIN').length - 1).toBe(1);
@@ -51,14 +51,14 @@ describe('talent read-tail r35 application-projection head family dedupe', () =>
     expect(text).toContain("nativeTalentReadAll<Row>('talent_rd_workspace_requisitions'");
     expect(text).toContain("nativeTalentReadAll<Row>('talent_rd_workspace_candidates'");
     expect(text).toContain('applicationProjection(\'c.legal_name candidate_name\',\'a.company_id=? AND \')');
-    expect(text).toContain('.bind(id, a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId)');
+    expect(text).toContain('.bind(\n          a.companyId,\n          a.branchId,\n          a.branchId,\n          a.departmentId,\n          a.departmentId,\n        )');
     expect(text).not.toMatch(/LOCK TABLE|FOR\s+UPDATE|FOR\s+SHARE|INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|pg_advisory/i);
   });
 
   it('lowers the talent owner SELECT KPI strictly below BEFORE=46', async () => {
     let count = 0;
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(10);
+    expect(count).toBe(9);
     expect(count).toBeLessThan(40);
   });
 });

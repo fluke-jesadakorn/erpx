@@ -40,11 +40,11 @@ describe('talent read-tail r31 owner-local point read native port', () => {
     expect(text).toContain('assignmentReadSql("talent_viewer","records.read")');
   });
 
-  it('re-pins the talent owner SELECT KPI strictly below BEFORE=48 to 47', async () => {
+  it('re-pins the talent owner SELECT KPI strictly below BEFORE=48 to 9', async () => {
     let count = 0;
     const srcDir = new URL('../../../packages/server-talent/src/', import.meta.url);
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(10);
+    expect(count).toBe(9);
     expect(count).toBeLessThan(40);
   });
 
