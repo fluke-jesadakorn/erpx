@@ -463,3 +463,54 @@ describe('Apps API v1 native route cutover',()=>{
   expect((calls[1]!.init.headers as Headers).get('idempotency-key')).toBe('collab-key-0001');
  });
 });
+
+describe('Native aggregate Social page request', () => {
+ afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+ });
+
+ test('sends the rendered Company and Department with the signed browser session', async () => {
+  vi.stubEnv('ERPX_NATIVE_COLLABORATION_CONFIG', JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:3105', timeoutMs: 1000 }));
+  const incoming = new Headers({
+   host: 'holding.example.test',
+   cookie: 'session=fictional',
+   'x-erpx-context-company': 'stale-company',
+   'x-erpx-workspace-department': 'stale-department',
+  });
+  const selected = {
+   ...actor,
+   authority: { sessionId: 'fictional-session', revision: 4, assignmentVersion: 7 },
+   scope: { ...actor.scope, kind: 'department' as const, branchId: 'branch-id', branchSlug: 'phuket', departmentId: 'department-id', departmentSlug: 'showroom', departmentName: 'Showroom' },
+  };
+  const fetch = vi.fn(async (_url: string, _init: RequestInit) => Response.json({ data: {
+   posts: [], milestones: [], options: { branches: [], audiences: [], projects: [] }, moderate: false, post: null,
+  } }));
+  vi.stubGlobal('fetch', fetch);
+  const { nativeSocialPageDataSSR } = await import('@erpx/server-collaboration/public/native-social-page');
+  await expect(nativeSocialPageDataSSR(selected, { tag: 'ครัว', skipDay: true, skipMilestones: true }, incoming)).resolves.toMatchObject({ posts: [], moderate: false });
+  const [url, init] = fetch.mock.calls[0]!;
+  expect(new URL(url).searchParams.get('tag')).toBe('ครัว');
+  const outgoing = new Headers(init.headers);
+  expect(Object.fromEntries(outgoing)).toMatchObject({
+   host: 'holding.example.test',
+   cookie: 'session=fictional',
+   'x-erpx-context-company': 'company',
+   'x-erpx-context-assignment': 'assignment',
+   'x-erpx-context-revision': '4',
+   'x-erpx-context-assignment-version': '7',
+   'x-erpx-workspace-branch': 'phuket',
+   'x-erpx-workspace-department': 'showroom',
+  });
+ });
+
+ test('refuses to infer Company or role from the incoming headers when the rendered authority is missing', async () => {
+  vi.stubEnv('ERPX_NATIVE_COLLABORATION_CONFIG', JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:3105', timeoutMs: 1000 }));
+  const incoming = new Headers({ host: 'holding.example.test', 'x-erpx-context-company': 'stale-company' });
+  const fetch = vi.fn();
+  vi.stubGlobal('fetch', fetch);
+  const { nativeSocialPageDataSSR } = await import('@erpx/server-collaboration/public/native-social-page');
+  await expect(nativeSocialPageDataSSR(actor, {}, incoming)).rejects.toMatchObject({ code: 'NATIVE_COLLABORATION_CONTEXT_CHANGED', status: 403 });
+  expect(fetch).not.toHaveBeenCalled();
+ });
+});

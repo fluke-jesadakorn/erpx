@@ -1,4 +1,5 @@
 import "server-only";
+import { headers } from "next/headers";
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -38,8 +39,8 @@ function retainedPageData(actor: WorkContext, input: PageInput): Promise<SocialP
 /** Social page SSR data. When the native Collaboration transport is bound,
  *  the complete aggregate page reply is authoritative; no field is merged from
  *  the retained query. The fallback is removed with the social-home barrel. */
-export function socialPageData(actor: WorkContext, input: PageInput): Promise<SocialPageData> {
+export async function socialPageData(actor: WorkContext, input: PageInput): Promise<SocialPageData> {
   return nativeSocialAvailable()
-    ? nativeSocialPageDataSSR(actor, input)
+    ? nativeSocialPageDataSSR(actor, input, await headers())
     : retainedPageData(actor, input);
 }
