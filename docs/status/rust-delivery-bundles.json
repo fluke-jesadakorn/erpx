@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15714,
+    "revision": 15736,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": null,
@@ -213431,30 +213431,20 @@
         "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
-          "src/composition/src/native_lane_mounts.rs",
-          "src/composition/src/private_development_api.rs",
           "src/composition/src/records_search.rs",
-          "src/composition/src/lib.rs",
-          "packages/server-records/src/adapters/record_search_http.rs",
-          "packages/server-records/src/public/record_search_http.rs",
-          "packages/server-records/src/application/record_search.rs",
           "packages/server-records/src/adapters/record_search.rs",
-          "packages/server-records/src/public/record_search.rs",
-          "packages/server-runtime/src/adapters/postgres/unit_of_work.rs",
-          "packages/server-identity_access/src/adapters/holding_work_context.rs",
-          "packages/server-identity_access/src/adapters/records_principal_search.rs",
-          "packages/server-identity_access/src/public/mod.rs"
+          "packages/server-records/src/public/record_search.rs"
         ],
         "resources": [
           "route:records-feature",
           "build:heavy",
           "service:dev-postgres-browser"
         ],
-        "nextAction": "Start migrate.finance.records-search-visibility and Expense wrapper ports in parallel and compose inside records_search.rs SearchRead using its genuine selected Holding snapshot; keep the whole Records visibility scope and retire 18 files only after all guards pass.",
+        "nextAction": "Continue migrate.people_payroll.expense-records-search and remaining owner predicates, then verify public gateway and presenter parity before removing 18 search route files.",
         "claim": null,
         "baseSha": "55d500eb4385ed75f0dbb5982493f67d32c43fff",
-        "implementedCommit": "9e15417a977e0a84247896bc1ba8f905e260a52c",
-        "lastPushedSha": "9e15417a977e0a84247896bc1ba8f905e260a52c",
+        "implementedCommit": "34063f1f94aef2c4afd70f8b717d27b76730aacb",
+        "lastPushedSha": "34063f1f94aef2c4afd70f8b717d27b76730aacb",
         "checks": [
           {
             "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
@@ -213632,6 +213622,119 @@
             "nextRouteFilesRetired": 0,
             "typeScriptBackendFilesRetired": 0,
             "nextInventory": 1414
+          },
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api",
+            "result": "passed",
+            "sourceSha": "34063f1f94aef2c4afd70f8b717d27b76730aacb"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-finance --lib records_search_policy",
+            "result": "passed",
+            "sourceSha": "34063f1f94aef2c4afd70f8b717d27b76730aacb",
+            "passed": 7
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-records --lib record_search",
+            "result": "passed",
+            "sourceSha": "34063f1f94aef2c4afd70f8b717d27b76730aacb",
+            "passed": 14
+          },
+          {
+            "command": "bunx vitest run tests/unit/finance/initial-stock-journal-filter.test.ts tests/unit/records/native-record-search-cutover.test.ts",
+            "result": "passed",
+            "sourceSha": "34063f1f94aef2c4afd70f8b717d27b76730aacb",
+            "passed": 16
+          },
+          {
+            "command": "dev-account-ssO:finance-records-owner-guards",
+            "result": "passed",
+            "sourceSha": "34063f1f94aef2c4afd70f8b717d27b76730aacb",
+            "statuses": {
+              "disabled": 200,
+              "enforcedAllowed": 200,
+              "enforcedDenied": 200,
+              "shadow": 200
+            },
+            "findsOrdinaryRecord": {
+              "disabled": true,
+              "enforcedAllowed": true,
+              "enforcedDenied": false,
+              "shadow": true
+            },
+            "shadowObserved": true,
+            "fixture": "two isolated ERPX dev Companies with different actual Accounting History"
+          },
+          {
+            "command": "postgres:finance-records-predicate",
+            "result": "passed",
+            "sourceSha": "34063f1f94aef2c4afd70f8b717d27b76730aacb",
+            "observations": [
+              "dev and scheduled production-filter SQL compile and execute on PostgreSQL 18",
+              "ordinary row/default and denied fresh assignment",
+              "initial-stock predicate and rollout SQL pinned to the owner oracle"
+            ],
+            "gap": "No end-to-end initial-stock release manifest or allowed initial-stock journal case exercised."
+          },
+          {
+            "command": "dev-https:acme-records-search-and-operations-ssr",
+            "result": "passed",
+            "sourceSha": "34063f1f94aef2c4afd70f8b717d27b76730aacb",
+            "finance": 200,
+            "support": 200,
+            "emptyScope": 200,
+            "routineList": 200,
+            "routineDetail": 200,
+            "anonymous": 401,
+            "staleRevision": 409,
+            "wrongHolding": 404,
+            "unexpectedCompany": 404,
+            "privateRoutineEditorPublic": 404
+          },
+          {
+            "command": "dev-health:gateway-console-private-production",
+            "result": "passed",
+            "sourceSha": "34063f1f94aef2c4afd70f8b717d27b76730aacb",
+            "gateway": 200,
+            "console": 200,
+            "privateProduction": 200,
+            "retiredConsole": 404,
+            "routinePageWithoutSession": 307
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "34063f1f94aef2c4afd70f8b717d27b76730aacb",
+            "suites": 2425
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "34063f1f94aef2c4afd70f8b717d27b76730aacb"
+          },
+          {
+            "command": "bun run architecture:check",
+            "result": "failed",
+            "sourceSha": "34063f1f94aef2c4afd70f8b717d27b76730aacb",
+            "detail": "Existing unrelated TypeScript owner-private/module-private imports and presentation/runtime composition reported."
+          },
+          {
+            "command": "bun run docs:check",
+            "result": "failed",
+            "sourceSha": "34063f1f94aef2c4afd70f8b717d27b76730aacb",
+            "detail": "Existing generated docs/status/capability-delivery-matrix.md is stale."
+          },
+          {
+            "command": "retirement:next-routes:records-finance-guard",
+            "result": "passed",
+            "sourceSha": "34063f1f94aef2c4afd70f8b717d27b76730aacb",
+            "before": 1414,
+            "after": 1414,
+            "nativeMethodPathsChanged": 1,
+            "nativeMethodPathsAdded": 0,
+            "nextBranchesRetired": 0,
+            "nextRouteFilesDeleted": 0,
+            "remainingSearchRouteFiles": 18
           }
         ],
         "retainedLegacy": [
@@ -213648,12 +213751,12 @@
         ],
         "blocker": "handoff",
         "handoff": {
-          "runId": "run-goal-records-search-session",
+          "runId": "run-goal-records-owner-guards",
           "agentId": "codex-lead",
-          "at": "2026-11-27T07:34:04.495Z",
+          "at": "2026-11-27T07:55:26.089Z",
           "previousStatus": "blocked",
           "reason": "handoff",
-          "nextAction": "Start migrate.finance.records-search-visibility and Expense wrapper ports in parallel and compose inside records_search.rs SearchRead using its genuine selected Holding snapshot; keep the whole Records visibility scope and retire 18 files only after all guards pass."
+          "nextAction": "Continue migrate.people_payroll.expense-records-search and remaining owner predicates, then verify public gateway and presenter parity before removing 18 search route files."
         },
         "scopeRefinementRequired": false
       },
@@ -220068,16 +220171,187 @@
         "resources": [
           "owner:finance-records-search"
         ],
-        "status": "pending",
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "34063f1f94aef2c4afd70f8b717d27b76730aacb",
+        "lastPushedSha": "34063f1f94aef2c4afd70f8b717d27b76730aacb",
+        "checks": [
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api",
+            "result": "passed",
+            "sourceSha": "34063f1f94aef2c4afd70f8b717d27b76730aacb"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-finance --lib records_search_policy",
+            "result": "passed",
+            "sourceSha": "34063f1f94aef2c4afd70f8b717d27b76730aacb",
+            "passed": 7
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-records --lib record_search",
+            "result": "passed",
+            "sourceSha": "34063f1f94aef2c4afd70f8b717d27b76730aacb",
+            "passed": 14
+          },
+          {
+            "command": "bunx vitest run tests/unit/finance/initial-stock-journal-filter.test.ts tests/unit/records/native-record-search-cutover.test.ts",
+            "result": "passed",
+            "sourceSha": "34063f1f94aef2c4afd70f8b717d27b76730aacb",
+            "passed": 16
+          },
+          {
+            "command": "dev-account-ssO:finance-records-owner-guards",
+            "result": "passed",
+            "sourceSha": "34063f1f94aef2c4afd70f8b717d27b76730aacb",
+            "statuses": {
+              "disabled": 200,
+              "enforcedAllowed": 200,
+              "enforcedDenied": 200,
+              "shadow": 200
+            },
+            "findsOrdinaryRecord": {
+              "disabled": true,
+              "enforcedAllowed": true,
+              "enforcedDenied": false,
+              "shadow": true
+            },
+            "shadowObserved": true,
+            "fixture": "two isolated ERPX dev Companies with different actual Accounting History"
+          },
+          {
+            "command": "postgres:finance-records-predicate",
+            "result": "passed",
+            "sourceSha": "34063f1f94aef2c4afd70f8b717d27b76730aacb",
+            "observations": [
+              "dev and scheduled production-filter SQL compile and execute on PostgreSQL 18",
+              "ordinary row/default and denied fresh assignment",
+              "initial-stock predicate and rollout SQL pinned to the owner oracle"
+            ],
+            "gap": "No end-to-end initial-stock release manifest or allowed initial-stock journal case exercised."
+          },
+          {
+            "command": "dev-https:acme-records-search-and-operations-ssr",
+            "result": "passed",
+            "sourceSha": "34063f1f94aef2c4afd70f8b717d27b76730aacb",
+            "finance": 200,
+            "support": 200,
+            "emptyScope": 200,
+            "routineList": 200,
+            "routineDetail": 200,
+            "anonymous": 401,
+            "staleRevision": 409,
+            "wrongHolding": 404,
+            "unexpectedCompany": 404,
+            "privateRoutineEditorPublic": 404
+          },
+          {
+            "command": "dev-health:gateway-console-private-production",
+            "result": "passed",
+            "sourceSha": "34063f1f94aef2c4afd70f8b717d27b76730aacb",
+            "gateway": 200,
+            "console": 200,
+            "privateProduction": 200,
+            "retiredConsole": 404,
+            "routinePageWithoutSession": 307
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "34063f1f94aef2c4afd70f8b717d27b76730aacb",
+            "suites": 2425
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "34063f1f94aef2c4afd70f8b717d27b76730aacb"
+          },
+          {
+            "command": "bun run architecture:check",
+            "result": "failed",
+            "sourceSha": "34063f1f94aef2c4afd70f8b717d27b76730aacb",
+            "detail": "Existing unrelated TypeScript owner-private/module-private imports and presentation/runtime composition reported."
+          },
+          {
+            "command": "bun run docs:check",
+            "result": "failed",
+            "sourceSha": "34063f1f94aef2c4afd70f8b717d27b76730aacb",
+            "detail": "Existing generated docs/status/capability-delivery-matrix.md is stale."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-finance/src/adapters/document-purchases.ts",
+            "removalTaskId": "retire.records.search-count-detail",
+            "removalCondition": "Move the legacy Records search adapter and live Collaboration consumers to the current native policy before deleting the Finance search-only SQL; verify accepted-release initial-stock gating on compiled candidate."
+          }
+        ],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-goal-records-owner-guards",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T07:55:25.942Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Verify valid Sales, Manufacturing, POS and Service initial-stock provenance under the accepted release, then retire the TS search-only SQL with retire.records.search-count-detail."
+        },
+        "nextAction": "Verify valid Sales, Manufacturing, POS and Service initial-stock provenance under the accepted release, then retire the TS search-only SQL with retire.records.search-count-detail.",
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.people_payroll.expense-records-search",
+        "goalId": "G4",
+        "owner": "people_payroll",
+        "kind": "migration",
+        "title": "Port Expense Records search ownership and transaction fences",
+        "scope": "Reuse the native Expense history and visibility ports, lock owner sources before the Holding snapshot, and produce allowed Expense record IDs before the Records result limit.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-people_payroll/src/adapters/expense_records_search.rs",
+          "packages/server-people_payroll/src/adapters/mod.rs",
+          "packages/server-people_payroll/src/public/mod.rs"
+        ],
+        "resources": [
+          "owner:people-expense-records-search"
+        ],
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
-        "nextAction": "Read financeWorkspaceSearchScope in document-purchases.ts and inventory.finance.records-search-policy. Implement and pin native Finance owner predicates for initial, marked-invalid and ordinary records with the exact row scope and clock, before handing the public owner port to Records composition. Refine cross-owner wiring and tests under a separate lead claim.",
+        "checks": [
+          {
+            "command": "cargo test --locked -p erpx-server-people_payroll --lib expense_records_search",
+            "result": "passed",
+            "passed": 3,
+            "source": "reviewed local scratch changes only; absent from the candidate"
+          },
+          {
+            "command": "python3 .scratch/dev/records-expense-source-pg.py",
+            "result": "passed",
+            "source": "reviewed local scratch changes only",
+            "detail": "Validated real PostgreSQL source lookup and before-limit predicate for same-Company claims and their own payment drafts. No owner permission decision or runtime cutover wired."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-people_payroll/src/adapters/expense-record-purchases.ts",
+            "removalTaskId": "migrate.people_payroll.expense-records-search",
+            "removalCondition": "Restore reviewed scratch candidate relation after claiming paths and port current reviewer and live approval predicates, cancelled/prepared Treasury and routing witnesses, History plus current assignment, and same-transaction rechecks for enforced mode before binding IDs. Shadow remains observation only."
+          }
+        ],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-goal-records-owner-guards",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T07:55:26.241Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "After claiming its paths, run git apply --check .scratch/dev/records-owner-expense-resume.patch, restore the typed source lookup, and implement exact current reviewer, Treasury and live approval decisions plus same-transaction purchase and scope rechecks for enforced mode."
+        },
+        "nextAction": "After claiming its paths, run git apply --check .scratch/dev/records-owner-expense-resume.patch, restore the typed source lookup, and implement exact current reviewer, Treasury and live approval decisions plus same-transaction purchase and scope rechecks for enforced mode.",
         "scopeRefinementRequired": false
       }
     ],
@@ -220087,21 +220361,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2451,
+      "totalPackets": 2452,
       "migratedPackets": 370,
       "statusCounts": {
-        "pending": 15,
+        "pending": 14,
         "in_progress": 0,
-        "ready_for_integration": 143,
+        "ready_for_integration": 144,
         "integrating": 0,
         "migrated": 370,
-        "blocked": 1921,
+        "blocked": 1922,
         "deferred": 2,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 203,
-    "updatedAt": "2026-11-27T07:34:04.679Z",
+    "lastCoordinatorGeneration": 204,
+    "updatedAt": "2026-11-27T07:55:26.393Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
