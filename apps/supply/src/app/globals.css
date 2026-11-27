@@ -423,7 +423,6 @@
 @source "../../../../packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/landed-costs/[[...path]]/route.ts";
 @source "../../../../packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/procurement-rfqs/[id]/route.ts";
 @source "../../../../packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/procurement-rfqs/route.ts";
-@source "../../../../packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/stock-transfers/[[...path]]/route.ts";
 @source "../../../../packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/stock-transit/[[...path]]/route.ts";
 @source "../../../../packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/supplier-bills/[id]/route.ts";
 @source "../../../../packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/supplier-bills/policy/route.ts";
@@ -3865,7 +3864,6 @@
 @source "../../../../packages/server-records/src/public/identity-access-verified-context-projections.ts";
 @source "../../../../packages/server-records/src/public/legal-attachment-read-sources.ts";
 @source "../../../../packages/server-records/src/public/native-record-context.ts";
-@source "../../../../packages/server-records/src/public/native-record-search.ts";
 @source "../../../../packages/server-records/src/public/platform-owner-projection-sources.ts";
 @source "../../../../packages/server-records/src/public/record-details.ts";
 @source "../../../../packages/server-records/src/public/record-domain-details.ts";
@@ -4491,7 +4489,6 @@
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/push/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/push/session/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/record-details/route.ts";
-@source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/search/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/requests/[[...path]]/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/requests/preview/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/self-service/summary/route.ts";

@@ -493,7 +493,6 @@
     "./routes/api/v1/holdings/[holdingSlug]/people-public-directory/route": "./src/routes/api/v1/holdings/[holdingSlug]/people-public-directory/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/hospitality/setup/route": "./src/routes/api/v1/holdings/[holdingSlug]/hospitality/setup/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/page-layouts/[pageKey]/route": "./src/routes/api/v1/holdings/[holdingSlug]/page-layouts/[pageKey]/route.ts",
-    "./routes/api/v1/holdings/[holdingSlug]/records/search/route": "./src/routes/api/v1/holdings/[holdingSlug]/records/search/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/assignments/active/route": "./src/routes/api/v1/holdings/[holdingSlug]/assignments/active/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/calendar/[...path]/route": "./src/routes/api/v1/holdings/[holdingSlug]/calendar/[...path]/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/calendar/route": "./src/routes/api/v1/holdings/[holdingSlug]/calendar/route.ts",

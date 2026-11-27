@@ -1590,7 +1590,6 @@
 @source "../../../../packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/booking-changes/route.ts";
 @source "../../../../packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/booking-refunds/route.ts";
 @source "../../../../packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/imports/route.ts";
-@source "../../../../packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/reports/route.ts";
 @source "../../../../packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/stripe-payments/route.ts";
 @source "../../../../packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/stripe-refunds/route.ts";
 @source "../../../../packages/feature-pms/src/routes/holdings/[holdingSlug]/@record/pms/documents/[id]/[recordSection]/page.tsx";
@@ -2045,14 +2044,9 @@
 @source "../../../../packages/feature-sales/src/public/native-sales-notification-commands.ts";
 @source "../../../../packages/feature-sales/src/public/native-sales-notification-reconciliation.ts";
 @source "../../../../packages/feature-sales/src/public/native-sales-pricing.ts";
-@source "../../../../packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/crm/activities/route.ts";
 @source "../../../../packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/crm/route.ts";
 @source "../../../../packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customer-access/route.ts";
-@source "../../../../packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customer-duplicates/route.ts";
 @source "../../../../packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customer-followups/route.ts";
-@source "../../../../packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customer-identity/route.ts";
-@source "../../../../packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customer-notes/route.ts";
-@source "../../../../packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customers/route.ts";
 @source "../../../../packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/ecommerce/route.ts";
 @source "../../../../packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/marketing/route.ts";
 @source "../../../../packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/reports/crm-marketing/route.ts";
@@ -2209,7 +2203,6 @@
 @source "../../../../packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/landed-costs/[[...path]]/route.ts";
 @source "../../../../packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/procurement-rfqs/[id]/route.ts";
 @source "../../../../packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/procurement-rfqs/route.ts";
-@source "../../../../packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/stock-transfers/[[...path]]/route.ts";
 @source "../../../../packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/stock-transit/[[...path]]/route.ts";
 @source "../../../../packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/supplier-bills/[id]/route.ts";
 @source "../../../../packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/supplier-bills/policy/route.ts";
@@ -3372,7 +3365,6 @@
 @source "../../../../packages/server-customer_authority/src/public/executive-main-evidence-sources.ts";
 @source "../../../../packages/server-customer_authority/src/public/executive-metric-projections.ts";
 @source "../../../../packages/server-customer_authority/src/public/last-audit-owner-projection-sources.ts";
-@source "../../../../packages/server-customer_authority/src/public/native-customer-authority.ts";
 @source "../../../../packages/server-customer_authority/src/public/native-portal-support.ts";
 @source "../../../../packages/server-customer_authority/src/public/package-obligations.ts";
 @source "../../../../packages/server-customer_authority/src/public/portal-access.ts";
@@ -7000,7 +6992,6 @@
 @source "../../../../packages/server-records/src/public/identity-access-verified-context-projections.ts";
 @source "../../../../packages/server-records/src/public/legal-attachment-read-sources.ts";
 @source "../../../../packages/server-records/src/public/native-record-context.ts";
-@source "../../../../packages/server-records/src/public/native-record-search.ts";
 @source "../../../../packages/server-records/src/public/platform-owner-projection-sources.ts";
 @source "../../../../packages/server-records/src/public/presentation-queries.ts";
 @source "../../../../packages/server-records/src/public/record-details.ts";
@@ -7885,7 +7876,6 @@
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/push/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/push/session/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/record-details/route.ts";
-@source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/search/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/requests/[[...path]]/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/requests/preview/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/routing-attention/route.ts";
