@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15392,
+    "revision": 15399,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261127-f",
+      "runId": "run-20261127-g",
       "agentId": "lead",
-      "startedAt": "2026-11-27T02:03:29.663Z",
-      "heartbeatAt": "2026-11-27T02:32:43.517Z",
-      "expiresAt": "2026-11-27T03:02:43.517Z",
-      "generation": 194,
-      "tokenHash": "2136d35f96e5dbde2109a42dc96f779f8467e46d2a31c4e5274930bdb3a6a99e"
+      "startedAt": "2026-11-27T03:13:17.680Z",
+      "heartbeatAt": "2026-11-27T03:13:17.680Z",
+      "expiresAt": "2026-11-27T03:43:17.680Z",
+      "generation": 195,
+      "tokenHash": "20918b22e445476d5968e9d0c2a4538acfe319015633999eba500ce067a4c770"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -216264,6 +216264,123 @@
           "nextAction": "Organization acceptance GET is native; internal TS read retained only for business readiness."
         },
         "scopeRefinementRequired": false
+      },
+      {
+        "goalId": "G3",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "claim": {
+          "runId": "run-20261127-g",
+          "agentId": "worker-a",
+          "claimedAt": "2026-11-27T03:33:14.660Z",
+          "heartbeatAt": "2026-11-27T03:33:14.660Z",
+          "expiresAt": "2026-11-27T04:03:14.660Z",
+          "generation": 195
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false,
+        "id": "cutover.identity.account-routes",
+        "owner": "identity_access",
+        "title": "Native account route cutover",
+        "allowedPaths": [
+          "packages/server-identity_access/src/**",
+          "packages/feature-account/src/routes/api/v1/account/**",
+          "packages/feature-account/src/routes/api/v1/account-invitations/**",
+          "tests/unit/identity_access/**",
+          "tests/integration/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access",
+          "route:account"
+        ],
+        "nextAction": "Audit account-invitations, account/security, preferences and time-preference; implement missing Axum owner handlers with real SQL, add parity tests, and report exact mount/delete lists"
+      },
+      {
+        "goalId": "G3",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "claim": {
+          "runId": "run-20261127-g",
+          "agentId": "worker-b",
+          "claimedAt": "2026-11-27T03:33:14.925Z",
+          "heartbeatAt": "2026-11-27T03:33:14.925Z",
+          "expiresAt": "2026-11-27T04:03:14.925Z",
+          "generation": 195
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false,
+        "id": "cutover.platform.admin-routes",
+        "owner": "platform_administration",
+        "title": "Native platform admin route cutover",
+        "allowedPaths": [
+          "packages/server-platform_administration/src/**",
+          "packages/feature-admin/src/routes/api/v1/platform/**",
+          "tests/unit/platform_administration/**",
+          "tests/integration/platform_administration/**"
+        ],
+        "resources": [
+          "owner:platform_administration",
+          "route:platform-admin"
+        ],
+        "nextAction": "Audit platform operations, executive, billing forecast and billing target; move real reads/writes to Axum owner handlers and report exact mount/delete lists"
+      },
+      {
+        "goalId": "G3",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "claim": {
+          "runId": "run-20261127-g",
+          "agentId": "worker-c",
+          "claimedAt": "2026-11-27T03:33:18.532Z",
+          "heartbeatAt": "2026-11-27T03:33:18.532Z",
+          "expiresAt": "2026-11-27T04:03:18.532Z",
+          "generation": 195
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false,
+        "id": "cutover.collaboration.apps-routes",
+        "owner": "collaboration",
+        "title": "Native collaboration route cutover",
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/feed/**",
+          "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/collaboration/**",
+          "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/stories/**",
+          "tests/unit/collaboration/**",
+          "tests/integration/collaboration/**"
+        ],
+        "resources": [
+          "owner:collaboration",
+          "route:apps-social"
+        ],
+        "nextAction": "Remove TS feed fallback, verify/native-implement collaboration, feed and stories Axum handlers with real SQL, add parity tests, and report exact mount/delete lists"
       }
     ],
     "migrationProgress": {
@@ -216272,11 +216389,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2446,
+      "totalPackets": 2449,
       "migratedPackets": 369,
       "statusCounts": {
         "pending": 14,
-        "in_progress": 0,
+        "in_progress": 3,
         "ready_for_integration": 146,
         "integrating": 0,
         "migrated": 369,
@@ -216285,8 +216402,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 194,
-    "updatedAt": "2026-11-27T02:40:03.084Z",
+    "lastCoordinatorGeneration": 195,
+    "updatedAt": "2026-11-27T03:33:18.539Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
@@ -216321,10 +216438,10 @@
       }
     },
     "lastRecovery": {
-      "previousRunId": "run-20261127-e",
-      "runId": "run-20261127-f",
-      "at": "2026-11-27T02:03:29.664Z",
-      "reason": "heartbeat automation missed; manual coordination continues",
+      "previousRunId": "run-20261127-f",
+      "runId": "run-20261127-g",
+      "at": "2026-11-27T03:13:17.681Z",
+      "reason": "Previous run lease expired; tree clean; dev services reconciled",
       "wipReviewed": true,
       "previousRunStopped": true
     },

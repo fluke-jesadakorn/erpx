@@ -301,6 +301,44 @@ it('compiled gateway preserves streaming, cookies, mutation bytes and upgraded h
 },20000);
 
 
+it('routes /api to the native service, strips browser context and resolves session context',async()=>{
+ await free(3104);await free(3298);await free(3299);
+ const {startCompiledWorkspaceGateway}=await import('../../../scripts/local/compiled-workspace-gateway');
+ const {stripInternalHeaders,nativeApiPath}=await import('../../../scripts/local/native-api-proxy');
+ expect(stripInternalHeaders({host:'finance.fixture.invalid',cookie:'a=1','x-erpx-context-company':'evil','x-forwarded-for':'1.2.3.4','x-keep':'ok'})).toEqual({host:'finance.fixture.invalid',cookie:'a=1','x-keep':'ok'});
+ expect(nativeApiPath({ERPX_DEV_NATIVE_PATHS:'finance.fixture.invalid|/api/a,/api/b'},'/api/a/x','finance.fixture.invalid')).toBe(true);
+ expect(nativeApiPath({ERPX_DEV_NATIVE_PATHS:'finance.fixture.invalid|/api/a,/api/b'},'/api/a/x','other.fixture.invalid')).toBe(false);
+ expect(nativeApiPath({ERPX_DEV_NATIVE_PATHS:'finance.fixture.invalid|/api/a,/api/b'},'/api/b','other.fixture.invalid')).toBe(true);
+ const seen:Array<{path:string;company:string|undefined;requested:string|undefined}>=[];
+ const api=createServer((req,res)=>{
+  if((req.url??'').startsWith('/internal/session-context')){
+   if(req.headers.origin!=='http://127.0.0.1:3299'){res.statusCode=403;res.end('non-loopback');return;}
+   res.setHeader('Content-Type','application/json');res.end(JSON.stringify({data:{companyId:'native-company'}}));return;
+  }
+  seen.push({path:req.url!,company:req.headers['x-erpx-context-company'] as string|undefined,requested:req.headers['x-erpx-requested-company'] as string|undefined});
+  res.setHeader('Content-Type','application/json');res.end(JSON.stringify({native:true}));
+ });
+ const app=createServer((_,res)=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify({app:true}));});
+ await new Promise<void>((done,reject)=>{api.once('error',reject);api.listen(3299,'127.0.0.1',()=>done());});
+ await new Promise<void>((done,reject)=>{app.once('error',reject);app.listen(3298,'127.0.0.1',()=>done());});
+ const gateway=await startCompiledWorkspaceGateway({...compiledRouting(),api:3299},3104);
+ try{
+  const response=await new Promise<{status:number;body:string}>((done,reject)=>{
+   const req=request({host:'127.0.0.1',port:3104,path:'/api/v1/holdings/acme/finance/journals',headers:{Host:'finance.fixture.invalid',Cookie:'erpx_session=1','x-erpx-context-company':'spoofed','x-erpx-requested-company':'selected'},agent:false},res=>{
+    const chunks:Buffer[]=[];res.on('data',chunk=>chunks.push(Buffer.from(chunk)));res.once('end',()=>done({status:res.statusCode??0,body:Buffer.concat(chunks).toString()}));
+   });req.once('error',reject);req.end();
+  });
+  expect(response).toEqual({status:200,body:'{"native":true}'});
+  expect(seen).toEqual([{path:'/api/v1/holdings/acme/finance/journals',company:'native-company',requested:undefined}]);
+  const page=await new Promise<{status:number;body:string}>((done,reject)=>{
+   const req=request({host:'127.0.0.1',port:3104,path:'/page',headers:{Host:'finance.fixture.invalid'},agent:false},res=>{
+    const chunks:Buffer[]=[];res.on('data',chunk=>chunks.push(Buffer.from(chunk)));res.once('end',()=>done({status:res.statusCode??0,body:Buffer.concat(chunks).toString()}));
+   });req.once('error',reject);req.end();
+  });
+  expect(page).toEqual({status:200,body:'{"app":true}'});
+ }finally{await gateway.close();await new Promise<void>(done=>api.close(()=>done()));await new Promise<void>(done=>app.close(()=>done()));}
+},20000);
+
 it('prewarms only exact contributor authorities and declared app health paths',async()=>{
   await free(3104);const seen:{host:string|undefined;path:string|undefined}[]=[];
   const server=createServer((req,res)=>{seen.push({host:req.headers.host,path:req.url});res.setHeader('X-ERPX-App','finance');res.end('ready');});

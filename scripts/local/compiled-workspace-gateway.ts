@@ -2,8 +2,9 @@ import { createServer, request, type IncomingMessage, type ServerResponse } from
 import { PassThrough, type Duplex } from 'node:stream';
 import { hasPortListener } from './port-listeners';
 import { appIds } from '@erpx/contracts/apps';
+import { proxyNativeApi, stripInternalHeaders } from './native-api-proxy';
 
-export type CompiledGatewayRouting = { schema: 'erpx-compiled-routing/v1'; hosts: Record<string,string>; ports: Record<string,number> };
+export type CompiledGatewayRouting = { schema: 'erpx-compiled-routing/v1'; hosts: Record<string,string>; ports: Record<string,number>; api?: number };
 /** External release orchestration owns processes. This transport never starts jobs or replays requests. */
 export function validateCompiledRouting(value: CompiledGatewayRouting) {
   if (value?.schema !== 'erpx-compiled-routing/v1' || !value.hosts || !value.ports || JSON.stringify(Object.keys(value.ports).sort()) !== JSON.stringify([...appIds].sort())) throw new Error('EXACT_COMPILED_ROUTING_REQUIRED');
@@ -12,6 +13,7 @@ export function validateCompiledRouting(value: CompiledGatewayRouting) {
     if (!Number.isInteger(port) || port < 3200 || port > 3299 || ports.has(port)) throw new Error('INVALID_COMPILED_APP_PORT');
     ports.add(port);
   }
+  if (value.api !== undefined && (!Number.isInteger(value.api) || value.api < 1024 || value.api > 65535 || [3000,3001,8080].includes(value.api) || ports.has(value.api))) throw new Error('INVALID_COMPILED_API_PORT');
   for (const [host,id] of Object.entries(value.hosts)) {
     if (!/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?(?::[0-9]{1,5})?$/.test(host) || new URL('http://'+host).host !== host || !appIds.includes(id as typeof appIds[number])) throw new Error('INVALID_COMPILED_HOST');
     routed.add(id);
@@ -28,12 +30,21 @@ export async function startCompiledWorkspaceGateway(routing: CompiledGatewayRout
   if (!Number.isInteger(port) || port < 1024 || port > 65535 || [3000,3001,8080,...Object.values(config.ports)].includes(port)) throw new Error('EXPLICIT_GATEWAY_PORT_REQUIRED');
   if(hasPortListener(port))throw new Error('GATEWAY_PORT_OCCUPIED');
   const sockets = new Set<Duplex>();
-  const target = (req: IncomingMessage) => config.ports[config.hosts[req.headers.host??'']];
+  const selected = (req: IncomingMessage) => {
+    const app = config.ports[config.hosts[req.headers.host??'']];
+    if (!app) return undefined;
+    const path = (req.url ?? '').split('?')[0];
+    return config.api !== undefined && (path === '/api' || path.startsWith('/api/')) ? { port: config.api, native: true } : { port: app, native: false };
+  };
   const server = createServer((req,res) => {
-    const selected = target(req);
-    if (!selected) {res.writeHead(421,{'Cache-Control':'no-store'});res.end();return;}
+    const target = selected(req);
+    if (!target) {res.writeHead(421,{'Cache-Control':'no-store'});res.end();return;}
+    if (target.native) {
+      void proxyNativeApi({ base: new URL(`http://127.0.0.1:${target.port}`), environment: process.env, req, res }).catch(() => unavailable(res));
+      return;
+    }
     // Host/Origin, cookie headers, path/query and multipart/RSC/SSE bodies pass unchanged.
-    const upstream=request({host:'127.0.0.1',port:selected,path:req.url,method:req.method,headers:req.headers},response=>{
+    const upstream=request({host:'127.0.0.1',port:target.port,path:req.url,method:req.method,headers:req.headers},response=>{
       res.writeHead(response.statusCode??502,response.statusMessage,response.headers);response.pipe(res);
       response.once('error',()=>unavailable(res));
     });
@@ -41,12 +52,12 @@ export async function startCompiledWorkspaceGateway(routing: CompiledGatewayRout
     res.once('close',()=>{if(!res.writableFinished)upstream.destroy();});req.pipe(upstream);
   });
   server.on('upgrade',(req,downstream,head)=>{
-    const selected=target(req);
-    if(!selected){downstream.end('HTTP/1.1 421 Misdirected Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n');return;}
+    const target=selected(req);
+    if(!target){downstream.end('HTTP/1.1 421 Misdirected Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n');return;}
     const waiting=new PassThrough({highWaterMark:64*1024});
     downstream.once('error',()=>downstream.destroy());downstream.once('end',()=>downstream.destroy());
     downstream.once('close',()=>waiting.destroy());waiting.once('error',()=>downstream.destroy());downstream.pipe(waiting);
-    const upstream=request({host:'127.0.0.1',port:selected,path:req.url,method:req.method,headers:req.headers});
+    const upstream=request({host:'127.0.0.1',port:target.port,path:req.url,method:req.method,headers:target.native?stripInternalHeaders(req.headers):req.headers});
     downstream.once('close',()=>upstream.destroy());
     upstream.once('upgrade',(response,socket,upstreamHead)=>{
       if(downstream.destroyed){socket.destroy();return;}
