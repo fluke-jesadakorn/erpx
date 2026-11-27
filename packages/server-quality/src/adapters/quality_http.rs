@@ -1608,6 +1608,35 @@ async fn parse_quality_command(
     Ok(ParsedQualityCommand { headers, key, body })
 }
 
+/// The former Next relay parsed a command body as JSON regardless of the
+/// incoming media type and surfaced an unparseable body as a generic 500.
+/// Public transport keeps that wire behavior; private owner callers keep
+/// strict JSON admission. Shared by acknowledgement and specification POST.
+async fn parse_relay_command(
+    mut request: Request,
+    target: &QualityHttpTarget,
+) -> Result<ParsedQualityCommand, Response> {
+    let public = request
+        .headers()
+        .get("x-erpx-api-transport")
+        .is_some_and(|value| value == "public");
+    if public {
+        request.headers_mut().insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json"),
+        );
+    }
+    parse_quality_command(request, target).await.map_err(|error| {
+        if public && error.code == "QUALITY_COMMAND_REQUIRED" {
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error":{
+                "code":"INTERNAL_ERROR","message":"The request could not be completed."
+            }}))).into_response()
+        } else {
+            error_response(error)
+        }
+    })
+}
+
 async fn create_hold(
     State(state): State<Arc<QualityHttpState>>,
     Path(slug): Path<String>,
@@ -1641,9 +1670,10 @@ async fn save_spec(
     request: Request,
 ) -> Response {
     let result = async move {
-        let target = target(&state, request.headers(), &slug)?;
-        let parsed = parse_quality_command(request, target).await?;
-        let command = parse_spec_save(&parsed.body, None, parsed.key.clone())?;
+        let target = target(&state, request.headers(), &slug).map_err(error_response)?;
+        let parsed = parse_relay_command(request, target).await?;
+        let command =
+            parse_spec_save(&parsed.body, None, parsed.key.clone()).map_err(error_response)?;
         target
             .backend
             .save_spec(QualityHttpSaveSpecRequest {
@@ -1655,11 +1685,12 @@ async fn save_spec(
                 key: &command.key,
             })
             .await
+            .map_err(error_response)
     }
     .await;
     match result {
         Ok(receipt) => bounded(spec_receipt_json(&receipt)),
-        Err(error) => error_response(error),
+        Err(response) => response,
     }
 }
 
@@ -1669,11 +1700,12 @@ async fn transition_spec(
     request: Request,
 ) -> Response {
     let result = async move {
-        let target = target(&state, request.headers(), &slug)?;
-        let parsed = parse_quality_command(request, target).await?;
-        let id = RecordId::new(id)?;
+        let target = target(&state, request.headers(), &slug).map_err(error_response)?;
+        let parsed = parse_relay_command(request, target).await?;
+        let id = RecordId::new(id).map_err(error_response)?;
         if parsed.body.get("action").is_some() {
-            let command = parse_spec_action(&parsed.body, id.as_str(), parsed.key.clone())?;
+            let command = parse_spec_action(&parsed.body, id.as_str(), parsed.key.clone())
+                .map_err(error_response)?;
             target
                 .backend
                 .transition_spec(QualityHttpCommandRequest {
@@ -1685,8 +1717,11 @@ async fn transition_spec(
                     key: &command.key,
                 })
                 .await
+                .map_err(error_response)
         } else {
-            let command = parse_spec_save(&parsed.body, Some(id.as_str()), parsed.key.clone())?;
+            let command =
+                parse_spec_save(&parsed.body, Some(id.as_str()), parsed.key.clone())
+                    .map_err(error_response)?;
             target
                 .backend
                 .save_spec(QualityHttpSaveSpecRequest {
@@ -1698,12 +1733,13 @@ async fn transition_spec(
                     key: &command.key,
                 })
                 .await
+                .map_err(error_response)
         }
     }
     .await;
     match result {
         Ok(receipt) => bounded(spec_receipt_json(&receipt)),
-        Err(error) => error_response(error),
+        Err(response) => response,
     }
 }
 
@@ -1797,24 +1833,11 @@ async fn disposition_command(
 async fn acknowledge_alert(
     State(state): State<Arc<QualityHttpState>>,
     Path((slug, id)): Path<(String, String)>,
-    mut request: Request,
+    request: Request,
 ) -> Response {
-    let public = request.headers().get("x-erpx-api-transport").is_some_and(|value| value == "public");
-    // The former Next relay parsed JSON independently of the incoming media type.
-    if public {
-        request.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_static("application/json"));
-    }
     let result = async move {
         let target = target(&state, request.headers(), &slug).map_err(error_response)?;
-        let parsed = parse_quality_command(request, target).await.map_err(|error| {
-            if public && error.code == "QUALITY_COMMAND_REQUIRED" {
-                (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error":{
-                    "code":"INTERNAL_ERROR","message":"The request could not be completed."
-                }}))).into_response()
-            } else {
-                error_response(error)
-            }
-        })?;
+        let parsed = parse_relay_command(request, target).await?;
         let id = RecordId::new(id).map_err(error_response)?;
         let command = parse_alert_acknowledge(&parsed.body, id.as_str(), parsed.key.clone())
             .map_err(error_response)?;

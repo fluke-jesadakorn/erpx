@@ -2,13 +2,14 @@
 use erpx_server_quality::public::quality_http::{
     QualityHttpBackend, QualityHttpCommandRequest, QualityHttpFuture, QualityHttpHistoryReply,
     QualityHttpHistoryRequest, QualityHttpHoldCreateRequest, QualityHttpReadReply,
-    QualityHttpReadRequest, QualityHttpTarget, parse_quality_history_query, quality_router,
+    QualityHttpReadRequest, QualityHttpSaveSpecRequest, QualityHttpTarget,
+    parse_quality_history_query, quality_router,
 };
-use erpx_server_quality::public::quality_commands::QualityHoldReceipt;
+use erpx_server_quality::public::quality_commands::{QualityHoldReceipt, QualitySpecReceipt};
 use erpx_server_quality::public::quality_read::{
     CancellationAction, HoldStatus, QualityCancellation, QualityCancellationReceipt, QualityDecision,
     QualityDetail, QualityDetailCore, QualityHold, QualityHoldProduct, QualityHoldView, QualityMetric,
-    QualityWorkspace,
+    QualityWorkspace, SpecStatus,
 };
 use erpx_server_runtime::public::http_support::serde_json::{self, Value, json};
 use erpx_server_runtime::public::http_support::{Router, serve};
@@ -132,9 +133,13 @@ struct Backend {
     cancels: AtomicUsize,
     creates: AtomicUsize,
     histories: AtomicUsize,
+    spec_saves: AtomicUsize,
+    spec_actions: AtomicUsize,
     seen_host: std::sync::Mutex<String>,
     seen_key: std::sync::Mutex<String>,
     seen_query: std::sync::Mutex<String>,
+    seen_spec_id: std::sync::Mutex<Option<String>>,
+    seen_spec_body: std::sync::Mutex<Value>,
     history_page: Option<QualityHttpHistoryReply>,
     fail: Option<BusinessError>,
 }
@@ -146,9 +151,13 @@ impl Backend {
             cancels: AtomicUsize::new(0),
             creates: AtomicUsize::new(0),
             histories: AtomicUsize::new(0),
+            spec_saves: AtomicUsize::new(0),
+            spec_actions: AtomicUsize::new(0),
             seen_host: std::sync::Mutex::new(String::new()),
             seen_key: std::sync::Mutex::new(String::new()),
             seen_query: std::sync::Mutex::new(String::new()),
+            seen_spec_id: std::sync::Mutex::new(None),
+            seen_spec_body: std::sync::Mutex::new(Value::Null),
             history_page: None,
             fail: None,
         }
@@ -258,6 +267,50 @@ impl QualityHttpBackend for Backend {
         })
     }
 
+    fn save_spec<'a>(
+        &'a self,
+        request: QualityHttpSaveSpecRequest<'a>,
+    ) -> QualityHttpFuture<'a, QualitySpecReceipt> {
+        self.spec_saves.fetch_add(1, Ordering::SeqCst);
+        let id = request.id.map(str::to_owned);
+        let key = request.key.as_str().to_owned();
+        *self.seen_spec_id.lock().unwrap() = id.clone();
+        *self.seen_key.lock().unwrap() = key.clone();
+        *self.seen_spec_body.lock().unwrap() = request.body.clone();
+        Box::pin(async move {
+            if let Some(error) = self.fail.clone() {
+                return Err(error);
+            }
+            Ok(QualitySpecReceipt {
+                id: id.unwrap_or_else(|| format!("quality-spec-{key}")),
+                status: SpecStatus::Draft,
+                version: 1,
+            })
+        })
+    }
+
+    fn transition_spec<'a>(
+        &'a self,
+        request: QualityHttpCommandRequest<'a>,
+    ) -> QualityHttpFuture<'a, QualitySpecReceipt> {
+        self.spec_actions.fetch_add(1, Ordering::SeqCst);
+        let id = request.id.to_owned();
+        let key = request.key.as_str().to_owned();
+        *self.seen_spec_id.lock().unwrap() = Some(id.clone());
+        *self.seen_key.lock().unwrap() = key;
+        *self.seen_spec_body.lock().unwrap() = request.body.clone();
+        Box::pin(async move {
+            if let Some(error) = self.fail.clone() {
+                return Err(error);
+            }
+            Ok(QualitySpecReceipt {
+                id,
+                status: SpecStatus::Active,
+                version: 2,
+            })
+        })
+    }
+
     fn cancel<'a>(
         &'a self,
         request: QualityHttpCommandRequest<'a>,
@@ -347,19 +400,34 @@ async fn call(
     headers: &[(&str, &str)],
     body: Option<Value>,
 ) -> (u16, Value) {
+    match body {
+        Some(body) => {
+            call_raw(address, method, path, headers, "application/json", &body.to_string()).await
+        }
+        None => call_raw(address, method, path, headers, "", "").await,
+    }
+}
+
+async fn call_raw(
+    address: std::net::SocketAddr,
+    method: &str,
+    path: &str,
+    headers: &[(&str, &str)],
+    content_type: &str,
+    text: &str,
+) -> (u16, Value) {
     let mut request =
         format!("{method} {path} HTTP/1.1\r\nHost: acme.example.test\r\nConnection: close\r\n");
     for (name, value) in headers {
         request.push_str(&format!("{name}: {value}\r\n"));
     }
-    if let Some(body) = body {
-        let text = body.to_string();
+    if content_type.is_empty() {
+        request.push_str("\r\n");
+    } else {
         request.push_str(&format!(
-            "Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{text}",
+            "Content-Type: {content_type}\r\nContent-Length: {}\r\n\r\n{text}",
             text.len()
         ));
-    } else {
-        request.push_str("\r\n");
     }
     let mut stream = TcpStream::connect(address).await.unwrap();
     stream.write_all(request.as_bytes()).await.unwrap();
@@ -824,4 +892,148 @@ fn rejects_configuration_that_can_escape_the_registered_origin() {
     );
     assert_eq!(RecordId::new("").unwrap_err().code, "INVALID_IDENTIFIER");
     let _ = CancellationAction::Request;
+}
+
+const SPEC_CREATE: &str = r#"{"productId":"product","name":"Cold chain acceptance","metrics":[{"code":"temp","label":"Temperature","unit":"C","minimum":"2","maximum":"8"}]}"#;
+const SPEC_EDIT: &str = r#"{"productId":"product","name":"Cold chain acceptance v2","expectedVersion":1,"metrics":[{"code":"temp","label":"Temperature","unit":"C","minimum":"1","maximum":"7"}]}"#;
+const SPEC_ACTION: &str = r#"{"expectedVersion":1,"action":"activate","reason":"Independent review confirms the limits"}"#;
+
+#[tokio::test]
+async fn public_specification_post_preserves_relay_json_behavior() {
+    let backend = Arc::new(Backend::new());
+    let (address, task) = start(backend.clone()).await;
+    let create_path = "/api/v1/holdings/acme/quality/specifications";
+    let edit_path = "/api/v1/holdings/acme/quality/specifications/spec-a";
+    let malformed = [("x-erpx-api-transport", "public"), ("idempotency-key", "spec-public-malformed")];
+    for path in [create_path, edit_path] {
+        let (status, error) = call_raw(address, "POST", path, &malformed, "text/plain", "{").await;
+        assert_eq!(status, 500);
+        assert_eq!(error["error"]["code"], "INTERNAL_ERROR");
+    }
+    assert_eq!(backend.spec_saves.load(Ordering::SeqCst), 0);
+    assert_eq!(backend.spec_actions.load(Ordering::SeqCst), 0);
+
+    let create = [("x-erpx-api-transport", "public"), ("idempotency-key", "spec-public-create")];
+    let (status, value) = call_raw(address, "POST", create_path, &create, "text/plain", SPEC_CREATE).await;
+    assert_eq!(status, 200, "{value}");
+    assert_eq!(value, json!({"data":{"id":"quality-spec-spec-public-create","status":"draft","version":1}}));
+
+    let edit = [("x-erpx-api-transport", "public"), ("idempotency-key", "spec-public-edit")];
+    let (status, value) = call_raw(address, "POST", edit_path, &edit, "text/plain", SPEC_EDIT).await;
+    assert_eq!(status, 200, "{value}");
+    assert_eq!(value, json!({"data":{"id":"spec-a","status":"draft","version":1}}));
+
+    let action = [("x-erpx-api-transport", "public"), ("idempotency-key", "spec-public-action")];
+    let (status, value) = call_raw(address, "POST", edit_path, &action, "text/plain", SPEC_ACTION).await;
+    assert_eq!(status, 200, "{value}");
+    assert_eq!(value, json!({"data":{"id":"spec-a","status":"active","version":2}}));
+    assert_eq!(backend.spec_saves.load(Ordering::SeqCst), 2);
+    assert_eq!(backend.spec_actions.load(Ordering::SeqCst), 1);
+    task.abort();
+}
+
+#[tokio::test]
+async fn specification_post_returns_exact_receipt_and_dispatches_edit_before_action() {
+    let backend = Arc::new(Backend::new());
+    let (address, task) = start(backend.clone()).await;
+    let create_path = "/api/v1/holdings/acme/quality/specifications";
+    let edit_path = "/api/v1/holdings/acme/quality/specifications/spec-a";
+    let origin = ("Origin", "https://acme.example.test");
+
+    // Private callers keep strict JSON admission even though public transport
+    // accepts JSON under any media type.
+    let (status, error) = call_raw(
+        address,
+        "POST",
+        create_path,
+        &[("idempotency-key", "spec-private-raw")],
+        "text/plain",
+        SPEC_CREATE,
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(error["error"]["code"], "QUALITY_COMMAND_REQUIRED");
+
+    let (status, value) = call(
+        address,
+        "POST",
+        create_path,
+        &[origin, ("Idempotency-Key", "spec-create")],
+        Some(json!({
+            "productId": "product",
+            "name": "Cold chain acceptance",
+            "metrics": [{"code":"temp","label":"Temperature","unit":"C","minimum":"2","maximum":"8"}],
+        })),
+    )
+    .await;
+    assert_eq!(status, 200, "{value}");
+    assert_eq!(value, json!({"data":{"id":"quality-spec-spec-create","status":"draft","version":1}}));
+    assert_eq!(value.as_object().unwrap().len(), 1);
+    assert_eq!(value["data"].as_object().unwrap().len(), 3);
+    assert_eq!(*backend.seen_spec_id.lock().unwrap(), None);
+    assert_eq!(*backend.seen_key.lock().unwrap(), "spec-create");
+    assert_eq!(backend.spec_saves.load(Ordering::SeqCst), 1);
+
+    // A body without `action` edits the addressed specification through the
+    // save port; it never reaches the transition port.
+    let (status, value) = call(
+        address,
+        "POST",
+        edit_path,
+        &[origin, ("Idempotency-Key", "spec-edit")],
+        Some(json!({
+            "productId": "product",
+            "name": "Cold chain acceptance v2",
+            "expectedVersion": 1,
+            "metrics": [{"code":"temp","label":"Temperature","unit":"C","minimum":"1","maximum":"7"}],
+        })),
+    )
+    .await;
+    assert_eq!(status, 200, "{value}");
+    assert_eq!(value, json!({"data":{"id":"spec-a","status":"draft","version":1}}));
+    assert_eq!(*backend.seen_spec_id.lock().unwrap(), Some("spec-a".to_owned()));
+    assert_eq!(
+        backend.seen_spec_body.lock().unwrap()["name"].as_str(),
+        Some("Cold chain acceptance v2")
+    );
+    assert_eq!(backend.spec_saves.load(Ordering::SeqCst), 2);
+    assert_eq!(backend.spec_actions.load(Ordering::SeqCst), 0);
+
+    // Presence of `action` selects the transition port: an invalid action is
+    // rejected by the action parser, not silently treated as an edit.
+    let (status, error) = call(
+        address,
+        "POST",
+        edit_path,
+        &[origin, ("Idempotency-Key", "spec-bad-action")],
+        Some(json!({"expectedVersion":1,"action":"bogus","reason":"Independent review"})),
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(error["error"]["code"], "QUALITY_SPEC_ACTION");
+    assert_eq!(backend.spec_saves.load(Ordering::SeqCst), 2);
+    assert_eq!(backend.spec_actions.load(Ordering::SeqCst), 0);
+
+    let (status, value) = call(
+        address,
+        "POST",
+        edit_path,
+        &[origin, ("Idempotency-Key", "spec-action")],
+        Some(json!({
+            "expectedVersion": 1,
+            "action": "activate",
+            "reason": "Independent review confirms the limits",
+        })),
+    )
+    .await;
+    assert_eq!(status, 200, "{value}");
+    assert_eq!(value, json!({"data":{"id":"spec-a","status":"active","version":2}}));
+    assert_eq!(*backend.seen_spec_body.lock().unwrap(), json!({
+        "expectedVersion": 1,
+        "action": "activate",
+        "reason": "Independent review confirms the limits",
+    }));
+    assert_eq!(backend.spec_saves.load(Ordering::SeqCst), 2);
+    assert_eq!(backend.spec_actions.load(Ordering::SeqCst), 1);
+    task.abort();
 }

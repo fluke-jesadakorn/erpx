@@ -6,9 +6,12 @@ function validId(segment: string): boolean {
 export type HoldingNativeWorkspace = { branch?: string; department?: string };
 
 function canonicalQualityAction(url: string, prefix: string): string {
-  const match = /^quality\/([^/?]+)\/([^/?]+)(\?.*)?$/.exec(url.slice(prefix.length));
-  if (!match?.[2]?.includes("%")) return url;
+  const match = /^quality\/([^/?]+)(?:\/([^/?]+))?(\?.*)?$/.exec(url.slice(prefix.length));
+  if (!match) return url;
   try {
+    if (match[1] !== "specifications" && decodeURIComponent(match[1]!) === "specifications")
+      return `${prefix}quality/specifications${match[2] ? `/${match[2]}` : ""}${match[3] ?? ""}`;
+    if (!match[2]?.includes("%")) return url;
     const action = decodeURIComponent(match[2]);
     if (action === "cancellations" || action === "acknowledge")
       return `${prefix}quality/${match[1]}/${action}${match[3] ?? ""}`;
@@ -33,6 +36,13 @@ export function holdingNativeCutoverPath(url: string, holdingSlug: string, metho
   const prefix = `/api/v1/holdings/${holdingSlug}/`;
   if (!path?.startsWith(prefix)) return;
   const [owner, segment, ...tail] = path.slice(prefix.length).split("/");
+  if (owner === "quality" && method === "POST" && segment === "specifications" && tail.length <= 1) {
+    try {
+      if (tail.length === 0 || validId(tail[0]!)) return "quality-command";
+    } catch {
+      return;
+    }
+  }
   if (owner === "quality" && method === "POST" && segment && tail.length === 1 && tail[0] === "acknowledge") {
     try {
       if (validId(segment)) return "quality-command";

@@ -420,7 +420,7 @@ it('routes retired Holding entries and their transport aliases directly to Axum'
     expect(JSON.parse(denied.body)).toMatchObject({error: {code: 'FORBIDDEN'}});
     const schedules = '/api/v1/holdings/acme/routine-schedules/schedule-1';
     expect((await get(3104, host, schedules)).status).toBe(401);
-    const {holdingNativeCutoverPath} = await import('../../../scripts/local/native-cutover-routes');
+    const {holdingNativeCutoverPath, normalizeHoldingNativePath} = await import('../../../scripts/local/native-cutover-routes');
     const editor = '/api/v1/holdings/acme/routine-template-editor-context';
     expect((await get(3104, host, editor)).status).toBe(404);
     expect((await get(3104, host, '/__erpx/apps' + editor)).status).toBe(404);
@@ -433,7 +433,12 @@ it('routes retired Holding entries and their transport aliases directly to Axum'
     expect(holdingNativeCutoverPath(`${routines}/template-1/schedules`, 'acme', 'GET')).toBe('routine-templates');
     const quality = '/api/v1/holdings/acme/quality';
     expect(holdingNativeCutoverPath(quality + '/alert-1/acknowledge', 'acme', 'POST')).toBe('quality-command');
-    for (const suffix of ['/alert-1/acknowledge/extra', '/%2F/acknowledge', '/hold-1/cancel', '/specifications'])
+    for (const suffix of ['/specifications', '/specifications/spec-1'])
+      expect(holdingNativeCutoverPath(quality + suffix, 'acme', 'POST')).toBe('quality-command');
+    const encodedSpec = normalizeHoldingNativePath(quality + '/%73pecifications/spec-1?view=draft', 'acme');
+    expect(encodedSpec.url).toBe(quality + '/specifications/spec-1?view=draft');
+    expect(holdingNativeCutoverPath(encodedSpec.url, 'acme', 'POST')).toBe('quality-command');
+    for (const suffix of ['/alert-1/acknowledge/extra', '/%2F/acknowledge', '/hold-1/cancel', '/read-plan', '/specifications/%2F', '/specifications/spec-1/extra'])
       expect(holdingNativeCutoverPath(quality + suffix, 'acme', 'POST')).toBeUndefined();
     for (const suffix of ['', '/hold-1', '/hold-1/cancellations']) {
       for (const method of ['GET', 'HEAD'])
