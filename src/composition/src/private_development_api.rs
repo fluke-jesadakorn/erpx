@@ -13275,6 +13275,10 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             .as_slice(),
     ) {
         (
+            &axum::http::Method::GET | &axum::http::Method::HEAD,
+            ["", "api", "v1", "holdings", slug, "commerce", "pending-quotations"],
+        ) if !slug.is_empty() => state.policy.holdings.iter().any(|holding| holding.host == host),
+        (
             &axum::http::Method::GET,
             [
                 "",

@@ -260,6 +260,7 @@ it('routes only the OASIS walkthrough APIs to Rust and rejects foreign hosts, te
     [holding, 'POST', `${base}/crm/activities`], [holding, 'POST', `${base}/crm/activities/activity-1/changes`],
     [holding, 'POST', `${base}/crm/leads/lead-1/changes`], [holding, 'POST', `${base}/crm/leads/lead-1/opportunity/changes`],
     [holding, 'POST', `${base}/commerce/orders`], [holding, 'POST', `${base}/commerce/orders/order-1`],
+    [holding, 'GET', `${base}/commerce/pending-quotations`],
     [holding, 'GET', `${base}/commerce/orders/order-1`], [holding, 'POST', `${base}/commerce/orders/order-1/transition`],
     [holding, 'GET', `${base}/reports/sales-crm`],
     [holding, 'GET', `${base}/feed`], [holding, 'POST', `${base}/feed`],
@@ -274,6 +275,11 @@ it('routes only the OASIS walkthrough APIs to Rust and rejects foreign hosts, te
   expect(target(`/__erpx/sales${base}/branches/phuket/departments/sales/crm/activities?x=a%2Fb`, 'POST')).toEqual({
     port:3382, native:true, path:`${base}/crm/activities?x=a%2Fb`, workspace:{branch:'phuket', department:'sales'}, workContext:true,
   });
+  expect(target(`/__erpx/apps${base}/branches/phuket/commerce/pending-quotations`)).toMatchObject({
+    port:3382, native:true, path:`${base}/commerce/pending-quotations`, workspace:{branch:'phuket'}, workContext:true,
+  });
+  expect(target(`${base}/commerce/pending-quotations`, 'POST')).toEqual({status:405, allow:'GET, HEAD'});
+  expect(target(`${base}/commerce/pending-quotations`, 'GET', account)).toEqual({status:404});
   expect(target(`${base}/commerce/orders/order-1`, 'PATCH')).toEqual({status:405, allow:'GET, HEAD, POST'});
   for (const path of ['/api/auth/sign-up/email', '/sso/authorize', '/api/v1/holdings/acme/crm/activities', `${base}/crm`,
     `${base}/reports/crm-marketing`, `${base}/commerce/orders/order-1/fulfill`, `${base}/crm/leads/%2F/changes`,
@@ -504,6 +510,16 @@ it('routes retired Holding entries and their transport aliases directly to Axum'
       expect(rejected.status).toBe(409);
       expect(JSON.parse(rejected.body)).toMatchObject({error: {code: 'WORK_CONTEXT_CHANGED'}});
     }
+    const quotationSummary = '/api/v1/holdings/acme/branches/bangkok/departments/ops/commerce/pending-quotations';
+    const tileRequest = `/__erpx/apps${quotationSummary}`;
+    expect((await get(3104, host, tileRequest)).status).toBe(401);
+    expect(await get(3104, host, tileRequest, {Cookie: 'erpx_session=fixture', ...headers})).toEqual({
+      status: 200,
+      body: JSON.stringify({path:'/api/v1/holdings/acme/commerce/pending-quotations', branch:'bangkok', department:'ops'}),
+    });
+    const staleTile = await get(3104, host, tileRequest, {Cookie:'erpx_session=fixture', ...headers, 'x-erpx-context-revision':'2'});
+    expect(staleTile.status).toBe(409);
+    expect(JSON.parse(staleTile.body)).toMatchObject({error:{code:'WORK_CONTEXT_CHANGED'}});
     const routines = '/api/v1/holdings/acme/routine-templates';
     expect((await get(3104, host, routines)).status).toBe(401);
     const denied = await new Promise<{status: number; body: string}>((done, reject) => {

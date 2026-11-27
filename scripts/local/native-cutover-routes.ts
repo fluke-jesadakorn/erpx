@@ -61,6 +61,7 @@ const oasisSalesRoutes: Readonly<Record<string, readonly string[]>> = {
   'crm/activities/work': read,
   'crm/leads': read,
   'commerce/orders': write,
+  'commerce/pending-quotations': read,
   'reports/sales-crm': read,
   'feed': readWrite,
   'plugins': readWrite,
@@ -143,11 +144,12 @@ export function respondToHoldingQualityMethod(res: ServerResponse, method: strin
 }
 
 /** Native Holding operations and paths reserved for private SSR. */
-export function holdingNativeCutoverPath(url: string, holdingSlug: string, method: string | undefined): "records" | "record-action" | "routine-templates" | "routine-schedules" | "routine-command" | "routine-editor-private" | "quality-read" | "quality-command" | "quality-missing" | "plugins" | "social" | "navigation-command" | undefined {
+export function holdingNativeCutoverPath(url: string, holdingSlug: string, method: string | undefined): "records" | "record-action" | "routine-templates" | "routine-schedules" | "routine-command" | "routine-editor-private" | "quality-read" | "quality-command" | "quality-missing" | "plugins" | "social" | "navigation-command" | "quotation-summary" | undefined {
   const [path] = url.split("?", 1);
   const prefix = `/api/v1/holdings/${holdingSlug}/`;
   if (!path?.startsWith(prefix)) return;
   const [owner, segment, ...tail] = path.slice(prefix.length).split("/");
+  if (owner === "commerce" && segment === "pending-quotations" && tail.length === 0 && ["GET", "HEAD"].includes(method ?? "")) return "quotation-summary";
   if (owner === "navigation" && segment === undefined && method === "POST") return "navigation-command";
   if (owner === "plugins" && segment === undefined) return "plugins";
   if (owner === "feed" && segment === undefined) return "social";

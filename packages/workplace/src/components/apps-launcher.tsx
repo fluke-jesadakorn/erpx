@@ -6,6 +6,8 @@ import { Button } from "@erpx/ui/components/button";
 import { Dialog } from "@erpx/ui/components/dialog";
 import { TextInput } from "@erpx/ui/components/input";
 import { InlineNotice } from "@erpx/ui/components/foundation";
+import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
+import { scheduleWorkRefresh } from "@erpx/feature-work_projection/lib/work-refresh";
 import { CompanyPluginCatalogue } from "./company-plugin-catalogue";
 import { emptyAppsMemory, readAppsMemory, writeAppsMemory, restoreAppsSelection, rememberAppsLaunch, visibleApps, recentApps, saveFeedScroll, takeFeedScroll, type FeedScrollPosition, type AppsCompany, type AppsWorkspace, type AppsMemory } from "@erpx/feature-work_projection/lib/apps-launcher";
 import styles from "./apps-launcher.module.css";
@@ -26,6 +28,55 @@ const appIcons = {
   learn: GraduationCap,
   support: CircleHelp,
 };
+
+function QuotationApprovalCount({ base, language }: { base: string; language: "en" | "th" }) {
+  const [count, setCount] = useState<number | null>(null);
+  useEffect(() => {
+    let request: AbortController | undefined;
+    let active = true;
+    const refresh = async () => {
+      if (!active || document.visibilityState !== "visible") return;
+      request?.abort();
+      const current = new AbortController();
+      request = current;
+      try {
+        const response = await workFetch(`/api/v1${base}/commerce/pending-quotations`, {
+          cache: "no-store",
+          signal: current.signal,
+        });
+        const pending: unknown = response.ok ? (await response.json()).data?.pending : null;
+        if (current.signal.aborted) return;
+        if ([401, 403, 409].includes(response.status)) active = false;
+        setCount(typeof pending === "number" && Number.isSafeInteger(pending) && pending >= 0 ? pending : null);
+      } catch {
+        if (!current.signal.aborted) setCount(null);
+      }
+    };
+    const clearContext = () => {
+      active = false;
+      request?.abort();
+      setCount(null);
+    };
+    void refresh();
+    const stopRefresh = scheduleWorkRefresh(() => void refresh());
+    const timer = setInterval(() => void refresh(), 15_000);
+    window.addEventListener("erpx:context-switch-started", clearContext);
+    window.addEventListener("erpx:work-context-changed", clearContext);
+    return () => {
+      request?.abort();
+      clearInterval(timer);
+      stopRefresh();
+      window.removeEventListener("erpx:context-switch-started", clearContext);
+      window.removeEventListener("erpx:work-context-changed", clearContext);
+    };
+  }, [base]);
+
+  if (count === null) return null;
+  return <span className={styles.quotationMetric} data-pending-quotations={count}>
+    <span>{new Intl.NumberFormat(language).format(count)}</span>
+    {language === "th" ? "ใบเสนอราคารออนุมัติ" : "Quotations awaiting approval"}
+  </span>;
+}
 
 /** The tree previews choices. Only an authorized owner launch link changes context. */
 export function AppsLauncher({ companies, accountId, language, provider, existingWorkspaces = [], currentCompanyId, currentWorkspaceId, currentProductId, productLabel, workspaceLabel, entry = false }: {
@@ -272,8 +323,11 @@ export function AppsLauncher({ companies, accountId, language, provider, existin
             <div className={styles.grid} ref={grid}>{apps.map(app => {
               const Icon = appIcons[app.productId as keyof typeof appIcons] ?? Grid2X2;
               const active = app.productId === activeProduct;
+              const liveSales = open && !entry && app.productId === "sales" &&
+                workspace.id === currentWorkspaceId && company?.id === currentCompanyId;
               return <a data-product-switch={active ? undefined : ""} aria-current={active ? "location" : undefined} data-app-id={app.productId} className={styles.app} href={app.href} key={app.productId} onClick={event => launch(event, app.productId)}>
                 <span className={styles.appIcon}><Icon size={25} strokeWidth={1.7} aria-hidden="true" /></span><ArrowUpRight className={styles.openIcon} size={17} aria-hidden="true" />
+                {liveSales && <QuotationApprovalCount base={workspace.id} language={language} />}
                 <strong>{app.label}</strong>{app.accessLabel && <small>{app.accessLabel}</small>}
               </a>;
             })}</div>

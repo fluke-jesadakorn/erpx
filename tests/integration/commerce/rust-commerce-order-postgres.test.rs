@@ -1774,6 +1774,53 @@ async fn read_is_company_and_branch_scoped_and_requires_current_iam() {
     .await;
 }
 
+async fn pending_quotation_count(
+    pool: &DatabasePool,
+    actor: CommerceOrderActor,
+) -> Result<i64, PgTransactionError<BusinessError>> {
+    PgUnitOfWork::new(pool.clone())
+        .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+            let actor = actor.clone();
+            Box::pin(async move {
+                PgCommerceOrders::new(connection)
+                    .pending_quotation_count(&actor, TimestampMillis::new(NOW))
+                    .await
+            })
+        })
+        .await
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn pending_quotation_tile_tracks_approval_and_respects_role_and_workspace() {
+    fixture::with_database(4, |pool| async move {
+        setup(&pool).await;
+        sqlx::query(
+            "UPDATE commerce_orders SET state='submitted' WHERE id IN ('foreign-quote','other-branch-quote')",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+
+        assert_eq!(pending_quotation_count(&pool, reviewer()).await.unwrap(), 1);
+        assert_eq!(
+            business(pending_quotation_count(&pool, creator()).await.unwrap_err()).kind,
+            erpx_server_shared::public::FailureKind::Forbidden,
+        );
+        let mut forged_scope = reviewer();
+        forged_scope.branch_id = Some(RecordId::new("other-branch").unwrap());
+        assert!(pending_quotation_count(&pool, forged_scope).await.is_err());
+
+        run_transition(&pool, creator(), command("quote-draft", OrderAction::Submit, 1, "tile-submit-1"))
+            .await.unwrap();
+        assert_eq!(pending_quotation_count(&pool, reviewer()).await.unwrap(), 2);
+        let approve = command("quote-draft", OrderAction::Approve, 2, "tile-approve-1");
+        run_transition(&pool, reviewer(), approve.clone()).await.unwrap();
+        run_transition(&pool, reviewer(), approve).await.unwrap();
+        assert_eq!(pending_quotation_count(&pool, reviewer()).await.unwrap(), 1);
+    })
+    .await;
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn submit_persists_exact_receipt_audit_outbox_and_replays() {
     fixture::with_database(4, |pool| async move {

@@ -133,6 +133,32 @@ impl<'c> PgCommerceOrders<'c> {
         Ok(())
     }
 
+    pub async fn pending_quotation_count(
+        &mut self,
+        actor: &CommerceOrderActor,
+        now: TimestampMillis,
+    ) -> Result<i64, Error> {
+        actor.require_read(now)?;
+        actor.require_write(now)?;
+        actor.require_approve()?;
+        if !self.authority(actor, true, true, now).await? {
+            return Err(crate::domain::order::approval_required().into());
+        }
+        let (branch, department) = scope(actor);
+        Ok(sqlx::query_scalar(
+            "SELECT count(*) FROM commerce_orders o
+             WHERE o.company_id=$1 AND o.kind='quote' AND o.state='submitted'
+             AND ($2::text IS NULL OR o.branch_id=$2)
+             AND ($3::text IS NULL OR o.department_id=$3)
+             AND EXISTS (SELECT 1 FROM finance_parties p WHERE p.id=o.party_id AND p.company_id=o.company_id)",
+        )
+        .bind(actor.company_id.as_str())
+        .bind(branch)
+        .bind(department)
+        .fetch_one(&mut *self.connection)
+        .await?)
+    }
+
     async fn select_order(
         &mut self,
         actor: &CommerceOrderActor,

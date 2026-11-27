@@ -2,6 +2,10 @@
 //! with the selected coordinator; owner ports supply quotation and sales-order
 //! facts.
 use crate::business_http::BusinessScopeSlugs;
+use erpx_server_commercial::public::{
+    capability_decision::PgCapabilityDecisionReader,
+    purchases::{CapabilityPurpose, PackageEnforcementMode, current_package_catalogue},
+};
 use erpx_server_commerce::public::order::PgCommerceOrders;
 use erpx_server_commerce::public::order::{
     AuditEntry, CommerceFulfillmentRepository, CommerceOrderActor, CommerceOrderCommandRepository,
@@ -788,6 +792,46 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
                             data: data.to_wire(),
                             context: context(current),
                         })
+                    })
+                },
+            )
+            .await
+    }
+
+    async fn pending_quotation_count<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+    ) -> Result<i64, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input, false),
+                Self::access(),
+                CommerceSources { money: false },
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let clock = clock.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.sales")?;
+                        current.require_permission("commerce.approve")?;
+                        let actor = commerce_actor(current)?;
+                        let now = clock.now();
+                        let catalogue = current_package_catalogue()?;
+                        PgCapabilityDecisionReader::new(actor.company_id.clone(), connection, &catalogue)
+                            .require("sales.quotes", CapabilityPurpose::NewWork, PackageEnforcementMode::Enforced, now)
+                            .await?;
+                        PgCommerceOrders::new(connection).pending_quotation_count(&actor, now).await
                     })
                 },
             )
@@ -1697,6 +1741,20 @@ impl<C: Clock + Send + Sync + 'static> CommerceBackend<C> {
 }
 
 impl<C: Clock + Send + Sync + 'static> CommerceOrderHttpBackend for CommerceBackend<C> {
+    fn pending_quotation_count<'a>(
+        &'a self,
+        host: &'a str,
+        headers: &'a HeaderMap,
+    ) -> CommerceOrderHttpFuture<'a, i64> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(headers)?;
+            self.service
+                .pending_quotation_count(host, proof, move || selection?.resolve_rendered_read())
+                .await
+                .map_err(business)
+        })
+    }
+
     fn editor_options<'a>(
         &'a self,
         host: &'a str,

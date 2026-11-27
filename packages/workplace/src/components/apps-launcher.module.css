@@ -75,6 +75,21 @@
 }
 .app[data-app-id="apps"] { --tile-color: var(--launcher-night); }
 .app[data-app-id="sales"] { --tile-color: var(--launcher-base); }
+.quotationMetric {
+  grid-column: 1 / -1;
+  display: grid;
+  align-self: end;
+  gap: .25rem;
+  font-size: .77rem;
+  line-height: 1.15;
+  color: #fff;
+}
+.quotationMetric > span {
+  font-size: clamp(1.55rem, 3.6vw, 2.6rem);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
 @media (hover: hover) {
   .app:hover { transform: translateY(-4px); box-shadow: inset 0 1px color-mix(in srgb, white 22%, transparent), 0 11px 24px #10162220; }
 }
@@ -125,5 +140,6 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .panes { animation: launcher-in 220ms cubic-bezier(.22,.76,.2,1) both; }
+  .quotationMetric { animation: launcher-in 200ms cubic-bezier(.22,.76,.2,1) both; }
   @keyframes launcher-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 }

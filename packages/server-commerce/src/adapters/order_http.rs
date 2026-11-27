@@ -125,6 +125,14 @@ pub trait CommerceOrderHttpBackend: Send + Sync {
         &'a self,
         request: CommerceOrderHttpRequest<'a>,
     ) -> CommerceOrderHttpFuture<'a, CommerceOrderHttpResponse>;
+    fn pending_quotation_count<'a>(
+        &'a self,
+        _host: &'a str,
+        _headers: &'a HeaderMap,
+    ) -> CommerceOrderHttpFuture<'a, i64> {
+        Box::pin(async { Err(missing()) })
+    }
+
     fn editor_options<'a>(
         &'a self,
         _host: &'a str,
@@ -1226,6 +1234,10 @@ pub fn commerce_order_http_router_with_origin_policy_and_sales_delivery(
             post(save_create_handler),
         )
         .route(
+            "/api/v1/holdings/{holding_slug}/commerce/pending-quotations",
+            get(pending_quotations_handler),
+        )
+        .route(
             "/api/v1/holdings/{holding_slug}/commerce/editor-options",
             get(editor_options_handler),
         )
@@ -1246,6 +1258,29 @@ pub fn commerce_order_http_router_with_origin_policy_and_sales_delivery(
             post(command_plan_handler),
         )
         .with_state(Arc::new(state)))
+}
+
+async fn pending_quotations_handler(
+    State(state): State<Arc<CommerceOrderHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    if request.uri().query().is_some() {
+        return error_response(request_invalid());
+    }
+    let target = match state.target(request.headers(), &slug) {
+        Ok(target) => target,
+        Err(error) => return error_response(error),
+    };
+    match target
+        .target
+        .backend
+        .pending_quotation_count(target.host, request.headers())
+        .await
+    {
+        Ok(count) => bounded(serde_json::json!({"data": {"pending": count}})),
+        Err(error) => error_response(error),
+    }
 }
 
 async fn editor_options_handler(
