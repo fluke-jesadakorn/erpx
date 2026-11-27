@@ -1,12 +1,17 @@
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
+import { createServer } from "node:http";
 import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+const nextHeaders = vi.hoisted(() => ({ value: new Headers() }));
+vi.mock("next/headers", () => ({ headers: async () => nextHeaders.value }));
 
 import {
   createProjectActualsReader,
+  createProjectSsrReader,
+  nativeProjectVisibleProjects,
   type ActualsTransport,
   type ProjectActualsActor,
 } from "../../../packages/server-projects/src/adapters/native-lane-27/client";
@@ -37,6 +42,10 @@ const incomingFor = (host: string) => ({
     name === "host" ? host : name === "origin" ? `https://${host}` : null,
 });
 const incoming = incomingFor("acme.jesadakorn.com");
+/** Normal SSR navigation headers: registered Host, no Origin. */
+const ssrIncoming = (host: string | null, origin: string | null = null) => ({
+  get: (name: string) => (name === "host" ? host : name === "origin" ? origin : null),
+});
 
 const workLog = {
   id: "log-1",
@@ -433,5 +442,122 @@ describe("native lane 27 projects actuals transport", () => {
       incomingFor("northstar.jesadakorn.com"),
     ).visibleProjects();
     expect(seen).toEqual(["http://127.0.0.1:3198/api/v1/holdings/northstar/projects/visible-projects"]);
+  });
+});
+
+describe("native lane 27 SSR origin binding", () => {
+  it("binds a missing Origin from the exact configured Host for the trusted SSR wrapper", async () => {
+    const seen: Array<{ url: string; headers: Record<string, string> }> = [];
+    const transport: ActualsTransport = async (url, headers) => {
+      seen.push({ url: url.toString(), headers: { ...headers } });
+      const body = url.pathname.endsWith("visible-projects") ? { projects: [projectRow] } : { workLogs: [] };
+      return { status: 200, contentType: "application/json", text: JSON.stringify(body) };
+    };
+    const native = createProjectSsrReader(actor, ssrIncoming("acme.jesadakorn.com"), env, transport);
+    await expect(native.visibleProjects()).resolves.toEqual([projectRow]);
+    await expect(native.workLogs("project-1")).resolves.toEqual([]);
+    expect(seen.map((call) => call.url)).toEqual([
+      "http://127.0.0.1:3198/api/v1/holdings/acme/projects/visible-projects",
+      "http://127.0.0.1:3198/api/v1/holdings/acme/projects/actuals/work-logs",
+    ]);
+    for (const call of seen) {
+      expect(call.headers).toMatchObject({
+        host: "acme.jesadakorn.com",
+        origin: "https://acme.jesadakorn.com",
+        accept: "application/json",
+        "x-erpx-context-company": "company-1",
+        "x-erpx-context-user": "user-1",
+      });
+    }
+  });
+
+  it("keeps the strict factory closed when the Origin is missing", () => {
+    const never: ActualsTransport = async () => {
+      throw new Error("the strict factory must not send a request without an Origin");
+    };
+    expect(failure(() =>
+      createProjectActualsReader(actor, ssrIncoming("acme.jesadakorn.com"), env, never),
+    )).toMatchObject({ status: 503, code: "PROJECT_ACTUALS_LANE27_REQUEST_INVALID" });
+  });
+
+  it("rejects a foreign Origin, an unmatched Host and a malformed Origin in the SSR wrapper", () => {
+    let calls = 0;
+    const transport: ActualsTransport = async () => {
+      calls += 1;
+      throw new Error("the SSR wrapper must fail closed before any request");
+    };
+    expect(failure(() =>
+      createProjectSsrReader(actor, ssrIncoming("acme.jesadakorn.com", "https://evil.example"), env, transport),
+    )).toMatchObject({ status: 503, code: "WORK_CONTEXT_CHANGED" });
+    expect(failure(() =>
+      createProjectSsrReader(actor, ssrIncoming("northstar.jesadakorn.com"), env, transport),
+    )).toMatchObject({ status: 503, code: "WORK_CONTEXT_CHANGED" });
+    expect(failure(() =>
+      createProjectSsrReader(actor, ssrIncoming(null), env, transport),
+    )).toMatchObject({ status: 503, code: "PROJECT_ACTUALS_LANE27_REQUEST_INVALID" });
+    expect(failure(() =>
+      createProjectSsrReader(actor, ssrIncoming("acme.jesadakorn.com", "not a url"), env, transport),
+    )).toMatchObject({ status: 503, code: "PROJECT_ACTUALS_LANE27_REQUEST_INVALID" });
+    expect(calls).toBe(0);
+  });
+
+  it("keeps the exact explicit Origin and Company binding guards in the SSR wrapper", async () => {
+    const seen: string[] = [];
+    const transport: ActualsTransport = async (_url, headers) => {
+      seen.push(String(headers.origin));
+      return { status: 200, contentType: "application/json", text: JSON.stringify({ projects: [] }) };
+    };
+    await expect(
+      createProjectSsrReader(
+        actor,
+        ssrIncoming("acme.jesadakorn.com", "https://acme.jesadakorn.com"),
+        env,
+        transport,
+      ).visibleProjects(),
+    ).resolves.toEqual([]);
+    expect(seen).toEqual(["https://acme.jesadakorn.com"]);
+
+    const bound = {
+      ...configValue,
+      holdings: configValue.holdings.map((holding, index) =>
+        index === 0 ? { ...holding, companyId: "bound-company" } : holding,
+      ),
+    };
+    expect(failure(() =>
+      createProjectSsrReader(actor, ssrIncoming("acme.jesadakorn.com"), makeEnv(bound), transport),
+    )).toMatchObject({ status: 503, code: "WORK_CONTEXT_CHANGED" });
+  });
+
+  it("serves a Host-only SSR navigation through the shared native transport", async () => {
+    const seen: Array<{ host: string | undefined; origin: string | undefined; path: string | undefined }> = [];
+    const server = createServer((req, res) => {
+      seen.push({ host: req.headers.host, origin: req.headers.origin, path: req.url });
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ projects: [] }));
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const previous = process.env[ENV];
+    nextHeaders.value = new Headers({ host: "acme.jesadakorn.com" });
+    try {
+      const address = server.address();
+      if (address === null || typeof address === "string") throw new Error("missing loopback port");
+      process.env[ENV] = JSON.stringify({
+        ...configValue,
+        privateBaseUrl: `http://127.0.0.1:${address.port}`,
+      });
+      await expect(nativeProjectVisibleProjects(actor)).resolves.toEqual([]);
+      expect(seen).toHaveLength(1);
+      expect(seen[0]).toMatchObject({
+        host: "acme.jesadakorn.com",
+        origin: "https://acme.jesadakorn.com",
+        path: "/api/v1/holdings/acme/projects/visible-projects",
+      });
+    } finally {
+      if (previous === undefined) delete process.env[ENV];
+      else process.env[ENV] = previous;
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
   });
 });

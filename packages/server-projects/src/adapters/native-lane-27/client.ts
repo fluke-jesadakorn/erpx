@@ -1,9 +1,7 @@
 import "server-only";
-import { Agent, request as httpRequest } from "node:http";
-import type { IncomingMessage } from "node:http";
-import { Readable } from "node:stream";
 import { headers } from "next/headers";
 import { ApiError } from "@erpx/server-runtime/public/http";
+import { nativeRequest } from "@erpx/server-runtime/public/native-http";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type {
   ProjectCostAllocationRow,
@@ -206,14 +204,17 @@ function configuration(raw: string | undefined): Config {
 
 /**
  * Choose exactly one registered Holding from the caller's WorkContext. There is
- * no first-holding default and no Host-only guess: an unknown or ambiguous
- * holding, a mismatched request origin or a mismatched configured Company fails
- * closed before any request reaches the native owner.
+ * no first-holding default: an unknown or ambiguous holding, a mismatched
+ * Company or an explicit foreign Origin fails closed before any request reaches
+ * the native owner. A missing Origin is only bound by the trusted SSR wrapper,
+ * from the exact registered Host of that same Holding; the strict injectable
+ * factory never falls back, keeping browser/mutation callers guarded.
  */
 function selectHolding(
   config: Config,
   actor: ProjectActualsActor,
   incoming: Pick<Headers, "get">,
+  bindMissingOrigin: boolean,
 ): Holding {
   const matches = config.holdings.filter(
     (item) => item.holdingId === actor.holdingId && item.holdingSlug === actor.holdingSlug,
@@ -223,53 +224,36 @@ function selectHolding(
   if (holding.companyId !== undefined && holding.companyId !== actor.companyId)
     return unavailable("WORK_CONTEXT_CHANGED");
   const origin = incoming.get("origin");
-  if (!origin) return unavailable("PROJECT_ACTUALS_LANE27_REQUEST_INVALID");
-  let originHost: string;
-  try {
-    originHost = new URL(origin).host;
-  } catch {
-    return unavailable("PROJECT_ACTUALS_LANE27_REQUEST_INVALID");
+  if (origin !== null) {
+    let originHost: string;
+    try {
+      originHost = new URL(origin).host;
+    } catch {
+      return unavailable("PROJECT_ACTUALS_LANE27_REQUEST_INVALID");
+    }
+    if (originHost !== new URL(holding.origin).host)
+      return unavailable("WORK_CONTEXT_CHANGED");
+    return holding;
   }
-  if (originHost !== new URL(holding.origin).host)
-    return unavailable("WORK_CONTEXT_CHANGED");
+  if (!bindMissingOrigin) return unavailable("PROJECT_ACTUALS_LANE27_REQUEST_INVALID");
+  const host = incoming.get("host");
+  if (!host) return unavailable("PROJECT_ACTUALS_LANE27_REQUEST_INVALID");
+  // Normal SSR navigation has no Origin; the exact registered Host selects the
+  // same WorkContext Holding and supplies its configured Origin.
+  if (host !== holding.host) return unavailable("WORK_CONTEXT_CHANGED");
   return holding;
 }
 
-/** Fresh loopback socket with an explicit Host header; fetch forbids overriding Host. */
-const requestTransport: ActualsTransport = (url, outgoing, timeoutMs) =>
-  new Promise((resolve, reject) => {
-    const agent = new Agent({
-      keepAlive: false,
-      maxSockets: 1,
-      maxTotalSockets: 1,
-      proxyEnv: {} as import("node:http").ProxyEnv,
-    });
-    const req = httpRequest(
-      url,
-      { method: "GET", agent, headers: { ...outgoing }, signal: AbortSignal.timeout(timeoutMs), maxHeaderSize: 8192 },
-      (incoming: IncomingMessage) => {
-        incoming.once("close", () => agent.destroy());
-        const chunks: Buffer[] = [];
-        incoming.on("data", (chunk: Buffer) => chunks.push(chunk));
-        incoming.on("end", () => {
-          resolve({
-            status: incoming.statusCode ?? 502,
-            contentType: typeof incoming.headers["content-type"] === "string" ? incoming.headers["content-type"] : null,
-            text: Buffer.concat(chunks).toString("utf8"),
-          });
-        });
-        incoming.on("error", (error) => {
-          agent.destroy();
-          reject(error);
-        });
-      },
-    );
-    req.once("error", (error) => {
-      agent.destroy();
-      reject(error);
-    });
-    req.end();
-  });
+/** Shared native transport: node:http keeps the registered Host that Node's
+ * fetch would replace with the loopback listener address. */
+const requestTransport: ActualsTransport = async (url, outgoing, timeoutMs) => {
+  const response = await nativeRequest(url, { method: "GET", headers: outgoing }, timeoutMs);
+  return {
+    status: response.status,
+    contentType: response.headers.get("content-type"),
+    text: await response.text(),
+  };
+};
 
 const WORK_LOG_KEYS = [
   "id", "project_id", "user_id", "work_date", "minutes", "state", "version",
@@ -509,19 +493,15 @@ const rowsFrom = (value: unknown): unknown[] => {
   return value;
 };
 
-/**
- * Transport factory. The Holding is selected from the caller's WorkContext and
- * its request Origin is checked against that exact target; the native route
- * receives the registered Host and Origin. `transport` is injectable for tests.
- */
-export function createProjectActualsReader(
+function readerFor(
   actor: ProjectActualsActor,
   incoming: Pick<Headers, "get">,
-  environment: Readonly<Record<string, string | undefined>> = process.env,
-  transport: ActualsTransport = requestTransport,
+  environment: Readonly<Record<string, string | undefined>>,
+  transport: ActualsTransport,
+  bindMissingOrigin: boolean,
 ): ProjectActualsReader {
   const config = configuration(environment[ENV]);
-  const holding = selectHolding(config, actor, incoming);
+  const holding = selectHolding(config, actor, incoming, bindMissingOrigin);
   return {
     async workLogs(projectId) {
       const value = await read(config, actor, holding, "work-logs", { projectId }, transport);
@@ -554,11 +534,42 @@ export function createProjectActualsReader(
   };
 }
 
+/**
+ * Strict injectable factory. The Holding is selected from the caller's
+ * WorkContext and an explicit request Origin is checked against that exact
+ * target; the native route receives the registered Host and Origin. A missing
+ * Origin fails closed here. `transport` is injectable for tests.
+ */
+export function createProjectActualsReader(
+  actor: ProjectActualsActor,
+  incoming: Pick<Headers, "get">,
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+  transport: ActualsTransport = requestTransport,
+): ProjectActualsReader {
+  return readerFor(actor, incoming, environment, transport, false);
+}
+
+/**
+ * Trusted SSR wrapper factory. Server-rendered navigation carries the exact
+ * registered Host but no Origin, so bind the missing Origin from that same
+ * WorkContext Holding's configured origin. An explicit Origin is still checked,
+ * so a foreign browser Origin is rejected and every mutation/identity guard
+ * stays in force. `environment` and `transport` are injectable for tests.
+ */
+export function createProjectSsrReader(
+  actor: ProjectActualsActor,
+  incoming: Pick<Headers, "get">,
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+  transport: ActualsTransport = requestTransport,
+): ProjectActualsReader {
+  return readerFor(actor, incoming, environment, transport, true);
+}
+
 /** Reader bound to the current Next request headers. */
 export async function nativeProjectActualsReader(
   actor: ProjectActualsActor,
 ): Promise<ProjectActualsReader> {
-  return createProjectActualsReader(actor, await headers());
+  return createProjectSsrReader(actor, await headers());
 }
 
 export async function nativeProjectWorkLogs(
