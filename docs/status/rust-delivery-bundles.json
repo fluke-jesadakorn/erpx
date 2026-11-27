@@ -9257,10 +9257,18 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15481,
+    "revision": 15504,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
-    "coordinator": null,
+    "coordinator": {
+      "runId": "run-goal-records-operations-tail-01",
+      "agentId": "codex-lead",
+      "startedAt": "2026-11-27T05:08:07.556Z",
+      "heartbeatAt": "2026-11-27T05:19:05.552Z",
+      "expiresAt": "2026-11-27T05:49:05.552Z",
+      "generation": 198,
+      "tokenHash": "0689ac6c71ac7c240cee2e4e50eda3cd55266eee5a439cb321aaddb035ef5619"
+    },
     "coordinationPolicy": {
       "singleCheckout": true,
       "coordinatorOnlyTrackedWrites": true,
@@ -217152,16 +217160,104 @@
         "resources": [
           "path:cutover.records.registry-record-actions"
         ],
-        "status": "pending",
+        "status": "migrated",
         "claim": null,
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
+        "baseSha": "813e6ed38e354c3e249bd2296f219170e25493d0",
+        "implementedCommit": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e",
+        "lastPushedSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e",
+        "checks": [
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api",
+            "result": "passed",
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          },
+          {
+            "command": "cargo test --locked -p erpx-service --test records_write_postgres -- --test-threads=1 (7 passed, isolated leased PostgreSQL databases)",
+            "result": "passed",
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-records --test record_registry_http --test record_context_http (11 passed)",
+            "result": "passed",
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          },
+          {
+            "command": "Bun Records transport, native gateway and collaboration suites (32 passed)",
+            "result": "passed",
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          },
+          {
+            "command": "Bun workspace-supervisor suite including compiled gateway and Holding aliases (13 passed)",
+            "result": "passed",
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          },
+          {
+            "command": "Bun tsc --noEmit tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          },
+          {
+            "command": "structure:check",
+            "result": "passed",
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          },
+          {
+            "command": "test:catalogue (33 modules, 2425 suites)",
+            "result": "passed",
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          },
+          {
+            "command": "Acme public HTTPS Account SSO synthetic fixture and PostgreSQL (5 operations, replay, CAS, HEAD/OPTIONS, 401, 404, 413)",
+            "result": "passed",
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          },
+          {
+            "command": "retirement:next-routes",
+            "result": "passed",
+            "before": 1432,
+            "after": 1426,
+            "appBefore": 1201,
+            "appAfter": 1198,
+            "sharedBefore": 231,
+            "sharedAfter": 228,
+            "methodPathDelta": 5,
+            "removedBranches": 5,
+            "deletedFiles": 6,
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/mentions/route.ts",
+            "removalTaskId": "cutover.records.registry-social-actions",
+            "removalCondition": "Verify native owner command against PostgreSQL with current WorkContext, idempotency, and public response parity before removing both wrappers."
+          },
+          {
+            "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/suggestions/route.ts",
+            "removalTaskId": "cutover.records.registry-social-actions",
+            "removalCondition": "Verify native owner command against PostgreSQL with current WorkContext, idempotency, and public response parity before removing both wrappers."
+          },
+          {
+            "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/suggestions/[suggestionId]/route.ts",
+            "removalTaskId": "cutover.records.registry-social-actions",
+            "removalCondition": "Verify native owner command against PostgreSQL with current WorkContext, idempotency, and public response parity before removing both wrappers."
+          }
+        ],
         "blocker": null,
-        "handoff": null,
-        "nextAction": "Use a dedicated Acme dev record and expectedVersion from readback. Run POST references and transition, PATCH, DELETE and retry/receipt checks against the actual session. Add exact gateway routes and remove corresponding wrappers only after verification. Do not move mentions or suggestions in this task."
+        "handoff": {
+          "runId": "run-goal-records-operations-tail-01",
+          "agentId": "hy4-records",
+          "at": "2026-11-27T05:14:33.962Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "HY4 audit confirmed three native route families and three neighboring TS paths. Acme authenticated PostgreSQL candidate now passes the five main methods including archive after the clock fix. Lead to implement OPTIONS parity, rerun and remove the six wrappers/re-exports."
+        },
+        "nextAction": "Records five per-record operations active on Acme dev. Single shared milestone and retirement delta with cutover.records.registry-record-actions. Continue the owner SQL/write tail and mentions/suggestions under cutover.records.registry-social-actions.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "cutover.operations.routine-template-retained",
@@ -217175,10 +217271,291 @@
         "allowedPaths": [
           "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/routine-templates",
           "apps/launcher/src/app/api/v1/holdings/[holdingSlug]/routine-templates",
-          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/routine-templates"
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/routine-templates",
+          "packages/server-operations/src/adapters/native_routines_detail_read",
+          "packages/server-operations/src/adapters/routine_commands_http.rs",
+          "tests/unit/operations/rust-routine-run-http.test.rs"
         ],
         "resources": [
           "path:cutover.operations.routine-template-retained"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-goal-records-operations-tail-01",
+          "agentId": "hy4-operations-implementation",
+          "claimedAt": "2026-11-27T05:14:42.951Z",
+          "heartbeatAt": "2026-11-27T05:19:05.552Z",
+          "expiresAt": "2026-11-27T05:49:05.552Z",
+          "generation": 198
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": {
+          "runId": "run-goal-records-operations-tail-01",
+          "agentId": "hy4-operations",
+          "at": "2026-11-27T05:14:34.439Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "HY4 verified 12 Operations tests. Add an actual owner-native authorized template schedules read for the retained long GET; six Axum command mount shapes need public data envelope and authenticated parity. Retire wrappers after runtime proof."
+        },
+        "nextAction": "HY4 verified 12 Operations tests. Add an actual owner-native authorized template schedules read for the retained long GET; six Axum command mount shapes need public data envelope and authenticated parity. Retire wrappers after runtime proof."
+      },
+      {
+        "id": "cutover.runtime.records-actions-ingress",
+        "owner": "records",
+        "title": "Fix Records archive retention and bind per-record native ingress",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/records_command.rs",
+          "scripts/local/native-cutover-routes.ts",
+          "scripts/local/native-api-proxy.ts",
+          "scripts/local/workspace-gateway-runtime.ts",
+          "tests/unit/shared.testing/workspace-supervisor.test.ts",
+          "tests/integration/shared.records/rust-record-write-postgres.test.rs",
+          "tests/unit/records/records-registry-routes-pure-transport.test.ts",
+          "tests/unit/records/native-record-registry-route.test.ts",
+          "packages/workplace/package.json"
+        ],
+        "resources": [
+          "path:cutover.runtime.records-actions-ingress",
+          "service:dev-postgres-browser",
+          "build:heavy"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": "813e6ed38e354c3e249bd2296f219170e25493d0",
+        "implementedCommit": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e",
+        "lastPushedSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e",
+        "checks": [
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api",
+            "result": "passed",
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          },
+          {
+            "command": "cargo test --locked -p erpx-service --test records_write_postgres -- --test-threads=1 (7 passed, isolated leased PostgreSQL databases)",
+            "result": "passed",
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-records --test record_registry_http --test record_context_http (11 passed)",
+            "result": "passed",
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          },
+          {
+            "command": "Bun Records transport, native gateway and collaboration suites (32 passed)",
+            "result": "passed",
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          },
+          {
+            "command": "Bun workspace-supervisor suite including compiled gateway and Holding aliases (13 passed)",
+            "result": "passed",
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          },
+          {
+            "command": "Bun tsc --noEmit tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          },
+          {
+            "command": "structure:check",
+            "result": "passed",
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          },
+          {
+            "command": "test:catalogue (33 modules, 2425 suites)",
+            "result": "passed",
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          },
+          {
+            "command": "Acme public HTTPS Account SSO synthetic fixture and PostgreSQL (5 operations, replay, CAS, HEAD/OPTIONS, 401, 404, 413)",
+            "result": "passed",
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          },
+          {
+            "command": "retirement:next-routes",
+            "result": "passed",
+            "before": 1432,
+            "after": 1426,
+            "appBefore": 1201,
+            "appAfter": 1198,
+            "sharedBefore": 231,
+            "sharedAfter": 228,
+            "methodPathDelta": 5,
+            "removedBranches": 5,
+            "deletedFiles": 6,
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/mentions/route.ts",
+            "removalTaskId": "cutover.records.registry-social-actions",
+            "removalCondition": "Verify native owner command against PostgreSQL with current WorkContext, idempotency, and public response parity before removing both wrappers."
+          },
+          {
+            "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/suggestions/route.ts",
+            "removalTaskId": "cutover.records.registry-social-actions",
+            "removalCondition": "Verify native owner command against PostgreSQL with current WorkContext, idempotency, and public response parity before removing both wrappers."
+          },
+          {
+            "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/suggestions/[suggestionId]/route.ts",
+            "removalTaskId": "cutover.records.registry-social-actions",
+            "removalCondition": "Verify native owner command against PostgreSQL with current WorkContext, idempotency, and public response parity before removing both wrappers."
+          }
+        ],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Records five per-record operations active on Acme dev. Single shared milestone and retirement delta with cutover.records.registry-record-actions. Continue the owner SQL/write tail and mentions/suggestions under cutover.records.registry-social-actions.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
+      },
+      {
+        "id": "cutover.records.registry-record-oracles",
+        "owner": "records",
+        "title": "Replace retired Records route transport and stale Next test oracles",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-records/src/public/native-record-registry.ts",
+          "tests/unit/records/records-registry-native-proxy.test.ts",
+          "tests/unit/shared.records/native-record-registry-route.test.ts",
+          "tests/unit/collaboration/social-record-mention-api.test.ts",
+          "apps/compat/src/app/globals.css",
+          "scripts/local/compiled-workspace-gateway.ts"
+        ],
+        "resources": [
+          "path:cutover.records.registry-record-oracles"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": "813e6ed38e354c3e249bd2296f219170e25493d0",
+        "implementedCommit": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e",
+        "lastPushedSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e",
+        "checks": [
+          {
+            "command": "cargo build --locked -p erpx-service --bin erpx-server --features private-development-api",
+            "result": "passed",
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          },
+          {
+            "command": "cargo test --locked -p erpx-service --test records_write_postgres -- --test-threads=1 (7 passed, isolated leased PostgreSQL databases)",
+            "result": "passed",
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-records --test record_registry_http --test record_context_http (11 passed)",
+            "result": "passed",
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          },
+          {
+            "command": "Bun Records transport, native gateway and collaboration suites (32 passed)",
+            "result": "passed",
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          },
+          {
+            "command": "Bun workspace-supervisor suite including compiled gateway and Holding aliases (13 passed)",
+            "result": "passed",
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          },
+          {
+            "command": "Bun tsc --noEmit tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          },
+          {
+            "command": "structure:check",
+            "result": "passed",
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          },
+          {
+            "command": "test:catalogue (33 modules, 2425 suites)",
+            "result": "passed",
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          },
+          {
+            "command": "Acme public HTTPS Account SSO synthetic fixture and PostgreSQL (5 operations, replay, CAS, HEAD/OPTIONS, 401, 404, 413)",
+            "result": "passed",
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          },
+          {
+            "command": "retirement:next-routes",
+            "result": "passed",
+            "before": 1432,
+            "after": 1426,
+            "appBefore": 1201,
+            "appAfter": 1198,
+            "sharedBefore": 231,
+            "sharedAfter": 228,
+            "methodPathDelta": 5,
+            "removedBranches": 5,
+            "deletedFiles": 6,
+            "sourceSha": "6a0f656ece706102ede3fc55890eeabc6dd0cb9e"
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/mentions/route.ts",
+            "removalTaskId": "cutover.records.registry-social-actions",
+            "removalCondition": "Verify native owner command against PostgreSQL with current WorkContext, idempotency, and public response parity before removing both wrappers."
+          },
+          {
+            "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/suggestions/route.ts",
+            "removalTaskId": "cutover.records.registry-social-actions",
+            "removalCondition": "Verify native owner command against PostgreSQL with current WorkContext, idempotency, and public response parity before removing both wrappers."
+          },
+          {
+            "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/suggestions/[suggestionId]/route.ts",
+            "removalTaskId": "cutover.records.registry-social-actions",
+            "removalCondition": "Verify native owner command against PostgreSQL with current WorkContext, idempotency, and public response parity before removing both wrappers."
+          }
+        ],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Records five per-record operations active on Acme dev. Single shared milestone and retirement delta with cutover.records.registry-record-actions. Continue the owner SQL/write tail and mentions/suggestions under cutover.records.registry-social-actions.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
+      },
+      {
+        "id": "cutover.records.registry-social-actions",
+        "owner": "records",
+        "title": "Move Records mentions and suggestion commands to native owner transactions",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [
+          "cutover.records.registry-record-actions"
+        ],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/mentions/route.ts",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/records/[module]/[id]/mentions/route.ts",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/suggestions/route.ts",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/records/[module]/[id]/suggestions/route.ts",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/suggestions/[suggestionId]/route.ts",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/records/[module]/[id]/suggestions/[suggestionId]/route.ts",
+          "packages/server-records/src/adapters/record_registry_http.rs",
+          "packages/server-records/src/domain/record_write.rs"
+        ],
+        "resources": [
+          "path:cutover.records.registry-social-actions"
         ],
         "status": "pending",
         "claim": null,
@@ -217188,8 +217565,15 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "handoff": null,
-        "nextAction": "Audit staffHandler GET paths such as template schedules and POST subpaths. Bind the native command ingress and prove response/receipt/authorization parity with a synthetic fixture before removing the shared catch-all and two re-exports."
+        "handoff": {
+          "runId": "run-goal-records-operations-tail-01",
+          "agentId": "hy4-records",
+          "at": "2026-11-27T05:14:33.962Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "HY4 audit confirmed three native route families and three neighboring TS paths. Acme authenticated PostgreSQL candidate now passes the five main methods including archive after the clock fix. Lead to implement OPTIONS parity, rerun and remove the six wrappers/re-exports."
+        },
+        "nextAction": "Trace mention and suggestion command input, scope, replay, and PostgreSQL writes end to end. Implement a native owner transaction and then verify public and Next retirement jointly with the lead."
       }
     ],
     "migrationProgress": {
@@ -217211,8 +217595,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 197,
-    "updatedAt": "2026-11-27T04:57:12.227Z",
+    "lastCoordinatorGeneration": 198,
+    "updatedAt": "2026-11-27T05:20:29.592Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
