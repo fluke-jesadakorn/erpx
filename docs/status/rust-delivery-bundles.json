@@ -6760,7 +6760,7 @@
   ],
   "executionPlan": {
     "generatedAt": "2026-11-10T22:40:10+07:00",
-    "sourceHead": "548ab272d96f1721bcc26dbff0f72da3daaafead",
+    "sourceHead": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
     "interpretation": "Model-neutral migration-first execution. Implementation progress is independent of strict owner/workflow qualification. Inventory is not implementation; unqualified does not mean no Rust code. The seven surface owners are outside the 41-owner denominator. Historical evidence remains scoped to its original source.",
     "ownerTotals": {
       "brand": {
@@ -9184,6 +9184,14 @@
         "commit": "548ab272d96f1721bcc26dbff0f72da3daaafead",
         "bundles": [],
         "evidence": "Retired the live-native collaboration transport routes (handbook catch-all, stories archive, executive connections): 3 handlers and 6 app re-exports removed, target 1,258 route files. Claim extended for codex-oasis-holding-address with the inventory and Commercial SQL regression files."
+      },
+      {
+        "at": "2026-11-27T19:45:35.404Z",
+        "commit": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
+        "bundles": [
+          "integrate.organization.holding-ui-address"
+        ],
+        "evidence": "Pushed the frozen Acme Company-first URL cutover e18a76d1c38ed20789454afee8d46ad900b3b55d2e2a1d151fbb3406e8758a5e as 4c1e26e976ce0edff3953e4b6837f06a12f7ab8b (17 paths, 293 insertions / 55 deletions; base 9e5f29ab). Company is the first path segment for every Product and approved Plugin; private Organization workspace-address reads run on loopback, the legacy workspaceRouteCompany adapter/export is removed, and the purchased-capability predicate parentheses are balanced. Re-ran routing 30/30, both TypeScript projects, structure, and git diff check in a clean worktree at the pushed commit; the worker's native cargo check/build and Acme 200 / Northstar 404 lookup receipts pass. Normal Account SSO Chromium reached /acme-co/bangkok/apps 200 and Sales, Finance, People, Supply, Assets, Projects, Recruit, Learn, POS, PMS, Legal and Manufacturing 200; uninstalled /acme-co/site-measurement returned 404. Support and Service reached origin 200 but the browser waits timed out; remaining signed apps are still being checked. The identity_access integration harness did not run: REQUIRED_TEST_CASES_NOT_EXECUTED plus a Vitest code.charCodeAt runner error. This is not a pass. No staging or production service was restarted; full acceptance remains deferred."
       }
     ],
     "historicalExecutionPlans": [
@@ -9275,15 +9283,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16288,
+    "revision": 16291,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261128-route",
       "agentId": "lead",
       "startedAt": "2026-11-27T18:37:24.221Z",
-      "heartbeatAt": "2026-11-27T19:38:44.301Z",
-      "expiresAt": "2026-11-27T20:08:44.301Z",
+      "heartbeatAt": "2026-11-27T19:45:15.254Z",
+      "expiresAt": "2026-11-27T20:15:15.254Z",
       "generation": 225,
       "tokenHash": "32082f670a6f8aac8b5cfee007842097505e0fb379d299c9043b25f7aa71813e"
     },
@@ -225688,17 +225696,57 @@
           "runId": "run-20261128-route",
           "agentId": "codex-oasis-holding-address",
           "claimedAt": "2026-11-27T19:26:06.018Z",
-          "heartbeatAt": "2026-11-27T19:38:44.301Z",
-          "expiresAt": "2026-11-27T20:08:44.301Z",
+          "heartbeatAt": "2026-11-27T19:45:15.254Z",
+          "expiresAt": "2026-11-27T20:15:15.254Z",
           "generation": 225
         },
         "baseSha": "7e0d0db108612bf1caae014d0d6f60c208b427db",
         "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "lastPushedSha": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
+        "checks": [
+          {
+            "command": "vitest run --config tests/config/vitest.unit.config.mts tests/unit/identity_access/holding-routing.test.ts",
+            "result": "passed",
+            "sourceSha": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
+            "details": "30/30 focused routing tests re-run in the clean integration worktree"
+          },
+          {
+            "command": "tsc --noEmit && tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b"
+          },
+          {
+            "command": "bun scripts/testing/layout.ts",
+            "result": "passed",
+            "sourceSha": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b"
+          },
+          {
+            "command": "cargo check && cargo build native Organization service",
+            "result": "passed",
+            "sourceSha": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
+            "details": "Worker receipt: native build finished; private Acme lookup 200 on 127.0.0.1:3197 and Northstar Holding slug 404 on the Acme host"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b"
+          },
+          {
+            "command": "Chromium normal Account SSO Acme probe",
+            "result": "partial",
+            "sourceSha": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
+            "details": "Company root, Sales, Finance, People, Supply, Assets, Projects, Recruit, Learn, POS, PMS, Legal and Manufacturing 200; uninstalled site-measurement 404. Support/Service origin 200 but browser waits timed out."
+          },
+          {
+            "command": "integration identity_access harness",
+            "result": "blocked",
+            "sourceSha": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
+            "details": "REQUIRED_TEST_CASES_NOT_EXECUTED and code.charCodeAt runner error; no test pass established"
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Claim extended only with packages/server-inventory/src/adapters/initial-physical-stock-count.ts, packages/server-commercial/src/adapters/purchased-capability-sql.ts, tests/integration/identity_access/product-workspace.test.ts and the already-allowed tests/unit/identity_access/**. Diagnose/fix the PostgreSQL 42601 render regressions in initialPhysicalStockCountProductEntry/productPageAccess and the unbalanced new-work capability predicates (sales.orders -1, inventory.stock-core -4, finance.sales-posting -1); report exact SQL errors, fixes, targeted tests and signed-in Acme URL checks.",
+        "nextAction": "Code is pushed at 4c1e26e. Keep the claim while remaining signed apps are checked: Support/Service reached origin 200 but browser waits timed out, the identity_access integration harness still errors REQUIRED_TEST_CASES_NOT_EXECUTED, and full acceptance stays deferred. The claimed inventory 42601 adapter has no pushed change; reproduce it before closing if product entry still fails. Do not edit the cutover paths unless a verified regression requires it.",
         "handoff": {
           "runId": "run-20261128-route",
           "agentId": "lead",
@@ -225732,7 +225780,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Track the native Organization address read and its lead-owned wire/retirement as one aggregate packet.",
+        "nextAction": "Native owner read and the Company-first URL cutover are pushed at 4c1e26e; closure follows the integration task's remaining signed-app browser checks and the identity harness runner error.",
         "handoff": null,
         "scopeRefinementRequired": false,
         "aggregate": true
@@ -225850,12 +225898,12 @@
       }
     },
     "lastCoordinatorGeneration": 225,
-    "updatedAt": "2026-11-27T19:39:45.622Z",
+    "updatedAt": "2026-11-27T19:45:56.460Z",
     "handoff": {
       "fromRun": "run-20261128-route",
-      "verifiedPushedCheckpoint": "548ab272d96f1721bcc26dbff0f72da3daaafead",
-      "remoteVerifiedAt": "HEAD==origin==548ab272d96f1721bcc26dbff0f72da3daaafead",
-      "summary": "Retired the live-native collaboration transport routes (handbook catch-all, stories archive, executive connections): 3 handlers and 6 app re-exports removed, target 1,258 route files. Claim extended for codex-oasis-holding-address with the inventory and Commercial SQL regression files."
+      "verifiedPushedCheckpoint": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
+      "remoteVerifiedAt": "HEAD==origin==4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
+      "summary": "Company-first Holding URL cutover pushed; worker keeps the integration claim for remaining signed-app browser verification and the identity harness runner error."
     },
     "lastRecovery": {
       "previousRunId": "run-20261127-g",
@@ -225865,7 +225913,7 @@
       "wipReviewed": true,
       "previousRunStopped": true
     },
-    "lastPushedSha": "548ab272d96f1721bcc26dbff0f72da3daaafead",
+    "lastPushedSha": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
     "lastKpi": 1942,
     "statusCounts": {
       "done": 51,
