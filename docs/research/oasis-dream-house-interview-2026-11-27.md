@@ -69,7 +69,9 @@ node /absolute/oasis-release/stage/entry.mjs --release=/absolute/oasis-release -
 
 [เปิด ERPX สำหรับเดโม OASIS](https://oasisdreamhouse-demo.jesadakorn.com/) หลัง Account SSO เลือก **Andaman Kitchen Demo** และ **Feed** ครั้งแรก จาก Feed กด **Apps** แล้วเปิด **Sales** เลือก Sales operator หากระบบถามบทบาท เปิด [Sales โดยตรง](https://oasisdreamhouse-demo.jesadakorn.com/sales?company=andaman-kitchen) ในโปรไฟล์เบราว์เซอร์อีกชุดด้วยบัญชี Sales manager
 
-Release `ecb5c44b78b6133e46af52e6ce630714104f3a11` ใช้ Next standalone และ Axum release จาก source เดียวกัน Health checks ของ Holding และ Account สาธารณะตอบ 200 ทั้งคู่ Chrome บนโดเมนจริงตรวจ Feed, Apps แบบเต็มจอ, แอนิเมชันเข้า Sales, แถบแอปล่าสุด, Back และ Escape ที่ขนาดมือถือและแท็บเล็ต ทดสอบโพสต์และตอบบน release เดียวกันผ่าน staging บนเครื่องและเปิดใหม่แล้วยังเห็นข้อมูล
+Release ที่เปิดอยู่ `a44f2f61f8a7c0339cc66ec41c18b85e45b79c40` ใช้ Next standalone และ Axum release จาก commit เดียวกัน Health checks ของ Holding และ Account สาธารณะตอบ 200 ทั้งคู่ Chrome บนโดเมนจริงตรวจ Feed, Apps แบบเต็มจอ, แอนิเมชันเข้า Sales, แถบแอปล่าสุด, Back, Escape และ Reduce Motion ที่ขนาดมือถือและแท็บเล็ต รอบซ้อมก่อนหน้าทดสอบโพสต์และตอบบน staging แล้วเปิดใหม่ยังเห็นข้อมูล
+
+Feed บันทึกพื้นที่ปัจจุบันผ่าน Axum และปฏิเสธการบันทึกจากแท็บที่ถือบทบาทเก่า ค่าการแสดงเวลาของฝ่ายขายยังอยู่หลังโหลดใหม่ เมื่อส่งคำขอเดิมซ้ำระบบคืนเวอร์ชันเดิม บัญชีผู้จัดการอ่านค่าของตัวเองได้แยกกัน
 
 การซ้อมผ่านโดเมนจริงใช้เคสสำรอง ฝ่ายขายนัดวัด ผู้จัดการบันทึกผล ฝ่ายขายสร้างและแก้ใบ `QT-2026-000005` จาก 67,000 เป็น 85,500 บาท เปิดใหม่โดยเลขเดิม ส่งอนุมัติ แล้วผู้จัดการอีกบัญชีอนุมัติ ฝ่ายขายเชื่อมใบกับโอกาสขายและกดเปิดใบเดิมจาก CRM ได้ เคส `Phuket Villa – Kitchen A` ที่ไม่มีคำว่า “browser rehearsal” กันไว้ให้ผู้สัมภาษณ์ลอง
 

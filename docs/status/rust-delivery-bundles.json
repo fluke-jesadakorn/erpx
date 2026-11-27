@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16121,
+    "revision": 16134,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": null,
@@ -223697,7 +223697,7 @@
         "resources": [
           "oasis-final-rehearsal"
         ],
-        "nextAction": "Use the ready interview lead on the public Holding and separate Chrome profiles for the seller and manager.",
+        "nextAction": "Use the public release a44f2f61f for the existing recorded quote and preserve the fresh interview lead. Use the separate registry gate when a genuine contributor PR is available.",
         "workflowIds": [],
         "kind": "migration",
         "dependsOn": [],
@@ -223705,8 +223705,8 @@
         "status": "ready_for_integration",
         "claim": null,
         "baseSha": "ab77e98fbc99acd196b1967f655d9c91cb1e1fb5",
-        "implementedCommit": "ecb5c44b78b6133e46af52e6ce630714104f3a11",
-        "lastPushedSha": "6057a6380f49cfbf4014b76b0148f7af34960c5d",
+        "implementedCommit": "a44f2f61f8a7c0339cc66ec41c18b85e45b79c40",
+        "lastPushedSha": "a44f2f61f8a7c0339cc66ec41c18b85e45b79c40",
         "checks": [
           {
             "command": "Public Chrome web flow: schedule, complete, qualify, create, edit, reload, submit, approve, link and reopen",
@@ -223717,17 +223717,23 @@
             "command": "Verified separate untouched initial lead; 63-second QT-2026-000004 clip and matching one-page PDF rendered from public staging",
             "result": "passed",
             "sourceSha": "ecb5c44b78b6133e46af52e6ce630714104f3a11"
+          },
+          {
+            "command": "Public OASIS Chrome mobile/tablet Apps and retained approved quotation",
+            "result": "passed",
+            "sourceSha": "a44f2f61f8a7c0339cc66ec41c18b85e45b79c40",
+            "details": "Chrome verified Feed-to-Sales tile expansion, mobile/tablet dock and placement, Sales Back to Feed, Escape and reduced motion. Separate seller and manager SSO opened QT-2026-000004 at 85,500 THB. Manager opened filtered Sales Reports and the print page with matching document ID/total and recreated a QA PDF. The interview lead remained untouched."
           }
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
         "handoff": {
-          "runId": "oasis-staging-20261127",
+          "runId": "oasis-shell-preferences-20261127",
           "agentId": "codex",
-          "at": "2026-11-27T13:47:08.081Z",
+          "at": "2026-11-27T16:55:43.472Z",
           "previousStatus": "ready_for_integration",
           "reason": "handoff",
-          "nextAction": "Use the ready interview lead on the public Holding and separate Chrome profiles for the seller and manager."
+          "nextAction": "Use the public release a44f2f61f for the existing recorded quote and preserve the fresh interview lead. Use the separate registry gate when a genuine contributor PR is available."
         }
       },
       {
@@ -224262,6 +224268,215 @@
           "routeAuthority": true,
           "presenterParity": true
         }
+      },
+      {
+        "id": "cutover.identity_access.oasis-shell-preferences",
+        "goalId": "G4",
+        "owner": "identity_access",
+        "workflowIds": [],
+        "kind": "migration",
+        "title": "Serve the OASIS Feed workspace and Account time preferences through Axum",
+        "dependsOn": [],
+        "requiredPorts": [
+          "3112",
+          "3382"
+        ],
+        "allowedPaths": [
+          "src/composition/src/account_time_preference_http.rs",
+          "src/composition/src/private_development_api.rs",
+          "src/composition/src/native_work_roles_http.rs",
+          "scripts/local/native-cutover-routes.ts",
+          "scripts/local/compiled-workspace-gateway.ts",
+          "scripts/local/oasis-demo-stage.ts",
+          "packages/server-identity_access/src/adapters/account-time-preference.ts",
+          "tests/unit/shared.testing/workspace-supervisor.test.ts",
+          "tests/unit/identity_access/account-time-preference-snapshot.test.ts",
+          "tests/integration/identity_access/rust-private-session-api-postgres.test.rs",
+          "tests/integration/marketing/rust-marketing-work-context-postgres.test.rs"
+        ],
+        "resources": [
+          "oasis-shell-preferences",
+          "oasis-demo-staging-release"
+        ],
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "7da5e7df5b81d623cebe0aac665a2680b7cf74a3",
+        "implementedCommit": "a44f2f61f8a7c0339cc66ec41c18b85e45b79c40",
+        "lastPushedSha": "a44f2f61f8a7c0339cc66ec41c18b85e45b79c40",
+        "checks": [
+          {
+            "command": "cargo check --locked --no-default-features --features private-development-api -p erpx-service --bin erpx-server",
+            "result": "passed",
+            "sourceSha": "a44f2f61f8a7c0339cc66ec41c18b85e45b79c40",
+            "details": "Native service compiles with signed preference routes and exact native workspace alias."
+          },
+          {
+            "command": "cargo test -p erpx-service --test private_session_api_postgres signed_account_and_holding_time_preference_uses_one_control_row_and_receipt",
+            "result": "passed",
+            "sourceSha": "a44f2f61f8a7c0339cc66ec41c18b85e45b79c40",
+            "details": "Real isolated PostgreSQL. Exact signed Account and Holding cookies see the same account preference. A forged actor header did not change identity. Duplicate PATCH left one IAM receipt, stale competing update returned 409, foreign Origin returned 403, cross-host cookie was denied, and the other Account retained its own data."
+          },
+          {
+            "command": "cargo test -p erpx-service --test marketing_work_context_postgres",
+            "result": "passed",
+            "sourceSha": "a44f2f61f8a7c0339cc66ec41c18b85e45b79c40",
+            "details": "Two passed. Signed workspace POST wrote the canonical PostgreSQL workspace, a stale revision returned 409, and a foreign Holding path returned 422."
+          },
+          {
+            "command": "vitest run --config tests/config/vitest.unit.config.mts tests/unit/shared.testing/workspace-supervisor.test.ts tests/unit/identity_access/account-time-preference-snapshot.test.ts",
+            "result": "passed",
+            "sourceSha": "a44f2f61f8a7c0339cc66ec41c18b85e45b79c40",
+            "details": "23 passed. Checked scoped gateway aliases and methods and the signed SSR preference read without authority headers."
+          },
+          {
+            "command": "bun run typecheck and bun run structure:check",
+            "result": "passed",
+            "sourceSha": "a44f2f61f8a7c0339cc66ec41c18b85e45b79c40",
+            "details": "Both TypeScript projects and repository layout passed."
+          },
+          {
+            "command": "bun scripts/local/prepare-workspace-release.ts --oasis-demo --candidate=a44f2f61f8a7c0339cc66ec41c18b85e45b79c40",
+            "result": "passed",
+            "sourceSha": "a44f2f61f8a7c0339cc66ec41c18b85e45b79c40",
+            "details": "Frozen release verification passed for three standalone Next apps, gateway, stage tool and optimized native binary built from the same checkout."
+          },
+          {
+            "command": "OASIS local protocol gate and public authenticated Chrome",
+            "result": "passed",
+            "sourceSha": "a44f2f61f8a7c0339cc66ec41c18b85e45b79c40",
+            "details": "Exact Holding and Account both returned health 200. Signed Chrome mounted Feed, observed workspace preference POST 200, got 409 for stale selected role, read/saved time preference, replayed exactly once, retained version after reload and authorized the manager to read independent data. Restored seller preference after rehearsal."
+          },
+          {
+            "command": "Development native swap and public Admin Chrome",
+            "result": "passed",
+            "sourceSha": "a44f2f61f8a7c0339cc66ec41c18b85e45b79c40",
+            "details": "Development private Axum listener stayed healthy; signed-out exact Admin and Account time routes returned 401, unregistered probe Host returned 404. Authenticated Admin browser opened Feed, obtained 15 authorized Apps tiles and read the approved registry catalogue."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/workplace/src/routes/api/v1/workspace-preference/route.ts",
+            "removalTaskId": "cutover.identity_access.holding-shell-preference-retirement",
+            "removalCondition": "The OASIS gateway dispatches with no Next ingress. Before deleting the shared route and app wrappers, verify the same native workspace alias delivers the retained HTTP contract on every active Holding/standalone browser caller, including the legacy platform-root response where applicable."
+          },
+          {
+            "path": "packages/workplace/src/routes/api/v1/account/time-preference/route.ts",
+            "removalTaskId": "cutover.identity_access.holding-shell-preference-retirement",
+            "removalCondition": "The OASIS gateway and Next SSR use signed Axum reads directly. Move and verify the remaining Account/Holding app/browser consumers before deleting the shared Next endpoint and app wrappers."
+          },
+          {
+            "path": "packages/server-identity_access/src/adapters/account-time-preference.ts",
+            "removalTaskId": "cutover.identity_access.holding-shell-preference-retirement",
+            "removalCondition": "Keep the signed SSR presenter transport. Delete the remaining private caller-header PATCH bridge when HTTP consumers and the old command test move to the signed native endpoint."
+          }
+        ],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "oasis-shell-preferences-20261127",
+          "agentId": "codex",
+          "at": "2026-11-27T16:55:43.182Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Continue the shared Account and Holding ingress audit under cutover.identity_access.holding-shell-preference-retirement. Leave the verified OASIS standalone and its exact native routes running."
+        },
+        "scope": "Keep OASIS browser URLs and response shapes for workspace and time preferences. Bind signed Account proof and rendered work preconditions in the native authoritative handlers. Render timezone snapshot from the signed native reader and keep the ordinary standalone non-OASIS route audit separate.",
+        "deliverables": [
+          "Exact OASIS gateway-to-Axum methods for signed time GET/PATCH and workspace POST",
+          "PostgreSQL and browser verification for actual stored timezone and workspace, duplicate command behavior and unrelated sessions/scopes"
+        ],
+        "nextAction": "Continue the shared Account and Holding ingress audit under cutover.identity_access.holding-shell-preference-retirement. Leave the verified OASIS standalone and its exact native routes running.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
+      },
+      {
+        "id": "cutover.identity_access.holding-shell-preference-retirement",
+        "goalId": "G4",
+        "owner": "identity_access",
+        "workflowIds": [],
+        "kind": "migration",
+        "title": "Retire the shared Next preferences routes after Holding browser caller cutover",
+        "dependsOn": [],
+        "requiredPorts": [
+          "3100",
+          "3198"
+        ],
+        "allowedPaths": [
+          "scripts/local/workspace-gateway-runtime.ts",
+          "scripts/local/native-api-proxy.ts",
+          "scripts/local/native-cutover-routes.ts",
+          "scripts/local/compiled-workspace-gateway.ts",
+          "src/composition/src/native_work_roles_http.rs",
+          "src/composition/src/private_development_api.rs",
+          "packages/workplace/src/routes/api/v1/workspace-preference/route.ts",
+          "packages/workplace/src/routes/api/v1/account/time-preference/route.ts",
+          "packages/server-identity_access/src/adapters/account-time-preference.ts",
+          "packages/server-identity_access/src/public/account-time-preference.ts",
+          "tests/unit/shared.testing/workspace-supervisor.test.ts",
+          "tests/integration/identity_access/member-profiles.test.ts",
+          "tests/integration/shared.ui/workspace-preferences.test.ts",
+          "scripts/architecture/workspace-app-routes.json",
+          "apps/admin/src/app/api/v1/workspace-preference/route.ts",
+          "apps/assets/src/app/api/v1/workspace-preference/route.ts",
+          "apps/compat/src/app/api/v1/workspace-preference/route.ts",
+          "apps/finance/src/app/api/v1/workspace-preference/route.ts",
+          "apps/launcher/src/app/api/v1/workspace-preference/route.ts",
+          "apps/learn/src/app/api/v1/workspace-preference/route.ts",
+          "apps/legal/src/app/api/v1/workspace-preference/route.ts",
+          "apps/manufacturing/src/app/api/v1/workspace-preference/route.ts",
+          "apps/people/src/app/api/v1/workspace-preference/route.ts",
+          "apps/pms/src/app/api/v1/workspace-preference/route.ts",
+          "apps/pos/src/app/api/v1/workspace-preference/route.ts",
+          "apps/projects/src/app/api/v1/workspace-preference/route.ts",
+          "apps/recruit/src/app/api/v1/workspace-preference/route.ts",
+          "apps/sales/src/app/api/v1/workspace-preference/route.ts",
+          "apps/service/src/app/api/v1/workspace-preference/route.ts",
+          "apps/supply/src/app/api/v1/workspace-preference/route.ts",
+          "apps/support/src/app/api/v1/workspace-preference/route.ts",
+          "apps/account/src/app/api/v1/account/time-preference/route.ts",
+          "apps/admin/src/app/api/v1/account/time-preference/route.ts",
+          "apps/assets/src/app/api/v1/account/time-preference/route.ts",
+          "apps/booking/src/app/api/v1/account/time-preference/route.ts",
+          "apps/compat/src/app/api/v1/account/time-preference/route.ts",
+          "apps/finance/src/app/api/v1/account/time-preference/route.ts",
+          "apps/forms/src/app/api/v1/account/time-preference/route.ts",
+          "apps/launcher/src/app/api/v1/account/time-preference/route.ts",
+          "apps/learn/src/app/api/v1/account/time-preference/route.ts",
+          "apps/legal/src/app/api/v1/account/time-preference/route.ts",
+          "apps/legal-portal/src/app/api/v1/account/time-preference/route.ts",
+          "apps/manufacturing/src/app/api/v1/account/time-preference/route.ts",
+          "apps/people/src/app/api/v1/account/time-preference/route.ts",
+          "apps/pms/src/app/api/v1/account/time-preference/route.ts",
+          "apps/portal/src/app/api/v1/account/time-preference/route.ts",
+          "apps/pos/src/app/api/v1/account/time-preference/route.ts",
+          "apps/projects/src/app/api/v1/account/time-preference/route.ts",
+          "apps/recruit/src/app/api/v1/account/time-preference/route.ts",
+          "apps/sales/src/app/api/v1/account/time-preference/route.ts",
+          "apps/service/src/app/api/v1/account/time-preference/route.ts",
+          "apps/supply/src/app/api/v1/account/time-preference/route.ts",
+          "apps/support/src/app/api/v1/account/time-preference/route.ts"
+        ],
+        "resources": [
+          "holding-shell-preferences",
+          "oasis-shell-preferences"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scope": "Continue the signed native OASIS preference proof on the remaining active Holding and Account browser callers. Preserve existing route methods, role CAS, exact Origin, Account session audience, platform-root behavior where used and branch scope. Route through Axum and retire the verified Next files and private write bridge.",
+        "deliverables": [
+          "Actual Development Account and Holding browser parity with signed Axum preference dispatch",
+          "Verified source retirement of replaced Next routes and private time writer bridge"
+        ],
+        "nextAction": "Trace implicit and product-prefixed preference URLs with scripts/local/workspace-gateway-runtime.ts, the compiled gateway and the registered Account/legacy profiles. Bind the active Holding and Account routes to the signed Axum paths and compare the mounted browser request and PostgreSQL effects before removing every replaced Next consumer."
       }
     ],
     "migrationProgress": {
@@ -224270,12 +224485,12 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2473,
+      "totalPackets": 2475,
       "migratedPackets": 370,
       "statusCounts": {
-        "pending": 14,
+        "pending": 15,
         "in_progress": 0,
-        "ready_for_integration": 162,
+        "ready_for_integration": 163,
         "integrating": 0,
         "migrated": 370,
         "blocked": 1925,
@@ -224283,8 +224498,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 219,
-    "updatedAt": "2026-11-27T16:26:57.510Z",
+    "lastCoordinatorGeneration": 220,
+    "updatedAt": "2026-11-27T16:55:43.622Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
