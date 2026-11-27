@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16069,
+    "revision": 16078,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": null,
@@ -223766,8 +223766,8 @@
         "status": "blocked",
         "claim": null,
         "baseSha": "451d2a079885475c9aa55163dee98471e23f1f3a",
-        "implementedCommit": "8aae5db0b596b1e57b3a748c0ad9ab908811832c",
-        "lastPushedSha": "8aae5db0b596b1e57b3a748c0ad9ab908811832c",
+        "implementedCommit": "ea8444293cbebdeecb21074408cbd45add926b08",
+        "lastPushedSha": "ea8444293cbebdeecb21074408cbd45add926b08",
         "checks": [
           {
             "command": "vitest run --config tests/config/vitest.unit.config.mts tests/unit/collaboration/collaboration-services.test.ts tests/unit/shared.ui/apps-launcher.test.ts",
@@ -223779,28 +223779,44 @@
             "command": "bun run typecheck",
             "result": "passed",
             "sourceSha": "8aae5db0b596b1e57b3a748c0ad9ab908811832c"
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-collaboration --test collaboration_pg_postgres --test social_http -p erpx-server-files --test social_draft_uploads_postgres -- --nocapture",
+            "result": "passed",
+            "sourceSha": "ea8444293cbebdeecb21074408cbd45add926b08",
+            "details": "14 passed. Actual isolated Holding PostgreSQL for Social card and Files projections. Verified selected Company/branch/participants isolation, denial by required source policy, continuing past 25 denied candidates, comment tag matches and ancestors, rich content and selected images, exact thread, milestones and saved edit/revocation boundaries."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "ea8444293cbebdeecb21074408cbd45add926b08"
           }
         ],
         "retainedLegacy": [
           {
             "path": "packages/server-collaboration/src/adapters/social-page.ts",
             "removalTaskId": "cutover.collaboration.rich-home-native-ssr",
-            "removalCondition": "Bind and verify the Axum aggregate with the full existing SSR presenter and normal authenticated Holding routes, then remove the retained query."
+            "removalCondition": "The exact registered Holding GET page is mounted, its full presenter and browser fixtures pass, and scope-correct Axum is the only page authority."
           },
           {
             "path": "packages/server-collaboration/src/adapters/social-home.ts",
             "removalTaskId": "cutover.collaboration.rich-home-native-ssr",
-            "removalCondition": "Retire the legacy page-specific readers once the native aggregate preserves audience and source authorization, title/link access, tags, and presentation. Other consumers require their own owner cutover."
+            "removalCondition": "Remove callers and the SELECT-only branches replaced by native page cards in the same cutover. Other rich feed/command consumers retain their own owner cutover."
+          },
+          {
+            "path": "packages/server-files/src/adapters/collaboration-home-sources.ts",
+            "removalTaskId": "cutover.collaboration.rich-home-native-ssr",
+            "removalCondition": "Remove the page image SELECT when every call uses the Files owner read on the same authorized native transaction. Preserve draft upload validation used by other commands."
           }
         ],
         "blocker": "handoff",
         "handoff": {
-          "runId": "oasis-shared-apps-release-20261127",
+          "runId": "oasis-admin-feed-owner-20261127",
           "agentId": "codex",
-          "at": "2026-11-27T14:37:13.198Z",
+          "at": "2026-11-27T15:01:50.944Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Implement SocialHttpBackend::page with the full owner projection under the rendered Company and assignment. Port audience and purchase/source predicates and bind authorized Projects, Operations and PMS sources. Mount the GET route only after parity, then rerun exact Admin SSO, real Feed and Billing PDF with both roles."
+          "nextAction": "Bind SocialHomePolicy using native Files, Projects member/purchase, Operations handover/read/receipt, and PMS property-source authority on the same selected transaction. Add project/branch/team options and Commercial flags to SocialHttpBackend::page, then mount exact registered GET and rerun Admin SSO, Feed and Billing with both roles."
         },
         "resources": [
           "collaboration-rich-home-native-ssr"
@@ -223812,14 +223828,23 @@
           "packages/server-collaboration/src/public/native-social-page-types.ts",
           "src/composition/src/collaboration.rs",
           "src/composition/src/private_development_api.rs",
-          "tests/unit/collaboration/collaboration-services.test.ts"
+          "tests/unit/collaboration/collaboration-services.test.ts",
+          "packages/server-collaboration/src/adapters/mod.rs",
+          "packages/server-collaboration/src/adapters/social.rs",
+          "packages/server-collaboration/src/adapters/social_pg.rs",
+          "packages/server-collaboration/src/adapters/social_home.rs",
+          "packages/server-collaboration/src/public/social.rs",
+          "tests/integration/collaboration/rust-collaboration-pg-postgres.test.rs",
+          "packages/server-files/src/adapters/social_draft_uploads.rs",
+          "packages/server-files/src/public/social_draft_uploads.rs",
+          "tests/integration/files/rust-social-draft-uploads-postgres.test.rs"
         ],
         "scope": "The existing full SocialPage aggregate for a normal signed-in Holding session, including the initial thread, tag, audience/composer options, moderation, and document context. Preserve normal OASIS and CRM paths.",
         "deliverables": [
           "Bind complete Axum aggregate presentation and mount it through the exact registered Holding routes",
           "Verify the new Admin Holding root reaches real Feed after normal SSO and retained Social contracts still pass"
         ],
-        "nextAction": "Implement SocialHttpBackend::page with the full owner projection under the rendered Company and assignment. Port audience and purchase/source predicates and bind authorized Projects, Operations and PMS sources. Mount the GET route only after parity, then rerun exact Admin SSO, real Feed and Billing PDF with both roles."
+        "nextAction": "Bind SocialHomePolicy using native Files, Projects member/purchase, Operations handover/read/receipt, and PMS property-source authority on the same selected transaction. Add project/branch/team options and Commercial flags to SocialHttpBackend::page, then mount exact registered GET and rerun Admin SSO, Feed and Billing with both roles."
       },
       {
         "id": "ux.apps.stable-switcher",
@@ -223929,8 +223954,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 214,
-    "updatedAt": "2026-11-27T14:48:00.649Z",
+    "lastCoordinatorGeneration": 215,
+    "updatedAt": "2026-11-27T15:01:51.095Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
