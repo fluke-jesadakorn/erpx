@@ -1,6 +1,7 @@
 /** Run repository server utilities with the same server aliases as compiled jobs. */
 import { mkdir, readFile } from "node:fs/promises";
 import { dirname, relative, resolve, sep } from "node:path";
+import { pathToFileURL } from "node:url";
 import { runtimeSourceFingerprint } from "./source-fingerprint";
 
 const root = resolve(import.meta.dir, "../.."), requested = process.argv[2];
@@ -20,13 +21,14 @@ const built = await Bun.build({ entrypoints: [entry], outdir: directory, target:
   plugins: [{ name: "next-server-navigation", setup(build) {
     build.onResolve({ filter: /^next\/navigation$/ }, () => ({ path: resolve(root, "node_modules/next/dist/client/components/navigation.react-server.js") }));
     // A bundled CLI still owns the original repository, not its private output
-    // directory. These entry files use Bun's import.meta.dir to locate it.
+    // directory. Keep source-relative resource lookups anchored to their files.
     build.onLoad({ filter: /\.ts$/ }, async args => {
       if (!args.path.startsWith(root + sep) || args.path.includes(sep + "node_modules" + sep)) return;
       const source = await readFile(args.path, "utf8");
-      if (!source.includes("import.meta.dir") && !source.includes("import.meta.filename")) return;
+      if (!/import\.meta\.(dir|filename|url)\b/.test(source)) return;
       return { contents: source.replaceAll("import.meta.dir", JSON.stringify(dirname(args.path)))
-        .replaceAll("import.meta.filename", JSON.stringify(args.path)), loader: "ts" };
+        .replaceAll("import.meta.filename", JSON.stringify(args.path))
+        .replaceAll("import.meta.url", JSON.stringify(pathToFileURL(args.path).href)), loader: "ts" };
     });
   } }],
 });
