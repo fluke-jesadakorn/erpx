@@ -819,6 +819,10 @@ pub fn mount(
         .collect();
     if !lane1_targets.is_empty() {
         router = router.merge(
+            erpx_server_finance::public::native_lane_1::router_for_holdings(lane1_targets.clone())
+                .map_err(|_| "PRIVATE_API_FINANCE_LANE1_EXPENSE_PROJECTION_INVALID")?,
+        );
+        router = router.merge(
             erpx_server_finance::public::native_lane_1::doc_preview_router_for_holdings(lane1_targets)
                 .map_err(|_| "PRIVATE_API_FINANCE_LANE1_DOC_PREVIEW_INVALID")?,
         );

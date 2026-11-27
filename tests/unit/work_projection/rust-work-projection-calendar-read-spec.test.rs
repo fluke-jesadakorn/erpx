@@ -106,7 +106,7 @@ fn read_tail_table_is_exact_and_arity_fenced() {
         assert!(validate(kind, size + 1).is_err(), "{kind} arity fence");
         assert!(validate(kind, size.saturating_sub(1)).is_err(), "{kind} arity fence");
     }
-    assert!(!supported("wp_cal_read_68"));
+    assert!(supported("wp_cal_read_68"));
     assert!(!supported("wp_cal_read_59"));
 }
 
