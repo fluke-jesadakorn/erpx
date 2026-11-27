@@ -554,6 +554,20 @@ it('routes retired Holding entries and their transport aliases directly to Axum'
     const schedules = '/api/v1/holdings/acme/routine-schedules/schedule-1';
     expect((await get(3104, host, schedules)).status).toBe(401);
     const {holdingNativeCutoverPath, normalizeHoldingNativePath} = await import('../../../scripts/local/native-cutover-routes');
+    const navigationRead = '/api/v1/holdings/acme/branches/bangkok/navigation';
+    for (const path of [navigationRead, `${navigationRead}?include=attention`]) {
+      const scoped = normalizeHoldingNativePath(path, 'acme');
+      for (const method of ['GET', 'HEAD'])
+        expect(holdingNativeCutoverPath(scoped.url, 'acme', method)).toBe('native-private-read');
+    }
+    expect(holdingNativeCutoverPath(normalizeHoldingNativePath(navigationRead, 'acme').url, 'acme', 'POST')).toBe('navigation-command');
+    // The fixture would answer any proxied path with 200; a 404 proves the read
+    // never reaches the native owner and no partial count can leak.
+    for (const path of [navigationRead, `${navigationRead}?include=attention`]) {
+      const blocked = await get(3104, host, `/__erpx/apps${path}`, {Cookie: 'erpx_session=fixture'});
+      expect(blocked.status).toBe(404);
+      expect(JSON.parse(blocked.body)).toMatchObject({error: {code: 'NOT_FOUND'}});
+    }
     const editor = '/api/v1/holdings/acme/routine-template-editor-context';
     expect((await get(3104, host, editor)).status).toBe(404);
     expect((await get(3104, host, '/__erpx/apps' + editor)).status).toBe(404);

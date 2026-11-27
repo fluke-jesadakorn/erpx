@@ -157,7 +157,15 @@ export function holdingNativeCutoverPath(url: string, holdingSlug: string, metho
   if (!path?.startsWith(prefix)) return;
   const [owner, segment, ...tail] = path.slice(prefix.length).split("/");
   if (owner === "commerce" && segment === "pending-quotations" && tail.length === 0 && ["GET", "HEAD"].includes(method ?? "")) return "quotation-summary";
-  if (owner === "navigation" && segment === undefined && method === "POST") return "navigation-command";
+  if (owner === "navigation" && segment === undefined) {
+    if (method === "POST") return "navigation-command";
+    // Native navigation GET still hardcodes expense_available=true and
+    // routing_attention=false, and cutover.work_projection.feed-navigation-runtime
+    // explicitly keeps rich (?include=attention) GET outside the public proxy
+    // until those owner facts reach parity. A compact read would publish the
+    // same unresolved work count and routing flag, so quarantine GET/HEAD too.
+    if (method === "GET" || method === "HEAD") return "native-private-read";
+  }
   if (owner === "plugins" && segment === undefined) return "plugins";
   if (owner === "feed" && segment === undefined) return "social";
   if (owner === "posts" && segment && tail.length === 1 && tail[0] === "comments") {
