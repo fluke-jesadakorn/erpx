@@ -110,6 +110,7 @@ fn assert_team_unit<T: MessagingTeamUnit>() {}
 #[derive(Default)]
 struct HomeSourcePolicy {
     queried: Vec<String>,
+    operational_handovers: Vec<String>,
 }
 
 impl SocialHomePolicy for HomeSourcePolicy {
@@ -121,7 +122,12 @@ impl SocialHomePolicy for HomeSourcePolicy {
     ) -> SocialHomePolicyFuture<'a> {
         Box::pin(async move {
             self.queried.push(post.id.clone());
-            if post.audience_kind.as_deref() == Some("project") || !post.sources.is_empty() {
+            if post.operational_handover {
+                self.operational_handovers.push(post.id.clone());
+            }
+            if post.audience_kind.as_deref() == Some("project")
+                || post.sources.iter().any(|source| source.id == "protected")
+            {
                 return Ok(None);
             }
             Ok(Some(SocialHomeAdditions {
@@ -135,7 +141,6 @@ impl SocialHomePolicy for HomeSourcePolicy {
                 task: None,
                 tracking_state: Some("author only".into()),
                 purchase: None,
-                handover_receipt: None,
             }))
         })
     }
@@ -233,6 +238,62 @@ async fn rich_home_preserves_scoped_cards_thread_and_nested_comments() {
             })
             .await
             .unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn rich_home_handover_receipt_counts_current_recipients_and_original_sources() {
+    if !configured() {
+        eprintln!("skipping native Home PostgreSQL: ERPX_TEST_ADMIN_URL is not configured");
+        return;
+    }
+    fixture::with_database(2, |pool| async move {
+        let now: i64 =
+            sqlx::query_scalar("SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+        setup(&pool, now).await;
+        sqlx::query(
+            "INSERT INTO social_posts(id,author_id,author_name,company_id,branch_id,body,audience_kind,purpose,version,created_at,updated_at)
+             VALUES('handover','author','Author','company','branch','Shift brief','participants','handover',2,$1,$1),
+                   ('different','author','Author','company','branch','Other brief','participants','handover',2,$1,$1)",
+        ).bind(now).execute(pool.raw()).await.unwrap();
+        sqlx::query("INSERT INTO social_post_sources(post_id,ordinal,source_kind,source_id)
+                      VALUES('handover',0,'staff_task','actual-task'),('different',0,'staff_task','different-task')")
+            .execute(pool.raw()).await.unwrap();
+        sqlx::query("INSERT INTO social_post_participants(post_id,user_id)
+                      VALUES('handover','author'),('handover','reader'),('handover','other'),('different','reader')")
+            .execute(pool.raw()).await.unwrap();
+        sqlx::query(
+            "INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json)
+             VALUES('publish-brief','work.handover.publish','author','fixture','handover',
+                    '{\"id\":\"handover\",\"sourceBindings\":[{\"kind\":\"staff_task\",\"id\":\"actual-task\"}]}',$1,'{\"companyId\":\"company\"}'),
+                   ('publish-different','work.handover.publish','author','fixture','different',
+                    '{\"id\":\"different\",\"sourceBindings\":[{\"kind\":\"staff_task\",\"id\":\"another-task\"}]}',$1,'{\"companyId\":\"company\"}')",
+        ).bind(now).execute(pool.raw()).await.unwrap();
+        sqlx::query(
+            "INSERT INTO social_handover_acknowledgements(post_id,user_id,post_version,acknowledged_at,command_id)
+             VALUES('handover','reader',2,$1,'current'),('handover','other',1,$1,'prior'),
+                   ('handover','author',2,$1,'author'),('handover','outsider',2,$1,'outsider')",
+        ).bind(now).execute(pool.raw()).await.unwrap();
+        PgUnitOfWork::new(pool).run(TransactionOptions::default(), move |connection| {
+            Box::pin(async move {
+                let scope = SocialScope::new("company", "reader", "grant-reader", "Reader", now)?
+                    .branch(Some("branch"))?.assignment_version(1);
+                let mut records = UnavailableSocialRecords;
+                let mut unit = PgSocialUnit::read_only(connection, scope, &mut records);
+                let mut policy = HomeSourcePolicy::default();
+                let handover = unit.home_posts(SocialHomeSelection::Thread { post_id: "handover" }, &mut policy).await?;
+                assert_eq!(handover[0]["handoverReceipt"], serde_json::json!({
+                    "postId":"handover","postVersion":2,"canAcknowledge":true,"acknowledged":true,
+                    "recipientCount":2,"acknowledgedCount":1
+                }));
+                assert_eq!(unit.home_posts(SocialHomeSelection::Thread { post_id: "different" }, &mut policy).await?.len(), 1);
+                assert_eq!(policy.operational_handovers, ["handover"]);
+                Ok::<_, Error>(())
+            })
+        }).await.unwrap();
     }).await;
 }
 

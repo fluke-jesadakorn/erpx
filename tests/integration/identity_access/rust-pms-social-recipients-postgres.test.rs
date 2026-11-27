@@ -5,7 +5,9 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_identity_access::public::pms_social_event_recipients::pms_social_recipients;
+use erpx_server_identity_access::public::pms_social_event_recipients::{
+    pms_social_recipients, pms_social_source_readable,
+};
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
@@ -160,4 +162,26 @@ async fn inactive_branch_blocks_every_recipient() {
         assert!(recipients.is_empty());
     })
     .await;
+}
+
+#[tokio::test]
+async fn feed_body_and_preview_use_their_respective_assignment_scopes() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        sqlx::query(
+            "INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,
+                                     version,scope_kind)
+             VALUES('a-manager-frontdesk','user-manager','reader','[]','company',0,9000000000000,1,'holding')",
+        )
+        .execute(pool.raw()).await.unwrap();
+        let mut connection = pool.raw().acquire().await.unwrap();
+        assert!(pms_social_source_readable(&mut connection, "company", "task", "user-manager", None).await.unwrap());
+        assert!(!pms_social_source_readable(&mut connection, "company", "task", "user-manager", Some("a-manager-frontdesk")).await.unwrap());
+        assert!(pms_social_source_readable(&mut connection, "company", "reservation", "user-manager", Some("a-manager-frontdesk")).await.unwrap());
+        assert!(!pms_social_source_readable(&mut connection, "company", "reservation", "user-other-branch", None).await.unwrap());
+        assert!(!pms_social_source_readable(&mut connection, "company", "inactive-reservation", "user-manager", None).await.unwrap());
+        assert!(!pms_social_source_readable(&mut connection, "another-company", "reservation", "user-manager", None).await.unwrap());
+        assert!(!pms_social_source_readable(&mut connection, "company", "reservation", "user-inactive", None).await.unwrap());
+        assert!(!pms_social_source_readable(&mut connection, "company", "reservation", "user-expired", None).await.unwrap());
+    }).await;
 }

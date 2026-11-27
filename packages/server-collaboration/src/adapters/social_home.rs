@@ -28,6 +28,7 @@ pub enum SocialHomeSelection<'a> {
 #[derive(Debug)]
 pub struct SocialHomeCandidate {
     pub id: String,
+    pub kind: String,
     pub version: i64,
     pub author_id: String,
     pub purpose: String,
@@ -39,6 +40,7 @@ pub struct SocialHomeCandidate {
     pub linked_record_id: Option<String>,
     pub sources: Vec<PostSource>,
     pub task_origin: Option<String>,
+    pub operational_handover: bool,
 }
 
 pub struct SocialHomeAdditions {
@@ -49,7 +51,6 @@ pub struct SocialHomeAdditions {
     pub task: Option<Value>,
     pub tracking_state: Option<String>,
     pub purchase: Option<Value>,
-    pub handover_receipt: Option<Value>,
 }
 
 pub type SocialHomePolicyFuture<'a> =
@@ -67,13 +68,23 @@ pub trait SocialHomePolicy: Send {
 }
 
 const CANDIDATES: &str = r#"
-SELECT p.id,p.version,p.author_id,p.purpose,p.audience_kind,p.audience_id,p.branch_id,
+SELECT p.id,p.kind,p.version,p.author_id,p.purpose,p.audience_kind,p.audience_id,p.branch_id,
        p.department_id,p.linked_module,p.linked_record_id,p.created_at,
-       COALESCE((SELECT jsonb_agg(jsonb_build_object('kind',s.source_kind,'id',s.source_id)
-                                ORDER BY s.ordinal)
-                 FROM social_post_sources s WHERE s.post_id=p.id),'[]'::jsonb) AS sources,
+       source.bindings AS sources,
+       (p.purpose='handover' AND p.audience_kind IS NOT DISTINCT FROM 'participants' AND EXISTS(
+           SELECT 1 FROM command_receipts receipt
+           WHERE receipt.operation='work.handover.publish' AND receipt.record_id=p.id
+             AND receipt.actor_id=p.author_id AND receipt.authority_json::jsonb->>'companyId'=p.company_id
+             AND receipt.result_json::jsonb->>'id'=p.id
+             AND receipt.result_json::jsonb->'sourceBindings'=source.bindings
+        )) AS operational_handover,
        (SELECT task_id FROM social_task_origins o WHERE o.post_id=p.id) AS task_origin
 FROM social_posts p
+CROSS JOIN LATERAL (
+    SELECT COALESCE(jsonb_agg(jsonb_build_object('kind',s.source_kind,'id',s.source_id)
+                             ORDER BY s.ordinal),'[]'::jsonb) AS bindings
+    FROM social_post_sources s WHERE s.post_id=p.id
+) source
 WHERE p.company_id=$1 AND p.state='published'
   AND (p.audience_kind IS NULL OR p.audience_kind IN ('company','branch','department','project')
        OR (p.audience_kind='participants' AND EXISTS(
@@ -119,7 +130,19 @@ SELECT p.id,to_jsonb(p) AS card,
        (SELECT count(*) FROM social_reactions r WHERE r.post_id=p.id) AS appreciation_count,
        EXISTS(SELECT 1 FROM social_reactions r WHERE r.post_id=p.id AND r.principal_id=$2) AS appreciated,
        EXISTS(SELECT 1 FROM social_follows f
-              WHERE f.target_type='post' AND f.target_id=p.id AND f.principal_id=$2) AS followed
+              WHERE f.target_type='post' AND f.target_id=p.id AND f.principal_id=$2) AS followed,
+       CASE WHEN p.purpose='handover' AND p.audience_kind='participants' THEN (
+           SELECT jsonb_build_object(
+               'postId',p.id,'postVersion',p.version,
+               'canAcknowledge',COALESCE(bool_or(recipient.user_id=$2),false),
+               'acknowledged',COALESCE(bool_or(ack.user_id=$2),false),
+               'recipientCount',count(*),'acknowledgedCount',count(ack.user_id)
+           )
+           FROM social_post_participants recipient
+           LEFT JOIN social_handover_acknowledgements ack ON ack.post_id=recipient.post_id
+               AND ack.user_id=recipient.user_id AND ack.post_version=p.version
+           WHERE recipient.post_id=p.id AND recipient.user_id<>p.author_id
+       ) END AS handover_receipt
 FROM social_posts p WHERE p.company_id=$1 AND p.state='published' AND p.id=ANY($3)
 "#;
 
@@ -186,6 +209,7 @@ pub(super) async fn read_home_posts(
         for row in candidates {
             let candidate = SocialHomeCandidate {
                 id: row.try_get("id")?,
+                kind: row.try_get("kind")?,
                 version: row.try_get("version")?,
                 author_id: row.try_get("author_id")?,
                 purpose: row.try_get("purpose")?,
@@ -197,6 +221,7 @@ pub(super) async fn read_home_posts(
                 linked_record_id: row.try_get("linked_record_id")?,
                 sources: row.try_get::<Json<Vec<_>>, _>("sources")?.0,
                 task_origin: row.try_get("task_origin")?,
+                operational_handover: row.try_get("operational_handover")?,
             };
             before = Some((row.try_get("created_at")?, candidate.id.clone()));
             let Some(additions) = policy.present(connection, scope, &candidate).await? else {
@@ -433,12 +458,8 @@ fn project_card(
     if let Some(purchase) = additions.purchase {
         data.insert("purchase".into(), purchase);
     }
-    if candidate.purpose == "handover" && candidate.audience_kind.as_deref() == Some("participants")
-    {
-        data.insert(
-            "handoverReceipt".into(),
-            additions.handover_receipt.unwrap_or(Value::Null),
-        );
+    if let Some(receipt) = row.try_get::<Option<Value>, _>("handover_receipt")? {
+        data.insert("handoverReceipt".into(), receipt);
     }
     Ok(Value::Object(data))
 }

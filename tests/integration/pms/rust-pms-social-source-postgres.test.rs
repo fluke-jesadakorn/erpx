@@ -6,7 +6,7 @@
 mod fixture;
 
 use erpx_server_pms::public::pms_social_event::{
-    PMS_SOURCES_SQL, pms_social_payout_source, pms_social_source,
+    PMS_SOURCES_SQL, pms_social_payout_source, pms_social_source, pms_social_source_for_company,
 };
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
@@ -61,10 +61,15 @@ async fn source_union_reads_records_transfers_and_corrections() {
         assert_eq!(reservation.company_id, "company");
         assert_eq!(reservation.branch_id, "branch");
         assert_eq!(reservation.property_name, "Grand Hotel");
+        assert_eq!(reservation.property_id, "property");
         assert_eq!(reservation.business_date, "2026-10-05");
         assert_eq!(reservation.version, 4);
         assert_eq!(reservation.data_json["state"], "confirmed");
         assert_eq!(reservation.data_json["guestAccountId"], "guest");
+        assert_eq!(reservation.capability(), Some("pms.reservations"));
+        let reservation_link = reservation.link().unwrap();
+        assert_eq!(reservation_link.href, "/pms/reservations?property=property&record=reservation&guestAccount=guest");
+        assert_eq!(reservation_link.title, "Grand Hotel · Reservation");
 
         let transfer = pms_social_source(&mut connection, Some("transfer"), "company", "property")
             .await
@@ -75,6 +80,8 @@ async fn source_union_reads_records_transfers_and_corrections() {
         assert_eq!(transfer.data_json["state"], "pending");
         assert_eq!(transfer.data_json["recordedBy"], "cashier");
         assert_eq!(transfer.data_json["guestAccountId"], "folio");
+        assert_eq!(transfer.capability(), Some("pms.guest-accounts"));
+        assert_eq!(transfer.link().unwrap().href, "/pms/guest-accounts?property=property&record=transfer&guestAccount=folio&queue=approval");
 
         let correction =
             pms_social_source(&mut connection, Some("correction"), "company", "property")
@@ -85,6 +92,19 @@ async fn source_union_reads_records_transfers_and_corrections() {
         assert_eq!(correction.version, 3);
         assert_eq!(correction.data_json["state"], "pending");
         assert_eq!(correction.data_json["requestedBy"], "cashier");
+        assert_eq!(correction.link().unwrap().href, "/pms/guest-accounts?property=property&record=correction&guestAccount=folio&queue=corrections");
+        assert_eq!(
+            pms_social_source_for_company(&mut connection, "correction", "company")
+                .await
+                .unwrap(),
+            Some(correction)
+        );
+        assert!(
+            pms_social_source_for_company(&mut connection, "correction", "other")
+                .await
+                .unwrap()
+                .is_none()
+        );
 
         // Company/property filters and a null source id fail closed.
         assert!(

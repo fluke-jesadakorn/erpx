@@ -4,7 +4,9 @@
 #![allow(dead_code)]
 #[path = "../../support/operations/rust-operations-database.rs"]
 mod fixture;
-use erpx_server_operations::public::record_source::{lock_record_sources, read_record_source};
+use erpx_server_operations::public::record_source::{
+    lock_record_sources, read_record_source, read_social_task_source,
+};
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
@@ -44,6 +46,44 @@ async fn seed(pool: &DatabasePool) {
 
 fn company() -> CompanyId {
     CompanyId::new("company").unwrap()
+}
+
+#[tokio::test]
+async fn social_task_source_preserves_preview_and_handover_participation() {
+    fixture::with_database(2, |holding| async move {
+        migrate(&holding).await;
+        seed(&holding).await;
+        let mut tx = serializable(&holding).await;
+        sqlx::raw_sql(
+            "UPDATE staff_tasks SET start_approvers_json='[\"approver\"]' WHERE id='task';
+             INSERT INTO staff_task_delegations(id,company_id,task_id,delegator_user_id,delegate_user_id,
+               starts_at,expires_at,reason,created_at,updated_at) VALUES
+              ('older','company','task','creator','older-delegate',0,200,'Fixture',10,10),
+              ('latest','company','task','creator','latest-delegate',0,200,'Fixture',20,20),
+              ('expired','company','task','creator','expired-delegate',0,99,'Fixture',30,30);",
+        ).execute(&mut *tx).await.unwrap();
+        for (user, preview, handover) in [
+            ("assignee", true, true), ("approver", true, true),
+            ("older-delegate", false, true), ("latest-delegate", true, true),
+            ("expired-delegate", false, false), ("unrelated", false, false),
+        ] {
+            let task = read_social_task_source(&mut tx, &company(), "task", user, 100).await.unwrap().unwrap();
+            assert_eq!((task.preview_participant, task.handover_participant), (preview, handover), "{user}");
+            assert_eq!((task.title.as_str(), task.state.as_str(), task.version), ("Synthetic task", "in_progress", 7));
+        }
+        assert!(read_social_task_source(&mut tx, &company(), "foreign-task", "creator", 100).await.unwrap().is_none());
+        sqlx::raw_sql(
+            "INSERT INTO social_posts(id,author_id,author_name,company_id,body,created_at,updated_at)
+               VALUES('origin','creator','Creator','company','Original post',1,1);
+             INSERT INTO social_task_origins(post_id,task_id,source_version,source_hash,created_by,created_at)
+               VALUES('origin','task',1,'fixture','creator',1);",
+        ).execute(&mut *tx).await.unwrap();
+        let task = read_social_task_source(&mut tx, &company(), "task", "assignee", 100).await.unwrap().unwrap();
+        assert_eq!(task.origin_post_id.as_deref(), Some("origin"));
+        assert!(task.preview_participant);
+        assert!(!task.handover_participant);
+        tx.rollback().await.unwrap();
+    }).await;
 }
 
 #[tokio::test]

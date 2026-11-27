@@ -13,13 +13,24 @@ use sqlx::PgConnection;
 
 const PMS_SOURCES_SQL: &str = "SELECT r.id,r.property_id,r.kind,r.data_json::jsonb data,r.version,r.updated_at,\n    p.company_id,p.branch_id,p.name property_name,p.business_date\n  FROM pms_records r JOIN pms_properties p ON p.id=r.property_id\n  UNION ALL\n  SELECT t.id,t.property_id,'transfer',jsonb_build_object('state',t.state,'recordedBy',t.recorded_by,\n    'guestAccountId',t.guest_account_id),t.version,t.updated_at,p.company_id,p.branch_id,p.name,p.business_date\n  FROM pms_transfer_requests t JOIN pms_properties p ON p.id=t.property_id AND p.company_id=t.company_id\n  UNION ALL\n  SELECT c.id,c.property_id,'correction',jsonb_build_object('state',c.status,'requestedBy',c.requested_by,\n    'guestAccountId',c.guest_account_id),c.version,c.updated_at,p.company_id,p.branch_id,p.name,p.business_date\n  FROM pms_charge_corrections c JOIN pms_properties p ON p.id=c.property_id AND p.company_id=c.company_id";
 
-/// Exact `pmsSourceReadableSql("pr", "a.user_id", "a.id")` expansion.
-fn pms_source_readable_sql() -> String {
+enum ViewerBinding {
+    RecipientAssignment,
+    FeedViewer,
+}
+
+/// A recipient is evaluated against the assignment that selected them. A Feed
+/// post may use any eligible assignment of the signed-in user for its body.
+/// The Feed preview supplies the actual selected assignment.
+fn pms_source_readable_sql(viewer: ViewerBinding) -> String {
+    let (user, assignment) = match viewer {
+        ViewerBinding::RecipientAssignment => ("a.user_id", "pa.id=a.id"),
+        ViewerBinding::FeedViewer => ("$3", "($4::text IS NULL OR pa.id=$4)"),
+    };
     let allows =
         |permission: &str| format!("iam_role_allows(pa.role,pa.company_id,'{permission}')");
     format!(
-        "EXISTS(SELECT 1 FROM assignments pa WHERE pa.user_id=a.user_id AND pa.company_id=pr.company_id\n\
-         AND pa.id=a.id\n\
+        "EXISTS(SELECT 1 FROM assignments pa WHERE pa.user_id={user} AND pa.company_id=pr.company_id\n\
+         AND {assignment}\n\
          AND pa.revoked_at IS NULL AND iam_assignment_active(pa.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n\
          AND iam_principal_active(pa.user_id,pa.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n\
          AND pa.valid_from<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint\n\
@@ -67,7 +78,7 @@ pub async fn pms_social_recipients(
          WHERE a.company_id=$2 AND {readable}\n\
          AND NOT iam_same_person(a.user_id,$3,a.company_id)\n\
          AND (($4::text IS NOT NULL AND iam_role_allows(a.role,a.company_id,$5)) OR ($6::text IS NULL AND iam_same_person(a.user_id,$7,a.company_id)))",
-        readable = pms_source_readable_sql(),
+        readable = pms_source_readable_sql(ViewerBinding::RecipientAssignment),
     );
     sqlx::query_scalar::<_, String>(sqlx::AssertSqlSafe(sql))
         .bind(id)
@@ -80,6 +91,43 @@ pub async fn pms_social_recipients(
         .fetch_all(&mut *connection)
         .await
         .map_err(read_failed)
+}
+
+/// Current IAM authorization for one same-Company PMS source. Pass the
+/// selected assignment for a link preview. Use the user's eligible
+/// assignments for the enclosing conversation's visibility check.
+pub async fn pms_social_source_readable(
+    connection: &mut PgConnection,
+    company_id: &str,
+    source_id: &str,
+    user_id: &str,
+    assignment_id: Option<&str>,
+) -> Result<bool, BusinessError> {
+    let sql = format!(
+        "SELECT EXISTS(SELECT 1 FROM ({PMS_SOURCES_SQL}) pr
+         WHERE pr.id=$1 AND pr.company_id=$2 AND {readable})",
+        readable = pms_source_readable_sql(ViewerBinding::FeedViewer),
+    );
+    sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+        .bind(source_id)
+        .bind(company_id)
+        .bind(user_id)
+        .bind(assignment_id)
+        .fetch_one(connection)
+        .await
+        .map_err(|error| {
+            let persistence = PersistenceError::from(error);
+            let failure = if persistence.retryable() {
+                FailureKind::Conflict
+            } else {
+                FailureKind::Unavailable
+            };
+            BusinessError::new(
+                failure,
+                "IAM_PMS_SOCIAL_SOURCE_UNAVAILABLE",
+                "The hotel work access could not be verified.",
+            )
+        })
 }
 
 fn read_failed(error: sqlx::Error) -> BusinessError {
@@ -105,7 +153,7 @@ mod tests {
 
     #[test]
     fn readable_sql_keeps_hard_permissions_and_source_scopes() {
-        let sql = pms_source_readable_sql();
+        let sql = pms_source_readable_sql(ViewerBinding::RecipientAssignment);
         assert!(sql.contains("pa.id=a.id"));
         assert!(sql.contains("iam_role_allows(pa.role,pa.company_id,'pms.read')"));
         assert!(sql.contains("pr.kind IN ('refund','correction')"));
