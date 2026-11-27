@@ -9257,18 +9257,10 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15541,
+    "revision": 15559,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
-    "coordinator": {
-      "runId": "run-goal-records-operations-tail-01",
-      "agentId": "codex-lead",
-      "startedAt": "2026-11-27T05:08:07.556Z",
-      "heartbeatAt": "2026-11-27T05:43:44.185Z",
-      "expiresAt": "2026-11-27T06:13:44.185Z",
-      "generation": 198,
-      "tokenHash": "0689ac6c71ac7c240cee2e4e50eda3cd55266eee5a439cb321aaddb035ef5619"
-    },
+    "coordinator": null,
     "coordinationPolicy": {
       "singleCheckout": true,
       "coordinatorOnlyTrackedWrites": true,
@@ -217811,11 +217803,11 @@
         "resources": [
           "path:cutover.operations.routine-template-ssr"
         ],
-        "status": "ready_for_integration",
+        "status": "migrated",
         "claim": null,
         "baseSha": "e8311c3a1512c00df2c4fc97102c48adab0abb66",
-        "implementedCommit": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
-        "lastPushedSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+        "implementedCommit": "402a1fb5af3215b2b9d0393223c7c013bf0f7799",
+        "lastPushedSha": "402a1fb5af3215b2b9d0393223c7c013bf0f7799",
         "checks": [
           {
             "command": "Bun Operations presenter/native client typed tests",
@@ -217827,6 +217819,36 @@
             "sourceSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
             "result": "failed",
             "reason": "The existing Projects picker passes a native Workflow write descriptor to a TypeScript raw SQL batch (CROSS_DATABASE_TRANSACTION) before any routine data renders. Initial Finance configuration verified against the existing native mount and fixed locally."
+          },
+          {
+            "command": "Authenticated public Acme routine detail SSR with explicit Company",
+            "sourceSha": "402a1fb5af3215b2b9d0393223c7c013bf0f7799",
+            "result": "passed"
+          },
+          {
+            "command": "Bun Operations native lane 28, route and service/presenter suites (178 passed; real loopback Host regression)",
+            "sourceSha": "402a1fb5af3215b2b9d0393223c7c013bf0f7799",
+            "result": "passed"
+          },
+          {
+            "command": "Bun tsc --noEmit tests/config/tsconfig.json",
+            "sourceSha": "402a1fb5af3215b2b9d0393223c7c013bf0f7799",
+            "result": "passed"
+          },
+          {
+            "command": "Loopback vs Node fetch checked exact Acme Holding Host; direct Node HTTP returns native list and nested schedule",
+            "sourceSha": "402a1fb5af3215b2b9d0393223c7c013bf0f7799",
+            "result": "passed"
+          },
+          {
+            "command": "retirement:next-routes:operations-template-milestone",
+            "sourceSha": "402a1fb5af3215b2b9d0393223c7c013bf0f7799",
+            "result": "passed",
+            "before": 1426,
+            "after": 1423,
+            "relatedRouteCommit": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "methodPathDelta": 0,
+            "deletedFiles": 0
           }
         ],
         "retainedLegacy": [
@@ -217851,7 +217873,7 @@
             "removalCondition": "Retire the remaining legacy Operations read oracles after replacing existing test consumers with the native contract."
           }
         ],
-        "blocker": "handoff",
+        "blocker": null,
         "handoff": {
           "runId": "run-goal-records-operations-tail-01",
           "agentId": "codex-lead",
@@ -217860,7 +217882,12 @@
           "reason": "handoff",
           "nextAction": "Repair Projects guard/picker seam, recheck native Finance and Brand config, then verify canonical authenticated Acme SSR end to end. Source and API are already pushed."
         },
-        "nextAction": "Repair Projects guard/picker seam, recheck native Finance and Brand config, then verify canonical authenticated Acme SSR end to end. Source and API are already pushed."
+        "nextAction": "Authenticated Company URL rendered the synthetic template title and version from native owner reads. No additional file retirement beyond the previously counted Operations route milestone. Continue the sibling schedule-state ingress and Projects purchase/picker native source.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "cutover.operations.routine-schedule-authority",
@@ -218124,30 +218151,44 @@
         "resources": [
           "path:cutover.operations.routine-ssr-dependencies"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-goal-records-operations-tail-01",
-          "agentId": "hy4-ssr",
-          "claimedAt": "2026-11-27T05:43:44.628Z",
-          "heartbeatAt": "2026-11-27T05:43:44.628Z",
-          "expiresAt": "2026-11-27T06:13:44.628Z",
-          "generation": 198
-        },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "status": "blocked",
+        "claim": null,
+        "baseSha": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+        "implementedCommit": "402a1fb5af3215b2b9d0393223c7c013bf0f7799",
+        "lastPushedSha": "402a1fb5af3215b2b9d0393223c7c013bf0f7799",
+        "checks": [
+          {
+            "command": "Authenticated public Acme routine detail SSR with explicit Company",
+            "sourceSha": "402a1fb5af3215b2b9d0393223c7c013bf0f7799",
+            "result": "passed"
+          },
+          {
+            "command": "Bun Operations native lane 28, route and service/presenter suites (178 passed; real loopback Host regression)",
+            "sourceSha": "402a1fb5af3215b2b9d0393223c7c013bf0f7799",
+            "result": "passed"
+          },
+          {
+            "command": "Bun tsc --noEmit tests/config/tsconfig.json",
+            "sourceSha": "402a1fb5af3215b2b9d0393223c7c013bf0f7799",
+            "result": "passed"
+          },
+          {
+            "command": "Loopback vs Node fetch checked exact Acme Holding Host; direct Node HTTP returns native list and nested schedule",
+            "sourceSha": "402a1fb5af3215b2b9d0393223c7c013bf0f7799",
+            "result": "passed"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "handoff",
         "handoff": {
           "runId": "run-goal-records-operations-tail-01",
-          "agentId": "hy4-operations-implementation",
-          "at": "2026-11-27T05:27:41.684Z",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T05:53:11.302Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "HY4 implemented public {data} and draft schedules read. Lead candidate exposed overlapping Axum parameter names on /schedules. Reuse the routine route registration and move selected IAM decision into the authorized composition transaction before runtime verification."
+          "nextAction": "Replace Projects picker/purchase authority with a native composed read. The interim guard resolver keeps current SSR working and executes the same ordered guards atomically. Local Finance/Operations loopback and Acme Brand scopes verified."
         },
-        "nextAction": "Use the authenticated Acme Company URL, reproduce CROSS_DATABASE_TRANSACTION in projectPurchaseControls, verify same-database statement ownership and migrate the Projects picker authority seam to Rust. Verify Finance and Operations native client config first."
+        "nextAction": "Replace Projects picker/purchase authority with a native composed read. The interim guard resolver keeps current SSR working and executes the same ordered guards atomically. Local Finance/Operations loopback and Acme Brand scopes verified."
       },
       {
         "id": "cutover.operations.routine-schedule-state",
@@ -218169,23 +218210,121 @@
         "resources": [
           "path:cutover.operations.routine-schedule-state"
         ],
-        "status": "pending",
+        "status": "ready_for_integration",
         "claim": null,
-        "baseSha": null,
+        "baseSha": "402a1fb5af3215b2b9d0393223c7c013bf0f7799",
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "Acme native Axum loopback resume/pause/end and same-key replays against synthetic schedule (6 HTTP 200)",
+            "sourceSha": "402a1fb5af3215b2b9d0393223c7c013bf0f7799",
+            "result": "passed"
+          }
+        ],
         "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-goal-records-operations-tail-01",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T05:53:11.644Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Start with verified native pause/resume/end. Add method/path matcher and assert unsupported methods/OPTIONS, verify via public gateway on a fresh fixture, then delete the three sibling route files and the final TypeScript routine command transport."
+        },
+        "nextAction": "Start with verified native pause/resume/end. Add method/path matcher and assert unsupported methods/OPTIONS, verify via public gateway on a fresh fixture, then delete the three sibling route files and the final TypeScript routine command transport."
+      },
+      {
+        "id": "cutover.operations.routine-ssr-list-authority",
+        "owner": "operations",
+        "title": "Bind the routine collection SSR read to its selected Holding authority",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/routine-templates/screen.tsx",
+          "tests/unit/operations/native-routines-read.test.ts",
+          "tests/unit/operations/task-worker-display.test.ts"
+        ],
+        "resources": [
+          "path:cutover.operations.routine-ssr-list-authority"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": "e8311c3a1512c00df2c4fc97102c48adab0abb66",
+        "implementedCommit": "402a1fb5af3215b2b9d0393223c7c013bf0f7799",
+        "lastPushedSha": "402a1fb5af3215b2b9d0393223c7c013bf0f7799",
+        "checks": [
+          {
+            "command": "Authenticated public Acme routine detail SSR with explicit Company",
+            "sourceSha": "402a1fb5af3215b2b9d0393223c7c013bf0f7799",
+            "result": "passed"
+          },
+          {
+            "command": "Bun Operations native lane 28, route and service/presenter suites (178 passed; real loopback Host regression)",
+            "sourceSha": "402a1fb5af3215b2b9d0393223c7c013bf0f7799",
+            "result": "passed"
+          },
+          {
+            "command": "Bun tsc --noEmit tests/config/tsconfig.json",
+            "sourceSha": "402a1fb5af3215b2b9d0393223c7c013bf0f7799",
+            "result": "passed"
+          },
+          {
+            "command": "Loopback vs Node fetch checked exact Acme Holding Host; direct Node HTTP returns native list and nested schedule",
+            "sourceSha": "402a1fb5af3215b2b9d0393223c7c013bf0f7799",
+            "result": "passed"
+          },
+          {
+            "command": "retirement:next-routes:operations-template-milestone",
+            "sourceSha": "402a1fb5af3215b2b9d0393223c7c013bf0f7799",
+            "result": "passed",
+            "before": 1426,
+            "after": 1423,
+            "relatedRouteCommit": "b57a2635f64a6df3d9622f345c7ca034bdc8cb31",
+            "methodPathDelta": 0,
+            "deletedFiles": 0
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/routine-schedules/[[...path]]/route.ts",
+            "removalTaskId": "cutover.operations.routine-schedule-state",
+            "removalCondition": "Verify all schedule-state actions on the Axum gateway and remove their Next transport."
+          },
+          {
+            "path": "packages/server-operations/src/public/native-routines-page.ts",
+            "removalTaskId": "cutover.operations.routine-schedule-state",
+            "removalCondition": "Remove the last TypeScript command proxy when the sibling route is retired."
+          },
+          {
+            "path": "packages/server-projects/src/adapters/purchases.ts",
+            "removalTaskId": "cutover.operations.routine-ssr-dependencies",
+            "removalCondition": "Use native current authority/project picker and verify the canonical authenticated SSR page at 200."
+          },
+          {
+            "path": "packages/server-operations/src/adapters/routines.ts",
+            "removalTaskId": "retire.operations.routines",
+            "removalCondition": "Retire the remaining legacy Operations read oracles after replacing existing test consumers with the native contract."
+          }
+        ],
         "blocker": null,
         "handoff": {
           "runId": "run-goal-records-operations-tail-01",
-          "agentId": "hy4-operations-implementation",
-          "at": "2026-11-27T05:27:41.684Z",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T05:50:49.211Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "HY4 implemented public {data} and draft schedules read. Lead candidate exposed overlapping Axum parameter names on /schedules. Reuse the routine route registration and move selected IAM decision into the authorized composition transaction before runtime verification."
+          "nextAction": "Update the list and presenter tests for the exact Holding Host transport after verified Node fetch 404 vs direct Node HTTP 200."
         },
-        "nextAction": "Verify pause, resume and end against a real Acme native fixture with the current selection and captured schedule lineage. Reconcile state replay and remove the adjacent Next catch-all and its two app re-exports after runtime evidence."
+        "nextAction": "Authenticated Company URL rendered the synthetic template title and version from native owner reads. No additional file retirement beyond the previously counted Operations route milestone. Continue the sibling schedule-state ingress and Projects purchase/picker native source.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       }
     ],
     "migrationProgress": {
@@ -218208,7 +218347,7 @@
       }
     },
     "lastCoordinatorGeneration": 198,
-    "updatedAt": "2026-11-27T05:46:29.871Z",
+    "updatedAt": "2026-11-27T05:53:11.808Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
