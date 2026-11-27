@@ -1,24 +1,28 @@
+#[path = "../../support/rust-postgres.rs"]
+mod fixture;
+
 use erpx_server_commercial::public::company_plugins::{
     PluginPin, install_company_plugin, list_company_plugins, verify_plugin_version,
     withdraw_company_plugin,
 };
+use erpx_server_runtime::public::postgres::{MigrationTrack, load_migrations, migrate_database};
 use erpx_server_shared::public::{CompanyId, UserId};
 use sha2::{Digest, Sha256};
-use sqlx::PgPool;
 
 #[tokio::test]
 async fn withdrawal_and_retry_respect_the_installation_version_and_company() {
-    let Ok(uri) = std::env::var("ERPX_TEST_OASIS_PLUGIN_DATABASE") else {
-        return;
-    };
-    let pool = PgPool::connect(&uri).await.unwrap();
-    let mut tx = pool.begin().await.unwrap();
-    let database: String = sqlx::query_scalar("SELECT current_database()")
-        .fetch_one(&mut *tx)
+    fixture::with_database(2, check_installations).await;
+}
+
+async fn check_installations(pool: erpx_server_runtime::public::postgres::DatabasePool) {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+    let files = load_migrations(&root, MigrationTrack::HoldingWrite)
         .await
         .unwrap();
-    assert_eq!(database, "erpx_stage_oasis_demo_h002");
-
+    migrate_database(&pool, MigrationTrack::HoldingWrite, &files)
+        .await
+        .unwrap();
+    let mut tx = pool.raw().begin().await.unwrap();
     let files = include_bytes!("../../../contracts/plugins/site-measurement.example.json");
     let pin = PluginPin {
         id: "site-measurement".into(),

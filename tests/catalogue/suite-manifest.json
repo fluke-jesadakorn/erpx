@@ -20446,6 +20446,34 @@
       ]
     },
     {
+      "id": "commercial.company-plugins-postgres.integration",
+      "lane": "integration",
+      "owner": "commercial",
+      "modules": ["commercial"],
+      "fixture": "postgres",
+      "requires": {"jobs": false, "scanner": false},
+      "ci": {
+        "critical": true,
+        "reason": "Company plugin withdrawal and version replay must preserve another Company's installation and protect a later installation from a stale withdrawal."
+      },
+      "files": ["tests/integration/commercial/rust-company-plugins-postgres.test.rs"],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-commercial",
+        "targets": ["company_plugins_postgres"]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-commercial/Cargo.toml",
+        "migrations/postgres/holding-write/1103_company_plugin_installations.sql",
+        "contracts/plugins/site-measurement.example.json"
+      ],
+      "apps": ["apps"],
+      "packages": ["@erpx/server-commercial"]
+    },
+    {
       "id": "commercial.rust-package-grants-postgres.integration",
       "lane": "integration",
       "owner": "commercial",
