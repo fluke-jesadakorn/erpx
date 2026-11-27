@@ -15,13 +15,9 @@ use std::sync::Arc;
 
 /// Composition-owned admission for the native Records reference search.
 ///
-/// The owner SQL already restricts every `RecordHit` to the selected Holding,
-/// Company, branch/department and module allowlist, so this port only re-checks
-/// the exact module the hit belongs to. Principal hits need the legacy
-/// Control-side `principals.display_name LIKE ...` read plus the active
-/// assignment check. Identity & Access exposes no public port with that shape
-/// yet (`native_lane_11` resolves known person ids only), so principal hits
-/// stay empty rather than fabricating a person list.
+/// Candidate SQL scopes records by Company, branch or department and module.
+/// It excludes Field-owned sources before the limit. Principal names come from
+/// the Control database, with active-assignment eligibility read in the Holding.
 struct RecordsSearchAdmission {
     control: DatabasePool,
     holding: DatabasePool,
@@ -1143,7 +1139,9 @@ pub fn mount(
         .map_err(|_| "PRIVATE_API_WORKFLOW_LANE32_INVALID")?,
     );
 
-    // Records reference search: owner SQL with composition-owned admission.
+    // The generic Records search excludes the Field owner's source identities.
+    let field_probe =
+        erpx_server_field_service::public::record_probe::field_record_probe("sourceReadScopeProbe");
     router = router.merge(
         erpx_server_records::public::record_search_http::router_for_holdings(
             config.holdings.iter().enumerate().map(|(i, holding)| (
@@ -1154,6 +1152,7 @@ pub fn mount(
                 pools[i + 1].clone(),
                 records_search_admission(pools[0].clone(), pools[i + 1].clone()),
             )).collect(),
+            field_probe,
         ).map_err(|_| "PRIVATE_API_RECORDS_SEARCH_INVALID")?,
     );
 

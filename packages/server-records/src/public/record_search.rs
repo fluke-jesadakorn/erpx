@@ -1,5 +1,7 @@
 //! Native Records reference-search read and owner ports.
-pub use crate::adapters::record_search::{BRANCH_SQL, DEPARTMENT_SQL, HOLDING_SQL, PgRecordSearch};
+pub use crate::adapters::record_search::{
+    BRANCH_SQL, DEPARTMENT_SQL, HOLDING_SQL, PgRecordSearch, read_search_candidates,
+};
 pub use crate::application::record_search::{
     RecordSearchHandler, RecordSearchSource, SearchAdmission, SearchFuture,
 };

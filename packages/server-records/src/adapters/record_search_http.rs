@@ -306,6 +306,7 @@ pub fn router_with_sources(
 /// Holding and supplies one composition-owned admission port.
 pub fn router_for_holdings(
     targets: Vec<(SearchTarget, DatabasePool, Arc<dyn SearchAdmission>)>,
+    field_probe: &'static str,
 ) -> Result<Router, BusinessError> {
     validate_targets(
         &targets
@@ -319,7 +320,7 @@ pub fn router_for_holdings(
             .map(|(target, pool, admission)| {
                 (
                     target,
-                    Arc::new(PgRecordSearch::new(pool)) as Arc<dyn RecordSearchSource>,
+                    Arc::new(PgRecordSearch::new(pool, field_probe)) as Arc<dyn RecordSearchSource>,
                     admission,
                 )
             })

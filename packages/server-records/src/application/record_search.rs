@@ -11,8 +11,7 @@ use crate::domain::record_search::{
 use erpx_server_shared::public::BusinessError;
 use std::{future::Future, pin::Pin};
 
-pub type SearchFuture<'a, T> =
-    Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
+pub type SearchFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
 
 /// Owner-local SQL access to Records-owned `workspace_records` rows. The
 /// caller must already be inside the serialised Holding read unit; no commit is
@@ -32,11 +31,7 @@ pub trait RecordSearchSource: Send + Sync {
 /// reads using identity-access public ports. Neither method executes SQL from
 /// this crate.
 pub trait SearchAdmission: Send + Sync {
-    fn visible<'a>(
-        &'a self,
-        actor: &'a SearchActor,
-        hit: &'a RecordHit,
-    ) -> SearchFuture<'a, bool>;
+    fn visible<'a>(&'a self, actor: &'a SearchActor, hit: &'a RecordHit) -> SearchFuture<'a, bool>;
 
     fn principal_hits<'a>(
         &'a self,
@@ -64,6 +59,12 @@ impl<S: RecordSearchSource, A: SearchAdmission> RecordSearchHandler<S, A> {
     ) -> Result<SearchResponse, BusinessError> {
         actor.validate()?;
 
+        // The legacy search returns an empty result for an actor with no
+        // readable modules, before Records or principal reads start.
+        if actor.modules.is_empty() {
+            return Ok(SearchResponse { hits: Vec::new() });
+        }
+
         let mut hits = Vec::with_capacity(MAX_HITS);
         for row in self.source.records(actor, query).await? {
             if self.admission.visible(actor, &row).await? {
@@ -75,7 +76,11 @@ impl<S: RecordSearchSource, A: SearchAdmission> RecordSearchHandler<S, A> {
         }
 
         if hits.len() < MAX_HITS {
-            for principal in self.admission.principal_hits(actor, &query.needle(), now).await? {
+            for principal in self
+                .admission
+                .principal_hits(actor, &query.needle(), now)
+                .await?
+            {
                 hits.push(principal.to_wire());
                 if hits.len() >= MAX_HITS {
                     break;
@@ -203,6 +208,52 @@ mod tests {
             .value();
         assert_eq!(value["data"].as_array().unwrap().len(), 1);
         assert_eq!(value["data"][0]["kind"], "person");
+    }
+
+    #[tokio::test]
+    async fn empty_modules_return_empty_data_without_any_read() {
+        struct NoCalls;
+
+        impl RecordSearchSource for NoCalls {
+            fn records<'a>(
+                &'a self,
+                _actor: &'a SearchActor,
+                _query: &'a SearchQuery,
+            ) -> SearchFuture<'a, Vec<RecordHit>> {
+                Box::pin(async { Err(unavailable()) })
+            }
+        }
+
+        impl SearchAdmission for NoCalls {
+            fn visible<'a>(
+                &'a self,
+                _actor: &'a SearchActor,
+                _hit: &'a RecordHit,
+            ) -> SearchFuture<'a, bool> {
+                Box::pin(async { Err(unavailable()) })
+            }
+
+            fn principal_hits<'a>(
+                &'a self,
+                _actor: &'a SearchActor,
+                _needle: &'a str,
+                _now: i64,
+            ) -> SearchFuture<'a, Vec<PrincipalHit>> {
+                Box::pin(async { Err(unavailable()) })
+            }
+        }
+
+        let handler = RecordSearchHandler::new(NoCalls, NoCalls);
+        let mut empty = actor();
+        empty.modules.clear();
+        assert!(empty.validate().is_ok());
+        let value = handler
+            .execute(&empty, &SearchQuery::new("needle").unwrap(), 9)
+            .await
+            .unwrap()
+            .value();
+        assert_eq!(value["data"], serde_json::json!([]));
+        assert_eq!(value.as_object().unwrap().len(), 1);
     }
 
     #[tokio::test]

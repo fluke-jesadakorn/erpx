@@ -138,7 +138,7 @@ describe('native Records search owner execution and payload parity', () => {
     const http = read('packages/server-records/src/adapters/record_search_http.rs');
     expect(http).toContain('/api/v1/holdings/{holding_slug}/records/native-search');
     expect(http).toContain('router_for_holdings');
-    expect(http).toContain('PgRecordSearch::new(pool)');
+    expect(http).toContain('PgRecordSearch::new(pool, field_probe)');
     expect(http).toContain('handler.execute(&actor, &query, now())');
     expect(read('packages/server-records/src/public/record_search.rs')).toContain(
       'RecordSearchHandler, RecordSearchSource, SearchAdmission, SearchFuture',
@@ -160,6 +160,7 @@ describe('native Records search owner execution and payload parity', () => {
     const mount = read('src/composition/src/native_lane_mounts.rs');
     expect(mount).toContain('record_search::SearchTarget');
     expect(mount).toContain('record_search_http::router_for_holdings');
+    expect(mount).toContain('field_record_probe("sourceReadScopeProbe")');
     expect(mount).toContain('records_search_admission(pools[0].clone(), pools[i + 1].clone())');
     expect(mount).toContain('PRIVATE_API_RECORDS_SEARCH_INVALID');
     expect(mount).toContain('impl SearchAdmission for RecordsSearchAdmission');
