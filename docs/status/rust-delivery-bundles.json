@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16182,
+    "revision": 16203,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": null,
@@ -224695,7 +224695,18 @@
           "scripts/local/workspace-gateway-runtime.ts",
           "scripts/local/compiled-workspace-gateway.ts",
           "scripts/local/native-api-proxy.ts",
-          "tests/unit/shared.testing/workspace-supervisor.test.ts"
+          "tests/unit/shared.testing/workspace-supervisor.test.ts",
+          "packages/server-work_projection/src/domain/work_card_availability.rs",
+          "packages/server-work_projection/src/domain/work_card_selection.rs",
+          "packages/server-work_projection/src/domain/work_navigation.rs",
+          "packages/server-work_projection/src/domain/work_navigation_wire.rs",
+          "packages/server-work_projection/src/adapters/work_snapshot_http.rs",
+          "packages/server-work_projection/src/adapters/work_snapshot_sources.rs",
+          "packages/server-work_projection/src/adapters/work_snapshot_read.rs",
+          "packages/server-work_projection/src/adapters/work-items.ts",
+          "packages/server-work_projection/src/adapters/native-work-snapshot.ts",
+          "tests/integration/shared.work/rust-work-navigation-postgres.test.rs",
+          "packages/server-inventory/src/adapters/count-purchases.ts"
         ],
         "resources": [
           "feed-native-page-presentation",
@@ -224703,9 +224714,9 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": "f5b11de4705ca6e0e6dec39fef819be2625004d0",
-        "implementedCommit": "33398bb2da24effc69ed232b290fbc49f175f861",
-        "lastPushedSha": "33398bb2da24effc69ed232b290fbc49f175f861",
+        "baseSha": "8fc9167d641ef1d354884e6cbc4baac5f4c7a1cd",
+        "implementedCommit": "63ed5785b8ddfda62c74ef6fc1f269e9dc732a76",
+        "lastPushedSha": "7bebafd004103bd021247ca36dfa4c9a56c4743a",
         "checks": [
           {
             "command": "cargo test --locked -p erpx-server-work-projection --lib work_navigation",
@@ -224754,35 +224765,70 @@
             "result": "passed",
             "sourceSha": "33398bb2da24effc69ed232b290fbc49f175f861",
             "details": "The last signed visit still ran 1854 navigation queries in 13.9s and whole GET in 15.0s. The native command change is independent of this residual SSR query."
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-work-projection --lib work_navigation",
+            "result": "passed",
+            "sourceSha": "63ed5785b8ddfda62c74ef6fc1f269e9dc732a76",
+            "details": "14 focused unit cases passed including real card serialization, unknown sources and ordering."
+          },
+          {
+            "command": "cargo test --locked -p erpx-server-work-projection --test work_navigation_postgres --test work_snapshot_maintenance_postgres",
+            "result": "passed",
+            "sourceSha": "63ed5785b8ddfda62c74ef6fc1f269e9dc732a76",
+            "details": "Both Admin PostgreSQL fixture integrations passed using the real owner projection. Maintenance readback preserved the in-progress status, title, detail and next action."
+          },
+          {
+            "command": "cargo build --locked -p erpx-service --features private-development-api,production-api --bin erpx-server",
+            "result": "passed",
+            "sourceSha": "63ed5785b8ddfda62c74ef6fc1f269e9dc732a76",
+            "details": "Pinned binary built; rich GET deliberately remains outside the public proxy."
+          },
+          {
+            "command": "Signed Acme Development Feed browser and request trace",
+            "result": "passed",
+            "sourceSha": "63ed5785b8ddfda62c74ef6fc1f269e9dc732a76",
+            "details": "Normal Account sign-in, Feed POST read-home 200 and replay 200, stale role 409, Apps opened. Comparable full Feed load 15.0 to 8.9 seconds and navigation query count 1854 to 1158, preserving 431 snapshot items. This is a read-snapshot optimization; no route retirement is recorded for rich GET."
+          },
+          {
+            "command": "bun run typecheck and bun run structure:check",
+            "result": "passed",
+            "sourceSha": "63ed5785b8ddfda62c74ef6fc1f269e9dc732a76",
+            "details": "Both passed."
           }
         ],
         "retainedLegacy": [
           {
             "path": "packages/server-work_projection/src/adapters/navigation-snapshot.ts",
             "removalTaskId": "cutover.work_projection.feed-navigation-runtime",
-            "removalCondition": "Native Work items carry actual role-scoped title, detail, status, due time and routing facts with exact owner availability. Verify signed browser renewal and SSR against identical fixtures before replacing the retained reader."
+            "removalCondition": "Compare signed native and retained SSR/renewal against the same source fixtures after every required role-scoped presentation owner is connected."
           },
           {
             "path": "packages/server-work_projection/src/adapters/navigation-counts.ts",
             "removalTaskId": "cutover.work_projection.feed-navigation-runtime",
-            "removalCondition": "Move retained unread SSR callers and the legacy markHomeRead integration oracle to the signed native reader and command before retiring the TS adapter."
+            "removalCondition": "Move retained unread SSR consumers and the legacy integration oracle after signed native navigation GET returns parity."
+          },
+          {
+            "path": "packages/server-inventory/src/adapters/count-purchases.ts",
+            "removalTaskId": "cutover.work_projection.feed-navigation-runtime",
+            "removalCondition": "Replace the remaining navigation-only TypeScript source policy path with native Inventory source admission once every purchase, initial count origin, and current workflow stage has parity. Keep unrelated Inventory command consumers until their own owner cutovers."
           }
         ],
         "blocker": "handoff",
         "handoff": {
-          "runId": "codex-feed-navigation-20261128",
+          "runId": "codex-feed-owner-work-facts-20261128",
           "agentId": "codex-lead",
-          "at": "2026-11-27T17:35:25.986Z",
+          "at": "2026-11-27T18:21:19.414Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Implement native owner-aware rich Work navigation facts from work_snapshot_read.rs for entitled lanes, including title, detail, due time and routing. Compare the full GET payload with navigation-snapshot.ts using signed Acme and Admin fixtures, then switch SSR and browser refresh together and remeasure /bangkok/apps. The live mark-read POST may be used independently."
+          "nextAction": "Wire Inventory native Stock count Work facts to the existing origin markers, purchase and Quality gates, and flow.current owner/routing facts. Compare initial count variants and pending workflow actions against the same signed fixture. Keep rich GET closed until the remaining owner sources and full expense/routing parity are executable."
         },
         "scope": "The normal Acme branch Feed render has one residual full legacy Work query fan-out (1854 queries and 16.2s in the recorded Development visit). Reuse the mounted but unexposed Rust Work navigation owner port, replacing conservative Beta/Inventory/Expense/routing defaults before switching authority. Keep actual Work cues, package limits and scoped operations.",
         "deliverables": [
           "Signed Holding browser and SSR navigation data use a bounded authoritative native read",
           "Acme/Apps trace shows the Feed and launcher work without the retained full TS Work snapshot on that request"
         ],
-        "nextAction": "Implement native owner-aware rich Work navigation facts from work_snapshot_read.rs for entitled lanes, including title, detail, due time and routing. Compare the full GET payload with navigation-snapshot.ts using signed Acme and Admin fixtures, then switch SSR and browser refresh together and remeasure /bangkok/apps. The live mark-read POST may be used independently."
+        "nextAction": "Wire Inventory native Stock count Work facts to the existing origin markers, purchase and Quality gates, and flow.current owner/routing facts. Compare initial count variants and pending workflow actions against the same signed fixture. Keep rich GET closed until the remaining owner sources and full expense/routing parity are executable."
       },
       {
         "id": "cutover.apps.sales-quotation-approvals",
@@ -224894,6 +224940,103 @@
           "routeAuthority": true,
           "presenterParity": true
         }
+      },
+      {
+        "id": "ux.apps.holding-desktop-motion",
+        "goalId": "G4",
+        "owner": "apps",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Refine the shared Apps launcher with a Holding-branded desktop and tile motion",
+        "dependsOn": [
+          "ux.apps.stable-switcher",
+          "ux.apps.restore-feed-scroll"
+        ],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/workplace/src/components/apps-launcher.tsx",
+          "packages/workplace/src/components/apps-launcher.module.css",
+          "packages/workplace/src/entries/workspace.tsx",
+          "packages/server-work_projection/src/adapters/workspace-entry-presentation-query.ts",
+          "packages/workplace/src/components/company-plugin-catalogue.tsx",
+          "docs/research/oasis-dream-house-interview-2026-11-27.md"
+        ],
+        "resources": [
+          "holding-apps-switcher-ux"
+        ],
+        "status": "done",
+        "claim": null,
+        "baseSha": "8fc9167d641ef1d354884e6cbc4baac5f4c7a1cd",
+        "implementedCommit": "7bebafd004103bd021247ca36dfa4c9a56c4743a",
+        "checks": [
+          {
+            "command": "bun x vitest run apps-launcher and product-launcher",
+            "result": "passed",
+            "sourceSha": "7bebafd004103bd021247ca36dfa4c9a56c4743a",
+            "details": "67 tests passed."
+          },
+          {
+            "command": "bun run typecheck, targeted ESLint and structure:check",
+            "result": "passed",
+            "sourceSha": "7bebafd004103bd021247ca36dfa4c9a56c4743a",
+            "details": "All passed."
+          },
+          {
+            "command": "Public Acme signed Chrome Apps on mobile and tablet",
+            "result": "passed",
+            "sourceSha": "7bebafd004103bd021247ca36dfa4c9a56c4743a",
+            "details": "Normal Account SSO reached /bangkok/apps. Observed workspace picker, persistent recent dock during search, authorized Finance tile reveal, current-app Enter resume, Back, Escape and no entrance animation in reduced motion."
+          },
+          {
+            "command": "Public Admin Apps GitHub catalogue",
+            "result": "passed",
+            "sourceSha": "7bebafd004103bd021247ca36dfa4c9a56c4743a",
+            "details": "Authorized Apps showed the management tile and no generic Plugins disclosure. Side drawer opened, read the native approved registry with HTTP 200, exposed search or paste and Search on GitHub, and escaped back to Apps."
+          },
+          {
+            "command": "Frozen OASIS Next standalone and Axum release",
+            "result": "passed",
+            "sourceSha": "7bebafd004103bd021247ca36dfa4c9a56c4743a",
+            "details": "Exact candidate produced Apps, Sales and Account standalone artifacts and cargo --release service. Inventory verified. Replaced only dedicated OASIS stage and verified both public hosts health 200. No full acceptance claimed."
+          },
+          {
+            "command": "Public OASIS signed Chrome desktop launcher and browser history",
+            "result": "passed",
+            "sourceSha": "7bebafd004103bd021247ca36dfa4c9a56c4743a",
+            "details": "390x844 and 820x1180 verified. Workspace picker, search, dock, full-screen tile motion into Sales, keyboard resume, browser Back restored 360/360 pixels, Escape and reduced-motion bypass passed. Scoped tile shows live count under manager, suppressed under operator."
+          },
+          {
+            "command": "Public OASIS two-role Sales and quotation print regression",
+            "result": "passed",
+            "sourceSha": "7bebafd004103bd021247ca36dfa4c9a56c4743a",
+            "details": "Both roles opened the seeded pipeline and recorded QT-2026-000004. Manager saw the live metric, opened filtered Reports, printed the same quote, and PDF shows 85,500.00. Interview case and existing portfolio assets preserved."
+          },
+          {
+            "command": "Public OASIS plugin tile presentation preview",
+            "result": "passed",
+            "sourceSha": "7bebafd004103bd021247ca36dfa4c9a56c4743a",
+            "details": "The normal native plugin summary returned 200 and zero registered/installed versions. A browser-only synthetic plugin response displayed the real shared tile and exercised search and click to the existing real authorized rehearsal CRM lead. Real contributor PR and owner approval remain with the separate publishing packet."
+          },
+          {
+            "command": "Safe Development and dedicated OASIS environment probes",
+            "result": "passed",
+            "sourceSha": "7bebafd004103bd021247ca36dfa4c9a56c4743a",
+            "details": "3100 health 200, public development Console health 200, private production 3101 health 200, retired Console and old internal host 404, protected public Acme and Admin requested SSO, dedicated OASIS Holding and Account health 200."
+          }
+        ],
+        "lastPushedSha": "7bebafd004103bd021247ca36dfa4c9a56c4743a",
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": {
+          "runId": "codex-feed-owner-work-facts-20261128",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T18:24:26.249Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Verify normal signed Acme and OASIS Feed, Apps, Sales and Back on phone and tablet widths, including keyboard and reduced motion."
+        },
+        "scope": "Shared Holding Apps visual shell, compact workspace selection, persistent dock and tile expansion. Render installed plugin capabilities as native Apps tiles, preserving the authorized CRM destination and admin installation drawer. Verify an exact OASIS standalone release.",
+        "nextAction": "Keep the frozen dedicated OASIS release available. Install Site measurement through the management tile after a genuine owner-approved registry PR is merged. Continue the separately recorded native Work Stock count lane for remaining Feed SSR cutover."
       }
     ],
     "migrationProgress": {
@@ -224915,8 +225058,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 223,
-    "updatedAt": "2026-11-27T17:58:54.200Z",
+    "lastCoordinatorGeneration": 224,
+    "updatedAt": "2026-11-27T18:35:19.165Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",

@@ -69,7 +69,9 @@ node /absolute/oasis-release/stage/entry.mjs --release=/absolute/oasis-release -
 
 [เปิด ERPX สำหรับเดโม OASIS](https://oasisdreamhouse-demo.jesadakorn.com/) หลัง Account SSO เลือก **Andaman Kitchen Demo** และ **Feed** ครั้งแรก จาก Feed กด **Apps** แล้วเปิด **Sales** เลือก Sales operator หากระบบถามบทบาท เปิด [Sales โดยตรง](https://oasisdreamhouse-demo.jesadakorn.com/sales?company=andaman-kitchen) ในโปรไฟล์เบราว์เซอร์อีกชุดด้วยบัญชี Sales manager
 
-Release ที่เปิดอยู่ `23a96ad4f0e02f7083afdeba1a70267a79144c90` ใช้ Next standalone และ Axum release จาก commit เดียวกัน Health checks ของ Holding และ Account สาธารณะตอบ 200 ทั้งคู่ Chrome บนโดเมนจริงตรวจ Feed, Apps แบบเต็มจอ, แอนิเมชันเข้า Sales, แถบแอปล่าสุด, Back, Escape และ Reduce Motion ที่ขนาดมือถือและแท็บเล็ต รอบซ้อมก่อนหน้าทดสอบโพสต์และตอบบน staging แล้วเปิดใหม่ยังเห็นข้อมูล
+Release ที่เปิดอยู่ `7bebafd004103bd021247ca36dfa4c9a56c4743a` ใช้ Next standalone และ Axum release จาก commit เดียวกัน Health checks ของ Holding และ Account สาธารณะตอบ 200 ทั้งคู่ Chrome บนโดเมนจริงตรวจไทล์สีเขียวทอง แถบสลับแอป การค้นหาและเลือกพื้นที่บนมือถือ การขยายไทล์ Sales, Escape และ Reduce Motion ที่ขนาดมือถือและแท็บเล็ต Browser Back คืนตำแหน่ง Feed เดิมที่ 360 พิกเซล รอบซ้อมก่อนหน้าทดสอบโพสต์และตอบบน staging แล้วเปิดใหม่ยังเห็นข้อมูล
+
+ปลั๊กอินที่ติดตั้งจะแสดงเป็นไทล์ในกลุ่ม **Add-ons** และค้นพร้อมแอปอื่นได้ Admin เปิดไทล์ **Manage add-ons** เพื่อจัดการผ่านแผงด้านข้าง ทดสอบไทล์นัดวัดด้วยข้อมูลตัวอย่างในเบราว์เซอร์ และกดไปถึงรายการ CRM จริงของเคสซ้อมบน OASIS แล้ว ทะเบียน OASIS รอเวอร์ชันที่เจ้าของโครงการอนุมัติก่อนติดตั้ง
 
 บนหน้า Sales กด **Apps** ด้วยบทบาท **Sales manager** เพื่อดูจำนวนใบเสนอราคาที่รออนุมัติในพื้นที่ทำงานปัจจุบัน ไทล์อ่านจาก Axum และอัปเดตขณะเปิดอยู่ ใน Chrome บนโดเมนจริง ยอดเปลี่ยนจาก **0 → 1 → 0** เมื่อฝ่ายขายส่งและผู้จัดการอนุมัติใบทดสอบคนละใบกับคลิป บัญชีฝ่ายขายเปิด Apps ได้และตัวนับนี้แสดงตามสิทธิ์ของผู้อนุมัติ
 
