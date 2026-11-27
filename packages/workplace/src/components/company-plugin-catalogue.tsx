@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CalendarDays } from "lucide-react";
 import { Button } from "@erpx/ui/components/button";
 import { InlineNotice, Stack } from "@erpx/ui/components/foundation";
 import { TextInput } from "@erpx/ui/components/input";
@@ -8,7 +9,8 @@ import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
 
 type Version = { id: string; version: string; repository: string };
 type Installation = { id: string; installationVersion: number; manifest: { name: string; version: string } };
-type Catalogue = { installed: Installation[]; versions: Version[]; canManage: boolean };
+type SiteMeasurement = { leadId: string; subject: string; dueDate: string };
+type Catalogue = { installed: Installation[]; versions: Version[]; canManage: boolean; siteMeasurement: SiteMeasurement | null };
 type Command = { action: "install"; id: string; version: string } | { action: "withdraw"; id: string; installationVersion: number };
 const github = "https://github.com";
 const topicSearch = `${github}/search?q=topic%3Aerpx-plugin+archived%3Afalse&type=repositories`;
@@ -22,16 +24,15 @@ export function CompanyPluginCatalogue({ api, language }: { api: string; languag
   const [open, setOpen] = useState(false);
 
   async function load(signal?: AbortSignal) {
-    const response = await workFetch(api, { signal });
+    const response = await workFetch(open ? api : `${api}?catalogue=0`, { signal });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error?.message ?? "Unable to load plugins.");
     if (!signal?.aborted) setCatalogue(payload.data as Catalogue);
   }
 
   useEffect(() => {
-    if (!open) return;
     const request = new AbortController();
-    void load(request.signal).catch(cause => { if (!request.signal.aborted) setMessage(cause.message); });
+    void load(request.signal).catch(cause => { if (open && !request.signal.aborted) setMessage(cause.message); });
     return () => request.abort();
   }, [api, open]);
 
@@ -59,7 +60,21 @@ export function CompanyPluginCatalogue({ api, language }: { api: string; languag
     ? pasted === version.repository
     : `${version.id} ${version.repository} ${version.version}`.includes(query));
 
+  const siteMeasurement = catalogue?.siteMeasurement;
+  let measurementHref: string | undefined;
+  if (siteMeasurement && api.startsWith("/api/v1/holdings/")) {
+    const base = api.slice("/api/v1".length, -"/plugins".length);
+    const company = new URLSearchParams(window.location.search).get("company");
+    const query = company ? `?${new URLSearchParams({ company })}` : "";
+    measurementHref = `${base}/customers-sales/sales/pipeline/${encodeURIComponent(siteMeasurement.leadId)}/overview${query}#crm-activities`;
+  }
+
   return <section aria-label={th ? "ปลั๊กอิน" : "Plugins"}>
+    {measurementHref && siteMeasurement && <p>
+      <a data-product-switch href={measurementHref}>
+        <CalendarDays size={18} aria-hidden="true" /> {siteMeasurement.subject} · <time dateTime={siteMeasurement.dueDate}>{siteMeasurement.dueDate}</time>
+      </a>
+    </p>}
     <Button type="button" appearance="standard" variant="secondary" aria-expanded={open} onClick={() => setOpen(!open)}>
       {th ? "ปลั๊กอิน" : "Plugins"}
     </Button>

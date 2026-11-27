@@ -215,6 +215,31 @@ fn scope_actor(current: &AuthorizedWorkContext) -> ActivityActor {
     }
 }
 
+pub(crate) async fn plugin_site_measurement(
+    connection: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+) -> Result<Option<erpx_server_crm::public::activity_workspace::SiteMeasurementCard>, Error> {
+    let actor = scope_actor(current);
+    if !actor.has_read || !current.modules().iter().any(|module| module == "crm") {
+        return Ok(None);
+    }
+    let now = sqlx::query_scalar::<_, i64>(
+        "SELECT FLOOR(EXTRACT(EPOCH FROM clock_timestamp())*1000)::bigint",
+    )
+    .fetch_one(&mut *connection)
+    .await?;
+    let company = &current.selection().workspace().company_id;
+    if purchase_fact(connection, current.holding_id(), company, TimestampMillis::new(now))
+        .await?
+        .is_some_and(|purchase| !purchase.history)
+    {
+        return Ok(None);
+    }
+    PgActivityWorkspace::new(connection)
+        .next_site_measurement(&actor)
+        .await
+}
+
 /// Resolve merged-person flags for the concrete rows. Composition supplies the
 /// current Identity same-person decision; the owner projection only consumes
 /// the resulting ids, never mints them.

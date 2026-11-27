@@ -2,13 +2,13 @@ use crate::business_http::BusinessScopeSlugs;
 use axum::{
     Json, Router,
     body::to_bytes,
-    extract::{Path, Request, State},
+    extract::{Path, Query, Request, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::get,
 };
 use erpx_server_commercial::public::company_plugins::{
-    GithubPluginCatalogue, install_company_plugin, list_company_plugins, withdraw_company_plugin,
+    GithubPluginCatalogue, PluginSource, install_company_plugin, list_company_plugins, withdraw_company_plugin,
 };
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
@@ -147,15 +147,21 @@ fn can_manage(context: &AuthorizedWorkContext) -> bool {
         && context.has_permission("organization.manage")
 }
 
+#[derive(Deserialize)]
+struct ReadQuery {
+    catalogue: Option<u8>,
+}
+
 async fn read(
     State(state): State<Arc<PluginRouterState>>,
     Path(slug): Path<String>,
+    Query(query): Query<ReadQuery>,
     request: Request,
 ) -> Response {
     reply(
         async move {
             let (host, target, proof, selection) = state.session(request.headers(), slug, false)?;
-            let (installed, can_manage) = target
+            let (installed, can_manage, site_measurement) = target
                 .execute(
                     &host,
                     proof,
@@ -168,14 +174,28 @@ async fn read(
                                 &context.selection().workspace().company_id,
                             )
                             .await?;
-                            Ok((installed, can_manage(context)))
+                            let site_measurement = if installed.iter().any(|installation| {
+                                matches!(installation.manifest.tile.source, PluginSource::NextSiteMeasurement)
+                            }) {
+                                crate::crm_activity_workspace::plugin_site_measurement(connection, context).await?
+                            } else {
+                                None
+                            };
+                            Ok((installed, can_manage(context), site_measurement))
                         })
                     },
                 )
                 .await
                 .map_err(db_error)?;
-            let versions = state.catalogue.versions().await?;
-            Ok(json!({"installed":installed,"canManage":can_manage,"versions":versions}))
+            let versions = if query.catalogue == Some(0) {
+                Vec::new()
+            } else {
+                state.catalogue.versions().await?
+            };
+            Ok(json!({
+                "installed": installed, "canManage": can_manage,
+                "versions": versions, "siteMeasurement": site_measurement
+            }))
         }
         .await,
     )

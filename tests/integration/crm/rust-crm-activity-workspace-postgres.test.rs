@@ -177,3 +177,73 @@ async fn scoped_read_requires_current_unit_and_in_scope_lead() {
     })
     .await;
 }
+
+#[tokio::test]
+async fn site_measurement_tracks_the_committed_activity_version() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let mut connection = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+            .execute(&mut *connection)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO crm_lead_activities (
+                id, company_id, lead_id, activity_type, subject, details,
+                owner_id, due_date, version, created_by, created_at, updated_at
+             ) VALUES (
+                'measurement', 'company', 'lead', 'meeting', 'Site measurement for Kitchen A',
+                'Prepared', 'owner', '2026-12-02', 1, 'maker', 1, 1
+             )",
+        )
+        .execute(&mut *connection)
+        .await
+        .unwrap();
+        assert!(PgActivityWorkspace::new(&mut connection)
+            .next_site_measurement(&actor()).await.unwrap().is_none());
+
+        sqlx::raw_sql(
+            "INSERT INTO outbox_events (
+                id, command_id, event_type, aggregate_type, aggregate_id, aggregate_version,
+                payload_json, created_at
+             ) VALUES
+                ('notice', 'create', 'crm.activity.create', 'crm_activity', 'measurement', 1, '{}', 1),
+                ('replay', 'replayed', 'crm.activity.create', 'crm_activity', 'measurement', 1, '{}', 1);",
+        )
+        .execute(&mut *connection)
+        .await
+        .unwrap();
+        let mut crm = PgActivityWorkspace::new(&mut connection);
+        let card = crm.next_site_measurement(&actor()).await.unwrap().unwrap();
+        assert_eq!(
+            serde_json::to_value(card).unwrap(),
+            serde_json::json!({
+                "leadId": "lead",
+                "subject": "Site measurement for Kitchen A",
+                "dueDate": "2026-12-02"
+            }),
+        );
+        let mut outsider = actor();
+        outsider.can_manage = false;
+        outsider.user_id = "stranger".into();
+        assert!(crm.next_site_measurement(&outsider).await.unwrap().is_none());
+        outsider = actor();
+        outsider.branch_id = Some("other".into());
+        assert!(crm.next_site_measurement(&outsider).await.unwrap().is_none());
+        outsider = actor();
+        outsider.company_id = "foreign".into();
+        assert!(crm.next_site_measurement(&outsider).await.unwrap().is_none());
+
+        sqlx::query(
+            "UPDATE crm_lead_activities SET status='completed', version=2, updated_at=2
+             WHERE id='measurement'",
+        )
+        .execute(&mut *connection)
+        .await
+        .unwrap();
+        assert!(PgActivityWorkspace::new(&mut connection)
+            .next_site_measurement(&actor()).await.unwrap().is_none());
+        connection.rollback().await.unwrap();
+    })
+    .await;
+}

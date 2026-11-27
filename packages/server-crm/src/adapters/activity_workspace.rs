@@ -108,6 +108,14 @@ fn event_value(row: &PgRow) -> Result<Value, Error> {
 }
 
 /// CRM-owned activity workspace rows on the caller's serializable unit.
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SiteMeasurementCard {
+    lead_id: String,
+    subject: String,
+    due_date: String,
+}
+
 pub struct PgActivityWorkspace<'a> {
     connection: &'a mut PgConnection,
 }
@@ -178,6 +186,49 @@ impl<'a> PgActivityWorkspace<'a> {
             .fetch_all(&mut *self.connection)
             .await?;
         rows.iter().map(event_value).collect()
+    }
+
+    /// The owner row must match its committed event version. Reading the latest
+    /// state by primary key makes delivery replay-safe without a counter.
+    pub async fn next_site_measurement(
+        &mut self,
+        actor: &ActivityActor,
+    ) -> Result<Option<SiteMeasurementCard>, Error> {
+        read_unit(&mut *self.connection).await?;
+        let row = sqlx::query(
+            "SELECT x.lead_id, x.subject, x.due_date
+             FROM crm_lead_activities x
+             JOIN crm_leads l ON l.id = x.lead_id AND l.company_id = x.company_id
+             WHERE x.company_id = $1 AND ($2::text IS NULL OR l.branch_id = $2)
+               AND ($3::text IS NULL OR l.department_id = $3)
+               AND ($4 OR x.owner_id = $5 OR x.created_by = $5)
+               AND x.status = 'open' AND x.activity_type = 'meeting'
+               AND (lower(ltrim(x.subject)) LIKE 'site measurement%'
+                    OR ltrim(x.subject) LIKE 'นัดวัด%')
+               AND EXISTS (
+                   SELECT 1 FROM outbox_events e
+                   WHERE e.aggregate_type = 'crm_activity' AND e.aggregate_id = x.id
+                     AND e.aggregate_version = x.version
+                     AND e.event_type IN ('crm.activity.create', 'crm.activity.reassign')
+               )
+             ORDER BY x.due_date, x.id LIMIT 1",
+        )
+        .bind(&actor.company_id)
+        .bind(actor.branch_id.as_deref())
+        .bind(actor.department_id.as_deref())
+        .bind(actor.can_manage)
+        .bind(&actor.user_id)
+        .fetch_optional(&mut *self.connection)
+        .await?;
+
+        row.map(|row| {
+            Ok(SiteMeasurementCard {
+                lead_id: row.try_get("lead_id")?,
+                subject: row.try_get("subject")?,
+                due_date: row.try_get("due_date")?,
+            })
+        })
+        .transpose()
     }
 
     pub async fn work_rows(&mut self, actor: &ActivityActor) -> Result<Vec<CrmActivityRow>, Error> {

@@ -5,7 +5,7 @@
 //! repository/directory on its own serializable Holding unit.
 pub use crate::adapters::activity_workspace::{
     ACTIVITIES_SQL, HISTORY_SQL, LEAD_SQL, NATIVE_READ_FILTER, RECIPIENTS_SQL, WORK_ROWS_SQL,
-    PgActivityDirectory, PgActivityWorkspace,
+    PgActivityDirectory, PgActivityWorkspace, SiteMeasurementCard,
 };
 pub use crate::application::activity_workspace::{
     ActivityWorkspaceDirectory, ActivityWorkspaceFuture, ActivityWorkspaceRepository,
