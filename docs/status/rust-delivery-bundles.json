@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15321,
+    "revision": 15352,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261127-e",
+      "runId": "run-20261127-f",
       "agentId": "lead",
-      "startedAt": "2026-11-27T01:33:06.431Z",
-      "heartbeatAt": "2026-11-27T01:33:06.431Z",
-      "expiresAt": "2026-11-27T02:03:06.432Z",
-      "generation": 193,
-      "tokenHash": "30aaeb319ca84a4344a412c258e69f7091d1baf05ec40054997673da3899b9b0"
+      "startedAt": "2026-11-27T02:03:29.663Z",
+      "heartbeatAt": "2026-11-27T02:08:56.919Z",
+      "expiresAt": "2026-11-27T02:38:56.919Z",
+      "generation": 194,
+      "tokenHash": "2136d35f96e5dbde2109a42dc96f779f8467e46d2a31c4e5274930bdb3a6a99e"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -110198,15 +110198,8 @@
         "resources": [
           "owner:commerce"
         ],
-        "status": "integrating",
-        "claim": {
-          "runId": "run-20261127-e",
-          "agentId": "worker-commerce",
-          "claimedAt": "2026-11-27T01:40:19.269Z",
-          "heartbeatAt": "2026-11-27T01:40:19.269Z",
-          "expiresAt": "2026-11-27T02:10:19.269Z",
-          "generation": 193
-        },
+        "status": "ready_for_integration",
+        "claim": null,
         "baseSha": "89cf1fc2547a1bad396f281fe620266bf9914034",
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -110289,19 +110282,159 @@
             "command": "vitest commerce application/record services/orders transport (156)",
             "result": "passed",
             "sourceSha": "47781b126"
+          },
+          {
+            "command": "cargo check -p erpx-server-commerce --locked",
+            "result": "passed",
+            "sourceSha": "8776b46ea05194d1f9a2487ebf3297ad549d9776",
+            "note": "compiles"
+          },
+          {
+            "command": "cargo test -p erpx-server-commerce --lib posting_setup_receipt_image_reads_keep_their_exact_literals",
+            "result": "passed",
+            "sourceSha": "8776b46ea05194d1f9a2487ebf3297ad549d9776",
+            "note": "1 passed"
+          },
+          {
+            "command": "vitest commerce r27/r28/r29 dedupe",
+            "result": "passed",
+            "sourceSha": "8776b46ea05194d1f9a2487ebf3297ad549d9776",
+            "note": "14 passed"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "8776b46ea05194d1f9a2487ebf3297ad549d9776",
+            "note": "clean"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-commerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "8776b46ea05194d1f9a2487ebf3297ad549d9776",
+            "before": 341,
+            "after": 339,
+            "note": "r30 expense + mfg receipt-image literals moved native"
+          },
+          {
+            "command": "cargo check -p erpx-server-commerce --locked",
+            "result": "passed",
+            "sourceSha": "8776b46ea05194d1f9a2487ebf3297ad549d9776",
+            "note": "compiles"
+          },
+          {
+            "command": "cargo test -p erpx-server-commerce --lib posting_setup_receipt_image_reads_keep_their_exact_literals",
+            "result": "passed",
+            "sourceSha": "8776b46ea05194d1f9a2487ebf3297ad549d9776",
+            "note": "1 passed"
+          },
+          {
+            "command": "vitest commerce r27/r28/r29 dedupe",
+            "result": "passed",
+            "sourceSha": "8776b46ea05194d1f9a2487ebf3297ad549d9776",
+            "note": "14 passed"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "8776b46ea05194d1f9a2487ebf3297ad549d9776",
+            "note": "clean"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-commerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "8776b46ea05194d1f9a2487ebf3297ad549d9776",
+            "before": 341,
+            "after": 339,
+            "note": "r30 expense + mfg receipt-image literals moved native"
+          },
+          {
+            "command": "cargo test -p erpx-server-commerce --lib expense_receipt_source_image_keeps_its_exact_literal",
+            "result": "passed",
+            "sourceSha": "304854d02ad0ad860cf996b03621fd44d33e1a60",
+            "note": "1 passed"
+          },
+          {
+            "command": "vitest commerce r27/native-read/native-lane-14",
+            "result": "passed",
+            "sourceSha": "304854d02ad0ad860cf996b03621fd44d33e1a60",
+            "note": "61 passed"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "304854d02ad0ad860cf996b03621fd44d33e1a60",
+            "note": "clean"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-commerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "304854d02ad0ad860cf996b03621fd44d33e1a60",
+            "before": 339,
+            "after": 338,
+            "note": "r31 shared receipt source image moved native"
+          },
+          {
+            "command": "POST /api/v1/holdings/acme/commerce/command-plan",
+            "result": "passed",
+            "sourceSha": "304854d02ad0ad860cf996b03621fd44d33e1a60",
+            "note": "200 after startup Company discovery"
+          },
+          {
+            "command": "GET /api/v1/holdings/acme/record-details?kind=party",
+            "result": "passed",
+            "sourceSha": "304854d02ad0ad860cf996b03621fd44d33e1a60",
+            "note": "200 end-to-end after commerce discovery"
+          },
+          {
+            "command": "cargo test -p erpx-server-commerce --lib expense_receipt_source_image_keeps_its_exact_literal",
+            "result": "passed",
+            "sourceSha": "304854d02ad0ad860cf996b03621fd44d33e1a60",
+            "note": "1 passed"
+          },
+          {
+            "command": "vitest commerce r27/native-read/native-lane-14",
+            "result": "passed",
+            "sourceSha": "304854d02ad0ad860cf996b03621fd44d33e1a60",
+            "note": "61 passed"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "304854d02ad0ad860cf996b03621fd44d33e1a60",
+            "note": "clean"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-commerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "304854d02ad0ad860cf996b03621fd44d33e1a60",
+            "before": 339,
+            "after": 338,
+            "note": "r31 shared receipt source image moved native"
+          },
+          {
+            "command": "POST /api/v1/holdings/acme/commerce/command-plan",
+            "result": "passed",
+            "sourceSha": "304854d02ad0ad860cf996b03621fd44d33e1a60",
+            "note": "200 after startup Company discovery"
+          },
+          {
+            "command": "GET /api/v1/holdings/acme/record-details?kind=party",
+            "result": "passed",
+            "sourceSha": "304854d02ad0ad860cf996b03621fd44d33e1a60",
+            "note": "200 end-to-end after commerce discovery"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-commerce",
-          "at": "2026-11-25T17:37:21.527Z",
-          "previousStatus": "in_progress",
-          "reason": "handoff",
-          "nextAction": "Lead commits the reported cut; next family attached"
+          "runId": "run-20261127-f",
+          "agentId": "lead",
+          "at": "2026-11-27T02:03:41.814Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "r31 receipt source cut 339->338; next candidate COMMERCE_OWN_RECEIPT_SOURCE_SQL used twice (338->337)"
         },
-        "nextAction": "Cut 392->391; next r27 settings-image renderer (expense-posting-setup + manufacturing-existing-posting-setup) 391->390",
+        "nextAction": "r31 receipt source cut 339->338; next candidate COMMERCE_OWN_RECEIPT_SOURCE_SQL used twice (338->337)",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -137147,18 +137280,24 @@
             "result": "passed",
             "sourceSha": "ec6bac922d31976c85e1ae6d41279df3786978dc",
             "note": "real native 200 through records adapter context"
+          },
+          {
+            "command": "GET /api/v1/holdings/acme/record-details?kind=party",
+            "result": "passed",
+            "sourceSha": "d8340c60b988001ecd0ee00c306d0641f913c078",
+            "note": "200 end-to-end after commerce Company discovery; finance record-facts and commerce command-plan both native"
           }
         ],
         "retainedLegacy": [],
         "blocker": "released with work preserved",
-        "nextAction": "Finance record-facts context threaded at both application sites; next Records family",
+        "nextAction": "Finance record-facts and commerce command-plan verified end-to-end; next Records family",
         "handoff": {
-          "runId": "run-20261127-e",
+          "runId": "run-20261127-f",
           "agentId": "lead",
-          "at": "2026-11-27T01:41:53.175Z",
+          "at": "2026-11-27T02:08:51.167Z",
           "previousStatus": "ready_for_integration",
           "reason": "released with work preserved",
-          "nextAction": "Finance record-facts context threaded at both application sites; next Records family"
+          "nextAction": "Finance record-facts and commerce command-plan verified end-to-end; next Records family"
         },
         "scopeRefinementRequired": false
       },
@@ -160165,17 +160304,38 @@
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "vitest organization read-tail-r30-dedupe",
+            "result": "passed",
+            "sourceSha": "d8340c60b988001ecd0ee00c306d0641f913c078",
+            "note": "4 passed"
+          },
+          {
+            "command": "exact duplicate SELECT scan packages/server-organization/src",
+            "result": "passed",
+            "sourceSha": "d8340c60b988001ecd0ee00c306d0641f913c078",
+            "note": "0 exact duplicates; residual 178 require cross-owner paths"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-organization/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d8340c60b988001ecd0ee00c306d0641f913c078",
+            "before": 178,
+            "after": 178,
+            "note": "no safe owner-only cut"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "Reported round committed/verified; next family recorded",
+        "blocker": "released with work preserved",
+        "nextAction": "r30 verified 4/4; refresh stale r40-r63 pins from 196 to measured 178 next",
         "handoff": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-organization",
-          "at": "2026-11-25T17:51:44.976Z",
+          "runId": "run-20261127-f",
+          "agentId": "worker-maintenance",
+          "at": "2026-11-27T02:08:43.658Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Reported round committed/verified; next family recorded"
+          "reason": "released with work preserved",
+          "nextAction": "r30 verified 4/4; refresh stale r40-r63 pins from 196 to measured 178 next"
         },
         "scopeRefinementRequired": false
       },
@@ -162916,18 +163076,44 @@
             "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/legal/read-tail-r33-ordered-history-dedupe.test.ts",
             "result": "passed",
             "sourceSha": "b9e69ba469b0ac06e6d633a40114574f5fa16b08"
+          },
+          {
+            "command": "vitest legal r33 ordered-history + r69 disposed-document",
+            "result": "passed",
+            "sourceSha": "d8340c60b988001ecd0ee00c306d0641f913c078",
+            "note": "4 passed"
+          },
+          {
+            "command": "vitest run tests/unit/legal",
+            "result": "passed-with-preexisting",
+            "sourceSha": "d8340c60b988001ecd0ee00c306d0641f913c078",
+            "note": "521 passed; 1 pre-existing r34 pin"
+          },
+          {
+            "command": "cargo check -p erpx-server-legal --locked",
+            "result": "passed",
+            "sourceSha": "d8340c60b988001ecd0ee00c306d0641f913c078",
+            "note": "compiles"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-legal/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d8340c60b988001ecd0ee00c306d0641f913c078",
+            "before": 36,
+            "after": 35,
+            "note": "r69 disposed-document head folded"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "Legal ordered-history SQL deduped; owner SELECT count 37 -> 36.",
+        "blocker": "released with work preserved",
+        "nextAction": "Ordered-history 37->36 and r69 disposed-document 36->35; residual 35 need cross-owner joins/locks",
         "handoff": {
-          "runId": "run-20261126-h",
-          "agentId": "w-legal33",
-          "at": "2026-11-26T12:25:45.240Z",
+          "runId": "run-20261127-f",
+          "agentId": "worker-operations",
+          "at": "2026-11-27T02:08:43.506Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Legal ordered-history SQL deduped; owner SELECT count 37 -> 36."
+          "reason": "released with work preserved",
+          "nextAction": "Ordered-history 37->36 and r69 disposed-document 36->35; residual 35 need cross-owner joins/locks"
         },
         "scopeRefinementRequired": false
       },
@@ -210978,7 +211164,7 @@
         "goalId": "G4",
         "owner": "talent",
         "kind": "migration",
-        "status": "integrating",
+        "status": "ready_for_integration",
         "title": "feature-recruit routes native execution",
         "scope": "Inventory feature-recruit routes. Port one bounded recruit/talent read/command to Rust domain/application/adapters/http with real SQL execution and prepare the exact deletion packet.",
         "workflowIds": [],
@@ -210993,15 +211179,8 @@
           "owner:talent",
           "route:recruit"
         ],
-        "nextAction": "Wave-3 talent application detail committed and mounted; delete GET branch and app re-exports next.",
-        "claim": {
-          "runId": "run-20261127-e",
-          "agentId": "worker-recruit",
-          "claimedAt": "2026-11-27T01:48:19.100Z",
-          "heartbeatAt": "2026-11-27T01:48:19.100Z",
-          "expiresAt": "2026-11-27T02:18:19.100Z",
-          "generation": 193
-        },
+        "nextAction": "Talent detail GET cut native; app re-exports POST-only; native talent workspace GET route still missing for recruit smoke",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": "539935933f59419f35283c30460f023a9c2b5431",
         "lastPushedSha": "539935933f59419f35283c30460f023a9c2b5431",
@@ -211025,17 +211204,43 @@
             "command": "cargo test -p erpx-server-talent --lib --locked",
             "result": "passed",
             "sourceSha": "539935933f59419f35283c30460f023a9c2b5431"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "d8340c60b988001ecd0ee00c306d0641f913c078",
+            "note": "POST-only app re-exports compile"
+          },
+          {
+            "command": "bun scripts/testing/test.ts tests/unit/talent/native-talent-requisition-transport.test.ts",
+            "result": "passed",
+            "sourceSha": "d8340c60b988001ecd0ee00c306d0641f913c078",
+            "note": "36 passed"
+          },
+          {
+            "command": "cargo check -p erpx-server-talent --locked",
+            "result": "passed",
+            "sourceSha": "d8340c60b988001ecd0ee00c306d0641f913c078",
+            "note": "native detail router compiles"
+          },
+          {
+            "command": "SELECT count packages/feature-recruit/src + packages/server-talent/src",
+            "result": "passed",
+            "sourceSha": "d8340c60b988001ecd0ee00c306d0641f913c078",
+            "before": 9,
+            "after": 9,
+            "note": "detail TS SQL removed; residual 9 unchanged"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-h",
-          "agentId": "lead",
-          "at": "2026-11-26T11:51:06.054Z",
+          "runId": "run-20261127-f",
+          "agentId": "worker-recruit",
+          "at": "2026-11-27T02:08:43.351Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Wave-3 talent application detail committed and mounted; delete GET branch and app re-exports next."
+          "reason": "released with work preserved",
+          "nextAction": "Talent detail GET cut native; app re-exports POST-only; native talent workspace GET route still missing for recruit smoke"
         },
         "scopeRefinementRequired": false
       },
@@ -211970,7 +212175,7 @@
         "goalId": "G4",
         "owner": "maintenance",
         "kind": "migration",
-        "status": "integrating",
+        "status": "ready_for_integration",
         "title": "feature-maintenance routes native execution",
         "scope": "Inventory feature-maintenance routes and port one bounded read/command to Rust with real SQL execution and complete payload parity.",
         "workflowIds": [],
@@ -211985,15 +212190,8 @@
           "owner:maintenance",
           "route:maintenance-feature"
         ],
-        "nextAction": "Maintenance owner-options native slice committed and mounted; wire presenters and delete TS SELECT next.",
-        "claim": {
-          "runId": "run-20261127-e",
-          "agentId": "worker-maintenance",
-          "claimedAt": "2026-11-27T01:48:18.952Z",
-          "heartbeatAt": "2026-11-27T01:48:18.952Z",
-          "expiresAt": "2026-11-27T02:18:18.952Z",
-          "generation": 193
-        },
+        "nextAction": "Owner-options cut already integrated; refresh stale read-tail oracles 15->8 next",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": "b9e69ba469b0ac06e6d633a40114574f5fa16b08",
         "lastPushedSha": "b9e69ba469b0ac06e6d633a40114574f5fa16b08",
@@ -212017,17 +212215,37 @@
             "command": "cargo test -p erpx-server-maintenance --lib native_owner_options --locked",
             "result": "passed",
             "sourceSha": "b9e69ba469b0ac06e6d633a40114574f5fa16b08"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "2ff471e3928920c25b280784ef15ff8d11e108de",
+            "note": "clean"
+          },
+          {
+            "command": "vitest tests/unit/maintenance/native-owner-options.test.ts",
+            "result": "passed",
+            "sourceSha": "2ff471e3928920c25b280784ef15ff8d11e108de",
+            "note": "14 passed"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-maintenance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "2ff471e3928920c25b280784ef15ff8d11e108de",
+            "before": 8,
+            "after": 8,
+            "note": "owner-options SELECT already absent"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-h",
-          "agentId": "w-maintenance",
-          "at": "2026-11-26T12:25:42.883Z",
+          "runId": "run-20261127-e",
+          "agentId": "lead",
+          "at": "2026-11-27T01:55:55.696Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Maintenance owner-options native slice committed and mounted; wire presenters and delete TS SELECT next."
+          "reason": "released with work preserved",
+          "nextAction": "Owner-options cut already integrated; refresh stale read-tail oracles 15->8 next"
         },
         "scopeRefinementRequired": false
       },
@@ -215888,16 +216106,16 @@
       "statusCounts": {
         "pending": 14,
         "in_progress": 0,
-        "ready_for_integration": 143,
-        "integrating": 3,
+        "ready_for_integration": 146,
+        "integrating": 0,
         "migrated": 369,
         "blocked": 1915,
         "deferred": 2,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 193,
-    "updatedAt": "2026-11-27T01:52:43.088Z",
+    "lastCoordinatorGeneration": 194,
+    "updatedAt": "2026-11-27T02:08:56.923Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
@@ -215932,10 +216150,10 @@
       }
     },
     "lastRecovery": {
-      "previousRunId": "run-20261127-d",
-      "runId": "run-20261127-e",
-      "at": "2026-11-27T01:33:06.433Z",
-      "reason": "parallel hy4 flash workers",
+      "previousRunId": "run-20261127-e",
+      "runId": "run-20261127-f",
+      "at": "2026-11-27T02:03:29.664Z",
+      "reason": "heartbeat automation missed; manual coordination continues",
       "wipReviewed": true,
       "previousRunStopped": true
     },
