@@ -136,9 +136,13 @@ async fn nested_template_read_keeps_legacy_paths_and_public_shape() {
             &path,
             &[("x-erpx-api-transport", "public")],
             "",
-        ).await;
+        )
+        .await;
         assert_eq!(status, 200);
-        assert_eq!(payload, json!({"data":{"template":{"id":"routine-1"},"schedules":[],"canEdit":false}}));
+        assert_eq!(
+            payload,
+            json!({"data":{"template":{"id":"routine-1"},"schedules":[],"canEdit":false}})
+        );
     }
     assert_eq!(backend.commands.load(Ordering::SeqCst), 0);
     task.abort();
@@ -149,6 +153,65 @@ const HEADERS: &[(&str, &str)] = &[
     ("Idempotency-Key", "run-key-0001"),
     ("Content-Type", "application/json"),
 ];
+
+#[tokio::test]
+async fn schedule_state_routes_dispatch_only_supported_commands() {
+    let backend = Arc::new(Backend::new());
+    let (address, task) = start(backend.clone()).await;
+    let base = "/api/v1/holdings/acme/routine-schedules";
+    let mut headers = HEADERS.to_vec();
+    headers.push(("x-erpx-api-transport", "public"));
+    for operation in ["pause", "resume", "end"] {
+        let path = format!("{base}/schedule-1/{operation}");
+        let (status, payload) = post(address, &path, &headers, r#"{"expectedVersion":1}"#).await;
+        assert_eq!(status, 200);
+        assert_eq!(
+            payload,
+            json!({"data":{"id":"task-run-key-0001","version":1,"state":"ready"}})
+        );
+    }
+
+    let (status, payload) = post(
+        address,
+        &format!("{base}/schedule-1/pause/extra"),
+        HEADERS,
+        "{}",
+    )
+    .await;
+    assert_eq!(status, 404);
+    assert_eq!(payload["error"]["message"], "Staff action not found.");
+    let (status, payload) = post(address, base, HEADERS, "{").await;
+    assert_eq!(status, 422);
+    assert_eq!(payload["error"]["code"], "INVALID_JSON");
+
+    for path in [
+        base.to_owned(),
+        format!("{base}/schedule-1"),
+        format!("{base}/schedule-1/end"),
+    ] {
+        let (status, payload) = request(address, "GET", &path, &[], "").await;
+        assert_eq!(status, 404);
+        assert_eq!(payload["error"]["message"], "Staff resource not found.");
+        assert_eq!(
+            request(address, "HEAD", &path, &[], "").await,
+            (422, Value::Null)
+        );
+        assert_eq!(
+            request(address, "OPTIONS", &path, &[], "").await,
+            (204, Value::Null)
+        );
+        assert_eq!(
+            request(address, "PUT", &path, &[], "").await,
+            (405, Value::Null)
+        );
+    }
+    assert_eq!(backend.commands.load(Ordering::SeqCst), 3);
+    let seen = backend.seen.lock().unwrap();
+    assert!(seen[0].contains(r#"ChangeScheduleState { id: "schedule-1", resume: false"#));
+    assert!(seen[1].contains(r#"ChangeScheduleState { id: "schedule-1", resume: true"#));
+    assert!(seen[2].contains(r#"EndSchedule { id: "schedule-1""#));
+    task.abort();
+}
 
 #[tokio::test]
 async fn forwards_the_manual_run_with_the_exact_path_key_and_due_at() {

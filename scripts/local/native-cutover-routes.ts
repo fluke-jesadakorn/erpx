@@ -15,12 +15,12 @@ export function normalizeHoldingNativePath(url: string, holdingSlug: string): { 
 }
 
 /** Holding routes whose corresponding Next entry points have been retired. */
-export function holdingNativeCutoverPath(url: string, holdingSlug: string, method: string | undefined): "records" | "record-action" | "routine-templates" | "routine-command" | undefined {
+export function holdingNativeCutoverPath(url: string, holdingSlug: string, method: string | undefined): "records" | "record-action" | "routine-templates" | "routine-schedules" | "routine-command" | undefined {
   const [path] = url.split("?", 1);
   const prefix = `/api/v1/holdings/${holdingSlug}/`;
   if (!path?.startsWith(prefix)) return;
   const [owner, segment, ...tail] = path.slice(prefix.length).split("/");
-  if (owner === "routine-templates") {
+  if (owner === "routine-templates" || owner === "routine-schedules") {
     try {
       if (segment !== undefined && !validId(segment)) return;
       if (!tail.every(validId)) return;

@@ -12,7 +12,11 @@ use crate::domain::routine_commands::{
 };
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
-    StatusCode, body::to_bytes, header, routing::post, serde_json,
+    StatusCode,
+    body::to_bytes,
+    header,
+    routing::{MethodRouter, any, post},
+    serde_json,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind, RecordId};
 use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Arc};
@@ -244,16 +248,16 @@ pub fn routine_commands_router(targets: Vec<RoutineHttpTarget>) -> Result<Router
                 .options(template_options),
         )
         .route(
-            "/api/v1/holdings/{holding_slug}/routine-schedules/{id}/pause",
-            post(command_schedule_pause),
+            "/api/v1/holdings/{holding_slug}/routine-schedules/{id}/{*tail}",
+            schedule_route().post(schedule_command),
         )
         .route(
-            "/api/v1/holdings/{holding_slug}/routine-schedules/{id}/resume",
-            post(command_schedule_resume),
+            "/api/v1/holdings/{holding_slug}/routine-schedules",
+            schedule_route().post(schedule_missing_action),
         )
         .route(
-            "/api/v1/holdings/{holding_slug}/routine-schedules/{id}/end",
-            post(command_schedule_end),
+            "/api/v1/holdings/{holding_slug}/routine-schedules/{id}",
+            schedule_route().post(schedule_missing_action),
         )
         .with_state(Arc::new(RoutineHttpState {
             targets: configured,
@@ -275,6 +279,60 @@ async fn missing_action() -> Response {
         "NOT_FOUND",
         "Staff action not found.",
     ))
+}
+
+fn schedule_route() -> MethodRouter<Arc<RoutineHttpState>> {
+    any(|| async { StatusCode::METHOD_NOT_ALLOWED })
+        .get(schedule_missing_read)
+        .head(schedule_missing_action)
+        .options(template_options)
+}
+
+async fn schedule_missing_read(
+    State(state): State<Arc<RoutineHttpState>>,
+    Path(params): Path<BTreeMap<String, String>>,
+    headers: HeaderMap,
+) -> Response {
+    if let Err(error) = target(&state, &headers, &params["holding_slug"]) {
+        return error_response(error);
+    }
+    error_response(BusinessError::new(
+        FailureKind::NotFound,
+        "NOT_FOUND",
+        "Staff resource not found.",
+    ))
+}
+
+async fn schedule_missing_action(
+    State(state): State<Arc<RoutineHttpState>>,
+    Path(params): Path<BTreeMap<String, String>>,
+    request: Request,
+) -> Response {
+    let checked = async {
+        let headers = request.headers();
+        let target = target(&state, headers, &params["holding_slug"])?;
+        if unique_header(headers, header::ORIGIN)?.is_some_and(|value| !value.is_empty()) {
+            command_origin(target, headers)?;
+        }
+        let key = HeaderName::from_static("idempotency-key");
+        if unique_header(headers, key)?.is_none_or(str::is_empty) {
+            return Err(command_error(
+                "COMMAND_KEY_REQUIRED",
+                "Idempotency-Key is required.",
+            ));
+        }
+        let bytes = to_bytes(request.into_body(), BODY_LIMIT)
+            .await
+            .map_err(|_| command_error("BODY_TOO_LARGE", "Use a smaller routine request."))?;
+        serde_json::from_slice::<serde_json::Value>(&bytes)
+            .map_err(|_| command_error("INVALID_JSON", "Use valid JSON."))?;
+        Ok::<_, BusinessError>(())
+    }
+    .await;
+    match checked {
+        Ok(()) => missing_action().await,
+        Err(error) => error_response(error),
+    }
 }
 
 async fn read_schedules(
@@ -540,36 +598,29 @@ async fn command_schedule_update(
         (Err(error), _) | (_, Err(error)) => error_response(error),
     }
 }
-async fn command_schedule_pause(
+async fn schedule_command(
     State(state): State<Arc<RoutineHttpState>>,
-    Path((slug, id)): Path<(String, String)>,
+    Path(params): Path<BTreeMap<String, String>>,
     request: Request,
 ) -> Response {
-    let id = RecordId::new(id).map(|id| id.as_str().to_owned());
-    match id {
-        Ok(id) => run(state, slug, request, None, Some(id), Some("pause")).await,
-        Err(error) => error_response(error),
-    }
-}
-async fn command_schedule_resume(
-    State(state): State<Arc<RoutineHttpState>>,
-    Path((slug, id)): Path<(String, String)>,
-    request: Request,
-) -> Response {
-    let id = RecordId::new(id).map(|id| id.as_str().to_owned());
-    match id {
-        Ok(id) => run(state, slug, request, None, Some(id), Some("resume")).await,
-        Err(error) => error_response(error),
-    }
-}
-async fn command_schedule_end(
-    State(state): State<Arc<RoutineHttpState>>,
-    Path((slug, id)): Path<(String, String)>,
-    request: Request,
-) -> Response {
-    let id = RecordId::new(id).map(|id| id.as_str().to_owned());
-    match id {
-        Ok(id) => run(state, slug, request, None, Some(id), Some("end")).await,
+    let action = match params["tail"].as_str() {
+        "pause" => "pause",
+        "resume" => "resume",
+        "end" => "end",
+        _ => return schedule_missing_action(State(state), Path(params), request).await,
+    };
+    match RecordId::new(&params["id"]) {
+        Ok(id) => {
+            run(
+                state,
+                params["holding_slug"].clone(),
+                request,
+                None,
+                Some(id.as_str().to_owned()),
+                Some(action),
+            )
+            .await
+        }
         Err(error) => error_response(error),
     }
 }
