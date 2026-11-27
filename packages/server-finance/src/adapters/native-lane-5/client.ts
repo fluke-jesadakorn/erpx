@@ -1,5 +1,6 @@
 import 'server-only';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { nativeRequest } from '@erpx/server-runtime/public/native-http';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 
 /**
@@ -200,14 +201,16 @@ export async function nativeCustomerRead<T>(
   );
   let response: Response;
   try {
-    response = await fetch(url, {
-      method: 'POST',
-      headers: Object.fromEntries(headers),
-      body,
-      cache: 'no-store',
-      redirect: 'error',
-      signal: AbortSignal.timeout(config.timeoutMs),
-    });
+    response = await nativeRequest(
+      url,
+      {
+        method: 'POST',
+        headers: Object.fromEntries(headers),
+        body,
+        signal: AbortSignal.timeout(config.timeoutMs),
+      },
+      config.timeoutMs,
+    );
   } catch {
     return unavailable();
   }

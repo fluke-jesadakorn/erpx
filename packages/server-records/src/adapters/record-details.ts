@@ -41,10 +41,10 @@ import { drilldownPage as puredrilldownPage } from '@erpx/server-records/domain/
 import { createRecordDetailsApplication, type RecordDetailsRepository } from '@erpx/server-records/application/record-details';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import { RecordDetailsOrganizationFacts } from '@erpx/server-organization/public/records-record-details-facts';
-function application(provided?: SqlDatabase) {
+function application(provided?: SqlDatabase, context?: { holdingId: string; holdingSlug: string; companyId?: string }) {
     let database = provided!;
     const repository: RecordDetailsRepository = { readCommerceMasterDetailRow(...args) { return RecordDetailsCommerceOwnedFacts(database).readCommerceMasterDetailRow(...args); },
-        readCommerceMasterDetailRow2(...args) { return RecordDetailsFinanceOwnedFacts(database).readCommerceMasterDetailRow2(...args); },
+        readCommerceMasterDetailRow2(...args) { return RecordDetailsFinanceOwnedFacts(database, context).readCommerceMasterDetailRow2(...args); },
         readCommerceMasterDetailRow3(...args) { return RecordDetailsOrganizationFacts(database).readCommerceMasterDetailRow3(...args); },
         readCommerceMasterDetailHistory(...args) { return RecordDetailsWorkflowOwnedFacts(database).readCommerceMasterDetailHistory(...args); },
         readRecordSupplementDataRow(...args) { return RecordDetailsInventoryOwnedFacts(database).readRecordSupplementDataRow(...args); },
@@ -53,9 +53,9 @@ function application(provided?: SqlDatabase) {
         readRecordSupplementDataRows(...args) { return RecordDetailsInventoryOwnedFacts(database).readRecordSupplementDataRows(...args); },
         readRecordSupplementDataRow3(...args) { return RecordDetailsInventoryOwnedFacts(database).readRecordSupplementDataRow3(...args); },
         readRecordSupplementDataRows2(...args) { return RecordDetailsInventoryOwnedFacts(database).readRecordSupplementDataRows2(...args); },
-        readRecordSupplementDataAccount(...args) { return RecordDetailsFinanceOwnedFacts(database).readRecordSupplementDataAccount(...args); },
-        readRecordSupplementDataPeriod(...args) { return RecordDetailsFinanceOwnedFacts(database).readRecordSupplementDataPeriod(...args); },
-        readRecordSupplementDataRows3(...args) { return RecordDetailsFinanceOwnedFacts(database).readRecordSupplementDataRows3(...args); },
+        readRecordSupplementDataAccount(...args) { return RecordDetailsFinanceOwnedFacts(database, context).readRecordSupplementDataAccount(...args); },
+        readRecordSupplementDataPeriod(...args) { return RecordDetailsFinanceOwnedFacts(database, context).readRecordSupplementDataPeriod(...args); },
+        readRecordSupplementDataRows3(...args) { return RecordDetailsFinanceOwnedFacts(database, context).readRecordSupplementDataRows3(...args); },
         readRecordSupplementDataRows4(...args) { return RecordDetailsPeoplePayrollOwnedFacts(database).readRecordSupplementDataRows4(...args); } };
     return createRecordDetailsApplication<SqlStatement>({repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, prepare: async (holding) => {
             if (!provided)
@@ -97,12 +97,12 @@ function invokeSync<Result>(run: () => Result) {
         throw error;
     }
 }
-export async function commerceMasterDetail(actor: WorkContext, kind: "product" | "party" | "warehouse", id: string) { return invoke(() => application().commerceMasterDetail(actor, kind, id)); }
+export async function commerceMasterDetail(actor: WorkContext, kind: "product" | "party" | "warehouse", id: string) { return invoke(() => application(undefined, { holdingId: actor.holdingId, holdingSlug: actor.holdingSlug, companyId: actor.companyId }).commerceMasterDetail(actor, kind, id)); }
 export function drilldownPage(value?: string) { return invokeSync(() => puredrilldownPage(value)); }
 export async function recordSupplementData(actor: WorkContext, target: RecordTarget, args: Record<string, string>) {
     if (target.kind === 'workspace_record')
         return supplementWorkspaceRecord(actor, target, args);
-    return invoke(() => application().recordSupplementData(actor, target, args));
+    return invoke(() => application(undefined, { holdingId: actor.holdingId, holdingSlug: actor.holdingSlug, companyId: actor.companyId }).recordSupplementData(actor, target, args));
 }
 /** Native detail for a Records-owned workspace record. Never falls back to TS SQL. */
 async function supplementWorkspaceRecord(actor: WorkContext, target: RecordTarget, args: Record<string, string>) {

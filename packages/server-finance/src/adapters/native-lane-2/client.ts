@@ -1,5 +1,6 @@
 import 'server-only';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { nativeRequest } from '@erpx/server-runtime/public/native-http';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 
 /**
@@ -242,19 +243,21 @@ async function nativeGet(
   }
   let response: Response;
   try {
-    response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        host: target.host,
-        origin: target.origin,
-        accept: 'application/json',
-        'cache-control': 'no-cache',
-        'x-erpx-context-company': actor.companyId,
+    response = await nativeRequest(
+      url,
+      {
+        method: 'GET',
+        headers: {
+          host: target.host,
+          origin: target.origin,
+          accept: 'application/json',
+          'cache-control': 'no-cache',
+          'x-erpx-context-company': actor.companyId,
+        },
+        signal: AbortSignal.timeout(config.timeoutMs),
       },
-      cache: 'no-store',
-      redirect: 'error',
-      signal: AbortSignal.timeout(config.timeoutMs),
-    });
+      config.timeoutMs,
+    );
   } catch {
     return fail();
   }

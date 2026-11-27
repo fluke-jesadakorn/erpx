@@ -1,5 +1,6 @@
 import 'server-only';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { nativeRequest } from '@erpx/server-runtime/public/native-http';
 
 /**
  * Strict transport for the native Finance reference-option reads (lane 4).
@@ -243,13 +244,15 @@ export async function financeReferenceOptions(
   });
   let response: Response;
   try {
-    response = await fetch(url, {
-      method: 'GET',
-      headers: Object.fromEntries(headers),
-      cache: 'no-store',
-      redirect: 'error',
-      signal: AbortSignal.timeout(config.timeoutMs),
-    });
+    response = await nativeRequest(
+      url,
+      {
+        method: 'GET',
+        headers: Object.fromEntries(headers),
+        signal: AbortSignal.timeout(config.timeoutMs),
+      },
+      config.timeoutMs,
+    );
   } catch {
     return fail();
   }
@@ -320,13 +323,15 @@ export async function financePostingGuard(
   });
   let response: Response;
   try {
-    response = await fetch(url, {
-      method: 'GET',
-      headers: Object.fromEntries(headers),
-      cache: 'no-store',
-      redirect: 'error',
-      signal: AbortSignal.timeout(config.timeoutMs),
-    });
+    response = await nativeRequest(
+      url,
+      {
+        method: 'GET',
+        headers: Object.fromEntries(headers),
+        signal: AbortSignal.timeout(config.timeoutMs),
+      },
+      config.timeoutMs,
+    );
   } catch {
     return fail();
   }

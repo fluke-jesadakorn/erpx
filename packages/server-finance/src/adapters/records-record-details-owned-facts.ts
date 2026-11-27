@@ -1,5 +1,6 @@
 import 'server-only';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { nativeRequest } from '@erpx/server-runtime/public/native-http';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import type { Row } from '@erpx/server-commerce/public/commerce';
 
@@ -176,14 +177,16 @@ async function nativeRecordFacts<T>(
   );
   let response: Response;
   try {
-    response = await fetch(url, {
-      method: 'POST',
-      headers: Object.fromEntries(headers),
-      body,
-      cache: 'no-store',
-      redirect: 'error',
-      signal: AbortSignal.timeout(config.timeoutMs),
-    });
+    response = await nativeRequest(
+      url,
+      {
+        method: 'POST',
+        headers: Object.fromEntries(headers),
+        body,
+        signal: AbortSignal.timeout(config.timeoutMs),
+      },
+      config.timeoutMs,
+    );
   } catch {
     return unavailable();
   }

@@ -1,5 +1,6 @@
 import "server-only";
 import { ApiError } from "@erpx/server-runtime/public/http";
+import { nativeRequest } from '@erpx/server-runtime/public/native-http';
 import { lane3Config, type Lane3Actor } from "./client";
 
 /**
@@ -49,23 +50,25 @@ export async function nativeStarterProbes(
   );
   let response: Response;
   try {
-    response = await fetch(url, {
-      method: "POST",
-      headers: {
-        host: holding.host,
-        "x-erpx-native-host": holding.host,
-        origin: holding.origin,
-        accept: "application/json",
-        "content-type": "application/json",
-        "cache-control": "no-cache",
-        "x-erpx-context-holding": holding.holdingId,
-        "x-erpx-context-company": actor.companyId,
+    response = await nativeRequest(
+      url,
+      {
+        method: "POST",
+        headers: {
+          host: holding.host,
+          "x-erpx-native-host": holding.host,
+          origin: holding.origin,
+          accept: "application/json",
+          "content-type": "application/json",
+          "cache-control": "no-cache",
+          "x-erpx-context-holding": holding.holdingId,
+          "x-erpx-context-company": actor.companyId,
+        },
+        body: JSON.stringify({ start, end }),
+        signal: AbortSignal.timeout(config.timeoutMs),
       },
-      body: JSON.stringify({ start, end }),
-      cache: "no-store",
-      redirect: "error",
-      signal: AbortSignal.timeout(config.timeoutMs),
-    });
+      config.timeoutMs,
+    );
   } catch {
     return fail();
   }

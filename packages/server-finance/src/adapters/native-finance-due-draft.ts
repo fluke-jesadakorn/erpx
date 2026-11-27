@@ -1,4 +1,5 @@
 import 'server-only';
+import { nativeRequest } from '@erpx/server-runtime/public/native-http';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 
 /**
@@ -127,24 +128,16 @@ async function replyBytes(body: ReadableStream<Uint8Array> | null, max: number):
 }
 
 async function forward(url: URL, headers: Headers, body: Uint8Array, timeoutMs: number, signal: AbortSignal): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  const onAbort = () => controller.abort();
-  signal.addEventListener('abort', onAbort, { once: true });
-  try {
-    const response = await fetch(url, {
+  return nativeRequest(
+    url,
+    {
       method: 'POST',
-      headers,
-      body: body as unknown as BodyInit,
-      cache: 'no-store',
-      redirect: 'error',
-      signal: controller.signal,
-    });
-    return response;
-  } finally {
-    clearTimeout(timer);
-    signal.removeEventListener('abort', onAbort);
-  }
+      headers: Object.fromEntries(headers),
+      body,
+      signal: AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]),
+    },
+    timeoutMs,
+  );
 }
 
 function contextHeaders(request: Request, actor: WorkContext): Headers | Response {

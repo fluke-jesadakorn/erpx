@@ -81,14 +81,16 @@ async function read(kind: Kind, actor: Lane1Actor, journalId?: string): Promise<
 
   let response: Response;
   try {
-    response = await fetch(url, {
-      method: 'POST',
-      headers: Object.fromEntries(headers),
-      body,
-      cache: 'no-store',
-      redirect: 'error',
-      signal: AbortSignal.timeout(config.timeoutMs),
-    });
+    response = await nativeRequest(
+      url,
+      {
+        method: 'POST',
+        headers: Object.fromEntries(headers),
+        body,
+        signal: AbortSignal.timeout(config.timeoutMs),
+      },
+      config.timeoutMs,
+    );
   } catch { return unavailable(); }
   if (response.status !== 200) {
     const payload = await response.json().catch((): unknown => null);
