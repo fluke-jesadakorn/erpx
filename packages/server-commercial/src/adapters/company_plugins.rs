@@ -60,7 +60,7 @@ pub async fn install_company_plugin(
     let pin = verified.pin();
     lock(connection, company, &pin.id).await?;
     if let Some(row) = sqlx::query(
-        "SELECT plugin_id, installation_version, manifest, manifest_digest
+        "SELECT plugin_id, installation_version, manifest, manifest_digest, repository_id, repository_commit
          FROM company_plugin_installations
          WHERE company_id = $1 AND plugin_id = $2 AND withdrawn_at IS NULL",
     )
@@ -69,7 +69,11 @@ pub async fn install_company_plugin(
     .fetch_optional(&mut *connection)
     .await?
     {
-        if row.try_get::<String, _>("manifest_digest")? != pin.sha256 {
+        let installed_repository = row.try_get::<i64, _>("repository_id")?;
+        if u64::try_from(installed_repository).ok() != Some(pin.repository_id)
+            || row.try_get::<String, _>("repository_commit")? != pin.commit
+            || row.try_get::<String, _>("manifest_digest")? != pin.sha256
+        {
             return Err(conflict());
         }
         return installed(&row);
