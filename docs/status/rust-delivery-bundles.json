@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16169,
+    "revision": 16182,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": null,
@@ -224783,6 +224783,117 @@
           "Acme/Apps trace shows the Feed and launcher work without the retained full TS Work snapshot on that request"
         ],
         "nextAction": "Implement native owner-aware rich Work navigation facts from work_snapshot_read.rs for entitled lanes, including title, detail, due time and routing. Compare the full GET payload with navigation-snapshot.ts using signed Acme and Admin fixtures, then switch SSR and browser refresh together and remeasure /bangkok/apps. The live mark-read POST may be used independently."
+      },
+      {
+        "id": "cutover.apps.sales-quotation-approvals",
+        "goalId": "G4",
+        "owner": "commerce",
+        "workflowIds": [],
+        "kind": "migration",
+        "dependsOn": [],
+        "requiredPorts": [
+          "3100",
+          "3198",
+          "3112",
+          "3382"
+        ],
+        "title": "Show the current workspace quotation approval count on the Sales tile",
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "1b76febf765de56f1d75996dff95fdb6c848616b",
+        "implementedCommit": "23a96ad4f0e02f7083afdeba1a70267a79144c90",
+        "lastPushedSha": "23a96ad4f0e02f7083afdeba1a70267a79144c90",
+        "checks": [
+          {
+            "command": "cargo test --locked -p erpx-server-commerce --test order_postgres pending_quotation_tile_tracks_approval_and_respects_role_and_workspace -- --exact",
+            "result": "passed",
+            "sourceSha": "23a96ad4f0e02f7083afdeba1a70267a79144c90",
+            "details": "Passed against an isolated PostgreSQL database. A manager count covered the current Company and exact branch, excluded another Company and branch, denied the sales operator and a mismatched branch assignment, and returned to its initial value on approval and replay."
+          },
+          {
+            "command": "bun run test:unit -- tests/unit/shared.testing/workspace-supervisor.test.ts",
+            "result": "passed",
+            "sourceSha": "23a96ad4f0e02f7083afdeba1a70267a79144c90",
+            "details": "14 passed. Registered Holding transport normalizes the scoped API and rejects unsigned and stale role requests. OASIS allowlists only reads."
+          },
+          {
+            "command": "bun run test:unit -- tests/unit/shared.ui/apps-launcher.test.ts",
+            "result": "passed",
+            "sourceSha": "23a96ad4f0e02f7083afdeba1a70267a79144c90",
+            "details": "67 Apps launcher and product launcher checks passed."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "23a96ad4f0e02f7083afdeba1a70267a79144c90",
+            "details": "The repository application and testing TypeScript projects passed."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "23a96ad4f0e02f7083afdeba1a70267a79144c90",
+            "details": "Repository lane and owner layout passed."
+          },
+          {
+            "command": "Development Axum build, detached gateway and signed public Chrome",
+            "result": "passed",
+            "sourceSha": "23a96ad4f0e02f7083afdeba1a70267a79144c90",
+            "details": "The candidate is live on Development. Acme SSO reached the branch Feed and opened Apps. Existing Axum mark-read replay retained the cursor. Local and public Development health and private production health were 200. Retired Console and prior internal ERPX root both returned 404."
+          },
+          {
+            "command": "bun scripts/local/prepare-workspace-release.ts --oasis-demo --candidate=23a96ad4f0e02f7083afdeba1a70267a79144c90",
+            "result": "passed",
+            "sourceSha": "23a96ad4f0e02f7083afdeba1a70267a79144c90",
+            "details": "Frozen release of Apps, Sales, Account Next standalone and Rust release from the same commit. Inventories verified, deployed on the dedicated OASIS gateway. Both public health endpoints returned 200. The Holding count API returned 401 without a signed session and was 404 on the central Account host."
+          },
+          {
+            "command": "Public OASIS Chrome tablet Apps count and two-role quotation transition",
+            "result": "passed",
+            "sourceSha": "23a96ad4f0e02f7083afdeba1a70267a79144c90",
+            "details": "The signed Sales operator returned 403 and had no metric. A separate signed manager opened Apps from Sales and saw 0. When the seller submitted QA quotation QT-2026-000006, the open manager tile refreshed to 1. The independent approval returned 200 and reopening the tile showed 0. A second read-only signed browser run confirmed the same approved 67,000 THB record for both roles. The interview lead still had no activity or opportunity. The portfolio quotation and artefacts remain tied to QT-2026-000004."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "codex-apps-quotation-count-20261128",
+          "agentId": "codex-lead",
+          "at": "2026-11-27T17:58:54.046Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Keep the verified new Axum route and shared launcher metric on Development and the sealed OASIS release. Continue the distinct Feed Work summary parity packet and the external plugin-registry approval gate. The Apps metric reads Commerce directly with the active role, package, workspace and Company scope."
+        },
+        "allowedPaths": [
+          "packages/server-commerce/src/adapters/order.rs",
+          "packages/server-commerce/src/adapters/order_http.rs",
+          "src/composition/src/commerce.rs",
+          "src/composition/src/private_development_api.rs",
+          "scripts/local/native-cutover-routes.ts",
+          "scripts/local/native-api-proxy.ts",
+          "scripts/local/workspace-gateway-runtime.ts",
+          "scripts/local/compiled-workspace-gateway.ts",
+          "packages/workplace/src/components/apps-launcher.tsx",
+          "packages/workplace/src/components/apps-launcher.module.css",
+          "tests/integration/commerce/rust-commerce-order-postgres.test.rs",
+          "tests/unit/shared.testing/workspace-supervisor.test.ts",
+          "docs/research/oasis-dream-house-interview-2026-11-27.md"
+        ],
+        "resources": [
+          "apps-launcher-visual",
+          "commerce-quotation-summary",
+          "oasis-demo-staging-release"
+        ],
+        "scope": "A direct Axum count from current quotation state, under the registered Holding authority, exact selected Company and branch/department, Sales permissions and native package gate. Show it in Apps only in the current workspace. Next serves presentation and adds no API or business handler. Keep OASIS interview artifacts and unused case intact.",
+        "deliverables": [
+          "The Sales tile reads the signed native approval count and updates after real submit/approve.",
+          "Development gateway and a frozen OASIS release serve the exact native route."
+        ],
+        "nextAction": "Keep the verified new Axum route and shared launcher metric on Development and the sealed OASIS release. Continue the distinct Feed Work summary parity packet and the external plugin-registry approval gate. The Apps metric reads Commerce directly with the active role, package, workspace and Company scope.",
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       }
     ],
     "migrationProgress": {
@@ -224791,12 +224902,12 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2477,
+      "totalPackets": 2478,
       "migratedPackets": 371,
       "statusCounts": {
         "pending": 14,
         "in_progress": 0,
-        "ready_for_integration": 164,
+        "ready_for_integration": 165,
         "integrating": 0,
         "migrated": 371,
         "blocked": 1926,
@@ -224804,8 +224915,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 222,
-    "updatedAt": "2026-11-27T17:35:26.144Z",
+    "lastCoordinatorGeneration": 223,
+    "updatedAt": "2026-11-27T17:58:54.200Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
