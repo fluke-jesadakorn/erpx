@@ -1,6 +1,8 @@
 # Holding development routing
 
-The exact registrations in `packages/contracts/src/holding-hosts.ts` are `acme.jesadakorn.com` (h001), `northstar.jesadakorn.com` (h002), and `erpx-internal.jesadakorn.com` (h003). Account remains `account-dev-erpx.jesadakorn.com`. Never use the staging name `erpx.jesadakorn.com` for h003. A future production name is metadata, not an allowed origin.
+The exact registrations in `packages/contracts/src/holding-hosts.ts` are `acme.jesadakorn.com` (h001), `northstar.jesadakorn.com` (h002), and `admin.jesadakorn.com` (h003). Account uses `account-dev-erpx.jesadakorn.com`. The future production name for h003 is `admin.erpx.com`.
+
+For the h003 cutover, update the development Account and native Holding profiles for the new exact hostname while retaining the h003 binding and Company IDs. Verify normal SSO, Feed, Apps and Sandbox Billing PDF on the new host, including denial for a customer identity. After those checks, retire the old `erpx-internal.jesadakorn.com` route through the gateway's generic 404. Keep the old route as a tombstone and verify it with the public hostname.
 
 Use pinned Bun1.4.3 and Node26.11.1. Inspect the3100 listener and working directory before reusing or starting dev. The ignored development environment enables `ERPX_HOLDING_ROUTING`, `ERPX_PRODUCT_ROUTING`, `ERPX_PRODUCT_SSO`, with `ERPX_ENVIRONMENT=local` and `ERPX_PRODUCT_ENVIRONMENT=development`. `bun run dev` runs the gateway3100 and starts declared apps lazily on3200–3299. `bun run dev:jobs` rebuilds the development worker. Keep private production3101 and PostgreSQL5432 running; never use3000/3001/8080.
 

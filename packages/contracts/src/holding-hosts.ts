@@ -4,7 +4,7 @@ import { productIds, sharedHostKeys, destinationProduct, product, type ProductHo
 export const holdingHosts = [
   { holdingId: 'h001', holdingSlug: 'acme', hostname: 'acme.jesadakorn.com', environment:'development' },
   { holdingId: 'h002', holdingSlug: 'northstar', hostname: 'northstar.jesadakorn.com', environment:'development' },
-  { holdingId: 'h003', holdingSlug: 'erpx', hostname: 'erpx-internal.jesadakorn.com', environment:'development' },
+  { holdingId: 'h003', holdingSlug: 'erpx', hostname: 'admin.jesadakorn.com', environment:'development' },
 ] as const;
 const contributorHoldingHosts = [
   { holdingId: 'h001', holdingSlug: 'acme', hostname: 'acme.erpx.localhost:3443', environment:'development' },
@@ -47,7 +47,7 @@ export function holdingHostForSlug(slug: string, profile: OriginProfile = 'publi
 export function holdingOrigin(slug: string, profile: OriginProfile = 'public') {
   const entry = holdingHostForSlug(slug, profile); return entry ? `https://${entry.hostname}` : null;
 }
-export function futureHoldingOrigin(slug: string) { return `https://${slug}.erpx.com`; }
+export function futureHoldingOrigin(slug: string) { return `https://${slug === 'erpx' ? 'admin' : slug}.erpx.com`; }
 export function holdingAudience(host: string | null | undefined, profile: OriginProfile = 'public') {
   const entry = holdingHostForHost(host, profile); return entry ? `holding:${entry.environment}:${entry.holdingId}:${entry.hostname}` : null;
 }
