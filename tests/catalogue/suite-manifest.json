@@ -3464,7 +3464,8 @@
       ],
       "files": [
         "tests/unit/benefits/native-benefits-workspace-transport.test.ts",
-        "tests/unit/benefits/benefits-native-read.test.ts"
+        "tests/unit/benefits/benefits-native-read.test.ts",
+        "tests/unit/benefits/benefits-route-cutover.test.ts"
       ],
       "fixture": "none",
       "requires": {

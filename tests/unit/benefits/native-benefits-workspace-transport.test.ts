@@ -356,35 +356,3 @@ describe('native Benefits workspace transport',()=>{
   expect(nativeBenefitsFailure(new Error('other'))).toBeUndefined();
  });
 });
-
-describe('Benefits route command authority',()=>{
- const call=async(body:unknown,headers:Record<string,string>={})=>{
-  const {POST}=await import('../../../packages/feature-people/src/routes/api/v1/holdings/[holdingSlug]/benefits/route');
-  return POST(new Request('https://acme.example.com/api/v1/holdings/acme/benefits',{method:'POST',headers:{origin:'https://acme.example.com','Idempotency-Key':'command-key',...headers},body:JSON.stringify(body)}),{params:Promise.resolve({holdingSlug:'acme'})});
- };
-
- it('fails closed instead of using a retained TypeScript Benefits command writer',async()=>{
-  const response=await call({entity:'plan',name:'Family medical plan'});
-  expect(response.status).toBe(503);
-  expect((await response.json()).error).toMatchObject({code:'NATIVE_BENEFITS_UNAVAILABLE'});
- });
-
- it('fails closed on workspace and detail reads without a TypeScript fallback',async()=>{
-  const {GET}=await import('../../../packages/feature-people/src/routes/api/v1/holdings/[holdingSlug]/benefits/route');
-  const read=(id?:string)=>GET(new Request(`https://acme.example.com/api/v1/holdings/acme/benefits${id?`?id=${id}`:''}`),{params:Promise.resolve({holdingSlug:'acme'})});
-  for(const response of [await read(),await read('election-owner')]){
-   expect(response.status).toBe(503);
-   expect((await response.json()).error).toMatchObject({code:'NATIVE_BENEFITS_UNAVAILABLE'});
-  }
- });
-
- it('keeps origin, idempotency and registered entity guards ahead of the native owner',async()=>{
-  expect((await call({entity:'plan'},{origin:'https://other.example.com'})).status).toBe(403);
-  const missing=await call({entity:'plan',name:'Family medical plan'}, {'Idempotency-Key':''});
-  expect(missing.status).toBe(422);
-  expect((await missing.json()).error).toMatchObject({code:'COMMAND_KEY_REQUIRED'});
-  const invalid=await call({entity:'course',name:'Family medical plan'});
-  expect(invalid.status).toBe(422);
-  expect((await invalid.json()).error).toMatchObject({code:'BENEFIT_ENTITY_INVALID'});
- });
-});
