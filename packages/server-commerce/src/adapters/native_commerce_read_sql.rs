@@ -1118,6 +1118,7 @@ mod tests {
                     || sql.contains("commerce_settings")
                     || sql.contains("commerce_orders")
                     || sql.contains("commerce_mfg_existing_posting_confirmations")
+                    || sql.contains("command_receipts")
                     || sql.contains("to_regclass("),
                 "owner read must stay on owner-local Commerce tables or schema probes: {sql}"
             );
