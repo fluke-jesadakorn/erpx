@@ -4,6 +4,8 @@ The exact registrations in `packages/contracts/src/holding-hosts.ts` are `acme.j
 
 For the h003 cutover, update the development Account and native Holding profiles for the new exact hostname while retaining the h003 binding and Company IDs. Verify normal SSO, Feed, Apps and Sandbox Billing PDF on the new host, including denial for a customer identity. After those checks, retire the old `erpx-internal.jesadakorn.com` route through the gateway's generic 404. Keep the old route as a tombstone and verify it with the public hostname.
 
+The Admin application listens on 3224. The independent OASIS 3D showroom uses 3218.
+
 Use pinned Bun1.4.3 and Node26.11.1. Inspect the3100 listener and working directory before reusing or starting dev. The ignored development environment enables `ERPX_HOLDING_ROUTING`, `ERPX_PRODUCT_ROUTING`, `ERPX_PRODUCT_SSO`, with `ERPX_ENVIRONMENT=local` and `ERPX_PRODUCT_ENVIRONMENT=development`. `bun run dev` runs the gateway3100 and starts declared apps lazily on3200–3299. `bun run dev:jobs` rebuilds the development worker. Keep private production3101 and PostgreSQL5432 running; never use3000/3001/8080.
 
 Preview organization renames with `bun --conditions=react-server scripts/local/migrate-holding-addresses.ts`; add `--apply` only for the intended development databases. This runner applies only1073 through the official migration engine. It does not install unrelated pending migrations. The committed migration is transactional; replacement audit rows retain node IDs, old/new slugs, Company/branch lineage and migration time. Ordinary immutable route constraints resume before commit. Reverting code cannot restore a renamed route: any deliberate reverse rename requires a new reviewed migration under the same transaction/lineage checks.

@@ -2313,7 +2313,7 @@
       "package": "@erpx/app-admin",
       "directory": "apps/admin",
       "origin": "https://admin-dev-erpx.jesadakorn.com",
-      "port": 3218,
+      "port": 3224,
       "entries": [
         "src/app/admin/launch/route.ts",
         "src/app/admin/choose-work-role/page.tsx",

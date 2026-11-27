@@ -11,12 +11,12 @@ export type AppDefinition = {
   port: number;
 };
 
-/** Explicit assignments preserve every existing listener. Retired Work port 3201 is unused. */
+/** Retired Work port 3201 is unused. Port 3218 hosts the independent OASIS showroom. */
 const appPorts: Record<AppId, number> = {
   apps: 3216, pos: 3202, pms: 3203, finance: 3204, people: 3205, sales: 3206,
   supply: 3207, assets: 3208, projects: 3209, recruit: 3210, learn: 3211,
   support: 3212, service: 3213, legal: 3214, manufacturing: 3215,
-  account: 3223, admin: 3218, booking: 3219, portal: 3220, "legal-portal": 3221, forms: 3222,
+  account: 3223, admin: 3224, booking: 3219, portal: 3220, "legal-portal": 3221, forms: 3222,
 };
 export const appDefinitions: readonly AppDefinition[] = [...productIds, ...sharedHostKeys].map(id => ({
   id, package: `@erpx/app-${id}`, directory: id === "apps" ? "apps/launcher" : `apps/${id}`,
