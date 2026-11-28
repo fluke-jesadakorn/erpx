@@ -9291,7 +9291,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16574,
+    "revision": 16577,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -227986,6 +227986,73 @@
         "blocker": null,
         "handoff": null,
         "nextAction": "Chrome normal Acme SSO rendered Agent governance and Assignments. Four workspace transport tests passed, including exact Host and cookie forwarding and foreign Host rejection. Private session/invocation evidence uses a separate native route and is unavailable in this dev config; inspect its dedicated Agent evidence runtime. Browser console follow-up hit a Chrome debugger timeout, so independent Suspense errors not ruled out."
+      },
+      {
+        "id": "integrate.identity_access.dev-account-menu",
+        "goalId": "G4",
+        "owner": "identity_access",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Use the native signed-in session for the product Account menu",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/workplace/src/routes/layout.tsx"
+        ],
+        "resources": [
+          "product-account-menu"
+        ],
+        "status": "done",
+        "claim": null,
+        "checks": [
+          {
+            "command": "Chrome normal Holding SSO and Account menu",
+            "sourceSha": "005400e2536e4233d342f505d0d8079c9b12d007",
+            "result": "passed",
+            "detail": "Acme and Northstar loaded saved account and the current Holding Owner role. Account mutations were not exercised."
+          },
+          {
+            "command": "bun run --cwd apps/launcher typecheck",
+            "sourceSha": "005400e2536e4233d342f505d0d8079c9b12d007",
+            "result": "passed"
+          },
+          {
+            "command": "bun x vitest run --config tests/config/vitest.unit.config.mts tests/unit/identity_access/native-session-server.test.ts",
+            "sourceSha": "005400e2536e4233d342f505d0d8079c9b12d007",
+            "result": "passed",
+            "detail": "30 tests"
+          },
+          {
+            "command": "bun run structure:check; bun run test:catalogue",
+            "sourceSha": "005400e2536e4233d342f505d0d8079c9b12d007",
+            "result": "passed"
+          },
+          {
+            "command": "bun run architecture:check",
+            "sourceSha": "005400e2536e4233d342f505d0d8079c9b12d007",
+            "result": "failed",
+            "detail": "Reported architecture violations outside the changed file."
+          },
+          {
+            "command": "bun run docs:check",
+            "sourceSha": "005400e2536e4233d342f505d0d8079c9b12d007",
+            "result": "failed",
+            "detail": "Stale generated capability delivery matrix."
+          },
+          {
+            "command": "Dev HTTP availability",
+            "sourceSha": "005400e2536e4233d342f505d0d8079c9b12d007",
+            "result": "passed",
+            "detail": "3100, Console dev and private 3101 health returned 200. Retired Console page returned 404."
+          }
+        ],
+        "retainedLegacy": [],
+        "baseSha": "e641caa0c36f070d11d33c53e7922f6293831171",
+        "implementedCommit": "005400e2536e4233d342f505d0d8079c9b12d007",
+        "lastPushedSha": "005400e2536e4233d342f505d0d8079c9b12d007",
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Verify add-account and role-change persistence in a disposable normal-SSO browser session. The signed-in menu now uses Axum session and device-account reads; existing work-role entrypoints remain tracked under the identity owner."
       }
     ],
     "migrationProgress": {
@@ -228008,7 +228075,7 @@
       }
     },
     "lastCoordinatorGeneration": 228,
-    "updatedAt": "2026-11-28T01:54:32.339Z",
+    "updatedAt": "2026-11-28T02:03:07.923Z",
     "handoff": {
       "fromRun": "run-20261128-route",
       "verifiedPushedCheckpoint": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
