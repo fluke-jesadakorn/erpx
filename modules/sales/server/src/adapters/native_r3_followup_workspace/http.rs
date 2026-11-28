@@ -3,14 +3,12 @@
 //! Transport facts only: exact Host/Holding targets, workspace/company/user
 //! headers supplied by the caller's authority and a bounded `orderId` query.
 //! The owner store owns every statement and the exact `{data:...}` envelope.
-use crate::adapters::native_r3_followup_workspace::application::{
-    FollowupWorkspaceStore, WorkspaceInput, read_workspace,
-};
+use crate::adapters::native_r3_followup_workspace::application::WorkspaceFuture;
 use crate::adapters::native_r3_followup_workspace::domain::{
     WORKSPACE_PATH, WorkspaceQuery, request_invalid,
 };
 use erpx_platform_runtime_server::public::http_support::{
-    HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Query, Request, Response, Router,
+    HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router,
     State, StatusCode, get, header, to_bytes,
 };
 use erpx_platform_shared_server::public::{BusinessError, FailureKind};
@@ -25,14 +23,27 @@ pub const WORKSPACE_CONTEXT_PERMISSIONS: HeaderName =
 pub const WORKSPACE_BRANCH: HeaderName = HeaderName::from_static("x-erpx-workspace-branch");
 pub const WORKSPACE_DEPARTMENT: HeaderName = HeaderName::from_static("x-erpx-workspace-department");
 
-const QUERY_LIMIT: usize = 4096;
-
 pub struct FollowupWorkspaceTarget {
     pub host: String,
     pub holding_slug: String,
     /// Exact browser origin for this registered Holding.
     pub origin: String,
-    pub store: Arc<dyn FollowupWorkspaceStore>,
+    /// A composition-owned backend must authorize the session, selection and
+    /// purchase and execute this read in its retained transaction. There is no
+    /// direct pool/header fallback.
+    pub backend: Arc<dyn FollowupWorkspaceBackend>,
+}
+
+pub trait FollowupWorkspaceBackend: Send + Sync {
+    fn read<'a>(&'a self, host: &'a str, holding_slug: &'a str, headers: &'a HeaderMap, query: &'a WorkspaceQuery)
+        -> WorkspaceFuture<'a, AuthorizedFollowupWorkspace>;
+}
+
+/// Produced by the composition backend after its session, selection and
+/// purchase checks. `None` purchase is reserved for disabled package mode.
+pub struct AuthorizedFollowupWorkspace {
+    pub data: serde_json::Value,
+    pub purchase: Option<serde_json::Value>,
 }
 
 type Targets = BTreeMap<(String, String), FollowupWorkspaceTarget>;
@@ -123,6 +134,9 @@ fn status(kind: FailureKind) -> StatusCode {
 }
 
 fn error_response(error: BusinessError) -> Response {
+    if error.code == "DATABASE_NUMBER_OUT_OF_RANGE" {
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error":{"code":"INTERNAL_ERROR","message":"The request could not be completed."}}))).into_response();
+    }
     (
         status(error.kind),
         Json(json!({"error":{"code":error.code,"message":error.message}})),
@@ -151,20 +165,8 @@ async fn read(
 ) -> Response {
     let (parts, body) = request.into_parts();
     let headers = parts.headers.clone();
-    let bytes = parts.uri.query().unwrap_or("").as_bytes().to_vec();
     let result = async move {
-        if bytes.len() > QUERY_LIMIT
-            || bytes.iter().enumerate().any(|(index, byte)| {
-                *byte == b'%'
-                    && !bytes
-                        .get(index + 1..index + 3)
-                        .is_some_and(|hex| hex.iter().all(u8::is_ascii_hexdigit))
-            })
-        {
-            return Err(request_invalid());
-        }
-        let Query(query) = Query::<WorkspaceQuery>::try_from_uri(&parts.uri)
-            .map_err(|_| request_invalid())?;
+        let query = WorkspaceQuery::from_query(parts.uri.query());
         query.validate()?;
         to_bytes(body, 0).await.map_err(|_| request_invalid())?;
 
@@ -184,31 +186,20 @@ async fn read(
                 "The workspace is available from its Holding origin.",
             ));
         }
-        let company = unique_header(&headers, WORKSPACE_CONTEXT_COMPANY)?
-            .filter(|value| bounded_id(value))
-            .ok_or_else(request_invalid)?;
-        let user = unique_header(&headers, WORKSPACE_CONTEXT_USER)?
-            .filter(|value| bounded_id(value))
-            .ok_or_else(request_invalid)?;
-        let branch = unique_header(&headers, WORKSPACE_BRANCH)?.filter(|value| bounded_id(value));
-        let department =
-            unique_header(&headers, WORKSPACE_DEPARTMENT)?.filter(|value| bounded_id(value));
-        let permissions = unique_header(&headers, WORKSPACE_CONTEXT_PERMISSIONS)?
-            .unwrap_or("")
-            .split(',')
-            .map(str::trim)
-            .collect::<Vec<_>>();
-        let input = WorkspaceInput {
-            company_id: company,
-            branch_id: branch,
-            department_id: department,
-            order_id: query.order_id.as_deref(),
-            user_id: user,
-            can_read: permissions.contains(&"commerce.read"),
-            can_sell: permissions.contains(&"commerce.sales"),
-            can_manage: permissions.contains(&"commerce.approve"),
-        };
-        let data = read_workspace(target.store.as_ref(), &query, input).await?;
+        for name in [WORKSPACE_BRANCH, WORKSPACE_DEPARTMENT] {
+            if unique_header(&headers, name)?.is_some_and(|value| !bounded_id(value)) {
+                return Err(request_invalid());
+            }
+        }
+        let authorized = target.backend.read(host, &target.holding_slug, &headers, &query).await?;
+        let mut data = authorized.data;
+        let object = data.as_object_mut().ok_or_else(request_invalid)?;
+        let can_create = object.get("canCreate").and_then(serde_json::Value::as_bool).ok_or_else(request_invalid)?;
+        if let Some(purchase) = authorized.purchase {
+            let new_work = purchase.get("newWork").and_then(serde_json::Value::as_bool).ok_or_else(request_invalid)?;
+            object.insert("canCreate".into(), serde_json::Value::Bool(can_create && new_work));
+            object.insert("purchase".into(), purchase);
+        }
         Ok(json!({ "data": data }))
     }
     .await;
@@ -219,6 +210,57 @@ async fn read(
 mod tests {
     use super::*;
 
+    #[tokio::test]
+    async fn forged_permissions_cannot_replace_authority_and_bad_scope_fails_closed() {
+        struct Deny;
+        impl FollowupWorkspaceBackend for Deny {
+            fn read<'a>(&'a self, _: &'a str, _: &'a str, _: &'a HeaderMap, _: &'a WorkspaceQuery) -> WorkspaceFuture<'a, AuthorizedFollowupWorkspace> {
+                Box::pin(async { Err(BusinessError::new(FailureKind::Forbidden, "AUTHORITY_DENIED", "Denied.")) })
+            }
+        }
+        let target = FollowupWorkspaceTarget { host: "acme.jesadakorn.com".into(), holding_slug: "acme".into(), origin: "https://acme.jesadakorn.com".into(), backend: Arc::new(Deny) };
+        let state = Arc::new(AppState { targets: BTreeMap::from([((target.host.clone(), target.holding_slug.clone()), target)]) });
+        let request = |scope: &str| Request::builder()
+            .uri("/api/v1/holdings/acme/customer-followups")
+            .header("host", "acme.jesadakorn.com")
+            .header("x-erpx-context-permissions", "commerce.read,commerce.sales")
+            .header("x-erpx-workspace-branch", scope)
+            .body(erpx_platform_runtime_server::public::http_support::Body::empty()).unwrap();
+        let forbidden = read(State(state.clone()), Path("acme".into()), request("branch")).await;
+        assert_eq!(forbidden.status(), StatusCode::FORBIDDEN);
+        let invalid = read(State(state), Path("acme".into()), request("../other")).await;
+        assert_eq!(invalid.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    #[tokio::test]
+    async fn backend_purchase_controls_gate_creation() {
+        struct Restricted;
+        impl FollowupWorkspaceBackend for Restricted {
+            fn read<'a>(&'a self, _: &'a str, _: &'a str, _: &'a HeaderMap, _: &'a WorkspaceQuery) -> WorkspaceFuture<'a, AuthorizedFollowupWorkspace> {
+                Box::pin(async { Ok(AuthorizedFollowupWorkspace { data: json!({"canCreate": true}), purchase: Some(json!({"newWork": false, "history": true, "revision": "r1"})) }) })
+            }
+        }
+        let target = FollowupWorkspaceTarget { host: "acme.jesadakorn.com".into(), holding_slug: "acme".into(), origin: "https://acme.jesadakorn.com".into(), backend: Arc::new(Restricted) };
+        let state = Arc::new(AppState { targets: BTreeMap::from([((target.host.clone(), target.holding_slug.clone()), target)]) });
+        let request = Request::builder().uri("/api/v1/holdings/acme/customer-followups").header("host", "acme.jesadakorn.com").body(erpx_platform_runtime_server::public::http_support::Body::empty()).unwrap();
+        let response = read(State(state), Path("acme".into()), request).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = to_bytes(response.into_body(), 4096).await.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(value["data"]["canCreate"], false);
+        assert_eq!(value["data"]["purchase"]["revision"], "r1");
+    }
+
+    #[tokio::test]
+    async fn unsafe_database_number_matches_typescript_internal_error() {
+        let response = error_response(BusinessError::new(FailureKind::Unavailable, "DATABASE_NUMBER_OUT_OF_RANGE", "internal detail"));
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        let bytes = to_bytes(response.into_body(), 4096).await.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(value["error"]["code"], "INTERNAL_ERROR");
+        assert_eq!(value["error"]["message"], "The request could not be completed.");
+    }
+
     #[test]
     fn path_is_the_shared_handler_route() {
         assert_eq!(WORKSPACE_PATH, "/api/v1/holdings/{holding_slug}/customer-followups");
@@ -226,21 +268,21 @@ mod tests {
 
     #[test]
     fn invalid_targets_fail_closed() {
-        struct Store;
-        impl FollowupWorkspaceStore for Store {
+        struct Backend;
+        impl FollowupWorkspaceBackend for Backend {
             fn read<'a>(
                 &'a self,
-                _: WorkspaceInput<'a>,
-            ) -> crate::adapters::native_r3_followup_workspace::application::WorkspaceFuture<'a, crate::adapters::native_r3_followup_workspace::application::WorkspaceRows>
+                _: &'a str, _: &'a str, _: &'a HeaderMap, _: &'a WorkspaceQuery,
+            ) -> WorkspaceFuture<'a, AuthorizedFollowupWorkspace>
             {
-                Box::pin(async { Ok(Default::default()) })
+                Box::pin(async { Err(BusinessError::new(FailureKind::Unavailable, "FOLLOWUP_AUTHORITY_REQUIRED", "Current authority is required.")) })
             }
         }
         let target = || FollowupWorkspaceTarget {
             host: "acme.jesadakorn.com".into(),
             holding_slug: "acme".into(),
             origin: "https://acme.jesadakorn.com".into(),
-            store: Arc::new(Store),
+            backend: Arc::new(Backend),
         };
         assert!(router(vec![target()]).is_ok());
         assert_eq!(
@@ -251,15 +293,8 @@ mod tests {
     }
 
     #[test]
-    fn query_rejects_unknown_keys_and_bad_order_ids() {
-        let bad = Query::<WorkspaceQuery>::try_from_uri(
-            &"/api/v1/holdings/acme/customer-followups?orderId=../x".parse().unwrap(),
-        )
-        .expect("parses");
-        assert!(bad.0.validate().is_err());
-        let unknown = Query::<WorkspaceQuery>::try_from_uri(
-            &"/api/v1/holdings/acme/customer-followups?other=1".parse().unwrap(),
-        );
-        assert!(unknown.is_err());
+    fn query_ignores_unknown_and_preserves_first_empty_order_id() {
+        let query = WorkspaceQuery::from_query(Some("other=1&orderId=&orderId=second"));
+        assert_eq!(query.order_id.as_deref(), Some(""));
     }
 }

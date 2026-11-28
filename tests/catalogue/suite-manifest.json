@@ -128334,6 +128334,120 @@
       ]
     },
     {
+      "id": "sales.rust-sales-followup-workspace-postgres.integration",
+      "lane": "integration",
+      "owner": "sales",
+      "modules": [
+        "sales"
+      ],
+      "files": [
+        "tests/integration/sales/rust-sales-followup-workspace-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Sales follow-up workspace SQL retains per-kind purchase visibility, Company/branch/department scope, joined order facts and recipient eligibility on explicitly SERIALIZABLE transactions; session/IAM, purchase witness and lock retention remain composition-owned."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-sales-server",
+        "targets": [
+          "sales_followup_workspace_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "modules/sales/server/Cargo.toml"
+      ],
+      "apps": [
+        "sales"
+      ],
+      "packages": [
+        "@erpx/agent-server",
+        "@erpx/assets-server",
+        "@erpx/benefits-server",
+        "@erpx/benefits-ui",
+        "@erpx/billing-ui",
+        "@erpx/brand-server",
+        "@erpx/collaboration-server",
+        "@erpx/collaboration-ui",
+        "@erpx/commerce-server",
+        "@erpx/commerce-ui",
+        "@erpx/commercial-server",
+        "@erpx/crm-server",
+        "@erpx/customer-360-server",
+        "@erpx/customer-authority-server",
+        "@erpx/ecommerce-server",
+        "@erpx/field-service-server",
+        "@erpx/files-server",
+        "@erpx/finance-server",
+        "@erpx/finance-ui",
+        "@erpx/identity-access-server",
+        "@erpx/identity-access-ui",
+        "@erpx/inventory-server",
+        "@erpx/inventory-ui",
+        "@erpx/learning-server",
+        "@erpx/legal-server",
+        "@erpx/legal-ui",
+        "@erpx/maintenance-server",
+        "@erpx/manage-erpx-server",
+        "@erpx/manufacturing-server",
+        "@erpx/marketing-server",
+        "@erpx/operations-server",
+        "@erpx/organization-server",
+        "@erpx/organization-ui",
+        "@erpx/people-payroll-server",
+        "@erpx/people-payroll-ui",
+        "@erpx/planning-server",
+        "@erpx/platform-administration-server",
+        "@erpx/platform-catalogue",
+        "@erpx/platform-contracts",
+        "@erpx/platform-native-sdk",
+        "@erpx/platform-runtime-server",
+        "@erpx/platform-runtime-ui",
+        "@erpx/platform-shared-server",
+        "@erpx/platform-shared-ui",
+        "@erpx/platform-workplace",
+        "@erpx/pms-server",
+        "@erpx/pos-server",
+        "@erpx/procurement-server",
+        "@erpx/procurement-ui",
+        "@erpx/projects-server",
+        "@erpx/projects-ui",
+        "@erpx/quality-server",
+        "@erpx/quality-ui",
+        "@erpx/records-server",
+        "@erpx/records-ui",
+        "@erpx/sales-server",
+        "@erpx/sales-ui",
+        "@erpx/support-server",
+        "@erpx/talent-server",
+        "@erpx/work-projection-server",
+        "@erpx/work-projection-ui",
+        "@erpx/workflow-server"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
       "id": "sales.rust-sales-price-lists-postgres.integration",
       "lane": "integration",
       "owner": "sales",

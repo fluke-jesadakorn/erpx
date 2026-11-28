@@ -102,6 +102,10 @@ name = "customer_followups_postgres"
 path = "../../../tests/integration/sales/rust-sales-followups-postgres.test.rs"
 
 [[test]]
+name = "sales_followup_workspace_postgres"
+path = "../../../tests/integration/sales/rust-sales-followup-workspace-postgres.test.rs"
+
+[[test]]
 name = "sales_notification_reconciliation"
 path = "../../../tests/unit/sales/rust-sales-notification-reconciliation.test.rs"
 

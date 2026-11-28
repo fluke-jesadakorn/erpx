@@ -21,6 +21,10 @@ pub struct WorkspaceInput<'a> {
     pub can_read: bool,
     pub can_sell: bool,
     pub can_manage: bool,
+    /// Explicit per-kind history admission; disabled/shadow mode must be
+    /// projected by the trusted purchase authority, never inferred here.
+    pub quote_history: bool,
+    pub sales_history: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -46,6 +50,9 @@ pub async fn read_workspace(
     input: WorkspaceInput<'_>,
 ) -> Result<Value, BusinessError> {
     query.validate()?;
+    if query.order_id.as_deref() != input.order_id {
+        return Err(request_invalid());
+    }
     if !input.can_read {
         return Err(BusinessError::new(
             erpx_platform_shared_server::public::FailureKind::Forbidden,
@@ -57,14 +64,18 @@ pub async fn read_workspace(
         return Err(request_invalid());
     }
     let rows = store.read(input).await?;
-    Ok(json!({
+    Ok(render_workspace(rows, input))
+}
+
+pub fn render_workspace(rows: WorkspaceRows, input: WorkspaceInput<'_>) -> Value {
+    json!({
         "order": rows.order,
         "items": rows.items,
         "recipients": rows.recipients,
         "canCreate": input.can_sell,
         "canManage": input.can_manage,
         "userId": input.user_id,
-    }))
+    })
 }
 
 #[cfg(test)]
@@ -107,6 +118,8 @@ mod tests {
                 can_read: true,
                 can_sell: true,
                 can_manage: false,
+                quote_history: true,
+                sales_history: true,
             },
         )
         .await
@@ -132,6 +145,8 @@ mod tests {
             can_read: false,
             can_sell: false,
             can_manage: false,
+            quote_history: true,
+            sales_history: true,
         };
         assert_eq!(
             read_workspace(&store, &WorkspaceQuery::default(), base)
@@ -141,16 +156,6 @@ mod tests {
             "FOLLOWUP_ACCESS_REQUIRED"
         );
         let allowed = WorkspaceInput { can_read: true, ..base };
-        assert_eq!(
-            read_workspace(
-                &store,
-                &WorkspaceQuery { order_id: Some("../bad".into()) },
-                allowed,
-            )
-            .await
-            .unwrap_err()
-            .code,
-            "CUSTOMER_FOLLOWUP_REQUEST_INVALID"
-        );
+        assert_eq!(read_workspace(&store, &WorkspaceQuery { order_id: Some("different".into()) }, allowed).await.unwrap_err().code, "CUSTOMER_FOLLOWUP_REQUEST_INVALID");
     }
 }
