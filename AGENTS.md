@@ -93,6 +93,8 @@ Development browser login credentials are stored locally in ignored `.scratch/de
 
 ## File placement
 
+- Write temporary logs, test output, and working files to an ignored per-task directory under `.scratch/dev/`.
+
 - Executable tests belong in `tests/<lane>/<suite-owner>/`; use the catalogue lane and owner, not filename guesses. Helpers/setup live in `tests/support/`, registers in `tests/catalogue/`, and runner/typecheck configs in `tests/config/`.
 - Test/engineering tools live in `scripts/testing/`, benchmarks in `scripts/performance/`, seeds in `scripts/seed/`, documentation tooling in `scripts/docs/`, assets tooling in `scripts/assets/`, and runtime operations in `scripts/local/`.
 - Fixture data and factories live in `fixtures/<owner>/`. Components and lib helpers use owner workspaces; primitives live in `packages/ui`, shells in `packages/workplace`/`packages/front`, and owner feature UI in `packages/feature-<owner>`.

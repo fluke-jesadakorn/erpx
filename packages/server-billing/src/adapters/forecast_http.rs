@@ -8,12 +8,12 @@
 //! backend trait. The SQL lives in [`crate::adapters::forecast_read`], which
 //! the composition backend calls on a Control connection; this handler never
 //! prepares or executes SQL and never reads a Holding database.
-use crate::domain::forecast_read::SeatForecastBaseline;
+use crate::domain::forecast_read::{SeatForecastBaseline, target_holding};
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State, StatusCode,
     get, header, serde_json,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_server_shared::public::{BusinessError, FailureKind, HoldingId};
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Arc};
 
@@ -24,6 +24,10 @@ pub struct BillingForecastHttpRequest<'a> {
     pub host: &'a str,
     pub holding_slug: &'a str,
     pub headers: &'a HeaderMap,
+    /// Platform selection of a customer Holding on the ERPX (`erpx`) surface.
+    /// Bounded here and applied by composition when it builds the actor and
+    /// acquires the Control connection; never taken from a browser header.
+    pub platform_customer: Option<HoldingId>,
 }
 
 #[derive(Clone, Debug)]
@@ -84,6 +88,44 @@ fn source_invalid() -> BusinessError {
         "BILLING_FORECAST_SOURCE_INVALID",
         "The native Billing forecast response is unavailable.",
     )
+}
+
+fn platform_forbidden() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Forbidden,
+        "FORBIDDEN",
+        "Platform billing permission required.",
+    )
+}
+
+/// The platform read is addressed to the ERPX (`erpx`) Holding surface with an
+/// explicit customer `holdingId`, mirroring the established native Billing
+/// workspace selection. The owner bounds the selector before composition sees
+/// it: `h003` is the ERPX management workspace, never a customer forecast, and
+/// `target_holding` maps it to the same `HOLDING_REQUIRED` failure the retained
+/// platform transport returned. Every other surface rejects any query.
+fn platform_customer(
+    query: Option<&str>,
+    holding_slug: &str,
+) -> Result<Option<HoldingId>, BusinessError> {
+    let Some(query) = query else {
+        return Ok(None);
+    };
+    if holding_slug != "erpx" {
+        return Err(request_invalid());
+    }
+    let id = query
+        .strip_prefix("holdingId=")
+        .ok_or_else(request_invalid)?;
+    if id.is_empty()
+        || id.len() > 64
+        || !id.bytes().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'_' | b'-')
+        })
+    {
+        return Err(request_invalid());
+    }
+    target_holding(id).map(Some)
 }
 
 fn unique_header<'a>(headers: &'a HeaderMap, name: &str) -> Result<Option<&'a str>, BusinessError> {
@@ -215,9 +257,7 @@ impl BillingForecastHttpState {
         holding_slug: &str,
         query: Option<&str>,
     ) -> Result<Response, BusinessError> {
-        if query.is_some() {
-            return Err(request_invalid());
-        }
+        let customer = platform_customer(query, holding_slug)?;
         let target = self.target(headers, holding_slug)?;
         let response = target
             .target
@@ -226,10 +266,27 @@ impl BillingForecastHttpState {
                 host: target.host,
                 holding_slug: &target.target.holding_slug,
                 headers,
+                platform_customer: customer.clone(),
             })
             .await?;
         if !response.context.is_object() {
             return Err(source_invalid());
+        }
+        // The platform role is authority, never a request header. Composition
+        // resolves it from the live session/assignment and renders it into the
+        // context; the owner checks that rendered role before returning the
+        // customer forecast. The holding-owner boundary stays in the owner
+        // actor policy used by the composition backend.
+        if customer.is_some() {
+            let role = response
+                .context
+                .get("role")
+                .and_then(serde_json::Value::as_str);
+            if !matches!(role, Some("platform_admin" | "platform_auditor"))
+                || response.context.get("platform").and_then(serde_json::Value::as_bool) != Some(true)
+            {
+                return Err(platform_forbidden());
+            }
         }
         // Round-trip the complete wire payload through the owner domain. An
         // extra, missing or renamed field fails closed instead of being
@@ -284,6 +341,7 @@ mod tests {
     struct Fake {
         seen: Mutex<Vec<String>>,
         data: Value,
+        context: Value,
     }
 
     impl BillingForecastHttpBackend for Fake {
@@ -293,12 +351,18 @@ mod tests {
         ) -> BillingForecastHttpFuture<'a, BillingForecastHttpResponse> {
             Box::pin(async move {
                 self.seen.lock().unwrap().push(format!(
-                    "{}:{}",
-                    request.host, request.holding_slug
+                    "{}:{}:{}",
+                    request.host,
+                    request.holding_slug,
+                    request
+                        .platform_customer
+                        .as_ref()
+                        .map(HoldingId::as_str)
+                        .unwrap_or("-")
                 ));
                 Ok(BillingForecastHttpResponse {
                     data: self.data.clone(),
-                    context: json!({"userId": "admin"}),
+                    context: self.context.clone(),
                 })
             })
         }
@@ -322,11 +386,30 @@ mod tests {
         let fake = Arc::new(Fake {
             seen: Mutex::new(Vec::new()),
             data,
+            context: json!({"userId": "admin"}),
         });
         let state = BillingForecastHttpState::new(vec![BillingForecastHttpTarget {
             host: "holding.erpxbrowser.test:3102".into(),
             holding_slug: "acme".into(),
             origin: "http://127.0.0.1:3102".into(),
+            backend: fake.clone(),
+        }])
+        .unwrap();
+        (state, fake)
+    }
+
+    fn platform_state(
+        context: Value,
+    ) -> (BillingForecastHttpState, Arc<Fake>) {
+        let fake = Arc::new(Fake {
+            seen: Mutex::new(Vec::new()),
+            data: baseline_value(),
+            context,
+        });
+        let state = BillingForecastHttpState::new(vec![BillingForecastHttpTarget {
+            host: "erpx-internal.jesadakorn.com".into(),
+            holding_slug: "erpx".into(),
+            origin: "https://erpx-internal.jesadakorn.com".into(),
             backend: fake.clone(),
         }])
         .unwrap();
@@ -339,6 +422,19 @@ mod tests {
         if let Some(origin) = origin {
             headers.insert("origin", origin.parse().unwrap());
         }
+        headers
+    }
+
+    fn platform_headers() -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "host",
+            "erpx-internal.jesadakorn.com".parse().unwrap(),
+        );
+        headers.insert(
+            "origin",
+            "https://erpx-internal.jesadakorn.com".parse().unwrap(),
+        );
         headers
     }
 
@@ -357,7 +453,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
             fake.seen.lock().unwrap().as_slice(),
-            ["holding.erpxbrowser.test:3102:acme"]
+            ["holding.erpxbrowser.test:3102:acme:-"]
         );
         let body = block_on(async {
             let bytes = erpx_server_runtime::public::http_support::body::to_bytes(
@@ -393,5 +489,84 @@ mod tests {
         let (partial_state, _) = state(partial);
         let response = block_on(partial_state.forecast(&headers(Some("http://127.0.0.1:3102")), "acme", None));
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[test]
+    fn platform_selection_carries_the_customer_and_the_canonical_envelope() {
+        let (state, fake) = platform_state(json!({
+            "userId": "operator", "holdingId": "h003", "holdingSlug": "erpx",
+            "platform": true, "role": "platform_admin", "assignmentId": "platform-assignment"
+        }));
+        let response = block_on(state.forecast(
+            &platform_headers(),
+            "erpx",
+            Some("holdingId=h001"),
+        ));
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            fake.seen.lock().unwrap().as_slice(),
+            ["erpx-internal.jesadakorn.com:erpx:h001"]
+        );
+        assert_eq!(response.headers().get(header::CACHE_CONTROL).unwrap(), "private, no-store");
+        let body = block_on(async {
+            let bytes = erpx_server_runtime::public::http_support::body::to_bytes(
+                response.into_body(),
+                64 * 1024,
+            )
+            .await
+            .unwrap();
+            serde_json::from_slice::<Value>(&bytes).unwrap()
+        });
+        // The owner owns the envelope: exactly the canonical `{data, context}`
+        // object, with the complete 8-field baseline and no projection.
+        let object = body.as_object().unwrap();
+        assert_eq!(object.keys().map(String::as_str).collect::<Vec<_>>(), ["context", "data"]);
+        assert_eq!(object.get("data").unwrap().as_object().unwrap().len(), 8);
+        assert_eq!(object.get("context").unwrap().get("role").unwrap(), &json!("platform_admin"));
+    }
+
+    #[test]
+    fn platform_selection_fails_closed_for_reserved_holding_and_role() {
+        let (state, fake) = platform_state(json!({
+            "platform": true, "role": "platform_admin"
+        }));
+        let reserved = block_on(state.forecast(&platform_headers(), "erpx", Some("holdingId=h003")));
+        assert_eq!(reserved.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(fake.seen.lock().unwrap().len(), 0);
+        let malformed = block_on(state.forecast(&platform_headers(), "erpx", Some("holdingId=H001")));
+        assert!(malformed.status().is_client_error());
+
+        for context in [
+            json!({"platform": true, "role": "platform_support"}),
+            json!({"platform": false, "role": "holding_owner"}),
+            json!({"platform": true}),
+        ] {
+            let (state, fake) = platform_state(context);
+            let response = block_on(state.forecast(&platform_headers(), "erpx", Some("holdingId=h001")));
+            assert_eq!(response.status(), StatusCode::FORBIDDEN);
+            let body = block_on(async {
+                let bytes = erpx_server_runtime::public::http_support::body::to_bytes(
+                    response.into_body(),
+                    64 * 1024,
+                )
+                .await
+                .unwrap();
+                serde_json::from_slice::<Value>(&bytes).unwrap()
+            });
+            assert_eq!(body.get("error").unwrap().get("code").unwrap(), &json!("FORBIDDEN"));
+            assert_eq!(fake.seen.lock().unwrap().len(), 1);
+        }
+    }
+
+    #[test]
+    fn rejects_a_customer_selector_outside_the_platform_surface() {
+        let (state, fake) = state(baseline_value());
+        let response = block_on(state.forecast(
+            &headers(Some("http://127.0.0.1:3102")),
+            "acme",
+            Some("holdingId=h001"),
+        ));
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(fake.seen.lock().unwrap().len(), 0);
     }
 }

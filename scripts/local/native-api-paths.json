@@ -24,7 +24,17 @@
     { "method": "POST", "path": "customer-identity" },
     { "method": "POST", "path": "stories/{id}/archive" },
     { "method": "GET", "path": "executive/connections" },
-    { "method": "POST", "path": "executive/connections" }
+    { "method": "POST", "path": "executive/connections" },
+    { "method": "GET", "path": "supplier-promises/{id}" },
+    { "method": "GET", "path": "pms/stripe-payments" },
+    { "method": "POST", "path": "projects/{id}/structure" },
+    { "method": "GET", "path": "attachment-links/{linkId}/status" },
+    { "method": "GET", "path": "posts/{id}/revisions" },
+    { "method": "GET", "path": "pms/imports" },
+    { "method": "GET", "path": "assignments/active" },
+    { "method": "POST", "path": "assignments/active" },
+    { "method": "GET", "path": "agents" },
+    { "method": "POST", "path": "agents" }
   ],
   "platform": [
     { "host": "admin.jesadakorn.com", "method": "GET", "path": "/api/v1/platform/operations" },
@@ -34,13 +44,20 @@
     { "host": "erpx-internal.jesadakorn.com", "method": "GET", "path": "/api/v1/platform/operations" },
     { "host": "erpx-internal.jesadakorn.com", "method": "POST", "path": "/api/v1/platform/operations/migrate" },
     { "host": "erpx-internal.jesadakorn.com", "method": "POST", "path": "/api/v1/platform/operations/recover" },
-    { "host": "erpx-internal.jesadakorn.com", "method": "GET", "path": "/api/v1/platform/executive" }
+    { "host": "erpx-internal.jesadakorn.com", "method": "GET", "path": "/api/v1/platform/executive" },
+    { "host": "acme.jesadakorn.com", "method": "GET", "path": "/api/v1/onboarding" },
+    { "host": "acme.jesadakorn.com", "method": "POST", "path": "/api/v1/onboarding" },
+    { "host": "northstar.jesadakorn.com", "method": "GET", "path": "/api/v1/onboarding" },
+    { "host": "northstar.jesadakorn.com", "method": "POST", "path": "/api/v1/onboarding" },
+    { "host": "erpx-internal.jesadakorn.com", "method": "GET", "path": "/api/v1/onboarding" },
+    { "host": "erpx-internal.jesadakorn.com", "method": "POST", "path": "/api/v1/onboarding" }
   ],
   "platformPrefixes": [
     { "host": "admin.jesadakorn.com", "path": "/api/v1/platform/billing/ai-gateway" },
     { "host": "erpx-internal.jesadakorn.com", "path": "/api/v1/platform/billing/ai-gateway" }
   ],
   "rewrites": [
-    "/records/search=/records/native-search"
+    "/records/search=/records/native-search",
+    "/posts/=/feed/"
   ]
 }

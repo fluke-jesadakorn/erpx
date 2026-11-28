@@ -35,7 +35,7 @@
     "test:e2e:smoke": "playwright test --config tests/config/playwright.config.ts tests/e2e/identity_access/auth-smoke.spec.ts",
     "test:e2e:work": "playwright test --config tests/config/playwright.config.ts tests/journeys/shared.work/work-journeys.spec.ts",
     "test:e2e:ui": "playwright test --config tests/config/playwright.config.ts --ui",
-    "test:e2e:report": "playwright show-report",
+    "test:e2e:report": "playwright show-report .scratch/dev/playwright/report",
     "investor:capture": "bun scripts/testing/investor.ts capture",
     "investor:report": "bun scripts/testing/investor.ts report",
     "uat:route-inventory": "bun scripts/docs/generate-uat-route-inventory.ts",

@@ -778,7 +778,7 @@ const delivery: Record<string, ModuleDelivery> = {
     "stage": 4,
     "status": "flow_accepted",
     "ui": "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/projects/screen.tsx",
-    "api": "packages/feature-projects/src/routes/api/v1/holdings/[holdingSlug]/projects/[[...path]]/route.ts; packages/feature-projects/src/routes/api/v1/holdings/[holdingSlug]/projects/[id]/structure/route.ts",
+    "api": "packages/feature-projects/src/routes/api/v1/holdings/[holdingSlug]/projects/[[...path]]/route.ts",
     "service": "packages/server-operations/src/public/staff-tasks.ts; packages/server-projects/src/public/project-structure.ts",
     "schema": "migrations/postgres/holding-write/0001_baseline.sql",
     "test": "tests/integration/projects/project-actuals.test.ts; tests/journeys/shared.business-journeys/demo-engineering-business.spec.ts",

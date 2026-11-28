@@ -8382,10 +8382,32 @@ async fn assemble_checked(
             );
         }
         #[cfg(feature = "existing-business")]
+        let agents_public_read_targets = agent_workspace_targets
+            .iter()
+            .map(|target| {
+                erpx_server_agent::public::agents_public_read::AgentsPublicReadTarget {
+                    host: target.host.clone(),
+                    holding_slug: target.holding_slug.clone(),
+                    holding_id: target.holding_id.clone(),
+                    origin: target.origin.clone(),
+                    backend: target.backend.clone(),
+                }
+            })
+            .collect::<Vec<_>>();
+        #[cfg(feature = "existing-business")]
         if !agent_workspace_targets.is_empty() {
             router = router.merge(
                 crate::agent_governance::agent_workspace_router(agent_workspace_targets)
                     .map_err(|_| "PRIVATE_API_AGENT_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !agents_public_read_targets.is_empty() {
+            router = router.merge(
+                erpx_server_agent::public::agents_public_read::agents_public_read_router(
+                    agents_public_read_targets,
+                )
+                .map_err(|_| "PRIVATE_API_AGENT_CONFIGURATION_INVALID")?,
             );
         }
         if !ai_provider_targets.is_empty() {
@@ -9609,7 +9631,7 @@ async fn assemble_checked(
                 Arc::new(FieldServiceReadScopeHeaders),
                 Arc::new(SharedClock(clock.clone())),
                 work_roles,
-                config.profile == Profile::OasisDemoStaging,
+                true,
             )
             .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?,
         );

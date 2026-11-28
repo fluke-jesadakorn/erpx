@@ -41,7 +41,6 @@
 @source "../../../../packages/feature-account/src/routes/verify-email/page.tsx";
 @source "../../../../packages/feature-admin/src/routes/admin/choose-work-role/page.tsx";
 @source "../../../../packages/feature-admin/src/routes/admin/launch/route.ts";
-@source "../../../../packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/agents/route.ts";
 @source "../../../../packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/authority/[[...path]]/route.ts";
 @source "../../../../packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/authority/flows/preview/route.ts";
 @source "../../../../packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/beta/[[...path]]/route.ts";
@@ -244,7 +243,6 @@
 @source "../../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/ai-drafts/route.ts";
 @source "../../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/follow/route.ts";
 @source "../../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/reaction/route.ts";
-@source "../../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/revisions/route.ts";
 @source "../../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/route.ts";
 @source "../../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/task-source/route.ts";
 @source "../../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/task/route.ts";
@@ -1802,13 +1800,11 @@
 @source "../../../../packages/feature-projects/src/public/native-project-attachment-read.ts";
 @source "../../../../packages/feature-projects/src/public/native-project-attachment.ts";
 @source "../../../../packages/feature-projects/src/public/native-project-handoffs.ts";
-@source "../../../../packages/feature-projects/src/public/native-project-structure.ts";
 @source "../../../../packages/feature-projects/src/public/native-project-wbs-owned.ts";
 @source "../../../../packages/feature-projects/src/public/native-project-wbs-page.ts";
 @source "../../../../packages/feature-projects/src/public/native-project-wbs.ts";
 @source "../../../../packages/feature-projects/src/routes/api/v1/holdings/[holdingSlug]/people/project-worker-startup/[[...path]]/route.ts";
 @source "../../../../packages/feature-projects/src/routes/api/v1/holdings/[holdingSlug]/projects/[[...path]]/route.ts";
-@source "../../../../packages/feature-projects/src/routes/api/v1/holdings/[holdingSlug]/projects/[id]/structure/route.ts";
 @source "../../../../packages/feature-projects/src/routes/holdings/[holdingSlug]/@record/projects-routines/projects/[id]/[recordSection]/page.tsx";
 @source "../../../../packages/feature-projects/src/routes/holdings/[holdingSlug]/@record/projects-routines/projects/[id]/page.tsx";
 @source "../../../../packages/feature-projects/src/routes/holdings/[holdingSlug]/@record/projects-routines/projects/settings/workers/[personId]/page.tsx";
@@ -2477,7 +2473,6 @@
 @source "../../../../packages/server-agent/src/public/hospitality-owner-projection-sources.ts";
 @source "../../../../packages/server-agent/src/public/native-agent-evidence-page.ts";
 @source "../../../../packages/server-agent/src/public/native-agent-evidence.ts";
-@source "../../../../packages/server-agent/src/public/native-agent-governance.ts";
 @source "../../../../packages/server-agent/src/public/native-agent-workspace.ts";
 @source "../../../../packages/server-agent/src/public/operations-guided-intake-facts.ts";
 @source "../../../../packages/server-agent/src/public/records-ai-quota.ts";
@@ -6366,7 +6361,6 @@
 @source "../../../../packages/server-pms/src/adapters/native-lane-20/client.ts";
 @source "../../../../packages/server-pms/src/adapters/native-lane-20/import-batch-client.ts";
 @source "../../../../packages/server-pms/src/adapters/native-lane-20/room-summary-client.ts";
-@source "../../../../packages/server-pms/src/adapters/native-payment-status.ts";
 @source "../../../../packages/server-pms/src/adapters/native-pms-read.ts";
 @source "../../../../packages/server-pms/src/adapters/native-refund-context.ts";
 @source "../../../../packages/server-pms/src/adapters/operations-handover-facts.ts";
@@ -7820,11 +7814,9 @@
 @source "../../../../packages/workplace/src/routes/api/v1/account/work-context/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/front-access/quick-access/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/front/[holdingSlug]/[companySlug]/[app]/[[...path]]/route.ts";
-@source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/assignments/active/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/assistant/intake/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/assistant/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/content/route.ts";
-@source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/status/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/withdraw/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/bind/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/files/route.ts";
@@ -7884,7 +7876,6 @@
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/work/review/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/work/summary/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/me/page-layouts/[pageKey]/route.ts";
-@source "../../../../packages/workplace/src/routes/api/v1/onboarding/route.ts";
 @source "../../../../packages/workplace/src/routes/book/[holdingSlug]/layout.tsx";
 @source "../../../../packages/workplace/src/routes/choose-work-role/native-role-form.tsx";
 @source "../../../../packages/workplace/src/routes/choose-work-role/page.tsx";

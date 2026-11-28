@@ -57,7 +57,7 @@ const selectedFiles: string[] | undefined = process.env.ERPX_TEST_BROWSER_FILES
 
 export default defineConfig({
   testDir: "..",
-  outputDir: join(root, "test-results"),
+  outputDir: join(root, ".scratch/dev/playwright/test-results"),
   ...(selectedFiles ? { testMatch: selectedFiles.map(file => `**/${file.replace(/^tests\//, "")}`) }
     : { testMatch: "**/{e2e,journeys,uat}/**/*.spec.ts", testIgnore: ["**/uat-route-matrix.spec.ts", "**/legal-uat.spec.ts"] }),
   fullyParallel: uatRouteSweep,
@@ -66,7 +66,7 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 10_000 },
   retries: 0,
-  reporter: [["list"], ["html", { open: "never", outputFolder: join(root, "playwright-report") }]],
+  reporter: [["list"], ["html", { open: "never", outputFolder: join(root, ".scratch/dev/playwright/report") }]],
   use: {
     baseURL,
     ...(developmentLease ? { serviceWorkers: "block", ignoreHTTPSErrors: false } : {}),

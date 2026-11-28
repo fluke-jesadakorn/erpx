@@ -35,9 +35,40 @@ pub struct ProjectStructureHttpResponse {
     pub context: serde_json::Value,
 }
 
+/// The native owner is the single source of receipt semantics. Composition
+/// supplies the snake-case `ProjectStructureReceipt`; the HTTP response shapes
+/// it into the exact camel-case acknowledgement the Projects console consumes,
+/// so no TypeScript transport re-derives task/actual/handoff ids, versions,
+/// statuses or snapshot expectations.
+const RECEIPT_RENAMES: [(&str, &str); 5] = [
+    ("task_id", "taskId"),
+    ("binding_version", "bindingVersion"),
+    ("actual_id", "actualId"),
+    ("handoff_id", "handoffId"),
+    ("snapshot_sha256", "snapshotSha256"),
+];
+
+pub fn structure_acknowledgement(data: &serde_json::Value) -> serde_json::Value {
+    let Some(receipt) = data.as_object() else {
+        return serde_json::Value::Null;
+    };
+    let mut acknowledgement = serde_json::Map::new();
+    for (key, value) in receipt {
+        if value.is_null() {
+            continue;
+        }
+        let target = RECEIPT_RENAMES
+            .iter()
+            .find(|(from, _)| *from == key.as_str())
+            .map_or(key.as_str(), |(_, to)| *to);
+        acknowledgement.insert(target.to_owned(), value.clone());
+    }
+    serde_json::Value::Object(acknowledgement)
+}
+
 impl ProjectStructureHttpResponse {
     pub fn value(self) -> serde_json::Value {
-        serde_json::json!({"data": self.data, "context": self.context})
+        serde_json::json!({"data": structure_acknowledgement(&self.data), "context": self.context})
     }
 }
 
@@ -250,5 +281,56 @@ async fn structure(
     match result {
         Ok(reply) => bounded(reply.value()),
         Err(error) => error_response(error),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn reply(data: serde_json::Value) -> ProjectStructureHttpResponse {
+        ProjectStructureHttpResponse {
+            data,
+            context: serde_json::json!({"revision": 7}),
+        }
+    }
+
+    #[test]
+    fn native_response_shapes_the_exact_camel_case_acknowledgement() {
+        let value = reply(serde_json::json!({
+            "id": "p1", "version": 5, "status": "active",
+            "task_id": "t1", "binding_version": 2,
+            "actual_id": null, "handoff_id": null, "snapshot_sha256": null,
+        }))
+        .value();
+        assert_eq!(
+            value["data"],
+            serde_json::json!({
+                "id": "p1", "version": 5, "status": "active",
+                "taskId": "t1", "bindingVersion": 2,
+            })
+        );
+        assert_eq!(value["context"], serde_json::json!({"revision": 7}));
+    }
+
+    #[test]
+    fn native_response_shapes_handoff_and_snapshot_fields() {
+        let value = reply(serde_json::json!({
+            "id": "p1", "version": 6, "status": "handoff_pending",
+            "handoff_id": "project-handoff-key", "snapshot_sha256": "a".repeat(64),
+        }))
+        .value();
+        assert_eq!(value["data"]["handoffId"], "project-handoff-key");
+        assert_eq!(value["data"]["snapshotSha256"], "a".repeat(64));
+        assert!(value["data"].get("handoff_id").is_none());
+        assert!(value["data"].get("snapshot_sha256").is_none());
+    }
+
+    #[test]
+    fn non_object_receipt_is_rejected() {
+        assert_eq!(
+            structure_acknowledgement(&serde_json::json!([])),
+            serde_json::Value::Null
+        );
     }
 }

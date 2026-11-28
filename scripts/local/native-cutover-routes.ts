@@ -171,6 +171,9 @@ export function holdingNativeCutoverPath(url: string, holdingSlug: string, metho
   if (owner === "posts" && segment && tail.length === 1 && tail[0] === "comments") {
     try { if (validId(segment)) return "social"; } catch { return; }
   }
+  if (owner === "posts" && segment && tail.length === 1 && tail[0] === "revisions" && (method === "GET" || method === "HEAD")) {
+    try { if (validId(segment)) return "social"; } catch { return; }
+  }
   if (owner === "quality" && method === "POST" && segment === "specifications" && tail.length <= 1) {
     try {
       if (tail.length === 0 || validId(tail[0]!)) return "quality-command";

@@ -184,7 +184,6 @@
     "./routes/api/v1/holdings/[holdingSlug]/branding/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/branding/[[...path]]/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/technology/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/technology/[[...path]]/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/feature-catalogue/route": "./src/routes/api/v1/holdings/[holdingSlug]/feature-catalogue/route.ts",
-    "./routes/api/v1/holdings/[holdingSlug]/agents/route": "./src/routes/api/v1/holdings/[holdingSlug]/agents/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/usage/route": "./src/routes/api/v1/holdings/[holdingSlug]/usage/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/authority/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/authority/[[...path]]/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/authority/flows/preview/route": "./src/routes/api/v1/holdings/[holdingSlug]/authority/flows/preview/route.ts",

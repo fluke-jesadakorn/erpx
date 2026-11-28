@@ -10,6 +10,7 @@ pub mod collaboration_lead_postgres;
 pub mod commands_http;
 pub mod crm_case_event_history_http;
 pub mod crm_case_event_history_postgres;
+pub mod crm_marketing_report_http;
 pub mod guest_history_http;
 pub mod guest_history_postgres;
 pub mod leads_http;

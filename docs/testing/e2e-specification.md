@@ -60,7 +60,8 @@ from a lost response after commit. That stronger replay case remains FLOW-003.
 
 Use test IDs in Playwright titles to select cases. A case passes only when its
 assertions pass; a fixture skip is not passing acceptance. Failure screenshots and
-traces are in ignored `test-results/`; the HTML report is in `playwright-report/`.
+traces are in `.scratch/dev/playwright/test-results/`. Open the HTML report with
+`bun run test:e2e:report`.
 Document each run's command, date, project, pass/fail/skip count, and blocker.
 
 ## New executable Work cases

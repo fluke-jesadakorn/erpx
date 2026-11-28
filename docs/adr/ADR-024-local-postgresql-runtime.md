@@ -1,6 +1,6 @@
 # ADR-024: Local Node.js and PostgreSQL behind Cloudflare Tunnel
 
-> Current development clarification,2026-10-27: [ADR-051](ADR-051-holding-addresses-and-workspace-paths.md) supersedes Console as the public business entry. Three exact Holding hosts plus central Account use gateway3100; Console is a generic404 tombstone with exact health/ready reads only. [Current toolchain](../../README.md#stack) and [Holding operations](../../ops/macos/holding-development.md) supersede dated development version/address notes below. Installed private production and staging are unchanged.
+> Current development clarification,2026-10-27: [ADR-051](ADR-051-holding-addresses-and-workspace-paths.md) supersedes Console as the public business entry. Three exact Holding hosts plus central Account use gateway3100; Console is a generic404 tombstone with exact health/ready reads only. [Current toolchain](../development.md#stack) and [Holding operations](../../ops/macos/holding-development.md) supersede dated development version/address notes below. Installed private production and staging are unchanged.
 
 > **Accepted — 2026-09-08. Supersedes the runtime and deployment portions of ADR-022.**
 

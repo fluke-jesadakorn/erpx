@@ -177,7 +177,7 @@ navigation contract.
 
 ## Conventions
 
-- **Idempotency:** every command carries `Idempotency-Key` + authoritative tenant/holding scope (from `CONTRACT_POLICY.md`).
+- **Idempotency:** every command carries `Idempotency-Key` + authoritative tenant/holding scope (from `docs/contracts/policy.md`).
 - **Versioned namespace:** `/api/v1/platform/...` and the canonical Holding/Local workspace prefixes below `/api/v1/holdings/{holdingSlug}/...` — never reuse a route or field with different meaning; removed fields stay reserved.
 - **Verification:** `bun run lint`, `bun run typecheck`, `bun run deploy:build`, and `bun run test:integration` pass. Archived Rust gates were removed with the 2026-11-04 backup ref cleanup.
 
@@ -185,7 +185,7 @@ navigation contract.
 
 - Current workflow ownership: [catalogue](catalogue.md); Rust recovery: [Git recovery](../../../README.md#recovery)
 - Spec hub: `docs/TOC.md` → `docs/production-plan.md` (current scope) → affected owner contract.
-- Policy: `CONTRACT_POLICY.md` + `docs/adr/ADR-020-nextjs-stack.md` + `docs/adr/ADR-024-local-postgresql-runtime.md` + `docs/adr/ADR-023-three-level-workspace-routing.md`
+- Policy: `docs/contracts/policy.md` + `docs/adr/ADR-020-nextjs-stack.md` + `docs/adr/ADR-024-local-postgresql-runtime.md` + `docs/adr/ADR-023-three-level-workspace-routing.md`
 
 
 ## Staff work and approval routes

@@ -5,15 +5,9 @@ import { holdingResources } from "../../../../../../../../../../packages/server-
 import { ApiError,errorResponse } from "@erpx/server-runtime/public/http";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { isTransactionalSqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import { previewPmsImport,approvePmsImport,applyPmsImport,pmsImportBatches } from "@erpx/server-pms/public/pms/import";
+import { previewPmsImport,approvePmsImport,applyPmsImport } from "@erpx/server-pms/public/pms/import";
 export const dynamic="force-dynamic";
 type Context={params:Promise<{holdingSlug:string}>};
-export async function GET(request:Request,{params}:Context){
-  try{const {holdingSlug}=await params,actor=await requireWorkContext(holdingSlug),{write}=await holdingResources(actor.holdingId);
-    const property=z.string().min(1).max(160).parse(new URL(request.url).searchParams.get("property"));
-    return Response.json(canonicalDestinationLinks({data:await pmsImportBatches(write,actor,property)}),{headers:{"Cache-Control":"private, no-store"}});
-  }catch(error){return errorResponse(error);}
-}
 export async function POST(request:Request,{params}:Context){
   try{
     if(request.headers.get("origin")&&request.headers.get("origin")!==requestPublicOrigin(request))throw new ApiError(403,"ORIGIN_FORBIDDEN","Use ERPX to save this change.");

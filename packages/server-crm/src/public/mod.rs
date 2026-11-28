@@ -8,6 +8,7 @@ pub mod activity_workspace_http;
 pub mod collaboration_lead;
 pub mod commands_http;
 pub mod crm_case_event_history;
+pub mod crm_marketing_report_http;
 pub mod guest_history;
 pub mod leads_http;
 pub mod leads_intake_http;

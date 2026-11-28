@@ -24,7 +24,7 @@ const documents = documentationFiles(root);
 for (const file of trackedTemporaryFiles(root)) errors.push(`Tracked temporary file: ${file}. Keep private working files outside Git.`);
 
 // Community metadata is a preparation contract, not a public-release receipt.
-for (const name of ["LICENSE", "NOTICE", "LICENSING.md", "CONTRIBUTING.md", "SECURITY.md", "CODE_OF_CONDUCT.md", "GOVERNANCE.md", ".github/CODEOWNERS", ".github/PULL_REQUEST_TEMPLATE.md", ".github/ISSUE_TEMPLATE/bug_report.yml", ".github/ISSUE_TEMPLATE/proposal.yml", ".github/ISSUE_TEMPLATE/config.yml", "docs/community/open-source.md", "docs/community/provenance.json"])
+for (const name of ["LICENSE", "NOTICE", "docs/community/LICENSING.md", "CONTRIBUTING.md", ".github/SECURITY.md", ".github/CODE_OF_CONDUCT.md", "docs/community/GOVERNANCE.md", ".github/CODEOWNERS", ".github/PULL_REQUEST_TEMPLATE.md", ".github/ISSUE_TEMPLATE/bug_report.yml", ".github/ISSUE_TEMPLATE/proposal.yml", ".github/ISSUE_TEMPLATE/config.yml", "docs/community/open-source.md", "docs/community/provenance.json"])
   if (!existsSync(resolve(root, name))) errors.push(`Missing community foundation: ${name}`);
 if (existsSync(resolve(root, "LICENSE")) && !read(resolve(root, "LICENSE")).includes("Version 2.0, January 2004"))
   errors.push("The current project license must contain the Apache-2.0 text");

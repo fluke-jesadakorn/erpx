@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { loadCatalogue, repositoryRoot, validateCatalogue, type Suite } from "./catalogue";
 import { appDefinitions } from "@erpx/contracts/apps";
 import { loadProviderRehearsals } from "./provider-rehearsals";
+import { trackedTemporaryFiles } from "../docs/documentation-integrity";
 
 /** File placement follows the declared lane and owner, including shared owners. */
 export function assertTestPlacement(suites: readonly Pick<Suite, "id" | "lane" | "owner" | "files">[]): void {
@@ -17,6 +18,8 @@ export function assertTestPlacement(suites: readonly Pick<Suite, "id" | "lane" |
 }
 
 export function checkRepositoryLayout(root = repositoryRoot): void {
+  const temporaryFiles = trackedTemporaryFiles(root);
+  if (temporaryFiles.length) throw new Error(`TRACKED_TEMPORARY_FILES:${temporaryFiles.join(",")}`);
   const catalogue = loadCatalogue(root);
   validateCatalogue(catalogue, root);
   assertTestPlacement(catalogue.suites);

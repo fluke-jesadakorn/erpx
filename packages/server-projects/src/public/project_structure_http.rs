@@ -2,4 +2,5 @@
 pub use crate::adapters::project_structure_http::{
     ProjectStructureHttpBackend, ProjectStructureHttpFuture, ProjectStructureHttpRequest,
     ProjectStructureHttpResponse, ProjectStructureHttpTarget, project_structure_router,
+    structure_acknowledgement,
 };

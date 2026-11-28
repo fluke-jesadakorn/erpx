@@ -2,13 +2,13 @@
 
 This guide records public-development requirements, not another delivery plan. The [production plan](../production-plan.md) owns implementation order and status. Adding community files does not publish the repository, accept the Rust migration or clear retained history.
 
-The source grant is [Apache-2.0](../../LICENSE), subject to the [licensing scope](../../LICENSING.md). [provenance.json](provenance.json) is an incomplete inventory of known review categories. The initial maintainer is [@fluke-jesadakorn](https://github.com/fluke-jesadakorn); [governance](../../GOVERNANCE.md) records the current one-maintainer model.
+The source grant is [Apache-2.0](../../LICENSE), subject to the [licensing scope](LICENSING.md). [provenance.json](provenance.json) is an incomplete inventory of known review categories. The initial maintainer is [@fluke-jesadakorn](https://github.com/fluke-jesadakorn); [governance](GOVERNANCE.md) records the current one-maintainer model.
 
 ## Development contribution foundation
 
 - [CONTRIBUTING.md](../../CONTRIBUTING.md): local workflow, owner boundaries, tests and DCO sign-off.
-- [SECURITY.md](../../SECURITY.md): private reporting and safe verification.
-- [CODE_OF_CONDUCT.md](../../CODE_OF_CONDUCT.md): expected behavior, moderation and reporting.
+- [SECURITY.md](../../.github/SECURITY.md): private reporting and safe verification.
+- [CODE_OF_CONDUCT.md](../../.github/CODE_OF_CONDUCT.md): expected behavior, moderation and reporting.
 - [CODEOWNERS](../../.github/CODEOWNERS) and the issue/PR templates: review responsibility and useful contribution context.
 
 Maintain current engineering and community prose in English. Retain original historical evidence and add an English explanation when needed; do not rewrite a dated receipt as if it came from a new implementation. Application translations, exact business data and quoted source material have their own purpose and are not an instruction to change the UI language.
