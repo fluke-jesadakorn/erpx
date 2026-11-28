@@ -9291,7 +9291,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16545,
+    "revision": 16557,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -227801,6 +227801,100 @@
         "lastPushedSha": "21211dbb498696e194bba93e6faa59835fb5bbb0",
         "blocker": null,
         "handoff": null
+      },
+      {
+        "id": "integrate.projects.dev-my-day-source",
+        "goalId": "G4",
+        "owner": "projects",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Repair Axum projects My day read",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-projects/src/adapters/native_lane_27/postgres.rs"
+        ],
+        "resources": [
+          "my-day-projects"
+        ],
+        "status": "done",
+        "claim": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "baseSha": "44fccfaea8fca4ee8dc535affa7a4026d55450e3",
+        "implementedCommit": "2e7847c635d1dee39340c336c2021659cb0f1a1c",
+        "lastPushedSha": "2e7847c635d1dee39340c336c2021659cb0f1a1c",
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Private API build passed. Axum/PostgreSQL read returned 200 for both dev Holdings, attached on port 3191. Inventory targeted transport tests 8/8. Continue signed My day UI gate."
+      },
+      {
+        "id": "integrate.inventory.dev-my-day-source",
+        "goalId": "G4",
+        "owner": "inventory",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Repair Axum inventory My day read",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-inventory/src/adapters/native-lane-17/client.ts",
+          "packages/server-inventory/src/adapters/native_lane_17/domain.rs",
+          "tests/unit/inventory/native-lane-17.test.ts"
+        ],
+        "resources": [
+          "my-day-inventory"
+        ],
+        "status": "done",
+        "claim": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "baseSha": "44fccfaea8fca4ee8dc535affa7a4026d55450e3",
+        "implementedCommit": "2e7847c635d1dee39340c336c2021659cb0f1a1c",
+        "lastPushedSha": "2e7847c635d1dee39340c336c2021659cb0f1a1c",
+        "blocker": null,
+        "handoff": {
+          "runId": "run-my-day-recovery",
+          "agentId": "codex-lead",
+          "at": "2026-11-28T01:36:57.475Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Repair and verify the private native owner read used by Apps My day."
+        },
+        "nextAction": "Private API build passed. Axum/PostgreSQL read returned 200 for both dev Holdings, attached on port 3191. Inventory targeted transport tests 8/8. Continue signed My day UI gate."
+      },
+      {
+        "id": "integrate.workflow.dev-my-day-payroll",
+        "goalId": "G4",
+        "owner": "workflow",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Preserve native payroll Company context in Work flow",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-workflow/src/adapters/flow-work.ts"
+        ],
+        "resources": [
+          "my-day-workflow"
+        ],
+        "status": "blocked",
+        "claim": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-my-day-recovery",
+          "agentId": "codex-lead",
+          "at": "2026-11-28T01:37:21.450Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Company context restored in commit 2e7847c63. Signed Apps request logs now report IDENTITY_ACCESS_NATIVE_LANE_11_UNAVAILABLE for workflow and expense sources. Trace the legacy Company target resolution with an authenticated WorkContext; do not map an unknown Company to a default Holding."
+        },
+        "nextAction": "Company context restored in commit 2e7847c63. Signed Apps request logs now report IDENTITY_ACCESS_NATIVE_LANE_11_UNAVAILABLE for workflow and expense sources. Trace the legacy Company target resolution with an authenticated WorkContext; do not map an unknown Company to a default Holding."
       }
     ],
     "migrationProgress": {
@@ -227823,7 +227917,7 @@
       }
     },
     "lastCoordinatorGeneration": 228,
-    "updatedAt": "2026-11-28T01:25:26.141Z",
+    "updatedAt": "2026-11-28T01:37:21.454Z",
     "handoff": {
       "fromRun": "run-20261128-route",
       "verifiedPushedCheckpoint": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
