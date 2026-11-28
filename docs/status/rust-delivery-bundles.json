@@ -9291,10 +9291,18 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16582,
+    "revision": 16587,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
-    "coordinator": null,
+    "coordinator": {
+      "runId": "run-20261128-r3integ",
+      "agentId": "lead-opencode",
+      "startedAt": "2026-11-28T03:44:05.985Z",
+      "heartbeatAt": "2026-11-28T03:44:05.985Z",
+      "expiresAt": "2026-11-28T04:14:05.986Z",
+      "generation": 230,
+      "tokenHash": "0b604d77cd359d7e9b1b7f576f8f19b6511241356ef00c6a856565a679a85534"
+    },
     "coordinationPolicy": {
       "singleCheckout": true,
       "coordinatorOnlyTrackedWrites": true,
@@ -228121,6 +228129,84 @@
         "blocker": null,
         "handoff": null,
         "nextAction": "Repair merged and pushed as a3cff02b0; browser Feed verified; next data-bearing verification needs a currently published announcement."
+      },
+      {
+        "id": "integration.r3.next-api-native-reads",
+        "owner": "runtime",
+        "title": "Integrate R3 native API reads with verified dev gateway cutover",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "platform/composition/src/native_lane_mounts.rs",
+          "platform/composition/src/private_development_api.rs",
+          "modules/agent/server/src/adapters/governance_http.rs",
+          "modules/agent/server/src/public/governance.rs",
+          "modules/people-payroll/server/src/public/mod.rs",
+          "scripts/local/native-api-paths.json"
+        ],
+        "resources": [
+          "resource:composition",
+          "resource:gateway",
+          "owner:agent"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261128-r3integ",
+          "agentId": "lead-opencode",
+          "claimedAt": "2026-11-28T03:44:17.337Z",
+          "heartbeatAt": "2026-11-28T03:44:17.337Z",
+          "expiresAt": "2026-11-28T04:14:17.337Z",
+          "generation": 230
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Mount the ported R3 owner reads, rebuild/restart the private native API, verify the dev gateway routes, retire only verified TypeScript handlers, and commit/push the integrated milestone.",
+        "handoff": null
+      },
+      {
+        "id": "integration.r3.files-link-set",
+        "owner": "files",
+        "title": "Integrate the native attachment link-set read into composition",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "modules/files/server/src/adapters/native_r3_link_set.rs",
+          "modules/files/server/src/public/native_r3_link_set.rs",
+          "platform/composition/src/files_link_set.rs",
+          "platform/composition/src/lib.rs",
+          "tests/unit/files/**",
+          "tests/integration/files/**"
+        ],
+        "resources": [
+          "owner:files"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261128-r3integ",
+          "agentId": "codex",
+          "claimedAt": "2026-11-28T03:44:17.658Z",
+          "heartbeatAt": "2026-11-28T03:44:17.658Z",
+          "expiresAt": "2026-11-28T04:14:17.658Z",
+          "generation": 230
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Add a new composition-only files_link_set.rs that resolves the current Holding context and dispatches PgLinkSetRead per registered Holding, register it in lib.rs, add focused tests, then hand the exact native_lane_mounts.rs mount line to the lead; do not edit shared composition or gateway files.",
+        "handoff": null
       }
     ],
     "migrationProgress": {
@@ -228142,8 +228228,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 229,
-    "updatedAt": "2026-11-28T02:32:55.100Z",
+    "lastCoordinatorGeneration": 230,
+    "updatedAt": "2026-11-28T03:44:17.662Z",
     "handoff": {
       "fromRun": "run-20261128-route",
       "verifiedPushedCheckpoint": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",

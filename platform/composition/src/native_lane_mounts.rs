@@ -1793,5 +1793,74 @@ pub fn mount(
         ).map_err(|_| "PRIVATE_API_FINANCE_ROOT_AGGREGATE_INVALID")?,
     );
 
+    // People & Payroll: leave calendar month.
+    router = router.merge(
+        erpx_people_payroll_server::public::native_leave_calendar::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| (
+                erpx_people_payroll_server::public::native_leave_calendar::LeaveCalendarTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                },
+                pools[i + 1].clone(),
+            )).collect(),
+        ).map_err(|_| "PRIVATE_API_PEOPLE_PAYROLL_LEAVE_CALENDAR_INVALID")?,
+    );
+
+    // People & Payroll: project worker-startup people options.
+    router = router.merge(
+        erpx_people_payroll_server::public::native_r3_worker_people_options::router(
+            config.holdings.iter().enumerate().map(|(i, holding)| (
+                erpx_people_payroll_server::public::native_r3_worker_people_options::WorkerPeopleOptionsTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                },
+                pools[i + 1].clone(),
+            )).collect(),
+        ).map_err(|_| "PRIVATE_API_PEOPLE_PAYROLL_WORKER_PEOPLE_INVALID")?,
+    );
+
+    // Inventory: POS initial physical stock detail read.
+    router = router.merge(
+        erpx_inventory_server::public::native_r3_initial_stock_detail::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| (
+                erpx_inventory_server::public::native_r3_initial_stock_detail::DetailTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                },
+                pools[i + 1].clone(),
+            )).collect(),
+        ).map_err(|_| "PRIVATE_API_INVENTORY_INITIAL_STOCK_DETAIL_INVALID")?,
+    );
+
+    // Operations: handover acknowledgement read.
+    router = router.merge(
+        erpx_operations_server::public::native_r3_handover_ack::router_for_holdings(
+            config.holdings.iter().enumerate().filter_map(|(i, holding)| {
+                let company_id = config.holding_company(&holding.registration.holding_id)?;
+                Some((
+                    erpx_operations_server::public::native_r3_handover_ack::AckTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        company_id,
+                    },
+                    pools[i + 1].clone(),
+                ))
+            }).collect(),
+        ).map_err(|_| "PRIVATE_API_OPERATIONS_HANDOVER_ACK_INVALID")?,
+    );
+
+    // PMS: hospitality setup properties read.
+    router = router.merge(
+        erpx_pms_server::public::native_r3_hospitality_setup_properties::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| (
+                erpx_pms_server::public::native_r3_hospitality_setup_properties::LaneTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                },
+                pools[i + 1].clone(),
+            )).collect(),
+        ).map_err(|_| "PRIVATE_API_PMS_HOSPITALITY_SETUP_PROPERTIES_INVALID")?,
+    );
+
     Ok(router)
 }

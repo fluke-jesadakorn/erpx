@@ -30,7 +30,13 @@
     { "method": "POST", "path": "projects/{id}/structure" },
     { "method": "GET", "path": "attachment-links/{linkId}/status" },
     { "method": "GET", "path": "posts/{id}/revisions" },
-    { "method": "GET", "path": "pms/imports" }
+    { "method": "GET", "path": "pms/imports" },
+    { "method": "GET", "path": "finance" },
+    { "method": "GET", "path": "leave/calendar" },
+    { "method": "GET", "path": "people/project-worker-startup/people" },
+    { "method": "GET", "path": "pos/initial-physical-stock/{id}" },
+    { "method": "GET", "path": "handover/{id}/acknowledgement" },
+    { "method": "GET", "path": "hospitality/setup/properties" }
   ],
   "platform": [
     { "host": "admin.jesadakorn.com", "method": "GET", "path": "/api/v1/platform/operations" },

@@ -7,7 +7,7 @@
 //! platform-owned Agent evidence audit read.
 use erpx_platform_runtime_server::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
-    StatusCode, body::to_bytes, header, routing::get, serde_json,
+    StatusCode, body::to_bytes, header, routing::{get, post}, serde_json,
 };
 use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::collections::BTreeMap;
@@ -244,6 +244,27 @@ async fn command(
 pub fn agent_governance_http_router(
     targets: Vec<AgentGovernanceHttpTarget>,
 ) -> Result<Router, BusinessError> {
+    let state = Arc::new(governance_state(targets)?);
+    Ok(Router::new()
+        .route(
+            "/api/v1/holdings/{holding_slug}/agents",
+            get(read).post(command),
+        )
+        .with_state(state))
+}
+
+pub fn agent_governance_command_http_router(
+    targets: Vec<AgentGovernanceHttpTarget>,
+) -> Result<Router, BusinessError> {
+    let state = Arc::new(governance_state(targets)?);
+    Ok(Router::new()
+        .route("/api/v1/holdings/{holding_slug}/agents", post(command))
+        .with_state(state))
+}
+
+fn governance_state(
+    targets: Vec<AgentGovernanceHttpTarget>,
+) -> Result<AgentGovernanceHttpState, BusinessError> {
     let mut map = BTreeMap::new();
     for target in targets {
         if target.host.is_empty()
@@ -256,10 +277,5 @@ pub fn agent_governance_http_router(
             return Err(configuration_invalid());
         }
     }
-    Ok(Router::new()
-        .route(
-            "/api/v1/holdings/{holding_slug}/agents",
-            get(read).post(command),
-        )
-        .with_state(Arc::new(AgentGovernanceHttpState { targets: map })))
+    Ok(AgentGovernanceHttpState { targets: map })
 }

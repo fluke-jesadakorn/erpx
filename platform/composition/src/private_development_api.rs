@@ -8377,7 +8377,7 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         if !agent_targets.is_empty() {
             router = router.merge(
-                erpx_agent_server::public::governance::agent_governance_http_router(agent_targets)
+                erpx_agent_server::public::governance::agent_governance_command_http_router(agent_targets)
                     .map_err(|_| "PRIVATE_API_AGENT_CONFIGURATION_INVALID")?,
             );
         }
@@ -8396,13 +8396,6 @@ async fn assemble_checked(
                 }
             })
             .collect::<Vec<_>>();
-        #[cfg(feature = "existing-business")]
-        if !agent_workspace_targets.is_empty() {
-            router = router.merge(
-                crate::agent_governance::agent_workspace_router(agent_workspace_targets)
-                    .map_err(|_| "PRIVATE_API_AGENT_CONFIGURATION_INVALID")?,
-            );
-        }
         #[cfg(feature = "existing-business")]
         if !agents_public_read_targets.is_empty() {
             router = router.merge(

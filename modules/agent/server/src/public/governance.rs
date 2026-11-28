@@ -1,7 +1,8 @@
 //! Agent governance ports, retained rules, PostgreSQL adapter and HTTP ingress.
 pub use crate::adapters::governance_http::{
     AgentGovernanceHttpBackend, AgentGovernanceHttpCommandRequest, AgentGovernanceHttpFuture,
-    AgentGovernanceHttpReadRequest, AgentGovernanceHttpTarget, agent_governance_http_router,
+    AgentGovernanceHttpReadRequest, AgentGovernanceHttpTarget, agent_governance_command_http_router,
+    agent_governance_http_router,
 };
 pub use crate::adapters::governance_postgres::{AgentError, PgAgentGovernance};
 pub use crate::adapters::workspace_read_postgres::PgAgentWorkspaceRead;
