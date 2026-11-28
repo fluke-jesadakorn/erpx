@@ -1,9 +1,9 @@
 import "server-only";
+import { nativeRequest } from "@erpx/server-runtime/public/native-http";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {
   configuration,
-  direct,
   selectTarget,
   type Lane9Actor,
   type Transport,
@@ -58,7 +58,7 @@ export async function nativePayGroupOptions(
   _database: SqlDatabase,
   companyId: string,
   actor?: Lane9Actor,
-  transport: Transport = direct,
+  transport?: Transport,
 ): Promise<PayGroupOptionRow[]> {
   if (!validId(companyId)) return fail("NATIVE_PEOPLE_PAYROLL_PGO_COMPANY_INVALID", 422);
   const config = configuration(process.env["ERPX_NATIVE_PEOPLE_PAYROLL_LANE9_CONFIG"]);
@@ -76,7 +76,10 @@ export async function nativePayGroupOptions(
   );
   let response: Response;
   try {
-    response = await transport(url, headers, AbortSignal.timeout(config.timeoutMs));
+    const signal = AbortSignal.timeout(config.timeoutMs);
+    response = transport
+      ? await transport(url, headers, signal)
+      : await nativeRequest(url, { headers: Object.fromEntries(headers), signal }, config.timeoutMs);
   } catch {
     return fail("NATIVE_PEOPLE_PAYROLL_PGO_UNAVAILABLE");
   }

@@ -57,7 +57,11 @@ export function productDestinationAvailable(id: ProductId, path: string, input: 
     return !!required && (input.commercialAdmissionDeferred || input.capabilities.includes(required)) &&
       !(input.scopeKind === "department" && item.source === "commerce" && item.selection.view === "stock") && destinationAvailable(context, item);
   };
-  const exact = destinations.find(item => item.path === path);
+  // Profile links omit the "current" segment used by the directory list.
+  const currentPerson = id === "people"
+    && /^people-organization\/people\/directory\/person\/[^/]+(?:\/(?:profile|employment|compensation|history|working-time))?$/.test(path);
+  const collectionPath = currentPerson ? "people-organization/people/directory/current" : path;
+  const exact = destinations.find(item => item.path === collectionPath);
   if (exact) return allowed(exact);
   // Section indexes render only their permitted registered children.
   const children = destinations.filter(item => item.path.startsWith(path + "/") && destinationProduct(item.path) === id);

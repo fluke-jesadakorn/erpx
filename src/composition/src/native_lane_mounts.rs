@@ -67,6 +67,19 @@ pub fn mount(
         .map_err(|_| "PRIVATE_API_PEOPLE_PAYROLL_LANE9_INVALID")?,
     );
 
+    use erpx_server_people_payroll::public::native_pay_group_options::{PayGroupOptionsTarget, router as pay_group_options_router};
+    router = router.merge(
+        pay_group_options_router(
+            config.holdings.iter().zip(&pools[1..]).map(|(holding, pool)| (
+                PayGroupOptionsTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                },
+                pool.clone(),
+            )).collect(),
+        ).map_err(|_| "PRIVATE_API_PEOPLE_PAY_GROUP_OPTIONS_INVALID")?,
+    );
+
     // Identity & Access lane 11: IAM person identity reads.
     router = router.merge(
         erpx_server_identity_access::public::native_lane_11::router_for_holdings(

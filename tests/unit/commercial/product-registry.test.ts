@@ -636,3 +636,19 @@ it("isolates the service-only Sales catalogue across every product/shared host a
     for (const host of hosts) expect(productPageAllowed(host, page), `${host}:${page}`).toBe(host === "sales");
   }
 });
+
+it("admits current People profile links through the same directory policy", async () => {
+  const { productDestinationAvailable } = await import("@erpx/server-work_projection/public/rules/product-landings");
+  const directory = "people-organization/people/directory";
+  const context = {
+    role: "holding_owner", scopeKind: "branch" as const, beta: false,
+    modules: ["people_payroll"], readyModules: ["people_payroll"],
+    capabilities: ["people.directory"], permissions: ["people.read"],
+  };
+  expect(productDestinationAvailable("people", directory + "/current", context)).toBe(true);
+  expect(productDestinationAvailable("people", directory + "/person/demo-engagement/profile", context)).toBe(true);
+  expect(productDestinationAvailable("people", directory + "/person/demo-engagement/profile", {
+    ...context, permissions: [],
+  })).toBe(false);
+  expect(productDestinationAvailable("people", directory + "/person/demo-engagement/private", context)).toBe(false);
+});
