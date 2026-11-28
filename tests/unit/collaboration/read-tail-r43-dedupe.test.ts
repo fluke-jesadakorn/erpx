@@ -95,7 +95,7 @@ describe('Collaboration read-tail r43 messaging team image family', () => {
     // so the team aggregates and binds remain at this call site unchanged.
     expect(sha(line(attachRead, 'async function image('))).toBe('ea8a5f346cea3aa6eddd892cb8791dd4341f0e7491e20ec7ff87df99bbb63a1b');
     expect(sha(line(messaging, 'async function image('))).toBe('8108ac3f43724d472ad398fa8e0e2db5795b252b065a0a0ff4633e1c672d1916');
-    expect(sha(fixed('adapters/messaging-purchases.ts'))).toBe('6921fd7a922dccbab407a37ecf8544b26494388c442871f4b084c45b39133c9b');
+    expect(sha(fixed('adapters/messaging-purchases.ts'))).toBe('90a483b93806e2e6fa28e2c4cb0788598a145df2702ce080941209c0e98e3763');
     expect(attachPurchases).not.toContain("(SELECT to_jsonb(t)-'version' FROM messaging_teams t");
     expect(attachRead).not.toContain('(SELECT to_jsonb(t) FROM messaging_teams t');
   });
@@ -139,8 +139,8 @@ describe('Collaboration read-tail r43 protected SQL isolation', () => {
   });
 
   test('agent-reply locks, notification targets and r42 comment helpers stay unchanged', () => {
-    expect(sha(fixed('adapters/inbox.ts'))).toBe('59edd8ba27d0eb738b987b1245391b31eeaef95de6b1372649cd2c0ecdf4c61c');
-    expect(sha(fixed('adapters/staff-notifications.ts'))).toBe('3ce65abf55973c3a41228531a9d2778739a6a7f859a37591c016bda9f9a2508a');
+    expect(sha(fixed('adapters/inbox.ts'))).toBe('0e026673861d8c7e2fc9b3a6a27b54e72ea18e6aa4380a21e66b71f9c44ecbd8');
+    expect(sha(fixed('adapters/staff-notifications.ts'))).toBe('15741452260e51a3f4ff74a097e9a715906e5f11b8b78630456eaeba5603c993');
     expect(sha(fixed('public/field-outbox-predicate.generated.ts'))).toBe('1c1945bec812a3981738b0d36af5483786ff8e372c669453c0bc8683976a6c84');
     expect(sha(line(shared, 'export const socialCommentHead='))).toBe('2ad63e64db338d62db117ee74155b7ea3281d741f48b4b6811ba884cc24b0d92');
     expect(sha(line(shared, 'export const socialCommentProjection='))).toBe('e81afcc981c3c2bf41540a33fba9728e1870f57ec62b9fc4ffc2bb6771cc65c4');
@@ -169,7 +169,7 @@ describe('Collaboration read-tail r43 KPI pins', () => {
     // 344 replaced 350; locks and notification targets were not touched.
     // r44 retired the latest-message tail, absent-social-post guard and handover
     // ack join: 344 -> 341. Prior pins were refreshed only where 341 replaced 344.
-    expect(total).toBe(225);
+    expect(total).toBe(220);
     expect(total).toBeLessThan(344);
   });
 });

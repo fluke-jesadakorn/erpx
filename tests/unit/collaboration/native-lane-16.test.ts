@@ -198,7 +198,7 @@ describe('native Collaboration lane 16 sent-notice facts', () => {
     const http = readFileSync(
       'modules/collaboration/server/src/adapters/native_lane_16/http.rs', 'utf8',
     );
-    expect(http.match(/#\[serde\(rename_all = "camelCase", deny_unknown_fields\)\]/g)).toHaveLength(2);
+    expect(http.match(/#\[serde\(rename_all = "camelCase", deny_unknown_fields\)\]/g)).toHaveLength(3);
     for (const field of [
       'company_id', 'sender_id', 'notice_id', 'event_key', 'task_id',
       'user_id', 'session_id', 'endpoint_hash',
@@ -250,6 +250,6 @@ describe('native Collaboration lane 16 sent-notice facts', () => {
     for (const file of files) {
       count += (readFileSync(`${root}/${file}`, 'utf8').match(/SELECT /g) ?? []).length;
     }
-    expect(count).toBe(225);
+    expect(count).toBe(220);
   });
 });

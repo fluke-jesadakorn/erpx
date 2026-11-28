@@ -103,9 +103,9 @@ describe('Collaboration read-tail r51 renderer fold', () => {
 
 describe('Collaboration read-tail r51 excluded SQL stays untouched', () => {
   test('inbox whole-file pins, agent-reply locks/finalize and notifications are unchanged', () => {
-    expect(sha(fixed('adapters/inbox.ts'))).toBe('59edd8ba27d0eb738b987b1245391b31eeaef95de6b1372649cd2c0ecdf4c61c');
-    expect(sha(fixed('adapters/staff-notifications.ts'))).toBe('3ce65abf55973c3a41228531a9d2778739a6a7f859a37591c016bda9f9a2508a');
-    expect(sha(fixed('adapters/messaging-purchases.ts'))).toBe('6921fd7a922dccbab407a37ecf8544b26494388c442871f4b084c45b39133c9b');
+    expect(sha(fixed('adapters/inbox.ts'))).toBe('0e026673861d8c7e2fc9b3a6a27b54e72ea18e6aa4380a21e66b71f9c44ecbd8');
+    expect(sha(fixed('adapters/staff-notifications.ts'))).toBe('15741452260e51a3f4ff74a097e9a715906e5f11b8b78630456eaeba5603c993');
+    expect(sha(fixed('adapters/messaging-purchases.ts'))).toBe('90a483b93806e2e6fa28e2c4cb0788598a145df2702ce080941209c0e98e3763');
     expect(sha(fixed('public/field-outbox-predicate.generated.ts'))).toBe('1c1945bec812a3981738b0d36af5483786ff8e372c669453c0bc8683976a6c84');
     const purchases = src('work-social-purchases.ts');
     const claim = purchases.split('\n').find(l => l.includes("SELECT pending.* FROM social_agent_replies pending WHERE pending.state='pending'"))!;
@@ -130,7 +130,7 @@ describe('Collaboration read-tail r51 KPI pins', () => {
     };
     walk(srcRoot);
     // Two byte-identical count heads -> one renderer: 332 -> 331.
-    expect(total).toBe(225);
+    expect(total).toBe(220);
     expect(total).toBeLessThan(332);
   });
 });

@@ -75,7 +75,7 @@ describe('Collaboration read-tail r55 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(225);
+    expect(total).toBe(220);
     expect(total).toBeLessThan(302);
   });
 });

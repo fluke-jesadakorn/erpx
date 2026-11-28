@@ -7,7 +7,6 @@ const srcRoot = resolve(__dirname, '../../../modules/collaboration/server/src');
 const adapters = resolve(srcRoot, 'adapters');
 const src = (f: string) => readFileSync(resolve(adapters, f), 'utf8');
 const shared = src('read-tail-sql.ts');
-const productEntry = src('product-entry.ts');
 const socialSource = src('social-source.ts');
 const socialHome = src('social-home.ts');
 const readPolicy = src('work-social-read-policy.ts');
@@ -23,11 +22,12 @@ const HEAD = 'SELECT 1 FROM social_posts p WHERE p.id=? AND p.company_id=? AND '
 const ACK_TAIL = 'NOT EXISTS(SELECT 1 FROM social_handover_acknowledgements acknowledgement WHERE acknowledgement.post_id=p.id AND acknowledgement.user_id=recipient.user_id AND acknowledgement.post_version=p.version)';
 
 describe('Collaboration read-tail r30 parameterized families', () => {
-  test('socialPostByIdPredicate is reused at all four inline call sites', () => {
+  test('socialPostByIdPredicate is reused at every surviving TypeScript inline call site', () => {
     const predicate = "p.version=? AND p.state='published' AND sourceAccess()";
     expect(socialPostByIdPredicate(predicate)).toBe(HEAD + predicate);
     expect(socialPostByIdPredicate('scope.where')).toBe(HEAD + 'scope.where');
-    for (const file of [productEntry, socialSource, socialHome, readPolicy]) {
+    // The fourth call site moved to the native Social source-link ingress.
+    for (const file of [socialSource, socialHome, readPolicy]) {
       expect(file).toContain('${socialPostByIdPredicate(');
       expect(file).not.toContain(HEAD);
     }

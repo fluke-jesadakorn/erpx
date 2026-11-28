@@ -268,8 +268,8 @@ describe('native Collaboration lane 15 beta-facts reads', () => {
     const brief = fs.readFileSync(
       path.join(root, '.scratch/wave0/briefs/lane_15.md'), 'utf8',
     );
-    const files = [...brief.matchAll(/^- `(packages\/server-collaboration\/src\/adapters\/[^`]+\.ts)`$/gm)]
-      .map(match => match[1]);
+    const files = [...brief.matchAll(/^- `(?:packages\/server-collaboration|modules\/collaboration\/server)\/src\/adapters\/[^`]+\.ts`$/gm)]
+      .map(match => match[0].slice(3, -1).replace('packages/server-collaboration/src/', 'modules/collaboration/server/src/'));
     let count = 0;
     for (const file of files) {
       const absolute = path.join(root, file);
