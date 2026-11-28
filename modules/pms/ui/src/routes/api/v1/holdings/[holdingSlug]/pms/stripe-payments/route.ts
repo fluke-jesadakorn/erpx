@@ -1,18 +1,12 @@
 import {canonicalDestinationLinks} from "@erpx/work-projection-ui/lib/destination-links";
 import {requireWorkContext} from "@erpx/identity-access-server/public/authorization";
 import {createPmsStripePayment} from "@erpx/pms-server/public/pms-stripe";
-import {nativePaymentStatus} from "@erpx/pms-server/adapters/native-payment-status";
 import {ApiError,errorResponse} from "@erpx/platform-runtime-server/public/http";
 import {requestPublicOrigin} from "@erpx/manage-erpx-server/public/public-origin";
 import {holdingResources} from "../../../../../../../../../../../platform/runtime/server/src/public/runtime";
 import {isTransactionalSqlDatabase} from "@erpx/platform-runtime-server/public/runtime/types";
 
 type Context={params:Promise<{holdingSlug:string}>};
-export async function GET(request:Request,{params}:Context){try{
- const actor=await requireWorkContext((await params).holdingSlug),id=new URL(request.url).searchParams.get("id");
- if(!id)throw new ApiError(422,"PMS_PAYMENT_STATUS_REQUEST_INVALID","Use one bounded payment status read.");
- return Response.json(canonicalDestinationLinks({data:await nativePaymentStatus(request.headers,actor,id)}),{headers:{'Cache-Control':'private, no-store'}});
-}catch(error){return errorResponse(error);}}
 export async function POST(request:Request,{params}:Context){try{
  if(request.headers.get('origin')!==requestPublicOrigin(request))throw new ApiError(403,'ORIGIN_FORBIDDEN','Use the ERPX website');
  const actor=await requireWorkContext((await params).holdingSlug),key=request.headers.get('Idempotency-Key');

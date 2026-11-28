@@ -1,6 +1,7 @@
 import {workFetch,type WorkCommandCompletion} from "@erpx/work-projection-ui/lib/work-fetch";
 import {captureWorkCommandContext} from "@erpx/work-projection-ui/lib/command-context";
 import {retainWorkCommandCompletion} from "@erpx/work-projection-ui/lib/command-completion";
+import {canonicalDestinationLinks} from "@erpx/work-projection-ui/lib/destination-links";
 import {projectPurchased,projectStructurePurchased,type ProjectPurchaseControls} from "@erpx/projects-ui/lib/purchase-controls";
 import type {ProjectCostAllocationRow,ProjectWorkLogRow} from "@erpx/projects-server/public/project-actuals";
 import type {ProjectWorkerDisplay} from "@erpx/projects-ui/lib/worker-display";
@@ -56,9 +57,13 @@ export function createProjectStructureCommands(send:typeof workFetch=workFetch,n
     if(!wasUncertain&&input.action==="prepare-handoff"&&response.status===409&&error.code==="PROJECT_HANDOFF_INCOMPLETE"){assertCurrent();attempt=null;}
     throw Error(typeof error.message==="string"?error.message:"Unable to save the Project. Recover the original request.");
    }
-   if(!object(envelope)||!acknowledgement(selected,input,envelope.data))throw Error("The native Project structure acknowledgement is incomplete. Recover the original request.");
+   // The native response now carries the shaped camel-case acknowledgement;
+   // canonical destination links are applied here in the client helper rather
+   // than in a Next route.
+   const data=object(envelope)?canonicalDestinationLinks(envelope.data):undefined;
+   if(!data||!acknowledgement(selected,input,data))throw Error("The native Project structure acknowledgement is incomplete. Recover the original request.");
    assertCurrent();let acknowledged=false;
-   return {data:envelope.data,assertCurrent,completions:()=>selected.completions.map(get=>get()).filter((value):value is WorkCommandCompletion=>!!value),unchanged:()=>{const forms=selected.completions.map(get=>get());return read()?.draftVersion===selected.draftVersion&&forms.length===selected.hadForms&&forms.every(form=>!!form&&form.form.isConnected&&form.form.getAttribute("data-erpx-edit-version")===form.formEditVersion);},acknowledge:()=>{assertCurrent();if(acknowledged||attempt!==selected)return false;acknowledged=true;attempt=null;return true;}};
+   return {data,assertCurrent,completions:()=>selected.completions.map(get=>get()).filter((value):value is WorkCommandCompletion=>!!value),unchanged:()=>{const forms=selected.completions.map(get=>get());return read()?.draftVersion===selected.draftVersion&&forms.length===selected.hadForms&&forms.every(form=>!!form&&form.form.isConnected&&form.form.getAttribute("data-erpx-edit-version")===form.formEditVersion);},acknowledge:()=>{assertCurrent();if(acknowledged||attempt!==selected)return false;acknowledged=true;attempt=null;return true;}};
   }finally{busy=false;}
  }
  return {

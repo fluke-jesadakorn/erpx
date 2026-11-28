@@ -179,3 +179,4 @@ pub mod native_lane_4;
 pub mod native_lane_5;
 pub mod native_lane_6;
 pub mod native_lane_7;
+pub mod finance_root_aggregate;

@@ -4246,7 +4246,6 @@
 @source "../../../../platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/assistant/intake/route.ts";
 @source "../../../../platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/assistant/route.ts";
 @source "../../../../platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/content/route.ts";
-@source "../../../../platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/status/route.ts";
 @source "../../../../platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/withdraw/route.ts";
 @source "../../../../platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/bind/route.ts";
 @source "../../../../platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/files/route.ts";

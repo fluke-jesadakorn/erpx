@@ -68,3 +68,4 @@ pub mod rfq_request_attachments;
 pub mod supplier_promise_binding;
 pub mod native_lane_21;
 pub mod native_lane_22;
+pub mod native_media_publications;

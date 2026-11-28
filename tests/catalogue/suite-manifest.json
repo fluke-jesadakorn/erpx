@@ -133056,7 +133056,6 @@
         "modules/files/server/src/adapters/attachments/native-field-attachment.ts",
         "modules/files/server/src/public/attachments/native-field-attachment.ts",
         "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/withdraw/route.ts",
-        "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/status/route.ts",
         "platform/contracts/src/field-attachment.generated.ts",
         "scripts/docs/export-field-attachment-contracts.rs",
         "scripts/docs/generate-field-attachment-contracts.ts",
@@ -172217,6 +172216,643 @@
       ],
       "apps": [
         "recruit"
+      ]
+    },
+    {
+      "id": "collaboration.native-handbook-cutover.unit",
+      "lane": "unit",
+      "owner": "collaboration",
+      "modules": [
+        "collaboration"
+      ],
+      "files": [
+        "tests/unit/collaboration/native-handbook-cutover.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Handbook route-gone and native payload assertions."
+      },
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/agent-server",
+        "@erpx/assets-server",
+        "@erpx/benefits-server",
+        "@erpx/benefits-ui",
+        "@erpx/billing-ui",
+        "@erpx/brand-server",
+        "@erpx/collaboration-server",
+        "@erpx/collaboration-ui",
+        "@erpx/commerce-server",
+        "@erpx/commerce-ui",
+        "@erpx/commercial-server",
+        "@erpx/crm-server",
+        "@erpx/customer-360-server",
+        "@erpx/customer-authority-server",
+        "@erpx/ecommerce-server",
+        "@erpx/field-service-server",
+        "@erpx/files-server",
+        "@erpx/finance-server",
+        "@erpx/finance-ui",
+        "@erpx/identity-access-server",
+        "@erpx/identity-access-ui",
+        "@erpx/inventory-server",
+        "@erpx/inventory-ui",
+        "@erpx/learning-server",
+        "@erpx/legal-server",
+        "@erpx/legal-ui",
+        "@erpx/maintenance-server",
+        "@erpx/manage-erpx-server",
+        "@erpx/manufacturing-server",
+        "@erpx/marketing-server",
+        "@erpx/operations-server",
+        "@erpx/organization-server",
+        "@erpx/organization-ui",
+        "@erpx/people-payroll-server",
+        "@erpx/people-payroll-ui",
+        "@erpx/planning-server",
+        "@erpx/platform-administration-server",
+        "@erpx/platform-catalogue",
+        "@erpx/platform-contracts",
+        "@erpx/platform-native-sdk",
+        "@erpx/platform-runtime-server",
+        "@erpx/platform-runtime-ui",
+        "@erpx/platform-shared-server",
+        "@erpx/platform-shared-ui",
+        "@erpx/platform-workplace",
+        "@erpx/pms-server",
+        "@erpx/pos-server",
+        "@erpx/procurement-server",
+        "@erpx/procurement-ui",
+        "@erpx/projects-server",
+        "@erpx/projects-ui",
+        "@erpx/quality-server",
+        "@erpx/quality-ui",
+        "@erpx/records-server",
+        "@erpx/records-ui",
+        "@erpx/sales-server",
+        "@erpx/sales-ui",
+        "@erpx/support-server",
+        "@erpx/talent-server",
+        "@erpx/work-projection-server",
+        "@erpx/work-projection-ui",
+        "@erpx/workflow-server"
+      ]
+    },
+    {
+      "id": "files.attachment-link-status-route-gone.unit",
+      "lane": "unit",
+      "owner": "files",
+      "modules": [
+        "learning"
+      ],
+      "files": [
+        "tests/unit/files/attachment-link-status-route-gone.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Attachment status route-gone and native SQL assertions."
+      },
+      "apps": [
+        "learn"
+      ],
+      "packages": [
+        "@erpx/agent-server",
+        "@erpx/assets-server",
+        "@erpx/benefits-server",
+        "@erpx/benefits-ui",
+        "@erpx/billing-ui",
+        "@erpx/brand-server",
+        "@erpx/collaboration-server",
+        "@erpx/collaboration-ui",
+        "@erpx/commerce-server",
+        "@erpx/commerce-ui",
+        "@erpx/commercial-server",
+        "@erpx/crm-server",
+        "@erpx/customer-360-server",
+        "@erpx/customer-authority-server",
+        "@erpx/ecommerce-server",
+        "@erpx/field-service-server",
+        "@erpx/files-server",
+        "@erpx/files-ui",
+        "@erpx/finance-server",
+        "@erpx/finance-ui",
+        "@erpx/identity-access-server",
+        "@erpx/identity-access-ui",
+        "@erpx/inventory-server",
+        "@erpx/inventory-ui",
+        "@erpx/learning-server",
+        "@erpx/legal-server",
+        "@erpx/legal-ui",
+        "@erpx/maintenance-server",
+        "@erpx/manage-erpx-server",
+        "@erpx/manufacturing-server",
+        "@erpx/marketing-server",
+        "@erpx/operations-server",
+        "@erpx/organization-server",
+        "@erpx/organization-ui",
+        "@erpx/people-payroll-server",
+        "@erpx/people-payroll-ui",
+        "@erpx/planning-server",
+        "@erpx/platform-administration-server",
+        "@erpx/platform-catalogue",
+        "@erpx/platform-contracts",
+        "@erpx/platform-native-sdk",
+        "@erpx/platform-runtime-server",
+        "@erpx/platform-runtime-ui",
+        "@erpx/platform-shared-server",
+        "@erpx/platform-shared-ui",
+        "@erpx/platform-ui",
+        "@erpx/platform-workplace",
+        "@erpx/pms-server",
+        "@erpx/pos-server",
+        "@erpx/procurement-server",
+        "@erpx/procurement-ui",
+        "@erpx/projects-server",
+        "@erpx/projects-ui",
+        "@erpx/quality-server",
+        "@erpx/quality-ui",
+        "@erpx/records-server",
+        "@erpx/records-ui",
+        "@erpx/sales-server",
+        "@erpx/sales-ui",
+        "@erpx/support-server",
+        "@erpx/talent-server",
+        "@erpx/work-projection-server",
+        "@erpx/work-projection-ui",
+        "@erpx/workflow-server"
+      ]
+    },
+    {
+      "id": "manage_erpx.native-onboarding-cutover.unit",
+      "lane": "unit",
+      "owner": "manage_erpx",
+      "modules": [
+        "manage_erpx"
+      ],
+      "files": [
+        "tests/unit/manage_erpx/native-onboarding-cutover.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Onboarding route-gone and native envelope assertions."
+      },
+      "apps": [
+        "admin"
+      ],
+      "packages": [
+        "@erpx/manage-erpx-server",
+        "@erpx/platform-administration-ui",
+        "@erpx/platform-contracts",
+        "@erpx/platform-runtime-server",
+        "@erpx/platform-shared-server",
+        "@erpx/records-ui",
+        "@erpx/support-server",
+        "@erpx/talent-server",
+        "@erpx/work-projection-ui"
+      ]
+    },
+    {
+      "id": "platform_administration.native-billing-forecast-rewrite.unit",
+      "lane": "unit",
+      "owner": "platform_administration",
+      "modules": [
+        "platform_administration"
+      ],
+      "files": [
+        "tests/unit/platform_administration/native-platform-billing-forecast-rewrite.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Platform billing forecast selector and envelope assertions."
+      },
+      "apps": [
+        "admin"
+      ],
+      "packages": [
+        "@erpx/billing-server",
+        "@erpx/billing-ui",
+        "@erpx/people-payroll-ui",
+        "@erpx/platform-contracts",
+        "@erpx/platform-runtime-server",
+        "@erpx/platform-shared-ui",
+        "@erpx/platform-ui",
+        "@erpx/records-ui",
+        "@erpx/support-server",
+        "@erpx/talent-server",
+        "@erpx/work-projection-ui"
+      ]
+    },
+    {
+      "id": "pms.native-pms-imports-cutover.unit",
+      "lane": "unit",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "files": [
+        "tests/unit/pms/native-pms-imports-cutover.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "PMS imports route-gone and native payload assertions."
+      },
+      "apps": [
+        "pms",
+        "booking"
+      ],
+      "packages": [
+        "@erpx/agent-server",
+        "@erpx/assets-server",
+        "@erpx/benefits-server",
+        "@erpx/benefits-ui",
+        "@erpx/billing-ui",
+        "@erpx/brand-server",
+        "@erpx/collaboration-server",
+        "@erpx/collaboration-ui",
+        "@erpx/commerce-server",
+        "@erpx/commerce-ui",
+        "@erpx/commercial-server",
+        "@erpx/crm-server",
+        "@erpx/customer-360-server",
+        "@erpx/customer-authority-server",
+        "@erpx/ecommerce-server",
+        "@erpx/field-service-server",
+        "@erpx/field-service-ui",
+        "@erpx/files-server",
+        "@erpx/finance-server",
+        "@erpx/finance-ui",
+        "@erpx/identity-access-server",
+        "@erpx/identity-access-ui",
+        "@erpx/inventory-server",
+        "@erpx/inventory-ui",
+        "@erpx/learning-server",
+        "@erpx/legal-server",
+        "@erpx/legal-ui",
+        "@erpx/maintenance-server",
+        "@erpx/manage-erpx-server",
+        "@erpx/manufacturing-server",
+        "@erpx/marketing-server",
+        "@erpx/marketing-ui",
+        "@erpx/operations-server",
+        "@erpx/organization-server",
+        "@erpx/organization-ui",
+        "@erpx/people-payroll-server",
+        "@erpx/people-payroll-ui",
+        "@erpx/planning-server",
+        "@erpx/platform-administration-server",
+        "@erpx/platform-catalogue",
+        "@erpx/platform-contracts",
+        "@erpx/platform-front",
+        "@erpx/platform-native-sdk",
+        "@erpx/platform-runtime-server",
+        "@erpx/platform-runtime-ui",
+        "@erpx/platform-shared-server",
+        "@erpx/platform-shared-ui",
+        "@erpx/platform-ui",
+        "@erpx/platform-workplace",
+        "@erpx/pms-server",
+        "@erpx/pms-ui",
+        "@erpx/pos-server",
+        "@erpx/pos-ui",
+        "@erpx/procurement-server",
+        "@erpx/procurement-ui",
+        "@erpx/projects-server",
+        "@erpx/projects-ui",
+        "@erpx/quality-server",
+        "@erpx/quality-ui",
+        "@erpx/records-server",
+        "@erpx/records-ui",
+        "@erpx/sales-server",
+        "@erpx/sales-ui",
+        "@erpx/support-server",
+        "@erpx/support-ui",
+        "@erpx/talent-server",
+        "@erpx/work-projection-server",
+        "@erpx/work-projection-ui",
+        "@erpx/workflow-server"
+      ]
+    },
+    {
+      "id": "pms.stripe-payments-native-cutover.unit",
+      "lane": "unit",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "files": [
+        "tests/unit/pms/stripe-payments-native-cutover.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "PMS payment-status route-gone and native payload assertions."
+      },
+      "apps": [
+        "pms",
+        "booking"
+      ],
+      "packages": [
+        "@erpx/agent-server",
+        "@erpx/assets-server",
+        "@erpx/benefits-server",
+        "@erpx/benefits-ui",
+        "@erpx/billing-ui",
+        "@erpx/brand-server",
+        "@erpx/collaboration-server",
+        "@erpx/collaboration-ui",
+        "@erpx/commerce-server",
+        "@erpx/commerce-ui",
+        "@erpx/commercial-server",
+        "@erpx/crm-server",
+        "@erpx/customer-360-server",
+        "@erpx/customer-authority-server",
+        "@erpx/ecommerce-server",
+        "@erpx/field-service-server",
+        "@erpx/field-service-ui",
+        "@erpx/files-server",
+        "@erpx/finance-server",
+        "@erpx/finance-ui",
+        "@erpx/identity-access-server",
+        "@erpx/identity-access-ui",
+        "@erpx/inventory-server",
+        "@erpx/inventory-ui",
+        "@erpx/learning-server",
+        "@erpx/legal-server",
+        "@erpx/legal-ui",
+        "@erpx/maintenance-server",
+        "@erpx/manage-erpx-server",
+        "@erpx/manufacturing-server",
+        "@erpx/marketing-server",
+        "@erpx/marketing-ui",
+        "@erpx/operations-server",
+        "@erpx/organization-server",
+        "@erpx/organization-ui",
+        "@erpx/people-payroll-server",
+        "@erpx/people-payroll-ui",
+        "@erpx/planning-server",
+        "@erpx/platform-administration-server",
+        "@erpx/platform-catalogue",
+        "@erpx/platform-contracts",
+        "@erpx/platform-front",
+        "@erpx/platform-native-sdk",
+        "@erpx/platform-runtime-server",
+        "@erpx/platform-runtime-ui",
+        "@erpx/platform-shared-server",
+        "@erpx/platform-shared-ui",
+        "@erpx/platform-ui",
+        "@erpx/platform-workplace",
+        "@erpx/pms-server",
+        "@erpx/pms-ui",
+        "@erpx/pos-server",
+        "@erpx/pos-ui",
+        "@erpx/procurement-server",
+        "@erpx/procurement-ui",
+        "@erpx/projects-server",
+        "@erpx/projects-ui",
+        "@erpx/quality-server",
+        "@erpx/quality-ui",
+        "@erpx/records-server",
+        "@erpx/records-ui",
+        "@erpx/sales-server",
+        "@erpx/sales-ui",
+        "@erpx/support-server",
+        "@erpx/support-ui",
+        "@erpx/talent-server",
+        "@erpx/work-projection-server",
+        "@erpx/work-projection-ui",
+        "@erpx/workflow-server"
+      ]
+    },
+    {
+      "id": "procurement.supplier-promise-get-gone.unit",
+      "lane": "unit",
+      "owner": "procurement",
+      "modules": [
+        "procurement"
+      ],
+      "files": [
+        "tests/unit/procurement/nextapi-l03-supplier-promise-get-gone.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Supplier-promise GET route-gone and native SQL assertions."
+      },
+      "apps": [
+        "supply"
+      ],
+      "packages": [
+        "@erpx/agent-server",
+        "@erpx/assets-server",
+        "@erpx/benefits-server",
+        "@erpx/benefits-ui",
+        "@erpx/billing-ui",
+        "@erpx/brand-server",
+        "@erpx/collaboration-server",
+        "@erpx/collaboration-ui",
+        "@erpx/commerce-server",
+        "@erpx/commerce-ui",
+        "@erpx/commercial-server",
+        "@erpx/crm-server",
+        "@erpx/customer-360-server",
+        "@erpx/customer-authority-server",
+        "@erpx/ecommerce-server",
+        "@erpx/field-service-server",
+        "@erpx/files-server",
+        "@erpx/finance-server",
+        "@erpx/finance-ui",
+        "@erpx/identity-access-server",
+        "@erpx/identity-access-ui",
+        "@erpx/inventory-server",
+        "@erpx/inventory-ui",
+        "@erpx/learning-server",
+        "@erpx/legal-server",
+        "@erpx/legal-ui",
+        "@erpx/maintenance-server",
+        "@erpx/manage-erpx-server",
+        "@erpx/manufacturing-server",
+        "@erpx/marketing-server",
+        "@erpx/operations-server",
+        "@erpx/organization-server",
+        "@erpx/organization-ui",
+        "@erpx/people-payroll-server",
+        "@erpx/people-payroll-ui",
+        "@erpx/planning-server",
+        "@erpx/platform-administration-server",
+        "@erpx/platform-catalogue",
+        "@erpx/platform-contracts",
+        "@erpx/platform-native-sdk",
+        "@erpx/platform-runtime-server",
+        "@erpx/platform-runtime-ui",
+        "@erpx/platform-shared-server",
+        "@erpx/platform-shared-ui",
+        "@erpx/platform-workplace",
+        "@erpx/pms-server",
+        "@erpx/pos-server",
+        "@erpx/procurement-server",
+        "@erpx/procurement-ui",
+        "@erpx/product-supply-ui",
+        "@erpx/projects-server",
+        "@erpx/projects-ui",
+        "@erpx/quality-server",
+        "@erpx/quality-ui",
+        "@erpx/records-server",
+        "@erpx/records-ui",
+        "@erpx/sales-server",
+        "@erpx/sales-ui",
+        "@erpx/support-server",
+        "@erpx/talent-server",
+        "@erpx/work-projection-server",
+        "@erpx/work-projection-ui",
+        "@erpx/workflow-server"
+      ]
+    },
+    {
+      "id": "projects.native-project-structure-cutover.unit",
+      "lane": "unit",
+      "owner": "projects",
+      "modules": [
+        "projects"
+      ],
+      "files": [
+        "tests/unit/projects/native-project-structure-cutover.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Project structure route-gone and native payload assertions."
+      },
+      "apps": [
+        "projects"
+      ],
+      "packages": [
+        "@erpx/collaboration-server",
+        "@erpx/commerce-server",
+        "@erpx/commercial-server",
+        "@erpx/files-server",
+        "@erpx/finance-server",
+        "@erpx/identity-access-server",
+        "@erpx/identity-access-ui",
+        "@erpx/legal-server",
+        "@erpx/manage-erpx-server",
+        "@erpx/organization-server",
+        "@erpx/organization-ui",
+        "@erpx/people-payroll-server",
+        "@erpx/platform-administration-server",
+        "@erpx/platform-catalogue",
+        "@erpx/platform-contracts",
+        "@erpx/platform-native-sdk",
+        "@erpx/platform-runtime-server",
+        "@erpx/platform-runtime-ui",
+        "@erpx/platform-shared-server",
+        "@erpx/platform-shared-ui",
+        "@erpx/pms-server",
+        "@erpx/pos-server",
+        "@erpx/projects-server",
+        "@erpx/projects-ui",
+        "@erpx/records-ui",
+        "@erpx/support-server",
+        "@erpx/talent-server",
+        "@erpx/work-projection-server",
+        "@erpx/work-projection-ui",
+        "@erpx/workflow-server"
+      ]
+    },
+    {
+      "id": "projects.native-project-structure-l11b.unit",
+      "lane": "unit",
+      "owner": "projects",
+      "modules": [
+        "projects"
+      ],
+      "files": [
+        "tests/unit/projects/native-project-structure-l11b.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Project structure receipt-shaping and native payload assertions."
+      },
+      "apps": [
+        "projects"
+      ],
+      "packages": [
+        "@erpx/collaboration-server",
+        "@erpx/commerce-server",
+        "@erpx/commercial-server",
+        "@erpx/files-server",
+        "@erpx/finance-server",
+        "@erpx/finance-ui",
+        "@erpx/identity-access-server",
+        "@erpx/identity-access-ui",
+        "@erpx/legal-server",
+        "@erpx/manage-erpx-server",
+        "@erpx/operations-server",
+        "@erpx/organization-server",
+        "@erpx/organization-ui",
+        "@erpx/people-payroll-server",
+        "@erpx/platform-administration-server",
+        "@erpx/platform-catalogue",
+        "@erpx/platform-contracts",
+        "@erpx/platform-native-sdk",
+        "@erpx/platform-runtime-server",
+        "@erpx/platform-runtime-ui",
+        "@erpx/platform-shared-server",
+        "@erpx/platform-shared-ui",
+        "@erpx/platform-ui",
+        "@erpx/pms-server",
+        "@erpx/pos-server",
+        "@erpx/projects-server",
+        "@erpx/projects-ui",
+        "@erpx/records-ui",
+        "@erpx/support-server",
+        "@erpx/talent-server",
+        "@erpx/work-projection-server",
+        "@erpx/work-projection-ui",
+        "@erpx/workflow-server"
       ]
     }
   ]

@@ -9291,18 +9291,10 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16578,
+    "revision": 16582,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
-    "coordinator": {
-      "runId": "run-20261128-nextapi",
-      "agentId": "lead",
-      "startedAt": "2026-11-28T02:07:44.649Z",
-      "heartbeatAt": "2026-11-28T02:07:44.649Z",
-      "expiresAt": "2026-11-28T02:37:44.650Z",
-      "generation": 229,
-      "tokenHash": "62c15205e3d8e909763e49d7d0ce26ac112970f52b2c7fa2913f4522ed5cd381"
-    },
+    "coordinator": null,
     "coordinationPolicy": {
       "singleCheckout": true,
       "coordinatorOnlyTrackedWrites": true,
@@ -228053,6 +228045,82 @@
         "blocker": null,
         "handoff": null,
         "nextAction": "Verify add-account and role-change persistence in a disposable normal-SSO browser session. The signed-in menu now uses Axum session and device-account reads; existing work-role entrypoints remain tracked under the identity owner."
+      },
+      {
+        "id": "integrate.work_projection.dev-announcement-feed",
+        "goalId": "G4",
+        "owner": "work_projection",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Restore the published Calendar announcement feed through the native read",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-work_projection/src/adapters/calendar-announcements-facts.ts",
+          "tests/unit/work_projection/native-lane-29.test.ts"
+        ],
+        "resources": [
+          "work-announcement-read"
+        ],
+        "status": "done",
+        "claim": null,
+        "checks": [
+          {
+            "command": "vitest: native lane 29 announcement argument order and transport (12 tests)",
+            "result": "passed",
+            "sourceSha": "a3cff02b070302ccde564fa4a8616aa755dc4c34",
+            "note": "Codex-run targeted Vitest, including the exact Axum argument order."
+          },
+          {
+            "command": "tsc: apps typecheck",
+            "result": "passed",
+            "sourceSha": "a3cff02b070302ccde564fa4a8616aa755dc4c34",
+            "note": "Codex-run affected Apps typecheck."
+          },
+          {
+            "command": "structure:check",
+            "result": "passed",
+            "sourceSha": "a3cff02b070302ccde564fa4a8616aa755dc4c34",
+            "note": "Repository layout check."
+          },
+          {
+            "command": "test:catalogue",
+            "result": "passed",
+            "sourceSha": "a3cff02b070302ccde564fa4a8616aa755dc4c34",
+            "note": "Test catalogue check."
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "a3cff02b070302ccde564fa4a8616aa755dc4c34",
+            "note": "Whitespace check."
+          },
+          {
+            "command": "browser: signed-in Acme and Northstar Feed and calendar APIs",
+            "result": "passed",
+            "sourceSha": "a3cff02b070302ccde564fa4a8616aa755dc4c34",
+            "note": "Both authenticated calendar APIs 200 with sources[0].status=ready; Feed opened without the announcement error; anonymous Acme 401. No published row was available for the current date."
+          },
+          {
+            "command": "architecture:check",
+            "result": "failed",
+            "sourceSha": "a3cff02b070302ccde564fa4a8616aa755dc4c34",
+            "note": "Pre-existing violations outside the two changed paths reported by Codex; not caused by this repair."
+          },
+          {
+            "command": "docs:check",
+            "result": "failed",
+            "sourceSha": "a3cff02b070302ccde564fa4a8616aa755dc4c34",
+            "note": "Stale generated capability matrix outside the two changed paths."
+          }
+        ],
+        "retainedLegacy": [],
+        "baseSha": null,
+        "implementedCommit": "a3cff02b070302ccde564fa4a8616aa755dc4c34",
+        "lastPushedSha": "a3cff02b070302ccde564fa4a8616aa755dc4c34",
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Repair merged and pushed as a3cff02b0; browser Feed verified; next data-bearing verification needs a currently published announcement."
       }
     ],
     "migrationProgress": {
@@ -228075,7 +228143,7 @@
       }
     },
     "lastCoordinatorGeneration": 229,
-    "updatedAt": "2026-11-28T02:07:44.655Z",
+    "updatedAt": "2026-11-28T02:32:55.100Z",
     "handoff": {
       "fromRun": "run-20261128-route",
       "verifiedPushedCheckpoint": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",

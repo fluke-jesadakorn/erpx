@@ -1,3 +1,3 @@
 // App-owned entry; shared payloads do not import another application.
-export { GET, POST } from "@erpx/pms-ui/routes/api/v1/holdings/[holdingSlug]/pms/stripe-payments/route";
+export { POST } from "@erpx/pms-ui/routes/api/v1/holdings/[holdingSlug]/pms/stripe-payments/route";
 

@@ -304,5 +304,36 @@ describe('collaboration Next API route retirement',()=>{
   expect(repoSource('tests/integration/collaboration/rust-social-postgres.test.rs')).toContain('story_publish_and_archive_round_trip_with_replay_and_author_guard');
   expect(repoSource('platform/runtime/server/src/public/executive/native-connections.ts')).toContain('/api/v1/holdings/${encodeURIComponent(slug)}/executive/connections');
   expect(repoSource('tests/integration/shared.executive/executive-mcp.test.ts')).toContain('ERPX_NATIVE_EXECUTIVE_CONNECTIONS_CONFIG');
+});
+
+describe('post revisions Next API cutover',()=>{
+ const retired=[
+  'products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/revisions/route.ts',
+  'apps/compat/src/app/api/v1/holdings/[holdingSlug]/posts/[id]/revisions/route.ts',
+  'apps/launcher/src/app/api/v1/holdings/[holdingSlug]/posts/[id]/revisions/route.ts',
+ ];
+ it('removes the shared revisions handler and every compat/launcher re-export',()=>{
+  for(const path of retired)expect(existsSync(repoFile(path)),path).toBe(false);
  });
+ it('keeps the client revisions read on the cutover public path',()=>{
+  expect(repoSource('modules/collaboration/ui/src/components/social-post.tsx')).toContain('betaFetch(`${api}/posts/${post.id}/revisions`)');
+ });
+ it('pins the exact native revisions route and author-only SQL read',()=>{
+  const http=repoSource('modules/collaboration/server/src/adapters/social_http.rs');
+  expect(http).toContain('"/api/v1/holdings/{holding_slug}/feed/{post_id}/revisions"');
+  expect(http).toContain('get(read_post_revisions)');
+  const sql=repoSource('modules/collaboration/server/src/adapters/social.rs');
+  expect(sql).toContain('SELECT prior_version,action,body,created_at FROM social_post_revisions');
+  expect(sql).toContain('post.author_id != actor.user_id');
+ });
+ it('keeps the native data envelope and the client beta envelope compatible',()=>{
+  expect(repoSource('modules/collaboration/server/src/adapters/http_ingress.rs')).toContain('Json(json!({ "data": body }))');
+  expect(repoSource('platform/shared/ui/src/lib/beta-client.ts')).toContain('return body.data');
+ });
+ it('needs no client destination-link move because the revisions payload has no href fields',()=>{
+  const sql=repoSource('modules/collaboration/server/src/adapters/social.rs');
+  expect(sql).toContain('SELECT prior_version,action,body,created_at FROM social_post_revisions');
+  expect(sql).not.toContain('href FROM social_post_revisions');
+ });
+});
 });
