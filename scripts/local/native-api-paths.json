@@ -101,6 +101,10 @@
     },
     {
       "method": "GET",
+      "path": "pos/customers/search"
+    },
+    {
+      "method": "GET",
       "path": "pos/room-charge-reversals"
     },
     {

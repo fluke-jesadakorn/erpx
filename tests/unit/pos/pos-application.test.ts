@@ -746,3 +746,11 @@ it('holding POS room-charge reversal queue is native-only and gateway-routed',()
  const gateway=JSON.parse(deviceRead(deviceResolve('.','scripts/local/native-api-paths.json'),'utf8')) as {holdingPaths:{method:string;path:string}[]};
  expect(gateway.holdingPaths).toContainEqual({method:'GET',path:'pos/room-charge-reversals'});
 });
+
+it('holding POS customer search is native-only and gateway-routed',()=>{
+ const route=deviceRead(deviceResolve('.','modules/pos/ui/src/routes/api/v1/holdings/[holdingSlug]/pos/[...path]/route.ts'),'utf8');
+ expect(route).not.toContain('customers/search');
+ expect(route).not.toContain('nativePosCustomerSearch');
+ const gateway=JSON.parse(deviceRead(deviceResolve('.','scripts/local/native-api-paths.json'),'utf8')) as {holdingPaths:{method:string;path:string}[]};
+ expect(gateway.holdingPaths).toContainEqual({method:'GET',path:'pos/customers/search'});
+});
