@@ -1,4 +1,3 @@
-import {requestProductOrigin} from '@erpx/feature-runtime/lib/product-hosts';
 import {holdingRoutingEnabled,holdingHostForHost} from '@erpx/feature-runtime/lib/holding-hosts';
 import type { LayoutProps } from "@erpx/contracts/next-routes";
 import {ProductLinkEnvironment} from "@erpx/workplace/components/product-link-context";
@@ -6,7 +5,7 @@ import {appsEntryUrl} from "@erpx/feature-runtime/lib/application-origins";
 import {productHostForHost} from "@erpx/feature-runtime/lib/product-hosts";
 import {configuredProductOrigin,configuredProductHandoff} from '@erpx/feature-runtime/lib/product-hosts';
 import {productIds} from '@erpx/contracts/product-registry';
-import {createAuth} from '@erpx/server-identity_access/public/auth';
+import { currentSession } from "@erpx/server-identity_access/public/authorization";
 import {ProductAccountProvider} from '@erpx/workplace/components/product-account-provider';
 export const dynamic = "force-dynamic";
 import { cookies } from "next/headers";
@@ -51,9 +50,27 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     ? accountSnapshot.preference : accountSnapshot?.preference ? fallback : undefined };
   const theme = snapshot.preference?.appearance ?? fallback.appearance;
   const staffAudience=audience&&['apps','admin',...productIds].includes(audience)?audience:null;
-  const signedIn=staffAudience?await(await createAuth(requestProductOrigin(staffAudience,await headers())!)).api.getSession({headers:await headers()}):null;
+  const accountOrigin = configuredProductOrigin("account");
+  const signedIn = staffAudience && accountOrigin
+    ? await currentSession().catch((error: unknown) => {
+        if (error instanceof Error && error.message === "UNAUTHENTICATED") return null;
+        throw error;
+      })
+    : null;
+  const accountUser = signedIn?.session.user;
   const timed=<TimePreferenceProvider appearance="standard" accountKey={timeSnapshot?.key ?? "unavailable"} initialPreference={timeSnapshot?.preference}>{children}</TimePreferenceProvider>;
-  const accountContent=staffAudience&&signedIn?<ProductAccountProvider user={{id:signedIn.user.id,name:signedIn.user.name,email:signedIn.user.email}} audience={staffAudience} accountOrigin={configuredProductOrigin('account')!} appsHref={configuredProductHandoff('apps')!}>{timed}</ProductAccountProvider>:timed;
+  const accountContent = staffAudience && accountUser && accountOrigin
+    ? (
+      <ProductAccountProvider
+        user={{ id: accountUser.id, name: accountUser.name, email: accountUser.email }}
+        audience={staffAudience}
+        accountOrigin={accountOrigin}
+        appsHref={configuredProductHandoff("apps") ?? appsHref}
+      >
+        {timed}
+      </ProductAccountProvider>
+    )
+    : timed;
   const attachmentFeatureMode = attachmentsV2Enabled()
     ? "enabled"
     : attachmentsV2ReadOnly()
