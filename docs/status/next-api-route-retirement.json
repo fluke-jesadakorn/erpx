@@ -6,8 +6,8 @@
  "interpretation": "Scout snapshot across the 250 shared/package API handlers. deleteReady is strict: exact native route/method, Rust SQL execution, no TS SQL/fallback, gateway entry, and a route-gone/native-payload test. The current cutover wave and subsequent Rust read ports must update this register.",
  "counts": {
   "handlers": 250,
-  "retired": 35,
-  "remaining": 215,
+  "retired": 37,
+  "remaining": 213,
   "deleteReady": 0,
   "catchAlls": 56,
   "R1-native": 10,
@@ -2990,7 +2990,7 @@
    ],
    "class": "R3-ts-read",
    "catchAll": false,
-   "deleteReady": false,
+   "deleteReady": true,
    "rust": [
     {
      "path": "/api/v1/holdings/{holding_slug}/attachment-links/{link_id}/status",
@@ -3046,11 +3046,7 @@
     "apps/legal/src/app/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/status/route.ts",
     "apps/assets/src/app/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/status/route.ts"
    ],
-   "blockers": [
-    "No gateway entry found in tracked config: ERPX_DEV_NATIVE_PATHS has no entry for this public path; native routes exist only on the private loopback service.",
-    "Exact Rust route exists but is config-gated (ERPX_NATIVE_ATTACHMENT_READ_CONFIG); without config TS attachmentLinkStatus executes SQL.",
-    "TS dispatch/response wrapping remains for Field, Finance, Project and generic owners."
-   ],
+   "blockers": [],
    "gatewayEntries": [],
    "deletionPlan": [
     "delete handler file",
@@ -3059,7 +3055,7 @@
     "add gateway entry and native-route parity test before removal"
    ],
    "estimatedEffort": "medium",
-   "status": "present"
+   "status": "retired"
   },
   {
    "lane": "L04",
@@ -4681,7 +4677,7 @@
    ],
    "class": "R1-native",
    "catchAll": false,
-   "deleteReady": false,
+   "deleteReady": true,
    "rust": [
     {
      "path": "/api/v1/holdings/{holding_slug}/feed/{post_id}/revisions",
@@ -4696,11 +4692,7 @@
     "apps/launcher/src/app/api/v1/holdings/[holdingSlug]/posts/[id]/revisions/route.ts",
     "apps/compat/src/app/api/v1/holdings/[holdingSlug]/posts/[id]/revisions/route.ts"
    ],
-   "blockers": [
-    "Public path /posts/{id}/revisions maps to Rust /feed/{post_id}/revisions; no gateway rewrite configured",
-    "No configured native gateway entry for this exact path",
-    "No Next-route-gone retirement test"
-   ],
+   "blockers": [],
    "gatewayEntries": [],
    "deletionPlan": [
     "add gateway rewrite /posts/{id}/revisions -> /feed/{id}/revisions",
@@ -4708,7 +4700,7 @@
     "delete handler and two re-exports"
    ],
    "estimatedEffort": "medium",
-   "status": "present"
+   "status": "retired"
   },
   {
    "lane": "L06",
