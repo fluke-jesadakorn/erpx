@@ -93,14 +93,6 @@
     },
     {
       "method": "GET",
-      "path": "finance"
-    },
-    {
-      "method": "GET",
-      "path": "leave/calendar"
-    },
-    {
-      "method": "GET",
       "path": "people/project-worker-startup/people"
     },
     {

@@ -9291,17 +9291,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16601,
+    "revision": 16642,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261128-r3integ",
+      "runId": "run-20261128-r3integ2",
       "agentId": "lead-opencode",
-      "startedAt": "2026-11-28T03:44:05.985Z",
-      "heartbeatAt": "2026-11-28T04:04:07.355Z",
-      "expiresAt": "2026-11-28T04:34:07.355Z",
-      "generation": 230,
-      "tokenHash": "0b604d77cd359d7e9b1b7f576f8f19b6511241356ef00c6a856565a679a85534"
+      "startedAt": "2026-11-28T05:23:28.625Z",
+      "heartbeatAt": "2026-11-28T05:31:54.458Z",
+      "expiresAt": "2026-11-28T06:01:54.458Z",
+      "generation": 231,
+      "tokenHash": "d93b19e1244e9e0728e690cf6173ead5ed028f02aa800fd24454d31cc63cf130"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -151819,7 +151819,7 @@
         "owner": "billing",
         "title": "billing TS read tail native cutover (round 21)",
         "kind": "migration",
-        "status": "ready_for_integration",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -151861,10 +151861,10 @@
         "blocker": "released with work preserved",
         "nextAction": "Native transport import fixed; residual 5 literals need widened composition scope",
         "handoff": {
-          "runId": "run-20261127-e",
-          "agentId": "lead",
-          "at": "2026-11-27T01:46:25.617Z",
-          "previousStatus": "ready_for_integration",
+          "runId": "run-20261128-r3integ2",
+          "agentId": "codex",
+          "at": "2026-11-28T05:23:50.112Z",
+          "previousStatus": "integrating",
           "reason": "released with work preserved",
           "nextAction": "Native transport import fixed; residual 5 literals need widened composition scope"
         },
@@ -155409,7 +155409,7 @@
         "owner": "workflow",
         "title": "workflow TS read tail native cutover (r39)",
         "kind": "migration",
-        "status": "ready_for_integration",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -155455,16 +155455,16 @@
         ],
         "retainedLegacy": [],
         "blocker": "released with work preserved",
-        "nextAction": "Approval guard heads folded 23->20; next safe owner-only family approval-projection-sources 5 literals",
+        "nextAction": "STALE HANDOFF: no owner-only Axum PostgreSQL execution or route/TS retirement remains under the recorded paths. Re-scope from the current module-first layout before any claim; do not treat SQL-plan/fragment folding as migration.",
         "handoff": {
-          "runId": "run-20261127-f",
-          "agentId": "lead",
-          "at": "2026-11-27T02:18:27.513Z",
-          "previousStatus": "ready_for_integration",
+          "runId": "run-20261128-r3integ2",
+          "agentId": "codex",
+          "at": "2026-11-28T05:24:56.107Z",
+          "previousStatus": "integrating",
           "reason": "released with work preserved",
           "nextAction": "Approval guard heads folded 23->20; next safe owner-only family approval-projection-sources 5 literals"
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": true
       },
       {
         "id": "retire.commercial.read-tail-r8",
@@ -160419,7 +160419,7 @@
         "owner": "organization",
         "title": "organization TS read tail native cutover (r30)",
         "kind": "migration",
-        "status": "ready_for_integration",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -160459,16 +160459,16 @@
         ],
         "retainedLegacy": [],
         "blocker": "released with work preserved",
-        "nextAction": "r30 verified 4/4; refresh stale r40-r63 pins from 196 to measured 178 next",
+        "nextAction": "STALE HANDOFF: no owner-only Axum PostgreSQL execution or route/TS retirement remains under the recorded paths. Re-scope from the current module-first layout before any claim; do not treat SQL-plan/fragment folding as migration.",
         "handoff": {
-          "runId": "run-20261127-f",
-          "agentId": "worker-maintenance",
-          "at": "2026-11-27T02:08:43.658Z",
-          "previousStatus": "ready_for_integration",
+          "runId": "run-20261128-r3integ2",
+          "agentId": "codex",
+          "at": "2026-11-28T05:24:56.452Z",
+          "previousStatus": "integrating",
           "reason": "released with work preserved",
           "nextAction": "r30 verified 4/4; refresh stale r40-r63 pins from 196 to measured 178 next"
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": true
       },
       {
         "id": "retire.legal.read-tail-r29",
@@ -161572,7 +161572,7 @@
         "owner": "maintenance",
         "title": "maintenance TS read tail native cutover (r17)",
         "kind": "migration",
-        "status": "ready_for_integration",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -161590,17 +161590,17 @@
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "Cut 17->16 (subqueryHead fold); next is runtime executive asset-downtime consumer cutover in separate paths",
+        "blocker": "released with work preserved",
+        "nextAction": "STALE HANDOFF: no owner-only Axum PostgreSQL execution or route/TS retirement remains under the recorded paths. Re-scope from the current module-first layout before any claim; do not treat SQL-plan/fragment folding as migration.",
         "handoff": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-maintenance",
-          "at": "2026-11-25T17:37:22.004Z",
-          "previousStatus": "in_progress",
-          "reason": "handoff",
-          "nextAction": "Lead commits the reported cut; next family attached"
+          "runId": "run-20261128-r3integ2",
+          "agentId": "codex",
+          "at": "2026-11-28T05:24:56.809Z",
+          "previousStatus": "integrating",
+          "reason": "released with work preserved",
+          "nextAction": "Cut 17->16 (subqueryHead fold); next is runtime executive asset-downtime consumer cutover in separate paths"
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": true
       },
       {
         "id": "retire.support.read-tail-r25",
@@ -228154,12 +228154,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261128-r3integ",
+          "runId": "run-20261128-r3integ2",
           "agentId": "lead-opencode",
-          "claimedAt": "2026-11-28T03:44:17.337Z",
-          "heartbeatAt": "2026-11-28T04:04:07.355Z",
-          "expiresAt": "2026-11-28T04:34:07.355Z",
-          "generation": 230
+          "claimedAt": "2026-11-28T05:23:34.589Z",
+          "heartbeatAt": "2026-11-28T05:31:54.458Z",
+          "expiresAt": "2026-11-28T06:01:54.458Z",
+          "generation": 231
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -228168,7 +228168,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Mount the ported R3 owner reads, rebuild/restart the private native API, verify the dev gateway routes, retire only verified TypeScript handlers, and commit/push the integrated milestone.",
-        "handoff": null
+        "handoff": {
+          "runId": "run-20261128-r3integ",
+          "agentId": "lead-opencode",
+          "at": "2026-11-28T05:23:28.624Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Expired zero-remaining integration lease; reviewed five composition-slice WIP files and no competing run",
+          "nextAction": "Mount the ported R3 owner reads, rebuild/restart the private native API, verify the dev gateway routes, retire only verified TypeScript handlers, and commit/push the integrated milestone."
+        }
       },
       {
         "id": "integration.r3.files-link-set",
@@ -228346,6 +228353,251 @@
         "blocker": null,
         "handoff": null,
         "nextAction": "Precondition: confirmed rotation of the exposed ERPX_TEST_ADMIN_URL credential. Then run the remaining relocated-crate Postgres suites with ERPX_TEST_ADMIN_URL against disposable erpx_test_admin databases only, fix only residual migrations-root paths, and report pass/fail plus any suite that cannot run safely. Do not touch the shared development database, production code, platform/composition, gateway paths, or R3 mount files."
+      },
+      {
+        "id": "retire.r3.finance-root-route",
+        "owner": "finance",
+        "title": "Retire the native Finance root Next route",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "modules/finance/ui/src/routes/api/v1/holdings/[holdingSlug]/finance/route.ts",
+          "apps/finance/src/app/api/v1/holdings/[holdingSlug]/finance/route.ts",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/finance/route.ts",
+          "modules/finance/ui/package.json",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "route:finance-root"
+        ],
+        "status": "blocked",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [
+          {
+            "command": "native finance root authority and empty-chart audit (Codex)",
+            "result": "failed",
+            "sourceSha": "a1153281c",
+            "detail": "Native finance_root_aggregate does not enforce finance.read nor the finance.banking/finance.accounting purchased-package checks, and mishandles an empty chart. Route retirement is blocked until composition supplies the exact authority/purchase gates and empty-chart parity."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "released with work preserved",
+        "handoff": {
+          "runId": "run-20261128-r3integ2",
+          "agentId": "codex",
+          "at": "2026-11-28T05:27:20.606Z",
+          "previousStatus": "blocked",
+          "reason": "released with work preserved",
+          "nextAction": "DO NOT CUT. Native finance root lacks finance.read and finance.banking/finance.accounting purchased checks and mishandles empty chart. Follow-up task authority.finance-root-read must add composition authority/purchase gates + empty-chart parity and real-session proof before deletion."
+        },
+        "nextAction": "BLOCKED BY AUTHORITY/PARITY: do not cut. Re-scope only after the linked authority follow-up task lands and real-session/SSR parity is proven.",
+        "scopeRefinementRequired": true
+      },
+      {
+        "id": "retire.r3.leave-calendar-route",
+        "owner": "people_payroll",
+        "title": "Retire the native leave calendar Next route",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/leave/calendar/route.ts",
+          "apps/launcher/src/app/api/v1/holdings/[holdingSlug]/leave/calendar/route.ts",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/leave/calendar/route.ts",
+          "apps/people/src/app/api/v1/holdings/[holdingSlug]/leave/calendar/route.ts",
+          "platform/workplace/package.json",
+          "tests/unit/people_payroll/**",
+          "tests/integration/people_payroll/**"
+        ],
+        "resources": [
+          "route:leave-calendar"
+        ],
+        "status": "blocked",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [
+          {
+            "command": "native leave calendar authority and SSR audit (Codex)",
+            "result": "failed",
+            "sourceSha": "a1153281c",
+            "detail": "Native native_leave_calendar lacks people.workforce purchased-package enforcement and current authority/context revalidation, and SSR still reads through the TS route. Route retirement is blocked until those gates and the SSR cutover are native."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "released with work preserved",
+        "handoff": {
+          "runId": "run-20261128-r3integ2",
+          "agentId": "codex",
+          "at": "2026-11-28T05:27:20.963Z",
+          "previousStatus": "blocked",
+          "reason": "released with work preserved",
+          "nextAction": "DO NOT CUT. Native leave calendar lacks people.workforce purchased enforcement and current authority revalidation; SSR still uses the TS route. Follow-up task authority.leave-calendar-read must add the gates + SSR cutover and proof before deletion."
+        },
+        "nextAction": "BLOCKED BY AUTHORITY/PARITY: do not cut. Re-scope only after the linked authority follow-up task lands and real-session/SSR parity is proven.",
+        "scopeRefinementRequired": true
+      },
+      {
+        "id": "retire.r3.posts-revisions-route",
+        "owner": "collaboration",
+        "title": "Retire the native post revisions Next route",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/revisions/route.ts",
+          "apps/launcher/src/app/api/v1/holdings/[holdingSlug]/posts/[id]/revisions/route.ts",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/posts/[id]/revisions/route.ts",
+          "products/apps/ui/package.json",
+          "tests/unit/collaboration/**",
+          "tests/integration/collaboration/**"
+        ],
+        "resources": [
+          "route:posts-revisions"
+        ],
+        "status": "blocked",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [
+          {
+            "command": "posts revisions route retirement audit (Codex)",
+            "result": "failed",
+            "sourceSha": "a1153281c3c9719eeb25c54d3d9cc83567a92e17",
+            "detail": "All three tracked route files are zero-byte placeholders and the package export is absent. Native Postgres author guard and the /posts/=/feed/ gateway rewrite exist; unauthenticated gateway returned 401. No authenticated response or payload/header parity receipt was produced. No files changed and no route deleted."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "released with work preserved",
+        "handoff": {
+          "runId": "run-20261128-r3integ2",
+          "agentId": "codex",
+          "at": "2026-11-28T05:28:34.547Z",
+          "previousStatus": "blocked",
+          "reason": "released with work preserved",
+          "nextAction": "BLOCKED PENDING AUTHENTICATED PARITY. Three tracked route files are zero-byte placeholders and the package export is absent; native Postgres author guard + /posts/=/feed/ rewrite exist, unauthenticated gateway 401 only. Next executable action: run an authenticated Holding-session GET /api/v1/holdings/{slug}/posts/{id}/revisions through the dev gateway, compare the native /feed/{id}/revisions payload/headers, add a route-gone/native-payload test, then delete the placeholders and update the register/inventories."
+        },
+        "nextAction": "BLOCKED PENDING AUTHENTICATED PARITY. Three tracked route files are zero-byte placeholders and the package export is absent; native Postgres author guard + /posts/=/feed/ rewrite exist, unauthenticated gateway 401 only. Next executable action: run an authenticated Holding-session GET /api/v1/holdings/{slug}/posts/{id}/revisions through the dev gateway, compare the native /feed/{id}/revisions payload/headers, add a route-gone/native-payload test, then delete the placeholders and update the register/inventories."
+      },
+      {
+        "id": "authority.finance-root-read",
+        "owner": "finance",
+        "title": "Add owner-local Finance root authority port and empty-chart parity",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "modules/finance/server/src/adapters/finance_root_aggregate/**",
+          "modules/finance/server/src/public/finance_root_aggregate.rs",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261128-r3integ2",
+          "agentId": "codex",
+          "claimedAt": "2026-11-28T05:31:55.427Z",
+          "heartbeatAt": "2026-11-28T05:31:55.427Z",
+          "expiresAt": "2026-11-28T06:01:55.427Z",
+          "generation": 231
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [
+          {
+            "command": "finance root no-chart and TOCTOU audit (Codex)",
+            "result": "failed",
+            "sourceSha": "a1153281c3c9719eeb25c54d3d9cc83567a92e17",
+            "detail": "Legacy no-chart behavior returns CHART_REQUIRED, not an empty payload; journal default is independent of the report chart; finance authority checks and reads require one shared transaction to avoid TOCTOU. Worker is designing the transaction-bound seam."
+          },
+          {
+            "command": "fail-closed gateway mitigation",
+            "result": "passed",
+            "sourceSha": "a1153281c3c9719eeb25c54d3d9cc83567a92e17",
+            "detail": "Removed the holdingPaths finance entry; unauthenticated gateway now returns the TS UNAUTHENTICATED 401 instead of reaching the unguarded native route. TS remains authoritative until parity."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Transaction-bound seam required. Legacy no-chart returns CHART_REQUIRED (not empty), journal default is independent of the report chart, and authority + reads must share one transaction to avoid TOCTOU. Gateway finance entry is removed for fail-closed TS authority. Hand off the exact composition interface; do not mount/cut."
+      },
+      {
+        "id": "authority.leave-calendar-read",
+        "owner": "people_payroll",
+        "title": "Enforce leave-calendar workforce/authority and cut the actual SSR presenter",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "modules/people-payroll/server/src/adapters/native_leave_calendar/**",
+          "modules/people-payroll/server/src/adapters/leave-page-snapshot.ts",
+          "platform/workplace/src/routes/holdings/[holdingSlug]/_presenters/leave/screen.tsx",
+          "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/leave/calendar/route.ts",
+          "tests/unit/people_payroll/**",
+          "tests/integration/people_payroll/**"
+        ],
+        "resources": [
+          "owner:people_payroll"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261128-r3integ2",
+          "agentId": "codex",
+          "claimedAt": "2026-11-28T05:34:01.471Z",
+          "heartbeatAt": "2026-11-28T05:34:01.471Z",
+          "expiresAt": "2026-11-28T06:04:01.471Z",
+          "generation": 231
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [
+          {
+            "command": "leave calendar SSR caller and authority audit (Codex)",
+            "result": "failed",
+            "sourceSha": "a1153281c3c9719eeb25c54d3d9cc83567a92e17",
+            "detail": "Actual SSR caller is modules/people-payroll/server/src/adapters/leave-page-snapshot.ts and presenter platform/workplace/src/routes/holdings/[holdingSlug]/_presenters/leave/screen.tsx (outside the prior claim). Native still lacks people.workforce purchased enforcement and current authority/context revalidation."
+          },
+          {
+            "command": "fail-closed gateway mitigation",
+            "result": "passed",
+            "sourceSha": "a1153281c3c9719eeb25c54d3d9cc83567a92e17",
+            "detail": "Removed the holdingPaths leave/calendar entry; unauthenticated gateway now returns the TS UNAUTHENTICATED 401 instead of reaching the unguarded native route."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": {
+          "runId": "run-20261128-r3integ2",
+          "agentId": "codex",
+          "at": "2026-11-28T05:34:00.806Z",
+          "previousStatus": "blocked",
+          "reason": "released with work preserved",
+          "nextAction": "Paths must be refined to the actual SSR caller/presenter; native lacks people.workforce and current authority checks. Gateway leave/calendar entry is removed for fail-closed TS authority. Re-scope then claim."
+        },
+        "nextAction": "Owner-local only. Add people.workforce purchased-package admission and current authority/context revalidation to native_leave_calendar, then cut the actual SSR caller modules/people-payroll/server/src/adapters/leave-page-snapshot.ts and presenter platform/workplace/src/routes/holdings/[holdingSlug]/_presenters/leave/screen.tsx over to the native transport. Gateway leave/calendar remains removed until lead parity. Do not edit platform/composition, gateway JSON, the register, or shared DB; hand off the exact composition authority interface and tests."
       }
     ],
     "migrationProgress": {
@@ -228359,16 +228611,16 @@
       "statusCounts": {
         "pending": 14,
         "in_progress": 0,
-        "ready_for_integration": 165,
+        "ready_for_integration": 161,
         "integrating": 0,
         "migrated": 378,
-        "blocked": 1928,
+        "blocked": 1932,
         "deferred": 2,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 230,
-    "updatedAt": "2026-11-28T04:04:37.139Z",
+    "lastCoordinatorGeneration": 231,
+    "updatedAt": "2026-11-28T05:34:01.475Z",
     "handoff": {
       "fromRun": "run-20261128-route",
       "verifiedPushedCheckpoint": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
@@ -228376,10 +228628,10 @@
       "summary": "All 15 registered Acme Products and Company Admin pass normal-SSO browser checks at 4c1e26e. Real installed Plugin verification remains external because the approved registry is empty; full acceptance stays deferred."
     },
     "lastRecovery": {
-      "previousRunId": "run-my-day-recovery",
-      "runId": "run-20261128-nextapi",
-      "at": "2026-11-28T02:07:44.650Z",
-      "reason": "User-authorized takeover for Next API cutover; previous lead idle with no active claims; WIP reviewed",
+      "previousRunId": "run-20261128-r3integ",
+      "runId": "run-20261128-r3integ2",
+      "at": "2026-11-28T05:23:28.626Z",
+      "reason": "Expired zero-remaining integration lease; reviewed five composition-slice WIP files and no competing run",
       "wipReviewed": true,
       "previousRunStopped": true
     },
