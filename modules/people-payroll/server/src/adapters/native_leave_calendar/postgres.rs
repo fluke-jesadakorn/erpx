@@ -13,13 +13,37 @@
 
 use super::application::{CalendarFuture, LeaveCalendarQuery, LeaveCalendarRead};
 use super::domain::{
-    HolidayRow, LeaveCalendarFacts, LeaveRequestRow, unavailable,
+    HolidayRow, LeaveCalendarFacts, LeaveCalendarMonth, LeaveRequestRow, unavailable,
 };
+use super::http::LeaveCalendarAuthorityContext;
 use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, PgTransactionError, PgUnitOfWork, TransactionOptions,
 };
 use erpx_platform_shared_server::public::BusinessError;
-use sqlx::Row;
+use sqlx::{PgConnection, Row};
+use std::sync::Arc;
+
+/// Performs current IAM and purchased-capability checks using the same
+/// connection and transaction as the calendar queries. Implementations must
+/// validate the Holding, selected assignment, session revision and version.
+pub trait PgLeaveCalendarAuthority: Send + Sync {
+    fn authorize<'a>(
+        &'a self,
+        connection: &'a mut PgConnection,
+        context: &'a LeaveCalendarAuthorityContext,
+    ) -> CalendarFuture<'a, ()>;
+}
+
+struct UnconfiguredPgAuthority;
+impl PgLeaveCalendarAuthority for UnconfiguredPgAuthority {
+    fn authorize<'a>(
+        &'a self,
+        _: &'a mut PgConnection,
+        _: &'a LeaveCalendarAuthorityContext,
+    ) -> CalendarFuture<'a, ()> {
+        Box::pin(async { Err(unavailable()) })
+    }
+}
 
 /// Resolve the one active engagement for the account in this Company. The
 /// retired `activeStaff` also gates the row on an active IAM assignment and
@@ -29,6 +53,12 @@ pub const SQL_ACTIVE_STAFF: &str = r#"SELECT e.id AS engagement_id FROM hr_peopl
 JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id
 WHERE p.company_id=$1 AND p.status='active' AND p.merged_into_id IS NULL AND p.user_id=$2
 AND e.status='active'
+AND EXISTS (SELECT 1 FROM assignments a WHERE a.user_id=p.user_id AND a.company_id=p.company_id
+  AND a.revoked_at IS NULL
+  AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
+  AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
+  AND a.valid_from<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint
+  AND a.valid_until>floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
 AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')
 AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD'))
 LIMIT 2"#;
@@ -98,70 +128,125 @@ fn pack_holiday(row: &sqlx::postgres::PgRow) -> Result<HolidayRow, BusinessError
 
 pub struct PgLeaveCalendarRead {
     pool: DatabasePool,
+    authority: Arc<dyn PgLeaveCalendarAuthority>,
 }
 
 impl PgLeaveCalendarRead {
     pub fn new(pool: DatabasePool) -> Self {
-        Self { pool }
+        Self {
+            pool,
+            authority: Arc::new(UnconfiguredPgAuthority),
+        }
     }
 }
 
+impl PgLeaveCalendarRead {
+    pub fn with_authority(
+        pool: DatabasePool,
+        authority: Arc<dyn PgLeaveCalendarAuthority>,
+    ) -> Self {
+        Self { pool, authority }
+    }
+}
+
+/// Read the calendar on the caller's already-authorized Holding transaction.
+/// The authority implementation must validate the actual identity-owned work
+/// context, the supplied scope and purchased access on this same connection.
+/// This owner cannot depend on identity-access because identity depends on it.
+/// No connection, transaction, session or authority is created by this API.
+pub async fn read_authorized_on_connection(
+    connection: &mut PgConnection,
+    context: &LeaveCalendarAuthorityContext,
+    month: &str,
+    authority: &dyn PgLeaveCalendarAuthority,
+) -> Result<LeaveCalendarMonth, BusinessError> {
+    let query = LeaveCalendarQuery::try_new(&context.company_id, &context.user_id, month)?;
+    if !super::domain::valid_id(&context.assignment_id)
+        || context.host.is_empty()
+        || context.holding_slug.is_empty()
+        || !(1..=9_007_199_254_740_991).contains(&context.revision)
+        || !(1..=9_007_199_254_740_991).contains(&context.assignment_version)
+    {
+        return Err(super::domain::invalid());
+    }
+    authority.authorize(connection, context).await?;
+    let facts = read_facts_on_connection(connection, &query).await?;
+    Ok(LeaveCalendarMonth {
+        month: query.month,
+        requests: facts.requests,
+        holidays: facts.holidays,
+    })
+}
+
+async fn read_facts_on_connection(
+    connection: &mut PgConnection,
+    query: &LeaveCalendarQuery,
+) -> Result<LeaveCalendarFacts, BusinessError> {
+    let staff = sqlx::query(SQL_ACTIVE_STAFF)
+        .bind(query.company_id.as_str())
+        .bind(query.user_id.as_str())
+        .fetch_all(&mut *connection)
+        .await
+        .map_err(|_| unavailable())?;
+    if staff.len() != 1 {
+        return Ok(LeaveCalendarFacts::default());
+    }
+    let engagement: String = staff[0]
+        .try_get("engagement_id")
+        .map_err(|_| unavailable())?;
+
+    let requests = sqlx::query(SQL_CALENDAR_REQUESTS)
+        .bind(query.company_id.as_str())
+        .bind(engagement.as_str())
+        .bind(query.user_id.as_str())
+        .bind(query.end.as_str())
+        .bind(query.start.as_str())
+        .fetch_all(&mut *connection)
+        .await
+        .map_err(|_| unavailable())?;
+    let holidays = sqlx::query(SQL_CALENDAR_HOLIDAYS)
+        .bind(query.company_id.as_str())
+        .bind(engagement.as_str())
+        .bind(query.end.as_str())
+        .bind(query.start.as_str())
+        .bind(query.end.as_str())
+        .bind(query.start.as_str())
+        .bind(query.start.as_str())
+        .bind(query.end.as_str())
+        .fetch_all(&mut *connection)
+        .await
+        .map_err(|_| unavailable())?;
+
+    Ok(LeaveCalendarFacts {
+        requests: requests
+            .iter()
+            .map(pack_request)
+            .collect::<Result<Vec<_>, BusinessError>>()?,
+        holidays: holidays
+            .iter()
+            .map(pack_holiday)
+            .collect::<Result<Vec<_>, BusinessError>>()?,
+    })
+}
+
 impl LeaveCalendarRead for PgLeaveCalendarRead {
-    fn read<'a>(
-        &'a self,
-        query: &'a LeaveCalendarQuery,
-    ) -> CalendarFuture<'a, LeaveCalendarFacts> {
+    fn read<'a>(&'a self, query: &'a LeaveCalendarQuery) -> CalendarFuture<'a, LeaveCalendarFacts> {
         let unit = PgUnitOfWork::new(self.pool.clone());
         let query = query.clone();
+        let authority = self.authority.clone();
         Box::pin(async move {
             unit.run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
                 let query = query.clone();
+                let authority = authority.clone();
                 Box::pin(async move {
-                    let staff = sqlx::query(SQL_ACTIVE_STAFF)
-                        .bind(query.company_id.as_str())
-                        .bind(query.user_id.as_str())
-                        .fetch_all(&mut *connection)
-                        .await
-                        .map_err(|_| unavailable())?;
-                    if staff.len() != 1 {
-                        return Ok(LeaveCalendarFacts::default());
+                    let context = query.authority.as_ref().ok_or_else(unavailable)?;
+                    if context.company_id != query.company_id || context.user_id != query.user_id {
+                        return Err(unavailable().into());
                     }
-                    let engagement: String = staff[0]
-                        .try_get("engagement_id")
-                        .map_err(|_| unavailable())?;
-
-                    let requests = sqlx::query(SQL_CALENDAR_REQUESTS)
-                        .bind(query.company_id.as_str())
-                        .bind(engagement.as_str())
-                        .bind(query.user_id.as_str())
-                        .bind(query.end.as_str())
-                        .bind(query.start.as_str())
-                        .fetch_all(&mut *connection)
+                    authority.authorize(&mut *connection, context).await?;
+                    read_facts_on_connection(connection, &query)
                         .await
-                        .map_err(|_| unavailable())?;
-                    let holidays = sqlx::query(SQL_CALENDAR_HOLIDAYS)
-                        .bind(query.company_id.as_str())
-                        .bind(engagement.as_str())
-                        .bind(query.end.as_str())
-                        .bind(query.start.as_str())
-                        .bind(query.end.as_str())
-                        .bind(query.start.as_str())
-                        .bind(query.start.as_str())
-                        .bind(query.end.as_str())
-                        .fetch_all(&mut *connection)
-                        .await
-                        .map_err(|_| unavailable())?;
-
-                    Ok(LeaveCalendarFacts {
-                        requests: requests
-                            .iter()
-                            .map(pack_request)
-                            .collect::<Result<Vec<_>, BusinessError>>()?,
-                        holidays: holidays
-                            .iter()
-                            .map(pack_holiday)
-                            .collect::<Result<Vec<_>, BusinessError>>()?,
-                    })
+                        .map_err(Into::into)
                 })
             })
             .await
@@ -183,6 +268,11 @@ mod tests {
             "p.company_id=$1",
             "p.user_id=$2",
             "e.status='active'",
+            "a.revoked_at IS NULL",
+            "iam_assignment_active(a.id",
+            "iam_principal_active(a.user_id,a.company_id",
+            "a.valid_from<=",
+            "a.valid_until>",
             "LIMIT 2",
         ] {
             assert!(SQL_ACTIVE_STAFF.contains(fragment), "missing {fragment}");
@@ -197,7 +287,10 @@ mod tests {
             ">=$5::date",
             "ORDER BY r.start_date,r.id",
         ] {
-            assert!(SQL_CALENDAR_REQUESTS.contains(fragment), "missing {fragment}");
+            assert!(
+                SQL_CALENDAR_REQUESTS.contains(fragment),
+                "missing {fragment}"
+            );
         }
         for fragment in [
             "FROM leave_policy_assignments a",
@@ -213,7 +306,10 @@ mod tests {
             "h.holiday_date BETWEEN $7 AND $8",
             "ORDER BY h.holiday_date,h.name",
         ] {
-            assert!(SQL_CALENDAR_HOLIDAYS.contains(fragment), "missing {fragment}");
+            assert!(
+                SQL_CALENDAR_HOLIDAYS.contains(fragment),
+                "missing {fragment}"
+            );
         }
         assert_eq!(SQL_CALENDAR_REQUESTS.matches('$').count(), 5);
         assert_eq!(SQL_CALENDAR_HOLIDAYS.matches('$').count(), 8);

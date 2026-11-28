@@ -10,7 +10,8 @@ use super::domain::{
     month_invalid, valid_id, valid_month,
 };
 
-pub type CalendarFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
+pub type CalendarFuture<'a, T> =
+    Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
 
 /// All call-site values of the retired `leaveCalendarMonth` read: the Company
 /// and the account identity are isolated context values, the month is the
@@ -20,6 +21,7 @@ pub type CalendarFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, BusinessE
 pub struct LeaveCalendarQuery {
     pub company_id: String,
     pub user_id: String,
+    pub authority: Option<super::http::LeaveCalendarAuthorityContext>,
     pub month: String,
     pub start: String,
     pub end: String,
@@ -37,6 +39,7 @@ impl LeaveCalendarQuery {
         Ok(Self {
             company_id: company.to_owned(),
             user_id: user.to_owned(),
+            authority: None,
             month: month.to_owned(),
             start,
             end,
@@ -48,10 +51,7 @@ impl LeaveCalendarQuery {
 /// bounded identities and one bounded month; no SQL and no TypeScript fallback
 /// is part of this port.
 pub trait LeaveCalendarRead: Send + Sync {
-    fn read<'a>(
-        &'a self,
-        query: &'a LeaveCalendarQuery,
-    ) -> CalendarFuture<'a, LeaveCalendarFacts>;
+    fn read<'a>(&'a self, query: &'a LeaveCalendarQuery) -> CalendarFuture<'a, LeaveCalendarFacts>;
 }
 
 /// Read-only handler: the query already validated at construction, so this only
@@ -134,6 +134,7 @@ mod tests {
         let bad_query = LeaveCalendarQuery {
             company_id: "acme-co".into(),
             user_id: "usr-1".into(),
+            authority: None,
             month: "2026-13".into(),
             start: "2026-13-01".into(),
             end: "2026-13-31".into(),

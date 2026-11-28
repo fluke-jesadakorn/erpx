@@ -21,8 +21,11 @@ pub use domain::{
     month_bounds, month_invalid, month_required, unavailable, valid_id, valid_month,
 };
 pub use http::{
-    LeaveCalendarTarget, router_for_holdings, router_with_reader,
+    LeaveCalendarAuthority, LeaveCalendarAuthorityContext, LeaveCalendarTarget,
+    router_for_holdings, router_for_holdings_with_authority, router_with_reader,
+    router_with_reader_and_authority,
 };
 pub use postgres::{
-    PgLeaveCalendarRead, SQL_ACTIVE_STAFF, SQL_CALENDAR_HOLIDAYS, SQL_CALENDAR_REQUESTS,
+    PgLeaveCalendarAuthority, PgLeaveCalendarRead, SQL_ACTIVE_STAFF, SQL_CALENDAR_HOLIDAYS,
+    SQL_CALENDAR_REQUESTS, read_authorized_on_connection,
 };
