@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('server-only', () => ({}));
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import {
   NativeAgentWorkspaceError,
@@ -57,7 +59,11 @@ describe('native Agent workspace read client', () => {
   it('dispatches the workspace read to the mounted private route with bounded identity', async () => {
     const calls: Call[] = [];
     const client = createNativeAgentWorkspaceClient(config, transport(json(workspace), calls));
-    expect(await client.workspace(actor, false)).toEqual(workspace);
+    const incoming = new Headers({ host: 'acme.jesadakorn.com', cookie: 'device=synthetic-test' });
+    expect(await client.workspace(actor, false, incoming)).toEqual(workspace);
+    expect(calls[0]!.headers.get('cookie')).toBe('device=synthetic-test');
+    await expect(client.workspace(actor, false, new Headers({ host: 'northstar.jesadakorn.com' })))
+      .rejects.toMatchObject({ status: 403 });
     expect(calls).toHaveLength(1);
     expect(calls[0]!.url.pathname).toBe('/api/v1/holdings/acme/agent/workspace-read');
     expect(calls[0]!.headers.get('host')).toBe('acme.jesadakorn.com');

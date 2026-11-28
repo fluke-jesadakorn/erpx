@@ -1,4 +1,6 @@
 import 'server-only';
+import { headers as requestHeaders } from 'next/headers';
+import { nativeRequest } from '@erpx/server-runtime/public/native-http';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 
@@ -43,7 +45,7 @@ export type NativeAgentRecordKind = 'agent_invocation' | 'agent_session';
 
 export class NativeAgentWorkspaceError extends Error {
   readonly status?: number;
-  constructor(code: string, status?: number, message?: string) {
+  constructor(readonly code: string, status?: number, message?: string) {
     super(message ?? 'The native Agent workspace read could not be completed.');
     this.name = 'NativeAgentWorkspaceError';
     this.status = status;
@@ -128,7 +130,7 @@ function recordPayload(value: unknown): asserts value is NativeAgentRecord {
 }
 
 const direct: NativeAgentWorkspaceTransport = (url, headers, body, signal) =>
-  fetch(url, { method: 'POST', headers, body, cache: 'no-store', redirect: 'error', signal });
+  nativeRequest(url, { method: 'POST', headers: Object.fromEntries(headers), body, signal }, 30_000);
 
 export function createNativeAgentWorkspaceClient(
   raw: string,
@@ -138,6 +140,7 @@ export function createNativeAgentWorkspaceClient(
   const call = async (
     actor: WorkContext,
     body: Record<string, unknown>,
+    incoming?: Pick<Headers, 'get'>,
   ): Promise<unknown> => {
     const selected = [...config.holdings.values()].find((item) => item.holdingId === actor.holdingId && item.holdingSlug === actor.holdingSlug);
     if (!selected) return fail('NATIVE_AGENT_WORKSPACE_AUTHORITY_INVALID');
@@ -154,6 +157,13 @@ export function createNativeAgentWorkspaceClient(
       'x-erpx-context-revision': String(actor.authority.revision),
       'x-erpx-context-assignment-version': String(actor.authority.assignmentVersion),
     });
+    if (incoming) {
+      if (incoming.get('host') !== headers.get('host')) return fail('NATIVE_AGENT_WORKSPACE_AUTHORITY_INVALID', 403);
+      const cookie = incoming.get('cookie');
+      if (!cookie) return fail('NATIVE_AGENT_WORKSPACE_SESSION_REQUIRED', 401);
+      if (new TextEncoder().encode(cookie).length > 8192) return fail('NATIVE_AGENT_WORKSPACE_COOKIE_LIMIT', 422);
+      headers.set('cookie', cookie);
+    }
     for (const [name, value] of [
       ['x-erpx-workspace-branch', actor.scope.kind === 'branch' || actor.scope.kind === 'department' ? actor.scope.branchSlug : null],
       ['x-erpx-workspace-department', actor.scope.kind === 'department' ? actor.scope.departmentSlug : null],
@@ -189,15 +199,15 @@ export function createNativeAgentWorkspaceClient(
     }
   };
   return {
-    workspace: async (actor: WorkContext, includeEvidence = true): Promise<NativeAgentWorkspace> => {
-      const data = await call(actor, { kind: 'workspace', includeEvidence });
+    workspace: async (actor: WorkContext, includeEvidence = true, incoming?: Pick<Headers, 'get'>): Promise<NativeAgentWorkspace> => {
+      const data = await call(actor, { kind: 'workspace', includeEvidence }, incoming);
       workspace(data);
       return data;
     },
-    record: async (actor: WorkContext, kind: NativeAgentRecordKind, id: string): Promise<NativeAgentRecord> => {
+    record: async (actor: WorkContext, kind: NativeAgentRecordKind, id: string, incoming?: Pick<Headers, 'get'>): Promise<NativeAgentRecord> => {
       if (kind !== 'agent_invocation' && kind !== 'agent_session') return fail('NATIVE_AGENT_WORKSPACE_REQUEST_INVALID', 422);
       if (!identifier(id)) return fail('NATIVE_AGENT_WORKSPACE_REQUEST_INVALID', 422);
-      const data = await call(actor, { kind: 'record', recordKind: kind, id });
+      const data = await call(actor, { kind: 'record', recordKind: kind, id }, incoming);
       recordPayload(data);
       return data;
     },
@@ -221,7 +231,7 @@ export async function nativeAgentWorkspaceFromActor(
   const instance = client();
   if (!instance) throw new ApiError(503, 'NATIVE_AGENT_UNAVAILABLE', 'The native Agent workspace is unavailable.');
   try {
-    return await instance.workspace(actor, includeEvidence);
+    return await instance.workspace(actor, includeEvidence, await requestHeaders());
   } catch (error) {
     throw toApiError(error);
   }
@@ -236,7 +246,7 @@ export async function nativeAgentEvidenceRecordFromActor(
   const instance = client();
   if (!instance) throw new ApiError(503, 'NATIVE_AGENT_UNAVAILABLE', 'The native Agent workspace is unavailable.');
   try {
-    return await instance.record(actor, kind, id);
+    return await instance.record(actor, kind, id, await requestHeaders());
   } catch (error) {
     throw toApiError(error);
   }
@@ -245,7 +255,7 @@ export async function nativeAgentEvidenceRecordFromActor(
 function toApiError(error: unknown): ApiError {
   if (error instanceof NativeAgentWorkspaceError) {
     const status = error.status ?? 503;
-    return new ApiError(status, error.message.startsWith('NATIVE_') ? error.message : 'NATIVE_AGENT_UNAVAILABLE', 'The native Agent workspace read is unavailable.');
+    return new ApiError(status, error.code, 'The native Agent workspace read is unavailable.');
   }
   return new ApiError(503, 'NATIVE_AGENT_UNAVAILABLE', 'The native Agent workspace read is unavailable.');
 }
