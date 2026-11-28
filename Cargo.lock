@@ -794,9 +794,9 @@ dependencies = [
  "erpx-crm-server",
  "erpx-identity-access-server",
  "erpx-organization-server",
- "erpx-quality-server",
  "erpx-platform-runtime-server",
  "erpx-platform-shared-server",
+ "erpx-quality-server",
  "reqwest",
  "ring",
  "rustls",
@@ -942,10 +942,10 @@ dependencies = [
  "erpx-collaboration-server",
  "erpx-identity-access-server",
  "erpx-learning-server",
- "erpx-projects-server",
- "erpx-records-server",
  "erpx-platform-runtime-server",
  "erpx-platform-shared-server",
+ "erpx-projects-server",
+ "erpx-records-server",
  "erpx-workflow-server",
  "futures-util",
  "hex",
@@ -1038,9 +1038,9 @@ version = "0.1.0"
 dependencies = [
  "erpx-commerce-server",
  "erpx-finance-server",
- "erpx-quality-server",
  "erpx-platform-runtime-server",
  "erpx-platform-shared-server",
+ "erpx-quality-server",
  "erpx-workflow-server",
  "serde",
  "serde_json",
@@ -1242,6 +1242,108 @@ dependencies = [
 ]
 
 [[package]]
+name = "erpx-platform-composition"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "base64 0.23.1",
+ "bytes",
+ "erpx-agent-server",
+ "erpx-assets-server",
+ "erpx-benefits-server",
+ "erpx-billing-server",
+ "erpx-brand-server",
+ "erpx-collaboration-server",
+ "erpx-commerce-server",
+ "erpx-commercial-server",
+ "erpx-crm-server",
+ "erpx-customer-360-server",
+ "erpx-customer-authority-server",
+ "erpx-ecommerce-server",
+ "erpx-field-service-server",
+ "erpx-files-server",
+ "erpx-finance-server",
+ "erpx-identity-access-server",
+ "erpx-inventory-server",
+ "erpx-learning-server",
+ "erpx-legal-server",
+ "erpx-maintenance-server",
+ "erpx-manage-erpx-server",
+ "erpx-manufacturing-server",
+ "erpx-marketing-server",
+ "erpx-operations-server",
+ "erpx-organization-server",
+ "erpx-people-payroll-server",
+ "erpx-planning-server",
+ "erpx-platform-administration-server",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
+ "erpx-pms-server",
+ "erpx-pos-server",
+ "erpx-procurement-server",
+ "erpx-projects-server",
+ "erpx-quality-server",
+ "erpx-records-server",
+ "erpx-sales-server",
+ "erpx-support-server",
+ "erpx-talent-server",
+ "erpx-work-projection-server",
+ "erpx-workflow-server",
+ "hex",
+ "ldap3_proto",
+ "nix",
+ "rustls",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "sqlx",
+ "tempfile",
+ "time",
+ "tokio",
+ "tokio-rustls",
+ "tokio-util",
+ "tower",
+ "tracing",
+ "ts-rs",
+ "url",
+ "utoipa",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-platform-runtime-server"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "base64 0.23.1",
+ "erpx-platform-shared-server",
+ "getrandom 0.4.3",
+ "hex",
+ "nix",
+ "rustix",
+ "semver",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "sqlx",
+ "syn 2.0.119",
+ "sysinfo",
+ "tempfile",
+ "tokio",
+ "tower",
+ "url",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-platform-shared-server"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "erpx-pms-server"
 version = "0.1.0"
 dependencies = [
@@ -1280,9 +1382,9 @@ dependencies = [
  "erpx-commerce-server",
  "erpx-files-server",
  "erpx-identity-access-server",
- "erpx-records-server",
  "erpx-platform-runtime-server",
  "erpx-platform-shared-server",
+ "erpx-records-server",
  "erpx-workflow-server",
  "serde",
  "serde_json",
@@ -1338,31 +1440,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-platform-runtime-server"
-version = "0.1.0"
-dependencies = [
- "axum",
- "base64 0.23.1",
- "erpx-platform-shared-server",
- "getrandom 0.4.3",
- "hex",
- "nix",
- "rustix",
- "semver",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "sqlx",
- "syn 2.0.119",
- "sysinfo",
- "tempfile",
- "tokio",
- "tower",
- "url",
- "uuid",
-]
-
-[[package]]
 name = "erpx-sales-server"
 version = "0.1.0"
 dependencies = [
@@ -1380,14 +1457,6 @@ dependencies = [
  "tokio",
  "uuid",
  "webpki-roots",
-]
-
-[[package]]
-name = "erpx-platform-shared-server"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -1433,9 +1502,9 @@ dependencies = [
  "erpx-marketing-server",
  "erpx-operations-server",
  "erpx-organization-server",
- "erpx-quality-server",
  "erpx-platform-runtime-server",
  "erpx-platform-shared-server",
+ "erpx-quality-server",
  "erpx-support-server",
  "erpx-workflow-server",
  "serde",
@@ -1461,75 +1530,6 @@ dependencies = [
  "sha2 0.10.9",
  "sqlx",
  "tokio",
- "uuid",
-]
-
-[[package]]
-name = "erpx-platform-composition"
-version = "0.1.0"
-dependencies = [
- "axum",
- "base64 0.23.1",
- "bytes",
- "erpx-agent-server",
- "erpx-assets-server",
- "erpx-benefits-server",
- "erpx-billing-server",
- "erpx-brand-server",
- "erpx-collaboration-server",
- "erpx-commerce-server",
- "erpx-commercial-server",
- "erpx-crm-server",
- "erpx-customer-360-server",
- "erpx-customer-authority-server",
- "erpx-ecommerce-server",
- "erpx-field-service-server",
- "erpx-files-server",
- "erpx-finance-server",
- "erpx-identity-access-server",
- "erpx-inventory-server",
- "erpx-learning-server",
- "erpx-legal-server",
- "erpx-maintenance-server",
- "erpx-manage-erpx-server",
- "erpx-manufacturing-server",
- "erpx-marketing-server",
- "erpx-operations-server",
- "erpx-organization-server",
- "erpx-people-payroll-server",
- "erpx-planning-server",
- "erpx-platform-administration-server",
- "erpx-pms-server",
- "erpx-pos-server",
- "erpx-procurement-server",
- "erpx-projects-server",
- "erpx-quality-server",
- "erpx-records-server",
- "erpx-platform-runtime-server",
- "erpx-sales-server",
- "erpx-platform-shared-server",
- "erpx-support-server",
- "erpx-talent-server",
- "erpx-work-projection-server",
- "erpx-workflow-server",
- "hex",
- "ldap3_proto",
- "nix",
- "rustls",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "sqlx",
- "tempfile",
- "time",
- "tokio",
- "tokio-rustls",
- "tokio-util",
- "tower",
- "tracing",
- "ts-rs",
- "url",
- "utoipa",
  "uuid",
 ]
 

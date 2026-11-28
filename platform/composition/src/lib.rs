@@ -69,6 +69,8 @@ pub mod asset_retirement_work;
 pub mod assets_read;
 pub mod benefits;
 pub mod billing;
+#[cfg(feature = "private-field-api")]
+pub mod billing_r3;
 #[cfg(feature = "existing-business")]
 pub mod files_link_set;
 // Wave-1 native axum command composition (mounted by private_development_api).

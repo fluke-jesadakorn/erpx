@@ -69,4 +69,10 @@ pub mod native_people_list {
     pub use crate::adapters::native_people_list::*;
 }
 pub mod native_r3_worker_people_options;
+pub mod native_r3_leave_summary;
+pub mod native_r3_expenses;
+pub mod native_r3_self_service;
+pub mod native_r3_people_core;
+pub mod native_r3_leave_requests;
+pub mod native_r3_people_country_packs;
 pub mod native_leave_calendar { pub use crate::adapters::native_leave_calendar::*; }

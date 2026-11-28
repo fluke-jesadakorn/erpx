@@ -69,9 +69,85 @@ use erpx_platform_shared_server::public::{
 };
 use serde_json::Value;
 use sqlx::{PgConnection, Row};
-use std::sync::Arc;
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, OnceLock, RwLock},
+};
 
 type Error = PgTransactionError<BusinessError>;
+
+type ForecastBackendFactory =
+    dyn Fn() -> Arc<dyn erpx_billing_server::public::forecast_http::BillingForecastHttpBackend>
+    + Send
+    + Sync;
+static FORECAST_BACKEND_FACTORIES: OnceLock<RwLock<BTreeMap<String, Arc<ForecastBackendFactory>>>> =
+    OnceLock::new();
+
+/// The already assembled Billing backend registers a factory per Holding. The
+/// isolated R3 composition slice resolves it by Holding ID and never owns the
+/// Account policy, scope headers or `BillingService` itself.
+pub(crate) fn register_forecast_backend_factory<F>(holding: &str, factory: F)
+where
+    F: Fn() -> Arc<dyn erpx_billing_server::public::forecast_http::BillingForecastHttpBackend>
+        + Send
+        + Sync
+        + 'static,
+{
+    let mut factories = FORECAST_BACKEND_FACTORIES
+        .get_or_init(|| RwLock::new(BTreeMap::new()))
+        .write()
+        .unwrap_or_else(|error| error.into_inner());
+    factories.insert(holding.to_owned(), Arc::new(factory));
+}
+
+pub(crate) fn forecast_backend(
+    holding: &str,
+) -> Option<Arc<dyn erpx_billing_server::public::forecast_http::BillingForecastHttpBackend>> {
+    FORECAST_BACKEND_FACTORIES
+        .get()
+        .and_then(|factories| factories.read().ok())
+        .and_then(|factories| factories.get(holding).map(|factory| factory()))
+}
+
+/// Exact wrapper authority for the holding-scoped forecast read. The retained
+/// TypeScript route rejects a branch/department selection and every role other
+/// than `holding_owner` before it calls the native forecast.
+pub(crate) fn forecast_holding_scope(
+    role: &str,
+    scope_kind: WorkScopeKind,
+    branch_scoped: bool,
+    department_scoped: bool,
+) -> Result<(), BusinessError> {
+    if role == "holding_owner"
+        && scope_kind == WorkScopeKind::Holding
+        && !branch_scoped
+        && !department_scoped
+    {
+        Ok(())
+    } else {
+        Err(BusinessError::new(
+            FailureKind::Forbidden,
+            "FORBIDDEN",
+            "Only the Holding owner can view this forecast.",
+        ))
+    }
+}
+
+/// `requireCompanyAuthority(actor, ["holding_owner"])` resolves to the
+/// `manage_erpx.access` customer permission on the selected Holding-scoped
+/// assignment. The sealed effective-authority context already revalidated the
+/// assignment, company and session; no owner SQL is repeated here.
+pub(crate) fn forecast_company_authority(manage_erpx: bool) -> Result<(), BusinessError> {
+    if manage_erpx {
+        Ok(())
+    } else {
+        Err(BusinessError::new(
+            FailureKind::Forbidden,
+            "COMPANY_AUTHORITY_REQUIRED",
+            "A company-authorized HR administrator or owner is required.",
+        ))
+    }
+}
 
 fn scope() -> BusinessError {
     BusinessError::new(
@@ -221,6 +297,10 @@ impl<C: Clock + Send + Sync + 'static> BillingService<C> {
 
     pub fn company(&self) -> &CompanyId {
         self.configuration.company()
+    }
+
+    pub(crate) fn holding(&self) -> &HoldingId {
+        &self.configuration.holding
     }
 
     fn access() -> WorkAuthorizationRequest {
@@ -757,6 +837,7 @@ impl<C: Clock + Send + Sync + 'static> BillingService<C> {
         host: &str,
         proof: DeviceProof,
         selection: HoldingWorkspaceRequest,
+        platform: bool,
     ) -> Result<erpx_billing_server::public::forecast_http::BillingForecastHttpResponse, Error> {
         let holding = self.configuration.holding.clone();
         let company = self.configuration.company.clone();
@@ -781,6 +862,20 @@ impl<C: Clock + Send + Sync + 'static> BillingService<C> {
                             return Err(scope().into());
                         }
                         current.require_permission("records.read")?;
+                        if !platform {
+                            let selected = current.selection();
+                            let workspace = selected.workspace();
+                            let assignment = selected.assignment();
+                            forecast_holding_scope(
+                                assignment.role.as_str(),
+                                assignment.scope_kind,
+                                workspace.branch_id.is_some(),
+                                workspace.department_id.is_some(),
+                            )?;
+                            forecast_company_authority(
+                                current.has_permission("manage_erpx.access"),
+                            )?;
+                        }
                         let mut connection = control.raw().acquire().await.map_err(|_| {
                             PgTransactionError::Business(unavailable())
                         })?;
@@ -877,6 +972,19 @@ impl<C: Clock + Send + Sync + 'static> BillingBackend<C> {
         scopes: Arc<dyn BusinessScopeSlugs>,
         service: Arc<BillingService<C>>,
     ) -> Self {
+        let holding = service.holding().as_str().to_owned();
+        let factory_policy = policy.clone();
+        let factory_scopes = scopes.clone();
+        let factory_service = service.clone();
+        register_forecast_backend_factory(&holding, move || {
+            Arc::new(BillingForecastBackend::new(
+                factory_policy.clone(),
+                factory_scopes.clone(),
+                factory_service.clone(),
+            )) as Arc<
+                dyn erpx_billing_server::public::forecast_http::BillingForecastHttpBackend,
+            >
+        });
         Self {
             policy,
             scopes,
@@ -1172,7 +1280,12 @@ impl<C: Clock + Send + Sync + 'static>
         Box::pin(async move {
             let (proof, selection) = self.context(request.headers)?;
             self.service
-                .forecast(request.host, proof, selection)
+                .forecast(
+                    request.host,
+                    proof,
+                    selection,
+                    request.platform_customer.is_some(),
+                )
                 .await
                 .map_err(business)
         })

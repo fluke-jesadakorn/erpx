@@ -7220,14 +7220,6 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_DIRECTORY_OPERATION_CONFIGURATION_INVALID")?,
             );
         }
-        if !billing_forecast_targets.is_empty() {
-            router = router.merge(
-                erpx_billing_server::public::forecast_http::billing_forecast_router(
-                    billing_forecast_targets,
-                )
-                .map_err(|_| "PRIVATE_API_BILLING_FORECAST_CONFIGURATION_INVALID")?,
-            );
-        }
         if !billing_targets.is_empty() {
             router = router.merge(
                 erpx_billing_server::public::billing_http::billing_router(billing_targets)

@@ -1862,5 +1862,8 @@ pub fn mount(
         ).map_err(|_| "PRIVATE_API_PMS_HOSPITALITY_SETUP_PROPERTIES_INVALID")?,
     );
 
+    // Billing R3: platform target + Holding forecast (authority-preserving slice).
+    router = crate::billing_r3::mount(router, config, pools)?;
+
     Ok(router)
 }
