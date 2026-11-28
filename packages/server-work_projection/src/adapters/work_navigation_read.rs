@@ -19,12 +19,32 @@ use sqlx::PgConnection;
 
 type Error = PgTransactionError<BusinessError>;
 
+/// Owner facts the composition gate cannot yet supply. Publishing a fabricated
+/// expense admission or routing flag would turn an unavailable owner into a
+/// successful-looking Work count, so they remain explicit source gaps.
+pub const UNAVAILABLE_WORK_OWNER_FACTS: &'static [&'static str] = &[
+    "expenseCreationWork",
+    "workflowRoutingWork",
+];
+
+/// Keep unwired owner facts in the explicit gap list. An absent owner is never
+/// converted into an empty successful read.
+fn extend_unavailable_sources(
+    mut sources: Vec<&'static str>,
+    owner_facts: &'static [&'static str],
+) -> Vec<&'static str> {
+    sources.extend_from_slice(owner_facts);
+    sources
+}
+
 /// Already-authorized facts for one selected Work context.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct NativeWorkNavigationRequest {
     pub beta: bool,
     pub inventory: InventoryPreparation,
     pub expense_available: bool,
+    /// Owner facts that are not wired to a real port yet. Never synthesized.
+    pub unavailable_owner_facts: &'static [&'static str],
     /// `unreadHomeCount` from the Collaboration Home cursor owner read.
     pub home_unread: i64,
     pub include_attention: bool,
@@ -61,6 +81,8 @@ pub async fn read_native_work_navigation(
         request.expense_available,
     )
     .await?;
+    let unavailable_sources =
+        extend_unavailable_sources(unavailable_sources, request.unavailable_owner_facts);
     let facts = WorkSnapshotFact { items };
     Ok(work_navigation(WorkNavigationFacts {
         snapshot: &facts,
@@ -81,4 +103,21 @@ pub async fn read_work_navigation_snapshot(
 ) -> Result<Value, Error> {
     let fact = read_native_work_navigation(connection, current, request, now).await?;
     Ok(navigation_snapshot_json(&fact, now.get()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unwired_owner_facts_remain_explicit_source_gaps() {
+        assert_eq!(
+            extend_unavailable_sources(vec!["supportWork"], UNAVAILABLE_WORK_OWNER_FACTS),
+            vec!["supportWork", "expenseCreationWork", "workflowRoutingWork"]
+        );
+        assert_eq!(
+            extend_unavailable_sources(vec!["supportWork"], &[]),
+            vec!["supportWork"]
+        );
+    }
 }

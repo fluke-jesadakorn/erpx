@@ -12,6 +12,7 @@
 @source "../../../../packages/contracts/src/finance-purchase-controls.ts";
 @source "../../../../packages/contracts/src/holding-fetch.ts";
 @source "../../../../packages/contracts/src/holding-hosts.ts";
+@source "../../../../packages/contracts/src/holding-hosts/company-address.ts";
 @source "../../../../packages/contracts/src/private-loopback.ts";
 @source "../../../../packages/contracts/src/product-registry.ts";
 @source "../../../../packages/contracts/src/product-return-path.ts";
@@ -26,8 +27,6 @@
 @source "../../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/collaboration/route.ts";
 @source "../../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/daily-plan/route.ts";
 @source "../../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/executive/[[...path]]/route.ts";
-@source "../../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/executive/connections/route.ts";
-@source "../../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/handbook/[[...path]]/route.ts";
 @source "../../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/handover/[postId]/acknowledgement/route.ts";
 @source "../../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/handover/route.ts";
 @source "../../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/inbox/[[...path]]/route.ts";
@@ -41,7 +40,6 @@
 @source "../../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/task-source/route.ts";
 @source "../../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/task/route.ts";
 @source "../../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/staff/[[...path]]/route.ts";
-@source "../../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/stories/[id]/archive/route.ts";
 @source "../../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/stories/route.ts";
 @source "../../../../packages/feature-apps/src/routes/holdings/[holdingSlug]/@record/insights/executive/records/executive_source/[id]/[recordSection]/page.tsx";
 @source "../../../../packages/feature-apps/src/routes/holdings/[holdingSlug]/@record/insights/executive/records/executive_source/[id]/page.tsx";
@@ -175,7 +173,6 @@
 @source "../../../../packages/feature-collaboration/src/lib/inbox-state-command.ts";
 @source "../../../../packages/feature-collaboration/src/lib/messaging-command.ts";
 @source "../../../../packages/feature-collaboration/src/lib/native-handbook-page.ts";
-@source "../../../../packages/feature-collaboration/src/lib/native-handbook.ts";
 @source "../../../../packages/feature-collaboration/src/lib/social-command.ts";
 @source "../../../../packages/feature-collaboration/src/lib/social-post-editor-state.ts";
 @source "../../../../packages/feature-commerce/src/components/commerce-controls.tsx";
@@ -3075,7 +3072,6 @@
 @source "../../../../packages/server-organization/src/adapters/work-report-facts.ts";
 @source "../../../../packages/server-organization/src/adapters/workflow-approvals-facts.ts";
 @source "../../../../packages/server-organization/src/adapters/workspace-choices.ts";
-@source "../../../../packages/server-organization/src/adapters/workspace-route-company.ts";
 @source "../../../../packages/server-organization/src/application/company-business-acceptance.ts";
 @source "../../../../packages/server-organization/src/application/department-authority.ts";
 @source "../../../../packages/server-organization/src/application/department-decisions.ts";
@@ -3185,7 +3181,6 @@
 @source "../../../../packages/server-organization/src/public/work-report-facts.ts";
 @source "../../../../packages/server-organization/src/public/workflow-approvals-facts.ts";
 @source "../../../../packages/server-organization/src/public/workspace-choices.ts";
-@source "../../../../packages/server-organization/src/public/workspace-route-company.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/agent-ai-usage-projection.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/attachment-purchases.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/attachment-read-sources.ts";

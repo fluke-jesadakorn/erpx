@@ -11,6 +11,7 @@ use crate::adapters::work_navigation_http::{
     WorkNavigationReadHttpResponse,
 };
 use crate::adapters::work_capability_probes::InventoryPreparation;
+use crate::adapters::work_navigation_read::UNAVAILABLE_WORK_OWNER_FACTS;
 use crate::application::work_navigation::{
     MarkHomeReadCommand, NavigationFacts, NavigationQuery, WorkNavigationPort,
     mark_home_read as execute_mark_home_read, navigation_workspace_base, read_navigation,
@@ -286,9 +287,11 @@ impl WorkNavigationHttpBackend for WorkNavigationBackend {
                                         can_prepare_counts: can_prepare_inventory,
                                         can_prepare_transfers: can_prepare_inventory,
                                     },
-                                    // Native expense creation admission and cross-owner
-                                    // workflow routing must be wired before GET cutover.
-                                    expense_available: true,
+                                    // Expense creation admission and cross-owner flow
+                                    // routing have no wired native port yet. They stay
+                                    // explicit source gaps rather than fabricated facts.
+                                    expense_available: false,
+                                    unavailable_owner_facts: UNAVAILABLE_WORK_OWNER_FACTS,
                                     routing_attention: false,
                                 },
                             )

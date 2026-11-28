@@ -16,7 +16,7 @@ use erpx_server_organization::public::organization_nodes::{
     PgOrganizationNodes, read_workspace,
 };
 use erpx_server_runtime::public::postgres::PgTransactionError;
-use erpx_server_shared::public::{BusinessError, TimestampMillis};
+use erpx_server_shared::public::{BusinessError, FailureKind, TimestampMillis};
 use erpx_server_workflow::public::approval_oversight::{
     ApprovalOversightActor, PgApprovalOversight, approval_queue,
 };
@@ -24,6 +24,17 @@ use erpx_server_workflow::public::commands::CommandJson;
 use sqlx::PgConnection;
 
 type Error = PgTransactionError<BusinessError>;
+
+/// A temporarily unavailable owner read is an explicit source gap: the shared
+/// navigation must not fail eagerly, but it must never publish a complete-looking
+/// empty snapshot either. Tenant, permission and stale-context errors still fail
+/// the whole read so every owner's own scope fence remains authoritative.
+fn source_unavailable(error: &Error) -> bool {
+    match error {
+        PgTransactionError::Business(error) => error.kind == FailureKind::Unavailable,
+        PgTransactionError::Persistence(_) => true,
+    }
+}
 
 /// Sources whose TypeScript work readers have no native owner public read yet.
 /// They are explicit gaps, not empty results.
@@ -113,15 +124,20 @@ pub async fn read_native_work_snapshot(
     now: TimestampMillis,
 ) -> Result<NativeWorkSnapshot, Error> {
     let actor = approval_actor(current);
+    let mut degraded_sources: Vec<&'static str> = Vec::new();
     let approvals = if actor.has("organization.manage")
         && actor.scope_kind == "holding"
         && actor.branch_id.is_none()
         && actor.department_id.is_none()
     {
         let mut repository = PgApprovalOversight::new(connection);
-        approval_queue(&mut repository, &actor, now.get())
-            .await?
-            .approvals
+        match approval_queue(&mut repository, &actor, now.get()).await {
+            Ok(queue) => queue.approvals,
+            // `otherFlowWork` is already in the explicit gap list: the native
+            // snapshot never claims the Workflow enrichment source.
+            Err(error) if source_unavailable(&error) => Vec::new(),
+            Err(error) => return Err(error),
+        }
     } else {
         Vec::new()
     };
@@ -133,20 +149,38 @@ pub async fn read_native_work_snapshot(
         .any(|module| module == "maintenance")
         && current.has_permission("records.read")
     {
-        let workspace = read_maintenance_workspace(&mut *connection, current, now).await?;
-        items.extend(maintenance_items(
-            &workspace.items,
-            current.user_id().as_str(),
-            current.has_permission("records.review"),
-        ));
-        let plans = read_maintenance_plans(&mut *connection, current, now).await?;
-        items.extend(preventive_plan_items(
-            &plans,
-            current.user_id().as_str(),
-            current.has_permission("records.write"),
-            current.has_permission("records.review"),
-            now.get(),
-        ));
+        let workspace = match read_maintenance_workspace(&mut *connection, current, now).await {
+            Ok(workspace) => Some(workspace),
+            Err(error) if source_unavailable(&error) => {
+                degraded_sources.push("maintenanceWork");
+                None
+            }
+            Err(error) => return Err(error),
+        };
+        let plans = match read_maintenance_plans(&mut *connection, current, now).await {
+            Ok(plans) => Some(plans),
+            Err(error) if source_unavailable(&error) => {
+                degraded_sources.push("preventivePlanWork");
+                None
+            }
+            Err(error) => return Err(error),
+        };
+        if let Some(workspace) = workspace {
+            items.extend(maintenance_items(
+                &workspace.items,
+                current.user_id().as_str(),
+                current.has_permission("records.review"),
+            ));
+        }
+        if let Some(plans) = plans {
+            items.extend(preventive_plan_items(
+                &plans,
+                current.user_id().as_str(),
+                current.has_permission("records.write"),
+                current.has_permission("records.review"),
+                now.get(),
+            ));
+        }
     }
 
     if current.has_permission("organization.manage")
@@ -196,17 +230,21 @@ pub async fn read_native_work_snapshot(
             permissions: current.command_iam_metadata().permissions.clone(),
         };
         let mut repository = PgOrganizationNodes::new(&mut *connection);
-        let workspace = read_workspace(&mut repository, &actor, &ChangeFilters::default())
-            .await
-            .map_err(|error| match error {
-                PgTransactionError::Business(error) => PgTransactionError::Business(error),
-                PgTransactionError::Persistence(error) => PgTransactionError::Persistence(error),
-            })?;
-        items.extend(organization_workspace_change_items(
-            &workspace.node_changes,
-            current.user_id().as_str(),
-            current.selection().workspace().company_id.as_str(),
-        ));
+        let workspace = match read_workspace(&mut repository, &actor, &ChangeFilters::default()).await {
+            Ok(workspace) => Some(workspace),
+            Err(error) if source_unavailable(&error) => {
+                degraded_sources.push("organizationChangeWork");
+                None
+            }
+            Err(error) => return Err(error),
+        };
+        if let Some(workspace) = workspace {
+            items.extend(organization_workspace_change_items(
+                &workspace.node_changes,
+                current.user_id().as_str(),
+                current.selection().workspace().company_id.as_str(),
+            ));
+        }
     }
 
     let mut unavailable_sources = UNAVAILABLE_SOURCES.to_vec();
@@ -216,6 +254,10 @@ pub async fn read_native_work_snapshot(
             "maintenanceWork" | "preventivePlanWork" | "organizationChangeWork"
         )
     });
+    // Read failures stay visible as the exact source gap. The caller renders an
+    // unknown Work count and an incomplete attention list from these labels; it
+    // never renders the successful empty snapshot a failure would otherwise fake.
+    unavailable_sources.extend(degraded_sources);
     // The retained snapshot returns `mergeWorkItems(rows)`; compose the same
     // duplicate/quality-alert merge before handing facts to any consumer.
     Ok(NativeWorkSnapshot {
@@ -227,6 +269,25 @@ pub async fn read_native_work_snapshot(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_owner_unavailability_degrades_and_tenant_failures_still_fail_closed() {
+        let down = BusinessError::new(FailureKind::Unavailable, "OWNER_DOWN", "owner down");
+        assert!(source_unavailable(&PgTransactionError::Business(down)));
+        assert!(source_unavailable(&PgTransactionError::Persistence(
+            sqlx::Error::PoolClosed.into()
+        )));
+        for kind in [
+            FailureKind::Unauthenticated,
+            FailureKind::Forbidden,
+            FailureKind::NotFound,
+            FailureKind::Conflict,
+            FailureKind::InvalidInput,
+        ] {
+            let error = BusinessError::new(kind, "TENANT_FAILURE", "tenant failure");
+            assert!(!source_unavailable(&PgTransactionError::Business(error)));
+        }
+    }
 
     /// The retained TypeScript work reader union. Composed sources are removed
     /// from the unavailable list; every other source must stay explicit.

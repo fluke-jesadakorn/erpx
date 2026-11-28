@@ -22,6 +22,11 @@ use erpx_server_work_projection::public::work_capability_probes::InventoryPrepar
 use erpx_server_work_projection::public::work_navigation_read::{
     NativeWorkNavigationRequest, read_native_work_navigation,
 };
+use erpx_server_work_projection::public::work_navigation_http::navigation_snapshot_json;
+
+/// Expense admission and flow routing have no native owner port yet. The
+/// regression below pins that they stay explicit gaps instead of a count.
+const UNWIRED_OWNER_FACTS: &[&str] = &["expenseCreationWork", "workflowRoutingWork"];
 use sqlx::PgConnection;
 
 #[derive(Clone, Copy)]
@@ -70,6 +75,7 @@ fn request(include_attention: bool) -> NativeWorkNavigationRequest {
             can_prepare_transfers: true,
         },
         expense_available: true,
+        unavailable_owner_facts: &[],
         home_unread: 4,
         include_attention,
         routing_attention: true,
@@ -125,6 +131,22 @@ async fn composes_native_navigation_with_explicit_unknown_sources() {
                             .await?;
                             assert_eq!(compact.attention, None);
                             assert!(compact.work.is_none());
+
+                            let unwired = read_native_work_navigation(
+                                connection,
+                                current,
+                                NativeWorkNavigationRequest {
+                                    unavailable_owner_facts: UNWIRED_OWNER_FACTS,
+                                    ..request(true)
+                                },
+                                now,
+                            )
+                            .await?;
+                            assert!(unwired.work.is_none());
+                            assert!(unwired.attention.as_ref().expect("attention").incomplete);
+                            let wire = navigation_snapshot_json(&unwired, now.get());
+                            assert_eq!(wire["work"], serde_json::Value::Null);
+                            assert_eq!(wire["attention"]["incomplete"], true);
                             Ok(())
                         })
                     },

@@ -1,9 +1,9 @@
 //! Pure domain contract for the native routine-template detail read.
 //!
-//! This is the read half of the `routine-templates` route family that the
-//! retained TypeScript `getTemplate` still serves for `path.length > 0`. The
-//! Rust owner now owns the exact statement, the scope tail and the complete
-//! fifteen-field row; no axum, sqlx or I/O lives in this module.
+//! This is the native read half of the `routine-templates` route family. The
+//! TypeScript `getTemplate` statement and export are retired; the Rust owner
+//! owns the exact statement, the scope tail and the complete fifteen-field
+//! row; no axum, sqlx or I/O lives in this module.
 
 use crate::domain::routine_template_read::MAX_ID_BYTES;
 use erpx_server_shared::public::{BusinessError, RecordId};

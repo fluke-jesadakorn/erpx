@@ -3,15 +3,7 @@ import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-vi.mock('@erpx/server-operations/adapters/work-routine-purchases', () => ({
-  workRoutineReadScope: () => ({ where: 'TRUE', args: [] as unknown[] }),
-}));
-vi.mock('@erpx/server-operations/public/staff-policy', async () => {
-  const actual = await vi.importActual<any>('@erpx/server-operations/public/staff-policy');
-  return { ...actual, companyAuthority: () => Promise.resolve(true) };
-});
 import { operationsAliasSelectAll } from '../../../packages/server-operations/src/adapters/operations-alias-select-all';
-import { getTemplate } from '../../../packages/server-operations/src/adapters/routines';
 import { OPERATIONS_VIEWER_CLOCK_SQL } from '../../../packages/server-operations/src/adapters/workforce-actor-scope-source';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-operations/src');
@@ -64,34 +56,29 @@ describe('operations read-tail r59 alias-qualified select-all head retirement', 
     expect(binds(get)).toBe(2);
   });
 
-  it('renders the retired SQL byte-identically through the actual owner reads', async () => {
-    const captured: string[] = [];
-    const statement = () => ({
-      bind: () => ({
-        all: async () => ({ results: [] }),
-        first: async () => ({ id: 'x', published: 1, creator_user_id: 'u' }),
-      }),
-    });
-    const database = { prepare(sql: string) { captured.push(sql); return statement(); } } as any;
-    const actor = { companyId: 'c', branchId: 'b', departmentId: 'd', userId: 'u', assignmentId: 'a' } as any;
-    await getTemplate(database, actor, 'tid');
-    expect(captured).toHaveLength(1);
-    expect(captured[0]).toBe(retired.get);
-    expect(sha(captured[0])).toBe(oracle.get);
-    expect(binds(captured[0])).toBe(2);
+  it('retires the getTemplate detail statement and its public export', async () => {
+    const [routines, publicEntry] = await Promise.all([
+      src('routines.ts'),
+      readFile(new URL('../../../packages/server-operations/src/public/routines.ts', import.meta.url), 'utf8'),
+    ]);
+    expect(routines).not.toContain('getTemplate');
+    expect(routines).not.toContain('readGetTemplateRow');
+    expect(routines).not.toContain('operationsAliasSelectAll(');
+    expect(routines).not.toContain('SELECT t.* FROM routine_templates t WHERE');
+    expect(publicEntry).not.toContain('getTemplate');
+    expect(publicEntry).toContain('canEditTemplate');
+    expect(publicEntry).toContain('templateSchema');
   });
 
-  it('keeps one head definition and routes both read sites through it', async () => {
+  it('keeps one head definition for the retained owner read sites', async () => {
     const [helper, routines] = await Promise.all([
       src('operations-alias-select-all.ts'), src('routines.ts'),
     ]);
     expect(helper.match(/export const operationsAliasSelectAll/g)).toHaveLength(1);
     expect(helper).toContain('`SELECT ${alias}.* FROM ${table} ${alias} WHERE ${tail}`');
-    expect(routines.match(/operationsAliasSelectAll\(/g)).toHaveLength(1);
-    expect(routines).toContain("from './operations-alias-select-all'");
+    expect(routines).not.toContain('operationsAliasSelectAll(');
     expect(routines).not.toContain('SELECT t.* FROM routine_templates t WHERE');
     expect(routines).not.toContain('templateSelect');
-    expect(routines).toContain("operationsAliasSelectAll('t','routine_templates', `t.id=?");
   });
 
   it('leaves viewer clock, native reads, locks and prior r53/r55-r58 helpers untouched', async () => {

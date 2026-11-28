@@ -487,8 +487,8 @@ where
 }
 
 /// Load the published template a manual run snapshots. Visibility and ownership
-/// stay the retained `getTemplate` rule: an unpublished template is visible only
-/// to its creator or a Company owner, and running any unpublished source is a
+/// stay the owner-native rule: an unpublished template is visible only to its
+/// creator or a Company owner, and running any unpublished source is a
 /// retained 409.
 pub async fn run_template_source<R, S>(
     actor: &StaffTaskActor,

@@ -2,7 +2,7 @@
 //!
 //! Composition mounts this router on the private service. A request is routed
 //! only to the Postgres pool registered for its exact `(Host, holding_slug)`
-//! pair; the retained TypeScript `getTemplate` SQL is never consulted.
+//! pair; the retired TypeScript `getTemplate` path no longer exists.
 
 use crate::application::routine_template_detail_read::TemplateDetailHandler;
 use crate::domain::routine_template_read::TemplateActor;

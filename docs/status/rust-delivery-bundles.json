@@ -9291,17 +9291,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16577,
+    "revision": 16578,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-my-day-recovery",
-      "agentId": "codex-lead",
-      "startedAt": "2026-11-28T01:22:15.179Z",
-      "heartbeatAt": "2026-11-28T01:53:23.463Z",
-      "expiresAt": "2026-11-28T02:23:23.463Z",
-      "generation": 228,
-      "tokenHash": "20ce56995758a3e4d743fa5b18286a38452d2225951f6aa65402b92a953d9edd"
+      "runId": "run-20261128-nextapi",
+      "agentId": "lead",
+      "startedAt": "2026-11-28T02:07:44.649Z",
+      "heartbeatAt": "2026-11-28T02:07:44.649Z",
+      "expiresAt": "2026-11-28T02:37:44.650Z",
+      "generation": 229,
+      "tokenHash": "62c15205e3d8e909763e49d7d0ce26ac112970f52b2c7fa2913f4522ed5cd381"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -228074,8 +228074,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 228,
-    "updatedAt": "2026-11-28T02:03:07.923Z",
+    "lastCoordinatorGeneration": 229,
+    "updatedAt": "2026-11-28T02:07:44.655Z",
     "handoff": {
       "fromRun": "run-20261128-route",
       "verifiedPushedCheckpoint": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
@@ -228083,10 +228083,10 @@
       "summary": "All 15 registered Acme Products and Company Admin pass normal-SSO browser checks at 4c1e26e. Real installed Plugin verification remains external because the approved registry is empty; full acceptance stays deferred."
     },
     "lastRecovery": {
-      "previousRunId": "run-finance-invoice-click",
-      "runId": "run-my-day-recovery",
-      "at": "2026-11-28T01:22:15.181Z",
-      "reason": "Previous own run ended with zero claims. Existing Operations and Work Rust changes reviewed and preserved.",
+      "previousRunId": "run-my-day-recovery",
+      "runId": "run-20261128-nextapi",
+      "at": "2026-11-28T02:07:44.650Z",
+      "reason": "User-authorized takeover for Next API cutover; previous lead idle with no active claims; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     },

@@ -297,7 +297,8 @@ export async function nativeRoutineEditorContext(
  * executes the alias-qualified SELECT and returns the complete retired row;
  * this module only forwards session/context headers and validates the
  * envelope. A missing template is `null`; every other incomplete answer fails
- * closed. There is no fallback to the retired TypeScript `getTemplate` path.
+ * closed. The retired TypeScript `getTemplate` path no longer exists, so there
+ * is no fallback.
  */
 export async function nativeRoutineTemplateDetail(
   request: Request,

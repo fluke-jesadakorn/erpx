@@ -50,6 +50,8 @@ pub struct NavigationFacts<'a> {
     pub beta: bool,
     pub inventory: InventoryPreparation,
     pub expense_available: bool,
+    /// Owner facts without a wired native port; never filled with placeholders.
+    pub unavailable_owner_facts: &'static [&'static str],
     pub routing_attention: bool,
 }
 
@@ -123,6 +125,7 @@ pub async fn read_navigation<P: WorkNavigationPort>(
                 beta: facts.beta,
                 inventory: facts.inventory,
                 expense_available: facts.expense_available,
+                unavailable_owner_facts: facts.unavailable_owner_facts,
                 home_unread,
                 include_attention: query.include_attention,
                 routing_attention: facts.routing_attention,
