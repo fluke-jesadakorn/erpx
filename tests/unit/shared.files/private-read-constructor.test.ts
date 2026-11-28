@@ -17,7 +17,7 @@ it.each(targets)('cannot claim an owner read unit from an arbitrary snapshot for
  const prepare=vi.fn((sql:string)=>{if(!sql)throw Error('QUERY_REQUIRED');return statement;}),batch=vi.fn(async()=>{throw Error('UNLEASED_MUTATION');}),exec=vi.fn(async()=>{throw Error('UNLEASED_MUTATION');}),database:SqlDatabase={prepare,batch,exec};
  const get=vi.fn(async()=>null),put=vi.fn(async()=>null),head=vi.fn(async()=>null),remove=vi.fn(async()=>{}),list=vi.fn(async()=>({objects:[],truncated:false})),files:FileStore={get,put,head,delete:remove,list};
  await expect(attachmentContent(database,files,actor,'link','original')).rejects.toMatchObject({status:503});
- expect(prepare).toHaveBeenCalledTimes(1);expect(prepare.mock.calls[0][0]).toContain('"setId"');
+ expect(prepare).toHaveBeenCalledTimes(1);expect(prepare.mock.calls[0][0]).toMatch(/^SELECT\b/);expect(prepare.mock.calls[0][0]).toContain('erpx_finance_field_payment_owned');expect(prepare.mock.calls[0][0]).not.toMatch(/\b(?:INSERT|UPDATE|DELETE)\b/);
  for(const operation of [batch,exec,get,put,head,remove,list])expect(operation).not.toHaveBeenCalled();
 });
 
