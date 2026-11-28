@@ -1,4 +1,8 @@
 import { beforeEach, expect, it, vi } from "vitest";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { expandNativeApiPaths, loadNativeApiPaths } from "../../../scripts/local/native-api-paths";
+import { nativeApiPath } from "../../../scripts/local/native-api-proxy";
 
 const state = vi.hoisted(() => ({
   scopeKind: "holding" as "holding" | "branch",
@@ -35,10 +39,8 @@ vi.mock("@erpx/billing-server/public/native-billing", () => ({
   }),
 }));
 
-import { GET as holdingGet } from "@erpx/product-admin-ui/routes/api/v1/holdings/[holdingSlug]/billing/forecast/route";
 import { GET as platformGet } from "@erpx/product-admin-ui/routes/api/v1/platform/billing/forecast/route";
 
-const holdingContext = { params: Promise.resolve({ holdingSlug: "acme" }) };
 beforeEach(() => {
   vi.stubEnv("ERPX_NATIVE_BILLING_CONFIG", "{}");
   state.scopeKind = "holding";
@@ -47,18 +49,17 @@ beforeEach(() => {
   state.calls = 0;
 });
 
-it("serves only the Holding owner and never exposes a Branch forecast", async () => {
-  const url = new Request("http://localhost:3100/api/v1/holdings/acme/billing/forecast");
-  const owner = await holdingGet(url, holdingContext);
-  expect(owner.status).toBe(200);
-  expect(owner.headers.get("Cache-Control")).toBe("private, no-store");
-  expect((await owner.json()).data.seats.count).toBe(282);
-  state.scopeKind = "branch";
-  expect((await holdingGet(url, holdingContext)).status).toBe(403);
-  state.scopeKind = "holding";
-  state.role = "operations_manager";
-  expect((await holdingGet(url, holdingContext)).status).toBe(403);
-  expect(state.calls).toBe(1);
+it("keeps the retired Holding forecast Next route gone and its native gateway path live", () => {
+  for (const file of [
+    "products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/billing/forecast/route.ts",
+    "apps/admin/src/app/api/v1/holdings/[holdingSlug]/billing/forecast/route.ts",
+    "apps/compat/src/app/api/v1/holdings/[holdingSlug]/billing/forecast/route.ts",
+  ]) expect(existsSync(new URL(`../../../${file}`, import.meta.url)), file).toBe(false);
+  const config = loadNativeApiPaths(fileURLToPath(new URL("../../../scripts/local/native-api-paths.json", import.meta.url)));
+  const { paths } = expandNativeApiPaths(config, [{ hostname: "acme.jesadakorn.com", holdingSlug: "acme" }]);
+  const environment = { NODE_ENV: "test" as const, ERPX_DEV_NATIVE_PATHS: paths };
+  expect(nativeApiPath(environment, "/api/v1/holdings/acme/billing/forecast", "acme.jesadakorn.com", "GET")).toBe(true);
+  expect(nativeApiPath(environment, "/api/v1/holdings/acme/billing/target", "acme.jesadakorn.com", "GET")).toBe(false);
 });
 
 it("allows Platform Admin and Auditor, but not unrelated Platform roles", async () => {

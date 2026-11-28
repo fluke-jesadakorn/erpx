@@ -10355,13 +10355,6 @@
       "sha256": "bce25fc35c1645c34fbedbb0206007ca44d3b3dfc2e499a20fe77434a0772d78"
     },
     {
-      "from": "src/app/api/v1/platform/billing/target/route.ts",
-      "to": "packages/feature-admin/src/routes/api/v1/platform/billing/target/route.ts",
-      "package": "@erpx/feature-admin",
-      "key": "routes/api/v1/platform/billing/target/route",
-      "sha256": "a7ad6eb2ca3bb951ac56a3916690d56646e41a9129b65b13157afaa6874925d5"
-    },
-    {
       "from": "src/app/api/v1/platform/billing/usage/route.ts",
       "to": "packages/feature-admin/src/routes/api/v1/platform/billing/usage/route.ts",
       "package": "@erpx/feature-admin",
@@ -11550,13 +11543,6 @@
       "package": "@erpx/workplace",
       "key": "routes/api/v1/holdings/[holdingSlug]/companies/active/route",
       "sha256": "4d8c489f8d2ae77406eda71d3eeb764979ffa9b73b8d2b6696074a5149a03439"
-    },
-    {
-      "from": "src/app/api/v1/holdings/[holdingSlug]/billing/forecast/route.ts",
-      "to": "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/billing/forecast/route.ts",
-      "package": "@erpx/feature-admin",
-      "key": "routes/api/v1/holdings/[holdingSlug]/billing/forecast/route",
-      "sha256": "c8b6de992f13e7a648e64a2038bd07c596f408ada405930da04e9336688f3787"
     },
     {
       "from": "src/app/api/v1/holdings/[holdingSlug]/billing/[[...path]]/route.ts",

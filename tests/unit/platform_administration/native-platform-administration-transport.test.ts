@@ -53,7 +53,7 @@ import { platformAdminActor, nativePlatformAdminAvailable, nativePlatformMigrate
 import { GET as forecastGet } from '@erpx/product-admin-ui/routes/api/v1/platform/billing/forecast/route';
 import { canonicalDestinationLinks } from '@erpx/work-projection-ui/lib/destination-links';
 import { nativeApiPath } from '../../../scripts/local/native-api-proxy';
-import { loadNativeApiPaths } from '../../../scripts/local/native-api-paths';
+import { expandNativeApiPaths, loadNativeApiPaths } from '../../../scripts/local/native-api-paths';
 
 const config = (overrides: Record<string, unknown> = {}) =>
   JSON.stringify({
@@ -756,12 +756,17 @@ describe('native platform billing forecast GET route parity', () => {
   });
 });
 
-/** Seven native-ready Admin capabilities no longer have a Next transport. The
+/** Nine native-ready Admin capabilities no longer have a Next transport. The
  *  gateway selects the exact Axum owner route and the owner `{data}` payload is
  *  already accepted by the existing browser/feature consumers. */
 describe('native Admin API route retirement', () => {
   const holdingHosts = ['acme.jesadakorn.com', 'northstar.jesadakorn.com', 'admin.jesadakorn.com'];
   const checkedIn = loadNativeApiPaths(fileURLToPath(new URL('../../../scripts/local/native-api-paths.json', import.meta.url)));
+  const holdingHostsForExpansion = [
+    { hostname: 'acme.jesadakorn.com', holdingSlug: 'acme' },
+    { hostname: 'northstar.jesadakorn.com', holdingSlug: 'northstar' },
+    { hostname: 'admin.jesadakorn.com', holdingSlug: 'erpx' },
+  ];
   const platformEntries = [
     ...(checkedIn.platform ?? []).map(({ host, method, path }) => `${host}|${method}|${path}`),
     ...(checkedIn.platformPrefixes ?? []).map(({ host, path }) => `${host}|${path}`),
@@ -777,15 +782,21 @@ describe('native Admin API route retirement', () => {
     `${host}|POST|/api/v1/holdings/{holding_slug}/ai-providers/discover`,
     `${host}|POST|/api/v1/holdings/{holding_slug}/ai-providers/selection`,
   ]);
-  const gatewayEntries = [...platformEntries, ...holdingEntries];
+  const gatewayEntries = [
+    ...platformEntries,
+    ...holdingEntries,
+    ...expandNativeApiPaths(checkedIn, holdingHostsForExpansion).paths.split(','),
+  ];
   const retiredFiles = [
     'products/admin/ui/src/routes/api/v1/platform/operations/route.ts',
     'products/admin/ui/src/routes/api/v1/platform/operations/migrate/route.ts',
     'products/admin/ui/src/routes/api/v1/platform/operations/recover/route.ts',
     'products/admin/ui/src/routes/api/v1/platform/billing/ai-gateway/route.ts',
     'products/admin/ui/src/routes/api/v1/platform/executive/route.ts',
+    'products/admin/ui/src/routes/api/v1/platform/billing/target/route.ts',
     'products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/brand/route.ts',
     'products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/ai-providers/[[...path]]/route.ts',
+    'products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/billing/forecast/route.ts',
   ];
   const appReexports = [
     'apps/admin/src/app/api/v1/platform/operations/route.ts',
@@ -793,24 +804,34 @@ describe('native Admin API route retirement', () => {
     'apps/admin/src/app/api/v1/platform/operations/recover/route.ts',
     'apps/admin/src/app/api/v1/platform/billing/ai-gateway/route.ts',
     'apps/admin/src/app/api/v1/platform/executive/route.ts',
+    'apps/admin/src/app/api/v1/platform/billing/target/route.ts',
     'apps/admin/src/app/api/v1/holdings/[holdingSlug]/brand/route.ts',
     'apps/admin/src/app/api/v1/holdings/[holdingSlug]/ai-providers/[[...path]]/route.ts',
+    'apps/admin/src/app/api/v1/holdings/[holdingSlug]/billing/forecast/route.ts',
     'apps/compat/src/app/api/v1/platform/operations/route.ts',
     'apps/compat/src/app/api/v1/platform/operations/migrate/route.ts',
     'apps/compat/src/app/api/v1/platform/operations/recover/route.ts',
     'apps/compat/src/app/api/v1/platform/billing/ai-gateway/route.ts',
     'apps/compat/src/app/api/v1/platform/executive/route.ts',
+    'apps/compat/src/app/api/v1/platform/billing/target/route.ts',
     'apps/compat/src/app/api/v1/holdings/[holdingSlug]/brand/route.ts',
     'apps/compat/src/app/api/v1/holdings/[holdingSlug]/ai-providers/[[...path]]/route.ts',
+    'apps/compat/src/app/api/v1/holdings/[holdingSlug]/billing/forecast/route.ts',
   ];
 
-  it('keeps the seven retired handlers and every app re-export unresolvable', () => {
-    expect(retiredFiles).toHaveLength(7);
+  it('keeps the nine retired handlers and every app re-export unresolvable', () => {
+    expect(retiredFiles).toHaveLength(9);
     for (const file of [...retiredFiles, ...appReexports])
       expect(existsSync(new URL(`../../../${file}`, import.meta.url)), file).toBe(false);
     expect(existsSync(new URL('../../../products/admin/ui/src/routes/api/v1/platform/operations/provision/route.ts', import.meta.url))).toBe(true);
     expect(existsSync(new URL('../../../products/admin/ui/src/routes/api/v1/platform/billing/forecast/route.ts', import.meta.url))).toBe(true);
-    expect(existsSync(new URL('../../../products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/billing/forecast/route.ts', import.meta.url))).toBe(true);
+    expect(existsSync(new URL('../../../products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/billing/target/route.ts', import.meta.url))).toBe(true);
+    expect(existsSync(new URL('../../../products/admin/ui/src/routes/api/v1/platform/billing/target/route.ts', import.meta.url))).toBe(false);
+    expect(existsSync(new URL('../../../apps/admin/src/app/api/v1/platform/billing/target/route.ts', import.meta.url))).toBe(false);
+    expect(existsSync(new URL('../../../apps/compat/src/app/api/v1/platform/billing/target/route.ts', import.meta.url))).toBe(false);
+    expect(existsSync(new URL('../../../products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/billing/forecast/route.ts', import.meta.url))).toBe(false);
+    expect(existsSync(new URL('../../../apps/admin/src/app/api/v1/holdings/[holdingSlug]/billing/forecast/route.ts', import.meta.url))).toBe(false);
+    expect(existsSync(new URL('../../../apps/compat/src/app/api/v1/holdings/[holdingSlug]/billing/forecast/route.ts', import.meta.url))).toBe(false);
   });
 
   it('routes every retired path and method to the native owner by exact gateway entry', () => {
@@ -823,6 +844,14 @@ describe('native Admin API route retirement', () => {
       'erpx-internal.jesadakorn.com|POST|/api/v1/platform/operations/migrate',
       'erpx-internal.jesadakorn.com|POST|/api/v1/platform/operations/recover',
       'erpx-internal.jesadakorn.com|GET|/api/v1/platform/executive',
+      'acme.jesadakorn.com|GET|/api/v1/onboarding',
+      'acme.jesadakorn.com|POST|/api/v1/onboarding',
+      'northstar.jesadakorn.com|GET|/api/v1/onboarding',
+      'northstar.jesadakorn.com|POST|/api/v1/onboarding',
+      'erpx-internal.jesadakorn.com|GET|/api/v1/onboarding',
+      'erpx-internal.jesadakorn.com|POST|/api/v1/onboarding',
+      'admin.jesadakorn.com|GET|/api/v1/platform/billing/target',
+      'erpx-internal.jesadakorn.com|GET|/api/v1/platform/billing/target',
       'admin.jesadakorn.com|/api/v1/platform/billing/ai-gateway',
       'erpx-internal.jesadakorn.com|/api/v1/platform/billing/ai-gateway',
     ]);
@@ -852,7 +881,10 @@ describe('native Admin API route retirement', () => {
     }
     expect(nativeApiPath(environment, '/api/v1/platform/executive', 'admin.jesadakorn.com', 'POST')).toBe(false);
     expect(nativeApiPath(environment, '/api/v1/platform/billing/forecast?holdingId=h001', 'admin.jesadakorn.com', 'GET')).toBe(false);
-    expect(nativeApiPath(environment, '/api/v1/holdings/acme/billing/forecast', 'acme.jesadakorn.com', 'GET')).toBe(false);
+    expect(nativeApiPath(environment, '/api/v1/platform/billing/target?holdingId=h001', 'admin.jesadakorn.com', 'GET')).toBe(true);
+    expect(nativeApiPath(environment, '/api/v1/platform/billing/target?holdingId=h001', 'erpx-internal.jesadakorn.com', 'GET')).toBe(true);
+    expect(nativeApiPath(environment, '/api/v1/holdings/acme/billing/forecast', 'acme.jesadakorn.com', 'GET')).toBe(true);
+    expect(nativeApiPath(environment, '/api/v1/holdings/acme/billing/target?month=2026-10', 'acme.jesadakorn.com', 'GET')).toBe(false);
   });
 
   it('accepts the native owner payload in the existing response envelope without canonicalisation', () => {

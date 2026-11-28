@@ -6,8 +6,8 @@
  "interpretation": "Scout snapshot across the 250 shared/package API handlers. deleteReady is strict: exact native route/method, Rust SQL execution, no TS SQL/fallback, gateway entry, and a route-gone/native-payload test. The current cutover wave and subsequent Rust read ports must update this register.",
  "counts": {
   "handlers": 250,
-  "retired": 32,
-  "remaining": 218,
+  "retired": 34,
+  "remaining": 216,
   "deleteReady": 0,
   "catchAlls": 56,
   "R1-native": 10,
@@ -3683,7 +3683,7 @@
    ],
    "class": "R3-ts-read",
    "catchAll": false,
-   "deleteReady": false,
+   "deleteReady": true,
    "rust": [],
    "consumers": [
     "apps/compat/src/app/api/v1/platform/billing/target/route.ts",
@@ -3698,7 +3698,7 @@
     "Provide native platform target read that executes SQL in Rust before deletion"
    ],
    "estimatedEffort": "large",
-   "status": "present"
+   "status": "retired"
   },
   {
    "lane": "L05",
@@ -4163,7 +4163,7 @@
    ],
    "class": "R3-ts-read",
    "catchAll": false,
-   "deleteReady": false,
+   "deleteReady": true,
    "rust": [
     {
      "path": "/api/v1/holdings/{holding_slug}/billing/forecast",
@@ -4188,7 +4188,7 @@
     "Move holding_owner authority check into the native forecast service, add gateway entry and route-absence test, then delete"
    ],
    "estimatedEffort": "medium",
-   "status": "present"
+   "status": "retired"
   },
   {
    "lane": "L05",

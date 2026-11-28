@@ -1,8 +1,11 @@
 import {createEngineeringBrowserContext} from "../../support/browser/engineering-browser-evidence";
 import {test,expect,type BrowserContext,type Page,type APIResponse,type Locator} from '@playwright/test';
 import {readFile,writeFile} from 'node:fs/promises';
+import {existsSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {createHmac} from 'node:crypto';
+import {expandNativeApiPaths,loadNativeApiPaths} from '../../../scripts/local/native-api-paths';
+import {nativeApiPath} from '../../../scripts/local/native-api-proxy';
 import type {WorkplacePlatformUatUser} from "../../../fixtures/shared/builders/engineering-workplace-platform-browser";
 import type {operationsWorkspace,operationsExceptionDetail} from "@erpx/operations-server/public/operations-exceptions";
 import type {agentWorkspace} from "@erpx/agent-server/public/agent-governance";
@@ -174,7 +177,11 @@ test('isolated Commercial Console rates measured monthly shadow usage and preser
  test.setTimeout(180000);const {credentials,guide}=await fixture(),contexts=await Promise.all([1,2].map(()=>createEngineeringBrowserContext(browser,testInfo)));
  try{
   const [author,auditor]=await Promise.all(contexts.map(context=>context.newPage()));await signIn(contexts[0],author,credentials,'platform-author','/holdings/erpx/manage-erpx/billing?holdingId=h001');await signIn(contexts[1],auditor,credentials,'platform-auditor','/holdings/erpx/manage-erpx/billing?holdingId=h001');
-  const endpoint=`/api/v1/platform/billing/target?holdingId=h001&month=${guide.targetMonth}`,before=await checked<TargetBillingPeriodView>(await author.request.get(endpoint));expect(before.state).toBe('unassigned');expect(before.measuredEvidence.snapshot).toBeTruthy();expect(before.measuredEvidence.seats.activeNow.status).toBe('measured');expect(before.measuredEvidence.seats.activeNow.count).toBeGreaterThan(0);
+  const endpoint=`/api/v1/platform/billing/target?holdingId=h001&month=${guide.targetMonth}`;
+  expect(existsSync(resolve('products/admin/ui/src/routes/api/v1/platform/billing/target/route.ts')),'retired Next platform billing target handler').toBe(false);
+  const nativePaths=expandNativeApiPaths(loadNativeApiPaths(resolve('scripts/local/native-api-paths.json')),[]).paths;
+  expect(nativeApiPath({NODE_ENV:'test',ERPX_DEV_NATIVE_PATHS:nativePaths},'/api/v1/platform/billing/target','admin.jesadakorn.com','GET'),'native platform billing target gateway entry').toBe(true);
+  const before=await checked<TargetBillingPeriodView>(await author.request.get(endpoint));expect(before.state).toBe('unassigned');expect(before.measuredEvidence.snapshot).toBeTruthy();expect(before.measuredEvidence.seats.activeNow.status).toBe('measured');expect(before.measuredEvidence.seats.activeNow.count).toBeGreaterThan(0);
   await author.locator('#workspace-content:visible').getByLabel('Action reason (saved in history)',{exact:true}).fill('Native monthly meter shadow review; fictional cohort only');await author.getByRole('combobox',{name:'Target mode',exact:true}).selectOption('shadow');await ui(author,author.getByRole('button',{name:'Assign target mode',exact:true}),'/api/v1/platform/billing');await author.reload();
   const assigned=await checked<TargetBillingPeriodView>(await author.request.get(endpoint));expect(assigned.assignment).toMatchObject({mode:'shadow',effectiveMonth:guide.targetMonth});expect(assigned.approval.blockers).toContain('shadow_only');
   await author.locator('#workspace-content:visible').getByLabel('Action reason (saved in history)',{exact:true}).fill('Record the current source-based quote and its missing evidence');await ui(author,author.getByRole('button',{name:'Record rating review',exact:true}),'/api/v1/platform/billing');await author.reload();
