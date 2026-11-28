@@ -9291,15 +9291,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16570,
+    "revision": 16574,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-my-day-recovery",
       "agentId": "codex-lead",
       "startedAt": "2026-11-28T01:22:15.179Z",
-      "heartbeatAt": "2026-11-28T01:43:04.686Z",
-      "expiresAt": "2026-11-28T02:13:04.686Z",
+      "heartbeatAt": "2026-11-28T01:53:23.463Z",
+      "expiresAt": "2026-11-28T02:23:23.463Z",
       "generation": 228,
       "tokenHash": "20ce56995758a3e4d743fa5b18286a38452d2225951f6aa65402b92a953d9edd"
     },
@@ -227959,6 +227959,33 @@
         "blocker": null,
         "handoff": null,
         "nextAction": "Chrome existing SSO opened exact Bangkok Accounting person Profile and opened and closed Edit profile without saving. Private pay-group Axum rows verified with dev PostgreSQL for Acme (1) and Northstar (11), mismatched Host and Holding rejected. 20 targeted tests passed. Keep other People command and directory reads in their tracked migration tasks."
+      },
+      {
+        "id": "integrate.agent.dev-admin-workspace",
+        "goalId": "G4",
+        "owner": "agent",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Restore Admin Agent workspace with the Holding session on Axum",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-agent/src/public/native-agent-workspace.ts",
+          "tests/unit/agent/native-agent-workspace.test.ts"
+        ],
+        "resources": [
+          "admin-agent-workspace"
+        ],
+        "status": "done",
+        "claim": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "baseSha": "4bc643844f95c9c52acc70aa8ef1833b8614f150",
+        "implementedCommit": "b6324155a42843142849283d15229204195ab262",
+        "lastPushedSha": "b6324155a42843142849283d15229204195ab262",
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Chrome normal Acme SSO rendered Agent governance and Assignments. Four workspace transport tests passed, including exact Host and cookie forwarding and foreign Host rejection. Private session/invocation evidence uses a separate native route and is unavailable in this dev config; inspect its dedicated Agent evidence runtime. Browser console follow-up hit a Chrome debugger timeout, so independent Suspense errors not ruled out."
       }
     ],
     "migrationProgress": {
@@ -227981,7 +228008,7 @@
       }
     },
     "lastCoordinatorGeneration": 228,
-    "updatedAt": "2026-11-28T01:49:16.080Z",
+    "updatedAt": "2026-11-28T01:54:32.339Z",
     "handoff": {
       "fromRun": "run-20261128-route",
       "verifiedPushedCheckpoint": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
