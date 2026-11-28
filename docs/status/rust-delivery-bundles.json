@@ -9291,7 +9291,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16600,
+    "revision": 16601,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -228320,6 +228320,32 @@
           "nextAction": "Handoff accepted. Rotate the exposed erpx_test_admin credential before any further disposable-database run, then sweep the remaining relocated-crate suites; no shared development database access."
         },
         "nextAction": "Handoff accepted. Rotate the exposed erpx_test_admin credential before any further disposable-database run, then sweep the remaining relocated-crate suites; no shared development database access."
+      },
+      {
+        "id": "reorg.integration-suite-sweep",
+        "owner": "runtime",
+        "title": "Sweep relocated-crate Postgres suites on disposable databases",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "tests/integration/**"
+        ],
+        "resources": [
+          "resource:test-harness"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Precondition: confirmed rotation of the exposed ERPX_TEST_ADMIN_URL credential. Then run the remaining relocated-crate Postgres suites with ERPX_TEST_ADMIN_URL against disposable erpx_test_admin databases only, fix only residual migrations-root paths, and report pass/fail plus any suite that cannot run safely. Do not touch the shared development database, production code, platform/composition, gateway paths, or R3 mount files."
       }
     ],
     "migrationProgress": {
@@ -228342,7 +228368,7 @@
       }
     },
     "lastCoordinatorGeneration": 230,
-    "updatedAt": "2026-11-28T04:04:07.359Z",
+    "updatedAt": "2026-11-28T04:04:37.139Z",
     "handoff": {
       "fromRun": "run-20261128-route",
       "verifiedPushedCheckpoint": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
