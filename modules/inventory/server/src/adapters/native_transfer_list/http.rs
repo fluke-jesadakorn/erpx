@@ -102,7 +102,16 @@ fn bounded(body: serde_json::Value) -> Response {
 /// Build the owner-local router. Composition mounts it; this module never
 /// edits composition and never accepts a reader from the request.
 pub fn router(pool: DatabasePool, targets: Vec<TransferTarget>) -> Result<Router, BusinessError> {
-    let reader: Arc<dyn InventoryTransferListRead> = Arc::new(PgReader::new(pool));
+    router_with_reader(Arc::new(PgReader::new(pool)), targets)
+}
+
+/// Build the router with an injected owner reader. Production uses `router`;
+/// this constructor keeps HTTP tests on the same validation and route shape
+/// without opening a database connection.
+pub fn router_with_reader(
+    reader: Arc<dyn InventoryTransferListRead>,
+    targets: Vec<TransferTarget>,
+) -> Result<Router, BusinessError> {
     let mut readers = BTreeMap::new();
     for target in targets {
         if target.host.is_empty()

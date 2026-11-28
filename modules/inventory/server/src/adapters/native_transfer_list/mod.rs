@@ -14,5 +14,5 @@ pub use application::{envelope, InventoryTransferListRead, TransferListFuture};
 pub use domain::{
     valid_id, valid_slug, TransferListRequest, TransferListResponse, READ_PATH, VALUE_COUNT,
 };
-pub use http::{router, router_for_holdings, TransferTarget};
+pub use http::{router, router_for_holdings, router_with_reader, TransferTarget};
 pub use postgres::{statement, PgInventoryTransferListRead, OWNER_SQL};
