@@ -9291,17 +9291,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16528,
+    "revision": 16541,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-main-ux-runtime",
+      "runId": "run-finance-invoice-click",
       "agentId": "codex-lead",
-      "startedAt": "2026-11-27T20:18:08.571Z",
-      "heartbeatAt": "2026-11-27T21:45:31.560Z",
-      "expiresAt": "2026-11-27T22:15:31.560Z",
-      "generation": 226,
-      "tokenHash": "95a7f4010461446ff4aff388ab3801b3cfeaf23f711a0b3d7b1b41a5b98ed762"
+      "startedAt": "2026-11-27T23:48:09.349Z",
+      "heartbeatAt": "2026-11-28T00:01:43.697Z",
+      "expiresAt": "2026-11-28T00:31:43.697Z",
+      "generation": 227,
+      "tokenHash": "bcf40ec1ea0d759a546ddd09e66047a8365c26c59157c2abdfe0f81ae6fb5d6c"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -227686,6 +227686,95 @@
         "blocker": null,
         "handoff": null,
         "nextAction": "Chromium sequential typing and visible results passed for Bangkok Operations and Rotterdam Logistics. Organization explorer tests 12/12. Continue directory authorization and native SSR read coverage separately."
+      },
+      {
+        "id": "integrate.finance.dev-invoice-click",
+        "goalId": "G4",
+        "owner": "finance",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Dev invoice navigation and native sales defaults consumer",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/workplace/src/routes/holdings/[holdingSlug]/layout.tsx",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/finance/sales/screen.tsx",
+          "packages/feature-finance/src/routes/holdings/[holdingSlug]/finance/documents/invoices"
+        ],
+        "resources": [
+          "finance-invoice-dev"
+        ],
+        "nextAction": "Repeat SSO invoice page and record drawer in normal Chrome window after navigation stops aborting. Verify Acme INV-ACME-CO-0029 and Northstar Company INV-NORTHSTAR-CO-0029, Document lines and returning to the original Sales list. The Axum invoice-line endpoint on 3193 returns one real row for both. Keep generic invoice header, allocations and history TS consumers until scoped owner parity.",
+        "status": "blocked",
+        "claim": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "baseSha": "1f5f08255576327956aaec16fe5c1feb61d2fe83",
+        "implementedCommit": "160b4d5e90760c716a8b68966501938fa384cbbe",
+        "lastPushedSha": "160b4d5e90760c716a8b68966501938fa384cbbe",
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-finance-invoice-click",
+          "agentId": "codex-lead",
+          "at": "2026-11-28T00:01:44.779Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Repeat SSO invoice page and record drawer in normal Chrome window after navigation stops aborting. Verify Acme INV-ACME-CO-0029 and Northstar Company INV-NORTHSTAR-CO-0029, Document lines and returning to the original Sales list. The Axum invoice-line endpoint on 3193 returns one real row for both. Keep generic invoice header, allocations and history TS consumers until scoped owner parity."
+        }
+      },
+      {
+        "id": "integrate.finance.dev-invoice-authority",
+        "goalId": "G4",
+        "owner": "finance",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Run Finance authority assertions through the Axum Workflow owner",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-finance/src/adapters/purchase-boundary.ts"
+        ],
+        "resources": [
+          "finance-invoice-authority"
+        ],
+        "nextAction": "Acme signed record click advanced past CROSS_DATABASE_TRANSACTION to the separately repaired Axum invoice-line read. Authority planning now calls the native Workflow route and executes its descriptors in the same Holding transaction. Generic TS Finance invoice data and owner-eligibility checks are retained.",
+        "status": "done",
+        "claim": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "baseSha": "1f5f08255576327956aaec16fe5c1feb61d2fe83",
+        "implementedCommit": "160b4d5e90760c716a8b68966501938fa384cbbe",
+        "lastPushedSha": "160b4d5e90760c716a8b68966501938fa384cbbe",
+        "blocker": null,
+        "handoff": null
+      },
+      {
+        "id": "integrate.finance.dev-invoice-lines",
+        "goalId": "G4",
+        "owner": "finance",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Repair Axum invoice line read transport and PostgreSQL bind syntax",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-finance/src/adapters/native-lane-3/client.ts",
+          "packages/server-finance/src/adapters/native_lane_3/postgres.rs",
+          "tests/unit/finance/native-lane-3.test.ts"
+        ],
+        "resources": [
+          "finance-invoice-lines"
+        ],
+        "nextAction": "21 Finance transport unit tests and private API build passed. Mounted candidate on 3193 returned 200 and one persisted line for each Holding. Finance browser SSR detail verification stays on integrate.finance.dev-invoice-click.",
+        "status": "done",
+        "claim": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "baseSha": "1f5f08255576327956aaec16fe5c1feb61d2fe83",
+        "implementedCommit": "160b4d5e90760c716a8b68966501938fa384cbbe",
+        "lastPushedSha": "160b4d5e90760c716a8b68966501938fa384cbbe",
+        "blocker": null,
+        "handoff": null
       }
     ],
     "migrationProgress": {
@@ -227707,8 +227796,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 226,
-    "updatedAt": "2026-11-27T22:03:53.239Z",
+    "lastCoordinatorGeneration": 227,
+    "updatedAt": "2026-11-28T00:01:44.783Z",
     "handoff": {
       "fromRun": "run-20261128-route",
       "verifiedPushedCheckpoint": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
@@ -227716,10 +227805,10 @@
       "summary": "All 15 registered Acme Products and Company Admin pass normal-SSO browser checks at 4c1e26e. Real installed Plugin verification remains external because the approved registry is empty; full acceptance stays deferred."
     },
     "lastRecovery": {
-      "previousRunId": "run-20261128-route",
-      "runId": "run-main-ux-runtime",
-      "at": "2026-11-27T20:18:08.572Z",
-      "reason": "Previous OpenCode coordination session finished idle with a successful stop, lease expired. Reviewed tracked WIP and fast-forwarded to its independently verified pushed checkpoint, preserving unrelated edits.",
+      "previousRunId": "run-main-ux-runtime",
+      "runId": "run-finance-invoice-click",
+      "at": "2026-11-27T23:48:09.350Z",
+      "reason": "Previous own run ended with no claims and ledger pushed; reviewed dirty CSS, Operations and Work files preserved.",
       "wipReviewed": true,
       "previousRunStopped": true
     },
