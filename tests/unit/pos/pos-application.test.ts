@@ -738,3 +738,11 @@ it.each(['foreign Company','foreign hotel','wrong stage','missing stock identity
 it('charge-review native POS acknowledgement allows the original immutable request to advance into its independently owned PMS stage',async()=>{
  const c=roomReviewBrowser(),native=roomReviewNative();vi.stubGlobal('fetch',async(url:RequestInfo|URL,init?:RequestInit)=>init?.method==='POST'?native.request(url,init):Response.json({data:[roomReviewRow('pms')]}));const result=await c.commands.execute(c.decision,false,'Original independent POS review');expect(result.receipt).toEqual({id:'review-request',saleId:'linked-sale',state:'pos_approved',version:2});expect(result.rows[0]).toMatchObject({id:'review-request',state:'pos_approved',stage:'pms',version:2});expect(result.acknowledge()).toMatchObject({newer:true});expect(native.effects()).toBe(1);
 });
+
+it('holding POS room-charge reversal queue is native-only and gateway-routed',()=>{
+ const route=deviceRead(deviceResolve('.','modules/pos/ui/src/routes/api/v1/holdings/[holdingSlug]/pos/[...path]/route.ts'),'utf8');
+ expect(route).not.toContain('room-charge-reversals');
+ expect(route).not.toContain('nativeRoomChargeQueue');
+ const gateway=JSON.parse(deviceRead(deviceResolve('.','scripts/local/native-api-paths.json'),'utf8')) as {holdingPaths:{method:string;path:string}[]};
+ expect(gateway.holdingPaths).toContainEqual({method:'GET',path:'pos/room-charge-reversals'});
+});

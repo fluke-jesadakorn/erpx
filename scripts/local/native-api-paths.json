@@ -101,6 +101,10 @@
     },
     {
       "method": "GET",
+      "path": "pos/room-charge-reversals"
+    },
+    {
+      "method": "GET",
       "path": "pos/initial-physical-stock/{id}"
     },
     {
