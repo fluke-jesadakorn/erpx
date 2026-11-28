@@ -9291,7 +9291,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16588,
+    "revision": 16594,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -228190,13 +228190,77 @@
         "resources": [
           "owner:files"
         ],
+        "status": "blocked",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [
+          {
+            "command": "cargo check -p erpx-platform-composition --features private-development-api --locked",
+            "result": "passed",
+            "sourceSha": "e58adcf82e2faf98e1830aa2accaba96e5ef43b3",
+            "detail": "Authorized adapter and the lead mount compile together; no PgLinkSetRead route is mounted."
+          },
+          {
+            "command": "cargo test -p erpx-files-server --test project_attachment_read_postgres --locked (isolated erpx_test_admin databases)",
+            "result": "passed",
+            "sourceSha": "e58adcf82e2faf98e1830aa2accaba96e5ef43b3",
+            "detail": "5/5 passed after correcting the module-depth migrations root. Covers project target resolution, private drafts/non-members hidden, foreign target hidden, exact links/status and content gates in disposable databases."
+          },
+          {
+            "command": "private native 3198 GET /api/v1/holdings/acme/attachment-sets/none/links",
+            "result": "passed",
+            "sourceSha": "e58adcf82e2faf98e1830aa2accaba96e5ef43b3",
+            "detail": "Route is mounted on the private service only and returns 401 without a session; no gateway entry was added."
+          },
+          {
+            "command": "shared development H001 fixture cleanup",
+            "result": "failed",
+            "sourceSha": "e58adcf82e2faf98e1830aa2accaba96e5ef43b3",
+            "detail": "Two accidental bound links (attachment-link-r3-link-verify-bound/-draft) under draft sets cannot be deleted or updated because attachment_link_immutable raises on any DELETE/UPDATE of a bound link. No trigger was disabled. Review/approval is required for a transactional replica-role cleanup or a database restore."
+          },
+          {
+            "command": "authenticated native/gateway cross-company draft proof",
+            "result": "not-run",
+            "sourceSha": "e58adcf82e2faf98e1830aa2accaba96e5ef43b3",
+            "detail": "Held off by the plan's shared-database constraint; the gateway entry remains absent and the Next GET remains authoritative."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "released with work preserved",
+        "nextAction": "Gateway stays closed and the Next GET stays authoritative. DO NOT add native-api-paths. Approval is required to remove the two accidental bound links in erpx_dev_h001_write (ids attachment-link-r3-link-verify-bound/-draft) plus draft sets/project, because attachment_link_immutable blocks DELETE/UPDATE; no trigger was disabled. After approved cleanup, run the real-session/cross-company/draft probe in a disposable erpx_test_admin database environment, then add the gateway entry and retire only the generic GET.",
+        "handoff": {
+          "runId": "run-20261128-r3integ",
+          "agentId": "lead-opencode",
+          "at": "2026-11-28T04:00:25.345Z",
+          "previousStatus": "blocked",
+          "reason": "released with work preserved",
+          "nextAction": "Gateway stays closed and the Next GET stays authoritative. DO NOT add native-api-paths. Approval is required to remove the two accidental bound links in erpx_dev_h001_write (ids attachment-link-r3-link-verify-bound/-draft) plus draft sets/project, because attachment_link_immutable blocks DELETE/UPDATE; no trigger was disabled. After approved cleanup, run the real-session/cross-company/draft probe in a disposable erpx_test_admin database environment, then add the gateway entry and retire only the generic GET."
+        }
+      },
+      {
+        "id": "reorg.integration-migration-paths",
+        "owner": "runtime",
+        "title": "Restore isolated Postgres migration roots after the module-first reorg",
+        "goalId": "G4",
+        "kind": "integration",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "tests/integration/**"
+        ],
+        "resources": [
+          "resource:test-harness"
+        ],
         "status": "in_progress",
         "claim": {
           "runId": "run-20261128-r3integ",
           "agentId": "codex",
-          "claimedAt": "2026-11-28T03:44:17.658Z",
-          "heartbeatAt": "2026-11-28T03:44:17.658Z",
-          "expiresAt": "2026-11-28T04:14:17.658Z",
+          "claimedAt": "2026-11-28T04:00:25.967Z",
+          "heartbeatAt": "2026-11-28T04:00:25.967Z",
+          "expiresAt": "2026-11-28T04:30:25.967Z",
           "generation": 230
         },
         "baseSha": null,
@@ -228205,8 +228269,8 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Authority-preserving adapter only: do not mount native_r3_link_set / PgLinkSetRead generic company SQL. Implement files_link_set.rs delegating each Holding target to the existing public ProjectAttachmentReadHttpBackend::links_by_set (ProjectsService::read_project_attachment authority + draft privacy), return the generic {data} envelope with canonical links and private no-store, and reject non-project sets. Report the mount interface; lead integrates native_lane_mounts/private_development_api and gateway after native + cross-company denial verification.",
-        "handoff": null
+        "handoff": null,
+        "nextAction": "Map each tests/integration test target to its owning crate. Correct only the relative migrations/postgres roots whose crate moved from packages/server-<owner> to modules/<owner>/server or platform/<owner>/server (two levels to three), preserve the already-fixed files/rust-project-attachment-*.test.rs paths, run representative suites with ERPX_TEST_ADMIN_URL against disposable erpx_test_admin databases, and report fixed files plus any non-disposable or still-wrong roots. Do not edit production code, the shared dev database, or coordinator-owned files."
       }
     ],
     "migrationProgress": {
@@ -228229,7 +228293,7 @@
       }
     },
     "lastCoordinatorGeneration": 230,
-    "updatedAt": "2026-11-28T03:46:37.959Z",
+    "updatedAt": "2026-11-28T04:00:25.971Z",
     "handoff": {
       "fromRun": "run-20261128-route",
       "verifiedPushedCheckpoint": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",

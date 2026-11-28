@@ -8925,6 +8925,19 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         if !project_attachment_read_targets.is_empty() {
             router = router.merge(
+                crate::files_link_set::router(
+                    project_attachment_read_targets
+                        .iter()
+                        .map(|target| crate::files_link_set::ProjectLinkSetTarget {
+                            host: target.host.clone(),
+                            holding_slug: target.holding_slug.clone(),
+                            backend: target.backend.clone(),
+                        })
+                        .collect(),
+                )
+                .map_err(|_| "PRIVATE_API_FILES_LINK_SET_INVALID")?,
+            );
+            router = router.merge(
                 erpx_projects_server::public::project_attachment_read_http::project_attachment_read_router(
                     project_attachment_read_targets,
                 )
