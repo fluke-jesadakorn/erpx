@@ -158,3 +158,4 @@ pub use crate::adapters::retention_execution::{
 pub mod native_lane_26;
 pub mod native_processing_status;
 pub mod native_rule_impact;
+pub mod native_r3_runtime_health { pub use crate::adapters::native_r3_runtime_health::*; }

@@ -75,3 +75,4 @@ pub(crate) mod retention_execution;
 pub mod native_lane_26;
 pub mod native_processing_status;
 pub mod native_rule_impact;
+pub(crate) mod native_r3_runtime_health;

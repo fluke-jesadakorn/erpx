@@ -25,3 +25,4 @@ pub mod executive_evidence;
 
 pub mod native_engineering_roster;
 pub mod native_lane_33;
+pub mod native_r3_ready { pub use crate::adapters::native_r3_ready::*; }

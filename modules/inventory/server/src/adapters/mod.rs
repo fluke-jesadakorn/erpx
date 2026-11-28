@@ -61,3 +61,4 @@ pub mod native_lane_17;
 pub mod native_lane_18;
 pub mod native_transfer_list;
 pub mod native_transfer_detail;
+pub(crate) mod native_r3_initial_stock_detail;

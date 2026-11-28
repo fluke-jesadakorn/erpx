@@ -16,3 +16,4 @@ pub mod sales_notification_reconciliation;
 
 pub mod portal_commerce_locks;
 pub mod native_lane_30;
+pub mod native_r3_followup_workspace;

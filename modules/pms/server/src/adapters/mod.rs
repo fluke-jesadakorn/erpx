@@ -35,3 +35,4 @@ pub mod stay_room_http;
 pub mod stay_room_postgres;
 pub mod native_lane_19;
 pub mod native_lane_20;
+pub mod native_r3_hospitality_setup_properties;

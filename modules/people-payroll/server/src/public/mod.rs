@@ -68,3 +68,4 @@ pub mod native_pay_group_options {
 pub mod native_people_list {
     pub use crate::adapters::native_people_list::*;
 }
+pub mod native_r3_worker_people_options;

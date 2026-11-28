@@ -24,3 +24,5 @@ pub(crate) mod rfq_notification_source;
 pub(crate) mod rfq_target_source;
 pub(crate) mod rfq_request_allocations;
 pub mod native_lane_27;
+pub(crate) mod native_r3_supplier_bill_workspace_read;
+pub(crate) mod native_r3_supplier_bill_workspace_http;

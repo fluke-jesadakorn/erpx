@@ -20,3 +20,4 @@ pub(crate) mod sales_notification_execution;
 
 pub(crate) mod portal_commerce_locks;
 pub mod native_lane_30;
+pub mod native_r3_followup_workspace;

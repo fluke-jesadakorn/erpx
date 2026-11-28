@@ -1780,5 +1780,18 @@ pub fn mount(
         ).map_err(|_| "PRIVATE_API_ORGANIZATION_ACCEPTANCE_INVALID")?,
     );
 
+    // Finance: root aggregate read.
+    router = router.merge(
+        erpx_finance_server::public::finance_root_aggregate::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| (
+                erpx_finance_server::public::finance_root_aggregate::RootTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                },
+                pools[i + 1].clone(),
+            )).collect(),
+        ).map_err(|_| "PRIVATE_API_FINANCE_ROOT_AGGREGATE_INVALID")?,
+    );
+
     Ok(router)
 }

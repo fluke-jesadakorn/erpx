@@ -11,3 +11,4 @@ pub mod native_lane_30;
 pub mod assistant_view;
 pub mod native_assistant_sources;
 pub mod agents_public_read;
+pub mod native_r3_agents_read;

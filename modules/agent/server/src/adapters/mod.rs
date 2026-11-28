@@ -14,3 +14,4 @@ pub mod native_lane_30;
 pub mod assistant_view_postgres;
 pub mod assistant_view_http;
 pub mod native_assistant_sources;
+pub mod native_r3_agents_read;

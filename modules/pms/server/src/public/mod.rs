@@ -23,3 +23,4 @@ pub mod stay_room;
 pub mod native_documents;
 pub mod native_lane_19;
 pub mod native_lane_20;
+pub mod native_r3_hospitality_setup_properties { pub use crate::adapters::native_r3_hospitality_setup_properties::*; }
