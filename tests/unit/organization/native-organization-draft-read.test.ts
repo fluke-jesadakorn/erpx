@@ -180,22 +180,30 @@ const routeSource = readFileSync(
 const lines = routeSource.split('\n');
 
 describe('organization/drafts catch-all cutover', () => {
-  it('serves the exact GET branch from the native reader and fails closed with 503', () => {
-    const branch = lines.find((line) =>
-      line.includes('p[0]==="organization" && p[1]==="drafts"') &&
-      line.includes('nativeOrganizationDraftRead('),
+  it('serves no GET relay for the native-owned draft read', () => {
+    const relay = lines.find((line) =>
+      line.includes('p[0]==="organization" && p[1]==="drafts"'),
     );
-    expect(branch).toBeDefined();
-    expect(branch).toContain('nativeOrganizationDraftRead(');
-    expect(branch).toContain('nativeOrganizationFailure(');
-    expect(branch).toContain('503');
-    expect(branch).not.toContain('organizationDraftApi(');
-    expect(branch).not.toContain('getOrganizationDraft');
-    expect(branch).not.toMatch(/\bSELECT\b|\bINSERT\b|\bUPDATE\b|\bDELETE\b/);
+    expect(relay).toBeUndefined();
+    expect(routeSource).not.toContain('nativeOrganizationDraftRead');
     const nativeImport = lines.find((line) =>
       line.includes('@erpx/organization-ui/lib/native-organization'),
-    );
-    expect(nativeImport).toContain('nativeOrganizationDraftRead');
+    ) ?? '';
+    expect(nativeImport).toContain('nativeOrganizationFailure');
+    expect(nativeImport).not.toContain('nativeOrganizationDraftRead');
+  });
+
+  it('routes the exact GET through the checked-in native gateway', () => {
+    const gateway = JSON.parse(
+      readFileSync(
+        new URL('../../../scripts/local/native-api-paths.json', import.meta.url),
+        'utf8',
+      ),
+    ) as { holdingPaths: { method: string; path: string }[] };
+    expect(gateway.holdingPaths).toContainEqual({
+      method: 'GET',
+      path: 'people/organization/drafts',
+    });
   });
 
   it('keeps the TS draft read only as a command oracle, never as a GET fallback', () => {

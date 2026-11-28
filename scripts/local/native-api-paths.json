@@ -97,6 +97,10 @@
     },
     {
       "method": "GET",
+      "path": "people/organization/drafts"
+    },
+    {
+      "method": "GET",
       "path": "pos/initial-physical-stock/{id}"
     },
     {
