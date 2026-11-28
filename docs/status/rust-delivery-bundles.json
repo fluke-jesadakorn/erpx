@@ -9291,15 +9291,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16594,
+    "revision": 16600,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261128-r3integ",
       "agentId": "lead-opencode",
       "startedAt": "2026-11-28T03:44:05.985Z",
-      "heartbeatAt": "2026-11-28T03:44:05.985Z",
-      "expiresAt": "2026-11-28T04:14:05.986Z",
+      "heartbeatAt": "2026-11-28T04:04:07.355Z",
+      "expiresAt": "2026-11-28T04:34:07.355Z",
       "generation": 230,
       "tokenHash": "0b604d77cd359d7e9b1b7f576f8f19b6511241356ef00c6a856565a679a85534"
     },
@@ -228157,8 +228157,8 @@
           "runId": "run-20261128-r3integ",
           "agentId": "lead-opencode",
           "claimedAt": "2026-11-28T03:44:17.337Z",
-          "heartbeatAt": "2026-11-28T03:44:17.337Z",
-          "expiresAt": "2026-11-28T04:14:17.337Z",
+          "heartbeatAt": "2026-11-28T04:04:07.355Z",
+          "expiresAt": "2026-11-28T04:34:07.355Z",
           "generation": 230
         },
         "baseSha": null,
@@ -228225,18 +228225,36 @@
             "result": "not-run",
             "sourceSha": "e58adcf82e2faf98e1830aa2accaba96e5ef43b3",
             "detail": "Held off by the plan's shared-database constraint; the gateway entry remains absent and the Next GET remains authoritative."
+          },
+          {
+            "command": "credential handling review",
+            "result": "failed",
+            "sourceSha": "201dea5aaf564f3e84d6db5ee579c8e4a6e2f451",
+            "detail": "An earlier diagnostic printed the ERPX_TEST_ADMIN_URL connection string, including the erpx_test_admin password, into tool output. The value has not been reprinted. Treat it as compromised: rotate the local test-admin credential, update the ignored environment file, and re-run any disposable-database checks only after rotation."
+          },
+          {
+            "command": "shared development H001 fixture cleanup",
+            "result": "failed",
+            "sourceSha": "201dea5aaf564f3e84d6db5ee579c8e4a6e2f451",
+            "detail": "Five accidental rows remain in erpx_dev_h001_write: attachment-link-r3-link-verify-bound and -draft (both state=bound), attachment-set-r3-link-verify-bound and -draft (draft), and project-r3-link-verify. The attachment_link_immutable trigger raises on DELETE/UPDATE of a bound link; no trigger was disabled. Gateway stays closed pending an approved transactional replica-role cleanup or a database restore."
+          },
+          {
+            "command": "authenticated native/gateway cross-company draft proof",
+            "result": "not-run",
+            "sourceSha": "201dea5aaf564f3e84d6db5ee579c8e4a6e2f451",
+            "detail": "Blocked by the shared-database constraint and the unreleased credential. No attachment-sets gateway entry exists; the Next GET remains authoritative."
           }
         ],
         "retainedLegacy": [],
         "blocker": "released with work preserved",
-        "nextAction": "Gateway stays closed and the Next GET stays authoritative. DO NOT add native-api-paths. Approval is required to remove the two accidental bound links in erpx_dev_h001_write (ids attachment-link-r3-link-verify-bound/-draft) plus draft sets/project, because attachment_link_immutable blocks DELETE/UPDATE; no trigger was disabled. After approved cleanup, run the real-session/cross-company/draft probe in a disposable erpx_test_admin database environment, then add the gateway entry and retire only the generic GET.",
+        "nextAction": "Gateway and native-api-paths stay closed. Two blockers: (1) rotate the exposed erpx_test_admin credential before more test-DB work; (2) approve cleanup of the five stranded H001 rows or restore the database. After both, run the real-session/cross-company/draft probe in a disposable environment, then add the gateway entry and retire only the generic GET.",
         "handoff": {
           "runId": "run-20261128-r3integ",
           "agentId": "lead-opencode",
-          "at": "2026-11-28T04:00:25.345Z",
+          "at": "2026-11-28T04:04:01.340Z",
           "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "Gateway stays closed and the Next GET stays authoritative. DO NOT add native-api-paths. Approval is required to remove the two accidental bound links in erpx_dev_h001_write (ids attachment-link-r3-link-verify-bound/-draft) plus draft sets/project, because attachment_link_immutable blocks DELETE/UPDATE; no trigger was disabled. After approved cleanup, run the real-session/cross-company/draft probe in a disposable erpx_test_admin database environment, then add the gateway entry and retire only the generic GET."
+          "nextAction": "Gateway and native-api-paths stay closed. Two blockers: (1) rotate the exposed erpx_test_admin credential before more test-DB work; (2) approve cleanup of the five stranded H001 rows or restore the database. After both, run the real-session/cross-company/draft probe in a disposable environment, then add the gateway entry and retire only the generic GET."
         }
       },
       {
@@ -228254,23 +228272,54 @@
         "resources": [
           "resource:test-harness"
         ],
-        "status": "in_progress",
-        "claim": {
+        "status": "ready_for_integration",
+        "claim": null,
+        "baseSha": "dac8c3dcbd712d31887c8262321aa2dcff43e30a",
+        "implementedCommit": "201dea5aaf564f3e84d6db5ee579c8e4a6e2f451",
+        "lastPushedSha": "201dea5aaf564f3e84d6db5ee579c8e4a6e2f451",
+        "checks": [
+          {
+            "command": "cargo test -p erpx-organization-server --test hierarchy_postgres --locked (isolated erpx_test_admin database)",
+            "result": "passed",
+            "sourceSha": "201dea5aaf564f3e84d6db5ee579c8e4a6e2f451",
+            "detail": "6/6 passed after the three-level migrations root repair."
+          },
+          {
+            "command": "cargo test -p erpx-platform-runtime-server --test outbox_postgres --locked (isolated erpx_test_admin database)",
+            "result": "passed",
+            "sourceSha": "201dea5aaf564f3e84d6db5ee579c8e4a6e2f451",
+            "detail": "8/8 passed against a disposable database; no shared development database was touched."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "201dea5aaf564f3e84d6db5ee579c8e4a6e2f451",
+            "detail": "Repository layout passed."
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "201dea5aaf564f3e84d6db5ee579c8e4a6e2f451",
+            "detail": "No whitespace errors; 242 test files and 292 occurrences changed, only under tests/integration."
+          },
+          {
+            "command": "full integration suite",
+            "result": "not-run",
+            "sourceSha": "201dea5aaf564f3e84d6db5ee579c8e4a6e2f451",
+            "detail": "Two representative suites passed; the remaining relocated-crate suites still need a disposable-database sweep. The 14 composition-depth tests and the three files/rust-project-attachment test roots were intentionally preserved."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
           "runId": "run-20261128-r3integ",
           "agentId": "codex",
-          "claimedAt": "2026-11-28T04:00:25.967Z",
-          "heartbeatAt": "2026-11-28T04:00:25.967Z",
-          "expiresAt": "2026-11-28T04:30:25.967Z",
-          "generation": 230
+          "at": "2026-11-28T04:04:00.354Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Handoff accepted. Rotate the exposed erpx_test_admin credential before any further disposable-database run, then sweep the remaining relocated-crate suites; no shared development database access."
         },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
-        "nextAction": "Map each tests/integration test target to its owning crate. Correct only the relative migrations/postgres roots whose crate moved from packages/server-<owner> to modules/<owner>/server or platform/<owner>/server (two levels to three), preserve the already-fixed files/rust-project-attachment-*.test.rs paths, run representative suites with ERPX_TEST_ADMIN_URL against disposable erpx_test_admin databases, and report fixed files plus any non-disposable or still-wrong roots. Do not edit production code, the shared dev database, or coordinator-owned files."
+        "nextAction": "Handoff accepted. Rotate the exposed erpx_test_admin credential before any further disposable-database run, then sweep the remaining relocated-crate suites; no shared development database access."
       }
     ],
     "migrationProgress": {
@@ -228293,7 +228342,7 @@
       }
     },
     "lastCoordinatorGeneration": 230,
-    "updatedAt": "2026-11-28T04:00:25.971Z",
+    "updatedAt": "2026-11-28T04:04:07.359Z",
     "handoff": {
       "fromRun": "run-20261128-route",
       "verifiedPushedCheckpoint": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
