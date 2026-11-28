@@ -1,16 +1,15 @@
 //! Owner-local axum ingress for the native Finance root aggregate read.
 //!
-//! Composition supplies one pool per registered Holding. The exact
-//! `(Host, holding_slug)` pair selects a single Holding reader and the Company
-//! header is the only SQL bind; `chartId` selects a ledger inside that Company.
+//! The pool-only router fails closed because it has no actor or purchase
+//! authority. Composition must mount an authenticated transaction-bound
+//! endpoint before this capability can serve production reads.
 
 use crate::adapters::finance_root_aggregate::{
-    application::{RootAggregateRead, handle},
+    application::{AggregateFuture, RootAggregateRead, handle},
     domain::{
-        configuration_invalid, missing, invalid_request, valid_chart_id, valid_company_id,
-        valid_host, valid_slug,
+        configuration_invalid, invalid_request, missing, unavailable, valid_chart_id,
+        valid_company_id, valid_host, valid_slug,
     },
-    postgres::PgRootAggregateRead,
 };
 use erpx_platform_runtime_server::public::{
     http_support::{
@@ -56,7 +55,11 @@ fn status(kind: FailureKind) -> StatusCode {
 
 fn error_response(error: BusinessError) -> Response {
     (
-        status(error.kind),
+        if error.code == "INTERNAL_ERROR" {
+            StatusCode::INTERNAL_SERVER_ERROR
+        } else {
+            status(error.kind)
+        },
         Json(serde_json::json!({"error":{"code":error.code,"message":error.message}})),
     )
         .into_response()
@@ -129,11 +132,25 @@ pub fn router_with_reader(
 pub fn router_for_holdings(
     targets: Vec<(RootTarget, DatabasePool)>,
 ) -> Result<Router, BusinessError> {
-    let state = state_from(targets.into_iter().map(|(target, pool)| {
-        let reader: Arc<dyn RootAggregateRead> = Arc::new(PgRootAggregateRead::new(pool));
+    // A bare pool has no authenticated actor or purchase witness. Fail closed
+    // until composition mounts a transaction-bound, authorized reader.
+    let state = state_from(targets.into_iter().map(|(target, _pool)| {
+        let reader: Arc<dyn RootAggregateRead> = Arc::new(UnboundAuthority);
         (target, reader)
     }))?;
     Ok(mounted(state))
+}
+
+struct UnboundAuthority;
+
+impl RootAggregateRead for UnboundAuthority {
+    fn aggregate<'a>(
+        &'a self,
+        _company_id: &'a str,
+        _chart_id: Option<&'a str>,
+    ) -> AggregateFuture<'a> {
+        Box::pin(async { Err(unavailable()) })
+    }
 }
 
 async fn read(
@@ -155,7 +172,7 @@ async fn read(
             .ok_or_else(invalid_request)?
             .to_owned();
         let chart = match query.chart_id {
-            Some(id) if !valid_chart_id(&id) => return Err(invalid_request()),
+            Some(id) if !id.is_empty() && !valid_chart_id(&id) => return Err(invalid_request()),
             id => id,
         };
         let value = handle(reader.as_ref(), &company, chart.as_deref()).await?;
@@ -171,9 +188,7 @@ async fn read(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::adapters::finance_root_aggregate::{
-        application::AggregateFuture, domain::unavailable,
-    };
+    use crate::adapters::finance_root_aggregate::domain::unavailable;
 
     struct FakeReader;
 
@@ -184,13 +199,15 @@ mod tests {
             _chart_id: Option<&'a str>,
         ) -> AggregateFuture<'a> {
             Box::pin(async {
-                Ok(crate::adapters::finance_root_aggregate::application::RootAggregate {
-                    charts: vec![],
-                    journals: vec![],
-                    invoices: vec![],
-                    payments: vec![],
-                    report: serde_json::json!({}),
-                })
+                Ok(
+                    crate::adapters::finance_root_aggregate::application::RootAggregate {
+                        charts: vec![],
+                        journals: vec![],
+                        invoices: vec![],
+                        payments: vec![],
+                        report: serde_json::json!({}),
+                    },
+                )
             })
         }
     }
@@ -209,15 +226,26 @@ mod tests {
         assert!(
             router_with_reader(reader.clone(), vec![target("acme.example.com", "acme")]).is_ok()
         );
-        assert!(router_with_reader(
-            reader.clone(),
-            vec![
-                target("acme.example.com", "acme"),
-                target("acme.example.com", "acme")
-            ]
-        )
-        .is_err());
+        assert!(
+            router_with_reader(
+                reader.clone(),
+                vec![
+                    target("acme.example.com", "acme"),
+                    target("acme.example.com", "acme")
+                ]
+            )
+            .is_err()
+        );
         assert!(router_with_reader(reader, vec![target("", "acme")]).is_err());
+    }
+
+    #[tokio::test]
+    async fn unbound_pool_reader_fails_closed() {
+        let error = UnboundAuthority
+            .aggregate("acme-co", None)
+            .await
+            .unwrap_err();
+        assert_eq!(error.kind, FailureKind::Unavailable);
     }
 
     #[test]
@@ -231,6 +259,10 @@ mod tests {
             StatusCode::UNPROCESSABLE_ENTITY
         );
         assert_eq!(error_response(missing()).status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            error_response(super::super::postgres::journal_error()).status(),
+            StatusCode::INTERNAL_SERVER_ERROR
+        );
         let response = bounded(serde_json::json!({"data": {}}));
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(

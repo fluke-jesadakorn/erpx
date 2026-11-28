@@ -73,9 +73,24 @@ pub fn valid_chart_id(value: &str) -> bool {
 
 /// The Next route selects `chartId` from the query, then the chart named
 /// `Operations ledger`, then the first chart by name. Carry that exact
-/// selection into the owner so journals and reports use the same ledger.
+/// selection into the owner for the report. Journals use their own default ledger.
 pub fn select_chart_id(charts: &[Value], requested: Option<&str>) -> Result<String, BusinessError> {
     if let Some(id) = requested {
+        if id.is_empty() {
+            if charts.len() > 1 {
+                return Err(BusinessError::invalid(
+                    "CHART_REQUIRED",
+                    "Select a ledger explicitly when the Company has multiple ledgers, including archived ledgers.",
+                ));
+            }
+            return charts
+                .first()
+                .and_then(|row| row.get("id"))
+                .and_then(Value::as_str)
+                .filter(|id| valid_chart_id(id))
+                .map(str::to_owned)
+                .ok_or_else(invalid_request);
+        }
         if !valid_chart_id(id) {
             return Err(invalid_request());
         }
@@ -117,20 +132,13 @@ const ROUTE_PREFIXES: [(&str, &str); 5] = [
 ];
 
 fn word_chars(value: &str) -> bool {
-    !value.is_empty()
-        && value
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_')
+    !value.is_empty() && value.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
 fn is_destination_key(key: &str) -> bool {
     key == "href"
-        || key
-            .strip_suffix("Href")
-            .is_some_and(word_chars)
-        || key
-            .strip_suffix("_href")
-            .is_some_and(word_chars)
+        || key.strip_suffix("Href").is_some_and(word_chars)
+        || key.strip_suffix("_href").is_some_and(word_chars)
 }
 
 /// Mirrors the `canonicalDestinationLink` branch used by this payload.
@@ -216,13 +224,24 @@ mod tests {
         ];
         assert_eq!(select_chart_id(&charts, None).unwrap(), "b");
         assert_eq!(select_chart_id(&charts, Some("a")).unwrap(), "a");
+        assert_eq!(select_chart_id(&charts[..1], Some("")).unwrap(), "a");
+        assert_eq!(
+            select_chart_id(&charts, Some("")).unwrap_err().code,
+            "CHART_REQUIRED"
+        );
         assert!(select_chart_id(&[], None).is_err());
     }
 
     #[test]
     fn root_aggregate_canonical_projection_is_identity_for_ledger_rows() {
-        assert_eq!(canonical_destination_link("/api/v1/holdings/acme/finance"), "/api/v1/holdings/acme/finance");
-        assert_eq!(canonical_destination_link("/finance/payments"), "/finance/cash/payments");
+        assert_eq!(
+            canonical_destination_link("/api/v1/holdings/acme/finance"),
+            "/api/v1/holdings/acme/finance"
+        );
+        assert_eq!(
+            canonical_destination_link("/finance/payments"),
+            "/finance/cash/payments"
+        );
         let data = serde_json::json!({"charts": [{"id": "c1"}], "report": {"balanceSheet": {"assets": "1"}}});
         let wire = canonical_envelope(data.clone());
         assert_eq!(wire["data"], data);

@@ -56,7 +56,7 @@ pub async fn handle(
     if !valid_company_id(company_id) {
         return Err(invalid_request());
     }
-    if chart_id.is_some_and(|id| !valid_chart_id(id)) {
+    if chart_id.is_some_and(|id| !id.is_empty() && !valid_chart_id(id)) {
         return Err(invalid_request());
     }
     let aggregate = reader.aggregate(company_id, chart_id).await?;
@@ -64,9 +64,9 @@ pub async fn handle(
     bounded_rows(&aggregate.journals, MAX_JOURNALS)?;
     bounded_rows(&aggregate.invoices, MAX_INVOICES)?;
     bounded_rows(&aggregate.payments, MAX_PAYMENTS)?;
-    Ok(canonical_envelope(serde_json::to_value(aggregate).map_err(
-        |_| invalid_request(),
-    )?))
+    Ok(canonical_envelope(
+        serde_json::to_value(aggregate).map_err(|_| invalid_request())?,
+    ))
 }
 
 #[cfg(test)]
@@ -129,7 +129,12 @@ mod tests {
     async fn root_aggregate_handler_rejects_invalid_scope_and_oversized_rows() {
         assert!(handle(&FakeReader, "", None).await.is_err());
         assert!(handle(&FakeReader, "bad/company", None).await.is_err());
-        assert!(handle(&FakeReader, "acme-co", Some("bad/chart")).await.is_err());
+        assert!(
+            handle(&FakeReader, "acme-co", Some("bad/chart"))
+                .await
+                .is_err()
+        );
+        assert!(handle(&FakeReader, "acme-co", Some("")).await.is_ok());
         assert!(handle(&OversizedReader, "acme-co", None).await.is_err());
     }
 }

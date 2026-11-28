@@ -12,4 +12,4 @@ pub mod postgres;
 pub use application::{AggregateFuture, RootAggregate, RootAggregateRead, handle};
 pub use domain::{PG_PAYMENTS_SQL, TS_PAYMENTS_SQL};
 pub use http::{RootTarget, router_for_holdings, router_with_reader};
-pub use postgres::PgRootAggregateRead;
+pub use postgres::{PgRootAggregateRead, read_root_aggregate};
