@@ -1067,6 +1067,45 @@ describe('Assets read-tail r31 permission-probe/projection-from head family',()=
  });
 });
 
+describe('Assets register keeps one POST entry and no public GET',()=>{
+ const repo=(p:string)=>resolve(__dirname,'../../..',p);
+ const read=(p:string)=>readFileSync(repo(p),'utf8');
+ const shared='modules/assets/ui/src/routes/api/v1/holdings/[holdingSlug]/assets/route.ts';
+ const entries=[
+  'apps/assets/src/app/api/v1/holdings/[holdingSlug]/assets/route.ts',
+  'apps/compat/src/app/api/v1/holdings/[holdingSlug]/assets/route.ts',
+ ];
+ it('exports POST only from the shared register route and both app entries',()=>{
+  for(const path of [shared,...entries]){
+   const text=read(path);
+   const exported=text.match(/^export .*$/gm)??[];
+   expect(exported,path).toHaveLength(1);
+   expect(exported.join('\n'),path).toContain('POST');
+   expect(exported.join('\n'),path).not.toMatch(/\bGET\b/);
+   expect(text,path).not.toContain('export async function GET');
+   expect(text,path).not.toMatch(/export\s*\{[^}]*\bGET\b/);
+  }
+  expect(read(shared)).toContain('export async function POST');
+  expect(read(shared)).toContain('ownedAssetCommand');
+  for(const path of entries){
+   expect(read(path)).toContain('export { POST } from "@erpx/assets-ui/routes/api/v1/holdings/[holdingSlug]/assets/route"');
+  }
+ });
+ it('keeps the native GET read on the owner router',()=>{
+  const http=read('modules/assets/server/src/adapters/asset_http.rs');
+  expect(http).toContain('"/api/v1/holdings/{holding_slug}/assets"');
+  expect(http).toContain('get(read).post(command)');
+ });
+ it('registers no GET assets holding path in the development gateway',()=>{
+  const gateway=JSON.parse(read('scripts/local/native-api-paths.json')) as {
+   holdingPrefixes:string[];holdingPaths:{method:string;path:string}[];
+  };
+  const assets=(path:string)=>/^assets(\/|$)/.test(path);
+  expect(gateway.holdingPrefixes.filter(assets)).toEqual([]);
+  expect(gateway.holdingPaths.filter(entry=>entry.method==='GET'&&assets(entry.path))).toEqual([]);
+ });
+});
+
 describe('Assets read-tail r32 projection-from head family',()=>{
  const srcRoot=resolve(__dirname,'../../../modules/assets/server/src');
  const src=(p:string)=>readFileSync(resolve(srcRoot,p),'utf8');
