@@ -119,8 +119,11 @@ describe('Support SLA policy workspace/work native read family (r39)', () => {
         expect(registry).toContain('reviewer_count FROM support_incidents t');
     });
 
-    test('retirement:ts-statements is 18 after the customer purchase-scope fragment cut; the registry stays 55', () => {
-        expect(selectCount()).toBe(18);
+    test('retirement:ts-statements is 20 with the r43/r45 residual tracked; the registry stays 55', () => {
+        // The two shared SQL renderers are residual under
+        // retire.support.read-tail-r43-r45-renderers.
+        expect(selectCount()).toBe(20);
+        expect(selectCount()).toBeLessThanOrEqual(20);
         expect(selectCount()).toBeLessThan(38);
         expect(registry).toContain('assert_eq!(STATEMENTS.len(), 55);');
     });

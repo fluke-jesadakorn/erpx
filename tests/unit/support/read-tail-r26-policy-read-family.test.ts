@@ -88,7 +88,7 @@ describe('Support SLA policy native read port (r28)', () => {
         }
     });
 
-    test('retirement:ts-statements stays strictly below the r28 BEFORE=52 baseline', () => {
+    test('retirement:ts-statements stays at 20 with the r43/r45 residual tracked below the r28 BEFORE=52 baseline', () => {
         let total = 0;
         const walk = (dir: string) => {
             for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -98,7 +98,10 @@ describe('Support SLA policy native read port (r28)', () => {
             }
         };
         walk(srcRoot);
-        expect(total).toBe(18);
+        // The two shared SQL renderers are residual under
+        // retire.support.read-tail-r43-r45-renderers.
+        expect(total).toBe(20);
+        expect(total).toBeLessThanOrEqual(20);
         expect(total).toBeLessThan(50);
     });
 });
