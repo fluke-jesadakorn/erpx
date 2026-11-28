@@ -15,6 +15,7 @@ import type { CapabilityPurpose } from "@erpx/server-commercial/public/rules/pac
 import type { FinancePurchaseControls } from "@erpx/server-finance/domain/purchase-controls";
 import { flushFinanceDeferredEffects } from "@erpx/server-finance/adapters/finance-transactions";
 import {inFinanceSignatureParent,isFinanceSignatureOperation,requireFinanceSignatureParent} from '@erpx/server-finance/adapters/tax-signature-read-parent';
+import { resolveNativeEffects } from "@erpx/server-workflow/public/native-workflow-evidence";
 import { clearWorkflowCommandAssertions } from "@erpx/server-workflow/public/command-assertion-effects";
 
 type CompanyPurchase = { companyId: string; capability: string; purpose: CapabilityPurpose };
@@ -25,11 +26,21 @@ type Command = { key: string; operation: string; purpose: CapabilityPurpose; cap
 export const financeReferenceCapabilities = () => [...new Set(["finance.accounting", ...commercialPackages.flatMap(definition => definition.includedCapabilities.filter(capability => capability.startsWith("finance.")))])];
 export async function requireFinanceCurrentAuthority(database: SqlDatabase, actor: WorkContext, key: string) {
   requirePermission(actor, "finance.read");
-  const row = await database.prepare(`SELECT id FROM assignments WHERE id=? AND user_id=? AND role=? AND company_id=?
-    AND valid_from<=? AND valid_until>? AND revoked_at IS NULL AND (?::text IS NULL OR branch_id IS NULL OR branch_id=?) FOR SHARE`)
-    .bind(actor.assignmentId, actor.userId, actor.role, actor.companyId, Date.now(), Date.now(), actor.branchId, actor.branchId).first();
-  if (!row) throw new ApiError(403, "FINANCE_ACCESS_CHANGED", "Choose a current Finance assignment.");
-  await database.batch([...workContextGuards(database, actor, key), ...iamMutationGuards(database, actor, key), clearWorkflowCommandAssertions(database,key)]);
+  const check = async (transaction: SqlDatabase) => {
+    const now = Date.now();
+    const row = await transaction.prepare(`SELECT id FROM assignments WHERE id=? AND user_id=? AND role=? AND company_id=?
+      AND valid_from<=? AND valid_until>? AND revoked_at IS NULL AND (?::text IS NULL OR branch_id IS NULL OR branch_id=?) FOR SHARE`)
+      .bind(actor.assignmentId, actor.userId, actor.role, actor.companyId, now, now, actor.branchId, actor.branchId).first();
+    if (!row) throw new ApiError(403, "FINANCE_ACCESS_CHANGED", "Choose a current Finance assignment.");
+    const { statements } = await resolveNativeEffects(
+      [...workContextGuards(transaction, actor, key), ...iamMutationGuards(transaction, actor, key),
+        clearWorkflowCommandAssertions(transaction, key)],
+      { db: transaction, companyId: actor.companyId, holdingId: actor.holdingId, now },
+    );
+    await transaction.batch(statements);
+  };
+  if (isTransactionalSqlDatabase(database)) await database.transaction(check);
+  else await check(database);
 }
 export async function requireFinancePurchasedRead(database: SqlDatabase, actor: WorkContext, capability = "finance.accounting") {
   const mode = await financePackageEnforcementMode();

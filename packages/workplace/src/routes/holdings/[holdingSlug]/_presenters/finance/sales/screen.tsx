@@ -16,6 +16,7 @@ import { firstPageSearchValues, type PageSearchParams } from "@erpx/feature-shar
 import { minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import {salesWorkspace,salesDefaultsWorkspace} from '@erpx/server-finance/public/sales';
+import { nativeSalesDefaultsWorkspace } from "@erpx/feature-finance/lib/native-sales-defaults";
 import { nativeSalesInvoiceList } from "@erpx/feature-finance/lib/native-sales-invoice-list";
 import { financePurchaseControls } from "@erpx/server-finance/public/purchases";
 import { financeSalesInvoiceNewWorkAllowed } from "@erpx/server-finance/public/rules/purchase-controls";
@@ -26,34 +27,35 @@ import styles from "@erpx/feature-finance/components/sales-workspace.module.css"
 export const dynamic = "force-dynamic";
 export default async function SalesPage({ params, searchParams }: { params: Promise<{ holdingSlug: string }>; searchParams: Promise<PageSearchParams> }) {
   const { holdingSlug } = await params, actor = await requireWorkContext(holdingSlug), base = workspaceBase(publicScope(actor)), search = firstPageSearchValues(await searchParams);
+  const nativeActor = actor.authority && actor.iam
+    ? {
+        userId: actor.userId,
+        holdingId: actor.holdingId,
+        holdingSlug,
+        companyId: actor.companyId,
+        branchId: actor.branchId,
+        departmentId: actor.departmentId,
+        assignmentId: actor.assignmentId,
+        role: actor.role,
+        assignmentScope: actor.assignmentScope,
+        scope:
+          actor.scope.kind === "holding"
+            ? { kind: "holding" as const }
+            : actor.scope.kind === "branch"
+              ? { kind: "branch" as const, branchSlug: actor.scope.branchSlug ?? "" }
+              : {
+                  kind: "department" as const,
+                  branchSlug: actor.scope.branchSlug ?? undefined,
+                  departmentSlug: actor.scope.departmentSlug ?? "",
+                },
+        authority: { revision: actor.authority.revision, assignmentVersion: actor.authority.assignmentVersion },
+        modules: actor.modules,
+        iam: { permissions: actor.iam.permissions },
+      }
+    : undefined;
   const nativeInvoices = search.tab === "invoices"
     ? await nativeSalesInvoiceList(
-        actor.authority && actor.iam
-          ? {
-              userId: actor.userId,
-              holdingId: actor.holdingId,
-              holdingSlug,
-              companyId: actor.companyId,
-              branchId: actor.branchId,
-              departmentId: actor.departmentId,
-              assignmentId: actor.assignmentId,
-              role: actor.role,
-              assignmentScope: actor.assignmentScope,
-              scope:
-                actor.scope.kind === "holding"
-                  ? { kind: "holding" }
-                  : actor.scope.kind === "branch"
-                    ? { kind: "branch", branchSlug: actor.scope.branchSlug ?? "" }
-                    : {
-                        kind: "department",
-                        branchSlug: actor.scope.branchSlug ?? undefined,
-                        departmentSlug: actor.scope.departmentSlug ?? "",
-                      },
-              authority: { revision: actor.authority.revision, assignmentVersion: actor.authority.assignmentVersion },
-              modules: actor.modules,
-              iam: { permissions: actor.iam.permissions },
-            }
-          : undefined,
+        nativeActor,
         holdingSlug,
         {
           tab: "invoices",
@@ -69,7 +71,12 @@ export default async function SalesPage({ params, searchParams }: { params: Prom
     : undefined;
   const data = nativeInvoices ?? (await salesWorkspace(actor, search).catch(error => pageError(error, holdingSlug)));
   const tab = data.query.tab, local = !!actor.branchId || !!actor.departmentId;
-  const setup = !local ? await salesDefaultsWorkspace(actor) : null;
+  const nativeSetup = !local && tab === "invoices"
+    ? await nativeSalesDefaultsWorkspace(nativeActor, holdingSlug).catch(error => pageError(error, holdingSlug))
+    : undefined;
+  const setup = local ? null : nativeSetup
+    ? nativeSetup as unknown as Awaited<ReturnType<typeof salesDefaultsWorkspace>>
+    : await salesDefaultsWorkspace(actor);
   const approved = setup?.editions.filter(row => setup.usableDefaults.includes(row.id)) ?? [];
   const canSales = hasPermission(actor, "commerce.sales"), canInvoice = hasPermission(actor, "finance.write") && !local;
   let orderOptions = null, commerceSetupRequired = false;

@@ -88,7 +88,7 @@ afterEach(() => {
 });
 
 async function listen(
-  handler: (req: { headers: Record<string, unknown>; url?: string; body: string }) => {
+  handler: (req: { headers: Record<string, unknown>; url?: string; method?: string; body: string }) => {
     status: number;
     value: unknown;
   },
@@ -97,7 +97,7 @@ async function listen(
     const chunks: Buffer[] = [];
     req.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
     req.on("end", () => {
-      const result = handler({ headers: req.headers, url: req.url, body: Buffer.concat(chunks).toString("utf8") });
+      const result = handler({ headers: req.headers, url: req.url, method: req.method, body: Buffer.concat(chunks).toString("utf8") });
       res.writeHead(result.status, { "content-type": "application/json" });
       res.end(JSON.stringify(result.value));
     });
@@ -129,6 +129,7 @@ describe("native Finance lane 3 multi-Holding invoice-line read", () => {
 
   it("routes to the exact configured Holding from the caller's WorkContext", async () => {
     const base = await listen((req) => {
+      expect(req.method).toBe("GET");
       expect(req.url).toBe("/api/v1/holdings/northstar/finance/lane3/invoice-lines");
       expect(req.headers["x-erpx-native-host"]).toBe("northstar.example.com");
       expect(req.headers["x-erpx-context-holding"]).toBe("h002");

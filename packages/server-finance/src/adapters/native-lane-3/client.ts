@@ -208,7 +208,7 @@ export async function nativeCurrentInvoiceLines(
     response = await nativeRequest(
       url,
       {
-        method: "POST",
+        method: "GET",
         headers: {
           host: holding.host,
           "x-erpx-native-host": holding.host,

@@ -2,7 +2,7 @@
 //! the bind order and the row projection; there is no TypeScript SQL fallback.
 
 use super::application::{InvoiceLineRead, InvoiceLineReadFuture};
-use super::domain::{unavailable, InvoiceLine, InvoiceLineRequest, INVOICE_LINES_SQL};
+use super::domain::{unavailable, InvoiceLine, InvoiceLineRequest};
 use erpx_server_runtime::public::postgres::{
     DatabasePool, PgTransactionError, PgUnitOfWork, TransactionOptions,
 };
@@ -11,6 +11,8 @@ use sqlx::Row;
 
 /// Positional bind order of `INVOICE_LINES_SQL`, preserved from the retired TS
 /// reader: invoice, company, revision.
+const POSTGRES_INVOICE_LINES_SQL: &str = "SELECT * FROM finance_invoice_line_versions WHERE invoice_id=$1 AND company_id=$2 AND source_version=$3 ORDER BY ordinal";
+
 pub const BIND_ORDER: [&str; 3] = ["invoice_id", "company_id", "source_version"];
 
 fn decode(row: &sqlx::postgres::PgRow) -> Result<InvoiceLine, sqlx::Error> {
@@ -63,7 +65,7 @@ impl InvoiceLineRead for PgInvoiceLineRead {
                 let company = company.clone();
                 let invoice = invoice.clone();
                 Box::pin(async move {
-                    let rows = sqlx::query(INVOICE_LINES_SQL)
+                    let rows = sqlx::query(POSTGRES_INVOICE_LINES_SQL)
                         .bind(invoice.as_str())
                         .bind(company.as_str())
                         .bind(revision)
@@ -84,13 +86,17 @@ impl InvoiceLineRead for PgInvoiceLineRead {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::adapters::native_lane_3::domain::sql_oracle;
+    use crate::adapters::native_lane_3::domain::{sql_oracle, INVOICE_LINES_SQL};
 
     #[test]
     fn statement_bytes_match_the_retired_typescript_reader() {
         assert_eq!(
             INVOICE_LINES_SQL,
             "SELECT * FROM finance_invoice_line_versions WHERE invoice_id=? AND company_id=? AND source_version=? ORDER BY ordinal"
+        );
+        assert_eq!(
+            POSTGRES_INVOICE_LINES_SQL.replace("$1", "?").replace("$2", "?").replace("$3", "?"),
+            INVOICE_LINES_SQL
         );
         assert_eq!(
             sql_oracle(),

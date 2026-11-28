@@ -160,7 +160,14 @@ export default async function WorkplaceLayout({
       if (access.target !== path) redirect(access.target);
     } catch (error) { return pageError(error, holdingSlug); }
   }
-  const navigationPending = sourceRecord
+  const requestedPath = requestHeaders.get("x-erpx-page-path");
+  const financePath = officeProduct?.id === "finance" && requestedPath
+    ? workspacePathParts(new URL(requestedPath, "https://entry.invalid").pathname, holdingSlug)?.path
+    : undefined;
+  // Invoice pages can render before the client refreshes Work navigation counts.
+  const deferInvoiceNavigation = financePath === "finance/documents/sales/invoices"
+    || !!financePath?.startsWith("finance/documents/invoices/");
+  const navigationPending = sourceRecord || deferInvoiceNavigation
     ? restrictedWorkspaceNavigation(holdingSlug)
     : workspaceNavigation(holdingSlug);
   let context, initialNavigation;
