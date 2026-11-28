@@ -45,10 +45,10 @@ const HANDOFF_PROJECT: &str = "SELECT project_id FROM staff_project_handoffs WHE
 
 /// Byte-identical handoff work statement; the owner-or-member scope expands the
 /// shared Project fragment with the exact bind order company,user,user,user,user.
-const HANDOFF_WORK: &str = "SELECT h.id,h.version,h.project_id,h.recipient_id,h.prepared_by,h.status,h.prepared_at,h.decided_at,p.title,p.lifecycle_status\
-     FROM staff_project_handoffs h JOIN staff_projects p ON p.id=h.project_id AND p.company_id=h.company_id\
-     WHERE h.company_id=$1 AND (iam_same_person(h.recipient_id,$2,h.company_id) OR iam_same_person(h.prepared_by,$3,h.company_id))\
-       AND (p.owner_user_id=$4 OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=$5))\
+const HANDOFF_WORK: &str = "SELECT h.id,h.version,h.project_id,h.recipient_id,h.prepared_by,h.status,h.prepared_at,h.decided_at,p.title,p.lifecycle_status \
+     FROM staff_project_handoffs h JOIN staff_projects p ON p.id=h.project_id AND p.company_id=h.company_id \
+     WHERE h.company_id=$1 AND (iam_same_person(h.recipient_id,$2,h.company_id) OR iam_same_person(h.prepared_by,$3,h.company_id)) \
+       AND (p.owner_user_id=$4 OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=$5)) \
      ORDER BY COALESCE(h.decided_at,h.prepared_at) DESC,h.id LIMIT 200";
 
 /// The former byte-identical visible-row heads (`read-tail-r30.ts` plus the

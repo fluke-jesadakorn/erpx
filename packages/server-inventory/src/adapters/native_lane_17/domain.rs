@@ -66,7 +66,7 @@ impl LaneReadKind {
             Self::LandedCostScoped => 4,
             Self::LandedCostsForOrder => 4,
             Self::LandedCostMovedStock => 3,
-            Self::LandedCostWorkRows => 2,
+            Self::LandedCostWorkRows => 3,
             Self::ReorderPolicies => 3,
             Self::ServiceSpares => 2,
             Self::CountLotLines => 2,

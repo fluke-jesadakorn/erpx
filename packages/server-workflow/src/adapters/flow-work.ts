@@ -31,7 +31,7 @@ async function payrollWorkRows(actor: WorkContext): Promise<Record<string, strin
   const { ownedPeoplePayrollWorkRows } = await import('@erpx/feature-people_payroll/public/native-payroll-summary-owned');
   const rows = await ownedPeoplePayrollWorkRows(actor, actor.holdingSlug);
   if (rows === undefined) throw new ApiError(503, 'NATIVE_PEOPLE_PAYROLL_UNAVAILABLE', 'The native People Payroll reader is unavailable.');
-  return rows.map(row => ({ ...row }));
+  return rows.map(row => ({ ...row, company_id: actor.companyId }));
 }
 function application(provided?: SqlDatabase) {
     let write = provided!;

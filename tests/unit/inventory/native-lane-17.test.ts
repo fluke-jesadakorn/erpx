@@ -170,7 +170,7 @@ describe("native Inventory lane 17 transport", () => {
     const fetchMock = vi.fn(async () => ok([]));
     vi.stubGlobal("fetch", fetchMock);
     await readLane17Rows(LANE17_RD_LANDED_COST_MOVED_STOCK, ["fulfillment-1", "warehouse-1", "2026-01-01T00:00:00Z"], ACTOR, env());
-    await readLane17Rows(LANE17_RD_LANDED_COST_WORK_ROWS, ["company-1", null], ACTOR, env());
+    await readLane17Rows(LANE17_RD_LANDED_COST_WORK_ROWS, ["company-1", null, null], ACTOR, env());
     expect(fetchMock).toHaveBeenCalledTimes(2);
     for (const call of fetchMock.mock.calls) {
       expect(String((call as unknown as [URL, RequestInit])[1].body)).not.toMatch(/SELECT|FROM |WHERE /i);
