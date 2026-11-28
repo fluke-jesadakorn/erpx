@@ -8,7 +8,7 @@ use serde::Deserialize;
 use std::{sync::Arc, time::Duration};
 
 const REGISTRY: &str =
-    "https://api.github.com/repos/fluke-jesadakorn/erpx/contents/registry.json?ref=plugin-registry";
+    "https://api.github.com/repos/fluke-jesadakorn/erpx/contents/contracts/plugins/registry.json?ref=codex%2Frust-backend-migration";
 
 #[derive(Clone)]
 pub struct GithubPluginCatalogue {

@@ -2,7 +2,7 @@
 
 Create a public GitHub repository with the `erpx-plugin` topic and an `erpx-plugin.json` file at its root. Use the [site measurement example](site-measurement.example.json) for the supported manifest fields. Choose a three-part version such as `1.0.0` and commit the manifest.
 
-Open a pull request against the ERPX [plugin registry branch](https://github.com/fluke-jesadakorn/erpx/tree/plugin-registry). Add an entry to `registry.json` with the manifest's `id` and `version`, the GitHub `repositoryId` and lowercase `repository` name, the full `commit`, and the `sha256` of the committed manifest bytes. An ERPX project owner must review this exact version before it can be merged and installed.
+Open a pull request against the ERPX `codex/rust-backend-migration` branch. Add an entry to [the approval registry](registry.json) with the manifest's `id` and `version`, the GitHub `repositoryId` and lowercase `repository` name, the full `commit`, and the `sha256` of the committed manifest bytes. An ERPX project owner must review this exact version before it can be merged and installed.
 
 Company administrators find approved versions in Apps or paste the GitHub repository link there. A Company installation is scoped to that Company. Uninstalling it removes its extension while the CRM activity remains governed by its existing access rules.
 

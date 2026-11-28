@@ -5,7 +5,9 @@
 # Shared architecture, automation and operational boundaries.
 /.github/ @fluke-jesadakorn
 /docs/adr/ @fluke-jesadakorn
-/packages/server-*/ @fluke-jesadakorn
-/packages/feature-*/ @fluke-jesadakorn
+/modules/ @fluke-jesadakorn
+/products/ @fluke-jesadakorn
+/platform/ @fluke-jesadakorn
+/contracts/plugins/registry.json @fluke-jesadakorn
 /migrations/ @fluke-jesadakorn
 /ops/ @fluke-jesadakorn
