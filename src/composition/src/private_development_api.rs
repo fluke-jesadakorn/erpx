@@ -10531,6 +10531,21 @@ async fn assemble_checked(
         erpx_server_records::public::record_search_http::router_for_holdings(records_search_targets)
             .map_err(|_| "PRIVATE_API_RECORDS_SEARCH_INVALID")?,
     );
+    let mut expansion_pools = BTreeMap::new();
+    for (index, holding) in config.holdings.iter().enumerate() {
+        if let Some(companies) = config.finance_journal_reads.get(&holding.registration.holding_id) {
+            for company in companies {
+                if expansion_pools.insert(company.as_str().to_owned(), pools[index + 1].clone()).is_some() {
+                    return Err("PRIVATE_API_FINANCE_EXPANSION_COMPANY_AMBIGUOUS");
+                }
+            }
+        }
+    }
+    let router = router.merge(
+        erpx_server_finance::public::expansion_close_http::expansion_close_router(Arc::new(
+            FinanceExpansionReads(expansion_pools),
+        )),
+    );
     let router = crate::native_lane_mounts::mount(router, config, pools)?;
     Ok(CheckedAssembly {
         router: router.layer(middleware::from_fn_with_state(state, boundary)),
@@ -10538,6 +10553,42 @@ async fn assemble_checked(
         files_workers,
     })
 }
+struct FinanceExpansionReads(BTreeMap<String, DatabasePool>);
+
+impl erpx_server_finance::public::expansion_close_http::ExpansionCloseHttpBackend for FinanceExpansionReads {
+    fn pending<'a>(
+        &'a self,
+        company: &'a str,
+        start: &'a str,
+        end: &'a str,
+    ) -> erpx_server_finance::public::expansion_close_http::ExpansionClosePendingFuture<'a> {
+        use erpx_server_runtime::public::postgres::{PgTransactionError, PgUnitOfWork, TransactionOptions};
+        Box::pin(async move {
+            let pool = self.0.get(company).ok_or_else(|| BusinessError::new(
+                FailureKind::NotFound, "FINANCE_EXPANSION_COMPANY_NOT_FOUND", "Company is unavailable.",
+            ))?;
+            let (company, start, end) = (company.to_owned(), start.to_owned(), end.to_owned());
+            PgUnitOfWork::new(pool.clone())
+                .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                    let (company, start, end) = (company.clone(), start.clone(), end.clone());
+                    Box::pin(async move {
+                        erpx_server_finance::public::expansion_close_http::read_expansion_close_pending(
+                            connection, &company, &start, &end,
+                        ).await.map_err(PgTransactionError::Business)
+                    })
+                })
+                .await
+                .map_err(|failure| match failure {
+                    PgTransactionError::Business(error) => error,
+                    PgTransactionError::Persistence(_) => BusinessError::new(
+                        FailureKind::Unavailable, "FINANCE_EXPANSION_CLOSE_UNAVAILABLE",
+                        "The expansion-close read is unavailable.",
+                    ),
+                })
+        })
+    }
+}
+
 #[derive(Clone)]
 struct SharedClock(Arc<dyn Clock + Send + Sync>);
 impl Clock for SharedClock {
@@ -10656,11 +10707,17 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
     // cannot set Host from Node fetch. The Company-keyed native command route is
     // therefore reachable on the loopback listener, which is never public.
     let path = request.uri().path();
+    let finance_expansion = path.starts_with("/api/v1/companies/")
+        && path.ends_with("/finance/expansion-close/pending");
+    if finance_expansion && host != state.loopback {
+        return Err(BoundaryDenial::NotFound);
+    }
     let loopback_system_command = host == state.loopback
         && (path.starts_with("/api/v1/companies/")
             && (path.ends_with("/native-command")
                 || path.ends_with("/workflow/wave3-command")
                 || path.ends_with("/collaboration/notification-statement")
+                || finance_expansion
                 || path.ends_with("/finance/owner-write")
                 || path.contains("/finance/company-money/"))
             || path.starts_with("/api/v1/holdings/")
