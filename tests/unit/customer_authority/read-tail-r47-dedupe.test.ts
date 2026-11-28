@@ -2,11 +2,11 @@ import { describe, expect, test } from 'vitest';
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { jsonbAggHead, jsonbAggregateHead } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r45-sources';
-import { jsonbImageProjection } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r23-sources';
-import { jsonbAggFact } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-sql';
+import { jsonbAggHead, jsonbAggregateHead } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-tail-r45-sources';
+import { jsonbImageProjection } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-tail-r23-sources';
+import { jsonbAggFact } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-customer_authority/src');
+const srcRoot = resolve(__dirname, '../../../modules/customer-authority/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const publicSrc = (name: string) => readFileSync(resolve(srcRoot, 'public', name), 'utf8');
 const sha = (sql: string) => createHash('sha256').update(sql).digest('hex');

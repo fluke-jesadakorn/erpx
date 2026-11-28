@@ -1,11 +1,11 @@
 /** Explicit fixture provider outputs exercise native guards; no provider certification. */
-import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import type {SqlDatabase} from "@erpx/server-runtime/adapters/runtime/types";
-import type {BetaEnvironment} from "@erpx/server-manage_erpx/public/beta-config";
-import {legalCommand,detail} from "@erpx/server-legal/public/legal/service";
-import {queueLegalAi,drainLegalAi} from "@erpx/server-legal/public/legal/jobs";
-import {readAiGatewayPolicy} from "@erpx/server-agent/public/ai-gateway";
-import {ApiError} from "@erpx/server-runtime/adapters/http";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
+import type {SqlDatabase} from "@erpx/platform-runtime-server/adapters/runtime/types";
+import type {BetaEnvironment} from "@erpx/manage-erpx-server/public/beta-config";
+import {legalCommand,detail} from "@erpx/legal-server/public/legal/service";
+import {queueLegalAi,drainLegalAi} from "@erpx/legal-server/public/legal/jobs";
+import {readAiGatewayPolicy} from "@erpx/agent-server/public/ai-gateway";
+import {ApiError} from "@erpx/platform-runtime-server/adapters/http";
 
 export async function runLegalAiEngineeringFixture(db:SqlDatabase,environment:BetaEnvironment,manager:WorkContext,reviewer:WorkContext){
  const key=()=>crypto.randomUUID(),call=async(actor:WorkContext,id:string,action:string,extra:Record<string,unknown>={})=>legalCommand(db,actor,{action,id,expectedVersion:(await detail(db,actor,id)).item.version,...extra},key());

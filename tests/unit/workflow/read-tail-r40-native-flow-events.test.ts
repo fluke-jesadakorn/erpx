@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 
-const srcRoot = resolve(__dirname, '../../../packages/server-workflow/src');
+const srcRoot = resolve(__dirname, '../../../modules/workflow/server/src');
 
 /** Byte oracles captured from the retired TypeScript generator before the r40 cut. */
 const SNAPSHOT_ORACLE = 'SELECT kind,record_id,action,actor_name,created_at,reason,step_key FROM flow_events WHERE company_id=? ORDER BY created_at,id';
@@ -24,13 +24,13 @@ describe('workflow flow-event history read tail (r40 native read cutover)', () =
     const rows = [{ kind: 'expense', record_id: 'record-1' }];
     const all = vi.fn(async () => rows);
     vi.resetModules();
-    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+    vi.doMock('../../../modules/workflow/server/src/adapters/native-workflow-read', () => ({
       nativeWorkflowReadAll: all,
       nativeWorkflowReadFirst: vi.fn(),
     }));
     try {
       const { nativeFlowPlanningPorts } = await import(
-        '../../../packages/server-workflow/src/adapters/flow-planning-ports'
+        '../../../modules/workflow/server/src/adapters/flow-planning-ports'
       );
       const prepare = vi.fn();
       const db = { prepare } as never;
@@ -44,7 +44,7 @@ describe('workflow flow-event history read tail (r40 native read cutover)', () =
       );
       expect(prepare).not.toHaveBeenCalled();
     } finally {
-      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.doUnmock('../../../modules/workflow/server/src/adapters/native-workflow-read');
       vi.resetModules();
     }
   });
@@ -53,13 +53,13 @@ describe('workflow flow-event history read tail (r40 native read cutover)', () =
     const rows = [{ action: 'submit', actor_name: 'Actor', created_at: 1, reason: '', step_key: 'draft' }];
     const all = vi.fn(async () => rows);
     vi.resetModules();
-    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+    vi.doMock('../../../modules/workflow/server/src/adapters/native-workflow-read', () => ({
       nativeWorkflowReadAll: all,
       nativeWorkflowReadFirst: vi.fn(),
     }));
     try {
       const { nativeFlowPlanningPorts } = await import(
-        '../../../packages/server-workflow/src/adapters/flow-planning-ports'
+        '../../../modules/workflow/server/src/adapters/flow-planning-ports'
       );
       const prepare = vi.fn();
       const db = { prepare } as never;
@@ -73,7 +73,7 @@ describe('workflow flow-event history read tail (r40 native read cutover)', () =
       );
       expect(prepare).not.toHaveBeenCalled();
     } finally {
-      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.doUnmock('../../../modules/workflow/server/src/adapters/native-workflow-read');
       vi.resetModules();
     }
   });

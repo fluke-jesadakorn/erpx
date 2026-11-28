@@ -2,9 +2,9 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { legalHoldTargetGuardPrefix } from '../../../packages/server-legal/src/adapters/legal-read-tail-r24-sources';
+import { legalHoldTargetGuardPrefix } from '../../../modules/legal/server/src/adapters/legal-read-tail-r24-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-legal/src');
+const srcRoot = resolve(__dirname, '../../../modules/legal/server/src');
 const preDedupePrefix =
   'SELECT 1 FROM legal_hold_targets target JOIN legal_holds hold ON hold.id=target.hold_id WHERE ';
 
@@ -20,10 +20,10 @@ describe('legal hold-target guard read prefix family (r24)', () => {
 
   it('keeps one definition and no inline guard-prefix literals in the three callers', async () => {
     const [shared, preservation, mutation, service] = await Promise.all([
-      readFile(new URL('../../../packages/server-legal/src/adapters/legal-read-tail-r24-sources.ts', import.meta.url), 'utf8'),
-      readFile(new URL('../../../packages/server-legal/src/adapters/runtime-preservation-authority.ts', import.meta.url), 'utf8'),
-      readFile(new URL('../../../packages/server-legal/src/adapters/runtime-mutation-authority.ts', import.meta.url), 'utf8'),
-      readFile(new URL('../../../packages/server-legal/src/adapters/legal/service.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/legal/server/src/adapters/legal-read-tail-r24-sources.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/legal/server/src/adapters/runtime-preservation-authority.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/legal/server/src/adapters/runtime-mutation-authority.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/legal/server/src/adapters/legal/service.ts', import.meta.url), 'utf8'),
     ]);
     expect(shared.match(/export const legalHoldTargetGuardPrefix/g) ?? []).toHaveLength(1);
     for (const [name, text, token] of [

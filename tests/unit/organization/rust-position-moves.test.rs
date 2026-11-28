@@ -1,8 +1,8 @@
-use erpx_server_organization::public::organization_nodes::{
+use erpx_organization_server::public::organization_nodes::{
     OrganizationActor, OrganizationCommand, OrganizationCommandActor, OrganizationScopeKind,
 };
-use erpx_server_organization::public::position_moves::*;
-use erpx_server_shared::public::{
+use erpx_organization_server::public::position_moves::*;
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CompanyId, FailureKind, HoldingId, RecordId, UserId,
 };
 use serde_json::{json, Value};
@@ -478,7 +478,7 @@ impl PositionMoveRepository for Fake {
 #[test]
 fn preview_command_returns_the_reviewed_token() {
     let mut repository = Fake::new();
-    let clock = FixedClock(erpx_server_shared::public::TimestampMillis::new(
+    let clock = FixedClock(erpx_platform_shared_server::public::TimestampMillis::new(
         1_800_000_000_000,
     ));
     let result = futures_lite_preview(&mut repository, &actor(), &input(), &clock);
@@ -510,7 +510,7 @@ fn block<T>(future: impl std::future::Future<Output = T>) -> T {
 #[test]
 fn submit_replays_before_expiry_and_rejects_stale_tokens() {
     let mut repository = Fake::new();
-    let clock = FixedClock(erpx_server_shared::public::TimestampMillis::new(
+    let clock = FixedClock(erpx_platform_shared_server::public::TimestampMillis::new(
         1_800_000_000_000,
     ));
     let command = command_actor();
@@ -560,7 +560,7 @@ fn submit_replays_before_expiry_and_rejects_stale_tokens() {
 #[test]
 fn cancel_locks_applied_or_effective_moves() {
     let mut repository = Fake::new();
-    let clock = FixedClock(erpx_server_shared::public::TimestampMillis::new(
+    let clock = FixedClock(erpx_platform_shared_server::public::TimestampMillis::new(
         1_800_000_000_000,
     ));
     let command = command_actor();
@@ -616,7 +616,7 @@ fn cancel_locks_applied_or_effective_moves() {
 #[test]
 fn rows_hide_holder_details_without_people_manage() {
     let mut repository = Fake::new();
-    let clock = FixedClock(erpx_server_shared::public::TimestampMillis::new(
+    let clock = FixedClock(erpx_platform_shared_server::public::TimestampMillis::new(
         1_800_000_000_000,
     ));
     let preview = preview(true);

@@ -2,15 +2,15 @@
 //! PostgreSQL. Collaboration supplies the current draft or post identity.
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_collaboration::public::social_upload_files::lock_social_comment_draft;
-use erpx_server_files::public::social_draft_uploads::{
+use erpx_collaboration_server::public::social_upload_files::lock_social_comment_draft;
+use erpx_files_server::public::social_draft_uploads::{
     SocialCommentFilesRequest, SocialDraftUploadRevokeRequest, read_social_home_images,
     retain_social_comment_images, revoke_social_draft_uploads,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 
 const NOW: i64 = 1_700_000_000_000;
 

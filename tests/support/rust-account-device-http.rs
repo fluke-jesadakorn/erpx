@@ -9,7 +9,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{HeaderMap, Request, StatusCode, header},
 };
-use erpx_server_identity_access::public::{OpaqueSecret, PresentedSecrets};
+use erpx_identity_access_server::public::{OpaqueSecret, PresentedSecrets};
 use revocation as fixture;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;

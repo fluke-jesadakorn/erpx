@@ -2,9 +2,9 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { legalHoldActiveSql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r23-sources';
+import { legalHoldActiveSql } from '../../../modules/legal/server/src/adapters/legal-read-tail-r23-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-legal/src');
+const srcRoot = resolve(__dirname, '../../../modules/legal/server/src');
 const pointRead = (inequality: string) =>
   `SELECT 1 FROM legal_hold_targets t JOIN legal_holds h ON h.id=t.hold_id WHERE t.item_id=? AND h.state${inequality}'released'`;
 
@@ -22,9 +22,9 @@ describe('legal hold-active point read family (r23)', () => {
 
   it('keeps one generator definition and no inline hold-active literals in callers', async () => {
     const [shared, worker, retention] = await Promise.all([
-      readFile(new URL('../../../packages/server-legal/src/adapters/legal-read-tail-r23-sources.ts', import.meta.url), 'utf8'),
-      readFile(new URL('../../../packages/server-legal/src/adapters/legal/destruction-worker.ts', import.meta.url), 'utf8'),
-      readFile(new URL('../../../packages/server-legal/src/adapters/retention-execution.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/legal/server/src/adapters/legal-read-tail-r23-sources.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/legal/server/src/adapters/legal/destruction-worker.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/legal/server/src/adapters/retention-execution.ts', import.meta.url), 'utf8'),
     ]);
     expect(shared.match(/export const legalHoldActiveSql/g) ?? []).toHaveLength(1);
     expect(worker).not.toContain('SELECT 1 FROM legal_hold_targets');

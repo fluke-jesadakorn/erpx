@@ -1,18 +1,18 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_organization::public::{
+use erpx_organization_server::public::{
     NodeKind, PgOrganizationReader, WorkspaceRouteQuery, lock_hierarchy_sources,
     read_company_context, resolve_workspace,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions, load_migrations,
     migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, HoldingId, RecordId};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, HoldingId, RecordId};
 
 #[tokio::test]
 async fn company_setup_acceptance_is_scoped_and_updated_tuple_retries_the_owner() {
-    use erpx_server_organization::public::{
+    use erpx_organization_server::public::{
         PgCompanyBusinessAcceptanceReader, lock_business_acceptance_sources,
     };
     use std::sync::{
@@ -129,7 +129,7 @@ async fn scope_id_tuple_fences_reject_nodes_revoked_after_an_earlier_snapshot() 
 
 #[tokio::test]
 async fn service_stock_branches_match_active_company_branch_picker_and_detect_drift() {
-    use erpx_server_organization::public::field_service_workspace::{
+    use erpx_organization_server::public::field_service_workspace::{
         lock_service_workspace_locations, read_service_stock_branches,
     };
     fixture::with_database(2,|pool|async move{
@@ -143,8 +143,8 @@ async fn service_stock_branches_match_active_company_branch_picker_and_detect_dr
 
 #[tokio::test]
 async fn holding_address_requires_the_registered_host_and_returns_current_company_lineage() {
-    use erpx_server_organization::public::{HoldingAddressTarget, holding_address_router};
-    use erpx_server_runtime::public::http_support::serve;
+    use erpx_organization_server::public::{HoldingAddressTarget, holding_address_router};
+    use erpx_platform_runtime_server::public::http_support::serve;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::{TcpListener, TcpStream};
 

@@ -2,8 +2,8 @@
 //! assertion-clear statements (`RequestAiWorkflowFacts` native port).
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_runtime::public::postgres::{DatabasePool, MigrationTrack, load_migrations, migrate_database};
-use erpx_server_workflow::public::request_ai_effects::{
+use erpx_platform_runtime_server::public::postgres::{DatabasePool, MigrationTrack, load_migrations, migrate_database};
+use erpx_workflow_server::public::request_ai_effects::{
     REQUEST_AI_ASSERTION_CLEAR_SQL, clear_request_ai_assertions,
 };
 

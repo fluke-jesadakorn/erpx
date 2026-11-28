@@ -5,7 +5,7 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_pms::public::guest_account::{
+use erpx_pms_server::public::guest_account::{
     PgPmsGuestAccountRepository, PmsAdjustmentInput, PmsChargeAddInput, PmsChargeImportInput,
     PmsGuestAccountActor, PmsGuestAccountCommand, PmsGuestAccountHttpBackend,
     PmsGuestAccountHttpCommandRequest, PmsGuestAccountHttpFuture, PmsGuestAccountHttpResponse,
@@ -14,12 +14,12 @@ use erpx_server_pms::public::guest_account::{
     guest_account_request_hash, lock_guest_account_sources, pms_guest_account,
     pms_guest_account_router,
 };
-use erpx_server_pms::public::room_board::PmsBoardActor;
-use erpx_server_runtime::public::http_support::serve;
-use erpx_server_runtime::public::postgres::{
+use erpx_pms_server::public::room_board::PmsBoardActor;
+use erpx_platform_runtime_server::public::http_support::serve;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CommandKey};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey};
 use serde_json::{Value, json};
 use sqlx::Row;
 use std::sync::{

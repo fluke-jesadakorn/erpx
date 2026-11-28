@@ -6,12 +6,12 @@ import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {promisify} from 'node:util';
 import {prepareNativeServiceChild} from './native-service-child';
-import {nativeEngineeringBindings} from '@erpx/server-runtime/public/native-engineering-roster';
+import {nativeEngineeringBindings} from '@erpx/platform-runtime-server/public/native-engineering-roster';
 const exec=promisify(execFile),root=resolve('.'),base=await realpath(await mkdtemp(join(tmpdir(),'erpx-service-child-'))),run='abcdef123456',directory=join(base,'.runtime/browser',run),release=join(directory,'release'),source='a'.repeat(64),version=`release-${source}`;
 try{
- await mkdir(join(release,'apps/service'),{recursive:true,mode:0o700});await mkdir(join(base,'node_modules/@erpx/catalogue'),{recursive:true});
- const probe=join(base,'probe.js');await exec(process.execPath,['build',join(root,'tests/support/runtime/native-service-child-probe.ts'),'--target=bun','--conditions=react-server','--external','@erpx/catalogue/release-artifact.json','--define','process.env.NODE_ENV="production"','--outfile',probe],{cwd:root});
- await writeFile(join(base,'node_modules/@erpx/catalogue/package.json'),JSON.stringify({name:'@erpx/catalogue',type:'module',exports:{'./release-artifact.json':'./release-artifact.json'}}));await writeFile(join(base,'node_modules/@erpx/catalogue/release-artifact.json'),JSON.stringify({softwareVersion:version}));
+ await mkdir(join(release,'apps/service'),{recursive:true,mode:0o700});await mkdir(join(base,'node_modules/@erpx/platform-catalogue'),{recursive:true});
+ const probe=join(base,'probe.js');await exec(process.execPath,['build',join(root,'tests/support/runtime/native-service-child-probe.ts'),'--target=bun','--conditions=react-server','--external','@erpx/platform-catalogue/release-artifact.json','--define','process.env.NODE_ENV="production"','--outfile',probe],{cwd:root});
+ await writeFile(join(base,'node_modules/@erpx/platform-catalogue/package.json'),JSON.stringify({name:'@erpx/platform-catalogue',type:'module',exports:{'./release-artifact.json':'./release-artifact.json'}}));await writeFile(join(base,'node_modules/@erpx/platform-catalogue/release-artifact.json'),JSON.stringify({softwareVersion:version}));
  const entry=join(release,'apps/service/entry.mjs'),entryBytes=`await import(${JSON.stringify(probe)});\n`;await writeFile(entry,entryBytes);
  const manifest=JSON.stringify({'apps/service/entry.mjs':createHash('sha256').update(entryBytes).digest('hex')}),manifestSha=createHash('sha256').update(manifest).digest('hex');await writeFile(join(release,'release-files.json'),manifest);await writeFile(join(release,'release.json'),JSON.stringify({scope:'isolated-engineering-service-only',sourceFingerprint:source,softwareVersion:version,fileManifestSha256:manifestSha}));
  const roster={version:1,run,sourceFingerprint:source,fileManifestSha256:manifestSha,postmasterStartedMs:123456,entries:nativeEngineeringBindings.map((binding,i)=>({binding,token:(i+1).toString(16).padStart(32,'0'),oid:100+i}))},rosterBytes=Buffer.from(JSON.stringify(roster));await writeFile(join(directory,'native-engineering-leases.json'),rosterBytes,{mode:0o600});

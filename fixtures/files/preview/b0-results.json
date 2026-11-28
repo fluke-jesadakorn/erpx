@@ -3,7 +3,7 @@
   "scope": "Exact B0 provider on synthetic/owned inputs; direct renderer result and prior media admission are separate",
   "sourceCommit": "a5ed8737a2f05eff1ee9841fda4a094b3926d732",
   "source": {
-    "path": "packages/server-files/src/adapters/attachments/preview.ts",
+    "path": "modules/files/server/src/adapters/attachments/preview.ts",
     "sha256": "8b7b5fdeb6621771a00557b5f9b9e05d205a10a275951015c95146825a5f2b29"
   },
   "node": "v26.11.1",

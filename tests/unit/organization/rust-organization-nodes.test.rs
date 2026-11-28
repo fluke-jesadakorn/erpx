@@ -1,5 +1,5 @@
-use erpx_server_organization::public::organization_nodes::*;
-use erpx_server_shared::public::{CompanyId, FailureKind, HoldingId, RecordId, UserId};
+use erpx_organization_server::public::organization_nodes::*;
+use erpx_platform_shared_server::public::{CompanyId, FailureKind, HoldingId, RecordId, UserId};
 use serde_json::json;
 
 fn input(value: serde_json::Value) -> NodeChangeInput {
@@ -17,7 +17,7 @@ fn actor(
         holding_id: HoldingId::new("h001").unwrap(),
         company_id: CompanyId::new("company").unwrap(),
         user_id: UserId::new(user).unwrap(),
-        assignment_id: erpx_server_shared::public::AssignmentId::new("assignment").unwrap(),
+        assignment_id: erpx_platform_shared_server::public::AssignmentId::new("assignment").unwrap(),
         role: "custom_organization".into(),
         branch_id: branch.map(|id| RecordId::new(id).unwrap()),
         department_id: department.map(|id| RecordId::new(id).unwrap()),

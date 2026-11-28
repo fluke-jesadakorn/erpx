@@ -1,21 +1,21 @@
-import {notificationWorkspace} from "@erpx/server-collaboration/public/notification-presentation";
-import {sendNotice,changeInboxState} from "@erpx/server-collaboration/public/inbox";
+import {notificationWorkspace} from "@erpx/collaboration-server/public/notification-presentation";
+import {sendNotice,changeInboxState} from "@erpx/collaboration-server/public/inbox";
 import { beforeAll, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import { createProductWorkspace } from "@erpx/server-identity_access/application/product-workspace";
-import { productWorkspaceTarget } from "@erpx/server-identity_access/domain/product-workspace";
-import { workspaceGrantsForAccount, type AccountAccessContext } from "@erpx/server-identity_access/public/authorization";
-import { accountWorkModuleAccess } from "@erpx/server-identity_access/public/work-module-access";
-import { initializeWorkSelection, readWorkSelection, selectWorkRole } from "@erpx/server-work_projection/public/work-role-store";
-import { packageGrantStore, readCompanyPackageGrants, readCompanyPurchaseFacts } from "@erpx/server-commercial/public/package-grants";
-import { ApiError } from "@erpx/server-runtime/public/http";
-import { ownerPackageObligations, withOwnerPackageObligations } from "@erpx/server-commercial/public/owner-package-obligations";
-import { packageGrantRevision } from "@erpx/server-commercial/public/package-grants";
-import { readPurchasedAccess } from "@erpx/server-commercial/public/purchase-command-boundary";
+import { createProductWorkspace } from "@erpx/identity-access-server/application/product-workspace";
+import { productWorkspaceTarget } from "@erpx/identity-access-server/domain/product-workspace";
+import { workspaceGrantsForAccount, type AccountAccessContext } from "@erpx/identity-access-server/public/authorization";
+import { accountWorkModuleAccess } from "@erpx/identity-access-server/public/work-module-access";
+import { initializeWorkSelection, readWorkSelection, selectWorkRole } from "@erpx/work-projection-server/public/work-role-store";
+import { packageGrantStore, readCompanyPackageGrants, readCompanyPurchaseFacts } from "@erpx/commercial-server/public/package-grants";
+import { ApiError } from "@erpx/platform-runtime-server/public/http";
+import { ownerPackageObligations, withOwnerPackageObligations } from "@erpx/commercial-server/public/owner-package-obligations";
+import { packageGrantRevision } from "@erpx/commercial-server/public/package-grants";
+import { readPurchasedAccess } from "@erpx/commercial-server/public/purchase-command-boundary";
 
-vi.mock("@erpx/server-runtime/public/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB }), runtimeEnv: async () => env }));
+vi.mock("@erpx/platform-runtime-server/public/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB }), runtimeEnv: async () => env }));
 const db = env.H001_DB;
 beforeAll(async () => { await Promise.all([applyMigrations(db, env.STAFF_TEST_MIGRATIONS), applyMigrations(env.CONTROL_DB, env.CONTROL_TEST_MIGRATIONS)]); });
 async function fixture(marketing = true, ownerModule = "marketing", initialPackages?:string[],deferCommercial=false) {
@@ -192,7 +192,7 @@ it('uses a real POS-only purchase for exact notification foundation entry while 
 
 
 it('opens native Company Admin foundation with no packages, preserves a different live role, and uses normal current-version CAS only on explicit choice',async()=>{
- const {createAdminWorkspace}=await import('@erpx/server-identity_access/application/admin-workspace'),{adminWorkspaceTarget}=await import('@erpx/server-identity_access/domain/admin-workspace'),{adminWorkspaceDestinations}=await import('@erpx/server-identity_access/adapters/admin-workspace'),f=await fixture(false,'identity_access',[]),input=adminWorkspaceTarget(f.company,'/holdings/test/administration/technology/settings/roles?q=own#draft')!,service=createAdminWorkspace({access:f.nativeAccess,destinations:adminWorkspaceDestinations,management:async()=>false,selection:(account,applicable)=>initializeWorkSelection(db,{sessionId:f.sessionId,userId:f.userId,companyId:f.company,expiresAt:account.expiresAt},account.assignments,applicable),select:(account,option,revision)=>selectWorkRole(db,{sessionId:f.sessionId,userId:f.userId,companyId:f.company,expiresAt:account.expiresAt,assignmentId:option.assignmentId,assignmentVersion:option.assignmentVersion,revision}),now:Date.now,error:(status,code,message)=>new ApiError(status,code,message)});
+ const {createAdminWorkspace}=await import('@erpx/identity-access-server/application/admin-workspace'),{adminWorkspaceTarget}=await import('@erpx/identity-access-server/domain/admin-workspace'),{adminWorkspaceDestinations}=await import('@erpx/identity-access-server/adapters/admin-workspace'),f=await fixture(false,'identity_access',[]),input=adminWorkspaceTarget(f.company,'/holdings/test/administration/technology/settings/roles?q=own#draft')!,service=createAdminWorkspace({access:f.nativeAccess,destinations:adminWorkspaceDestinations,management:async()=>false,selection:(account,applicable)=>initializeWorkSelection(db,{sessionId:f.sessionId,userId:f.userId,companyId:f.company,expiresAt:account.expiresAt},account.assignments,applicable),select:(account,option,revision)=>selectWorkRole(db,{sessionId:f.sessionId,userId:f.userId,companyId:f.company,expiresAt:account.expiresAt,assignmentId:option.assignmentId,assignmentVersion:option.assignmentVersion,revision}),now:Date.now,error:(status,code,message)=>new ApiError(status,code,message)});
  const assignmentImage=()=>db.prepare('SELECT id,version,role,modules_json,revoked_at FROM assignments WHERE company_id=? ORDER BY id').bind(f.company).all(),before=(await assignmentImage()).results,state=await service.read(input);expect(state.target).toBeNull();expect(state.options.map(option=>option.assignmentId)).toEqual([f.owner.assignmentId]);expect((await f.current())?.assignment_id).toBe(f.financeId);expect(await readCompanyPackageGrants(db,f.company)).toEqual([]);await expect(service.choose(input,f.owner.assignmentId,state.selection!.revision-1,1)).rejects.toMatchObject({code:'WORK_CONTEXT_CHANGED'});expect((await f.current())?.assignment_id).toBe(f.financeId);await service.choose(input,f.owner.assignmentId,state.selection!.revision,1);expect((await service.read(input)).target).toBe(input.target);expect((await assignmentImage()).results).toEqual(before);expect(await readCompanyPackageGrants(db,f.company)).toEqual([]);
  const current=(await f.current())!;await db.prepare('UPDATE assignments SET version=version+1 WHERE id=?').bind(f.owner.assignmentId).run();const changed=await service.read(input);expect(changed.target).toBeNull();expect(changed.options).toMatchObject([{assignmentId:f.owner.assignmentId,assignmentVersion:2}]);await expect(service.choose(input,f.owner.assignmentId,current.revision,1)).rejects.toMatchObject({code:'WORK_CONTEXT_CHANGED'});await service.choose(input,f.owner.assignmentId,current.revision,2);expect((await service.read(input)).target).toBe(input.target);await db.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(f.owner.assignmentId).run();await expect(service.read(input)).rejects.toMatchObject({code:'ADMIN_ROLE_REQUIRED'});
 });
@@ -201,13 +201,13 @@ it('Company Admin exposes current Brand, Organization, and IAM owner reads witho
  const f=await fixture(false,'identity_access',[]),modules=['brand','organization','identity_access'];
  await db.prepare('UPDATE assignments SET modules_json=? WHERE id=?').bind(JSON.stringify(modules),f.owner.assignmentId).run();
  const access=await f.nativeAccess(),assignment=access.assignments.find(item=>item.id===f.owner.assignmentId)!;
- const {adminWorkspaceDestinations}=await import('@erpx/server-identity_access/adapters/admin-workspace');
- const {createAdminWorkspace}=await import('@erpx/server-identity_access/application/admin-workspace');
- const {adminWorkspaceTarget}=await import('@erpx/server-identity_access/domain/admin-workspace');
- const {brandIdentityWorkspace}=await import('@erpx/server-brand/public/brand-identity');
- const {organizationAccessData}=await import('@erpx/server-organization/public/organization-access');
- const {iamOverview}=await import('@erpx/server-identity_access/public/iam-service-reads');
- const {loadIamAuthority}=await import('@erpx/server-identity_access/public/iam-store');
+ const {adminWorkspaceDestinations}=await import('@erpx/identity-access-server/adapters/admin-workspace');
+ const {createAdminWorkspace}=await import('@erpx/identity-access-server/application/admin-workspace');
+ const {adminWorkspaceTarget}=await import('@erpx/identity-access-server/domain/admin-workspace');
+ const {brandIdentityWorkspace}=await import('@erpx/brand-server/public/brand-identity');
+ const {organizationAccessData}=await import('@erpx/organization-server/public/organization-access');
+ const {iamOverview}=await import('@erpx/identity-access-server/public/iam-service-reads');
+ const {loadIamAuthority}=await import('@erpx/identity-access-server/public/iam-store');
  const assignmentImage=()=>db.prepare('SELECT id,version,role,modules_json,revoked_at FROM assignments WHERE company_id=? ORDER BY id').bind(f.company).all();
  const assignmentsBefore=(await assignmentImage()).results,packagesBefore=await readCompanyPackageGrants(db,f.company);
  expect(packagesBefore).toEqual([]);
@@ -223,7 +223,7 @@ it('Company Admin exposes current Brand, Organization, and IAM owner reads witho
  }
  const [brand,organization,identity]=await Promise.all([
   brandIdentityWorkspace(owner),organizationAccessData(db,owner),
-  iamOverview(db,{...owner,scopeKind:'holding',scopeNodeId:null,platform:false,sessionId:f.sessionId} as import("@erpx/server-identity_access/public/iam-context").IamActor),
+  iamOverview(db,{...owner,scopeKind:'holding',scopeNodeId:null,platform:false,sessionId:f.sessionId} as import("@erpx/identity-access-server/public/iam-context").IamActor),
  ]);
  expect(brand.actorId).toBe(f.userId);expect(brand.initial.identity.shortName).toBeTruthy();
  expect(organization.actorId).toBe(f.userId);expect(organization.nodes).toContainEqual(expect.objectContaining({id:f.company,kind:'company'}));expect(organization.nodes).toContainEqual(expect.objectContaining({id:f.branch,kind:'branch'}));

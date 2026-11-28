@@ -9,8 +9,8 @@ import {
   nativeManufacturingConfiguration,
   NativeManufacturingError,
   type NativeManufacturingPageContext,
-} from '../../../packages/feature-manufacturing/src/public/native-manufacturing-bom';
-import { nativeManufacturingFailure } from '../../../packages/feature-manufacturing/src/public/native-manufacturing-bom-page';
+} from '../../../modules/manufacturing/ui/src/public/native-manufacturing-bom';
+import { nativeManufacturingFailure } from '../../../modules/manufacturing/ui/src/public/native-manufacturing-bom-page';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44993',
@@ -160,7 +160,7 @@ describe('native Manufacturing BOM register transport',()=>{
  });
 });
 describe('Manufacturing finance-close read retirement',()=>{
-  const src=new URL('../../../packages/server-manufacturing/src/',import.meta.url).pathname;
+  const src=new URL('../../../modules/manufacturing/server/src/',import.meta.url).pathname;
   const files=(dir:string):string[]=>nodeFs.readdirSync(dir).flatMap(name=>{const path=nodePath.join(dir,name);return nodeFs.statSync(path).isDirectory()?files(path):path.endsWith('.ts')?[path]:[];});
   it('removed the four close-source SELECT modules and keeps the owner SELECT KPI strictly below 148',()=>{
     const paths=files(src);
@@ -172,8 +172,8 @@ describe('Manufacturing finance-close read retirement',()=>{
   });
 });
 describe('Manufacturing owner-local report-actor read dedupe',()=>{
-  const source=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/adapters/production-command-sources.ts',import.meta.url),'utf8');
-  const registry=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/public/native_command.rs',import.meta.url),'utf8');
+  const source=nodeFs.readFileSync(new URL('../../../modules/manufacturing/server/src/adapters/production-command-sources.ts',import.meta.url),'utf8');
+  const registry=nodeFs.readFileSync(new URL('../../../modules/manufacturing/server/src/public/native_command.rs',import.meta.url),'utf8');
   const sql="SELECT actor_id FROM manufacturing_order_events WHERE order_id=? AND action='report' ORDER BY version DESC LIMIT 1";
   it('keeps one fixed-SQL definition and switches both QC callers to it',()=>{
     expect(source).toContain('const latestReportActorSelect');
@@ -199,7 +199,7 @@ describe('Manufacturing owner-local report-actor read dedupe',()=>{
     }
   });
   it('runs the identical live statement and binds on both QC callers',async()=>{
-    const {productionCommandSources}=await import('../../../packages/server-manufacturing/src/adapters/production-command-sources');
+    const {productionCommandSources}=await import('../../../modules/manufacturing/server/src/adapters/production-command-sources');
     const prepares:string[]=[],binds:unknown[][]=[];
     const db={prepare(statement:string){prepares.push(statement);return {bind(...values:unknown[]){binds.push(values);return {first:async()=>'reporter'};}};}} as never;
     const sources=productionCommandSources(db);
@@ -210,15 +210,15 @@ describe('Manufacturing owner-local report-actor read dedupe',()=>{
   });
 });
 describe('Manufacturing command-receipt replay read dedupe',()=>{
-  const purchases=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/adapters/purchases.ts',import.meta.url),'utf8');
-  const posting=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/adapters/posting-profiles.ts',import.meta.url),'utf8');
-  const registry=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/public/native_command.rs',import.meta.url),'utf8');
+  const purchases=nodeFs.readFileSync(new URL('../../../modules/manufacturing/server/src/adapters/purchases.ts',import.meta.url),'utf8');
+  const posting=nodeFs.readFileSync(new URL('../../../modules/manufacturing/server/src/adapters/posting-profiles.ts',import.meta.url),'utf8');
+  const registry=nodeFs.readFileSync(new URL('../../../modules/manufacturing/server/src/public/native_command.rs',import.meta.url),'utf8');
   const sql="SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?";
   it('keeps one fixed-SQL definition and switches both command paths to it',()=>{
     expect(purchases).toContain('export const commandReceiptSelect');
     expect(purchases.split(sql)).toHaveLength(2);
     expect(posting.split(sql)).toHaveLength(1);
-    expect(posting).toContain("commandReceiptSelect} from '@erpx/server-manufacturing/adapters/purchases'");
+    expect(posting).toContain("commandReceiptSelect} from '@erpx/manufacturing-server/adapters/purchases'");
     for(const source of [purchases,posting]){
       expect(source).toContain('.prepare(commandReceiptSelect)');
       expect(source).not.toContain('.prepare("SELECT 1 FROM command_receipts');
@@ -235,15 +235,15 @@ describe('Manufacturing command-receipt replay read dedupe',()=>{
     }
   });
   it('keeps the identical live statement and binds on both command paths',async()=>{
-    const {commandReceiptSelect}=await import('../../../packages/server-manufacturing/src/adapters/purchases');
+    const {commandReceiptSelect}=await import('../../../modules/manufacturing/server/src/adapters/purchases');
     expect(commandReceiptSelect).toBe(sql);
     expect(purchases).toContain('.bind(command.key,command.operation,command.target.id,actor.userId,actor.companyId)');
     expect(posting).toContain('.bind(key,operation,target,actor.userId,actor.companyId)');
   });
 });
 describe('Manufacturing executive-metric branch-label read dedupe',()=>{
-  const source=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/adapters/executive-metric-projections.ts',import.meta.url),'utf8');
-  const registry=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/public/native_command.rs',import.meta.url),'utf8');
+  const source=nodeFs.readFileSync(new URL('../../../modules/manufacturing/server/src/adapters/executive-metric-projections.ts',import.meta.url),'utf8');
+  const registry=nodeFs.readFileSync(new URL('../../../modules/manufacturing/server/src/public/native_command.rs',import.meta.url),'utf8');
   const fragment="COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=o.branch_id AND n.company_id=o.company_id),'Branch')";
   it('keeps one fixed-SQL definition and switches both branch breakdowns to it',()=>{
     expect(source).toContain('const branchDisplayLabel');
@@ -263,8 +263,8 @@ describe('Manufacturing executive-metric branch-label read dedupe',()=>{
   });
 });
 describe('Manufacturing specification-source guard dedupe',()=>{
-  const source=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/adapters/production-command-sources.ts',import.meta.url),'utf8');
-  const registry=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/public/native_command.rs',import.meta.url),'utf8');
+  const source=nodeFs.readFileSync(new URL('../../../modules/manufacturing/server/src/adapters/production-command-sources.ts',import.meta.url),'utf8');
+  const registry=nodeFs.readFileSync(new URL('../../../modules/manufacturing/server/src/public/native_command.rs',import.meta.url),'utf8');
   const sql="EXISTS(SELECT 1 FROM manufacturing_specifications WHERE id=? AND company_id=? AND version=? AND status='approved')";
   it('keeps one fixed-SQL definition and switches both specification-source guards to it',()=>{
     expect(source).toContain('const approvedSpecGuardSql');
@@ -293,8 +293,8 @@ describe('Manufacturing specification-source guard dedupe',()=>{
   });
 });
 describe('Manufacturing independent-QC guard dedupe',()=>{
-  const source=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/adapters/production-command-sources.ts',import.meta.url),'utf8');
-  const registry=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/public/native_command.rs',import.meta.url),'utf8');
+  const source=nodeFs.readFileSync(new URL('../../../modules/manufacturing/server/src/adapters/production-command-sources.ts',import.meta.url),'utf8');
+  const registry=nodeFs.readFileSync(new URL('../../../modules/manufacturing/server/src/public/native_command.rs',import.meta.url),'utf8');
   const sql="EXISTS(SELECT 1 FROM manufacturing_order_events WHERE order_id=? AND action='report' AND version=? AND actor_id<>?)";
   it('keeps one fixed-SQL definition and switches both independent-QC guards to it',()=>{
     expect(source).toContain('const independentQcGuardSql');
@@ -323,8 +323,8 @@ describe('Manufacturing independent-QC guard dedupe',()=>{
   });
 });
 describe('Manufacturing operation-event done guard dedupe',()=>{
-  const source=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/adapters/production-command-sources.ts',import.meta.url),'utf8');
-  const registry=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/public/native_command.rs',import.meta.url),'utf8');
+  const source=nodeFs.readFileSync(new URL('../../../modules/manufacturing/server/src/adapters/production-command-sources.ts',import.meta.url),'utf8');
+  const registry=nodeFs.readFileSync(new URL('../../../modules/manufacturing/server/src/public/native_command.rs',import.meta.url),'utf8');
   const sql="AND NOT EXISTS(SELECT 1 FROM manufacturing_operation_events e WHERE e.order_id=? AND e.operation_id=op.id))";
   it('keeps one fixed-SQL definition and interpolates it into both routing guards',()=>{
     expect(source).toContain('const operationEventDoneGuardSql =');
@@ -353,8 +353,8 @@ describe('Manufacturing operation-event done guard dedupe',()=>{
   });
 });
 describe('Manufacturing specification-operation guard prefix dedupe',()=>{
-  const source=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/adapters/production-command-sources.ts',import.meta.url),'utf8');
-  const registry=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/public/native_command.rs',import.meta.url),'utf8');
+  const source=nodeFs.readFileSync(new URL('../../../modules/manufacturing/server/src/adapters/production-command-sources.ts',import.meta.url),'utf8');
+  const registry=nodeFs.readFileSync(new URL('../../../modules/manufacturing/server/src/public/native_command.rs',import.meta.url),'utf8');
   const prefix='NOT EXISTS(SELECT 1 FROM manufacturing_specification_operations op WHERE op.specification_id=?';
   const tail='AND NOT EXISTS(SELECT 1 FROM manufacturing_operation_events e WHERE e.order_id=? AND e.operation_id=op.id))';
   it('keeps one fixed-SQL prefix and emits both routing guards byte for byte',()=>{
@@ -381,7 +381,7 @@ describe('Manufacturing specification-operation guard prefix dedupe',()=>{
   });
 });
 describe('Manufacturing posting-source aggregate dedupe',()=>{
-  const source=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/adapters/posting-setup-sources.ts',import.meta.url),'utf8');
+  const source=nodeFs.readFileSync(new URL('../../../modules/manufacturing/server/src/adapters/posting-setup-sources.ts',import.meta.url),'utf8');
   const profile='(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id) FROM manufacturing_accounting_profiles p,scope WHERE p.company_id=scope.company_id)';
   it('keeps one aggregate definition and derives the scoped profile image from it',()=>{
     expect(source).toContain('const productionAgg=(table:string,alias:string,scope="")=>manufacturingJsonbAggSql(');
@@ -395,8 +395,8 @@ describe('Manufacturing posting-source aggregate dedupe',()=>{
   });
 });
 describe('Manufacturing posting-source economics guard dedupe',()=>{
-  const source=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/adapters/posting-setup-sources.ts',import.meta.url),'utf8');
-  const registry=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/public/native_command.rs',import.meta.url),'utf8');
+  const source=nodeFs.readFileSync(new URL('../../../modules/manufacturing/server/src/adapters/posting-setup-sources.ts',import.meta.url),'utf8');
+  const registry=nodeFs.readFileSync(new URL('../../../modules/manufacturing/server/src/public/native_command.rs',import.meta.url),'utf8');
   const postings='EXISTS(SELECT 1 FROM postings)';
   const movements='EXISTS(SELECT 1 FROM movements)';
   const predicate='material_cost_minor<>0 OR labor_cost_minor<>0 OR overhead_cost_minor<>0 OR reported_output_milli<>0 OR reported_scrap_milli<>0';
@@ -422,8 +422,8 @@ describe('Manufacturing posting-source economics guard dedupe',()=>{
   });
 });
 describe('Manufacturing initial-physical-stock history native cutover',()=>{
-  const source=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/adapters/initial-physical-stock-sources.ts',import.meta.url),'utf8');
-  const domain=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/adapters/native_lane_28/domain.rs',import.meta.url),'utf8');
+  const source=nodeFs.readFileSync(new URL('../../../modules/manufacturing/server/src/adapters/initial-physical-stock-sources.ts',import.meta.url),'utf8');
+  const domain=nodeFs.readFileSync(new URL('../../../modules/manufacturing/server/src/adapters/native_lane_28/domain.rs',import.meta.url),'utf8');
   const reservation='EXISTS(SELECT 1 FROM manufacturing_material_reservations r JOIN manufacturing_orders o ON o.id=r.order_id WHERE o.company_id=? AND r.warehouse_id=? AND r.product_id=?)';
   const movement='EXISTS(SELECT 1 FROM manufacturing_inventory_moves m JOIN manufacturing_orders o ON o.id=m.order_id WHERE o.company_id=? AND m.warehouse_id=? AND m.product_id=?)';
   it('removes the inline guard from the adapter and delegates to the native owner',()=>{
@@ -441,7 +441,7 @@ describe('Manufacturing initial-physical-stock history native cutover',()=>{
   });
 });
 describe('Manufacturing read-tail text-only fragment dedupe', () => {
-  const adapter = (name: string) => nodeFs.readFileSync(new URL(`../../../packages/server-manufacturing/src/adapters/${name}`, import.meta.url), 'utf8');
+  const adapter = (name: string) => nodeFs.readFileSync(new URL(`../../../modules/manufacturing/server/src/adapters/${name}`, import.meta.url), 'utf8');
   const opSpec = '(SELECT jsonb_agg(to_jsonb(operation) ORDER BY operation.id) FROM manufacturing_specification_operations operation WHERE operation.specification_id=specification.id)';
   const opEvents = '(SELECT jsonb_agg(to_jsonb(operation) ORDER BY operation.id) FROM manufacturing_operation_events operation WHERE operation.order_id=record.id)';
   const opProd = '(SELECT jsonb_agg(to_jsonb(operation) ORDER BY operation.id) FROM manufacturing_specification_operations operation WHERE operation.specification_id=s.id)';
@@ -457,7 +457,7 @@ describe('Manufacturing read-tail text-only fragment dedupe', () => {
   const cteMovements = 'movements AS MATERIALIZED(SELECT m.* FROM manufacturing_cost_movements m,scope WHERE m.company_id=scope.company_id)';
   const actorScope = '(SELECT ?::text company_id,?::text branch_id,?::text department_id)';
   it('emits the former inline projection and guard text byte for byte', async () => {
-    const f = await import('../../../packages/server-manufacturing/src/adapters/manufacturing-read-sql-fragments');
+    const f = await import('../../../modules/manufacturing/server/src/adapters/manufacturing-read-sql-fragments');
     expect(f.manufacturingOperationAggSql('manufacturing_specification_operations operation', 'WHERE operation.specification_id=specification.id')).toBe(opSpec);
     expect(f.manufacturingOperationAggSql('manufacturing_operation_events operation', 'WHERE operation.order_id=record.id')).toBe(opEvents);
     expect(f.manufacturingOperationAggSql('manufacturing_specification_operations operation', 'WHERE operation.specification_id=s.id')).toBe(opProd);

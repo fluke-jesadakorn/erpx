@@ -1,15 +1,15 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { countEvidenceRowHeadSql } from '../../../packages/server-inventory/src/adapters/read-tail-sql';
+import { countEvidenceRowHeadSql } from '../../../modules/inventory/server/src/adapters/read-tail-sql';
 import {
   serviceCountMarkerPredicate,
   serviceCountOutboxEligible,
   serviceCountOutboxQuarantine,
   serviceCountOutboxAmbiguous,
-} from '../../../packages/server-inventory/src/public/service-count-outbox-predicate.generated';
+} from '../../../modules/inventory/server/src/public/service-count-outbox-predicate.generated';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-inventory/src');
+const srcRoot = resolve(__dirname, '../../../modules/inventory/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, name), 'utf8');
 const adapter = (name: string) => src(`adapters/${name}`);
 const pub = (name: string) => src(`public/${name}`);

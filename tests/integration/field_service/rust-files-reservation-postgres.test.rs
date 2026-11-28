@@ -2,32 +2,32 @@
 #[allow(dead_code, unused_imports)]
 #[path = "../../support/field_service/parts.rs"]
 mod facts;
-use erpx_server_files::public::{
+use erpx_files_server::public::{
     field_visit_intake::{FieldIntakeAuthority, FieldIntakeScope},
     field_visit_upload::{FieldFileReservation, FieldStorageQuota, reserve_field_file},
 };
-use erpx_server_identity_access::public::effective_authority::{
+use erpx_identity_access_server::public::effective_authority::{
     AuthorizedWorkContext, WorkAuthorizationRequest,
 };
-use erpx_server_runtime::public::postgres::PgWorkFuture;
-use erpx_server_shared::public::{BusinessError, Clock, CompanyId, HoldingId};
+use erpx_platform_runtime_server::public::postgres::PgWorkFuture;
+use erpx_platform_shared_server::public::{BusinessError, Clock, CompanyId, HoldingId};
 use sqlx::PgConnection;
 // Isolated Files-owner fixture; production authority is supplied by composition.
 #[derive(Clone)]
 struct CleanupFixture(sqlx::PgPool);
-impl erpx_server_files::public::field_visit_upload::FieldCleanupTransactions for CleanupFixture {
-    async fn metadata<T,F>(&self, work:F)->Result<T,erpx_server_runtime::public::postgres::PgTransactionError<BusinessError>>
-    where T:Send+'static, F:for<'a> Fn(&'a mut PgConnection,&'a erpx_server_shared::public::CompanyId)->PgWorkFuture<'a,T,BusinessError>+Clone+Send+Sync+'static {
+impl erpx_files_server::public::field_visit_upload::FieldCleanupTransactions for CleanupFixture {
+    async fn metadata<T,F>(&self, work:F)->Result<T,erpx_platform_runtime_server::public::postgres::PgTransactionError<BusinessError>>
+    where T:Send+'static, F:for<'a> Fn(&'a mut PgConnection,&'a erpx_platform_shared_server::public::CompanyId)->PgWorkFuture<'a,T,BusinessError>+Clone+Send+Sync+'static {
         let mut tx=self.0.begin().await?;
         sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await?;
-        let company=erpx_server_shared::public::CompanyId::new("company").unwrap();
+        let company=erpx_platform_shared_server::public::CompanyId::new("company").unwrap();
         let result=work(&mut tx,&company).await?; tx.commit().await?; Ok(result)
     }
-    async fn physical<T,F>(&self, work:F)->Result<T,erpx_server_runtime::public::postgres::PgTransactionError<BusinessError>>
-    where T:Send+'static, F:for<'a> FnOnce(&'a mut PgConnection,&'a erpx_server_shared::public::CompanyId)->PgWorkFuture<'a,T,BusinessError>+Send+'static {
+    async fn physical<T,F>(&self, work:F)->Result<T,erpx_platform_runtime_server::public::postgres::PgTransactionError<BusinessError>>
+    where T:Send+'static, F:for<'a> FnOnce(&'a mut PgConnection,&'a erpx_platform_shared_server::public::CompanyId)->PgWorkFuture<'a,T,BusinessError>+Send+'static {
         let mut tx=self.0.begin().await?;
         sqlx::query("LOCK TABLE attachment_links, attachment_sets, attachment_storage_ledger, attachments, field_upload_object_cleanup_claims, field_upload_publication_pins, upload_intents IN SHARE MODE").execute(&mut *tx).await?;
-        let company=erpx_server_shared::public::CompanyId::new("company").unwrap();
+        let company=erpx_platform_shared_server::public::CompanyId::new("company").unwrap();
         let result=work(&mut tx,&company).await?; tx.commit().await?; Ok(result)
     }
 }
@@ -60,7 +60,7 @@ impl FieldIntakeAuthority for Authority {
     }
 }
 struct DenialCurrent { fail_after: bool, calls: std::sync::atomic::AtomicUsize }
-impl erpx_server_files::public::field_visit_upload::FieldDenialActorCurrent for DenialCurrent {
+impl erpx_files_server::public::field_visit_upload::FieldDenialActorCurrent for DenialCurrent {
     fn require_current<'a>(&'a self, _: &'a mut PgConnection, _: &'a AuthorizedWorkContext, _: i64) -> PgWorkFuture<'a, (), BusinessError> {
         Box::pin(async move {
             let n = self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -97,7 +97,7 @@ async fn reservation_replay_is_exact_and_creates_one_owner_effect() {
 
 #[tokio::test]
 async fn upload_short_units_publish_real_quarantine_and_replay() {
-    use erpx_server_files::public::field_visit_upload::{
+    use erpx_files_server::public::field_visit_upload::{
         FieldContentVariant, FieldUploadPreparation, LocalFieldQuarantineWriter,
         complete_field_upload, finish_field_content, prepare_field_content, prepare_field_upload,
         publish_pinned_field_upload, read_field_content_bytes, read_field_link_status,
@@ -138,7 +138,7 @@ async fn upload_short_units_publish_real_quarantine_and_replay() {
             let result=p.review.authorizer.execute_with_sources("acme.example.test",p.review.maker.clone(),p.selection.clone(),request(),p.review.configuration.clone(),move|c,actor|{
                 let link=denial_link.clone();let clock=clock.clone();Box::pin(async move {
                     let current=DenialCurrent{fail_after,calls:std::sync::atomic::AtomicUsize::new(0)};
-                    erpx_server_files::public::field_visit_upload::record_field_content_denial(c,&current,actor,&link,"original","SOURCE_DENIED",clock.as_ref()).await
+                    erpx_files_server::public::field_visit_upload::record_field_content_denial(c,&current,actor,&link,"original","SOURCE_DENIED",clock.as_ref()).await
                 })
             }).await;
             assert_eq!(result.is_err(),fail_after);
@@ -149,7 +149,7 @@ async fn upload_short_units_publish_real_quarantine_and_replay() {
         // reader proof; real scanner/provider settlement is a separate gate.
         sqlx::query("UPDATE attachments SET source_state='scanning' WHERE id=$1").bind(&result.source_id).execute(p.pool().raw()).await.unwrap();
         sqlx::query("UPDATE attachments SET source_state='available',scanned_at=$2,scanner_definition_at=$2 WHERE id=$1").bind(&result.source_id).bind(now).execute(p.pool().raw()).await.unwrap();
-        use erpx_server_files::public::attachment_scan::{QuarantinedOriginalInput, QuarantinedOriginalStore, QuarantinedReadFailure, LocalSanitizationStore};
+        use erpx_files_server::public::attachment_scan::{QuarantinedOriginalInput, QuarantinedOriginalStore, QuarantinedReadFailure, LocalSanitizationStore};
         use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
         struct CountingStore { real: LocalSanitizationStore, calls: Arc<AtomicUsize> }
         impl QuarantinedOriginalStore for CountingStore {
@@ -185,10 +185,10 @@ async fn upload_short_units_publish_real_quarantine_and_replay() {
         // owner snapshot. Count native source-preparation attempts, so the
         // original no-retry and no-physical-read observations remain explicit.
         #[derive(Clone)] struct CountedPreparation(Arc<AtomicUsize>);
-        impl erpx_server_identity_access::public::effective_authority::HoldingWorkSourcePreparation for CountedPreparation {
+        impl erpx_identity_access_server::public::effective_authority::HoldingWorkSourcePreparation for CountedPreparation {
             fn prepare<'c>(&'c self,c:&'c mut PgConnection)->PgWorkFuture<'c,(),BusinessError>{
                 self.0.fetch_add(1,Ordering::SeqCst);
-                erpx_server_identity_access::public::effective_authority::HoldingWorkSourcePreparation::prepare(&erpx_service::field_attachment_intake::FieldAttachmentIntakeSources,c)
+                erpx_identity_access_server::public::effective_authority::HoldingWorkSourcePreparation::prepare(&erpx_platform_composition::field_attachment_intake::FieldAttachmentIntakeSources,c)
             }
         }
         let attempts=Arc::new(AtomicUsize::new(0));let mut writer=p.pool().raw().begin().await.unwrap();
@@ -198,7 +198,7 @@ async fn upload_short_units_publish_real_quarantine_and_replay() {
         let pending=tokio::spawn(async move{authorizer.execute_with_sources("acme.example.test",proof,selection,WorkAuthorizationRequest{permission:"records.read".into(),module:Some("field_service".into()),destination:"field-service".into(),api:true},CountedPreparation(seen),move|c,actor|{let link=withdrawn.clone();Box::pin(async move{prepare_field_content(c,&Authority,actor,&link,FieldContentVariant::Original,false,now).await})}).await});
         let mut blocked=false;for _ in 0..200 {blocked=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE $1::int=ANY(pg_blocking_pids(pid)))").bind(writer_pid).fetch_one(p.pool().raw()).await.unwrap();if blocked||pending.is_finished(){break;}tokio::time::sleep(std::time::Duration::from_millis(10)).await;}
         writer.commit().await.unwrap();assert!(blocked,"native reader must wait for the committed source writer");
-        let rejected=pending.await.unwrap();assert!(matches!(rejected,Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e)) if e.code=="ATTACHMENT_LINK_NOT_FOUND"));
+        let rejected=pending.await.unwrap();assert!(matches!(rejected,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(ref e)) if e.code=="ATTACHMENT_LINK_NOT_FOUND"));
         assert_eq!(attempts.load(Ordering::SeqCst),1,"withdrawn source read must not retry");assert_eq!(reader.calls.load(Ordering::SeqCst),1,"withdrawn initial source must not open the physical object");
         reader.real.stop();reader.real.drain().await;
         let counts:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM attachment_scan_attempts WHERE attachment_id=$1),(SELECT count(*) FROM attachment_storage_ledger WHERE attachment_id=$1),(SELECT count(*) FROM attachment_events WHERE attachment_id=$1 AND action='file.quarantined')").bind(&result.source_id).fetch_one(p.pool().raw()).await.unwrap();assert_eq!(counts,(1,1,1));store.stop();store.drain().await;
@@ -207,7 +207,7 @@ async fn upload_short_units_publish_real_quarantine_and_replay() {
 
 #[tokio::test]
 async fn expired_unreferenced_upload_reconciles_only_after_owner_deadline() {
-    use erpx_server_files::public::field_visit_upload::{
+    use erpx_files_server::public::field_visit_upload::{
         FieldCleanupOutcome, FieldUploadPreparation, LocalFieldQuarantineWriter,
         prepare_field_upload, publish_pinned_field_upload, reconcile_field_upload_object,
         release_field_publication_pin,
@@ -253,7 +253,7 @@ async fn expired_unreferenced_upload_reconciles_only_after_owner_deadline() {
 
 #[tokio::test]
 async fn cleanup_reclaims_after_pointer_unlink_using_persisted_version() {
-    use erpx_server_files::public::field_visit_upload::{
+    use erpx_files_server::public::field_visit_upload::{
         FieldCleanupOutcome, FieldUploadPreparation, LocalFieldQuarantineWriter,
         prepare_field_upload, publish_pinned_field_upload, reconcile_field_upload_object,
         release_field_publication_pin,
@@ -289,7 +289,7 @@ async fn cleanup_reclaims_after_pointer_unlink_using_persisted_version() {
 
 #[tokio::test]
 async fn late_link_mutation_rolls_back_completion_and_keeps_pin_for_recovery() {
-    use erpx_server_files::public::field_visit_upload::{
+    use erpx_files_server::public::field_visit_upload::{
         FieldUploadPreparation, LocalFieldQuarantineWriter, complete_field_upload,
         prepare_field_upload, publish_pinned_field_upload,
     };
@@ -309,15 +309,15 @@ async fn late_link_mutation_rolls_back_completion_and_keeps_pin_for_recovery() {
 
 #[tokio::test]
 async fn attachment_company_scope_uses_selected_actor_and_rejects_unconfigured_company() {
-    use erpx_service::field_service_parts::FieldServicePartsEnvironment;
-    use erpx_service::field_service_reservation_read::{FieldServiceReservationReadConfiguration,FieldServiceReservationReadService};
+    use erpx_platform_composition::field_service_parts::FieldServicePartsEnvironment;
+    use erpx_platform_composition::field_service_reservation_read::{FieldServiceReservationReadConfiguration,FieldServiceReservationReadService};
     use std::{collections::BTreeSet,sync::Arc};
     facts::account::with_system(|system| async move {
         let p=facts::setup_workspace(system).await;
         let now=p.review.system.scenario.clock.now().get();
         sqlx::query("INSERT INTO attachment_sets(id,company_id,branch_id,target_type,target_id,component_kind,purpose_key,expected_target_version,policy_version,classification,audience_json,state,created_by,created_at,updated_at) VALUES('scope-set','company','branch','field_service_visit','issue-order','record','technician_report',1,1,'confidential','{}','draft','fixture-a',$1,$1)").bind(now).execute(p.pool().raw()).await.unwrap();
         sqlx::query("INSERT INTO attachment_links(id,set_id,state,created_by,created_at,expires_at) VALUES('scope-link','scope-set','draft','fixture-a',$1,$2)").bind(now).bind(now+3600000).execute(p.pool().raw()).await.unwrap();
-        let config=||FieldServiceReservationReadConfiguration::new(FieldServicePartsEnvironment::Development,HoldingId::new("h001").unwrap(),CompanyId::new("other").unwrap(),Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap())).unwrap().with_attachments(false);
+        let config=||FieldServiceReservationReadConfiguration::new(FieldServicePartsEnvironment::Development,HoldingId::new("h001").unwrap(),CompanyId::new("other").unwrap(),Arc::new(erpx_commercial_server::public::purchases::current_package_catalogue().unwrap())).unwrap().with_attachments(false);
         let enabled=FieldServiceReservationReadService::new(p.review.authorizer.clone(),config().with_field_attachment_companies(BTreeSet::from([CompanyId::new("company").unwrap()])),p.review.system.scenario.clock.clone());
         let selection=p.selection.clone();
         let response=enabled.attachment_status("acme.example.test",p.review.maker.clone(),move||Ok(selection),"scope-link".into()).await;
@@ -333,7 +333,7 @@ async fn attachment_company_scope_uses_selected_actor_and_rejects_unconfigured_c
 
 #[tokio::test]
 async fn field_draft_expiry_retains_history_and_is_idempotent() {
-    use erpx_server_files::public::field_visit_upload::{expire_field_drafts,next_field_cleanup_candidate};
+    use erpx_files_server::public::field_visit_upload::{expire_field_drafts,next_field_cleanup_candidate};
     facts::account::with_system(|system| async move {
         let p=facts::setup_workspace(system).await;let now=p.review.system.scenario.clock.now().get();
         sqlx::query("INSERT INTO attachment_sets(id,company_id,branch_id,target_type,target_id,component_kind,purpose_key,expected_target_version,policy_version,classification,audience_json,state,created_by,created_at,updated_at) VALUES('expire-set','company','branch','field_service_visit','issue-order','record','site_photo',3,1,'internal','{}','draft','fixture-a',$1,$1)").bind(now).execute(p.pool().raw()).await.unwrap();

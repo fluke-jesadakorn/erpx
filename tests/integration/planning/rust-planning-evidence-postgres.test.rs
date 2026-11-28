@@ -6,15 +6,15 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_planning::public::evidence::{
+use erpx_planning_server::public::evidence::{
     CAPACITY_FEASIBLE_RECOMMENDATIONS, EvidenceActor, EvidenceEligibility, EvidenceQuery,
     PgEvidenceRead, PROPOSED_RECOMMENDATIONS, SHORTAGE_SCENARIOS, search_evidence,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 
 fn actor(company: &str, branch: Option<&str>) -> EvidenceActor {
     EvidenceActor {
@@ -85,7 +85,7 @@ async fn search(
     actor: EvidenceActor,
     eligibility: EvidenceEligibility,
     query: EvidenceQuery,
-) -> Result<Vec<erpx_server_planning::public::evidence::EvidenceRow>, PgTransactionError<BusinessError>> {
+) -> Result<Vec<erpx_planning_server::public::evidence::EvidenceRow>, PgTransactionError<BusinessError>> {
     PgUnitOfWork::new(pool.clone())
         .run(TransactionOptions::default(), move |connection| {
             let actor = actor.clone();

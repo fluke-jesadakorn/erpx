@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { billMatchReceiptHead } from '../../../packages/server-procurement/src/adapters/read-tail-r50';
-import { billReceiptBinding, returnedWithoutReplacement } from '../../../packages/server-procurement/src/adapters/read-tail-r23';
-import { foreignBillReceiptWitness } from '../../../packages/server-procurement/src/adapters/read-tail-r25';
+import { billMatchReceiptHead } from '../../../modules/procurement/server/src/adapters/read-tail-r50';
+import { billReceiptBinding, returnedWithoutReplacement } from '../../../modules/procurement/server/src/adapters/read-tail-r23';
+import { foreignBillReceiptWitness } from '../../../modules/procurement/server/src/adapters/read-tail-r25';
 
-const adapters = (name: string) => new URL(`../../../packages/server-procurement/src/adapters/${name}`, import.meta.url);
+const adapters = (name: string) => new URL(`../../../modules/procurement/server/src/adapters/${name}`, import.meta.url);
 const src = (name: string) => readFileSync(adapters(name), 'utf8');
 const count = (s: string, needle: string) => s.split(needle).length - 1;
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -137,7 +137,7 @@ describe('Procurement read-tail r50 bill-receipt head dedupe', () => {
   });
 
   test('worktree SELECT count is 85 - 4 + 1 = 82, then r51 82 - 2 + 1 = 81', () => {
-    const root = new URL('../../../packages/server-procurement/src/', import.meta.url);
+    const root = new URL('../../../modules/procurement/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {

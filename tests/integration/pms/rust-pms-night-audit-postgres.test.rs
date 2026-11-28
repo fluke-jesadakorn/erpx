@@ -4,19 +4,19 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_pms::public::night_audit::{
+use erpx_pms_server::public::night_audit::{
     MAX_STAYS, PgPmsNightAuditRepository, PmsBoardFuture, PmsNightAuditActor, PmsNightAuditCommand,
     PmsNightAuditGuardPort, PmsNightAuditOperation, PmsNightAuditRepository, PmsNightAuditResult,
     PmsNightAuditSettlement, PmsNightControlScope, PmsNightDayControlFacts, PmsNightSetupFacts,
     PmsNightSetupScope, lock_night_audit_sources, night_audit_request_hash, pms_night_audit,
     pms_night_audit_step, read_night_audit_jobs, run_night_audit_job,
 };
-use erpx_server_pms::public::room_board::PmsBoardActor;
-use erpx_server_runtime::public::postgres::{
+use erpx_pms_server::public::room_board::PmsBoardActor;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CommandKey};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey};
 use serde_json::{Value, json};
 use sqlx::Row;
 

@@ -2,12 +2,12 @@ import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { messagingMemberExists, messagingTeamAccessSql, socialAiUsageProjection, socialTaskOriginBy } from '../../../packages/server-collaboration/src/adapters/read-tail-sql';
-import { agentSocialMonthlyUsage, socialAiUsageSql } from '../../../packages/server-collaboration/src/adapters/agent-ai-usage-projection';
-import { financeAiSocialUsageSql } from '../../../packages/server-collaboration/src/adapters/finance-ai-quota-sources';
-import { hospitalityOwnerProjectionSources } from '../../../packages/server-collaboration/src/adapters/hospitality-owner-projection-sources';
+import { messagingMemberExists, messagingTeamAccessSql, socialAiUsageProjection, socialTaskOriginBy } from '../../../modules/collaboration/server/src/adapters/read-tail-sql';
+import { agentSocialMonthlyUsage, socialAiUsageSql } from '../../../modules/collaboration/server/src/adapters/agent-ai-usage-projection';
+import { financeAiSocialUsageSql } from '../../../modules/collaboration/server/src/adapters/finance-ai-quota-sources';
+import { hospitalityOwnerProjectionSources } from '../../../modules/collaboration/server/src/adapters/hospitality-owner-projection-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-collaboration/src');
+const srcRoot = resolve(__dirname, '../../../modules/collaboration/server/src');
 const adapters = resolve(srcRoot, 'adapters');
 const src = (f: string) => readFileSync(resolve(adapters, f), 'utf8');
 const fixed = (f: string) => readFileSync(resolve(srcRoot, f), 'utf8');

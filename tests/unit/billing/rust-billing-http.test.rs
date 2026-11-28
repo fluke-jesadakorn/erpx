@@ -2,15 +2,15 @@
 //! Platform cost-review commands. The exact owner dispatch is exercised without
 //! opening a socket; mounting the router into composition remains an
 //! integration step.
-use erpx_server_billing::public::billing_http::{
+use erpx_billing_server::public::billing_http::{
     BillingCommandHttpRequest, BillingHttpBackend, BillingHttpFuture, BillingHttpResponse,
     BillingHttpState, BillingHttpTarget, BillingWorkspaceHttpRequest, billing_router,
 };
-use erpx_server_billing::public::cost::BillingCostCommand;
-use erpx_server_runtime::public::http_support::{
+use erpx_billing_server::public::cost::BillingCostCommand;
+use erpx_platform_runtime_server::public::http_support::{
     HeaderMap, HeaderValue, StatusCode, body::to_bytes, header, serde_json,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use serde_json::json;
 use std::sync::{Arc, Mutex};
 
@@ -132,7 +132,7 @@ fn complete_body() -> Vec<u8> {
 }
 
 async fn reply(
-    response: erpx_server_runtime::public::http_support::Response,
+    response: erpx_platform_runtime_server::public::http_support::Response,
 ) -> (StatusCode, serde_json::Value) {
     let status = response.status();
     let bytes = to_bytes(response.into_body(), 1 << 20).await.unwrap();
@@ -437,7 +437,7 @@ fn bad_receipts_and_invalid_configuration_fail_closed() {
 
 #[test]
 fn billing_context_serializes_the_exact_transport_contract() {
-    use erpx_server_billing::public::workspace::BillingContext;
+    use erpx_billing_server::public::workspace::BillingContext;
     for (platform, role) in [(true, "platform_admin"), (false, "holding_owner")] {
         let value = serde_json::to_value(BillingContext {
             user_id: "user-1".into(),

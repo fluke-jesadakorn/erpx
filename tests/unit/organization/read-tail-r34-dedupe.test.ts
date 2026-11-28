@@ -1,9 +1,9 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { activeNodeKindExists } from '../../../packages/server-organization/src/adapters/organization-column-alias-families-r34';
+import { activeNodeKindExists } from '../../../modules/organization/server/src/adapters/organization-column-alias-families-r34';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+const srcRoot = resolve(__dirname, '../../../modules/organization/server/src');
 const adapters = resolve(srcRoot, 'adapters');
 const read = (name: string) => readFileSync(resolve(adapters, name), 'utf8');
 const helper = read('organization-column-alias-families-r34.ts');
@@ -60,7 +60,7 @@ describe('Organization read-tail r34 kind-parameterized active-node EXISTS famil
   });
 
   test('remaining spaced JOIN constants are in use and delegate byte-identically', async () => {
-    const spaced = await import('../../../packages/server-organization/src/adapters/organization-nodes-spaced-projections');
+    const spaced = await import('../../../modules/organization/server/src/adapters/organization-nodes-spaced-projections');
     expect(spaced.ORG_NODES_SPACED_CLAUSE('JOIN', 'c')).toBe(spaced.ORG_NODES_SPACED_C_JOIN);
     expect(spaced.ORG_NODES_SPACED_CLAUSE('JOIN', 'n')).toBe(spaced.ORG_NODES_SPACED_N_JOIN);
     expect(spaced.ORG_NODES_SPACED_CLAUSE('JOIN', 'b')).toBe(spaced.ORG_NODES_SPACED_B_JOIN);

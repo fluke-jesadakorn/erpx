@@ -3,16 +3,16 @@ import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { OPERATIONS_OWNER_PROJECTION_ID_HEAD } from '../../../packages/server-operations/src/adapters/read-tail-r57-sources';
-import { hospitalityOwnerProjectionSources } from '../../../packages/server-operations/src/adapters/hospitality-owner-projection-sources';
-import { peoplePayrollFinalOwnerProjections } from '../../../packages/server-operations/src/adapters/people-payroll-final-owner-projections';
-import { OPERATIONS_STAFF_TASK_HEAD, OPERATIONS_TASK_LIST_HEAD } from '../../../packages/server-operations/src/adapters/read-tail-r53-sources';
-import { OPERATIONS_EXISTS_HEAD } from '../../../packages/server-operations/src/adapters/read-tail-r55-sources';
-import { OPERATIONS_SELECT_1_FROM } from '../../../packages/server-operations/src/adapters/read-tail-r56-sources';
-import { OPERATIONS_VIEWER_CLOCK_SQL } from '../../../packages/server-operations/src/adapters/workforce-actor-scope-source';
+import { OPERATIONS_OWNER_PROJECTION_ID_HEAD } from '../../../modules/operations/server/src/adapters/read-tail-r57-sources';
+import { hospitalityOwnerProjectionSources } from '../../../modules/operations/server/src/adapters/hospitality-owner-projection-sources';
+import { peoplePayrollFinalOwnerProjections } from '../../../modules/operations/server/src/adapters/people-payroll-final-owner-projections';
+import { OPERATIONS_STAFF_TASK_HEAD, OPERATIONS_TASK_LIST_HEAD } from '../../../modules/operations/server/src/adapters/read-tail-r53-sources';
+import { OPERATIONS_EXISTS_HEAD } from '../../../modules/operations/server/src/adapters/read-tail-r55-sources';
+import { OPERATIONS_SELECT_1_FROM } from '../../../modules/operations/server/src/adapters/read-tail-r56-sources';
+import { OPERATIONS_VIEWER_CLOCK_SQL } from '../../../modules/operations/server/src/adapters/workforce-actor-scope-source';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-operations/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-operations/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/operations/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/operations/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const sha = (sql: string) => createHash('sha256').update(sql).digest('hex');
 const binds = (sql: string) => (sql.match(/\?/g) ?? []).length;
 

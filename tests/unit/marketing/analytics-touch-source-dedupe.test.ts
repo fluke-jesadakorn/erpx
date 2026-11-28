@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-marketing/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/marketing/server/src/adapters/${name}`, import.meta.url);
 
 const rows = 'TOUCH_ROWS';
 const enforced =
@@ -13,7 +13,7 @@ const legacy =
 describe('marketing analytics touch projection dedupe', () => {
   it('emits byte-identical enforced and legacy touch projections', async () => {
     const { marketingAnalyticsTouchSql } = await import(
-      '../../../packages/server-marketing/src/adapters/analytics-touch-source-sql.ts'
+      '../../../modules/marketing/server/src/adapters/analytics-touch-source-sql.ts'
     );
     expect(marketingAnalyticsTouchSql(true, rows)).toBe(enforced);
     expect(marketingAnalyticsTouchSql(false, rows)).toBe(legacy);
@@ -52,7 +52,7 @@ describe('marketing analytics touch projection dedupe', () => {
         else if (e.name.endsWith('.ts')) files.push((await readFile(p, 'utf8')));
       }
     };
-    await walk(new URL('../../../packages/server-marketing/src/', import.meta.url));
+    await walk(new URL('../../../modules/marketing/server/src/', import.meta.url));
     const total = files.reduce((a, s) => a + (s.match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(79);
   });
@@ -63,7 +63,7 @@ describe('marketing materialized clock body dedupe', () => {
 
   it('emits byte-identical clock bodies with each caller’s exact spacing', async () => {
     const { marketingClockBody } = await import(
-      '../../../packages/server-marketing/src/adapters/materialized-clock-body-sql.ts'
+      '../../../modules/marketing/server/src/adapters/materialized-clock-body-sql.ts'
     );
     expect(marketingClockBody('')).toBe(clock);
     expect(marketingClockBody(' ')).toBe(` ${clock}`);

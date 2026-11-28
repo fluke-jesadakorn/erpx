@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
-import { attachmentPolicy } from "@erpx/server-files/public/attachments/policy";
-import { sensitiveAttachmentPolicies } from "@erpx/server-files/public/attachments/sensitive-policy";
+import { attachmentPolicy } from "@erpx/files-server/public/attachments/policy";
+import { sensitiveAttachmentPolicies } from "@erpx/files-server/public/attachments/sensitive-policy";
 
 it("keeps the sensitive workforce registry exact and fails closed for hidden HR purposes", () => {
   expect(

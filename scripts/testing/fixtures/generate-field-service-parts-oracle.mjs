@@ -6,13 +6,13 @@ import {resolve} from 'node:path';
 if(process.version!=='v26.11.1')throw Error('NODE_26_11_1_REQUIRED');
 const require=createRequire(resolve('package.json')),ts=require('typescript'),zod=require('zod');
 const revision='a5ed8737a2f05eff1ee9841fda4a094b3926d732';
-const paths=['packages/server-field_service/src/domain/service.ts','packages/server-field_service/src/application/service.ts','packages/server-field_service/src/domain/package-commands.ts','packages/server-shared/src/domain/error.ts','packages/server-shared/src/domain/consumption-lot.ts'];
+const paths=['modules/field-service/server/src/domain/service.ts','modules/field-service/server/src/application/service.ts','modules/field-service/server/src/domain/package-commands.ts','platform/shared/server/src/domain/error.ts','platform/shared/server/src/domain/consumption-lot.ts'];
 const sources=new Map(paths.map(path=>[path,execFileSync('git',['show',`${revision}:${path}`],{encoding:'utf8',maxBuffer:2*1024*1024})]));
 for(const [path,original]of sources)if(readFileSync(path,'utf8')!==original)throw Error('SOURCE_CHANGED:'+path);
 function compile(path,bindings){const ownerModule={exports:{}};const code=ts.transpileModule(sources.get(path),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;new Function('module','exports','require',code)(ownerModule,ownerModule.exports,name=>{if(name==='zod')return zod;if(Object.hasOwn(bindings,name))return bindings[name];throw Error('UNREVIEWED_ORIGINAL_IMPORT:'+name);});return ownerModule.exports;}
 const shared={...compile(paths[3],{}),...compile(paths[4],{})};
-const domain=compile(paths[0],{'@erpx/server-shared/index':shared});
-const application=compile(paths[1],{'@erpx/server-shared/index':shared,'@erpx/server-field_service/domain/service':domain});
+const domain=compile(paths[0],{'@erpx/platform-shared-server/index':shared});
+const application=compile(paths[1],{'@erpx/platform-shared-server/index':shared,'@erpx/field-service-server/domain/service':domain});
 const purchases=compile(paths[2],{});
 const now=1_800_000_000_100;
 const row={id:'order',company_id:'company',branch_id:'branch',department_id:null,version:7,status:'in_visit',technician_id:'actor',created_by:'creator',updated_at:42,scheduled_at:null,technician_eligible:1,can_review:0,issue:'Original issue',site:'Original site',exception_reason:null,agreement_id:'agreement',visit_rate_minor:10000,warranty_discount_bps:0,warranty_end:null,currency:'THB',agreement_status:'active',ticket_id:'ticket',customer_id:'customer'};

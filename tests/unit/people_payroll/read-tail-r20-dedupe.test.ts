@@ -18,9 +18,9 @@ import {
   PP_RD20_HR_PEOPLE_H_JOIN_SQL,
   PP_RD20_HR_PEOPLE_P_COMPACT_JOIN_SQL,
   PP_RD20_HR_ENGAGEMENTS_COMPACT_SQL,
-} from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r20-sources';
+} from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r20-sources';
 
-const src = (name: string) => readFileSync(new URL(`../../../packages/server-people_payroll/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFileSync(new URL(`../../../modules/people-payroll/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const quoted = (literal: string) => JSON.stringify(literal);
 
 const literals = [
@@ -85,7 +85,7 @@ describe('People Payroll read-tail r20 byte-identical dedupe', () => {
   });
 
   test('worktree read-only SELECT count is strictly lower than the recorded 1552 r19 baseline', () => {
-    const root = new URL('../../../packages/server-people_payroll/src/', import.meta.url);
+    const root = new URL('../../../modules/people-payroll/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {

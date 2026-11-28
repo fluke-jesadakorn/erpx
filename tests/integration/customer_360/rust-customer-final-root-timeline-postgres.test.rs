@@ -5,15 +5,15 @@
 #![allow(dead_code)]
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_customer_360::public::customer_timeline::{
+use erpx_customer_360_server::public::customer_timeline::{
     CustomerTimelineActor, CustomerTimelineView, FinalRootEventSources, PgCustomerTimelineRead,
 };
-use erpx_server_field_service::public::final_root_consumer::final_root_event_sql;
-use erpx_server_field_service::public::final_root_projection::{
+use erpx_field_service_server::public::final_root_consumer::final_root_event_sql;
+use erpx_field_service_server::public::final_root_projection::{
     inspect_final_root_projection_sources, lock_final_root_projection_sources,
 };
-use erpx_server_runtime::public::postgres::{MigrationTrack, load_migrations, migrate_database};
-use erpx_server_shared::public::{CompanyId, RecordId, TimestampMillis};
+use erpx_platform_runtime_server::public::postgres::{MigrationTrack, load_migrations, migrate_database};
+use erpx_platform_shared_server::public::{CompanyId, RecordId, TimestampMillis};
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
 

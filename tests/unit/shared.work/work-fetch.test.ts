@@ -1,6 +1,6 @@
-import { createFinanceCommandFetch } from "@erpx/feature-finance/public/client";
+import { createFinanceCommandFetch } from "@erpx/finance-ui/public/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
+import { workFetch } from "@erpx/work-projection-ui/lib/work-fetch";
 import {
   announceContextSwitch,
   confirmContextSwitch,
@@ -10,7 +10,7 @@ import {
   hasUnsavedWork,
   registerUnsavedWork,
   setContextSwitching,
-} from "@erpx/feature-work_projection/lib/context-switch";
+} from "@erpx/work-projection-ui/lib/context-switch";
 
 type ContextNode = { isConnected: boolean; dataset: Record<string, string> };
 let context: ContextNode;
@@ -293,7 +293,7 @@ it('does not confuse distinct valid identifiers that share a colon-joined contex
  finish(Response.json({data:{privateDetail:'original synthetic account data'}}));await expectContextConflict(await pending);
 });
 
-import {captureWorkCommandCompletion} from '@erpx/feature-work_projection/lib/command-context';
+import {captureWorkCommandCompletion} from '@erpx/work-projection-ui/lib/command-context';
 it('owner acknowledgement clears only the captured unchanged form',()=>{
  let version='1';const form={isConnected:true,getAttribute:()=>version};Object.defineProperty(document,'activeElement',{configurable:true,value:{closest:()=>form}});
  const saved:unknown[]=[];view.addEventListener('erpx:record-command-saved',e=>saved.push((e as CustomEvent).detail));

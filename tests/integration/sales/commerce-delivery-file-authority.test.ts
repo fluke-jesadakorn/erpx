@@ -1,21 +1,21 @@
 import {seedCommerceFulfillment} from "../../support/helpers/commerce-fulfillment-seed";
-import {fulfillmentSchema} from '@erpx/server-commerce/public/commerce';
+import {fulfillmentSchema} from '@erpx/commerce-server/public/commerce';
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { loadIamAuthority } from "@erpx/server-identity_access/public/iam-store";
-import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
-import {saveMaster,saveOrder,orderSchema,transitionOrder} from '@erpx/server-commerce/public/commerce';
-import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
-import { attachmentContent, attachmentLinkStatus, completeAttachmentUpload, createAttachmentSet, drainAttachmentScans, listAttachmentSets, reserveAttachmentFile } from "@erpx/server-files/public/attachments/service";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import { loadIamAuthority } from "@erpx/identity-access-server/public/iam-store";
+import {assignFlowPrimary,resolveFlow} from '@erpx/workflow-server/public/flow-routing';
+import {saveMaster,saveOrder,orderSchema,transitionOrder} from '@erpx/commerce-server/public/commerce';
+import {getOrder} from '@erpx/commerce-server/public/commerce-order-read';
+import { attachmentContent, attachmentLinkStatus, completeAttachmentUpload, createAttachmentSet, drainAttachmentScans, listAttachmentSets, reserveAttachmentFile } from "@erpx/files-server/public/attachments/service";
 import { attachmentBindingState, withdrawSeededAttachment } from "../../support/helpers/attachment-v2";
 
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: db, files: env.H001_FILES }), runtimeEnv: async () => env }));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({ holdingResources: async () => ({ write: db, files: env.H001_FILES }), runtimeEnv: async () => env }));
 // Declared scanner adapter; intake, MIME sniffing, preview, source binding and
 // stock/GL commands are native. Compiled browser journeys use actual ClamAV.
-vi.mock("@erpx/server-files/public/attachments/scanner", () => ({
+vi.mock("@erpx/files-server/public/attachments/scanner", () => ({
   attachmentScannerReadiness: async () => ({ enabled: true, ready: true, engine: "Declared delivery scanner fixture", definitionUpdatedAt: Date.now(), error: null }),
   scanAttachmentBytes: async () => ({ clean: true, signature: null, engine: "Declared delivery scanner fixture", definitionUpdatedAt: Date.now() }),
 }));

@@ -1,0 +1,3 @@
+export {getPayrollOtherLiabilities,remitPayrollOtherLiability,importPayrollOtherLiabilityBankEvidence,ignorePayrollOtherLiabilityBankEvidence} from '@erpx/people-payroll-server/adapters/payroll-other-remittance';
+export {payrollOtherRemittanceSchema,payrollOtherBankEvidenceSchema,payrollOtherBankEvidenceIgnoreSchema} from '@erpx/people-payroll-server/domain/payroll-other-remittance';
+export type {PayrollOtherLiabilitiesView,PayrollOtherLiabilityKind,PayrollOtherLiability,PayrollOtherBankEvidence,PayrollOtherRemittanceInput,PayrollOtherBankEvidenceInput,PayrollOtherRemittanceResult,PayrollOtherBankEvidenceResult,PayrollOtherBankEvidenceIgnoreInput,PayrollOtherBankEvidenceIgnoreResult} from '@erpx/people-payroll-server/domain/payroll-other-remittance';

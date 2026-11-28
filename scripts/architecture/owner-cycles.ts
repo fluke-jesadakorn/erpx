@@ -1,6 +1,6 @@
 import type { WorkspaceGraph } from '../testing/workspace-graph';
 
-const serverOwner = (file: string) => /^packages\/(server-[^/]+)\/src\//.exec(file)?.[1];
+const serverOwner = (file: string) => /^packages\/(server-[^/]+)\/src\//.exec(file)?.[1] ?? /^(?:modules|platform)\/([^/]+)\/server\/src\//.exec(file)?.[1];
 /** Runtime subpath edges, including literal dynamic imports, determine whether
  * owner implementations recursively load one another. Type contracts do not.
  * Package manifests remain complete for Bun resolution and cache invalidation. */

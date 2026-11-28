@@ -1,8 +1,8 @@
-use erpx_server_commercial::public::purchases::{
+use erpx_commercial_server::public::purchases::{
     CompanyPackageGrant, CompanyPackageHistoryRight, package_grant_revision,
 };
-use erpx_server_commercial::public::subscriptions::*;
-use erpx_server_shared::public::{CompanyId, TimestampMillis};
+use erpx_commercial_server::public::subscriptions::*;
+use erpx_platform_shared_server::public::{CompanyId, TimestampMillis};
 
 fn now(value: i64) -> TimestampMillis {
     TimestampMillis::new(value)

@@ -5,15 +5,15 @@ import {
   expenseFixture,
   key,
 } from "../../support/helpers/expense-fixture";
-import {orderSchema,saveMaster,saveOrder} from '@erpx/server-commerce/public/commerce';
-import {readSourceRecord} from '@erpx/server-records/public/source-record-policy';
+import {orderSchema,saveMaster,saveOrder} from '@erpx/commerce-server/public/commerce';
+import {readSourceRecord} from '@erpx/records-server/public/source-record-policy';
 import {seedSupportTicket} from '../../support/helpers/support-ticket-seed';
 import {
   collaborationExport,
   collaborationActionWork,
   collaborationWorkspace,
-} from "@erpx/server-collaboration/public/collaboration-work";
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
+} from "@erpx/collaboration-server/public/collaboration-work";
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));

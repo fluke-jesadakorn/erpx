@@ -1,5 +1,5 @@
 import {expenseDb as db} from "./expense-fixture";
-import type {ServiceTeamInput} from "@erpx/server-support/public/service-teams";
+import type {ServiceTeamInput} from "@erpx/support-server/public/service-teams";
 
 /**
  * Seed an active or inactive service-team owner row set. Native Support owns the

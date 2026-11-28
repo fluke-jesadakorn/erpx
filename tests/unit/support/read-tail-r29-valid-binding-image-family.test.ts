@@ -5,8 +5,8 @@ import { beforeAll, describe, expect, test, vi } from 'vitest';
 const { fragments } = vi.hoisted(() => ({ fragments: { valid: '', full: '', core: '' } }));
 
 vi.mock('server-only', () => ({}));
-vi.mock('@erpx/server-support/adapters/native-support-read', async (importOriginal) => {
-    const original = await importOriginal<typeof import('../../../packages/server-support/src/adapters/native-support-read')>();
+vi.mock('@erpx/support-server/adapters/native-support-read', async (importOriginal) => {
+    const original = await importOriginal<typeof import('../../../modules/support/server/src/adapters/native-support-read')>();
     return {
         ...original,
         nativeSupportReadFragment: async (kind: string) =>
@@ -18,10 +18,10 @@ import {
     portalValidBindingRead,
     supportTicketPortalCoreImage,
     supportTicketPortalImage,
-} from '@erpx/server-support/adapters/ticket-portal-sources';
-import { packageClockSql, purchasedCapabilityPredicate } from '@erpx/server-commercial/public/purchased-capability-sql';
+} from '@erpx/support-server/adapters/ticket-portal-sources';
+import { packageClockSql, purchasedCapabilityPredicate } from '@erpx/commercial-server/public/purchased-capability-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-support/src');
+const srcRoot = resolve(__dirname, '../../../modules/support/server/src');
 const src = (f: string) => readFileSync(resolve(srcRoot, f), 'utf8');
 const registry = src('adapters/native_support_read_sql.rs');
 

@@ -4,7 +4,7 @@ import {execFileSync} from "node:child_process";
 import {mkdir,readFile,writeFile} from "node:fs/promises";
 import {resolve} from "node:path";
 const sourceCommit="a5ed8737a2f05eff1ee9841fda4a094b3926d732";
-const paths=["packages/server-shared/src/domain/error.ts","packages/feature-finance/src/lib/finance-money.ts","packages/feature-commerce/src/lib/commerce-math.ts","packages/server-inventory/src/domain/landed-costs.ts","packages/server-inventory/src/domain/transit.ts","packages/server-inventory/src/domain/reorder-quantity.ts","packages/server-inventory/src/application/consumption.ts"];
+const paths=["platform/shared/server/src/domain/error.ts","modules/finance/ui/src/lib/finance-money.ts","modules/commerce/ui/src/lib/commerce-math.ts","modules/inventory/server/src/domain/landed-costs.ts","modules/inventory/server/src/domain/transit.ts","modules/inventory/server/src/domain/reorder-quantity.ts","modules/inventory/server/src/application/consumption.ts"];
 const bytes=paths.map(path=>execFileSync("git",["show",`${sourceCommit}:${path}`]));
 const sources=paths.map((path,i)=>({path,sha256:createHash("sha256").update(bytes[i]!).digest("hex")}));
 const texts=bytes.map(b=>b.toString("utf8"));

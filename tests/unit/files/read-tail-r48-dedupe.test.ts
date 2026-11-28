@@ -6,16 +6,16 @@ import {
   ATTACHMENT_EXISTS_HEAD_SQL,
   MESSAGING_SETTLEMENT_HEAD_SQL,
   PACKAGE_FILE_LINK_TARGET_HEAD_SQL,
-} from '../../../packages/server-files/src/adapters/read-tail-r48-source-sql';
+} from '../../../modules/files/server/src/adapters/read-tail-r48-source-sql';
 import {
   FIELD_LINK_EXISTS_SQL,
-} from '../../../packages/server-files/src/adapters/read-tail-r33-source-sql';
+} from '../../../modules/files/server/src/adapters/read-tail-r33-source-sql';
 import {
   FIELD_SET_OWNER_HEAD_SQL,
-} from '../../../packages/server-files/src/adapters/read-tail-r36-source-sql';
+} from '../../../modules/files/server/src/adapters/read-tail-r36-source-sql';
 
 const rootDir = resolve(__dirname, '../../..');
-const srcRoot = resolve(rootDir, 'packages/server-files/src');
+const srcRoot = resolve(rootDir, 'modules/files/server/src');
 const BASE = '81d5eaf835021b61868d75632322dd6add11d738';
 const HELPER = 'adapters/read-tail-r48-source-sql.ts';
 const FIELD = 'adapters/field-file-writer-owner.ts';
@@ -24,7 +24,7 @@ const ECOM = 'adapters/ecommerce-package-obligation-sources.ts';
 const MKT = 'adapters/marketing-package-obligation-sources.ts';
 const src = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
 const git = (...a: string[]) => execFileSync('git', a, { cwd: rootDir, encoding: 'utf8' });
-const before = (rel: string) => git('show', `${BASE}:packages/server-files/src/${rel}`);
+const before = (rel: string) => git('show', `${BASE}:modules/files/server/src/${rel}`);
 const count = (text: string, needle: string) => text.split(needle).length - 1;
 
 /** Verbatim byte oracles: the exact heads lifted from the four pre-r48 sites.

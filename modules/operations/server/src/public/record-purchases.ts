@@ -1,0 +1,1 @@
+export {workSourceReadScope,requireWorkWorkspaceRecordRead,filterWorkTaskWork,workTaskProjectionReadScope,workMetricHistoryAccess} from '@erpx/operations-server/adapters/record-purchases';

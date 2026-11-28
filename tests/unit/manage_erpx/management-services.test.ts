@@ -1,13 +1,13 @@
 import {describe,expect,test} from 'vitest';
-import {createBetaTeamApplication,type BetaInvitationRepository,type BetaTeamPorts,type BetaTeamRepository} from "@erpx/server-manage_erpx/application/team";
-import {createBetaEmailApplication,type BetaEmailPorts} from "@erpx/server-manage_erpx/application/email";
-import {createBetaApiApplication,type BetaApiPorts,type BetaApiRepository} from "@erpx/server-manage_erpx/application/api";
-import {type BetaUser} from "@erpx/server-manage_erpx/domain/onboarding";
-import {betaEmailBody} from "@erpx/server-manage_erpx/domain/email";
-import {publicOrigin} from "@erpx/server-manage_erpx/domain/public-origin";
-import {betaLimits} from "@erpx/server-manage_erpx/domain/config";
-import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import type {GrantInput} from "@erpx/server-identity_access/public/beta-invitation-contract";
+import {createBetaTeamApplication,type BetaInvitationRepository,type BetaTeamPorts,type BetaTeamRepository} from "@erpx/manage-erpx-server/application/team";
+import {createBetaEmailApplication,type BetaEmailPorts} from "@erpx/manage-erpx-server/application/email";
+import {createBetaApiApplication,type BetaApiPorts,type BetaApiRepository} from "@erpx/manage-erpx-server/application/api";
+import {type BetaUser} from "@erpx/manage-erpx-server/domain/onboarding";
+import {betaEmailBody} from "@erpx/manage-erpx-server/domain/email";
+import {publicOrigin} from "@erpx/manage-erpx-server/domain/public-origin";
+import {betaLimits} from "@erpx/manage-erpx-server/domain/config";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
+import type {GrantInput} from "@erpx/identity-access-server/public/beta-invitation-contract";
 const actor:WorkContext={userId:'owner',name:'Owner',email:'owner@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['manage_erpx'],assignments:[],workspaces:[],authority:{sessionId:'session',revision:1,assignmentVersion:1}};
 const user:BetaUser={id:'owner',name:'Owner',email:'owner@example.test',emailVerified:true};
 function repository<Repository extends object>(facts:Partial<Repository>,calls:string[]):Repository{return new Proxy(facts,{get(target,name){if(name==='then')return undefined;if(name in target)return target[name as keyof Repository];if(typeof name==='string'&&/^(prepare|guard|clear)/.test(name))return ()=>{calls.push(name);return name;};return ()=>{throw new Error('Unexpected operation: '+String(name));};}})as Repository;}
@@ -47,7 +47,7 @@ describe('Management deterministic email and origin policy',()=>{
 describe('Management owner-local monthly AI allowance projection',()=>{
  test('keeps one fixed projection for Records and Finance quota sources',async()=>{
   const {readFile}=await import('node:fs/promises');
-  const base=new URL('../../../packages/server-manage_erpx/src/adapters/',import.meta.url);
+  const base=new URL('../../../modules/manage-erpx/server/src/adapters/',import.meta.url);
   const helper=await readFile(new URL('beta-policy-limit-sql.ts',base),'utf8');
   const records=await readFile(new URL('records-ai-limit-projection.ts',base),'utf8');
   const finance=await readFile(new URL('finance-ai-quota-sources.ts',base),'utf8');
@@ -60,8 +60,8 @@ describe('Management owner-local monthly AI allowance projection',()=>{
   expect(finance).toContain("export {recordsAiMonthlyLimitSql as financeAiCompanyAllowanceSql} from './records-ai-limit-projection'");
  });
  test('preserves both public export names on the single canonical projection',async()=>{
-  const {recordsAiMonthlyLimitSql}=await import('@erpx/server-manage_erpx/public/records-ai-limit-projection');
-  const {financeAiCompanyAllowanceSql}=await import('@erpx/server-manage_erpx/public/finance-ai-quota-sources');
+  const {recordsAiMonthlyLimitSql}=await import('@erpx/manage-erpx-server/public/records-ai-limit-projection');
+  const {financeAiCompanyAllowanceSql}=await import('@erpx/manage-erpx-server/public/finance-ai-quota-sources');
   expect(financeAiCompanyAllowanceSql).toBe(recordsAiMonthlyLimitSql);
   expect(financeAiCompanyAllowanceSql).toContain('ai_monthly_limit');
  });

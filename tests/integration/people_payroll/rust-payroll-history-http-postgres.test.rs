@@ -3,9 +3,9 @@
 #[path = "../../support/finance/review-composition.rs"]
 mod review;
 use axum::{body::{Body, to_bytes}, http::{Request, StatusCode}};
-use erpx_server_shared::public::{Clock, CompanyId, HoldingId};
-use erpx_server_people_payroll::public::payroll_summary_http::{PayrollReadHttpTarget, people_payroll_router};
-use erpx_service::{field_service_reservation_read_http::FieldServiceReadScopeHeaders, people_payroll::{PeoplePayrollBackend, PeoplePayrollConfiguration, PeoplePayrollService}};
+use erpx_platform_shared_server::public::{Clock, CompanyId, HoldingId};
+use erpx_people_payroll_server::public::payroll_summary_http::{PayrollReadHttpTarget, people_payroll_router};
+use erpx_platform_composition::{field_service_reservation_read_http::FieldServiceReadScopeHeaders, people_payroll::{PeoplePayrollBackend, PeoplePayrollConfiguration, PeoplePayrollService}};
 use std::sync::Arc;
 use tower::ServiceExt;
 

@@ -5,23 +5,23 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { existsGuardSql } from '../../../packages/server-records/src/adapters/read-tail-exists-sql';
-import { ownerVersionExistsSql } from '../../../packages/server-records/src/adapters/read-tail-sql';
+import { existsGuardSql } from '../../../modules/records/server/src/adapters/read-tail-exists-sql';
+import { ownerVersionExistsSql } from '../../../modules/records/server/src/adapters/read-tail-sql';
 import {
   employeeRequestColumnsSql,
   employeeRequestSelectHead,
-} from '../../../packages/server-records/src/adapters/read-tail-employee-request-columns';
-import { createFlowRoutingSourceRepository } from '../../../packages/server-records/src/adapters/workflow-flow-routing-facts';
+} from '../../../modules/records/server/src/adapters/read-tail-employee-request-columns';
+import { createFlowRoutingSourceRepository } from '../../../modules/records/server/src/adapters/workflow-flow-routing-facts';
 import {
   requestAiProposalProjection,
   requestAiProposalProjectionSql,
   requestAiUsageProjection,
   requestAiUsageProjectionSql,
   recordsRequestUsageSql,
-} from '../../../packages/server-records/src/adapters/ai-usage-projection';
-import { betaManagementRequestSources } from '../../../packages/server-records/src/adapters/beta-management-sources';
+} from '../../../modules/records/server/src/adapters/ai-usage-projection';
+import { betaManagementRequestSources } from '../../../modules/records/server/src/adapters/beta-management-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-records/src');
+const srcRoot = resolve(__dirname, '../../../modules/records/server/src');
 const read = (p: string) => readFileSync(resolve(srcRoot, p), 'utf8');
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 const readOnly = (sql: string) => {

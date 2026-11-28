@@ -1,5 +1,5 @@
 use axum::http::{HeaderMap, HeaderValue};
-use erpx_server_identity_access::public::{
+use erpx_identity_access_server::public::{
     AccountPolicy, DeviceProof, HoldingOrigin, RequestAudience, account_inbound_http::*,
 };
 fn policy() -> AccountPolicy {
@@ -225,12 +225,12 @@ fn contributor_profile_requires_all_exact_authorities_and_retains_port() {
         products: vec![],
     };
     local.validate().unwrap();
-    use erpx_server_identity_access::public::account_holding_bindings::{
+    use erpx_identity_access_server::public::account_holding_bindings::{
         ConfiguredAccountHolding, ConfiguredHoldingRegistry,
     };
-    use erpx_server_shared::public::HoldingId;
+    use erpx_platform_shared_server::public::HoldingId;
     let sso =
-        erpx_server_identity_access::public::account_sso::SsoPolicy::new(local.clone()).unwrap();
+        erpx_identity_access_server::public::account_sso::SsoPolicy::new(local.clone()).unwrap();
     for (id, host) in hosts {
         assert_eq!(
             sso.callback(&format!("holding:development:{id}:{host}"))

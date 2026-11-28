@@ -4,9 +4,9 @@ import {
   countInitialMarkedExistsSql,
   initialPhysicalCountJournalSql,
   initialPhysicalCountFinanceImagesSql,
-} from '../../../packages/server-inventory/src/adapters/read-tail-sql';
+} from '../../../modules/inventory/server/src/adapters/read-tail-sql';
 
-const src = (name: string) => readFileSync(new URL(`../../../packages/server-inventory/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFileSync(new URL(`../../../modules/inventory/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 describe('Inventory read-tail r14 byte-identical dedupe', () => {
   test('canonical fragments own the exact shared text and stay read-only', () => {

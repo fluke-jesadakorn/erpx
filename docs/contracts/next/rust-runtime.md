@@ -4,7 +4,7 @@ The Rust runtime is infrastructure for the owner migration described by [ADR-052
 
 ## Composition and dependencies
 
-`src/composition` owns package `erpx-service` and executable `erpx-server`. It assembles infrastructure and owner public adapters. `packages/server-runtime` is a library; owner adapters may depend on its public infrastructure facade, and runtime cannot depend on an owner implementation. Portable owner domain and application modules define their own ports and cannot import SQLx, Axum, runtime adapters, process configuration or filesystem APIs.
+`platform/composition` owns package `erpx-service` and executable `erpx-server`. It assembles infrastructure and owner public adapters. `platform/runtime/server` is a library; owner adapters may depend on its public infrastructure facade, and runtime cannot depend on an owner implementation. Portable owner domain and application modules define their own ports and cannot import SQLx, Axum, runtime adapters, process configuration or filesystem APIs.
 
 The runtime facade is `erpx_server_runtime::public::postgres`. Composition creates one shared `DatabasePool` per selected database resource and process, then passes clones or borrowed connections to owners. Clones share the underlying pool and admission gates. An owner must not create a pool for every request or obtain a new connection when participating in another owner's transaction.
 
@@ -40,9 +40,9 @@ The runtime Cargo manifest declares `package.metadata.erpx.verification-roots` f
 
 ## Permission metadata boundary
 
-The Identity owner holds the canonical permission catalog in `packages/server-identity_access/resources/permissions.v1.json`. Its Rust model validates the metadata and generates `packages/contracts/src/permission-catalog.generated.json` for frontend projections. Regenerate with `bun scripts/docs/generate-permission-contracts.ts` and verify with `--check`; scoped CI rejects drift. The native catalog requires an explicit current IAM permission list and never substitutes a role name.
+The Identity owner holds the canonical permission catalog in `modules/identity-access/server/resources/permissions.v1.json`. Its Rust model validates the metadata and generates `platform/contracts/src/permission-catalog.generated.json` for frontend projections. Regenerate with `bun scripts/docs/generate-permission-contracts.ts` and verify with `--check`; scoped CI rejects drift. The native catalog requires an explicit current IAM permission list and never substitutes a role name.
 
-The canonical business-role module catalog is `resources/business-role-modules.v1.json` in the same owner. `bun run contracts:work-modules` generates the client-safe literal-key projection in `packages/contracts`; `:check` verifies it in scoped CI. The 1,170 module and 378 beta-route oracle decisions were captured from the recorded Git revision before replacing the frontend table. `scripts/testing/fixtures/generate-work-admission-oracle.ts` verifies its three exact source hashes and regenerates only from that retained pure implementation. HTTP control characters are rejected as invalid destinations before admission.
+The canonical business-role module catalog is `resources/business-role-modules.v1.json` in the same owner. `bun run contracts:work-modules` generates the client-safe literal-key projection in `platform/contracts`; `:check` verifies it in scoped CI. The 1,170 module and 378 beta-route oracle decisions were captured from the recorded Git revision before replacing the frontend table. `scripts/testing/fixtures/generate-work-admission-oracle.ts` verifies its three exact source hashes and regenerates only from that retained pure implementation. HTTP control characters are rejected as invalid destinations before admission.
 
 ## Permission-bearing work transactions
 

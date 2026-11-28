@@ -4,18 +4,18 @@
 //! configured.
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_collaboration::public::collaboration_work::{
+use erpx_collaboration_server::public::collaboration_work::{
     CollaborationScope, CollaborationSourcePort, SourcePresentation, WORKSPACE_SOURCE_TYPES,
     read_scope_workspace,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions, load_migrations,
     migrate_database,
 };
-use erpx_server_shared::public::record_source_contract::{
+use erpx_platform_shared_server::public::record_source_contract::{
     SourceKind, SourceRecord, SourceReference,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 
 type Error = PgTransactionError<BusinessError>;
 
@@ -23,7 +23,7 @@ fn configured() -> bool {
     std::env::var("ERPX_TEST_ADMIN_URL").is_ok()
 }
 
-async fn setup(pool: &erpx_server_runtime::public::postgres::DatabasePool, now: i64) {
+async fn setup(pool: &erpx_platform_runtime_server::public::postgres::DatabasePool, now: i64) {
     let files = load_migrations(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),
         MigrationTrack::HoldingWrite,

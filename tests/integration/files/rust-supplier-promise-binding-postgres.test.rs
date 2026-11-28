@@ -1,11 +1,11 @@
 #![allow(dead_code)]
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_files::public::supplier_promise_binding::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_files_server::public::supplier_promise_binding::*;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::CompanyId;
+use erpx_platform_shared_server::public::CompanyId;
 use sqlx::{Connection, PgConnection};
 async fn setup(pool: &DatabasePool) {
     let files = load_migrations(
@@ -62,7 +62,7 @@ impl SupplierPromiseEvidenceOwner for Owner {
         if n != 1 {
             return Err(PgTransactionError::Business(
                 SupplierPromiseEvidenceError::Business(
-                    erpx_server_shared::public::BusinessError::invalid(
+                    erpx_platform_shared_server::public::BusinessError::invalid(
                         "TEST_SOURCE_CHANGED",
                         "test source changed",
                     ),

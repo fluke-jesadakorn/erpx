@@ -3,33 +3,33 @@ import {
   createNativeMaintenanceClient,
   nativeMaintenanceConfiguration,
   type NativeMaintenancePageContext,
-} from '../../../packages/feature-assets/src/adapters/server/native-maintenance';
-import { nativeMaintenanceAvailable } from '../../../packages/feature-assets/src/adapters/server/native-maintenance-page';
+} from '../../../modules/assets/ui/src/adapters/server/native-maintenance';
+import { nativeMaintenanceAvailable } from '../../../modules/assets/ui/src/adapters/server/native-maintenance-page';
 vi.mock('server-only',()=>({}));
 vi.mock('next/headers',()=>({headers:async()=>new Headers({host:'acme.example.com',cookie:'__Host-erpx-product=session'})}));
-vi.mock('@erpx/server-identity_access/public/iam-permissions',()=>({requirePermission:()=>{}}));
-vi.mock('../../../packages/server-runtime/src/public/runtime',()=>({holdingResources:async()=>({write:{prepare:()=>{throw Error('Legacy Maintenance source SQL must not execute');}}})}));
+vi.mock('@erpx/identity-access-server/public/iam-permissions',()=>({requirePermission:()=>{}}));
+vi.mock('../../../platform/runtime/server/src/public/runtime',()=>({holdingResources:async()=>({write:{prepare:()=>{throw Error('Legacy Maintenance source SQL must not execute');}}})}));
 /** Exercise the Next route with its server dependencies replaced, so the
  * native-only selection and closed failure policy are directly observable. */
 const routeMocks=vi.hoisted(()=>({
   nativeCommand:vi.fn(),
   actor:{userId:'user',holdingId:'h001',holdingSlug:'acme',companyId:'company',branchId:null,departmentId:null,assignmentId:'assignment',role:'owner',assignmentScope:'holding',scope:{kind:'holding' as const},authority:{revision:7,assignmentVersion:3},modules:['maintenance'],iam:{permissions:['records.read','records.write','records.review']}},
 }));
-vi.mock('@erpx/feature-assets/adapters/server/native-maintenance-owned',()=>({
+vi.mock('@erpx/assets-ui/adapters/server/native-maintenance-owned',()=>({
   ownedMaintenanceCommand:routeMocks.nativeCommand,
   ownedMaintenanceWorkspace:vi.fn(),
   ownedMaintenanceDetail:vi.fn(),
 }));
-vi.mock('@erpx/server-identity_access/public/authorization',()=>({
+vi.mock('@erpx/identity-access-server/public/authorization',()=>({
   requireWorkContext:async()=>routeMocks.actor,
 }));
-vi.mock('@erpx/server-manage_erpx/public/public-origin',()=>({
+vi.mock('@erpx/manage-erpx-server/public/public-origin',()=>({
   requestPublicOrigin:()=> 'https://acme.example.com',
 }));
-vi.mock('@erpx/feature-work_projection/lib/destination-links',()=>({
+vi.mock('@erpx/work-projection-ui/lib/destination-links',()=>({
   canonicalDestinationLinks:(value:unknown)=>value,
 }));
-vi.mock('@erpx/server-runtime/public/http',()=>({
+vi.mock('@erpx/platform-runtime-server/public/http',()=>({
   ApiError:class ApiError extends Error{
     constructor(readonly status:number,readonly code:string,message:string){super(message);this.name='ApiError';}
   },
@@ -38,7 +38,7 @@ vi.mock('@erpx/server-runtime/public/http',()=>({
     return Response.json({error:{code:value.code??'INTERNAL',message:value.message??'Request failed.'}},{status:value.status??500});
   },
 }));
-const maintenanceRoute=await import('../../../packages/feature-assets/src/routes/api/v1/holdings/[holdingSlug]/maintenance/route');
+const maintenanceRoute=await import('../../../modules/assets/ui/src/routes/api/v1/holdings/[holdingSlug]/maintenance/route');
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44992',
@@ -301,13 +301,13 @@ describe('Maintenance source-record policy is native-only',()=>{
   userId:'owner',holdingId:'holding',holdingSlug:'acme',companyId:'company',branchId:null,departmentId:null,
   assignmentId:'assignment',role:'owner',assignmentScope:'holding',scope:{kind:'holding'},
   authority:{revision:7,assignmentVersion:3},modules:['maintenance'],iam:{permissions:['records.read']},
- } as unknown as import('@erpx/server-identity_access/public/authorization').WorkContext;
+ } as unknown as import('@erpx/identity-access-server/public/authorization').WorkContext;
  const context={userId:'owner',holdingId:'holding',companyId:'company',branchId:null,departmentId:null,
   branchSlug:null,departmentSlug:null,assignmentId:'assignment',revision:7,assignmentVersion:3,
   role:'owner',assignmentScopeKind:'holding',modules:['maintenance'],permissions:['records.read']};
  const row=(version=3)=>({id:'source',company_id:'company',branch_id:null,department_id:null,version,title:'Synthetic maintenance source',status:'active'});
  const payload=(kind:'maintenance_plan'|'maintenance_work',value:unknown)=>new Response(JSON.stringify({data:kind==='maintenance_plan'?{plan:value}:{work:value},context}),{status:200,headers:{'content-type':'application/json'}});
- const policy=async()=>await import('../../../packages/server-records/src/adapters/source-record-policy');
+ const policy=async()=>await import('../../../modules/records/server/src/adapters/source-record-policy');
  let fetchSpy:ReturnType<typeof vi.spyOn>;
  beforeEach(()=>{vi.stubEnv(key,config());});
  it('reads plan and work sources from the native owner with no TypeScript SQL',async()=>{
@@ -329,7 +329,7 @@ describe('Maintenance source-record policy is native-only',()=>{
  it('fails closed for same-unit callers and source guards',async()=>{
   fetchSpy=vi.spyOn(globalThis,'fetch');
   try{
-   const p=await policy(),db={prepare:vi.fn()} as unknown as import('@erpx/server-runtime/public/runtime/types').SqlDatabase;
+   const p=await policy(),db={prepare:vi.fn()} as unknown as import('@erpx/platform-runtime-server/public/runtime/types').SqlDatabase;
    for(const kind of ['maintenance_plan','maintenance_work'] as const){
     await expect(p.readSourceRecord(actor,{kind,id:'source'},db)).rejects.toMatchObject({status:503,code:'MAINTENANCE_RECORD_SOURCE_NATIVE_UNIT_REQUIRED'});
     await expect(p.sourceRecordGuards(db,actor,'key',{kind,id:'source',version:3,href:'/maintenance/'} as never)).rejects.toMatchObject({status:503,code:'MAINTENANCE_RECORD_SOURCE_NATIVE_UNIT_REQUIRED'});
@@ -367,14 +367,14 @@ describe('native preventive-plan read transport',()=>{
   assignmentId:'assignment',role:'owner',assignmentScope:'holding',scope:{kind:'holding'},
   authority:{revision:7,assignmentVersion:3,sessionId:'session'},modules:['maintenance'],
   iam:{permissions:['records.read','records.write','records.review']},
- } as unknown as import('@erpx/server-identity_access/public/authorization').WorkContext;
+ } as unknown as import('@erpx/identity-access-server/public/authorization').WorkContext;
  const context={companyId:'company',assignmentId:'assignment',revision:7,assignmentVersion:3,permissions:['records.read','records.write','records.review']};
  const duePlan={...plan,status:'active',version:2,next_due_at:Date.now()-1000,owner_id:'user',owner_eligible:1};
  const ineligible={...plan,id:'ineligible',status:'active',version:1,next_due_at:Date.now()-1000,owner_id:'other',owner_eligible:0};
  const cancelled={...plan,id:'cancelled',status:'cancelled',version:3,owner_id:'user',owner_eligible:1};
  const detailPayload={plan:duePlan,actorId:'user',canWrite:true,canReview:true,assetVersion:1,people:[{id:'user',name:'Owner'}],history:[],occurrences:[]};
  const okJson=(data:unknown)=>new Response(JSON.stringify({data,context}),{status:200,headers:{'content-type':'application/json'}});
- const load=()=>import('../../../packages/server-maintenance/src/public/native-preventive-read');
+ const load=()=>import('../../../modules/maintenance/server/src/public/native-preventive-read');
  let spy:ReturnType<typeof vi.spyOn>;
  beforeEach(()=>{vi.stubEnv(key,cfg());});
  afterEach(()=>{vi.unstubAllEnvs();vi.restoreAllMocks();});
@@ -382,7 +382,7 @@ describe('native preventive-plan read transport',()=>{
  it('derives work items from the mounted plan list and never builds owner SQL',async()=>{
   spy=vi.spyOn(globalThis,'fetch').mockResolvedValue(okJson([duePlan,ineligible,cancelled]));
   const {preventivePlanWork}=await load();
-  const db={prepare:vi.fn(()=>{throw Error('preventive read must not build SQL');})} as unknown as import('@erpx/server-runtime/public/runtime/types').SqlDatabase;
+  const db={prepare:vi.fn(()=>{throw Error('preventive read must not build SQL');})} as unknown as import('@erpx/platform-runtime-server/public/runtime/types').SqlDatabase;
   const items=await preventivePlanWork(actor);
   expect(items.find(i=>i.id==='plan')).toMatchObject({queue:'todo',canAct:true,type:'maintenance_plan',blocker:null});
   expect(items.find(i=>i.id==='ineligible')).toMatchObject({blocker:expect.stringContaining('no longer eligible')});
@@ -417,21 +417,21 @@ describe('native preventive-plan read transport',()=>{
   const {readFileSync}=await import('node:fs');
   const root='../../../';
   const native=[
-   'packages/server-maintenance/src/adapters/native-preventive-read.ts',
-   'packages/server-maintenance/src/public/native-preventive-read.ts',
-   'packages/server-maintenance/src/public/maintenance-preventive.ts',
-   'packages/server-maintenance/src/application/preventive-plan.ts',
-   'packages/server-maintenance/src/domain/preventive-plan.ts',
-   'packages/server-maintenance/src/domain/recurrence.ts',
+   'modules/maintenance/server/src/adapters/native-preventive-read.ts',
+   'modules/maintenance/server/src/public/native-preventive-read.ts',
+   'modules/maintenance/server/src/public/maintenance-preventive.ts',
+   'modules/maintenance/server/src/application/preventive-plan.ts',
+   'modules/maintenance/server/src/domain/preventive-plan.ts',
+   'modules/maintenance/server/src/domain/recurrence.ts',
   ];
   for(const path of native){
    expect(readFileSync(new URL(`${root}${path}`,import.meta.url),'utf8')).not.toMatch(/\b(?:SELECT|INSERT|UPDATE|DELETE)\b/i);
   }
-  expect(()=>readFileSync(new URL(`${root}packages/server-maintenance/src/adapters/preventive-plan.ts`,import.meta.url))).toThrow();
-  const workItems=readFileSync(new URL(`${root}packages/server-work_projection/src/adapters/work-items.ts`,import.meta.url),'utf8');
+  expect(()=>readFileSync(new URL(`${root}modules/maintenance/server/src/adapters/preventive-plan.ts`,import.meta.url))).toThrow();
+  const workItems=readFileSync(new URL(`${root}modules/work-projection/server/src/adapters/work-items.ts`,import.meta.url),'utf8');
   expect(workItems).toContain('public/native-preventive-read');
   expect(workItems).toContain('preventivePlanWork(actor)');
-  const staff=readFileSync(new URL(`${root}packages/server-collaboration/src/adapters/staff-notifications.ts`,import.meta.url),'utf8');
+  const staff=readFileSync(new URL(`${root}modules/collaboration/server/src/adapters/staff-notifications.ts`,import.meta.url),'utf8');
   expect(staff).toContain('preventivePlanDetail:');
   expect(staff).toContain('public/native-preventive-read');
  });
@@ -448,13 +448,13 @@ describe('native downtime-evidence read transport',()=>{
   assignmentId:'assignment',role:'owner',assignmentScope:'holding',scope:{kind:'holding'},
   authority:{revision:7,assignmentVersion:3},modules:['maintenance'],
   iam:{permissions:['records.read','records.write','records.review']},
- } as unknown as import('@erpx/server-identity_access/public/authorization').WorkContext;
+ } as unknown as import('@erpx/identity-access-server/public/authorization').WorkContext;
  const evidence={id:'work',version:'2',status:'completed',title:'Bearing replacement',asset_code:'A-1',
   asset_name:'Asset One',downtime_started_at:'1000',downtime_ended_at:'2000'};
  const context={companyId:'company',assignmentId:'assignment',revision:7,assignmentVersion:3,permissions:['records.read','records.write','records.review']};
  const input={from:0,to:1800000000000,query:'Bearing',limit:2,cursor:{endedAt:1500,id:'previous'},recordId:'work'};
  const okJson=(data:unknown)=>new Response(JSON.stringify({data,context}),{status:200,headers:{'content-type':'application/json'}});
- const load=()=>import('../../../packages/server-maintenance/src/public/native-downtime-evidence');
+ const load=()=>import('../../../modules/maintenance/server/src/public/native-downtime-evidence');
  let spy:ReturnType<typeof vi.spyOn>;
  beforeEach(()=>{vi.stubEnv(key,cfg());});
  afterEach(()=>{vi.unstubAllEnvs();vi.restoreAllMocks();});
@@ -463,7 +463,7 @@ describe('native downtime-evidence read transport',()=>{
   spy=vi.spyOn(globalThis,'fetch').mockResolvedValue(okJson([evidence]));
   const {nativeDowntimeEvidenceRows,nativeDowntimeReadConfigured}=await load();
   expect(nativeDowntimeReadConfigured()).toBe(true);
-  const db={prepare:vi.fn(()=>{throw Error('downtime evidence read must not build SQL');})} as unknown as import('@erpx/server-runtime/public/runtime/types').SqlDatabase;
+  const db={prepare:vi.fn(()=>{throw Error('downtime evidence read must not build SQL');})} as unknown as import('@erpx/platform-runtime-server/public/runtime/types').SqlDatabase;
   const rows=await nativeDowntimeEvidenceRows(actor,input,db);
   expect(rows).toEqual([evidence]);
   const url=new URL(String(spy.mock.calls[0][0]));
@@ -508,8 +508,8 @@ describe('native downtime-evidence read transport',()=>{
 
  it('keeps both TS transport modules free of owner SQL so the native GET is the sole read authority',async()=>{
   const {readFileSync}=await import('node:fs');
-  const adapters=new URL('../../../packages/server-maintenance/src/adapters/',import.meta.url);
-  const pub=new URL('../../../packages/server-maintenance/src/public/',import.meta.url);
+  const adapters=new URL('../../../modules/maintenance/server/src/adapters/',import.meta.url);
+  const pub=new URL('../../../modules/maintenance/server/src/public/',import.meta.url);
   for(const file of [
    new URL('native-downtime-evidence.ts',adapters),
    new URL('native-downtime-evidence.ts',pub),
@@ -525,7 +525,7 @@ describe('native downtime-evidence read transport',()=>{
  * statement: both public consumers receive the identical composed SQL and no
  * duplicate TS query literal for the second sum remains. */
 describe('Maintenance finance record source fixed SQL',()=>{
- const file='../../../packages/server-maintenance/src/adapters/finance-record-sources.ts';
+ const file='../../../modules/maintenance/server/src/adapters/finance-record-sources.ts';
  it('single-sources both journal-line balance witnesses and keeps composed SQL intact',async()=>{
   const {readFile}=await import('node:fs/promises');
   const source=await readFile(new URL(file,import.meta.url),'utf8');
@@ -533,7 +533,7 @@ describe('Maintenance finance record source fixed SQL',()=>{
   expect(source).not.toContain('(SELECT sum(debit_minor) FROM finance_journal_lines');
   expect(source).not.toContain('(SELECT sum(credit_minor) FROM finance_journal_lines');
   expect(source.match(/SELECT/g)).toHaveLength(1);
-  const {maintenanceFinanceRecordSources}=await import('../../../packages/server-maintenance/src/adapters/finance-record-sources');
+  const {maintenanceFinanceRecordSources}=await import('../../../modules/maintenance/server/src/adapters/finance-record-sources');
   const journal=maintenanceFinanceRecordSources.journal;
   expect(journal.startsWith("SELECT consumption.company_id,consumption.journal_id id")).toBe(true);
   expect(journal).toContain("WHERE consumption.source_kind='maintenance' AND consumption.source_version<=work.version AND consumption.quantity_milli>0 AND consumption.value_minor>0");
@@ -547,7 +547,7 @@ describe('Maintenance finance record source fixed SQL',()=>{
  * public consumers receive byte-identical composed SQL and no duplicate TS
  * query literal for the second image remains. */
 describe('Maintenance package settlement source fixed SQL',()=>{
- const file='../../../packages/server-maintenance/src/adapters/package-obligations.ts';
+ const file='../../../modules/maintenance/server/src/adapters/package-obligations.ts';
  it('single-sources the Work/Plan images and keeps composed SQL intact',async()=>{
   const {readFile}=await import('node:fs/promises');
   const source=await readFile(new URL(file,import.meta.url),'utf8');
@@ -567,7 +567,7 @@ describe('Maintenance package settlement source fixed SQL',()=>{
   expect(count(source,'SELECT plan.*,COALESCE')).toBe(0);
   expect(source).toContain('ownerSourceSql("maintenance_work_orders","work")');
   expect(source).toContain('ownerSourceSql("maintenance_preventive_plans","plan")');
-  const {maintenancePackageSettlementSources}=await import('../../../packages/server-maintenance/src/adapters/package-obligations');
+  const {maintenancePackageSettlementSources}=await import('../../../modules/maintenance/server/src/adapters/package-obligations');
   const {work,plans}=maintenancePackageSettlementSources;
   expect(work.startsWith("SELECT work.*,COALESCE(asset.source_valid AND asset.branch_id=work.branch_id AND asset.department_id IS NOT DISTINCT FROM work.department_id,false) source_valid FROM maintenance_work_orders work LEFT JOIN")).toBe(true);
   expect(plans.startsWith("SELECT plan.*,COALESCE(asset.source_valid AND asset.branch_id=plan.branch_id AND asset.department_id IS NOT DISTINCT FROM plan.department_id,false) source_valid FROM maintenance_preventive_plans plan LEFT JOIN")).toBe(true);
@@ -581,7 +581,7 @@ describe('Maintenance package settlement source fixed SQL',()=>{
  * statement; both exported sources stay byte-identical to their pre-dedupe
  * literals, no duplicate TS query literal remains and locks are untouched. */
 describe('Maintenance settlement event row fixed SQL',()=>{
- const file='../../../packages/server-maintenance/src/adapters/package-obligations.ts';
+ const file='../../../modules/maintenance/server/src/adapters/package-obligations.ts';
  it('single-sources the full-row read and keeps both composed strings intact',async()=>{
   const {readFile}=await import('node:fs/promises');
   const source=await readFile(new URL(file,import.meta.url),'utf8');
@@ -596,10 +596,10 @@ describe('Maintenance settlement event row fixed SQL',()=>{
   expect(source).toContain('settlementEventRows("maintenance_preventive_occurrences")');
   expect(source).toContain('settlementEventRows("maintenance_work_events")');
   expect(source).toContain('LOCK TABLE maintenance_work_orders,maintenance_work_events,maintenance_preventive_plans,maintenance_preventive_events,maintenance_preventive_occurrences IN SHARE MODE');
-  const {maintenancePackageSettlementSources}=await import('../../../packages/server-maintenance/src/adapters/package-obligations');
+  const {maintenancePackageSettlementSources}=await import('../../../modules/maintenance/server/src/adapters/package-obligations');
   expect(maintenancePackageSettlementSources.occurrences).toBe('SELECT * FROM maintenance_preventive_occurrences');
   expect(maintenancePackageSettlementSources.workEvents).toBe('SELECT * FROM maintenance_work_events');
-  const {settlementRefSource}=await import('../../../packages/server-maintenance/src/adapters/asset-settlement-refs');
+  const {settlementRefSource}=await import('../../../modules/maintenance/server/src/adapters/asset-settlement-refs');
   expect(settlementRefSource("*","maintenance_preventive_occurrences")).toBe(maintenancePackageSettlementSources.occurrences);
   expect(settlementRefSource("*","maintenance_work_events")).toBe(maintenancePackageSettlementSources.workEvents);
  });
@@ -611,7 +611,7 @@ describe('Maintenance settlement event row fixed SQL',()=>{
  * their pre-dedupe literals, no duplicate TS query literal remains and the
  * package settlement lock is untouched. */
 describe('Maintenance upstream source witness fixed SQL',()=>{
-  const file='../../../packages/server-maintenance/src/adapters/package-obligations.ts';
+  const file='../../../modules/maintenance/server/src/adapters/package-obligations.ts';
   it('single-sources the upstream-source EXISTS witness and keeps both composed predicates intact',async()=>{
    const {readFile}=await import('node:fs/promises');
    const source=await readFile(new URL(file,import.meta.url),'utf8');
@@ -637,7 +637,7 @@ describe('Maintenance upstream source witness fixed SQL',()=>{
  * query literal remains and every owner lock is untouched. r3-r14 families stay
  * unchanged. */
 describe('Maintenance scoped source CTE fixed SQL',()=>{
-  const file='../../../packages/server-maintenance/src/adapters/package-obligations.ts';
+  const file='../../../modules/maintenance/server/src/adapters/package-obligations.ts';
   it('single-sources the MATERIALIZED CTEs and keeps both composed CTEs byte-identical',async()=>{
    const {readFile}=await import('node:fs/promises');
    const source=await readFile(new URL(file,import.meta.url),'utf8');
@@ -655,7 +655,7 @@ describe('Maintenance scoped source CTE fixed SQL',()=>{
    expect(source).toContain("plans AS MATERIALIZED(${scopedSourceCte(\"plan\",plans,\"scope.package_id<>'assets-parts-costs'\")})");
    // Locks untouched.
    expect(source).toContain('LOCK TABLE maintenance_work_orders,maintenance_work_events,maintenance_preventive_plans,maintenance_preventive_events,maintenance_preventive_occurrences IN SHARE MODE');
-   const {scopedSourceCte}=await import('../../../packages/server-maintenance/src/adapters/package-obligations');
+   const {scopedSourceCte}=await import('../../../modules/maintenance/server/src/adapters/package-obligations');
    expect(scopedSourceCte("plan","<PLANS>","scope.package_id<>'assets-parts-costs'")).toBe(
      "SELECT plan.* FROM (<PLANS>) plan,scope WHERE plan.company_id=scope.company_id AND scope.package_id<>'assets-parts-costs'");
    expect(scopedSourceCte("work","<WORK>","<EXTRA>")).toBe(
@@ -669,7 +669,7 @@ describe('Maintenance scoped source CTE fixed SQL',()=>{
  * fragments and a closed row alias, both composed projections keep their
  * pre-dedupe tokens and no duplicate TS query literal remains. */
 describe('Maintenance breakdown projection fixed SQL',()=>{
-  const file='../../../packages/server-maintenance/src/adapters/executive-metric-projections.ts';
+  const file='../../../modules/maintenance/server/src/adapters/executive-metric-projections.ts';
   it('single-sources the breakdown projection and keeps both metric callers intact',async()=>{
    const {readFile}=await import('node:fs/promises');
    const source=await readFile(new URL(file,import.meta.url),'utf8');
@@ -694,7 +694,7 @@ describe('Maintenance breakdown projection fixed SQL',()=>{
  * byte-identical to their pre-dedupe literals, no duplicate TS query literal
  * remains in either consumer and the purchase-source lock is untouched. */
 describe('Maintenance record-image fixed SQL',()=>{
- const dir='../../../packages/server-maintenance/src/adapters/';
+ const dir='../../../modules/maintenance/server/src/adapters/';
  it('single-sources the record-image projection and keeps both composed images intact',async()=>{
   const {readFileSync}=await import('node:fs');
   const helper=readFileSync(new URL(`${dir}record-image-sources.ts`,import.meta.url),'utf8');
@@ -711,13 +711,13 @@ describe('Maintenance record-image fixed SQL',()=>{
   expect(attachment).not.toContain("jsonb_build_object('work',to_jsonb(work),'asset',to_jsonb(asset))::text image\n");
   expect(purchase).not.toContain('::text image FROM ${kind===');
 
-  const {finalRootOwnerProjectionSources:proj}=await import('../../../packages/server-assets/src/public/final-root-owner-projection-sources');
-  const {recordImageSql}=await import('../../../packages/server-maintenance/src/adapters/record-image-sources');
-  const {maintenanceAttachmentReadSourceImage}=await import('../../../packages/server-maintenance/src/adapters/attachment-read-sources');
-  const {maintenancePurchaseSourceQuery}=await import('../../../packages/server-maintenance/src/adapters/purchase-sources');
+  const {finalRootOwnerProjectionSources:proj}=await import('../../../modules/assets/server/src/public/final-root-owner-projection-sources');
+  const {recordImageSql}=await import('../../../modules/maintenance/server/src/adapters/record-image-sources');
+  const {maintenanceAttachmentReadSourceImage}=await import('../../../modules/maintenance/server/src/adapters/attachment-read-sources');
+  const {maintenancePurchaseSourceQuery}=await import('../../../modules/maintenance/server/src/adapters/purchase-sources');
   expect(recordImageSql('x',' FROM t')).toBe('SELECT jsonb_build_object(x)::text image FROM t');
   let captured='';
-  const db={prepare(sql:string){captured=sql;return {bind(){return this;},first(){return null;}};}} as unknown as import('@erpx/server-runtime/public/runtime/types').SqlDatabase;
+  const db={prepare(sql:string){captured=sql;return {bind(){return this;},first(){return null;}};}} as unknown as import('@erpx/platform-runtime-server/public/runtime/types').SqlDatabase;
   await maintenanceAttachmentReadSourceImage(db,'company','work');
   expect(captured).toBe(`SELECT jsonb_build_object('work',to_jsonb(work),'asset',to_jsonb(asset))::text image
  FROM maintenance_work_orders work LEFT JOIN (${proj.operational_assets}) asset ON asset.id=work.asset_id AND asset.company_id=work.company_id
@@ -736,7 +736,7 @@ describe('Maintenance record-image fixed SQL',()=>{
   const {readdirSync,readFileSync}=await import('node:fs');
   const {resolve}=await import('node:path');
   let total=0;
-  const srcRoot=resolve(__dirname,'../../../packages/server-maintenance/src');
+  const srcRoot=resolve(__dirname,'../../../modules/maintenance/server/src');
   const walk=(d:string)=>{
    for(const entry of readdirSync(d,{withFileTypes:true})){
     const p=resolve(d,entry.name);
@@ -757,7 +757,7 @@ describe('Maintenance record-image fixed SQL',()=>{
  * remains in either consumer and both owner locks are untouched. r3-r12 families
  * and all locks are unchanged. */
 describe('Maintenance IAM scope guard fixed SQL',()=>{
-  const dir='../../../packages/server-maintenance/src/adapters/';
+  const dir='../../../modules/maintenance/server/src/adapters/';
   it('single-sources the IAM guard and keeps every composed guard byte-identical',async()=>{
    const {readFileSync}=await import('node:fs');
    const helper=readFileSync(new URL(`${dir}iam-scope-guard.ts`,import.meta.url),'utf8');
@@ -773,9 +773,9 @@ describe('Maintenance IAM scope guard fixed SQL',()=>{
    // Locks untouched.
    expect(purchase).toContain('LOCK TABLE maintenance_work_orders,maintenance_preventive_plans,maintenance_preventive_occurrences IN SHARE ROW EXCLUSIVE MODE');
 
-   const {finalRootOwnerProjectionSources:ia}=await import('../../../packages/server-identity_access/src/public/final-root-owner-projection-sources');
-   const {finalRootOwnerProjectionSources:pp}=await import('../../../packages/server-people_payroll/src/public/final-root-owner-projection-sources');
-   const {iamScopeGuardSql}=await import('../../../packages/server-maintenance/src/adapters/iam-scope-guard');
+   const {finalRootOwnerProjectionSources:ia}=await import('../../../modules/identity-access/server/src/public/final-root-owner-projection-sources');
+   const {finalRootOwnerProjectionSources:pp}=await import('../../../modules/people-payroll/server/src/public/final-root-owner-projection-sources');
+   const {iamScopeGuardSql}=await import('../../../modules/maintenance/server/src/adapters/iam-scope-guard');
    const wf=`(${ia.assignments}) x JOIN (${pp.hr_people}) p ON p.user_id=x.user_id AND p.company_id=x.company_id JOIN (${pp.hr_engagements}) e ON e.person_id=p.id AND e.company_id=p.company_id`;
    // Pre-r13 work literal rebuilt verbatim from the r7 definition.
    const preWork=(alias:string,user:string,perm:string)=>`EXISTS(SELECT 1 FROM ${wf} WHERE x.company_id=${alias}.company_id AND x.user_id=${user} AND iam_assignment_active(x.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(x.user_id,x.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(x.role,x.company_id,'${perm}') AND (x.scope_kind='holding' OR (x.scope_kind='branch' AND x.scope_node_id=${alias}.branch_id) OR (x.scope_kind='department' AND x.scope_node_id=${alias}.department_id)) AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active' AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')))`;
@@ -797,7 +797,7 @@ describe('Maintenance IAM scope guard fixed SQL',()=>{
  * byte-identical to their pre-dedupe literals, no duplicate TS query literal
  * remains and every owner lock is untouched. r3-r13 families stay unchanged. */
 describe('Maintenance scheduled-source fixed SQL',()=>{
-  const dir='../../../packages/server-maintenance/src/adapters/';
+  const dir='../../../modules/maintenance/server/src/adapters/';
   it('single-sources the scheduled projection and keeps both composed branches byte-identical',async()=>{
    const {readFileSync}=await import('node:fs');
    const helper=readFileSync(new URL(`${dir}calendar-maintenance-facts.ts`,import.meta.url),'utf8');
@@ -814,7 +814,7 @@ describe('Maintenance scheduled-source fixed SQL',()=>{
    expect(readFileSync(new URL(`${dir}finance-record-sources.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE operational_inventory_consumptions,maintenance_work_orders,operational_assets IN SHARE MODE');
    expect(readFileSync(new URL(`${dir}asset-settlement-refs.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE maintenance_work_orders,maintenance_preventive_plans IN SHARE MODE');
 
-   const {scheduledSourceSql}=await import('../../../packages/server-maintenance/src/adapters/calendar-maintenance-facts');
+   const {scheduledSourceSql}=await import('../../../modules/maintenance/server/src/adapters/calendar-maintenance-facts');
    // Pre-r14 plan branch rebuilt verbatim.
    const prePlan=`SELECT p.id,'maintenance_plan' source_kind,p.company_id,p.branch_id,p.department_id,p.title,p.status,p.version,p.next_due_at due_at,p.owner_id,p.created_by
   FROM maintenance_preventive_plans p WHERE p.status='active'`;
@@ -834,7 +834,7 @@ describe('Maintenance scheduled-source fixed SQL',()=>{
  * TS query literal remains and every owner lock is untouched. r3-r15 families
  * stay unchanged. */
 describe('Maintenance projection lookup fixed SQL',()=>{
-  const dir='../../../packages/server-maintenance/src/adapters/';
+  const dir='../../../modules/maintenance/server/src/adapters/';
   it('single-sources the scalar projection lookup and keeps all three composed lookups byte-identical',async()=>{
    const {readFileSync}=await import('node:fs');
    const helper=readFileSync(new URL(`${dir}projection-lookup.ts`,import.meta.url),'utf8');
@@ -859,10 +859,10 @@ describe('Maintenance projection lookup fixed SQL',()=>{
    expect(readFileSync(new URL(`${dir}asset-settlement-refs.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE maintenance_work_orders,maintenance_preventive_plans IN SHARE MODE');
    expect(packageSources).toContain('LOCK TABLE maintenance_work_orders,maintenance_work_events,maintenance_preventive_plans,maintenance_preventive_events,maintenance_preventive_occurrences IN SHARE MODE');
 
-   const {projectionLookup}=await import('../../../packages/server-maintenance/src/adapters/projection-lookup');
-   const {finalRootOwnerProjectionSources:pp}=await import('../../../packages/server-people_payroll/src/public/final-root-owner-projection-sources');
-   const {finalRootOwnerProjectionSources:org}=await import('../../../packages/server-organization/src/public/final-root-owner-projection-sources');
-   const {assetPackageSettlementSources:as}=await import('../../../packages/server-assets/src/public/package-obligations');
+   const {projectionLookup}=await import('../../../modules/maintenance/server/src/adapters/projection-lookup');
+   const {finalRootOwnerProjectionSources:pp}=await import('../../../modules/people-payroll/server/src/public/final-root-owner-projection-sources');
+   const {finalRootOwnerProjectionSources:org}=await import('../../../modules/organization/server/src/public/final-root-owner-projection-sources');
+   const {assetPackageSettlementSources:as}=await import('../../../modules/assets/server/src/public/package-obligations');
    // Pre-r16 literals rebuilt verbatim.
    expect(projectionLookup('user_id',pp.hr_people,'hr_people','id=? AND company_id=s.company_id')).toBe(
      `(SELECT user_id FROM (${pp.hr_people}) hr_people WHERE id=? AND company_id=s.company_id)`);
@@ -881,7 +881,7 @@ describe('Maintenance projection lookup fixed SQL',()=>{
  * reflow), no duplicate TS query literal remains and every owner lock is
  * untouched. r3-r16 families stay unchanged. */
 describe('Maintenance windowed interval CTE fixed SQL',()=>{
-  const dir='../../../packages/server-maintenance/src/adapters/';
+  const dir='../../../modules/maintenance/server/src/adapters/';
   it('single-sources the windowed interval CTE and keeps both composed stages byte-equivalent',async()=>{
    const {readFileSync}=await import('node:fs');
    const source=readFileSync(new URL(`${dir}executive-metric-projections.ts`,import.meta.url),'utf8');
@@ -902,7 +902,7 @@ describe('Maintenance windowed interval CTE fixed SQL',()=>{
    expect(readFileSync(new URL(`${dir}asset-settlement-refs.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE maintenance_work_orders,maintenance_preventive_plans IN SHARE MODE');
    expect(readFileSync(new URL(`${dir}package-obligations.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE maintenance_work_orders,maintenance_work_events,maintenance_preventive_plans,maintenance_preventive_events,maintenance_preventive_occurrences IN SHARE MODE');
 
-   const {windowedIntervalCte}=await import('../../../packages/server-maintenance/src/adapters/executive-metric-projections');
+   const {windowedIntervalCte}=await import('../../../modules/maintenance/server/src/adapters/executive-metric-projections');
    // Pre-r17 literals rebuilt verbatim; composed CTEs differ only in whitespace.
    const tokens=(s:string)=>s.replace(/\s+/g,' ').trim();
    expect(tokens(windowedIntervalCte('max(end_at)','1 PRECEDING','prior_end','raw_intervals'))).toBe(
@@ -920,7 +920,7 @@ describe('Maintenance windowed interval CTE fixed SQL',()=>{
  * duplicate TS query literal remains, every r3-r17 family stays unchanged and
  * every owner lock is untouched. */
 describe('Maintenance work/asset source fixed SQL',()=>{
- const dir='../../../packages/server-maintenance/src/adapters/';
+ const dir='../../../modules/maintenance/server/src/adapters/';
  it('single-sources the Work/Asset projection and keeps both composed reads intact',async()=>{
   const {readFileSync}=await import('node:fs');
   const source=readFileSync(new URL(`${dir}work.ts`,import.meta.url),'utf8');
@@ -939,8 +939,8 @@ describe('Maintenance work/asset source fixed SQL',()=>{
   expect(source).not.toContain('SELECT w.*,a.code asset_code,a.name asset_name,CASE WHEN');
   expect(source).not.toContain('`SELECT w.id,w.version::text version');
   expect(source).not.toMatch(/LOCK\s+TABLE/i);
-  const {workAssetSource}=await import('../../../packages/server-maintenance/src/adapters/work');
-  const {finalRootOwnerProjectionSources:assets}=await import('../../../packages/server-assets/src/public/final-root-owner-projection-sources');
+  const {workAssetSource}=await import('../../../modules/maintenance/server/src/adapters/work');
+  const {finalRootOwnerProjectionSources:assets}=await import('../../../modules/assets/server/src/public/final-root-owner-projection-sources');
   // Pre-r18 literals rebuilt verbatim with closed placeholder fragments.
   const itemFields='w.*,a.code asset_code,a.name asset_name,CASE WHEN <guard> THEN 1 ELSE 0 END owner_eligible,CASE WHEN <review> THEN 1 ELSE 0 END can_review,<ownerName> owner_name';
   expect(workAssetSource(itemFields,'','<scope>')).toBe(
@@ -961,8 +961,8 @@ describe('Maintenance work/asset source fixed SQL',()=>{
  it('renders both Work/Asset reads byte-identically through the shared ref-source head',async()=>{
   const {createHash}=await import('node:crypto');
   const sha=(s:string)=>createHash('sha256').update(s).digest('hex');
-  const {workAssetSource}=await import('../../../packages/server-maintenance/src/adapters/work');
-  const {finalRootOwnerProjectionSources:assets}=await import('../../../packages/server-assets/src/public/final-root-owner-projection-sources');
+  const {workAssetSource}=await import('../../../modules/maintenance/server/src/adapters/work');
+  const {finalRootOwnerProjectionSources:assets}=await import('../../../modules/assets/server/src/public/final-root-owner-projection-sources');
   const fields='w.id,w.version::text version,w.status';
   const item=`SELECT ${fields} FROM maintenance_work_orders w JOIN (${assets.operational_assets}) a ON a.id=w.asset_id WHERE <scope>`;
   const join=`SELECT ${fields} FROM maintenance_work_orders w JOIN (${assets.operational_assets}) a ON a.id=w.asset_id AND a.company_id=w.company_id WHERE <scope>`;
@@ -979,7 +979,7 @@ describe('Maintenance work/asset source fixed SQL',()=>{
  * byte-identical to their pre-dedupe literals, no duplicate TS query literal
  * remains, every r3-r18 family stays unchanged and every owner lock is intact. */
 describe('Maintenance asset settlement ref source fixed SQL',()=>{
- const dir='../../../packages/server-maintenance/src/adapters/';
+ const dir='../../../modules/maintenance/server/src/adapters/';
  it('single-sources the settlement ref template and keeps both refs byte-identical',async()=>{
   const {readFileSync}=await import('node:fs');
   const source=readFileSync(new URL(`${dir}asset-settlement-refs.ts`,import.meta.url),'utf8');
@@ -993,8 +993,8 @@ describe('Maintenance asset settlement ref source fixed SQL',()=>{
   expect(source).toContain('LOCK TABLE maintenance_work_orders,maintenance_preventive_plans IN SHARE MODE');
   expect(source).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|pg_advisory/i);
 
-  const {settlementRefSource,maintenanceAssetSettlementRefs}=await import('../../../packages/server-maintenance/src/adapters/asset-settlement-refs');
-  const {maintenanceSettlementConsumptions}=await import('../../../packages/server-inventory/src/public/maintenance-settlement-sources');
+  const {settlementRefSource,maintenanceAssetSettlementRefs}=await import('../../../modules/maintenance/server/src/adapters/asset-settlement-refs');
+  const {maintenanceSettlementConsumptions}=await import('../../../modules/inventory/server/src/public/maintenance-settlement-sources');
   // Pre-r19 literals rebuilt verbatim with closed column/source fragments.
   const preventive='SELECT company_id,asset_id FROM maintenance_preventive_plans';
   const parts=`SELECT consumption.company_id,work.asset_id FROM (${maintenanceSettlementConsumptions}) consumption LEFT JOIN maintenance_work_orders work ON work.id=consumption.source_id AND work.company_id=consumption.company_id`;
@@ -1020,7 +1020,7 @@ describe('Maintenance asset settlement ref source fixed SQL',()=>{
  * byte-identical to its pre-dedupe literal, no duplicate TS query literal
  * remains, and no r20-r26 family or lock/native read is touched. */
 describe('Maintenance Work event-history head reuse fixed SQL',()=>{
- const dir='../../../packages/server-maintenance/src/adapters/';
+ const dir='../../../modules/maintenance/server/src/adapters/';
  it('single-sources the full-row head and keeps the Work history read byte-identical',async()=>{
   const {readFileSync}=await import('node:fs');
   const shared=readFileSync(new URL(`${dir}asset-settlement-refs.ts`,import.meta.url),'utf8');
@@ -1031,7 +1031,7 @@ describe('Maintenance Work event-history head reuse fixed SQL',()=>{
   expect(work).toContain('settlementRefSource("*","maintenance_work_events"," WHERE work_order_id=? ORDER BY version")');
   expect(work).not.toMatch(/LOCK\s+TABLE|INSERT\s+INTO|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|pg_advisory/i);
 
-  const {settlementRefSource}=await import('../../../packages/server-maintenance/src/adapters/asset-settlement-refs');
+  const {settlementRefSource}=await import('../../../modules/maintenance/server/src/adapters/asset-settlement-refs');
   const history=settlementRefSource("*","maintenance_work_events"," WHERE work_order_id=? ORDER BY version");
   expect(history).toBe('SELECT * FROM maintenance_work_events WHERE work_order_id=? ORDER BY version');
   // Existing closed callers stay byte-identical with the default empty tail.
@@ -1050,7 +1050,7 @@ describe('Maintenance Work event-history head reuse fixed SQL',()=>{
  * read-tail drops strictly below the r20 BEFORE=32 baseline, every r3-r19 family
  * stays unchanged and every owner lock is untouched. */
 describe('Maintenance facts UNION fact-row fixed SQL',()=>{
- const dir='../../../packages/server-maintenance/src/adapters/';
+ const dir='../../../modules/maintenance/server/src/adapters/';
  it('single-sources the fact-row head and keeps all three rows byte-identical',async()=>{
   const {readFileSync}=await import('node:fs');
   const source=readFileSync(new URL(`${dir}package-obligations.ts`,import.meta.url),'utf8');
@@ -1075,9 +1075,9 @@ describe('Maintenance facts UNION fact-row fixed SQL',()=>{
   expect(source).toContain('LOCK TABLE maintenance_work_orders,maintenance_work_events,maintenance_preventive_plans,maintenance_preventive_events,maintenance_preventive_occurrences IN SHARE MODE');
   expect(source).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|pg_advisory/i);
 
-  const {factRow,maintenancePackageSettlementSources,scopedSourceCte}=await import('../../../packages/server-maintenance/src/adapters/package-obligations');
-  const {projectionLookup}=await import('../../../packages/server-maintenance/src/adapters/projection-lookup');
-  const {assetPackageSettlementSources:as}=await import('../../../packages/server-assets/src/public/package-obligations');
+  const {factRow,maintenancePackageSettlementSources,scopedSourceCte}=await import('../../../modules/maintenance/server/src/adapters/package-obligations');
+  const {projectionLookup}=await import('../../../modules/maintenance/server/src/adapters/projection-lookup');
+  const {assetPackageSettlementSources:as}=await import('../../../modules/assets/server/src/public/package-obligations');
   const {work}=maintenancePackageSettlementSources;
   // Pre-r20 literals rebuilt verbatim with closed kind/column/from fragments.
   const workRow="SELECT 'work' kind,work.id,work.version,work.status state,NOT work.source_valid OR work.status NOT IN ('completed','cancelled') OR work.downtime_started_at IS NOT NULL AND work.downtime_ended_at IS NULL pending FROM work";
@@ -1111,7 +1111,7 @@ describe('Maintenance facts UNION fact-row fixed SQL',()=>{
  * TS query literal remains, the retired count drops strictly below BEFORE=30,
  * every r3-r20 family stays unchanged and every owner lock is untouched. */
 describe('Maintenance projection row-scan fixed SQL',()=>{
- const dir='../../../packages/server-maintenance/src/adapters/';
+ const dir='../../../modules/maintenance/server/src/adapters/';
  it('single-sources the row-scan head and keeps all three composed reads byte-identical',async()=>{
   const {readFileSync}=await import('node:fs');
   const source=readFileSync(new URL(`${dir}work.ts`,import.meta.url),'utf8');
@@ -1131,7 +1131,7 @@ describe('Maintenance projection row-scan fixed SQL',()=>{
   // No write, row-lock or native read is accepted or changed.
   expect(source).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
 
-  const {projectionRowScan}=await import('../../../packages/server-maintenance/src/adapters/work');
+  const {projectionRowScan}=await import('../../../modules/maintenance/server/src/adapters/work');
   // Pre-r21 literals rebuilt verbatim with closed fragment placeholders.
   const scope='<assetScope>';
   const preAssets=`SELECT a.id,a.code,a.name,a.version,a.condition,a.lifecycle_status FROM (<assets>) a WHERE ${scope} AND a.lifecycle_status IN ('in_service','registered','maintenance') AND NOT EXISTS(SELECT 1 FROM maintenance_work_orders w WHERE w.asset_id=a.id AND w.status NOT IN ('completed','cancelled')) ORDER BY a.code`;
@@ -1161,7 +1161,7 @@ describe('Maintenance projection row-scan fixed SQL',()=>{
  * TS query literal remains, the retired count drops strictly below BEFORE=28,
  * every r3-r21 family stays unchanged and every owner lock is untouched. */
 describe('Maintenance EXISTS head and owner-name reuse fixed SQL',()=>{
- const dir='../../../packages/server-maintenance/src/adapters/';
+ const dir='../../../modules/maintenance/server/src/adapters/';
  it('single-sources the EXISTS head and owner-name lookup, byte-identically',async()=>{
   const {readFileSync}=await import('node:fs');
   const shared=readFileSync(new URL(`${dir}projection-lookup.ts`,import.meta.url),'utf8');
@@ -1181,11 +1181,11 @@ describe('Maintenance EXISTS head and owner-name reuse fixed SQL',()=>{
   expect(pkg).toContain('LOCK TABLE maintenance_work_orders,maintenance_work_events,maintenance_preventive_plans,maintenance_preventive_events,maintenance_preventive_occurrences IN SHARE MODE');
   for(const s of [att,iam,shared,owner]) expect(s).not.toMatch(/LOCK\s+TABLE|INSERT\s+INTO|UPDATE\s+\w+\s+SET|FOR\s+UPDATE/i);
 
-  const {existsGuardPrefix}=await import('../../../packages/server-maintenance/src/adapters/projection-lookup');
-  const {attachmentOwnerVersionGuardSql}=await import('../../../packages/server-maintenance/src/adapters/attachment-owner-version-guard');
-  const {iamScopeGuardSql}=await import('../../../packages/server-maintenance/src/adapters/iam-scope-guard');
-  const {maintenanceOwnerName}=await import('../../../packages/server-maintenance/src/adapters/maintenance-owner-name');
-  const {finalRootOwnerProjectionSources:pp}=await import('../../../packages/server-people_payroll/src/public/final-root-owner-projection-sources');
+  const {existsGuardPrefix}=await import('../../../modules/maintenance/server/src/adapters/projection-lookup');
+  const {attachmentOwnerVersionGuardSql}=await import('../../../modules/maintenance/server/src/adapters/attachment-owner-version-guard');
+  const {iamScopeGuardSql}=await import('../../../modules/maintenance/server/src/adapters/iam-scope-guard');
+  const {maintenanceOwnerName}=await import('../../../modules/maintenance/server/src/adapters/maintenance-owner-name');
+  const {finalRootOwnerProjectionSources:pp}=await import('../../../modules/people-payroll/server/src/public/final-root-owner-projection-sources');
   // Pre-r22 literals rebuilt verbatim with closed fragments.
   expect(existsGuardPrefix('t')).toBe('EXISTS(SELECT 1 FROM t WHERE ');
   expect(attachmentOwnerVersionGuardSql('maintenance_work_orders')).toBe(
@@ -1206,7 +1206,7 @@ describe('Maintenance EXISTS head and owner-name reuse fixed SQL',()=>{
  * TS read tail. The composed guard stays byte-identical to its pre-dedupe
  * literal; no lock, write or native read is introduced. */
 describe('Maintenance negated EXISTS head reuse fixed SQL',()=>{
-  const dir='../../../packages/server-maintenance/src/adapters/';
+  const dir='../../../modules/maintenance/server/src/adapters/';
   it('single-sources the NOT EXISTS head and keeps the composed assets read byte-identical',async()=>{
    const {readFileSync}=await import('node:fs');
    const shared=readFileSync(new URL(`${dir}projection-lookup.ts`,import.meta.url),'utf8');
@@ -1218,7 +1218,7 @@ describe('Maintenance negated EXISTS head reuse fixed SQL',()=>{
    expect(work).toContain("AND ${notExistsGuardPrefix('maintenance_work_orders w')}w.asset_id=a.id");
    expect(work).not.toMatch(/LOCK\s+TABLE|INSERT\s+INTO|UPDATE\s+\w+\s+SET|FOR\s+UPDATE/i);
 
-   const {notExistsGuardPrefix}=await import('../../../packages/server-maintenance/src/adapters/projection-lookup');
+   const {notExistsGuardPrefix}=await import('../../../modules/maintenance/server/src/adapters/projection-lookup');
    // Pre-r24 literal rebuilt verbatim with a closed scope fragment.
    const scope='<assetScope>';
    const preTail=`WHERE ${scope} AND a.lifecycle_status IN ('in_service','registered','maintenance') AND NOT EXISTS(SELECT 1 FROM maintenance_work_orders w WHERE w.asset_id=a.id AND w.status NOT IN ('completed','cancelled')) ORDER BY a.code`;
@@ -1233,7 +1233,7 @@ describe('Maintenance negated EXISTS head reuse fixed SQL',()=>{
  * read tail. Both composed strings stay byte-identical to their pre-dedupe
  * literals; no lock, write or native read is introduced. */
 describe('Maintenance row-projection head reuse fixed SQL',()=>{
-  const dir='../../../packages/server-maintenance/src/adapters/';
+  const dir='../../../modules/maintenance/server/src/adapters/';
   it('single-sources the row-projection head and keeps both composed reads byte-identical',async()=>{
    const {readFileSync}=await import('node:fs');
    const shared=readFileSync(new URL(`${dir}projection-lookup.ts`,import.meta.url),'utf8');
@@ -1245,8 +1245,8 @@ describe('Maintenance row-projection head reuse fixed SQL',()=>{
    expect(work).not.toContain('`SELECT ${fields} FROM (${source}) ${alias} ${tail}`');
    expect(work).not.toMatch(/LOCK\s+TABLE|INSERT\s+INTO|UPDATE\s+\w+\s+SET|FOR\s+UPDATE/i);
 
-   const {projectionHead,projectionLookup}=await import('../../../packages/server-maintenance/src/adapters/projection-lookup');
-   const {projectionRowScan}=await import('../../../packages/server-maintenance/src/adapters/work');
+   const {projectionHead,projectionLookup}=await import('../../../modules/maintenance/server/src/adapters/projection-lookup');
+   const {projectionRowScan}=await import('../../../modules/maintenance/server/src/adapters/work');
    // Pre-r25 literals rebuilt verbatim with closed fragments.
    expect(projectionHead('f','src','a','WHERE x=?')).toBe('SELECT f FROM (src) a WHERE x=?');
    expect(projectionLookup('x','t','a','a.id=?')).toBe('(SELECT x FROM (t) a WHERE a.id=?)');
@@ -1262,7 +1262,7 @@ describe('Maintenance row-projection head reuse fixed SQL',()=>{
  * statements stay byte-identical to their pre-dedupe literals, no inline head
  * remains in either caller, and no lock/native read is touched. */
 describe('Maintenance parenthesized subquery head reuse fixed SQL',()=>{
- const dir='../../../packages/server-maintenance/src/adapters/';
+ const dir='../../../modules/maintenance/server/src/adapters/';
  const inListHead='(SELECT jsonb_array_elements_text(?::jsonb))';
  const debitHead='(SELECT sum(debit_minor) FROM finance_journal_lines WHERE journal_id=journal.id)';
  it('renders both heads byte-identically through the one owner-local renderer',async()=>{
@@ -1270,13 +1270,13 @@ describe('Maintenance parenthesized subquery head reuse fixed SQL',()=>{
   const sha=(s:string)=>createHash('sha256').update(s).digest('hex');
   expect(sha(inListHead)).toBe('7b5aaea382b10517a1d91b8fd08c077e1f00ecbefe55766dc786a21db2465e03');
   expect(sha(debitHead)).toBe('4a0e186c481285cb5e5ab500d46ce481a14b3e8458cc74655496e4953959a93e');
-  const {subqueryHead}=await import('../../../packages/server-maintenance/src/adapters/projection-lookup');
+  const {subqueryHead}=await import('../../../modules/maintenance/server/src/adapters/projection-lookup');
   expect(subqueryHead('jsonb_array_elements_text(?::jsonb)')).toBe(inListHead);
   expect(subqueryHead('sum(debit_minor) FROM finance_journal_lines WHERE journal_id=journal.id')).toBe(debitHead);
  });
  it('keeps the full Calendar statement byte-identical at the prepare boundary',async()=>{
   const {createHash}=await import('node:crypto');
-  const {calendarMaintenanceMaintenanceFacts}=await import('../../../packages/server-maintenance/src/adapters/calendar-maintenance-facts');
+  const {calendarMaintenanceMaintenanceFacts}=await import('../../../modules/maintenance/server/src/adapters/calendar-maintenance-facts');
   let sql='';
   const db={prepare(statement:string){sql=statement;return{bind(){return this;},all(){return Promise.resolve({results:[]});}};}};
   await calendarMaintenanceMaintenanceFacts(db as never).read1({value1:'c',value2:null,value3:null,value4:'',value5:0,value6:0,value7:'mine',value8:'',value9:null,value10:'',value11:1});
@@ -1285,7 +1285,7 @@ describe('Maintenance parenthesized subquery head reuse fixed SQL',()=>{
  });
  it('keeps the Finance journal source byte-identical',async()=>{
   const {createHash}=await import('node:crypto');
-  const {maintenanceFinanceRecordSources}=await import('../../../packages/server-maintenance/src/adapters/finance-record-sources');
+  const {maintenanceFinanceRecordSources}=await import('../../../modules/maintenance/server/src/adapters/finance-record-sources');
   const journal=maintenanceFinanceRecordSources.journal;
   expect(journal).toContain(`${debitHead}=consumption.value_minor`);
   expect(journal).toContain('(SELECT sum(credit_minor) FROM finance_journal_lines WHERE journal_id=journal.id)=consumption.value_minor');

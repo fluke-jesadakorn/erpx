@@ -1,7 +1,7 @@
 //! Preventive-plan create/revise wire parity with the retained Zod object:
 //! trimmed strings, `leadDays` default, bounded integers, unknown-key stripping
 //! and canonical receipt bytes.
-use erpx_server_maintenance::public::preventive_plan::*;
+use erpx_maintenance_server::public::preventive_plan::*;
 use serde_json::{Value, json};
 
 fn failure(error: MaintenanceWireFailure) -> Value {

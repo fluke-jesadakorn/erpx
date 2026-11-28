@@ -1,35 +1,35 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
-import type { PostgresDatabase } from '@erpx/server-runtime/public/runtime/postgres';
-import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
-import { one, run } from '@erpx/server-runtime/public/runtime/sql';
-import { canonicalGuestAccount, legacyGuestAccount } from '@erpx/feature-identity_access/lib/guest-account-compat';
-import { samePerson } from '@erpx/feature-identity_access/lib/iam';
-import { requirePermission } from '@erpx/server-identity_access/public/iam-permissions';
-import { iamMutationGuards } from '@erpx/server-identity_access/public/iam-store';
-import { workContextGuards } from '@erpx/server-workflow/public/command-guards';
-import { posCoreIdentityAccessFacts } from '@erpx/server-identity_access/public/pos-core-facts';
-import { posCoreWorkflowFacts } from '@erpx/server-workflow/public/pos-core-facts';
-import { posCoreOrganizationFacts } from '@erpx/server-organization/public/pos-core-facts';
-import { posCoreFinanceFacts } from '@erpx/server-finance/public/pos-core-facts';
-import { posCoreCommerceFacts } from '@erpx/server-commerce/public/pos-core-facts';
-import { prepareAttachmentBinding } from '@erpx/server-files/public/attachments/service';
-import { assertProductionModuleEnabled } from '@erpx/server-pms/public/feature-availability';
-import { posGuestAccountInterface } from '@erpx/server-pms/public/pos-guest-account-interface';
-import { hospitalityOwnerProjectionSources as pmsProjectionSources } from '@erpx/server-pms/public/hospitality-owner-projection-sources';
-import { snapshotMoney, snapshotMoneyReversal } from '@erpx/server-finance/public/company-money';
-import { scaledAmount } from '@erpx/feature-commerce/lib/commerce-math';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
+import type { PostgresDatabase } from '@erpx/platform-runtime-server/public/runtime/postgres';
+import type { WorkContext } from '@erpx/identity-access-server/public/authorization';
+import { one, run } from '@erpx/platform-runtime-server/public/runtime/sql';
+import { canonicalGuestAccount, legacyGuestAccount } from '@erpx/identity-access-ui/lib/guest-account-compat';
+import { samePerson } from '@erpx/identity-access-ui/lib/iam';
+import { requirePermission } from '@erpx/identity-access-server/public/iam-permissions';
+import { iamMutationGuards } from '@erpx/identity-access-server/public/iam-store';
+import { workContextGuards } from '@erpx/workflow-server/public/command-guards';
+import { posCoreIdentityAccessFacts } from '@erpx/identity-access-server/public/pos-core-facts';
+import { posCoreWorkflowFacts } from '@erpx/workflow-server/public/pos-core-facts';
+import { posCoreOrganizationFacts } from '@erpx/organization-server/public/pos-core-facts';
+import { posCoreFinanceFacts } from '@erpx/finance-server/public/pos-core-facts';
+import { posCoreCommerceFacts } from '@erpx/commerce-server/public/pos-core-facts';
+import { prepareAttachmentBinding } from '@erpx/files-server/public/attachments/service';
+import { assertProductionModuleEnabled } from '@erpx/pms-server/public/feature-availability';
+import { posGuestAccountInterface } from '@erpx/pms-server/public/pos-guest-account-interface';
+import { hospitalityOwnerProjectionSources as pmsProjectionSources } from '@erpx/pms-server/public/hospitality-owner-projection-sources';
+import { snapshotMoney, snapshotMoneyReversal } from '@erpx/finance-server/public/company-money';
+import { scaledAmount } from '@erpx/commerce-ui/lib/commerce-math';
 import {
   businessDate as evaluateBusinessDate, money, portion, qty, saleAmounts, type PosAccounts,
-} from '@erpx/server-pos/public/rules/pos';
+} from '@erpx/pos-server/public/rules/pos';
 import {
   audit, completeRefundPayment, config, enqueue, fail, id, num, openPeriod, pair, posting,
   receivePayment, releaseUnpaidReservations, reserve, saleRow, scopeRow, str, type PosRow,
-} from '@erpx/server-pos/public/pos-core';
-import { assertPosDayWritable } from '@erpx/server-pos/public/pos-daily';
-import { posPackageEnforcementMode, withPosPurchasedCommand } from '@erpx/server-pos/adapters/purchase-boundary';
+} from '@erpx/pos-server/public/pos-core';
+import { assertPosDayWritable } from '@erpx/pos-server/public/pos-daily';
+import { posPackageEnforcementMode, withPosPurchasedCommand } from '@erpx/pos-server/adapters/purchase-boundary';
 
 /**
  * Test/seed-only SQL oracle for the POS shift, sale, tender and refund commands.
@@ -72,7 +72,7 @@ export function posNativeSeed(database: PostgresDatabase) {
 export function posSeedCommand(database: PostgresDatabase) {
   return async (actor: WorkContext, operation: string, input: unknown, key: string) => {
     if (isRetiredPosCommand(operation)) return seedPosCommand(database, actor, operation, input, key);
-    const { posCommand } = await import('@erpx/server-pos/public/pos-core');
+    const { posCommand } = await import('@erpx/pos-server/public/pos-core');
     return posCommand(database, actor, operation, input, key);
   };
 }

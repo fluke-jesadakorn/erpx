@@ -4,7 +4,7 @@
 
 ```sh
 bun scripts/testing/fixtures/generate-finance-rust-goldens.ts
-cargo test --locked --package erpx-server-finance
+cargo test --locked --package erpx-finance-server
 ```
 
 The native tests compare complete schedule rows, policy identifiers, exact decimal strings, calculation outputs and domain error messages. Schema failures require rejection without depending on Zod's diagnostic formatting. Cases include loan and lease present value, final settlement, anchored month ends and leap years, reviewed depreciation bases, units of production, signed half-away rounding, large intermediate integers, cash-flow controls, sequential material issues, invoice limits and the original journal preparation's functional-currency rounding. ECMAScript trimming and the legacy UTC handling of years below 100 are intentionally covered.

@@ -4,11 +4,11 @@
 )]
 #[path = "rust-account-credentials.rs"]
 pub mod credentials;
-use erpx_server_identity_access::public::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_identity_access_server::public::*;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::HoldingId;
+use erpx_platform_shared_server::public::HoldingId;
 use std::{
     collections::BTreeMap,
     sync::{Arc, atomic::AtomicI64},
@@ -53,7 +53,7 @@ pub async fn setup(
 pub async fn signup(
     scenario: &credentials::Scenario,
     token: &OpaqueSecret,
-) -> Result<(), erpx_server_shared::public::BusinessError> {
+) -> Result<(), erpx_platform_shared_server::public::BusinessError> {
     scenario
         .credentials
         .sign_up(

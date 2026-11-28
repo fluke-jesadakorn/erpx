@@ -1,0 +1,74 @@
+import {messagingAttachmentCommandBoundary,type MessagingAttachmentPurchase} from "@erpx/collaboration-server/public/messaging-attachment-purchases";
+import { nativeClearCommandAssertions } from '@erpx/collaboration-server/adapters/native-command-assertions';
+import {ecommerceAttachmentCommandBoundary,type EcommerceAttachmentPurchase} from "@erpx/ecommerce-server/public/attachment-purchases";
+import {workTaskAttachmentCommandBoundary,type WorkTaskAttachmentPurchase} from "@erpx/operations-server/public/task-attachment-purchases";
+import {portalAttachmentCommandBoundary,type PortalAttachmentPurchase} from "@erpx/customer-authority-server/public/attachment-purchases";
+import {benefitAttachmentCommandBoundary,type BenefitAttachmentPurchase} from "@erpx/benefits-server/public/attachment-purchases";
+import {workforceAttachmentCommandBoundary,type WorkforceAttachmentPurchase} from "@erpx/people-payroll-server/public/workforce-attachment-purchases";
+import {crmAttachmentCommandBoundary,type CRMAttachmentPurchase} from "@erpx/crm-server/public/attachment-purchases";
+import {marketingAttachmentCommandBoundary,type MarketingAttachmentPurchase} from "@erpx/marketing-server/public/attachment-purchases";
+import {manufacturingAttachmentCommandBoundary,type ManufacturingAttachmentPurchase} from "@erpx/manufacturing-server/public/attachment-purchases";
+import {legalAttachmentCommandBoundary,type LegalAttachmentPurchase} from "@erpx/legal-server/public/attachment-purchases";
+import {talentAttachmentCommandBoundary,type TalentAttachmentPurchase} from "@erpx/talent-server/public/attachment-purchases";
+import {landedCostAttachmentCommandBoundary,type LandedCostAttachmentPurchase} from "@erpx/inventory-server/public/landed-cost-attachment-purchases";
+import {assetAttachmentCommandBoundary,type AssetAttachmentPurchase} from "@erpx/assets-server/public/attachment-purchases";
+import {learningAttachmentCommandBoundary,type LearningAttachmentPurchase} from "@erpx/learning-server/public/attachment-purchases";
+import {qualityAttachmentCommandBoundary,type QualityAttachmentPurchase} from "@erpx/quality-server/public/attachment-purchases";
+import {transferAttachmentCommandBoundary,type TransferAttachmentPurchase} from "@erpx/inventory-server/public/transfer-attachment-purchases";
+import {peopleAttachmentCommandBoundary,type PeopleAttachmentPurchase} from "@erpx/people-payroll-server/public/base-attachment-purchases";
+import {procurementAttachmentCommandBoundary,type ProcurementAttachmentPurchase} from "@erpx/procurement-server/public/attachment-purchases";
+import {financeAttachmentCommandBoundary,type FinanceAttachmentPurchase} from "@erpx/finance-server/public/attachment-purchases";
+import {commerceAttachmentCommandBoundary,type CommerceAttachmentPurchase} from "@erpx/commerce-server/public/attachment-purchases";
+import {payrollAttachmentCommandBoundary,type PayrollAttachmentPurchase} from "@erpx/people-payroll-server/public/attachment-purchases";
+import {countAttachmentCommandBoundary,type CountAttachmentPurchase} from "@erpx/inventory-server/public/count-attachment-purchases";
+import "server-only";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import type { SqlDatabase } from "@erpx/platform-runtime-server/public/runtime/types";
+import type { AttachmentOperation, AttachmentPolicy } from "@erpx/files-server/public/attachments/types";
+import { posAttachmentPurchase } from "@erpx/pos-server/public/rules/attachment-purchases";
+import { pmsAttachmentPurchase } from "@erpx/pms-server/public/rules/attachment-purchases";
+import { checkPurchasedCapability, posPackageEnforcementMode, pmsPackageEnforcementMode, purchaseCommandBoundary, observePurchaseResults,companyPurchaseReadLocks } from "@erpx/commercial-server/public/purchase-command-boundary";
+
+export type HospitalityAttachmentPurchase = { owner: "pos" | "pms"; companyId: string; capability: string; purpose: "new-work" | "settle-existing" };
+export function hospitalityAttachmentPurchaseScope(actor: WorkContext, policy: Pick<AttachmentPolicy, "targetType" | "purposeKey">): HospitalityAttachmentPurchase | null {
+  const pos = posAttachmentPurchase(policy.targetType);
+  if (pos) return { owner: "pos", companyId: actor.companyId, ...pos };
+  const pms = pmsAttachmentPurchase(policy.targetType, policy.purposeKey);
+  return pms ? { owner: "pms", companyId: actor.companyId, ...pms } : null;
+}
+const modeFor = (owner: HospitalityAttachmentPurchase["owner"]) => owner === "pos" ? posPackageEnforcementMode() : pmsPackageEnforcementMode();
+
+/** Files keeps its original IAM/version/retention/scanner policy. These are
+ * additional owner capabilities; reading retained evidence never grants edits. */
+export async function authorizeHospitalityAttachmentPurchase(database: SqlDatabase, actor: WorkContext, policy: AttachmentPolicy, operation: AttachmentOperation) {
+  const scope = hospitalityAttachmentPurchaseScope(actor, policy);
+  if (scope) await checkPurchasedCapability(database, await modeFor(scope.owner), {
+    companyId: scope.companyId, capability: scope.capability, purpose: operation === "read" ? "history" : scope.purpose,
+  });
+}
+
+/** Both raw Files batches and its normal executeCommand use these guards in
+ * their original transaction, including the final post-receipt purchase clock. */
+async function hospitalityBoundary(database: SqlDatabase, scopes: readonly HospitalityAttachmentPurchase[]) {
+  if (!scopes.length) return undefined;
+  const unique = [...new Map(scopes.map(scope => [`${scope.companyId}:${scope.owner}:${scope.capability}:${scope.purpose}`, scope])).values()]
+    .sort((a, b) => a.companyId.localeCompare(b.companyId) || a.owner.localeCompare(b.owner) || a.capability.localeCompare(b.capability) || a.purpose.localeCompare(b.purpose));
+  const boundaries = [];
+  for (const scope of unique) {
+    const mode = await modeFor(scope.owner);
+    if (mode === "disabled") continue;
+    const key = `hospitality-file-purchase:${crypto.randomUUID()}`;
+    boundaries.push({ key, companyId: scope.companyId, boundary: purchaseCommandBoundary(database, mode, key, scope)! });
+  }
+  if (!boundaries.length) return undefined;
+  return { before: boundaries.flatMap(item => item.boundary.before), after: [...boundaries.flatMap(item => item.boundary.after),
+    ...await Promise.all(boundaries.map(item => nativeClearCommandAssertions(database, item.companyId, item.key)))],
+    observe: boundaries.some(item => !!item.boundary.observe) ? observePurchaseResults : undefined };
+}
+
+export async function attachmentPurchaseBoundary(database: SqlDatabase, hospitality: readonly HospitalityAttachmentPurchase[], finance:readonly FinanceAttachmentPurchase[] = [],commerce:readonly CommerceAttachmentPurchase[] = [],payroll:readonly PayrollAttachmentPurchase[] = [],counts:readonly CountAttachmentPurchase[] = [],procurement:readonly ProcurementAttachmentPurchase[] = [],basePeople:readonly PeopleAttachmentPurchase[] = [],transfers:readonly TransferAttachmentPurchase[] = [],quality:readonly QualityAttachmentPurchase[] = [],learning:readonly LearningAttachmentPurchase[] = [],assets:readonly AssetAttachmentPurchase[] = [],landedCosts:readonly LandedCostAttachmentPurchase[] = [],talent:readonly TalentAttachmentPurchase[] = [],manufacturing:readonly ManufacturingAttachmentPurchase[] = [],legal:readonly LegalAttachmentPurchase[] = [],crm:readonly CRMAttachmentPurchase[] = [],marketing:readonly MarketingAttachmentPurchase[] = [],workforce:readonly WorkforceAttachmentPurchase[] = [],benefits:readonly BenefitAttachmentPurchase[] = [],portal:readonly PortalAttachmentPurchase[] = [],workTasks:readonly WorkTaskAttachmentPurchase[] = [],ecommerce:readonly EcommerceAttachmentPurchase[] = [],messaging:readonly MessagingAttachmentPurchase[] = []) {
+  const added = await hospitalityBoundary(database, hospitality), financial=await financeAttachmentCommandBoundary(database,finance),orders=await commerceAttachmentCommandBoundary(database,commerce),people=await payrollAttachmentCommandBoundary(database,payroll),count=await countAttachmentCommandBoundary(database,counts),rfq=await procurementAttachmentCommandBoundary(database,procurement),base=await peopleAttachmentCommandBoundary(database,basePeople),transfer=await transferAttachmentCommandBoundary(database,transfers),inspection=await qualityAttachmentCommandBoundary(database,quality),learner=await learningAttachmentCommandBoundary(database,learning),physical=await assetAttachmentCommandBoundary(database,assets),landed=await landedCostAttachmentCommandBoundary(database,landedCosts),recruitment=await talentAttachmentCommandBoundary(database,talent),production=await manufacturingAttachmentCommandBoundary(database,manufacturing),legalDocuments=await legalAttachmentCommandBoundary(database,legal),customers=await crmAttachmentCommandBoundary(database,crm),campaigns=await marketingAttachmentCommandBoundary(database,marketing),selfService=await workforceAttachmentCommandBoundary(database,workforce),benefitEvidence=await benefitAttachmentCommandBoundary(database,benefits),portalEvidence=await portalAttachmentCommandBoundary(database,portal),workTaskEvidence=await workTaskAttachmentCommandBoundary(database,workTasks),ecommerceEvidence=await ecommerceAttachmentCommandBoundary(database,ecommerce),messagingEvidence=await messagingAttachmentCommandBoundary(database,messaging);
+  if (!added && !financial && !orders && !people && !count && !rfq && !base && !transfer && !inspection && !learner && !physical && !landed && !recruitment && !production && !legalDocuments && !customers && !campaigns && !selfService && !benefitEvidence && !portalEvidence && !workTaskEvidence && !ecommerceEvidence && !messagingEvidence) return undefined;
+  const companies=[...new Set([...hospitality,...finance,...commerce,...payroll,...counts,...procurement,...basePeople,...transfers,...quality,...learning,...assets,...landedCosts,...talent,...manufacturing,...legal,...crm,...marketing,...workforce,...benefits,...portal,...workTasks,...ecommerce,...messaging].map(scope=>scope.companyId))].sort();
+  return {before:[...companies.flatMap(company=>companyPurchaseReadLocks(database,company)),...added?.before??[],...financial?.before??[],...orders?.before??[],...people?.before??[],...count?.before??[],...rfq?.before??[],...base?.before??[],...transfer?.before??[],...inspection?.before??[],...learner?.before??[],...physical?.before??[],...landed?.before??[],...recruitment?.before??[],...production?.before??[],...legalDocuments?.before??[],...customers?.before??[],...campaigns?.before??[],...selfService?.before??[],...benefitEvidence?.before??[],...portalEvidence?.before??[],...workTaskEvidence?.before??[],...ecommerceEvidence?.before??[],...messagingEvidence?.before??[]],after:[...messagingEvidence?.after??[],...ecommerceEvidence?.after??[],...workTaskEvidence?.after??[],...portalEvidence?.after??[],...benefitEvidence?.after??[],...selfService?.after??[],...campaigns?.after??[],...customers?.after??[],...legalDocuments?.after??[],...production?.after??[],...recruitment?.after??[],...landed?.after??[],...physical?.after??[],...learner?.after??[],...inspection?.after??[],...transfer?.after??[],...base?.after??[],...financial?.after??[],...orders?.after??[],...people?.after??[],...count?.after??[],...rfq?.after??[],...added?.after??[]],observe:added?.observe||financial?.observe||orders?.observe||people?.observe||count?.observe||rfq?.observe||base?.observe||transfer?.observe||inspection?.observe||learner?.observe||physical?.observe||landed?.observe||recruitment?.observe||production?.observe||legalDocuments?.observe||customers?.observe||campaigns?.observe||selfService?.observe||benefitEvidence?.observe||portalEvidence?.observe||workTaskEvidence?.observe||ecommerceEvidence?.observe||messagingEvidence?.observe?observePurchaseResults:undefined};
+}

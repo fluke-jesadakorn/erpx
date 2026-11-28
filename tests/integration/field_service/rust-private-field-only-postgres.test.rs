@@ -5,9 +5,9 @@ mod account;
 #[allow(dead_code)]
 #[path = "../../support/runtime/private-session-config.rs"]
 mod configuration;
-use erpx_server_identity_access::public::SystemAuthenticationSecrets;
-use erpx_server_shared::public::Clock;
-use erpx_service::private_development_api::{
+use erpx_identity_access_server::public::SystemAuthenticationSecrets;
+use erpx_platform_shared_server::public::Clock;
+use erpx_platform_composition::private_development_api::{
     DevelopmentApiConfiguration, assemble_development_api,
 };
 use std::sync::Arc;
@@ -307,7 +307,7 @@ async fn production_runtime_mounts_field_routes_with_durable_databases() {
 
         let configuration =
             DevelopmentApiConfiguration::parse_production(&doc.to_string()).unwrap();
-        let runtime = erpx_service::private_development_api::assemble_production_api(
+        let runtime = erpx_platform_composition::private_development_api::assemble_production_api(
             configuration,
             system.scenario.clock.clone(),
             Arc::new(SystemAuthenticationSecrets),

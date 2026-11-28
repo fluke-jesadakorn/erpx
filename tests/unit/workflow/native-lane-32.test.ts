@@ -8,7 +8,7 @@ import {
   nativeWorkflowLane32Configuration,
   readFailedMetricsReply,
   selectHolding,
-} from '../../../packages/server-workflow/src/adapters/native-lane-32/client';
+} from '../../../modules/workflow/server/src/adapters/native-lane-32/client';
 
 const holding = (overrides: Record<string, unknown> = {}) => ({
   origin: 'https://acme.example.com',
@@ -160,7 +160,7 @@ describe('native lane-32 SQL/result oracle and TS cutover', () => {
 
   it('removes the retired SQL from the switched owner adapter', async () => {
     const source = await readFile(
-      new URL('../../../packages/server-workflow/src/adapters/collaboration-inbox-sources.ts', import.meta.url),
+      new URL('../../../modules/workflow/server/src/adapters/collaboration-inbox-sources.ts', import.meta.url),
       'utf8',
     );
     expect(source).not.toContain(SOURCE_SQL);
@@ -172,12 +172,12 @@ describe('native lane-32 SQL/result oracle and TS cutover', () => {
   it('routes the live read through the native client with no local SQL', async () => {
     const read = vi.fn(async () => ({ count: 3 }));
     vi.resetModules();
-    vi.doMock('../../../packages/server-workflow/src/adapters/native-lane-32/client', () => ({
+    vi.doMock('../../../modules/workflow/server/src/adapters/native-lane-32/client', () => ({
       nativeInboxFailedMetrics: read,
     }));
     try {
       const { collaborationInboxSources } = await import(
-        '../../../packages/server-workflow/src/adapters/collaboration-inbox-sources'
+        '../../../modules/workflow/server/src/adapters/collaboration-inbox-sources'
       );
       const prepare = vi.fn();
       const db = { prepare } as never;
@@ -188,7 +188,7 @@ describe('native lane-32 SQL/result oracle and TS cutover', () => {
       expect(read).toHaveBeenLastCalledWith(db, scope);
       expect(prepare).not.toHaveBeenCalled();
     } finally {
-      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-lane-32/client');
+      vi.doUnmock('../../../modules/workflow/server/src/adapters/native-lane-32/client');
       vi.resetModules();
     }
   });

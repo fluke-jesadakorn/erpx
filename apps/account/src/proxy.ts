@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
-import { developmentConsoleRetired } from "@erpx/contracts/console-retirement";
-import { proxy as workspaceProxy } from "@erpx/workplace/proxy";
+import { developmentConsoleRetired } from "@erpx/platform-contracts/console-retirement";
+import { proxy as workspaceProxy } from "@erpx/platform-workplace/proxy";
 import { appProxy } from "../../../scripts/local/app-proxy";
 
 const ownedProxy = appProxy("account");

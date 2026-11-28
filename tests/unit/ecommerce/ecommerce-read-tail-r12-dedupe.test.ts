@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
 
-const srcRoot = resolve(__dirname, '../../../packages/server-ecommerce/src');
+const srcRoot = resolve(__dirname, '../../../modules/ecommerce/server/src');
 const ap = readFileSync(resolve(srcRoot, 'adapters/attachment-purchases.ts'), 'utf8');
 
 const ecommerceScopeRow = (alias: string, branch = false) => branch

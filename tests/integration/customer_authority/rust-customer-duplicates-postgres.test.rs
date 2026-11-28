@@ -5,16 +5,16 @@ mod fixture;
 #[allow(dead_code)]
 mod identity_postgres_cases;
 
-use erpx_server_customer_authority::public::access::AccessActor;
-use erpx_server_customer_authority::public::duplicates::{
+use erpx_customer_authority_server::public::access::AccessActor;
+use erpx_customer_authority_server::public::duplicates::{
     DuplicateChange, DuplicateReviewRequest, PgCustomerDuplicateReview, change_duplicate_review,
     duplicate_review_detail, duplicate_review_workspace, request_duplicate_review,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, HoldingId, UserId,
 };
 use sqlx::Row;
@@ -28,7 +28,7 @@ fn actor() -> AccessActor {
         company_id: CompanyId::new("company").unwrap(),
         branch_id: None,
         department_id: None,
-        assignment_id: erpx_server_shared::public::AssignmentId::new("assignment-requester").unwrap(),
+        assignment_id: erpx_platform_shared_server::public::AssignmentId::new("assignment-requester").unwrap(),
         role: Some("sales_manager".into()),
         authority_revision: Some(3),
         assignment_version: Some(1),

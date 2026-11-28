@@ -1,9 +1,9 @@
-import {holdingRoutingEnabled} from '@erpx/contracts/holding-hosts';
+import {holdingRoutingEnabled} from '@erpx/platform-contracts/holding-hosts';
 import { constants,existsSync } from 'node:fs';
 import { cp,mkdir,readFile,readdir,rm,writeFile,open,readlink,realpath } from 'node:fs/promises';
 import { join,relative,resolve } from 'node:path';
 import { createHash } from 'node:crypto';
-import { appDefinition } from '@erpx/contracts/apps';
+import { appDefinition } from '@erpx/platform-contracts/apps';
 import { appRuntimeFingerprint,loadWorkspaceGraph } from '../testing/workspace-graph';
 import { pinnedNode } from './app-task';
 import { relocateStandaloneLinks, relocateCompilerDependencyAliases, artifactSymbolicLinks } from './standalone-links';
@@ -45,14 +45,14 @@ export async function buildIsolatedApp(id:string,bundler='webpack',engineering?:
   }
   if(!engineering){
    await rm(snapshot,{recursive:true,force:true});await mkdir(snapshot,{recursive:true});
-   const inputs=[app.directory,'packages','src','public','scripts','fixtures','migrations','tests/support','tests/catalogue','tests/config','ops/macos','package.json','bun.lock','tsconfig.base.json','tsconfig.json','next.config.ts','next-env.d.ts','postcss.config.mjs','node_modules'];
+   const inputs=[app.directory,'modules','products','platform','public','scripts','fixtures','migrations','tests/support','tests/catalogue','tests/config','ops/macos','package.json','bun.lock','tsconfig.base.json','tsconfig.json','next.config.ts','next-env.d.ts','postcss.config.mjs','node_modules'];
    for(const name of inputs)if(existsSync(join(root,name)))await cp(join(root,name),join(snapshot,name),copyOptions);
   }
   if(interrupted)throw new Error("APP_BUILD_INTERRUPTED");
   if((await keyFor(id,bundler)).key!==identity.key)throw new Error("APP_SOURCE_CHANGED_DURING_SNAPSHOT");
   await composeUiModules(root,snapshot,identity.modules.enabled);
   const deploymentId=process.env.NEXT_DEPLOYMENT_ID??`app-${id}-${identity.runtime.slice(0,16)}`;
-  await writeFile(join(snapshot,'packages/catalogue/src/release-artifact.json'),JSON.stringify({softwareVersion:deploymentId})+'\n');
+  await writeFile(join(snapshot,'platform/catalogue/src/release-artifact.json'),JSON.stringify({softwareVersion:deploymentId})+'\n');
   // Pass compiler/network trust inputs explicitly. Installed DB, auth and
   // provider credentials never become ambient inputs to an app build.
   const compilerKeys=new Set(['ERPX_HOLDING_ROUTING','ERPX_ENVIRONMENT','ERPX_PRODUCT_ENVIRONMENT','PATH','HOME','TMPDIR','TMP','TEMP','LANG','LC_ALL','TZ','CI','HTTP_PROXY','HTTPS_PROXY','NO_PROXY','http_proxy','https_proxy','no_proxy','NODE_EXTRA_CA_CERTS','SSL_CERT_FILE','SSL_CERT_DIR','TERM','TERM_PROGRAM','NEXT_TELEMETRY_DISABLED','CODEX_CI','CODEX_SHELL','CODEX_THREAD_ID']);

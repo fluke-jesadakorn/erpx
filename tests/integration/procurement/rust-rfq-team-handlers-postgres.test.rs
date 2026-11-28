@@ -1,8 +1,8 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-#[path = "../../../src/composition/src/procurement_rfq_approval.rs"]
+#[path = "../../../platform/composition/src/procurement_rfq_approval.rs"]
 mod procurement_rfq_approval;
-#[path = "../../../src/composition/src/procurement_rfq_access.rs"]
+#[path = "../../../platform/composition/src/procurement_rfq_access.rs"]
 mod request_access;
 
 #[tokio::test]

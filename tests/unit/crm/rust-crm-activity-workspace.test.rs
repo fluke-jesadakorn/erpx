@@ -6,13 +6,13 @@
 //! assigned in bind order, then compared byte-for-byte with the adapter consts.
 //! View/work rules and the repository/directory use cases are exercised against
 //! in-memory fakes. No PostgreSQL, composition or purchase check here.
-use erpx_server_crm::public::activity_workspace::{
+use erpx_crm_server::public::activity_workspace::{
     ACTIVITIES_SQL, ActivityActor, ActivityWorkspaceData, ActivityWorkspaceDirectory,
     ActivityWorkspaceFuture, ActivityWorkspaceRepository, CrmActivityRow, CrmLeadRow, HISTORY_SQL,
     LEAD_SQL, RECIPIENTS_SQL, WORK_ROWS_SQL, activity_can_change, activity_work, activity_workspace,
     due_date_millis, effective_manager, work_items, workspace_view,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 use serde_json::{Value, json};
 
 // --- Independent transcription of the retained TypeScript reader SQL. ---
@@ -320,9 +320,9 @@ impl ActivityWorkspaceDirectory for FakeDirectory {
         &'a mut self,
         _company_id: &'a str,
         _lead_id: &'a str,
-    ) -> ActivityWorkspaceFuture<'a, Vec<erpx_server_crm::public::activity_workspace::ActivityRecipient>, Self::Error> {
+    ) -> ActivityWorkspaceFuture<'a, Vec<erpx_crm_server::public::activity_workspace::ActivityRecipient>, Self::Error> {
         Box::pin(async move {
-            Ok(vec![erpx_server_crm::public::activity_workspace::ActivityRecipient {
+            Ok(vec![erpx_crm_server::public::activity_workspace::ActivityRecipient {
                 id: "owner".into(),
                 name: "Owner Name".into(),
             }])
@@ -380,7 +380,7 @@ fn workspace_wire_shape_is_pinned_for_the_strict_client() {
     let data = ActivityWorkspaceData {
         view,
         history: vec![json!({"action": "create", "version": 1})],
-        recipients: vec![erpx_server_crm::public::activity_workspace::ActivityRecipient {
+        recipients: vec![erpx_crm_server::public::activity_workspace::ActivityRecipient {
             id: "owner".into(),
             name: "Owner Name".into(),
         }],

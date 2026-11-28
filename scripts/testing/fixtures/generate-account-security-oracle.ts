@@ -6,7 +6,7 @@ import {resolve} from 'node:path';
 import ts from 'typescript';
 
 const commit='a5ed8737a2f05eff1ee9841fda4a094b3926d732';
-const files=['packages/server-identity_access/src/domain/mfa.ts','packages/server-identity_access/src/application/mfa.ts','packages/server-identity_access/src/adapters/iam-mfa.ts','packages/server-identity_access/src/adapters/account-session-security.ts','packages/server-identity_access/src/domain/product-sso.ts'];
+const files=['modules/identity-access/server/src/domain/mfa.ts','modules/identity-access/server/src/application/mfa.ts','modules/identity-access/server/src/adapters/iam-mfa.ts','modules/identity-access/server/src/adapters/account-session-security.ts','modules/identity-access/server/src/domain/product-sso.ts'];
 const sources=[];
 for(const path of files){const bytes=await readFile(path);if(!bytes.equals(execFileSync('git',['show',`${commit}:${path}`])))throw Error(`ACCOUNT_SECURITY_ORACLE_SOURCE_CHANGED:${path}`);sources.push({path,sha256:createHash('sha256').update(bytes).digest('hex')});}
 const node=process.env.ERPX_NODE_BIN??'node';if(execFileSync(node,['--version'],{encoding:'utf8'}).trim()!=='v26.11.1')throw Error('ACCOUNT_SECURITY_ORACLE_NODE_REQUIRED');

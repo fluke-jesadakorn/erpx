@@ -5,13 +5,13 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { commercialOwnerProjectionSources as commerce } from '@erpx/server-commerce/public/commercial-owner-projection-sources';
-import { commercialOwnerProjectionSources as identity } from '@erpx/server-identity_access/public/commercial-owner-projection-sources';
-import { commercialOwnerProjectionSources as payroll } from '@erpx/server-people_payroll/public/commercial-owner-projection-sources';
-import { salesRecipientEligibility } from '../../../packages/server-sales/src/adapters/recipient';
-import { SALES_RD_FOLLOWUP_RECIPIENTS } from '../../../packages/server-sales/src/adapters/native-sales-read';
+import { commercialOwnerProjectionSources as commerce } from '@erpx/commerce-server/public/commercial-owner-projection-sources';
+import { commercialOwnerProjectionSources as identity } from '@erpx/identity-access-server/public/commercial-owner-projection-sources';
+import { commercialOwnerProjectionSources as payroll } from '@erpx/people-payroll-server/public/commercial-owner-projection-sources';
+import { salesRecipientEligibility } from '../../../modules/sales/server/src/adapters/recipient';
+import { SALES_RD_FOLLOWUP_RECIPIENTS } from '../../../modules/sales/server/src/adapters/native-sales-read';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-sales/src');
+const srcRoot = resolve(__dirname, '../../../modules/sales/server/src');
 const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const source = read('native_sales_read_sql.rs');
 const followups = read('followups.ts');

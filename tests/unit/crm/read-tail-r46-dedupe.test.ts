@@ -1,15 +1,15 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { crmProjectionFromSql, crmSelectBodySql } from '../../../packages/server-crm/src/adapters/read-tail-r46-sql';
+import { crmProjectionFromSql, crmSelectBodySql } from '../../../modules/crm/server/src/adapters/read-tail-r46-sql';
 import {
   crmCaseEventReadSql,
   crmOpportunityProbeSql,
-} from '../../../packages/server-crm/src/adapters/read-tail-r28-sql';
-import { crmOpportunitySourceAnchorSql } from '../../../packages/server-crm/src/adapters/read-tail-r36-sql';
-import { crmSalesOpportunitySql } from '../../../packages/server-crm/src/adapters/read-tail-r37-sql';
+} from '../../../modules/crm/server/src/adapters/read-tail-r28-sql';
+import { crmOpportunitySourceAnchorSql } from '../../../modules/crm/server/src/adapters/read-tail-r36-sql';
+import { crmSalesOpportunitySql } from '../../../modules/crm/server/src/adapters/read-tail-r37-sql';
 
-const owner = resolve(__dirname, '../../../packages/server-crm/src');
+const owner = resolve(__dirname, '../../../modules/crm/server/src');
 const src = (name: string) => readFileSync(resolve(owner, 'adapters', name), 'utf8');
 const totalSelects = () => {
   let total = 0;
@@ -128,7 +128,7 @@ describe('crm read-tail r46 byte-identical projection/FROM head', () => {
       'LOCK TABLE crm_accounts,crm_contacts,crm_guest_links,crm_guest_sharing_events,crm_leads,crm_opportunities,crm_case_events,crm_lead_activities,crm_lead_activity_events IN SHARE ROW EXCLUSIVE MODE',
     );
     expect(src('purchases.ts')).toContain('SELECT 1 FROM command_receipts WHERE command_id=?');
-    expect(src('purchases.ts')).toContain('@erpx/server-pms/public/crm-purchase-sources');
+    expect(src('purchases.ts')).toContain('@erpx/pms-server/public/crm-purchase-sources');
   });
 
   test.each([

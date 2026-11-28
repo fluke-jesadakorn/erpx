@@ -1,28 +1,28 @@
 import {seedExpenseCompany} from '../../../fixtures/expenses/company';
-import type {PostgresDatabase} from '@erpx/server-runtime/adapters/runtime/postgres';
-import {holdingResources} from '@erpx/server-runtime/public/runtime';
+import type {PostgresDatabase} from '@erpx/platform-runtime-server/adapters/runtime/postgres';
+import {holdingResources} from '@erpx/platform-runtime-server/public/runtime';
 import {afterAll,afterEach,beforeAll,describe,expect,it,vi} from 'vitest';
 import {createHash} from 'node:crypto';
-import {LocalFileStore} from '@erpx/server-runtime/adapters/runtime/filesystem';
+import {LocalFileStore} from '@erpx/platform-runtime-server/adapters/runtime/filesystem';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {businessFileOwners,businessFileTarget} from "../../support/helpers/business-file-targets";
 import {attachmentBindingState} from "../../support/helpers/attachment-v2";
 import {proveNativeFieldFiles,withNativeFieldFixture,prepareNativeFieldFile,verifyNativeCommittedWithdrawal,verifyNativeLateContentFaults} from "../../support/files/field-files-native-parity";
 import ownerMatrix from "../../catalogue/engineering-attachment-owner-cases.json";
-import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import type {AttachmentComponentKind} from "@erpx/server-files/public/attachments/types";
-import {attachmentPolicy} from "@erpx/server-files/public/attachments/policy";
-import {attachmentContent,attachmentLinkStatus,bindRecordAttachmentSet,completeAttachmentUpload,createAttachmentSet,drainAttachmentScans,listAttachmentSets,prepareAttachmentBinding,reserveAttachmentFile} from "@erpx/server-files/public/attachments/service";
-import {loadIamAuthority} from "@erpx/server-identity_access/public/iam-store";
-import {packageGrantStore,readCompanyPackageGrants} from "@erpx/server-commercial/public/package-grants";
-import {attachmentDestructionEligibility} from "@erpx/server-files/public/attachments/service";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
+import type {AttachmentComponentKind} from "@erpx/files-server/public/attachments/types";
+import {attachmentPolicy} from "@erpx/files-server/public/attachments/policy";
+import {attachmentContent,attachmentLinkStatus,bindRecordAttachmentSet,completeAttachmentUpload,createAttachmentSet,drainAttachmentScans,listAttachmentSets,prepareAttachmentBinding,reserveAttachmentFile} from "@erpx/files-server/public/attachments/service";
+import {loadIamAuthority} from "@erpx/identity-access-server/public/iam-store";
+import {packageGrantStore,readCompanyPackageGrants} from "@erpx/commercial-server/public/package-grants";
+import {attachmentDestructionEligibility} from "@erpx/files-server/public/attachments/service";
 
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:vi.fn(async()=>({write:env.H001_DB,read:env.H001_DB,files:env.H001_FILES})),runtimeEnv:async()=>env}));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:vi.fn(async()=>({write:env.H001_DB,read:env.H001_DB,files:env.H001_FILES})),runtimeEnv:async()=>env}));
 // The clean scanner is a declared fixture. Upload bytes, sniffing, sanitized
 // preview creation, quota, storage, owner policy and transactions are real.
 // Root verifies ClamAV with the compiled scanner separately on this source.
-vi.mock("@erpx/server-files/public/attachments/scanner",()=>({
+vi.mock("@erpx/files-server/public/attachments/scanner",()=>({
  attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:'Declared clean scanner fixture',definitionUpdatedAt:Date.now(),error:null}),
  scanAttachmentBytes:async()=>({clean:true,signature:null,engine:'Declared clean scanner fixture',definitionUpdatedAt:Date.now()}),
 }));
@@ -202,7 +202,7 @@ it('binds fresh native Field evidence with exact Support projection, module deni
    const history=await native.requestAs('technician','POST',native.base,{targetType:'field_service_visit',targetId:order,componentKind:'record',purposeKey:'technician_report',expectedTargetVersion:3});expect(history.status,JSON.stringify(history.json)).toBe(409);expect(history.json.error.code).toBe('SERVICE_ATTACHMENT_HISTORY_ONLY');expect((await native.requestAs('technician','POST',bindPath,{expectedTargetVersion:1},command)).json).toEqual(receipt.json);expect(await db.prepare('SELECT version,status FROM field_service_orders WHERE id=?').bind(order).first()).toEqual({version:3,status:'cancelled'});
   }
  },async db=>{
-  vi.mocked(holdingResources).mockResolvedValue({write:db,read:db,files:env.H001_FILES});const f=await seedExpenseCompany(db,env.H001_FILES);const {saveMaster}=await import('@erpx/server-commerce/public/commerce');const customer=String((await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'Fresh native Files customer'},key())).id);
+  vi.mocked(holdingResources).mockResolvedValue({write:db,read:db,files:env.H001_FILES});const f=await seedExpenseCompany(db,env.H001_FILES);const {saveMaster}=await import('@erpx/commerce-server/public/commerce');const customer=String((await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'Fresh native Files customer'},key())).id);
   await db.exec(`INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('*','custom_field_parts',2,'["records.read","records.write","records.review","module.field_service.read"]','[]','["holding","branch","department"]','synthetic-native-files',0);UPDATE iam_roles SET published_revision=2 WHERE company_id='*' AND id='custom_field_parts';INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status)VALUES('*','native_field_no_module','Original no-Field-module role',false,1,'active');INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('*','native_field_no_module',1,'["records.read","records.write"]','[]','["holding"]','synthetic-native-files',0)`);
   const actors=[];for(const [label,actor]of [['owner',f.owner],['reviewer',f.tie],['technician',f.claimant],['restricted',f.claimant]]as const){const role=label==='restricted'?'native_field_no_module':'custom_field_parts',assignmentId=await f.grant(actor,role),modules=label==='restricted'?['finance']:['field_service'];await db.prepare('UPDATE assignments SET modules_json=? WHERE id=?').bind(JSON.stringify(modules),assignmentId).run();const version=Number(await db.prepare('SELECT version FROM assignments WHERE id=?').bind(assignmentId).first('version'));actors.push({label,userId:actor.userId,assignmentId,assignmentVersion:version,role,modules,branchId:null,departmentId:null});}
   prepared={db,f,customer};return{companyId:f.company,actors};

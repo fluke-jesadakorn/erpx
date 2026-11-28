@@ -6,23 +6,23 @@ import {
   expenseFixture,
   key,
 } from "../../support/helpers/expense-fixture";
-import type { WorkContext, WorkAssignment } from "@erpx/server-identity_access/public/authorization";
-import {serviceTeamSchema} from '@erpx/server-support/public/service-teams';
+import type { WorkContext, WorkAssignment } from "@erpx/identity-access-server/public/authorization";
+import {serviceTeamSchema} from '@erpx/support-server/public/service-teams';
 import {seedServiceTeam,reviseServiceTeam} from '../../support/helpers/service-team-seed';
-import {resolveServiceTeam} from '@erpx/server-support/public/service-team-reads';
-import {actOnEmployeeRequest,employeeRequestSchema,requestActionSchema,saveEmployeeRequest,prepareRequestOrderHandoff,employeeRequestWork} from '@erpx/server-records/public/employee-requests';
-import {employeeRequestDetail,getEmployeeRequest} from '@erpx/server-records/public/employee-requests-read';
-import { executeCommand } from "@erpx/server-workflow/public/commands";
-import { serviceAuthoritySnapshot } from "@erpx/server-support/public/service-access";
+import {resolveServiceTeam} from '@erpx/support-server/public/service-team-reads';
+import {actOnEmployeeRequest,employeeRequestSchema,requestActionSchema,saveEmployeeRequest,prepareRequestOrderHandoff,employeeRequestWork} from '@erpx/records-server/public/employee-requests';
+import {employeeRequestDetail,getEmployeeRequest} from '@erpx/records-server/public/employee-requests-read';
+import { executeCommand } from "@erpx/workflow-server/public/commands";
+import { serviceAuthoritySnapshot } from "@erpx/support-server/public/service-access";
 import {
   responsibilityContext,
   responsibilityRoles,
-} from "@erpx/feature-organization/lib/responsibilities";
-import {commercePermissions} from '@erpx/server-commerce/public/commerce';
-import { resourceRequestRoute } from "@erpx/server-people_payroll/public/expense-routing";
+} from "@erpx/organization-ui/lib/responsibilities";
+import {commercePermissions} from '@erpx/commerce-server/public/commerce';
+import { resourceRequestRoute } from "@erpx/people-payroll-server/public/expense-routing";
 
 vi.mock("server-only", () => ({}));
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));
@@ -511,9 +511,9 @@ it("permits a purchase request with unknown cost and no promised delivery date",
   );
 });
 it('maps an approved requisition into RFQ and atomically links the awarded PO without bypassing either owner',async()=>{
- const {createRfq,actRfq,rfqDetail}=await import("@erpx/server-procurement/public/procurement-rfqs");
- const {saveMaster,saveOrder,orderSchema,getOrder}=await import("@erpx/server-commerce/public/commerce");
- const {purchaseRequestProgress}=await import("@erpx/server-procurement/public/purchase-request-progress");
+ const {createRfq,actRfq,rfqDetail}=await import("@erpx/procurement-server/public/procurement-rfqs");
+ const {saveMaster,saveOrder,orderSchema,getOrder}=await import("@erpx/commerce-server/public/commerce");
+ const {purchaseRequestProgress}=await import("@erpx/procurement-server/public/purchase-request-progress");
  const r=await assigned('purchase'),purchaser={...f.it,role:'purchasing_operator',assignmentId:await f.grant(f.it,'purchasing_operator')};
  const source=await getEmployeeRequest(db,purchaser,r.id),warehouse=String((await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:key(),name:'Requisition warehouse'},key())).id),product=String((await saveMaster(f.owner,'products',null,{sku:key(),name:'Requested laptop',price:'100'},key())).id),party=String((await saveMaster(f.owner,'parties',null,{kind:'supplier',code:key(),name:'Approved supplier'},key())).id);
  const input={requestId:r.id,requestVersion:source.version,title:'Source requisition RFQ',warehouseId:warehouse,neededDate:'2026-09-20',demandEvidence:'Product mapped to the approved laptop request',lines:[{requestItemOrdinal:0,productId:product,quantity:'1'}]};
@@ -539,9 +539,9 @@ it('maps an approved requisition into RFQ and atomically links the awarded PO wi
  expect(requesterProgress.steps.find(step=>step.id==='sourcing')?.href).toBeNull();
 });
 it('splits one approved request across supplier awards and snapshots exact unit conversions for two purchase orders',async()=>{
- const {createRfq,actRfq,rfqDetail}=await import("@erpx/server-procurement/public/procurement-rfqs");
- const {requestQuotationSource}=await import("@erpx/server-records/public/employee-requests");
- const {saveMaster,saveOrder,orderSchema}=await import("@erpx/server-commerce/public/commerce");
+ const {createRfq,actRfq,rfqDetail}=await import("@erpx/procurement-server/public/procurement-rfqs");
+ const {requestQuotationSource}=await import("@erpx/records-server/public/employee-requests");
+ const {saveMaster,saveOrder,orderSchema}=await import("@erpx/commerce-server/public/commerce");
  await team('purchasing');
  const r=await request('purchase',f.claimant,{currency:'THB',items:[{description:'Laptop',quantity:'24',unit:'each',estimatedCost:'240000'}]});
  await act(f.claimant,r.id,'submit');await act(f.head,r.id,'approve');await act(f.reviewer,r.id,'approve');await act(f.manager,r.id,'approve');await act(f.it,r.id,'assign',{assigneeUserId:f.it.userId});await act(f.it,r.id,'start');
@@ -576,7 +576,7 @@ it('splits one approved request across supplier awards and snapshots exact unit 
  expect(new Set(orderIds).size).toBe(2);
  expect(Number(await db.prepare('SELECT count(*) n FROM procurement_request_orders WHERE request_id=?').bind(r.id).first('n'))).toBe(2);
  expect((await getEmployeeRequest(db,purchaser,r.id)).purchase_order_id).toBe(orderIds[0]);
- const progress=await (await import("@erpx/server-procurement/public/purchase-request-progress")).purchaseRequestProgress(db,purchaser,r.id);expect(progress.steps.find(step=>step.id==='sourcing')?.state).toBe('complete');expect(progress.steps.find(step=>step.id==='order')?.detail).toContain('2 linked purchase orders');
+ const progress=await (await import("@erpx/procurement-server/public/purchase-request-progress")).purchaseRequestProgress(db,purchaser,r.id);expect(progress.steps.find(step=>step.id==='sourcing')?.state).toBe('complete');expect(progress.steps.find(step=>step.id==='order')?.detail).toContain('2 linked purchase orders');
 });
 
 it('rolls back request draft, event, receipt, audit and outbox after a late failure then replays one retry',async()=>{

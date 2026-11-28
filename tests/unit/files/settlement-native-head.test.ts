@@ -6,10 +6,10 @@ import {
   ATTACHMENT_EXISTS_HEAD_SQL,
   MESSAGING_SETTLEMENT_HEAD_SQL,
   PACKAGE_FILE_LINK_TARGET_HEAD_SQL,
-} from '../../../packages/server-files/src/adapters/read-tail-r48-source-sql';
+} from '../../../modules/files/server/src/adapters/read-tail-r48-source-sql';
 
 const rootDir = resolve(__dirname, '../../..');
-const srcRoot = resolve(rootDir, 'packages/server-files/src');
+const srcRoot = resolve(rootDir, 'modules/files/server/src');
 const src = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
 const sha = (text: string) => createHash('sha256').update(text).digest('hex');
 

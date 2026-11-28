@@ -1,8 +1,8 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_workflow::public::service_count_outbox::*;
-use erpx_server_inventory::public::service_count_outbox::*;
-use erpx_server_runtime::public::postgres::{load_migrations,migrate_database,MigrationTrack};
+use erpx_workflow_server::public::service_count_outbox::*;
+use erpx_inventory_server::public::service_count_outbox::*;
+use erpx_platform_runtime_server::public::postgres::{load_migrations,migrate_database,MigrationTrack};
 use std::path::Path;
 
 #[tokio::test]
@@ -105,7 +105,7 @@ async fn colliding_flow_kinds_are_classified_by_consistent_retained_evidence() {
   let rows:Vec<(String,bool,bool,bool)>=query.build_query_as().fetch_all(pool.raw()).await.unwrap();
   assert_eq!(rows,vec![("conflict".into(),true,true,false),("expense".into(),false,false,false),("missing".into(),true,true,false),("stock".into(),true,false,false),("unknown".into(),true,true,false)]);
   // The ambiguous claimant does not contact the projection database.
-  assert!(erpx_service::service_count_worker::run_once(pool.raw(),pool.raw(),"worker-token",10).await.unwrap());
+  assert!(erpx_platform_composition::service_count_worker::run_once(pool.raw(),pool.raw(),"worker-token",10).await.unwrap());
   let (code,processed):(Option<String>,Option<i64>)=sqlx::query_as("SELECT last_error,processed_at FROM outbox_events WHERE id='conflict'").fetch_one(pool.raw()).await.unwrap();
   assert_eq!(code.as_deref(),Some("SOURCE_AMBIGUOUS"));assert_eq!(processed,None);
 

@@ -18,6 +18,6 @@ pub(super) const PROBES:&[Probe]=&[
 ${profiles.map(item=>`    Probe{label:${JSON.stringify(item.label)},media_type:LegalDocumentMediaType::${media[item.mime]},hex:${JSON.stringify(item.hex)},method:ExtractionMethod::${item.method},pages:${item.pages}},`).join('\n')}
 ];
 `;
-fs.mkdirSync('packages/server-legal/src/adapters/document_readiness',{recursive:true});
-fs.writeFileSync('packages/server-legal/src/adapters/document_readiness/probes.rs',source);
+fs.mkdirSync('modules/legal/server/src/adapters/document_readiness',{recursive:true});
+fs.writeFileSync('modules/legal/server/src/adapters/document_readiness/probes.rs',source);
 console.log(`Imported ${profiles.length} synthetic worker readiness inputs`);

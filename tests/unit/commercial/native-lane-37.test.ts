@@ -11,8 +11,8 @@ import {
   type Lane37Actor,
   type NativeSeatHistory,
   type ProjectionFacts,
-} from '../../../packages/server-commercial/src/adapters/native-lane-37/client';
-import { nativeFactsToRepository } from '../../../packages/server-commercial/src/adapters/projection';
+} from '../../../modules/commercial/server/src/adapters/native-lane-37/client';
+import { nativeFactsToRepository } from '../../../modules/commercial/server/src/adapters/projection';
 
 const ENV = 'ERPX_NATIVE_LANE37_COMMERCIAL_CONFIG';
 /** Exact development env value for the three registered Holding hosts. */
@@ -140,19 +140,19 @@ describe('native lane 37 Commercial seat-history transport', () => {
     ).toBe(PROJECTION_SQL_ORACLE);
     const root = process.cwd();
     const rust = readFileSync(
-      resolve(root, 'packages/server-commercial/src/adapters/native_lane_37/domain.rs'),
+      resolve(root, 'modules/commercial/server/src/adapters/native_lane_37/domain.rs'),
       'utf8',
     );
     const ts = readFileSync(
-      resolve(root, 'packages/server-commercial/src/adapters/seats.ts'),
+      resolve(root, 'modules/commercial/server/src/adapters/seats.ts'),
       'utf8',
     );
     const projection = readFileSync(
-      resolve(root, 'packages/server-commercial/src/adapters/projection.ts'),
+      resolve(root, 'modules/commercial/server/src/adapters/projection.ts'),
       'utf8',
     );
     const client = readFileSync(
-      resolve(root, 'packages/server-commercial/src/adapters/native-lane-37/client.ts'),
+      resolve(root, 'modules/commercial/server/src/adapters/native-lane-37/client.ts'),
       'utf8',
     );
     for (const fragment of [

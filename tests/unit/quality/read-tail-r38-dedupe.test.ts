@@ -4,18 +4,18 @@ import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 vi.mock('server-only', () => ({}));
 const { readFirst } = vi.hoisted(() => ({ readFirst: vi.fn() }));
-vi.mock('../../../packages/server-quality/src/adapters/native-quality-read', () => ({
+vi.mock('../../../modules/quality/server/src/adapters/native-quality-read', () => ({
   RD_ATTACHMENT_DESCRIPTOR: 'quality_rd_attachment_descriptor',
   RD_LEGACY_ATTACHMENT_SCOPE: 'quality_rd_legacy_attachment_scope',
   RD_ATTACHMENT_SPEC_SCOPE: 'quality_rd_attachment_spec_scope',
   nativeQualityReadFirst: readFirst,
   nativeQualityGuardAssertion: vi.fn(),
 }));
-import { policyQualityFacts } from '../../../packages/server-quality/src/adapters/attachments-policy-facts';
-import { legacyAttachmentScopequality } from '../../../packages/server-quality/src/adapters/attachment-migration-owner';
-import { OperationalAttachmentQualityFacts } from '../../../packages/server-quality/src/adapters/attachments-operational-facts';
+import { policyQualityFacts } from '../../../modules/quality/server/src/adapters/attachments-policy-facts';
+import { legacyAttachmentScopequality } from '../../../modules/quality/server/src/adapters/attachment-migration-owner';
+import { OperationalAttachmentQualityFacts } from '../../../modules/quality/server/src/adapters/attachments-operational-facts';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-quality/src');
+const srcRoot = resolve(__dirname, '../../../modules/quality/server/src');
 const read = (path: string) => readFileSync(resolve(srcRoot, path), 'utf8');
 const sha = (sql: string) => createHash('sha256').update(sql).digest('hex');
 

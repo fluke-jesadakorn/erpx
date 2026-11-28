@@ -5,12 +5,12 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { projectionColumnHeadSql } from '../../../packages/server-records/src/adapters/read-tail-r32-sql';
+import { projectionColumnHeadSql } from '../../../modules/records/server/src/adapters/read-tail-r32-sql';
 
 const root = resolve(__dirname, '../../..');
 const read = (p: string) => readFileSync(resolve(root, p), 'utf8');
 const sha = (s: string) => createHash('sha256').update(s, 'utf8').digest('hex');
-const source = read('packages/server-records/src/adapters/employee-requests-read.ts');
+const source = read('modules/records/server/src/adapters/employee-requests-read.ts');
 
 // Frozen value of the retained cross-owner actor-name projection fragment.
 const actorNameSql = "COALESCE((SELECT legal_name FROM hr_people p WHERE p.company_id=e.company_id AND p.user_id=e.actor_id AND p.merged_into_id IS NULL LIMIT 1),'Company member')";
@@ -48,7 +48,7 @@ describe('Records employee_request_events detail head cutover', () => {
         else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
       }
     };
-    walk(resolve(root, 'packages/server-records/src'));
+    walk(resolve(root, 'modules/records/server/src'));
     expect(total).toBe(6);
     expect(total).toBeLessThan(8);
   });

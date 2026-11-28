@@ -4,39 +4,39 @@
   "sourceCommit": "a5ed8737a2f05eff1ee9841fda4a094b3926d732",
   "sources": [
     {
-      "path": "packages/server-finance/src/domain/finance-instrument-policy.ts",
+      "path": "modules/finance/server/src/domain/finance-instrument-policy.ts",
       "sha256": "fc858cc7318ccecd5668c41cd7b06fa14005dfc37ef01135800b33ebb85a7bff"
     },
     {
-      "path": "packages/feature-finance/src/lib/finance-money.ts",
+      "path": "modules/finance/ui/src/lib/finance-money.ts",
       "sha256": "c36415b741869d868e321634749ddd97854ccf81dfb32740a0c41789488651b8"
     },
     {
-      "path": "packages/server-finance/src/domain/finance-calculations.ts",
+      "path": "modules/finance/server/src/domain/finance-calculations.ts",
       "sha256": "31a16e4d0ac572b8bd67157bbd5a63b8a3a88847e7c9eac72ce43a7d2ca5739c"
     },
     {
-      "path": "packages/server-finance/src/domain/finance-invoice-lines.ts",
+      "path": "modules/finance/server/src/domain/finance-invoice-lines.ts",
       "sha256": "6f11b78d8f5cfdec57defa1cda4b3b00ff923cd7877bcd3d98df639b3b9d07f7"
     },
     {
-      "path": "packages/server-finance/src/application/journal.ts",
+      "path": "modules/finance/server/src/application/journal.ts",
       "sha256": "2610904c5de6f0f4d02f917de23c33afb3ecd98fe44ee8738e3a269a4674d314"
     },
     {
-      "path": "packages/server-finance/src/domain/finance-policy.ts",
+      "path": "modules/finance/server/src/domain/finance-policy.ts",
       "sha256": "96331eb867f351f214fe028f88d488d42d18f8447b9eb92a077efffe0f12e61f"
     },
     {
-      "path": "packages/feature-finance/src/lib/company-money.ts",
+      "path": "modules/finance/ui/src/lib/company-money.ts",
       "sha256": "1a23b5275688dde81e899296370ff76cf9c0175c602067cf89f40020562c1fb2"
     },
     {
-      "path": "packages/server-finance/src/application/functional-fx.ts",
+      "path": "modules/finance/server/src/application/functional-fx.ts",
       "sha256": "7cd9d9eea281c99541fef1481f88113cdf298e40634cd2cacd6b0da2f69b1e07"
     },
     {
-      "path": "packages/catalogue/src/iso-4217-current.json",
+      "path": "platform/catalogue/src/iso-4217-current.json",
       "sha256": "b9df3cc7dc2b2b165748fc31c4d28a9af6f8dbc20da0db9530c24cde976465d7"
     }
   ],

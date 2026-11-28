@@ -4,14 +4,14 @@
 mod actor_fixture;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, Clock, CompanyId, IdentifierSource, RecordId, TimestampMillis,
 };
-use erpx_server_workflow::public::commands::*;
+use erpx_workflow_server::public::commands::*;
 use sqlx::{Connection, PgConnection};
 type Error = PgTransactionError<BusinessError>;
 struct Time;
@@ -455,13 +455,13 @@ async fn all_frozen_node_receipt_replays_preserve_results_conflicts_and_current_
     }).await;
 }
 
-use erpx_server_workflow::public::record_origin::*;
+use erpx_workflow_server::public::record_origin::*;
 fn origin_request() -> RecordOriginRequest {
     RecordOriginRequest {
         command_key: "workflow:test:command".into(),
         operation: "workflow.synthetic.update".into(),
         record_id: "record".into(),
-        creator_user_id: erpx_server_shared::public::UserId::new("user").unwrap(),
+        creator_user_id: erpx_platform_shared_server::public::UserId::new("user").unwrap(),
         company_id: CompanyId::new("company").unwrap(),
     }
 }
@@ -501,7 +501,7 @@ async fn positive_origin_matches_actual_ledger_bytes_and_all_closed_identity_fie
                 "record" => request.record_id = "foreign-record".into(),
                 "creator" => {
                     request.creator_user_id =
-                        erpx_server_shared::public::UserId::new("foreign-user").unwrap()
+                        erpx_platform_shared_server::public::UserId::new("foreign-user").unwrap()
                 }
                 "company" => request.company_id = CompanyId::new("foreign-company").unwrap(),
                 _ => unreachable!(),
@@ -833,7 +833,7 @@ impl PgOwnerCommandEffects for SetupMarkerEffects {
 }
 #[tokio::test]
 async fn service_posting_receipt_discovery_preserves_first_marker_and_absence() {
-    use erpx_server_workflow::public::service_parts_posting::*;
+    use erpx_workflow_server::public::service_parts_posting::*;
     fixture::with_database(2,|pool|async move{
         setup(&pool).await;
         let mut tx=pool.raw().begin().await.unwrap();
@@ -868,7 +868,7 @@ async fn service_posting_receipt_discovery_preserves_first_marker_and_absence() 
 
 #[tokio::test]
 async fn service_posting_receipt_lock_waits_before_snapshot() {
-    use erpx_server_workflow::public::service_parts_posting::*;
+    use erpx_workflow_server::public::service_parts_posting::*;
     fixture::with_database(3,|pool|async move {
         setup(&pool).await;
         let mut writer=pool.raw().begin().await.unwrap();
@@ -892,7 +892,7 @@ async fn service_posting_receipt_lock_waits_before_snapshot() {
 
 #[tokio::test]
 async fn count_origin_marker_collection_is_global_exact_and_retained() {
-    use erpx_server_workflow::public::count_origin_markers::*;
+    use erpx_workflow_server::public::count_origin_markers::*;
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
         let count=RecordId::new("real-count").unwrap();
@@ -976,7 +976,7 @@ async fn record_origin_require_held_checks_existing_lock_without_upgrade() {
 
 #[tokio::test]
 async fn field_history_receipt_join_retains_exact_candidates_without_temp_tables() {
-    use erpx_server_workflow::public::record_origin::*;
+    use erpx_workflow_server::public::record_origin::*;
     use sqlx::Acquire;
     fixture::with_database(2,|pool|async move {
         setup(&pool).await;
@@ -1021,7 +1021,7 @@ async fn field_history_receipt_join_retains_exact_candidates_without_temp_tables
 
 #[tokio::test]
 async fn initial_count_history_receipts_match_actual_legacy_marker_sources() {
-    use erpx_server_workflow::public::record_origin::*;
+    use erpx_workflow_server::public::record_origin::*;
     use sqlx::Acquire;
     fixture::with_database(2,|pool|async move {
         setup(&pool).await;
@@ -1055,7 +1055,7 @@ async fn initial_count_history_receipts_match_actual_legacy_marker_sources() {
 
 #[tokio::test]
 async fn initial_count_history_support_receipts_match_actual_setup_sql() {
-    use erpx_server_workflow::public::record_origin::*;
+    use erpx_workflow_server::public::record_origin::*;
     fixture::with_database(2,|pool|async move {
         setup(&pool).await;
         let mut tx=pool.raw().begin().await.unwrap();
@@ -1087,7 +1087,7 @@ async fn initial_count_history_support_receipts_match_actual_setup_sql() {
 
 #[tokio::test]
 async fn asset_purchase_receipt_purpose_matches_actual_ts_without_hash_or_target() {
-    use erpx_server_workflow::public::asset_purchase_receipt::*;
+    use erpx_workflow_server::public::asset_purchase_receipt::*;
     fixture::with_database(2,|pool|async move {
         setup(&pool).await;
         let mut unlocked=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unlocked).await.unwrap();assert!(inspect_asset_purchase_receipt_purpose(&mut unlocked,"asset-key","asset.create","user",&CompanyId::new("company").unwrap()).await.is_err());unlocked.rollback().await.unwrap();
@@ -1112,15 +1112,15 @@ async fn asset_purchase_receipt_purpose_matches_actual_ts_without_hash_or_target
 
 #[tokio::test]
 async fn quality_return_receipts_match_actual_typescript_join_and_retain_fence() {
-    use erpx_server_shared::public::{CompanyId, RecordId, UserId};
-    use erpx_server_workflow::public::quality_return_receipts::{
+    use erpx_platform_shared_server::public::{CompanyId, RecordId, UserId};
+    use erpx_workflow_server::public::quality_return_receipts::{
         QualityReturnReceiptScope, inspect_quality_return_receipts, lock_quality_return_receipts,
     };
     fixture::with_database(2,|pool|async move {
         setup(&pool).await;
         let script=r#"
 if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');
-const {commerceQualityOriginRows}=await import('./packages/server-commerce/src/adapters/quality-purchase-sources.ts');
+const {commerceQualityOriginRows}=await import('./modules/commerce/server/src/adapters/quality-purchase-sources.ts');
 const matches=[...commerceQualityOriginRows.matchAll(/JOIN command_receipts receipt ON ([^\n]+)/g)].map(x=>x[1]);
 if(matches.length!==2||matches[0]!==matches[1])throw Error('QUALITY_RETURN_TS_JOIN_CHANGED');
 process.stdout.write(matches[0]);
@@ -1174,13 +1174,13 @@ process.stdout.write(matches[0]);
 
 #[tokio::test]
 async fn quality_scrap_request_receipt_matches_legacy_join_and_fence() {
-    use erpx_server_shared::public::{CompanyId,RecordId,UserId};
-    use erpx_server_workflow::public::quality_return_receipts::{QualityScrapRequestReceiptScope,inspect_quality_scrap_request_receipt,lock_quality_scrap_request_receipts};
+    use erpx_platform_shared_server::public::{CompanyId,RecordId,UserId};
+    use erpx_workflow_server::public::quality_return_receipts::{QualityScrapRequestReceiptScope,inspect_quality_scrap_request_receipt,lock_quality_scrap_request_receipts};
     fixture::with_database(2,|pool|async move {
         setup(&pool).await;
         let script=r#"
 if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');
-const {qualityDisposalCountRows}=await import('./packages/server-inventory/src/adapters/quality-count-purchases.ts');
+const {qualityDisposalCountRows}=await import('./modules/inventory/server/src/adapters/quality-count-purchases.ts');
 const match=qualityDisposalCountRows.match(/JOIN command_receipts receipt ON ([^\n]+)/);
 if(!match)throw Error('QUALITY_SCRAP_TS_JOIN_CHANGED');process.stdout.write(match[1]);
 "#;

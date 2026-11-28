@@ -1,8 +1,8 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
-const file = new URL('../../../packages/server-talent/src/adapters/executive-evidence-sources.ts', import.meta.url);
-const srcDir = new URL('../../../packages/server-talent/src/', import.meta.url);
+const file = new URL('../../../modules/talent/server/src/adapters/executive-evidence-sources.ts', import.meta.url);
+const srcDir = new URL('../../../modules/talent/server/src/', import.meta.url);
 
 // Exact pre-dedupe emitted SQL (r25 baseline, BEFORE=53). Only the projection,
 // FROM tail and order are parameterized; the purchased metric source and the

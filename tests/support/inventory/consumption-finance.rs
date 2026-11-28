@@ -1,9 +1,9 @@
 //! Concrete public-facade bridge, not a synthetic Finance allowance.
-use erpx_server_commerce::public::inventory_consumption::CommercePostingSettings;
-use erpx_server_finance::public::inventory_consumption::*;
-use erpx_server_inventory::public::{consumption::*, postgres_consumption::*};
-use erpx_server_runtime::public::postgres::PgTransactionError;
-use erpx_server_shared::public::{BusinessError, HoldingId, RecordId};
+use erpx_commerce_server::public::inventory_consumption::CommercePostingSettings;
+use erpx_finance_server::public::inventory_consumption::*;
+use erpx_inventory_server::public::{consumption::*, postgres_consumption::*};
+use erpx_platform_runtime_server::public::postgres::PgTransactionError;
+use erpx_platform_shared_server::public::{BusinessError, HoldingId, RecordId};
 use sqlx::PgConnection;
 type Error = PgTransactionError<BusinessError>;
 pub struct FinanceFacts;

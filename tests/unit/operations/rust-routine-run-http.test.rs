@@ -1,9 +1,9 @@
 //! Native routine run HTTP ingress facts over a real loopback listener.
-use erpx_server_operations::public::routine_commands_http::{
+use erpx_operations_server::public::routine_commands_http::{
     RoutineHttpBackend, RoutineHttpCommandRequest, RoutineHttpFuture, RoutineHttpResponse,
     RoutineHttpTarget, routine_commands_router,
 };
-use erpx_server_runtime::public::http_support::{
+use erpx_platform_runtime_server::public::http_support::{
     Router, serde_json::Value, serde_json::json, serve,
 };
 use std::sync::{
@@ -55,7 +55,7 @@ impl RoutineHttpBackend for Backend {
     fn schedules<'a>(
         &'a self,
         _: &'a str,
-        _: &'a erpx_server_runtime::public::http_support::HeaderMap,
+        _: &'a erpx_platform_runtime_server::public::http_support::HeaderMap,
         template_id: String,
     ) -> RoutineHttpFuture<'a, RoutineHttpResponse> {
         Box::pin(async move {
@@ -69,7 +69,7 @@ impl RoutineHttpBackend for Backend {
     fn editor_context<'a>(
         &'a self,
         _: &'a str,
-        _: &'a erpx_server_runtime::public::http_support::HeaderMap,
+        _: &'a erpx_platform_runtime_server::public::http_support::HeaderMap,
     ) -> RoutineHttpFuture<'a, RoutineHttpResponse> {
         Box::pin(async {
             Ok(RoutineHttpResponse {

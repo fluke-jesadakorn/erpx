@@ -8,15 +8,15 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_files::public::quality_inspection_evidence::{
+use erpx_files_server::public::quality_inspection_evidence::{
     inspect_quality_inspection_evidence_sets, lock_quality_inspection_evidence_sources,
 };
-use erpx_server_quality::public::quality_http::{QualityHttpTarget, quality_router};
-use erpx_server_runtime::public::postgres::PgTransactionError;
-use erpx_server_shared::public::{Clock, CompanyId, HoldingId, RecordId};
-use erpx_service::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
-use erpx_service::quality::{QualityBackend, QualityConfiguration, QualityService};
-use erpx_service::quality_count_origin::{
+use erpx_quality_server::public::quality_http::{QualityHttpTarget, quality_router};
+use erpx_platform_runtime_server::public::postgres::PgTransactionError;
+use erpx_platform_shared_server::public::{Clock, CompanyId, HoldingId, RecordId};
+use erpx_platform_composition::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
+use erpx_platform_composition::quality::{QualityBackend, QualityConfiguration, QualityService};
+use erpx_platform_composition::quality_count_origin::{
     QualityCancelSourceKind, inspect_quality_cancel_purchase_source,
 };
 use std::sync::Arc;
@@ -1861,19 +1861,19 @@ async fn quality_cancellation_settles_the_proven_original_purchase() {
             .execute(&mut *tx)
             .await
             .unwrap();
-        erpx_server_quality::public::purchase_lineage::lock_quality_purchase_lineage(&mut tx)
+        erpx_quality_server::public::purchase_lineage::lock_quality_purchase_lineage(&mut tx)
             .await
             .unwrap();
-        erpx_server_commerce::public::quality_return_origin::lock_quality_return_commerce(&mut tx)
+        erpx_commerce_server::public::quality_return_origin::lock_quality_return_commerce(&mut tx)
             .await
             .unwrap();
-        erpx_server_inventory::public::quality_fulfillment_allocation::lock_quality_fulfillment_allocations(&mut tx)
+        erpx_inventory_server::public::quality_fulfillment_allocation::lock_quality_fulfillment_allocations(&mut tx)
             .await
             .unwrap();
-        erpx_server_inventory::public::quality_disposition_count::lock_quality_disposition_count_sources(&mut tx)
+        erpx_inventory_server::public::quality_disposition_count::lock_quality_disposition_count_sources(&mut tx)
             .await
             .unwrap();
-        erpx_server_workflow::public::quality_return_receipts::lock_quality_return_receipts(&mut tx)
+        erpx_workflow_server::public::quality_return_receipts::lock_quality_return_receipts(&mut tx)
             .await
             .unwrap();
         let proof = inspect_quality_cancel_purchase_source(&mut tx, &company, Some(&branch), &hold)

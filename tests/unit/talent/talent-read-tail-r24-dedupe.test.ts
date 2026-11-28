@@ -1,9 +1,9 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
-const file = new URL('../../../packages/server-talent/src/adapters/package-obligations.ts', import.meta.url);
-const prefixFile = new URL('../../../packages/server-talent/src/adapters/talent-read-tail-r27-sources.ts', import.meta.url);
-const srcDir = new URL('../../../packages/server-talent/src/', import.meta.url);
+const file = new URL('../../../modules/talent/server/src/adapters/package-obligations.ts', import.meta.url);
+const prefixFile = new URL('../../../modules/talent/server/src/adapters/talent-read-tail-r27-sources.ts', import.meta.url);
+const srcDir = new URL('../../../modules/talent/server/src/', import.meta.url);
 
 // Exact pre-dedupe emitted EXISTS fragments (r23 baseline). Only the FROM
 // source and WHERE predicate are parameterized; the emitted SQL is unchanged.

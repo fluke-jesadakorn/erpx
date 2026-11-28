@@ -16,7 +16,7 @@ This worker did **not** mutate the ledger or push. The lead owns the tracked rec
 
 ## Owner deletion (all inside the held paths)
 
-- `packages/server-manufacturing/src/adapters/accounting.ts`
+- `modules/manufacturing/server/src/adapters/accounting.ts`
   — deleted the exported `createManufacturingAccountingProfile` / `reviewManufacturingAccountingProfile`
   writers, the `profile` (`SELECT *`) and `guardProfileVersion` (`EXISTS(SELECT 1 …)`) reads,
   the now-dead `prepareProfile` / `prepareProfileReview` fail-closed stubs and their
@@ -24,13 +24,13 @@ This worker did **not** mutate the ledger or push. The lead owns the tracked rec
   and `withManufacturingPurchasedCommand` imports. Kept `approvedProfile`, `guardApprovedProfile`,
   `prepareManufacturingPosting` and the native posting-profile entrypoints
   (`prepareManufacturingPostingProfile`, `decideManufacturingPostingProfile`).
-- `packages/server-manufacturing/src/application/accounting.ts`
+- `modules/manufacturing/server/src/application/accounting.ts`
   — deleted both application writers, the `profile` / `guardProfileVersion` repository members,
   the `prepareProfile` / `prepareProfileReview` members, the `companyFinance` helper and the
   `profileSchema` / `reviewSchema` / `manufacturingAccountKind` import. Kept `approvedProfile`,
   `guardApprovedProfile` and `prepareManufacturingPosting`; the factory now returns only
   `{prepareManufacturingPosting}`.
-- `packages/server-manufacturing/src/public/production-accounting.ts`
+- `modules/manufacturing/server/src/public/production-accounting.ts`
   — now exports only `prepareManufacturingPosting`. Existing `prepareManufacturingPosting` type
   consumers (`adapters/production.ts`, `application/production.ts`,
   `tests/support/manufacturing/legacy-production/**`) are unaffected.
@@ -66,7 +66,7 @@ row seed with `manufacturingPostingProfiles` + `prepareManufacturingPostingProfi
 
 ## KPI (measured, not recorded in the ledger by this worker)
 
-- Command: `git grep -I -o -E "INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT " -- ':(glob)packages/server-manufacturing/src/**/*.ts' | wc -l`
+- Command: `git grep -I -o -E "INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT " -- ':(glob)modules/manufacturing/server/src/**/*.ts' | wc -l`
 - Before (at `ec6caf01` with this worker's deletion unapplied): **155**. After: **153**.
 - The unit oracle's `\bSELECT\b` word count gives the same 155 → 153.
 - The task's `156 -> 154` figure is the prior ledger check's stale baseline (last recorded
@@ -76,13 +76,13 @@ row seed with `manufacturingPostingProfiles` + `prepareManufacturingPostingProfi
 
 ## Checks (all at `ec6caf01`)
 
-- `cargo check -p erpx-server-manufacturing --offline` — passed (two pre-existing unused-import
+- `cargo check -p erpx-manufacturing-server --offline` — passed (two pre-existing unused-import
   warnings in `accounting_profile_wave3.rs` and `owner_write_wave3.rs`, untouched by this slice).
-- `ERPX_TEST_ADMIN_URL` from local `.env.local` (not printed) `cargo test -p erpx-server-manufacturing --offline`
+- `ERPX_TEST_ADMIN_URL` from local `.env.local` (not printed) `cargo test -p erpx-manufacturing-server --offline`
   — passed: 63 tests across lib and all unit/PG integration targets.
-- `bunx tsc --noEmit -p packages/server-manufacturing/tsconfig.json` — passed (exit 0) at
+- `bunx tsc --noEmit -p modules/manufacturing/server/tsconfig.json` — passed (exit 0) at
   `ec6caf01` earlier in this run. A later re-run at the same HEAD is blocked by a concurrent
-  worker's uncommitted `packages/server-projects/src/adapters/{structure,native-project-graph}.ts`
+  worker's uncommitted `modules/projects/server/src/adapters/{structure,native-project-graph}.ts`
   edits (`TS2307` then `TS2554`), which this owner's tsconfig resolves as a dependency; neither
   error is in a claimed path.
 - `bunx vitest run tests/unit/manufacturing/native-manufacturing-bom-transport.test.ts --config tests/config/vitest.unit.config.mts`

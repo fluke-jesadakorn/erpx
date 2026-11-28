@@ -2,16 +2,16 @@
 //!
 //! Pins the exact allow-list, positional arities, RETURNING set and reply
 //! envelope that the TypeScript dispatcher in
-//! `packages/server-work_projection/src/adapters/calendar-commands-facts.ts`
+//! `modules/work-projection/server/src/adapters/calendar-commands-facts.ts`
 //! relies on. Any drift in the Rust owner surface breaks this test before it
 //! can break a live calendar command. This is a pure oracle: no database and no
 //! network are required.
 
-use erpx_server_shared::public::BusinessError;
-use erpx_server_work_projection::public::owner_write::{
+use erpx_platform_shared_server::public::BusinessError;
+use erpx_work_projection_server::public::owner_write::{
     OwnerWriteCommand, OwnerWritePort, execute_owner_write, returning, supported, validate,
 };
-use erpx_server_work_projection::public::owner_write_http::{
+use erpx_work_projection_server::public::owner_write_http::{
     OwnerWriteFuture, OwnerWriteHttpBackend, OwnerWriteHttpRequest, OwnerWriteHttpTarget,
     owner_write_router,
 };

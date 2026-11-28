@@ -4,8 +4,8 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_identity_access::public::account_contracts::*;
-use erpx_server_identity_access::public::*;
+use erpx_identity_access_server::public::account_contracts::*;
+use erpx_identity_access_server::public::*;
 use std::sync::atomic::Ordering;
 use tower::ServiceExt;
 

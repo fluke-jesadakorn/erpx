@@ -2,17 +2,17 @@ import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseFixture, expenseDb as db, key } from "../../support/helpers/expense-fixture";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { maintenanceDetail } from "@erpx/server-assets/public/asset-maintenance";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import { maintenanceDetail } from "@erpx/assets-server/public/asset-maintenance";
 import { prepareInventoryConsumption } from "../../support/inventory/consumption-writer";
-import {saveMaster} from '@erpx/server-commerce/public/commerce';
-import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
-import JournalPage from "@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/finance/journals/[id]/screen";
+import {saveMaster} from '@erpx/commerce-server/public/commerce';
+import {assignFlowPrimary,resolveFlow} from '@erpx/workflow-server/public/flow-routing';
+import JournalPage from "@erpx/platform-workplace/routes/holdings/[holdingSlug]/_presenters/finance/journals/[id]/screen";
 
 vi.mock("next/headers", () => ({ headers: async () => new Headers({ host: "console-dev-erpx.jesadakorn.com" }) }));
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: db, files: env.H001_FILES }), runtimeEnv: async () => env }));
-vi.mock("@erpx/server-identity_access/public/authorization", () => ({ requireWorkContext: async () => actor, publicScope: () => ({ kind: "holding", holdingSlug: "test" }) }));
-vi.mock("@erpx/server-work_projection/public/page-error", () => ({ pageError: (error: unknown) => { throw error; } }));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({ holdingResources: async () => ({ write: db, files: env.H001_FILES }), runtimeEnv: async () => env }));
+vi.mock("@erpx/identity-access-server/public/authorization", () => ({ requireWorkContext: async () => actor, publicScope: () => ({ kind: "holding", holdingSlug: "test" }) }));
+vi.mock("@erpx/work-projection-server/public/page-error", () => ({ pageError: (error: unknown) => { throw error; } }));
 // Owner rows the native Assets register command persists; the TypeScript writer
 // is retired and the native Rust suites own command behavior.
 async function seedAsset(actor:{companyId:string;userId:string},input:{branchId:string;departmentId?:string|null;code:string;name:string;category:string;currency?:string;costMinor?:number;acquiredDate:string;warrantyEnd?:string|null}){

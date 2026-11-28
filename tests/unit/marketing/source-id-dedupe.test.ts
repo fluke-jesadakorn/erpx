@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-marketing/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/marketing/server/src/adapters/${name}`, import.meta.url);
 
 const expected =
   'SELECT id FROM marketing_assets UNION ALL SELECT id FROM marketing_lead_candidates UNION ALL SELECT id FROM marketing_campaigns UNION ALL SELECT id FROM marketing_campaign_costs';
@@ -10,7 +10,7 @@ const expected =
 describe('marketing source-id projection dedupe', () => {
   it('emits the byte-identical source-id statement', async () => {
     const { marketingSourceIdsSql } = await import(
-      '../../../packages/server-marketing/src/adapters/marketing-source-id-sql.ts'
+      '../../../modules/marketing/server/src/adapters/marketing-source-id-sql.ts'
     );
     expect(marketingSourceIdsSql()).toBe(expected);
   });

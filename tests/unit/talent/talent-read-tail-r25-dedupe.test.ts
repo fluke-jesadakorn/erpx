@@ -1,7 +1,7 @@
 import { readFile, readdir, access } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
-const adapter = new URL('../../../packages/server-talent/src/adapters/', import.meta.url);
+const adapter = new URL('../../../modules/talent/server/src/adapters/', import.meta.url);
 const src = (name: string) => readFile(new URL(name, adapter), 'utf8');
 
 async function tsFiles(directory: URL): Promise<string[]> {
@@ -53,7 +53,7 @@ describe('talent owner-source image head retirement (r25/r37)', () => {
 
   it('lowers the talent owner SELECT KPI from 11 to 10', async () => {
     let count = 0;
-    for (const file of await tsFiles(new URL('../../../packages/server-talent/src/', import.meta.url))) {
+    for (const file of await tsFiles(new URL('../../../modules/talent/server/src/', import.meta.url))) {
       count += (await readFile(file, 'utf8')).split('SELECT ').length - 1;
     }
     expect(count).toBe(10);

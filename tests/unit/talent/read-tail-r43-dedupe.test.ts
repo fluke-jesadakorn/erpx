@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import ts from 'typescript';
 
-const adapters = resolve(__dirname, '../../../packages/server-talent/src/adapters');
+const adapters = resolve(__dirname, '../../../modules/talent/server/src/adapters');
 const src = (name: string) => readFileSync(resolve(adapters, name), 'utf8');
 const compile = (decl: string) => ts.transpileModule(decl, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText;
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -81,7 +81,7 @@ describe('Talent read-tail r43 EXISTS source-witness head family', () => {
         else if (e.name.endsWith('.ts')) files.push(p);
       }
     };
-    walk(resolve(__dirname, '../../../packages/server-talent/src'));
+    walk(resolve(__dirname, '../../../modules/talent/server/src'));
     const contents = files.map((f) => readFileSync(f, 'utf8'));
     const matchCount = (re: RegExp) => contents.reduce((n, text) => n + (text.match(re) ?? []).length, 0);
     const splitCount = contents.reduce((n, text) => n + text.split('SELECT ').length - 1, 0);

@@ -1,18 +1,18 @@
 import {seedQualityAlertNotices} from '../../support/quality/quality-alert-notice-fixture';
 import {seedCommerceFulfillment} from "../../support/helpers/commerce-fulfillment-seed";
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
+import type {SqlDatabase} from '@erpx/platform-runtime-server/public/runtime/types';
 import {beforeAll,beforeEach,afterEach,it,expect,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {deliveryEvidence} from "../../support/helpers/delivery-evidence";
-import {getQualityHold,qualityWork} from "@erpx/server-quality/public/quality";
+import {getQualityHold,qualityWork} from "@erpx/quality-server/public/quality";
 import {seedNativeQualityHold,seedNativeQualityRelease} from "../../../fixtures/quality/hold";
 import {seedNativeQualitySpec} from "../../../fixtures/quality/specification";
-import {commercePage,changeOrderReservation,fulfillmentSchema,orderSchema,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
-import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
-import {mergeWorkItems} from "@erpx/server-work_projection/public/work-items";
-import {filterWork} from "@erpx/feature-work_projection/lib/work-item";
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:qualityDatabase??env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+import {commercePage,changeOrderReservation,fulfillmentSchema,orderSchema,saveMaster,saveOrder,transitionOrder} from '@erpx/commerce-server/public/commerce';
+import {getOrder} from '@erpx/commerce-server/public/commerce-order-read';
+import {mergeWorkItems} from "@erpx/work-projection-server/public/work-items";
+import {filterWork} from "@erpx/work-projection-ui/lib/work-item";
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:qualityDatabase??env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 afterEach(()=>{qualityDatabase=undefined;vi.unstubAllEnvs();});
 let qualityDatabase:SqlDatabase|undefined;
 let f:Awaited<ReturnType<typeof expenseFixture>>,warehouse:string,product:string,party:string;
@@ -75,7 +75,7 @@ it('cancels an incorrect uninspected hold only after independent review, retaini
 });
 
 it('recovers quality due-soon and overdue escalations with live routing and persisted acknowledgement',async()=>{
- const {qualityAlertWork,getQualityAlert}=await import("@erpx/server-quality/public/quality-alerts");
+ const {qualityAlertWork,getQualityAlert}=await import("@erpx/quality-server/public/quality-alerts");
 
  const due=await seedNativeQualityHold(db,f.owner,{warehouseId:warehouse,productId:product,expectedStockVersion:Number(await db.prepare('SELECT version FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first('version')),dueDate:'2026-09-22',reason:'Prepare a quality inspection before the receiving deadline'},key());
  const overdue=await seedNativeQualityHold(db,f.owner,{warehouseId:warehouse,productId:product,expectedStockVersion:Number(await db.prepare('SELECT version FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first('version')),dueDate:'2026-09-20',reason:'Recover a missed quality inspection and preserve the quarantine evidence'},key());
@@ -105,7 +105,7 @@ it('recovers quality due-soon and overdue escalations with live routing and pers
  expect(filterWork(work,'todo','quality_alert','Overdue quality hold').map(row=>row.id)).toEqual([String(overdue.id)]);
  const outside={...f.manager,branchId:'unrelated-branch'};
  expect(filterWork(mergeWorkItems([...(await qualityWork(outside)),...(await qualityAlertWork(outside))]),'all','quality_alert','')).toEqual([]);
- const {listStaffNotifications}=await import("@erpx/server-collaboration/public/staff-notifications");
+ const {listStaffNotifications}=await import("@erpx/collaboration-server/public/staff-notifications");
  expect((await listStaffNotifications(db,f.manager)).filter(n=>n.record_type==='quality_alert'&&[dueAlert?.id,overdueAlert?.id].includes(n.record_id))).toHaveLength(2);
  await expect(getQualityAlert({...f.manager,branchId:'unrelated-branch'},String(dueAlert?.id))).rejects.toMatchObject({status:404});
  const acknowledgement={expectedVersion:1,reason:'Quality manager accepted the escalation and will coordinate the inspection owner'},acknowledgedAt=Date.now();

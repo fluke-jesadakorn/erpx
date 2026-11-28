@@ -1,12 +1,12 @@
 //! Native Agent evidence audit-read policy, privacy and validation tests.
-use erpx_server_platform_administration::public::agent_evidence::{
+use erpx_platform_administration_server::public::agent_evidence::{
     AgentEvidenceActor, AgentEvidenceFuture, AgentEvidenceKind, AgentEvidenceRecord,
     AgentEvidenceRepository, AgentEvidenceWorkspace, AgentInvocationEvidence, AgentPrivateSession,
     INVOCATION_LIMIT, SESSION_LIMIT, agent_evidence_record, agent_evidence_workspace,
     validate_invocation, validate_record, validate_session, validate_workspace,
 };
-use erpx_server_runtime::public::http_support::serde_json;
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::serde_json;
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 
 const NOW: i64 = 1_800_000_000_000;
 
@@ -310,7 +310,7 @@ async fn record_reads_invocation_company_wide_and_session_private() {
     )
     .await
     .unwrap();
-    let erpx_server_platform_administration::public::agent_evidence::AgentEvidenceRecord::Invocation {
+    let erpx_platform_administration_server::public::agent_evidence::AgentEvidenceRecord::Invocation {
         record,
     } = record
     else {
@@ -337,7 +337,7 @@ async fn record_reads_invocation_company_wide_and_session_private() {
         agent_evidence_record(&manager(), AgentEvidenceKind::Session, "s1", &mut repo, NOW)
             .await
             .unwrap();
-    let erpx_server_platform_administration::public::agent_evidence::AgentEvidenceRecord::Session {
+    let erpx_platform_administration_server::public::agent_evidence::AgentEvidenceRecord::Session {
         record,
     } = record
     else {

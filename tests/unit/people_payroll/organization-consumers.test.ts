@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ApiError } from '@erpx/server-runtime/public/http';
-import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
-import type { OrganizationAccessData } from '@erpx/feature-organization/lib/organization-access';
-import { NativeOrganizationError } from '../../../packages/feature-organization/src/adapters/server/native-organization';
+import { ApiError } from '@erpx/platform-runtime-server/public/http';
+import type { WorkContext } from '@erpx/identity-access-server/public/authorization';
+import type { OrganizationAccessData } from '@erpx/organization-ui/lib/organization-access';
+import { NativeOrganizationError } from '../../../modules/organization/ui/src/adapters/server/native-organization';
 import {
   organizationAccessNativeFirst,
   type PeopleOrganizationAccessDependencies,
-} from '../../../packages/server-people_payroll/src/adapters/native-organization-access';
+} from '../../../modules/people-payroll/server/src/adapters/native-organization-access';
 
 const headerState = vi.hoisted(() => {
   const holder = { current: new Headers() };

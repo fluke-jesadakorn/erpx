@@ -3,9 +3,9 @@ import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
-import { manufacturingCostAllocationProbe } from '../../../packages/server-manufacturing/src/adapters/package-obligations';
+import { manufacturingCostAllocationProbe } from '../../../modules/manufacturing/server/src/adapters/package-obligations';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-manufacturing/src');
+const srcRoot = resolve(__dirname, '../../../modules/manufacturing/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 const JOINED = 'SELECT 1 FROM manufacturing_cost_allocations allocation JOIN orders o ON o.id=allocation.order_id WHERE allocation.pool_id=pool.id';

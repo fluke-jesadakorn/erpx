@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
-import { crmMarketingCandidateSources } from '../../../packages/server-marketing/src/adapters/crm-purchase-sources';
+import { crmMarketingCandidateSources } from '../../../modules/marketing/server/src/adapters/crm-purchase-sources';
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-marketing/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/marketing/server/src/adapters/${name}`, import.meta.url);
 
 const expected = {
   asset: "SELECT asset.id,asset.company_id,NULL::text branch_id,NULL::text department_id,(to_jsonb(asset)-'status'-'reviewed_by'-'version'-'updated_at') witness FROM marketing_assets asset",
@@ -32,7 +32,7 @@ describe('marketing purchase witness-row family', () => {
 
   it('emits byte-identical output for every admitted variant', async () => {
     const { marketingPurchaseRowsSql } = await import(
-      '../../../packages/server-marketing/src/adapters/marketing-purchase-rows-sql.ts'
+      '../../../modules/marketing/server/src/adapters/marketing-purchase-rows-sql.ts'
     );
     for (const [variant, sql] of Object.entries(expected)) {
       expect(marketingPurchaseRowsSql(variant as keyof typeof expected)).toBe(sql);

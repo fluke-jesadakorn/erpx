@@ -1,15 +1,15 @@
 import { readFile } from 'node:fs/promises';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { finalRootOwnerProjectionSources as collaborationProjectionSources } from '@erpx/server-collaboration/public/final-root-owner-projection-sources';
-import { projectHandoverSourceSql } from '@erpx/server-projects/public/project-read-projections';
-import { operationsTableExists, operationsOwnerVersionExists } from '../../../packages/server-operations/src/adapters/identity-policy-version-guard';
-import { obligationSourceHead } from '../../../packages/server-operations/src/adapters/work-package-obligations';
-import { operationsStaffTaskExists } from '../../../packages/server-operations/src/adapters/operations-staff-task-exists';
-import { operationsSocialTaskOriginExists } from '../../../packages/server-operations/src/adapters/social-task-origin-exists';
-import { handoverTaskAccessSql, handoverSourcesReadableSql } from '../../../packages/server-operations/src/adapters/handover-policy';
+import { finalRootOwnerProjectionSources as collaborationProjectionSources } from '@erpx/collaboration-server/public/final-root-owner-projection-sources';
+import { projectHandoverSourceSql } from '@erpx/projects-server/public/project-read-projections';
+import { operationsTableExists, operationsOwnerVersionExists } from '../../../modules/operations/server/src/adapters/identity-policy-version-guard';
+import { obligationSourceHead } from '../../../modules/operations/server/src/adapters/work-package-obligations';
+import { operationsStaffTaskExists } from '../../../modules/operations/server/src/adapters/operations-staff-task-exists';
+import { operationsSocialTaskOriginExists } from '../../../modules/operations/server/src/adapters/social-task-origin-exists';
+import { handoverTaskAccessSql, handoverSourcesReadableSql } from '../../../modules/operations/server/src/adapters/handover-policy';
 
-const src = (name: string) => readFile(new URL(`../../../packages/server-operations/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFile(new URL(`../../../modules/operations/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 describe('operations read-tail r48 thin-alias retirement', () => {
   it('operationsTableExists renders both handbook_articles probes byte-identically', () => {

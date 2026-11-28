@@ -5,10 +5,10 @@ import {
   inList,
   attendeeScopeExistsSql,
   participantScopeExistsSql,
-} from '../../../packages/server-work_projection/src/adapters/read-tail-sql.ts';
+} from '../../../modules/work-projection/server/src/adapters/read-tail-sql.ts';
 
 const src = (name: string) =>
-  new URL(`../../../packages/server-work_projection/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/work-projection/server/src/adapters/${name}`, import.meta.url);
 
 const engagementSource = 'SELECT person_id,company_id,status,branch_id,department_id FROM hr_engagements';
 const engagementBody =
@@ -76,7 +76,7 @@ describe('work_projection read-tail r26 dedupe', () => {
     const count = Number(
       execFileSync(
         'git',
-        ['grep', '-I', '-o', '-E', 'SELECT', '--', ':(glob)packages/server-work_projection/src/**/*.ts'],
+        ['grep', '-I', '-o', '-E', 'SELECT', '--', ':(glob)modules/work-projection/server/src/**/*.ts'],
         { encoding: 'utf8' },
       )
         .trim()

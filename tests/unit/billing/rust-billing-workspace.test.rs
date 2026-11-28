@@ -1,10 +1,10 @@
 //! Native Billing workspace authority, isolation and source validation.
-use erpx_server_billing::public::workspace::{
+use erpx_billing_server::public::workspace::{
     BillingAccountView, BillingActor, BillingAuditView, BillingCostView, BillingEnrollmentView,
     BillingFuture, BillingInvoiceView, BillingJobView, BillingLegacyView, BillingPeriodView,
     BillingPlanView, BillingWorkspaceRepository, WorkspaceRows, billing_workspace,
 };
-use erpx_server_shared::public::{AssignmentId, BusinessError, HoldingId, TimestampMillis, UserId};
+use erpx_platform_shared_server::public::{AssignmentId, BusinessError, HoldingId, TimestampMillis, UserId};
 use sqlx::test_block_on;
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
@@ -186,7 +186,7 @@ impl BillingWorkspaceRepository for Probe {
 fn result(
     actor: &BillingActor,
     rows: WorkspaceRows,
-) -> Result<erpx_server_billing::public::workspace::BillingWorkspace, BusinessError> {
+) -> Result<erpx_billing_server::public::workspace::BillingWorkspace, BusinessError> {
     let mut probe = Probe { rows, calls: 0 };
     sqlx::test_block_on(async { billing_workspace(actor, &target(), &mut probe, NOW).await })
 }

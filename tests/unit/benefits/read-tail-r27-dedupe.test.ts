@@ -3,9 +3,9 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 vi.mock('server-only', () => ({}));
-import { attachmentArrayFact, attachmentFactSelect, attachmentPointFact } from '../../../packages/server-benefits/src/adapters/attachment-read-sources';
+import { attachmentArrayFact, attachmentFactSelect, attachmentPointFact } from '../../../modules/benefits/server/src/adapters/attachment-read-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-benefits/src');
+const srcRoot = resolve(__dirname, '../../../modules/benefits/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const sha = (sql: string) => createHash('sha256').update(sql).digest('hex');
 
@@ -79,7 +79,7 @@ describe('benefits read-tail r27 related-fact head dedupe', () => {
   test('the fold adds no write, row-lock, native registry or cross-owner consumer', () => {
     expect(src('attachment-read-sources.ts')).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
     const text = src('attachment-read-sources.ts');
-    expect(text).not.toContain('@erpx/server-benefits/adapters/benefits-native-read');
+    expect(text).not.toContain('@erpx/benefits-server/adapters/benefits-native-read');
     expect(text).not.toContain('native_');
     for (const [name, count] of [
       ['purchases.ts', 1],

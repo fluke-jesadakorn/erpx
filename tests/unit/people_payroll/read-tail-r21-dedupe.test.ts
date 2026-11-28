@@ -1,14 +1,14 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
-import { packageClockSql } from '@erpx/server-commercial/public/purchased-capability-sql';
+import { packageClockSql } from '@erpx/commercial-server/public/purchased-capability-sql';
 import {
   PP_RD21_CLOCK_NOW_MS_SQL,
   PP_RD21_SCOPE_COMPANY_SQL,
   ppRd21IdCompanyStatusVersionGuard,
   ppRd21IdVersionStatusGuard,
-} from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r21-sources';
+} from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r21-sources';
 
-const src = (name: string) => readFileSync(new URL(`../../../packages/server-people_payroll/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFileSync(new URL(`../../../modules/people-payroll/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const quoted = (literal: string) => JSON.stringify(literal);
 
 const literals = [
@@ -73,7 +73,7 @@ describe('People Payroll read-tail r21 byte-identical dedupe', () => {
   });
 
   test('worktree read-only SELECT count is strictly lower than the recorded 1523 r20 baseline', () => {
-    const root = new URL('../../../packages/server-people_payroll/src/', import.meta.url);
+    const root = new URL('../../../modules/people-payroll/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {

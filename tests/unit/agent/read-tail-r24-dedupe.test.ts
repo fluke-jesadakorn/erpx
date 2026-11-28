@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { readFile, readdir } from 'node:fs/promises';
-import { assistantQuotaSql } from '../../../packages/server-agent/src/adapters/assistant-quota-sql';
-import { recordsQuotaCountSql, recordsAiQuota } from '@erpx/server-agent/adapters/records-ai-quota';
-import { agentTurnCountGuardSql, agentAssistantRateGuardSql, GuidedIntakeAgentFacts } from '@erpx/server-agent/adapters/operations-guided-intake-facts';
-import { collaborationAgentSources } from '@erpx/server-agent/adapters/collaboration-agent-sources';
-import { executiveGenerationQuota } from '@erpx/server-agent/adapters/executive-generation-quota';
+import { assistantQuotaSql } from '../../../modules/agent/server/src/adapters/assistant-quota-sql';
+import { recordsQuotaCountSql, recordsAiQuota } from '@erpx/agent-server/adapters/records-ai-quota';
+import { agentTurnCountGuardSql, agentAssistantRateGuardSql, GuidedIntakeAgentFacts } from '@erpx/agent-server/adapters/operations-guided-intake-facts';
+import { collaborationAgentSources } from '@erpx/agent-server/adapters/collaboration-agent-sources';
+import { executiveGenerationQuota } from '@erpx/agent-server/adapters/executive-generation-quota';
 
 const src = (name: string) =>
-  readFile(new URL(`../../../packages/server-agent/src/${name}`, import.meta.url), 'utf8');
+  readFile(new URL(`../../../modules/agent/server/src/${name}`, import.meta.url), 'utf8');
 
 async function agentSelectCount(dir: URL): Promise<number> {
   let total = 0;
@@ -83,7 +83,7 @@ describe('Agent read-tail r24 dedupe (BEFORE=53)', () => {
     expect(renderedQuery(GuidedIntakeAgentFacts(db).guard3('id', 'assistant-rate', 'c', 42))).toBe(oracle.f3Rate);
   });
 
-  it('KPI: TS SELECT tokens in packages/server-agent/src drop from 53 to 42', async () => {
-    expect(await agentSelectCount(new URL('../../../packages/server-agent/src/', import.meta.url))).toBe(38);
+  it('KPI: TS SELECT tokens in modules/agent/server/src drop from 53 to 42', async () => {
+    expect(await agentSelectCount(new URL('../../../modules/agent/server/src/', import.meta.url))).toBe(38);
   });
 });

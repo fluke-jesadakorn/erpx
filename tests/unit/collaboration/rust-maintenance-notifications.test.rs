@@ -1,5 +1,5 @@
-use erpx_server_collaboration::public::maintenance_notifications::*;
-use erpx_server_shared::public::{CommandKey, CompanyId, HoldingId, RecordId, TimestampMillis};
+use erpx_collaboration_server::public::maintenance_notifications::*;
+use erpx_platform_shared_server::public::{CommandKey, CompanyId, HoldingId, RecordId, TimestampMillis};
 use serde_json::{Value, json};
 fn facts() -> MaintenanceNotificationFacts {
     MaintenanceNotificationFacts {

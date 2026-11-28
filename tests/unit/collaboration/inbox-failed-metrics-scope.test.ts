@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { createInboxApplication, type InboxFailedScope } from '../../../packages/server-collaboration/src/application/inbox';
+import { createInboxApplication, type InboxFailedScope } from '../../../modules/collaboration/server/src/application/inbox';
 
 const scope: InboxFailedScope = {
   holdingId: 'h002',
@@ -43,7 +43,7 @@ describe('inbox failed-metrics WorkContext threading', () => {
 
   it('threads the scope from the adapter into owner3 without a first-Holding default', () => {
     const adapter = readFileSync(
-      'packages/server-collaboration/src/adapters/inbox.ts', 'utf8',
+      'modules/collaboration/server/src/adapters/inbox.ts', 'utf8',
     );
     expect(adapter).toContain('function application(db: SqlDatabase, failedScope?: InboxFailedScope)');
     expect(adapter).toContain('...owner3(db, failedScope');

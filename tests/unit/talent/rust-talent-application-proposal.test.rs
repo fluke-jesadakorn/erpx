@@ -1,9 +1,9 @@
 //! Native Talent application and proposal lifecycle tests.
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, RecordId, UserId,
 };
-use erpx_server_talent::public::requisition::{ReceiptSnapshot, TalentActor};
-use erpx_server_talent::public::talent_application::{
+use erpx_talent_server::public::requisition::{ReceiptSnapshot, TalentActor};
+use erpx_talent_server::public::talent_application::{
     ApplicationAction, ApplicationChange, ApplicationFuture, ApplicationReceipt,
     ApplicationRequest, ApplicationRow, CandidateFact, CreateApplicationPlan, CreateProposalPlan,
     ProposalAction, ProposalChange, ProposalReceipt, ProposalRequest, ProposalRow, Recommendation,
@@ -229,7 +229,7 @@ impl TalentApplicationCommandRepository for Fake {
         &'a mut self,
         _: &'a TalentActor,
         _: &'a str,
-        plan: &'a erpx_server_talent::public::talent_application::ApplicationChangePlan,
+        plan: &'a erpx_talent_server::public::talent_application::ApplicationChangePlan,
         _: &'a str,
     ) -> ApplicationFuture<'a, Value, Self::Error> {
         Box::pin(async move {
@@ -273,7 +273,7 @@ impl TalentApplicationCommandRepository for Fake {
         &'a mut self,
         _: &'a TalentActor,
         _: &'a str,
-        plan: &'a erpx_server_talent::public::talent_application::ProposalChangePlan,
+        plan: &'a erpx_talent_server::public::talent_application::ProposalChangePlan,
         _: &'a str,
     ) -> ApplicationFuture<'a, Value, Self::Error> {
         Box::pin(async move {

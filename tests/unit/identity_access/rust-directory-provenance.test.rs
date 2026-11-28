@@ -1,4 +1,4 @@
-use erpx_server_identity_access::public::directory::provenance::*;
+use erpx_identity_access_server::public::directory::provenance::*;
 use std::collections::{BTreeMap, BTreeSet};
 fn keys() -> ProvenanceKeyRing {
     ProvenanceKeyRing::from_keys(

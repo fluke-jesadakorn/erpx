@@ -6,9 +6,9 @@ import {
   socialPostByIdGuard,
   socialPostByIdPredicate,
   socialPostScopedRead,
-} from '../../../packages/server-collaboration/src/adapters/read-tail-sql';
+} from '../../../modules/collaboration/server/src/adapters/read-tail-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-collaboration/src');
+const srcRoot = resolve(__dirname, '../../../modules/collaboration/server/src');
 const shared = readFileSync(resolve(srcRoot, 'adapters/read-tail-sql.ts'), 'utf8');
 const line = (marker: string) => shared.split('\n').find(l => l.startsWith(marker))!;
 

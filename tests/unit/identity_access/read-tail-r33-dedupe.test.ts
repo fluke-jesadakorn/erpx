@@ -6,9 +6,9 @@ import {
   activeWorkContextProbeSql,
   assignmentAuthorityProbeSql,
   assignmentCompanyUsersSql,
-} from '../../../packages/server-identity_access/src/adapters/read-tail-family-r33';
+} from '../../../modules/identity-access/server/src/adapters/read-tail-family-r33';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-identity_access/src');
+const srcRoot = resolve(__dirname, '../../../modules/identity-access/server/src');
 const read = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
 const hash = (rel: string) => createHash('sha256').update(read(rel)).digest('hex');
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');

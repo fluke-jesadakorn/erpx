@@ -8,19 +8,19 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_customer_360::public::customer_timeline::{
+use erpx_customer_360_server::public::customer_timeline::{
     CustomerTimelineSupportEntitlement, CustomerTimelineView,
 };
-use erpx_server_customer_360::public::customer_timeline_activity::{
+use erpx_customer_360_server::public::customer_timeline_activity::{
     CustomerTimelineActivityQuery, PgCustomerTimelineActivityRead, customer_timeline_activity,
 };
-use erpx_server_customer_360::public::customer_timeline::{
+use erpx_customer_360_server::public::customer_timeline::{
     CustomerTimelineActor, CustomerTimelineFuture,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     MigrationTrack, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, TimestampMillis};
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
 

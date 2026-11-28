@@ -1,16 +1,16 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { selectProjection } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r40-sources';
-import { ownerColumnProjection } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r25-sources';
-import { releaseGateRead } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r28-sources';
-import { supportConclusionIdentity } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r31-sources';
-import { bindingCommerceOrderSource } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r34-sources';
-import { scalarProjection } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r35-sources';
-import { pointRead } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r36-sources';
-import { finalRootOwnerProjectionSources as commerce } from '../../../packages/server-commerce/src/public/final-root-owner-projection-sources';
+import { selectProjection } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-tail-r40-sources';
+import { ownerColumnProjection } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-tail-r25-sources';
+import { releaseGateRead } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-tail-r28-sources';
+import { supportConclusionIdentity } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-tail-r31-sources';
+import { bindingCommerceOrderSource } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-tail-r34-sources';
+import { scalarProjection } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-tail-r35-sources';
+import { pointRead } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-tail-r36-sources';
+import { finalRootOwnerProjectionSources as commerce } from '../../../modules/commerce/server/src/public/final-root-owner-projection-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-customer_authority/src');
+const srcRoot = resolve(__dirname, '../../../modules/customer-authority/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 // Closed samples copied verbatim from the pre-r40 (BEFORE=34) helper outputs.

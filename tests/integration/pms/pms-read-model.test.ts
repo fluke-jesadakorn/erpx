@@ -2,14 +2,14 @@ import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { mkdir, writeFile } from "node:fs/promises";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import { loadPms, pmsCommand, pmsWorkspace } from "../../../packages/server-pms/src/public/pms";
-import { pmsAccountKeys, records, type Kind } from "@erpx/server-pms/public/rules/pms-model";
-import { availability } from "@erpx/feature-pms/lib/pms-inventory";
-import { pmsListSelection, pmsReadSelectionSchema } from "@erpx/feature-pms/lib/pms-read-selection";
-import { readPmsInventoryCommand } from "@erpx/server-pms/public/pms/read-repository";
-import { measureReads } from "@erpx/server-runtime/adapters/runtime/read-metrics";
+import { loadPms, pmsCommand, pmsWorkspace } from "../../../modules/pms/server/src/public/pms";
+import { pmsAccountKeys, records, type Kind } from "@erpx/pms-server/public/rules/pms-model";
+import { availability } from "@erpx/pms-ui/lib/pms-inventory";
+import { pmsListSelection, pmsReadSelectionSchema } from "@erpx/pms-ui/lib/pms-read-selection";
+import { readPmsInventoryCommand } from "@erpx/pms-server/public/pms/read-repository";
+import { measureReads } from "@erpx/platform-runtime-server/adapters/runtime/read-metrics";
 
-vi.mock("@erpx/server-runtime/adapters/runtime", async () => {
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", async () => {
   const { env } = await import("../../support/runtime-env");
   return { holdingResources: async () => ({ write: env.H001_DB }) };
 });

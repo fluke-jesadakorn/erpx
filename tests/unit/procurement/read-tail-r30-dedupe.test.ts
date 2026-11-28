@@ -1,17 +1,17 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
-import { assignmentReadSql } from '@erpx/server-identity_access/public/record-source-authority';
-import { workforceActorScopeColumns } from '../../../packages/server-procurement/src/adapters/read-tail-sql';
-import { requestOrderLink } from '../../../packages/server-procurement/src/adapters/read-tail-r19';
+import { assignmentReadSql } from '@erpx/identity-access-server/public/record-source-authority';
+import { workforceActorScopeColumns } from '../../../modules/procurement/server/src/adapters/read-tail-sql';
+import { requestOrderLink } from '../../../modules/procurement/server/src/adapters/read-tail-r19';
 import {
   assignmentScopeProbe,
   versionStatusScopeGuard,
   activeMasterLookup,
   orderScopedAggregate,
-} from '../../../packages/server-procurement/src/adapters/read-tail-r30';
+} from '../../../modules/procurement/server/src/adapters/read-tail-r30';
 
 const src = (name: string) => readFileSync(
-  new URL(`../../../packages/server-procurement/src/adapters/${name}`, import.meta.url), 'utf8',
+  new URL(`../../../modules/procurement/server/src/adapters/${name}`, import.meta.url), 'utf8',
 );
 
 describe('Procurement read-tail r30 parameterized family dedupe', () => {
@@ -93,7 +93,7 @@ describe('Procurement read-tail r30 parameterized family dedupe', () => {
   });
 
   test('worktree SELECT count is strictly lower than the recorded BEFORE=131', () => {
-    const root = new URL('../../../packages/server-procurement/src/', import.meta.url);
+    const root = new URL('../../../modules/procurement/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {

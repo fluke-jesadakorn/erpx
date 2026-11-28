@@ -4,14 +4,14 @@ import { resolve } from 'node:path';
 
 vi.mock('server-only', () => ({}));
 
-import { releaseCurrencyPredicate, thbCurrencyProbeSql } from '../../../packages/server-platform_administration/src/adapters/release-predicate';
-import { platformOwnerProjectionSources as financePlatformSources } from '../../../packages/server-finance/src/public/platform-owner-projection-sources';
-import { platformOwnerProjectionSources as commercePlatformSources } from '../../../packages/server-commerce/src/public/platform-owner-projection-sources';
-import { platformOwnerProjectionSources as posPlatformSources } from '../../../packages/server-pos/src/public/platform-owner-projection-sources';
-import { platformOwnerProjectionSources as pmsPlatformSources } from '../../../packages/server-pms/src/public/platform-owner-projection-sources';
-import { platformOwnerProjectionSources as people_payrollPlatformSources } from '../../../packages/server-people_payroll/src/public/platform-owner-projection-sources';
+import { releaseCurrencyPredicate, thbCurrencyProbeSql } from '../../../modules/platform-administration/server/src/adapters/release-predicate';
+import { platformOwnerProjectionSources as financePlatformSources } from '../../../modules/finance/server/src/public/platform-owner-projection-sources';
+import { platformOwnerProjectionSources as commercePlatformSources } from '../../../modules/commerce/server/src/public/platform-owner-projection-sources';
+import { platformOwnerProjectionSources as posPlatformSources } from '../../../modules/pos/server/src/public/platform-owner-projection-sources';
+import { platformOwnerProjectionSources as pmsPlatformSources } from '../../../modules/pms/server/src/public/platform-owner-projection-sources';
+import { platformOwnerProjectionSources as people_payrollPlatformSources } from '../../../modules/people-payroll/server/src/public/platform-owner-projection-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-platform_administration/src');
+const srcRoot = resolve(__dirname, '../../../modules/platform-administration/server/src');
 const source = (relative: string) => readFileSync(resolve(srcRoot, relative), 'utf8');
 
 // Pre-dedupe literal copied verbatim from HEAD (r10 baseline, BEFORE=42). Used

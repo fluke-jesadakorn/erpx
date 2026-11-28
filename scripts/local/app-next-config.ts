@@ -1,8 +1,8 @@
 import type { NextConfig } from "next";
 import { resolve } from "node:path";
-import { appDefinition } from "@erpx/contracts/apps";
+import { appDefinition } from "@erpx/platform-contracts/apps";
 import base from "../../next.config.ts";
-import {holdingRoutingEnabled,activeHoldingHosts,accountDevelopmentOrigin} from '@erpx/feature-runtime/lib/holding-hosts';
+import {holdingRoutingEnabled,activeHoldingHosts,accountDevelopmentOrigin} from '@erpx/platform-runtime-ui/lib/holding-hosts';
 
 export const workspaceRoot = resolve(import.meta.dirname, "../..");
 export function appNextConfig(id: string): NextConfig {

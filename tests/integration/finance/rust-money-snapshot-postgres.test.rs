@@ -5,13 +5,13 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_finance::public::money_snapshot::{
+use erpx_finance_server::public::money_snapshot::{
     MoneySnapshotInput, lock_money_snapshot_sources, prepare_money_snapshot,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, Clock, CompanyId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, Clock, CompanyId, TimestampMillis};
 use sqlx::PgConnection;
 
 const NOW: i64 = 1_800_000_000_000;

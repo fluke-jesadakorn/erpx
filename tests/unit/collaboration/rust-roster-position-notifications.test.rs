@@ -4,12 +4,12 @@
 //! `roster_week` / `roster_request` insert shape (record types, versions,
 //! message text, joins and duplicate suppression). PostgreSQL receipt facts are
 //! proven by the People roster Position-exit integration target.
-use erpx_server_collaboration::public::roster_position_notifications::{
+use erpx_collaboration_server::public::roster_position_notifications::{
     ROSTER_POSITION_REQUEST_MESSAGE, ROSTER_POSITION_WEEK_MESSAGE,
     roster_position_request_notice_sql, roster_position_week_notice_sql,
     validate_roster_position_notice_input,
 };
-use erpx_server_shared::public::CompanyId;
+use erpx_platform_shared_server::public::CompanyId;
 
 fn company() -> CompanyId {
     CompanyId::new("company").unwrap()

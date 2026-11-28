@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFile } from 'node:fs/promises';
 
 const src = (name: string) =>
-  readFile(new URL(`../../../packages/server-agent/src/${name}`, import.meta.url), 'utf8');
+  readFile(new URL(`../../../modules/agent/server/src/${name}`, import.meta.url), 'utf8');
 
 /** Verbatim pre-dedupe statements (r14 -> r15 BEFORE: 62 SELECTs). */
 const conversationTurnsSql =
@@ -32,7 +32,7 @@ describe('Agent read-tail r15 turn-evidence projection family dedupe', () => {
   });
 
   it('renders the exact pre-dedupe statement text for both callers', async () => {
-    const { agentTurnEvidenceSql } = await import('../../../packages/server-agent/src/adapters/turn-evidence-projection-source');
+    const { agentTurnEvidenceSql } = await import('../../../modules/agent/server/src/adapters/turn-evidence-projection-source');
     expect(
       agentTurnEvidenceSql('t.id,t.question,t.paths_json,t.sources_json,t.answer_json,t.english_answer_json,t.state,t.created_at,e.governance_snapshot_json') +
         " WHERE t.company_id=? AND t.user_id=? AND t.assignment_id=? AND t.scope_key=? AND t.conversation_key=? AND t.private_session_id=? AND t.state='ready' ORDER BY t.created_at DESC LIMIT 20",

@@ -6,29 +6,29 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_inventory::public::counts::{
+use erpx_inventory_server::public::counts::{
     CountAllocationInput, CountLineInput, CountSaveInput, apply_count_save, lock_count_sources,
     plan_count_save, read_count_save_source,
 };
-use erpx_server_inventory::public::transit::{
+use erpx_inventory_server::public::transit::{
     TransitCancelInput, TransitDispatchInput, TransitLotAllocationInput, TransitReceiveInput,
     TransitReceiveLineInput, apply_transit_cancel, apply_transit_dispatch, apply_transit_receive,
     lock_transit_sources, plan_cancel, plan_dispatch, plan_receive, read_transit_source,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgUnitOfWork, TransactionOptions, load_migrations,
     migrate_database,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 
 
 struct ActualLineageCounts;
-impl erpx_server_quality::public::purchase_lineage::QualityLineageCountPort for ActualLineageCounts {
-    type Witness = erpx_server_inventory::public::quality_disposition_count::CurrentQualityDispositionCount;
-    fn inspect<'a>(&'a mut self,c:&'a mut sqlx::PgConnection,r:erpx_server_quality::public::purchase_lineage::CountLineageRequest)->erpx_server_runtime::public::postgres::PgWorkFuture<'a,Option<Self::Witness>,BusinessError> {
-        Box::pin(async move { erpx_server_inventory::public::quality_disposition_count::inspect_quality_disposition_count(c,erpx_server_inventory::public::quality_disposition_count::QualityDispositionCountRequest {company_id:r.company_id,branch_id:r.branch_id,warehouse_id:r.warehouse_id,count_id:r.count_id,hold_id:r.hold_id}).await })
+impl erpx_quality_server::public::purchase_lineage::QualityLineageCountPort for ActualLineageCounts {
+    type Witness = erpx_inventory_server::public::quality_disposition_count::CurrentQualityDispositionCount;
+    fn inspect<'a>(&'a mut self,c:&'a mut sqlx::PgConnection,r:erpx_quality_server::public::purchase_lineage::CountLineageRequest)->erpx_platform_runtime_server::public::postgres::PgWorkFuture<'a,Option<Self::Witness>,BusinessError> {
+        Box::pin(async move { erpx_inventory_server::public::quality_disposition_count::inspect_quality_disposition_count(c,erpx_inventory_server::public::quality_disposition_count::QualityDispositionCountRequest {company_id:r.company_id,branch_id:r.branch_id,warehouse_id:r.warehouse_id,count_id:r.count_id,hold_id:r.hold_id}).await })
     }
-    fn require_current<'a>(&'a mut self,c:&'a mut sqlx::PgConnection,witness:&'a Self::Witness)->erpx_server_runtime::public::postgres::PgWorkFuture<'a,(),BusinessError> {
+    fn require_current<'a>(&'a mut self,c:&'a mut sqlx::PgConnection,witness:&'a Self::Witness)->erpx_platform_runtime_server::public::postgres::PgWorkFuture<'a,(),BusinessError> {
         Box::pin(async move { witness.require_current(c).await })
     }
 }
@@ -378,9 +378,9 @@ async fn count_save_creates_and_revises_a_draft_with_native_lot_snapshots() {
 
 #[tokio::test]
 async fn native_quality_count_checks_actual_snapshots_and_scraps_the_lot_not_the_hold_id() {
-    use erpx_server_inventory::public::counts::{apply_quality_count_effects, apply_quality_count_decision, inspect_count_transition_guard, inspect_quality_count_decision_projection, lock_count_transition_guard_sources, plan_count_transition, plan_count_transition_effects, prepare_inventory_quality_count};
-    use erpx_server_inventory::public::service_initial_physical_count::{CountAction, CountAuthority};
-    use erpx_server_quality::public::quality_commands::{lock_quality_count_disposition_sources, prepare_quality_count_disposition, QualityCountDispositionAction, QualityCountDispositionFacts};
+    use erpx_inventory_server::public::counts::{apply_quality_count_effects, apply_quality_count_decision, inspect_count_transition_guard, inspect_quality_count_decision_projection, lock_count_transition_guard_sources, plan_count_transition, plan_count_transition_effects, prepare_inventory_quality_count};
+    use erpx_inventory_server::public::service_initial_physical_count::{CountAction, CountAuthority};
+    use erpx_quality_server::public::quality_commands::{lock_quality_count_disposition_sources, prepare_quality_count_disposition, QualityCountDispositionAction, QualityCountDispositionFacts};
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
         sqlx::raw_sql("INSERT INTO inventory_counts(id,company_id,branch_id,warehouse_id,number,count_date,reason,status,version,net_value_minor,created_by,prepared_by,approved_by,created_at,updated_at) VALUES('count-quality','company','branch','warehouse','QC-1','2026-11-10','scrap','draft',1,-5000,'maker','maker','reviewer',0,0);
@@ -412,7 +412,7 @@ async fn native_quality_count_checks_actual_snapshots_and_scraps_the_lot_not_the
             lock_count_transition_guard_sources(c).await?;
             lock_quality_count_disposition_sources(c).await?;
             let mut lineage_counts=ActualLineageCounts;
-            let lineage=erpx_server_quality::public::purchase_lineage::inspect_quality_purchase_lineage(c,&mut lineage_counts,erpx_server_quality::public::purchase_lineage::QualityLineageRequest { company_id:erpx_server_shared::public::CompanyId::new("company")?, branch_id:Some("branch".into()),hold_id:"hold-distinct".into() }).await?;
+            let lineage=erpx_quality_server::public::purchase_lineage::inspect_quality_purchase_lineage(c,&mut lineage_counts,erpx_quality_server::public::purchase_lineage::QualityLineageRequest { company_id:erpx_platform_shared_server::public::CompanyId::new("company")?, branch_id:Some("branch".into()),hold_id:"hold-distinct".into() }).await?;
             let guard = inspect_count_transition_guard(c,"company",Some("branch"),"count-quality",CountAction::Post).await?;
             let facts = QualityCountDispositionFacts { company_id:"company".into(),branch_id:"branch".into(),warehouse_id:"warehouse".into(),product_id:"product".into(),lot_id:Some("lot-a".into()),hold_id:"hold-distinct".into(),count_id:"count-quality".into(),command_key:"quality-key".into(),actor_id:"reviewer".into(),reason:"Approved scrap".into(),action:QualityCountDispositionAction::Post,now:100 };
             guard.require_current(c).await?;
@@ -452,7 +452,7 @@ const digest=createHash('sha256').update(JSON.stringify({reason:'Approved scrap'
             let oracle:serde_json::Value=serde_json::from_slice(&output.stdout).expect("Bun reference JSON");
             assert_eq!(projection.lines_json(),oracle["lines"].as_str().unwrap());
             assert_eq!(projection.lot_lines_json(),oracle["lots"].as_str().unwrap());
-            let digest=erpx_server_workflow::public::service_count_decision_evidence::service_count_decision_digest("Approved scrap",projection.lines_json(),projection.lot_lines_json())?;
+            let digest=erpx_workflow_server::public::service_count_decision_evidence::service_count_decision_digest("Approved scrap",projection.lines_json(),projection.lot_lines_json())?;
             assert_eq!(digest,oracle["digest"].as_str().unwrap());
             sqlx::query("SAVEPOINT projection_large_drift").execute(&mut *c).await?;
             sqlx::query("UPDATE inventory_count_lines SET description=left(description,length(description)-1)||'X' WHERE id='line-quality'").execute(&mut *c).await?;
@@ -475,7 +475,7 @@ const digest=createHash('sha256').update(JSON.stringify({reason:'Approved scrap'
             apply_quality_count_effects(c,1,&staged).await?;
             let staged = staged.stage_remaining(c).await?;
             apply_quality_count_decision(c,1,&staged).await?;
-            use erpx_server_quality::public::quality_commands::QualityCountDispositionSource;
+            use erpx_quality_server::public::quality_commands::QualityCountDispositionSource;
             sqlx::query("SAVEPOINT after_drift").execute(&mut *c).await?;
             sqlx::query("UPDATE commerce_stock SET value_minor=value_minor+1 WHERE warehouse_id='warehouse' AND product_id='product-two'").execute(&mut *c).await?;
             assert!(source.require_count_after(c,false).await.is_err());
@@ -513,9 +513,9 @@ const digest=createHash('sha256').update(JSON.stringify({reason:'Approved scrap'
 
 #[tokio::test]
 async fn native_quality_count_checks_split_warehouse_lot_remains_depleted() {
-    use erpx_server_inventory::public::counts::{apply_quality_count_effects, apply_quality_count_decision, inspect_count_transition_guard, lock_count_transition_guard_sources, plan_count_transition, plan_count_transition_effects, prepare_inventory_quality_count};
-    use erpx_server_inventory::public::service_initial_physical_count::{CountAction, CountAuthority};
-    use erpx_server_quality::public::quality_commands::{lock_quality_count_disposition_sources, prepare_quality_count_disposition, QualityCountDispositionAction, QualityCountDispositionFacts};
+    use erpx_inventory_server::public::counts::{apply_quality_count_effects, apply_quality_count_decision, inspect_count_transition_guard, lock_count_transition_guard_sources, plan_count_transition, plan_count_transition_effects, prepare_inventory_quality_count};
+    use erpx_inventory_server::public::service_initial_physical_count::{CountAction, CountAuthority};
+    use erpx_quality_server::public::quality_commands::{lock_quality_count_disposition_sources, prepare_quality_count_disposition, QualityCountDispositionAction, QualityCountDispositionFacts};
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
         sqlx::raw_sql("INSERT INTO inventory_counts(id,company_id,branch_id,warehouse_id,number,count_date,reason,status,version,net_value_minor,created_by,prepared_by,approved_by,created_at,updated_at) VALUES('count-quality','company','branch','warehouse','QC-1','2026-11-10','scrap','draft',1,-5000,'maker','maker','reviewer',0,0);
@@ -568,7 +568,7 @@ async fn native_quality_count_checks_split_warehouse_lot_remains_depleted() {
             apply_quality_count_effects(c,1,&staged).await?;
             let staged = staged.stage_remaining(c).await?;
             apply_quality_count_decision(c,1,&staged).await?;
-            use erpx_server_quality::public::quality_commands::QualityCountDispositionSource;
+            use erpx_quality_server::public::quality_commands::QualityCountDispositionSource;
             sqlx::query("SAVEPOINT after_drift").execute(&mut *c).await?;
             sqlx::query("UPDATE commerce_stock SET value_minor=value_minor+1 WHERE warehouse_id='warehouse' AND product_id='product-two'").execute(&mut *c).await?;
             assert!(source.require_count_after(c,false).await.is_err());
@@ -596,9 +596,9 @@ async fn native_quality_count_checks_split_warehouse_lot_remains_depleted() {
 
 #[tokio::test]
 async fn native_quality_count_checks_partial_scrap_and_remaining_trigger() {
-    use erpx_server_inventory::public::counts::{apply_quality_count_effects, apply_quality_count_decision, inspect_count_transition_guard, lock_count_transition_guard_sources, plan_count_transition, plan_count_transition_effects, prepare_inventory_quality_count};
-    use erpx_server_inventory::public::service_initial_physical_count::{CountAction, CountAuthority};
-    use erpx_server_quality::public::quality_commands::{lock_quality_count_disposition_sources, prepare_quality_count_disposition, QualityCountDispositionAction, QualityCountDispositionFacts};
+    use erpx_inventory_server::public::counts::{apply_quality_count_effects, apply_quality_count_decision, inspect_count_transition_guard, lock_count_transition_guard_sources, plan_count_transition, plan_count_transition_effects, prepare_inventory_quality_count};
+    use erpx_inventory_server::public::service_initial_physical_count::{CountAction, CountAuthority};
+    use erpx_quality_server::public::quality_commands::{lock_quality_count_disposition_sources, prepare_quality_count_disposition, QualityCountDispositionAction, QualityCountDispositionFacts};
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
         sqlx::raw_sql("INSERT INTO inventory_counts(id,company_id,branch_id,warehouse_id,number,count_date,reason,status,version,net_value_minor,created_by,prepared_by,approved_by,created_at,updated_at) VALUES('count-quality','company','branch','warehouse','QC-1','2026-11-10','scrap','draft',1,-2000,'maker','maker','reviewer',0,0);
@@ -617,8 +617,8 @@ async fn native_quality_count_checks_partial_scrap_and_remaining_trigger() {
             lock_count_transition_guard_sources(c).await?;
             lock_quality_count_disposition_sources(c).await?;
             let mut lineage_counts=ActualLineageCounts;
-            let lineage=erpx_server_quality::public::purchase_lineage::inspect_quality_purchase_lineage(c,&mut lineage_counts,erpx_server_quality::public::purchase_lineage::QualityLineageRequest { company_id:erpx_server_shared::public::CompanyId::new("company")?, branch_id:Some("branch".into()),hold_id:"hold-distinct".into() }).await?;
-            let decoy=erpx_server_quality::public::purchase_lineage::inspect_quality_purchase_lineage(c,&mut lineage_counts,erpx_server_quality::public::purchase_lineage::QualityLineageRequest { company_id:erpx_server_shared::public::CompanyId::new("company")?, branch_id:Some("branch".into()),hold_id:"hold-other".into() }).await?;
+            let lineage=erpx_quality_server::public::purchase_lineage::inspect_quality_purchase_lineage(c,&mut lineage_counts,erpx_quality_server::public::purchase_lineage::QualityLineageRequest { company_id:erpx_platform_shared_server::public::CompanyId::new("company")?, branch_id:Some("branch".into()),hold_id:"hold-distinct".into() }).await?;
+            let decoy=erpx_quality_server::public::purchase_lineage::inspect_quality_purchase_lineage(c,&mut lineage_counts,erpx_quality_server::public::purchase_lineage::QualityLineageRequest { company_id:erpx_platform_shared_server::public::CompanyId::new("company")?, branch_id:Some("branch".into()),hold_id:"hold-other".into() }).await?;
             let guard = inspect_count_transition_guard(c,"company",Some("branch"),"count-quality",CountAction::Post).await?;
             let facts = QualityCountDispositionFacts { company_id:"company".into(),branch_id:"branch".into(),warehouse_id:"warehouse".into(),product_id:"product".into(),lot_id:Some("lot-a".into()),hold_id:"hold-distinct".into(),count_id:"count-quality".into(),command_key:"quality-key".into(),actor_id:"reviewer".into(),reason:"Approved scrap".into(),action:QualityCountDispositionAction::Post,now:100 };
             guard.require_current(c).await?;
@@ -692,9 +692,9 @@ async fn native_quality_count_checks_partial_scrap_and_remaining_trigger() {
 
 #[tokio::test]
 async fn native_quality_count_checks_finalized_purchase_ancestry_real_owner() {
-    use erpx_server_inventory::public::counts::{apply_quality_count_effects, apply_quality_count_decision, inspect_count_transition_guard, lock_count_transition_guard_sources, plan_count_transition, plan_count_transition_effects, prepare_inventory_quality_count};
-    use erpx_server_inventory::public::service_initial_physical_count::{CountAction, CountAuthority};
-    use erpx_server_quality::public::quality_commands::{lock_quality_count_disposition_sources, prepare_quality_count_disposition, QualityCountDispositionAction, QualityCountDispositionFacts};
+    use erpx_inventory_server::public::counts::{apply_quality_count_effects, apply_quality_count_decision, inspect_count_transition_guard, lock_count_transition_guard_sources, plan_count_transition, plan_count_transition_effects, prepare_inventory_quality_count};
+    use erpx_inventory_server::public::service_initial_physical_count::{CountAction, CountAuthority};
+    use erpx_quality_server::public::quality_commands::{lock_quality_count_disposition_sources, prepare_quality_count_disposition, QualityCountDispositionAction, QualityCountDispositionFacts};
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
         sqlx::raw_sql("INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,status,created_by,last_result,version,created_at,updated_at,lot_id,held_quantity_milli,quantity_scope,source_type,source_id) VALUES('root','company','branch','warehouse','product','Failed','2026-11-10','held','maker','fail',1,0,0,'lot-a',10000,'partial','goods_receipt','origin');
@@ -717,9 +717,9 @@ async fn native_quality_count_checks_finalized_purchase_ancestry_real_owner() {
             lock_count_transition_guard_sources(c).await?;
             lock_quality_count_disposition_sources(c).await?;
             let mut lineage_counts=ActualLineageCounts;
-            let lineage=erpx_server_quality::public::purchase_lineage::inspect_quality_purchase_lineage(c,&mut lineage_counts,erpx_server_quality::public::purchase_lineage::QualityLineageRequest { company_id:erpx_server_shared::public::CompanyId::new("company")?, branch_id:Some("branch".into()),hold_id:"root-remaining-prev".into() }).await?;
+            let lineage=erpx_quality_server::public::purchase_lineage::inspect_quality_purchase_lineage(c,&mut lineage_counts,erpx_quality_server::public::purchase_lineage::QualityLineageRequest { company_id:erpx_platform_shared_server::public::CompanyId::new("company")?, branch_id:Some("branch".into()),hold_id:"root-remaining-prev".into() }).await?;
             assert_eq!(lineage.root()["id"],"root");
-            let decoy=erpx_server_quality::public::purchase_lineage::inspect_quality_purchase_lineage(c,&mut lineage_counts,erpx_server_quality::public::purchase_lineage::QualityLineageRequest { company_id:erpx_server_shared::public::CompanyId::new("company")?, branch_id:Some("branch".into()),hold_id:"hold-other".into() }).await?;
+            let decoy=erpx_quality_server::public::purchase_lineage::inspect_quality_purchase_lineage(c,&mut lineage_counts,erpx_quality_server::public::purchase_lineage::QualityLineageRequest { company_id:erpx_platform_shared_server::public::CompanyId::new("company")?, branch_id:Some("branch".into()),hold_id:"hold-other".into() }).await?;
             let guard = inspect_count_transition_guard(c,"company",Some("branch"),"count-quality",CountAction::Post).await?;
             let facts = QualityCountDispositionFacts { company_id:"company".into(),branch_id:"branch".into(),warehouse_id:"warehouse".into(),product_id:"product".into(),lot_id:Some("lot-a".into()),hold_id:"root-remaining-prev".into(),count_id:"count-quality".into(),command_key:"quality-key".into(),actor_id:"reviewer".into(),reason:"Approved scrap".into(),action:QualityCountDispositionAction::Post,now:100 };
             guard.require_current(c).await?;
@@ -806,9 +806,9 @@ async fn native_quality_count_checks_finalized_purchase_ancestry_real_owner() {
 
 #[tokio::test]
 async fn native_quality_count_checks_reject_restores_hold_and_records_event() {
-    use erpx_server_inventory::public::counts::{apply_quality_count_effects, apply_quality_count_decision, inspect_count_transition_guard, inspect_quality_count_decision_projection, lock_count_transition_guard_sources, plan_count_transition, plan_count_transition_effects, prepare_inventory_quality_count};
-    use erpx_server_inventory::public::service_initial_physical_count::{CountAction, CountAuthority};
-    use erpx_server_quality::public::quality_commands::{lock_quality_count_disposition_sources, prepare_quality_count_disposition, QualityCountDispositionAction, QualityCountDispositionFacts};
+    use erpx_inventory_server::public::counts::{apply_quality_count_effects, apply_quality_count_decision, inspect_count_transition_guard, inspect_quality_count_decision_projection, lock_count_transition_guard_sources, plan_count_transition, plan_count_transition_effects, prepare_inventory_quality_count};
+    use erpx_inventory_server::public::service_initial_physical_count::{CountAction, CountAuthority};
+    use erpx_quality_server::public::quality_commands::{lock_quality_count_disposition_sources, prepare_quality_count_disposition, QualityCountDispositionAction, QualityCountDispositionFacts};
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
         sqlx::raw_sql("INSERT INTO inventory_counts(id,company_id,branch_id,warehouse_id,number,count_date,reason,status,version,net_value_minor,created_by,prepared_by,approved_by,created_at,updated_at) VALUES('count-quality','company','branch','warehouse','QC-1','2026-11-10','scrap','draft',1,-5000,'maker','maker','reviewer',0,0);
@@ -827,7 +827,7 @@ async fn native_quality_count_checks_reject_restores_hold_and_records_event() {
             lock_count_transition_guard_sources(c).await?;
             lock_quality_count_disposition_sources(c).await?;
             let mut lineage_counts=ActualLineageCounts;
-            let lineage=erpx_server_quality::public::purchase_lineage::inspect_quality_purchase_lineage(c,&mut lineage_counts,erpx_server_quality::public::purchase_lineage::QualityLineageRequest { company_id:erpx_server_shared::public::CompanyId::new("company")?, branch_id:Some("branch".into()),hold_id:"hold-distinct".into() }).await?;
+            let lineage=erpx_quality_server::public::purchase_lineage::inspect_quality_purchase_lineage(c,&mut lineage_counts,erpx_quality_server::public::purchase_lineage::QualityLineageRequest { company_id:erpx_platform_shared_server::public::CompanyId::new("company")?, branch_id:Some("branch".into()),hold_id:"hold-distinct".into() }).await?;
             let guard = inspect_count_transition_guard(c,"company",Some("branch"),"count-quality",CountAction::Reject).await?;
             let facts = QualityCountDispositionFacts { company_id:"company".into(),branch_id:"branch".into(),warehouse_id:"warehouse".into(),product_id:"product".into(),lot_id:Some("lot-a".into()),hold_id:"hold-distinct".into(),count_id:"count-quality".into(),command_key:"quality-key".into(),actor_id:"reviewer".into(),reason:"Approved scrap".into(),action:QualityCountDispositionAction::Reject,now:100 };
             guard.require_current(c).await?;
@@ -850,7 +850,7 @@ async fn native_quality_count_checks_reject_restores_hold_and_records_event() {
             apply_quality_count_effects(c,1,&staged).await?;
             let staged = staged.stage_remaining(c).await?;
             apply_quality_count_decision(c,1,&staged).await?;
-            use erpx_server_quality::public::quality_commands::QualityCountDispositionSource;
+            use erpx_quality_server::public::quality_commands::QualityCountDispositionSource;
             sqlx::query("SAVEPOINT reject_drift").execute(&mut *c).await?;
             for mutation in [
                 "UPDATE inventory_counts SET number='QC-drift' WHERE id='count-quality'",
@@ -886,9 +886,9 @@ async fn native_quality_count_checks_reject_restores_hold_and_records_event() {
 
 #[tokio::test]
 async fn native_quality_count_checks_projection_detects_omitted_row_drift_after_reject() {
-    use erpx_server_inventory::public::counts::{apply_quality_count_effects, apply_quality_count_decision, inspect_count_transition_guard, inspect_quality_count_decision_projection, lock_count_transition_guard_sources, plan_count_transition, plan_count_transition_effects, prepare_inventory_quality_count};
-    use erpx_server_inventory::public::service_initial_physical_count::{CountAction, CountAuthority};
-    use erpx_server_quality::public::quality_commands::{lock_quality_count_disposition_sources, prepare_quality_count_disposition, QualityCountDispositionAction, QualityCountDispositionFacts};
+    use erpx_inventory_server::public::counts::{apply_quality_count_effects, apply_quality_count_decision, inspect_count_transition_guard, inspect_quality_count_decision_projection, lock_count_transition_guard_sources, plan_count_transition, plan_count_transition_effects, prepare_inventory_quality_count};
+    use erpx_inventory_server::public::service_initial_physical_count::{CountAction, CountAuthority};
+    use erpx_quality_server::public::quality_commands::{lock_quality_count_disposition_sources, prepare_quality_count_disposition, QualityCountDispositionAction, QualityCountDispositionFacts};
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
         sqlx::raw_sql("INSERT INTO inventory_counts(id,company_id,branch_id,warehouse_id,number,count_date,reason,status,version,net_value_minor,created_by,prepared_by,approved_by,created_at,updated_at) VALUES('count-quality','company','branch','warehouse','QC-1','2026-11-10','scrap','draft',1,-5000,'maker','maker','reviewer',0,0);
@@ -937,7 +937,7 @@ async fn native_quality_count_checks_projection_detects_omitted_row_drift_after_
             assert!(projection.require_after(c,false).await.is_err());
             sqlx::query("ROLLBACK TO SAVEPOINT full_row_drift").execute(&mut *c).await?;
             sqlx::query("RELEASE SAVEPOINT full_row_drift").execute(&mut *c).await?;
-            use erpx_server_quality::public::quality_commands::QualityCountDispositionSource;
+            use erpx_quality_server::public::quality_commands::QualityCountDispositionSource;
             sqlx::query("SAVEPOINT reject_drift").execute(&mut *c).await?;
             for mutation in [
                 "UPDATE inventory_counts SET number='QC-drift' WHERE id='count-quality'",
@@ -972,9 +972,9 @@ async fn native_quality_count_checks_projection_detects_omitted_row_drift_after_
 
 #[tokio::test]
 async fn native_quality_count_checks_reject_captures_unlisted_hold_lot() {
-    use erpx_server_inventory::public::counts::{apply_quality_count_effects, apply_quality_count_decision, inspect_count_transition_guard, lock_count_transition_guard_sources, plan_count_transition, plan_count_transition_effects, prepare_inventory_quality_count};
-    use erpx_server_inventory::public::service_initial_physical_count::{CountAction, CountAuthority};
-    use erpx_server_quality::public::quality_commands::{lock_quality_count_disposition_sources, prepare_quality_count_disposition, QualityCountDispositionAction, QualityCountDispositionFacts};
+    use erpx_inventory_server::public::counts::{apply_quality_count_effects, apply_quality_count_decision, inspect_count_transition_guard, lock_count_transition_guard_sources, plan_count_transition, plan_count_transition_effects, prepare_inventory_quality_count};
+    use erpx_inventory_server::public::service_initial_physical_count::{CountAction, CountAuthority};
+    use erpx_quality_server::public::quality_commands::{lock_quality_count_disposition_sources, prepare_quality_count_disposition, QualityCountDispositionAction, QualityCountDispositionFacts};
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
         sqlx::raw_sql("INSERT INTO inventory_counts(id,company_id,branch_id,warehouse_id,number,count_date,reason,status,version,net_value_minor,created_by,prepared_by,approved_by,created_at,updated_at) VALUES('count-quality','company','branch','warehouse','QC-1','2026-11-10','scrap','draft',1,-5000,'maker','maker','reviewer',0,0);
@@ -1014,7 +1014,7 @@ async fn native_quality_count_checks_reject_captures_unlisted_hold_lot() {
             apply_quality_count_effects(c,1,&staged).await?;
             let staged = staged.stage_remaining(c).await?;
             apply_quality_count_decision(c,1,&staged).await?;
-            use erpx_server_quality::public::quality_commands::QualityCountDispositionSource;
+            use erpx_quality_server::public::quality_commands::QualityCountDispositionSource;
             sqlx::query("SAVEPOINT reject_drift").execute(&mut *c).await?;
             for mutation in [
                 "UPDATE commerce_stock SET version=version+1 WHERE warehouse_id='warehouse' AND product_id='product'",
@@ -1044,8 +1044,8 @@ async fn native_quality_count_checks_reject_captures_unlisted_hold_lot() {
 
 #[tokio::test]
 async fn native_quality_count_checks_direct_request_origin_not_receipt_authority() {
-    use erpx_server_inventory::public::counts::{inspect_direct_quality_count_origin,lock_count_transition_guard_sources};
-    use erpx_server_quality::public::quality_commands::lock_quality_count_disposition_sources;
+    use erpx_inventory_server::public::counts::{inspect_direct_quality_count_origin,lock_count_transition_guard_sources};
+    use erpx_quality_server::public::quality_commands::lock_quality_count_disposition_sources;
     fixture::with_database(2,|pool|async move {
         setup(&pool).await;
         sqlx::query("INSERT INTO commerce_products(id,company_id,sku,name,price_minor,tracking_mode) VALUES('other','company','OTHER','Other',100,'none')").execute(pool.raw()).await.unwrap();
@@ -1097,10 +1097,10 @@ async fn native_quality_count_checks_direct_request_origin_not_receipt_authority
 
 #[tokio::test]
 async fn quality_count_pre_snapshot_inversions_retry_whole_unit_without_effects() {
-    use erpx_server_commerce::public::quality_scrap_stock::lock_quality_scrap_stock_sources;
-    use erpx_server_inventory::public::quality_scrap_count::lock_quality_scrap_count_sources;
-    use erpx_server_quality::public::quality_commands::{lock_quality_command_sources,lock_quality_count_disposition_sources};
-    use erpx_server_runtime::public::postgres::PgTransactionError;
+    use erpx_commerce_server::public::quality_scrap_stock::lock_quality_scrap_stock_sources;
+    use erpx_inventory_server::public::quality_scrap_count::lock_quality_scrap_count_sources;
+    use erpx_quality_server::public::quality_commands::{lock_quality_command_sources,lock_quality_count_disposition_sources};
+    use erpx_platform_runtime_server::public::postgres::PgTransactionError;
     fixture::with_database(3,|pool|async move {
         setup(&pool).await;
         sqlx::query("CREATE TABLE quality_count_retry_probe(id text PRIMARY KEY)").execute(pool.raw()).await.unwrap();
@@ -1175,7 +1175,7 @@ fn large_internal_projection_matches_pinned_bun_without_changing_command_limit()
             child.stdin.take().unwrap().write_all(input.as_bytes()).unwrap();
             let result = child.wait_with_output().unwrap();
             assert!(result.status.success());
-            assert_eq!(erpx_server_workflow::public::service_count_decision_evidence::service_count_decision_digest(reason, &lines, lots).unwrap(), String::from_utf8(result.stdout).unwrap());
-            assert!(erpx_server_workflow::public::commands::CommandJson::parse(&lines).is_err(), "incoming command cap must remain enforced");
+            assert_eq!(erpx_workflow_server::public::service_count_decision_evidence::service_count_decision_digest(reason, &lines, lots).unwrap(), String::from_utf8(result.stdout).unwrap());
+            assert!(erpx_workflow_server::public::commands::CommandJson::parse(&lines).is_err(), "incoming command cap must remain enforced");
         }
     }

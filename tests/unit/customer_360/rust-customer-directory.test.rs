@@ -1,9 +1,9 @@
 #![allow(dead_code)]
-use erpx_server_customer_360::public::customer_timeline::CustomerTimelineActor;
-use erpx_server_customer_360::public::directory::{
+use erpx_customer_360_server::public::customer_timeline::CustomerTimelineActor;
+use erpx_customer_360_server::public::directory::{
     CustomerDirectoryEntry, CustomerDirectoryRepository, CustomerDirectoryView, customer_directory,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, TimestampMillis};
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
 
@@ -34,7 +34,7 @@ impl CustomerDirectoryRepository for Repo {
         &'a mut self,
         _actor: &'a CustomerTimelineActor,
         view: CustomerDirectoryView,
-    ) -> erpx_server_customer_360::public::directory::CustomerDirectoryFuture<
+    ) -> erpx_customer_360_server::public::directory::CustomerDirectoryFuture<
         'a,
         Vec<CustomerDirectoryEntry>,
         Self::Error,

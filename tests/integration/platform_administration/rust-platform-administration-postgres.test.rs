@@ -6,11 +6,11 @@
 #![allow(dead_code)]
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_platform_administration::public::platform_operations::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_administration_server::public::platform_operations::*;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, inspect_migrations, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use sqlx::Row;
 use std::sync::Arc;
 
@@ -737,7 +737,7 @@ async fn a_failed_holding_migration_is_retained_as_failed_without_a_success_resu
                 .await
                 .unwrap();
             files.push(
-                erpx_server_runtime::public::postgres::MigrationFile::from_sql(
+                erpx_platform_runtime_server::public::postgres::MigrationFile::from_sql(
                     "9999_platform_migration_fault.sql",
                     "SELECT * FROM erpx_missing_platform_migration_table",
                 )
@@ -1073,7 +1073,7 @@ async fn actual_router_reads_and_provisions_over_postgres_with_target_and_key_ne
             let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
             let addr = listener.local_addr().unwrap();
             let server = tokio::spawn(async move {
-                let _ = erpx_server_runtime::public::http_support::serve(listener, router).await;
+                let _ = erpx_platform_runtime_server::public::http_support::serve(listener, router).await;
             });
             let (status, body) = http(
                 addr,
@@ -1189,7 +1189,7 @@ async fn actual_router_reads_and_provisions_over_postgres_with_target_and_key_ne
 // release workflow acceptance, or proof that the compiled artifact is built.
 const SYNTHETIC_RELEASE_ARTIFACT:&str="test-only-accepted-release";
 async fn seed_synthetic_production_release(pool:&DatabasePool) {
-    use erpx_server_platform_administration::public::production_release::current_production_release_catalogue;
+    use erpx_platform_administration_server::public::production_release::current_production_release_catalogue;
     sqlx::raw_sql("INSERT INTO organization_nodes(id,kind,slug,display_name,company_id,status) VALUES('release-company','company','release-company','Synthetic release company','release-company','active'); INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status) VALUES('*','release_test_reviewer','Synthetic release reviewer',false,1,'active'); INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','release_test_reviewer',1,'[\"organization.manage\",\"pms.approve\",\"commerce.approve\",\"records.write\",\"pos.approve\",\"people.manage\",\"payroll.approve\",\"finance.approve\"]','[]','[\"holding\"]','synthetic',0); INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy) VALUES('release-company','release-requester','local:release-requester','requester-person','active','local'),('release-company','setup-reviewer','local:setup-reviewer','setup-person','active','local'); INSERT INTO company_business_acceptance(company_id,status,version,requested_by,reviewed_by,requested_at,reviewed_at,reason,review_reason,updated_at) VALUES('release-company','accepted',2,'release-requester','setup-reviewer',1,2,'Synthetic setup request','Synthetic independent review',2)").execute(pool.raw()).await.unwrap();
     let catalogue=current_production_release_catalogue().unwrap();assert_eq!(catalogue.criteria().len(),15);
     for (i,_) in catalogue.criteria().iter().enumerate() {
@@ -1206,16 +1206,16 @@ async fn seed_synthetic_production_release(pool:&DatabasePool) {
     }
 }
 async fn synthetic_release_accepted(c:&mut sqlx::PgConnection,artifact:&str)->bool {
-    use erpx_server_platform_administration::public::production_release::{current_production_release_catalogue,PgProductionReleaseReader,ProductionReleaseReadPort};
-    use erpx_server_shared::public::{CompanyId,TimestampMillis};
+    use erpx_platform_administration_server::public::production_release::{current_production_release_catalogue,PgProductionReleaseReader,ProductionReleaseReadPort};
+    use erpx_platform_shared_server::public::{CompanyId,TimestampMillis};
     let catalogue=current_production_release_catalogue().unwrap();
     PgProductionReleaseReader::new(c,artifact,&catalogue).unwrap().inspect(&CompanyId::new("release-company").unwrap(),TimestampMillis::new(0)).await.unwrap().accepted
 }
 
 #[tokio::test]
 async fn synthetic_release_permissions_first_writer_causes_retry_and_fresh_denial() {
-    use erpx_server_platform_administration::public::production_release::lock_production_release_sources;
-    use erpx_server_runtime::public::postgres::{PgTransactionError,PgUnitOfWork,TransactionOptions};
+    use erpx_platform_administration_server::public::production_release::lock_production_release_sources;
+    use erpx_platform_runtime_server::public::postgres::{PgTransactionError,PgUnitOfWork,TransactionOptions};
     use std::sync::atomic::{AtomicUsize,Ordering};
     fixture::with_database(3,|pool|async move {
         migrate(&pool,MigrationTrack::HoldingWrite).await;seed_synthetic_production_release(&pool).await;
@@ -1245,7 +1245,7 @@ async fn synthetic_release_permissions_first_writer_causes_retry_and_fresh_denia
 
 #[tokio::test]
 async fn synthetic_release_reader_first_blocks_permission_withdrawal_until_commit() {
-    use erpx_server_platform_administration::public::production_release::lock_production_release_sources;
+    use erpx_platform_administration_server::public::production_release::lock_production_release_sources;
     fixture::with_database(3,|pool|async move {
         migrate(&pool,MigrationTrack::HoldingWrite).await;seed_synthetic_production_release(&pool).await;
         let mut reader=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *reader).await.unwrap();lock_production_release_sources(&mut reader).await.unwrap();
@@ -1263,7 +1263,7 @@ async fn synthetic_release_reader_first_blocks_permission_withdrawal_until_commi
 }
 #[tokio::test]
 async fn synthetic_production_release_reader_requires_all_current_independent_gates() {
-    use erpx_server_platform_administration::public::production_release::{current_production_release_catalogue,lock_production_release_sources};
+    use erpx_platform_administration_server::public::production_release::{current_production_release_catalogue,lock_production_release_sources};
     fixture::with_database(3,|pool|async move {
         migrate(&pool,MigrationTrack::HoldingWrite).await;seed_synthetic_production_release(&pool).await;
         let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_production_release_sources(&mut tx).await.unwrap();
@@ -1303,7 +1303,7 @@ async fn synthetic_production_release_reader_requires_all_current_independent_ga
 // locking and same-unit drift only; it does not certify any Company.
 #[tokio::test]
 async fn scheduled_release_sources_preserve_all_owner_rows_and_same_unit_drift() {
-    use erpx_server_platform_administration::public::scheduled_release_sources::{
+    use erpx_platform_administration_server::public::scheduled_release_sources::{
         inspect_scheduled_release_sources, lock_scheduled_release_sources,
     };
     use sqlx::AssertSqlSafe;
@@ -1400,7 +1400,7 @@ async fn scheduled_release_sources_preserve_all_owner_rows_and_same_unit_drift()
 
 #[tokio::test]
 async fn scheduled_engineering_rows_match_persisted_context_and_exact_clock() {
-    use erpx_server_platform_administration::public::scheduled_engineering_sources::{
+    use erpx_platform_administration_server::public::scheduled_engineering_sources::{
         inspect_scheduled_engineering_sources, lock_scheduled_engineering_sources,
     };
     use sqlx::AssertSqlSafe;
@@ -1500,10 +1500,10 @@ async fn scheduled_engineering_rows_match_persisted_context_and_exact_clock() {
 #[cfg(unix)]
 #[tokio::test]
 async fn native_engineering_identity_requires_current_roster_or_legacy_database_and_attested_file() {
-    use erpx_server_platform_administration::public::legal_release::EngineeringReadConfiguration;
-    use erpx_server_platform_administration::public::native_engineering_database_identity::inspect_native_engineering_identity;
-    use erpx_server_platform_administration::public::native_roster_snapshot::capture_attested_native_roster_snapshot;
-    use erpx_server_runtime::public::native_engineering_roster::validate_native_engineering_roster;
+    use erpx_platform_administration_server::public::legal_release::EngineeringReadConfiguration;
+    use erpx_platform_administration_server::public::native_engineering_database_identity::inspect_native_engineering_identity;
+    use erpx_platform_administration_server::public::native_roster_snapshot::capture_attested_native_roster_snapshot;
+    use erpx_platform_runtime_server::public::native_engineering_roster::validate_native_engineering_roster;
     use sha2::Digest;
     use std::os::unix::fs::PermissionsExt;
     fixture::with_database(2, |pool| async move {

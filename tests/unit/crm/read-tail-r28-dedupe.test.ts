@@ -4,9 +4,9 @@ import { describe, expect, test } from 'vitest';
 import {
   crmCaseEventReadSql,
   crmOpportunityProbeSql,
-} from '../../../packages/server-crm/src/adapters/read-tail-r28-sql';
+} from '../../../modules/crm/server/src/adapters/read-tail-r28-sql';
 
-const owner = resolve(__dirname, '../../../packages/server-crm/src');
+const owner = resolve(__dirname, '../../../modules/crm/server/src');
 const src = (name: string) => readFileSync(resolve(owner, 'adapters', name), 'utf8');
 const totalSelects = () => {
   let total = 0;

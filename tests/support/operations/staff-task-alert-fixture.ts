@@ -2,32 +2,32 @@
  * FIXTURE-ONLY ORACLE — retained pre-cutover Staff Work alert worker.
  *
  * Production alerts are now owned by the native staff_task_alert_worker
- * (src/composition), which calls the owner `escalate_staff_tasks` application.
+ * (platform/composition), which calls the owner `escalate_staff_tasks` application.
  * This copy keeps the legacy TS worker for the isolated integration harness.
  *
  * Tracked for removal by `retire.operations.staff-task-alert-worker`: delete
  * once the harness drives the native worker result directly.
  */
-import {projectTaskAlertReadScope} from "@erpx/server-projects/public/scheduled-tasks";
-import {workTaskAlertReadScope,withWorkTaskAlert} from "@erpx/server-operations/adapters/work-task-alert-purchases";
-import { finalRootOwnerProjectionSources as projectsProjectionSources } from "@erpx/server-projects/public/final-root-owner-projection-sources";
+import {projectTaskAlertReadScope} from "@erpx/projects-server/public/scheduled-tasks";
+import {workTaskAlertReadScope,withWorkTaskAlert} from "@erpx/operations-server/adapters/work-task-alert-purchases";
+import { finalRootOwnerProjectionSources as projectsProjectionSources } from "@erpx/projects-server/public/final-root-owner-projection-sources";
 import "server-only";
-import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
-import { holdingResources as nativeHoldingResources } from '../../../packages/server-runtime/src/public/runtime';
-import { policyRead as nativePolicyRead, policyNow as nativePolicyNow } from '@erpx/server-identity_access/public/iam-read-snapshot';
+import type { SqlDatabase } from "@erpx/platform-runtime-server/public/runtime/types";
+import { scheduledFeaturePredicate } from "@erpx/pms-server/public/feature-availability";
+import { holdingResources as nativeHoldingResources } from '../../../platform/runtime/server/src/public/runtime';
+import { policyRead as nativePolicyRead, policyNow as nativePolicyNow } from '@erpx/identity-access-server/public/iam-read-snapshot';
 
-import { ApiError as NativeApiError } from '@erpx/server-runtime/public/http';
-import { type StaffTaskAlertResult, type TaskAlertRow } from '@erpx/server-operations/domain/staff-task-alerts';
-import { createStaffTaskAlertsApplication, type StaffTaskAlertsRepository } from '@erpx/server-operations/application/staff-task-alerts';
-import { BusinessRuleError } from '@erpx/server-shared/index';
-import type { SqlStatement } from '@erpx/server-runtime/public/runtime/types';
-import { StaffTaskAlertsWorkflowFacts } from '@erpx/server-workflow/public/operations-staff-task-alerts-facts';
+import { ApiError as NativeApiError } from '@erpx/platform-runtime-server/public/http';
+import { type StaffTaskAlertResult, type TaskAlertRow } from '@erpx/operations-server/domain/staff-task-alerts';
+import { createStaffTaskAlertsApplication, type StaffTaskAlertsRepository } from '@erpx/operations-server/application/staff-task-alerts';
+import { BusinessRuleError } from '@erpx/platform-shared-server/index';
+import type { SqlStatement } from '@erpx/platform-runtime-server/public/runtime/types';
+import { StaffTaskAlertsWorkflowFacts } from '@erpx/workflow-server/public/operations-staff-task-alerts-facts';
 const StaffTaskAlertsCollaborationFacts = (database: SqlDatabase) => ({ stageEscalateStaffTasksResult(value: string, company_id: string, userId: string, value2: string, id: string, version: number, message: string, now: number, value3: string[]) {
   return database.prepare(`INSERT INTO staff_notifications (id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT ?,?,?,?,?,?,?,? WHERE ${scheduledFeaturePredicate("?", "operations")} ON CONFLICT DO NOTHING`)
     .bind(value, company_id, userId, value2, id, version, message, now, ...value3).run();
 } });
-export type { StaffTaskAlertResult } from '@erpx/server-operations/domain/staff-task-alerts';
+export type { StaffTaskAlertResult } from '@erpx/operations-server/domain/staff-task-alerts';
 function application(provided?: SqlDatabase) {
     let database = provided!;
     const repository: StaffTaskAlertsRepository = { async readEscalateStaffTasksRows(now: number, now2: number, value: number) {

@@ -6,15 +6,15 @@ import {
   PEOPLE_PAYROLL_RD_COMMAND_RECEIPT_PRIOR,
   PEOPLE_PAYROLL_RD_ROSTER_ASSIGNMENT_BY_ID,
   PEOPLE_PAYROLL_RD_ROSTER_ASSIGNMENT_BY_SHIFT,
-} from '../../../packages/server-people_payroll/src/adapters/native-people-payroll-read';
+} from '../../../modules/people-payroll/server/src/adapters/native-people-payroll-read';
 import {
   activePayee,
   commandReceiptPrior,
   rosterAssignmentById,
   rosterAssignmentsByShift,
-} from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r53-native';
+} from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r53-native';
 
-const src = (name: string) => readFileSync(new URL(`../../../packages/server-people_payroll/src/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFileSync(new URL(`../../../modules/people-payroll/server/src/${name}`, import.meta.url), 'utf8');
 const rust = () => src('adapters/native_read_sql.rs');
 
 // Verbatim retired literals from pp-read-tail-r20-sources.ts:7,8 and
@@ -160,7 +160,7 @@ describe('People Payroll read-tail r53 native read tail', () => {
   });
 
   test('retirement:ts-statements is strictly below BEFORE=1221 and pinned at 1214', () => {
-    const root = new URL('../../../packages/server-people_payroll/src/', import.meta.url);
+    const root = new URL('../../../modules/people-payroll/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {

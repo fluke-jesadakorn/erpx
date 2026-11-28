@@ -1,0 +1,47 @@
+import {AppsHomeLink} from "@erpx/platform-workplace/components/product-link-context";
+import {ProductAccountTrigger} from "@erpx/platform-workplace/components/product-account-provider";
+import {AppsSidebar} from "@erpx/platform-workplace/components/apps-sidebar";
+import { headers, cookies } from "next/headers";
+import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
+import { configuredProductHandoff, productHostForHost } from "@erpx/platform-runtime-ui/lib/product-hosts";
+import { preferredAccountLanguage } from "@erpx/identity-access-server/public/account-preference-snapshot";
+import {providerCommercialPageContext} from "@erpx/commercial-server/public/provider-page-context";
+import {providerCompanyPackageOverview} from "@erpx/commercial-server/public/provider-commercial";
+import {ProviderContextBoundary} from "@erpx/identity-access-ui/components/provider-context-boundary";
+import {ProviderContextSwitcher} from "@erpx/identity-access-ui/components/provider-context-switcher";
+import { ApiError } from "@erpx/platform-runtime-server/public/http";
+import { ProductNavigationBoundary } from "@erpx/platform-workplace/components/product-navigation-boundary";
+import { ProductBrand } from "@erpx/brand-ui/components/product-brand";
+import { PageContent, Stack, InlineNotice } from "@erpx/platform-ui/components/foundation";
+import { CompanyPackageManager } from "@erpx/commercial-ui/components/company-package-manager";
+import styles from "@erpx/platform-workplace/components/product-shell.module.css";
+
+export const dynamic = "force-dynamic";
+export default async function CompanyPackagesPage({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}) {
+  if (productHostForHost((await headers()).get("host")) !== "admin") notFound();
+  const language = await preferredAccountLanguage((await cookies()).get("erpx_language")?.value === "th" ? "th" : "en"), th = language === "th";
+  const query = await searchParams;
+  let current:Awaited<ReturnType<typeof providerCommercialPageContext>>|undefined;
+  try { current = await providerCommercialPageContext(); }
+  catch (error) {
+    if (error instanceof Error && error.message === "UNAUTHENTICATED" || error instanceof ApiError && error.status === 401)
+      redirect("/sso/start?next=%2Fprovider%2Fcommercial%2Fpackages");
+    if (!(error instanceof Error && error.message === "FORBIDDEN") && !(error instanceof ApiError && error.status === 403)) throw error;
+  }
+  const overview=current?.overview,roleLabel=current?.context.choices.find(choice=>choice.id===current?.context.selectedId)?.label;
+  const requestedCompany=typeof query.companyId==="string"?query.companyId:undefined,requestedHolding=typeof query.holdingId==="string"?query.holdingId:undefined;
+  const selectedCompany=overview?.companies.find(company=>(!requestedCompany||company.id===requestedCompany)&&(!requestedHolding||company.holdingId===requestedHolding))??overview?.companies[0];
+  let initialSnapshot:Awaited<ReturnType<typeof providerCompanyPackageOverview>>|undefined,packagesUnavailable=false;
+  if(selectedCompany){try{initialSnapshot=await providerCompanyPackageOverview(selectedCompany.holdingId,selectedCompany.id);}catch(error){if(error instanceof ApiError&&error.code==="NATIVE_COMMERCIAL_UNAVAILABLE")packagesUnavailable=true;else throw error;}}
+  return <ProductNavigationBoundary language={language}><div className={styles.shell}>
+    <header className={styles.header}><AppsHomeLink className={styles.brand}><ProductBrand appearance="standard" variant="symbol" className={styles.mark} /><strong>ERPX Administration</strong></AppsHomeLink>
+      <nav className={styles.links}><a data-product-switch href={configuredProductHandoff("apps")!}>Apps</a><a data-product-switch href={configuredProductHandoff("account")!}>Account</a></nav><ProductAccountTrigger roleLabel={roleLabel} language={language}/></header>
+    <div className={styles.body}><AppsSidebar language={language} roleLabel={roleLabel} items={[{id:"admin",label:"Admin",href:"/",groupId:"administration"},{id:"provider",label:"Platform / Provider",href:"/provider",groupId:"administration"}]}/><PageContent as="main"><Stack><h1>{th ? "จัดการแพ็กเกจบริษัท" : "Manage Company packages"}</h1>
+      <Link data-product-switch href="/provider/commercial" prefetch={false}>{th ? "ตรวจย้ายสิทธิ์เดิม" : "Review legacy access migration"}</Link>
+      {packagesUnavailable&&<InlineNotice tone="warning">{th ? "บริการแพ็กเกจ native ไม่พร้อมใช้งาน" : "The native Commercial package service is unavailable."}</InlineNotice>}
+      {overview ? <ProviderContextBoundary initial={current!.context}><ProviderContextSwitcher/><CompanyPackageManager companies={overview.companies} canApply={overview.canApply} language={language} {...(selectedCompany&&initialSnapshot?{initial:{holdingId:selectedCompany.holdingId,companyId:selectedCompany.id,snapshot:initialSnapshot}}:{})} /></ProviderContextBoundary>
+        : <InlineNotice tone="warning">{th ? "ต้องใช้สิทธิ์ Platform Commercial เพื่อดูหรือเปลี่ยนแพ็กเกจบริษัท" : "Current Platform Commercial authority is required to review or change Company packages."}</InlineNotice>}
+    </Stack></PageContent></div>
+  </div></ProductNavigationBoundary>;
+}

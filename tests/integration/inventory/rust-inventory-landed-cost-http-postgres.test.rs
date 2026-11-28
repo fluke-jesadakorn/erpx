@@ -4,10 +4,10 @@
 mod review;
 
 use axum::{body::{Body, to_bytes}, http::{Request, StatusCode}};
-use erpx_server_commercial::public::purchases::current_package_catalogue;
-use erpx_server_runtime::public::postgres::DatabasePool;
-use erpx_server_shared::public::{Clock, CompanyId, HoldingId};
-use erpx_service::{
+use erpx_commercial_server::public::purchases::current_package_catalogue;
+use erpx_platform_runtime_server::public::postgres::DatabasePool;
+use erpx_platform_shared_server::public::{Clock, CompanyId, HoldingId};
+use erpx_platform_composition::{
     field_service_reservation_read_http::FieldServiceReadScopeHeaders,
     inventory_landed_cost_commands::InventoryLandedCostCommand,
     inventory_owner_commands_http::{InventoryLandedCostHttpTarget, inventory_landed_cost_http_router},

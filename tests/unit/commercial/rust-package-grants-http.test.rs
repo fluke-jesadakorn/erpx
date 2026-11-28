@@ -1,8 +1,8 @@
-use erpx_server_commercial::public::purchases::{
+use erpx_commercial_server::public::purchases::{
     PackageGrantHttpFuture, PackageGrantHttpRequest, PackageGrantHttpResponse,
     PackageGrantsHttpBackend, PackageGrantsHttpTarget, package_grants_router,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 use std::sync::{Arc, Mutex};
 
 #[derive(Default)]
@@ -38,7 +38,7 @@ impl PackageGrantsHttpBackend for Failing {
     ) -> PackageGrantHttpFuture<'a, PackageGrantHttpResponse> {
         Box::pin(async move {
             Err(BusinessError::new(
-                erpx_server_shared::public::FailureKind::Conflict,
+                erpx_platform_shared_server::public::FailureKind::Conflict,
                 "PACKAGE_REVIEW_EXPIRED",
                 "Preview the current Company again.",
             ))
@@ -173,7 +173,7 @@ async fn actual_router_retains_host_origin_key_body_and_business_errors() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move {
-        let _ = erpx_server_runtime::public::http_support::serve(listener, router).await;
+        let _ = erpx_platform_runtime_server::public::http_support::serve(listener, router).await;
     });
 
     let preview = serde_json::json!({"holdingId": "h001", "request": change()}).to_string();

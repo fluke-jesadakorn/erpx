@@ -1,11 +1,11 @@
 import {describe,it,expect,vi} from 'vitest';
 import {readFile} from 'node:fs/promises';
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
+import type {SqlDatabase} from '@erpx/platform-runtime-server/public/runtime/types';
 const{requestHeaders}=vi.hoisted(()=>({requestHeaders:vi.fn()}));vi.mock('server-only',()=>({}));vi.mock('next/headers',()=>({headers:requestHeaders}));
-import {createNativeJournalListReader} from '../../../packages/feature-finance/src/adapters/server/native-journal-list';
-import {createNativeJournalDetailClient,createNativeJournalWorkspaceClient,createNextNativeJournalDetailReader,createNextNativeJournalWorkspaceReader,NativeFinanceReadError} from '@erpx/feature-finance/public/server';
-import type {NativeFinanceReadTransport,NativeJournalReadInput} from '@erpx/feature-finance/public/server';
-import type {FinanceJournalReadResponse,FinanceJournalWorkspaceReadResponse} from '@erpx/contracts/finance-journal-read';
+import {createNativeJournalListReader} from '../../../modules/finance/ui/src/adapters/server/native-journal-list';
+import {createNativeJournalDetailClient,createNativeJournalWorkspaceClient,createNextNativeJournalDetailReader,createNextNativeJournalWorkspaceReader,NativeFinanceReadError} from '@erpx/finance-ui/public/server';
+import type {NativeFinanceReadTransport,NativeJournalReadInput} from '@erpx/finance-ui/public/server';
+import type {FinanceJournalReadResponse,FinanceJournalWorkspaceReadResponse} from '@erpx/platform-contracts/finance-journal-read';
 const configuration={privateBaseUrl:'http://127.0.0.1:43117',holdings:[{origin:'https://acme.example.test',holdingSlug:'acme',holdingId:'h001'}],timeoutMs:250}as const;
 const input:NativeJournalReadInput={holdingSlug:'acme',journalId:'journal-one'};
 function data(user='original-user'):FinanceJournalReadResponse{return{data:{journal:{id:'journal-one',company_id:'company',chart_id:'chart',journal_number:'J-one',entry_date:'2026-01-01',version:1,status:'draft',created_by_name:'Original Person',posted_by_name:'Unlinked account'},lines:[{id:'line',journal_id:'journal-one',account_id:'cash',code:'100',name:'Cash',ordinal:0,debit_minor:100,credit_minor:0}],history:[]},context:{userId:user,holdingId:'h001',companyId:'company',branchId:null,departmentId:null,branchSlug:null,departmentSlug:null,assignmentId:'grant',assignmentVersion:3,revision:7,role:'reader',assignmentScopeKind:'holding',modules:['finance'],permissions:['finance.read','module.finance.read'],expiresAt:1800000000000}};}
@@ -43,8 +43,8 @@ describe('native Journal record workspace SSR transport',()=>{
 
 describe('native journal page integration',()=>{
  it('uses the real workspace adapter with the genuine page context and rejects an account mismatch',async()=>{
-  const {createNativeJournalPageReader}=await import('@erpx/feature-finance/public/server');
-  const actor={userId:'original-user',holdingId:'h001',holdingSlug:'acme',companyId:'company',branchId:null,departmentId:null,assignmentId:'grant',role:'reader',assignmentScope:'holding',scope:{kind:'holding',holdingId:'h001',holdingSlug:'acme',holdingName:'Acme',companyId:'company'},authority:{revision:7,assignmentVersion:3},modules:['finance'],iam:{permissions:['finance.read','module.finance.read']}} as import('@erpx/feature-finance/public/server').NativeJournalPageContext;
+  const {createNativeJournalPageReader}=await import('@erpx/finance-ui/public/server');
+  const actor={userId:'original-user',holdingId:'h001',holdingSlug:'acme',companyId:'company',branchId:null,departmentId:null,assignmentId:'grant',role:'reader',assignmentScope:'holding',scope:{kind:'holding',holdingId:'h001',holdingSlug:'acme',holdingName:'Acme',companyId:'company'},authority:{revision:7,assignmentVersion:3},modules:['finance'],iam:{permissions:['finance.read','module.finance.read']}} as import('@erpx/finance-ui/public/server').NativeJournalPageContext;
   requestHeaders.mockClear();requestHeaders.mockResolvedValue(incoming('genuine-cookie'));
   let calls=0;const read=createNativeJournalWorkspaceClient(configuration,async(_url,headers)=>{calls++;expect(headers.get('cookie')).toBe('genuine-cookie');expect(headers.get('x-erpx-context-revision')).toBe('7');return json(workspaceData());});
   const page=createNativeJournalPageReader(read);const result=await page(actor,'acme','journal-one');expect(result.journal.id).toBe('journal-one');expect(calls).toBe(1);expect(requestHeaders).toHaveBeenCalledTimes(1);
@@ -53,8 +53,8 @@ describe('native journal page integration',()=>{
   for(const changed of [{...actor,holdingId:'h002'},{...actor,role:'different'},{...actor,branchId:'other'},{...actor,assignmentScope:'branch' as const},{...actor,authority:undefined},{...actor,modules:['finance','other']},{...actor,iam:{permissions:['finance.read']}}])await expect(page(changed,'acme','journal-one')).rejects.toMatchObject({code:'NATIVE_FINANCE_CONTEXT_CHANGED'});
  });
  it('propagates configured native failures and rejects malformed configuration rather than reading legacy data',async()=>{
-  const {createNativeJournalPageReader,nativeJournalPageWorkspace}=await import('@erpx/feature-finance/public/server');
-  const actor={userId:'original-user',holdingId:'h001',holdingSlug:'acme',companyId:'company',branchId:null,departmentId:null,assignmentId:'grant',role:'reader',assignmentScope:'holding',scope:{kind:'holding',holdingId:'h001',holdingSlug:'acme',holdingName:'Acme',companyId:'company'},authority:{revision:7,assignmentVersion:3},modules:['finance'],iam:{permissions:['finance.read','module.finance.read']}} as import('@erpx/feature-finance/public/server').NativeJournalPageContext;
+  const {createNativeJournalPageReader,nativeJournalPageWorkspace}=await import('@erpx/finance-ui/public/server');
+  const actor={userId:'original-user',holdingId:'h001',holdingSlug:'acme',companyId:'company',branchId:null,departmentId:null,assignmentId:'grant',role:'reader',assignmentScope:'holding',scope:{kind:'holding',holdingId:'h001',holdingSlug:'acme',holdingName:'Acme',companyId:'company'},authority:{revision:7,assignmentVersion:3},modules:['finance'],iam:{permissions:['finance.read','module.finance.read']}} as import('@erpx/finance-ui/public/server').NativeJournalPageContext;
   requestHeaders.mockResolvedValue(incoming());
   const read=createNativeJournalWorkspaceClient(configuration,async()=>json(null,503));
   await expect(createNativeJournalPageReader(read)(actor,'acme','journal-one')).rejects.toMatchObject({code:'NATIVE_FINANCE_UNAVAILABLE',status:503});
@@ -66,8 +66,8 @@ describe('native journal page integration',()=>{
 
 describe('native journal page error policy',()=>{
  it('maps expected native outcomes into the existing page policy and leaves unexpected failures alone',async()=>{
-  const {nativeJournalPageFailure}=await import('@erpx/feature-finance/public/server');
-  const {createPageErrorService}=await import('@erpx/server-work_projection/application/page-error');
+  const {nativeJournalPageFailure}=await import('@erpx/finance-ui/public/server');
+  const {createPageErrorService}=await import('@erpx/work-projection-server/application/page-error');
   const service=createPageErrorService({headers:async()=>new Headers({'x-erpx-page-path':'/holdings/acme/finance/accounting'}),requestedHoldingScope:async()=>{throw Error('unexpected scope read');},forbidden:()=>{throw Error('FORBIDDEN_PAGE');},notFound:()=>{throw Error('NOT_FOUND_PAGE');},redirect:(url:string)=>{throw Error(`REDIRECT:${url}`);},unstableRethrow:()=>{},isApiError:(e:unknown):e is Error&{code:string;status:number}=>e instanceof Error&&'code'in e&&'status'in e});
   for(const [error,expected] of [[new NativeFinanceReadError('NATIVE_FINANCE_UNAVAILABLE',401),'REDIRECT:/login?'],[new NativeFinanceReadError('NATIVE_FINANCE_UNAVAILABLE',403),'FORBIDDEN_PAGE'],[new NativeFinanceReadError('NATIVE_FINANCE_UNAVAILABLE',404),'NOT_FOUND_PAGE'],[new NativeFinanceReadError('NATIVE_FINANCE_CONTEXT_CHANGED'),'FORBIDDEN_PAGE'],[new NativeFinanceReadError('NATIVE_FINANCE_UNAVAILABLE',409),'REDIRECT:/access?']] as const){
    const mapped=nativeJournalPageFailure(error);expect(mapped).toBeDefined();const translated=Object.assign(new Error(mapped!.message),mapped);await expect(service.pageError(translated,'acme')).rejects.toThrow(expected);
@@ -78,7 +78,7 @@ describe('native journal page error policy',()=>{
 
 describe('native journal posting confirmation',()=>{
  it('accepts only the exact retained journal receipt and matching native readback',async()=>{
-  const {postedReceipt,confirmedReadback}=await import('../../../packages/feature-finance/src/application/native-journal-post');
+  const {postedReceipt,confirmedReadback}=await import('../../../modules/finance/ui/src/application/native-journal-post');
   const original=workspaceData(); const context=original.context;
   const {expiresAt: _expiresAt,...snapshot}=context; void _expiresAt;
   const attempt={id:'journal-one',input:{expectedVersion:1},body:'{"expectedVersion":1}',key:'original-key',context:snapshot};
@@ -96,7 +96,7 @@ describe('native journal posting confirmation',()=>{
 describe('native journal post edge',()=>{
  it('forwards the original bounded body and context without fallback and rejects an invalid configuration',async()=>{
   const {createServer}=await import('node:http');
-  const {nativeJournalPost}=await import('@erpx/feature-finance/public/server');
+  const {nativeJournalPost}=await import('@erpx/finance-ui/public/server');
   let seen:{body:string;key?:string|string[];company?:string|string[];origin?:string}|undefined; let missing=false;
   const server=createServer((req,res)=>{let body='';req.setEncoding('utf8');req.on('data',chunk=>body+=chunk);req.on('end',()=>{seen={body,key:req.headers['idempotency-key'],company:req.headers['x-erpx-context-company'],origin:req.headers.origin};if(missing){res.writeHead(404,{'content-type':'text/plain'});res.end('Not Found');return;}res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({data:{id:'journal-one',status:'posted',version:2}}));});});
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
@@ -114,7 +114,7 @@ describe('native journal post edge',()=>{
  });
 });
 it('uses the independent reverse config and forwards the original reversal body to the real local HTTP edge',async()=>{
- const {createServer}=await import('node:http');const {nativeJournalReverse,nativeJournalPost}=await import('@erpx/feature-finance/public/server');
+ const {createServer}=await import('node:http');const {nativeJournalReverse,nativeJournalPost}=await import('@erpx/finance-ui/public/server');
  const seen:{body:string;path:string;key:string|string[]|undefined}[]=[];
  const server=createServer((req,res)=>{let body='';req.setEncoding('utf8');req.on('data',chunk=>body+=chunk);req.on('end',()=>{const key=req.headers['idempotency-key'];seen.push({body,path:req.url!,key});if(JSON.parse(body).memo===null){res.writeHead(422,{'content-type':'application/json'});res.end(JSON.stringify({error:{code:'VALIDATION_FAILED',message:'Invalid input'}}));return;}res.writeHead(201,{'content-type':'application/json'});res.end(JSON.stringify({data:{reversalJournalId:`reversal-${key}`,reversedJournalId:'journal-one'}}));});});
  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const beforeReverse=process.env.ERPX_NATIVE_FINANCE_JOURNAL_REVERSE_CONFIG,beforePost=process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG;
@@ -126,27 +126,27 @@ it('uses the independent reverse config and forwards the original reversal body 
  } finally {if(beforeReverse===undefined)delete process.env.ERPX_NATIVE_FINANCE_JOURNAL_REVERSE_CONFIG;else process.env.ERPX_NATIVE_FINANCE_JOURNAL_REVERSE_CONFIG=beforeReverse;if(beforePost===undefined)delete process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG;else process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG=beforePost;await new Promise<void>((resolve,reject)=>server.close(e=>e?reject(e):resolve()));}
 });
 it('forwards create body and original CAS under its independent configuration',async()=>{
- const {createServer}=await import('node:http');const {nativeJournalCreate,nativeJournalReverse}=await import('@erpx/feature-finance/public/server');let seen:{body:string;path:string;company:undefined|string|string[];key:undefined|string|string[]}|undefined;let badNumber=false;
+ const {createServer}=await import('node:http');const {nativeJournalCreate,nativeJournalReverse}=await import('@erpx/finance-ui/public/server');let seen:{body:string;path:string;company:undefined|string|string[];key:undefined|string|string[]}|undefined;let badNumber=false;
  const server=createServer((req,res)=>{let body='';req.setEncoding('utf8');req.on('data',chunk=>body+=chunk);req.on('end',()=>{const key=req.headers['idempotency-key'];seen={body,path:req.url!,company:req.headers['x-erpx-context-company'],key};res.writeHead(201,{'content-type':'application/json'});res.end(JSON.stringify({data:{id:`journal-${key}`,number:badNumber?'wrong':`J-${key}`,status:'draft',version:1,debit:'1',credit:'1',fxRateMicros:1000000,baseCurrency:'THB'}}));});});
  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const old=process.env.ERPX_NATIVE_FINANCE_JOURNAL_CREATE_CONFIG,oldReverse=process.env.ERPX_NATIVE_FINANCE_JOURNAL_REVERSE_CONFIG;
  try {const address=server.address();if(!address||typeof address==='string')throw Error('missing port');process.env.ERPX_NATIVE_FINANCE_JOURNAL_CREATE_CONFIG=JSON.stringify({...configuration,privateBaseUrl:`http://127.0.0.1:${address.port}`});delete process.env.ERPX_NATIVE_FINANCE_JOURNAL_REVERSE_CONFIG;const body='{"chartId":"chart","sourceType":"manual"}';const request=()=>new Request('https://acme.example.test/api/v1/holdings/acme/finance/journals',{method:'POST',headers:{host:'acme.example.test',cookie:'opaque','idempotency-key':'original','x-erpx-context-company':'company','content-type':'application/json'},body});expect(await nativeJournalReverse(request(),'acme','journal-one')).toBeUndefined();expect((await nativeJournalCreate(request(),'acme'))?.status).toBe(201);expect(seen).toEqual({body,path:'/api/v1/holdings/acme/finance/journals',company:'company',key:'original'});badNumber=true;expect((await nativeJournalCreate(request(),'acme'))?.status).toBe(502);process.env.ERPX_NATIVE_FINANCE_JOURNAL_CREATE_CONFIG='{';await expect(nativeJournalCreate(request(),'acme')).rejects.toMatchObject({code:'NATIVE_FINANCE_CONFIGURATION_INVALID'});
  } finally {if(old===undefined)delete process.env.ERPX_NATIVE_FINANCE_JOURNAL_CREATE_CONFIG;else process.env.ERPX_NATIVE_FINANCE_JOURNAL_CREATE_CONFIG=old;if(oldReverse===undefined)delete process.env.ERPX_NATIVE_FINANCE_JOURNAL_REVERSE_CONFIG;else process.env.ERPX_NATIVE_FINANCE_JOURNAL_REVERSE_CONFIG=oldReverse;await new Promise<void>((resolve,reject)=>server.close(e=>e?reject(e):resolve()));}
 });
 it('forwards strict edit body and original CAS only under the independent edit configuration',async()=>{
- const {createServer}=await import('node:http');const {nativeJournalEdit,nativeJournalCreate}=await import('@erpx/feature-finance/public/server');let seen:{body:string;path:string;company:string|string[]|undefined;key:string|string[]|undefined}|undefined;
+ const {createServer}=await import('node:http');const {nativeJournalEdit,nativeJournalCreate}=await import('@erpx/finance-ui/public/server');let seen:{body:string;path:string;company:string|string[]|undefined;key:string|string[]|undefined}|undefined;
  const server=createServer((req,res)=>{let body='';req.setEncoding('utf8');req.on('data',chunk=>body+=chunk);req.on('end',()=>{seen={body,path:req.url!,company:req.headers['x-erpx-context-company'],key:req.headers['idempotency-key']};res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({data:{id:'journal-one',status:'draft',version:2}}));});});await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const old=process.env.ERPX_NATIVE_FINANCE_JOURNAL_EDIT_CONFIG,oldCreate=process.env.ERPX_NATIVE_FINANCE_JOURNAL_CREATE_CONFIG;
  try {const address=server.address();if(!address||typeof address==='string')throw Error('missing port');process.env.ERPX_NATIVE_FINANCE_JOURNAL_EDIT_CONFIG=JSON.stringify({...configuration,privateBaseUrl:`http://127.0.0.1:${address.port}`});delete process.env.ERPX_NATIVE_FINANCE_JOURNAL_CREATE_CONFIG;const body='{"chartId":"chart","periodId":"period","entryDate":"2026-01-02","currency":"THB","memo":"edit","lines":[],"expectedVersion":1,"reason":"Revision reason"}';const request=()=>new Request('https://acme.example.test/api/v1/holdings/acme/finance/journals/journal-one/edit',{method:'POST',headers:{host:'acme.example.test',cookie:'opaque','idempotency-key':'original','x-erpx-context-company':'company','content-type':'application/json'},body});expect(await nativeJournalCreate(request(),'acme')).toBeUndefined();expect((await nativeJournalEdit(request(),'acme','journal-one'))?.status).toBe(200);expect(seen).toEqual({body,path:'/api/v1/holdings/acme/finance/journals/journal-one/edit',company:'company',key:'original'});process.env.ERPX_NATIVE_FINANCE_JOURNAL_EDIT_CONFIG='{';await expect(nativeJournalEdit(request(),'acme','journal-one')).rejects.toMatchObject({code:'NATIVE_FINANCE_CONFIGURATION_INVALID'});
  }finally {if(old===undefined)delete process.env.ERPX_NATIVE_FINANCE_JOURNAL_EDIT_CONFIG;else process.env.ERPX_NATIVE_FINANCE_JOURNAL_EDIT_CONFIG=old;if(oldCreate===undefined)delete process.env.ERPX_NATIVE_FINANCE_JOURNAL_CREATE_CONFIG;else process.env.ERPX_NATIVE_FINANCE_JOURNAL_CREATE_CONFIG=oldCreate;await new Promise<void>((resolve,reject)=>server.close(e=>e?reject(e):resolve()));}
 });
 it('passes the exact generated Service journal identity and original post to the configured native edge',async()=>{
- const {createServer}=await import('node:http'),{nativeJournalPost}=await import('@erpx/feature-finance/public/server');let path='',body='',key='';const id='journal-original:parts';
+ const {createServer}=await import('node:http'),{nativeJournalPost}=await import('@erpx/finance-ui/public/server');let path='',body='',key='';const id='journal-original:parts';
  const server=createServer((req,res)=>{path=req.url!;key=String(req.headers['idempotency-key']);req.setEncoding('utf8');req.on('data',chunk=>body+=chunk);req.on('end',()=>{res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({data:{id,status:'posted',version:2}}));});});await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const old=process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG;
  try{const address=server.address();if(!address||typeof address==='string')throw Error('missing port');process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG=JSON.stringify({...configuration,privateBaseUrl:`http://127.0.0.1:${address.port}`});const request=new Request('https://acme.example.test/api/v1/holdings/acme/finance/journals/journal-original%3Aparts/post',{method:'POST',headers:{host:'acme.example.test',cookie:'opaque','content-type':'application/json','idempotency-key':'original-key','x-erpx-context-company':'company'},body:' { "expectedVersion":1 } '});const response=await nativeJournalPost(request,'acme',id);expect(response?.status).toBe(200);expect(await response?.json()).toEqual({data:{id,status:'posted',version:2}});expect(path).toBe('/api/v1/holdings/acme/finance/journals/journal-original%3Aparts/post');expect(body).toBe(' { "expectedVersion":1 } ');expect(key).toBe('original-key');}finally{if(old===undefined)delete process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG;else process.env.ERPX_NATIVE_FINANCE_JOURNAL_POST_CONFIG=old;await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));}
 });
 
 describe('native Field invoice writer dispatch',()=>{
  it('uses a successful native source observation only; preserves body and closes errors without legacy fallback',async()=>{
-  const {createServer}=await import('node:http');const {nativeServiceInvoicePost}=await import('@erpx/feature-finance/public/server');
+  const {createServer}=await import('node:http');const {nativeServiceInvoicePost}=await import('@erpx/finance-ui/public/server');
   let runtime='rust',failure=false;const seen:{method?:string;path?:string;body:string;key?:string|string[]}[]=[];
   const server=createServer((req,res)=>{let body='';req.setEncoding('utf8');req.on('data',v=>body+=v);req.on('end',()=>{seen.push({method:req.method,path:req.url,body,key:req.headers['idempotency-key']});res.writeHead(failure?503:200,{'content-type':'application/json'});res.end(JSON.stringify(failure?{error:{code:'SOURCE_UNAVAILABLE',message:'Unavailable.'}}:req.method==='GET'?{data:{id:'field-invoice-one',runtime}}:{data:{id:'field-invoice-one',status:'posted',journalId:'journal-exact-key'}}));});});
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const old=process.env.ERPX_NATIVE_FINANCE_SERVICE_INVOICE_POST_CONFIG;
@@ -163,7 +163,7 @@ describe('native Field invoice writer dispatch',()=>{
 });
 
 it('transports Field no-charge only to Rust and rejects unrelated acknowledgement fields',async()=>{
- const {createServer}=await import('node:http');const {nativeServiceNoCharge}=await import('@erpx/feature-finance/public/server');
+ const {createServer}=await import('node:http');const {nativeServiceNoCharge}=await import('@erpx/finance-ui/public/server');
  const seen:{method?:string;path?:string;body:string;key?:string|string[]}[]=[];let poisoned=false;
  const server=createServer((req,res)=>{let body='';req.setEncoding('utf8');req.on('data',v=>body+=v);req.on('end',()=>{seen.push({method:req.method,path:req.url,body,key:req.headers['idempotency-key']});res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({data:poisoned?{id:'field-invoice-one',status:'paid',version:2,confirmationId:'service-no-charge-exact-key'}:{id:'field-invoice-one',status:'no_charge_confirmed',version:2,confirmationId:'service-no-charge-exact-key'}}));});});
  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const old=process.env.ERPX_NATIVE_FINANCE_SERVICE_INVOICE_POST_CONFIG;
@@ -179,7 +179,7 @@ it('transports Field no-charge only to Rust and rejects unrelated acknowledgemen
 
 describe('native finance journal-list cutover',()=>{
  const listConfig=JSON.stringify({...configuration,privateBaseUrl:'http://127.0.0.1:44991'});
- const actor={userId:'original-user',holdingId:'h001',holdingSlug:'acme',companyId:'company',branchId:null,departmentId:null,assignmentId:'grant',role:'reader',assignmentScope:'holding',scope:{kind:'holding'},authority:{revision:7,assignmentVersion:3},modules:['finance'],iam:{permissions:['finance.read','module.finance.read']}} as import('@erpx/feature-finance/public/server').NativeJournalPageContext;
+ const actor={userId:'original-user',holdingId:'h001',holdingSlug:'acme',companyId:'company',branchId:null,departmentId:null,assignmentId:'grant',role:'reader',assignmentScope:'holding',scope:{kind:'holding'},authority:{revision:7,assignmentVersion:3},modules:['finance'],iam:{permissions:['finance.read','module.finance.read']}} as import('@erpx/finance-ui/public/server').NativeJournalPageContext;
  const listReply=(data:Record<string,unknown>={})=>json({context:{userId:'original-user',holdingId:'h001',companyId:'company',branchId:null,departmentId:null,branchSlug:null,departmentSlug:null,assignmentId:'grant',assignmentVersion:3,revision:7,modules:['finance'],permissions:['finance.read','module.finance.read'],expiresAt:1800000000000},data:{charts:[{id:'chart',name:'Operations ledger'}],chart:{id:'chart',name:'Operations ledger',base_currency:'THB'},accounts:[],periods:[],dimensions:[],dimensionValues:[],journals:[{id:'j1',status:'posted'}],nextCursor:null,...data}});
  it('reads the mounted journal list through the exact native route with context headers and query',async()=>{
   const calls:{url:URL;headers:Headers}[]=[];
@@ -202,11 +202,11 @@ describe('native finance journal-list cutover',()=>{
  it('keeps the TS journal-list SELECT retired in the owner and both route fallbacks removed',async()=>{
   const source=(path:string)=>readFile(new URL('../../../'+path,import.meta.url),'utf8');
   const [adapter,bridge,reads,workplace,feature]=await Promise.all([
-   source('packages/server-finance/src/adapters/finance-invoice-read.ts'),
-   source('packages/server-finance/src/adapters/finance.ts'),
-   source('packages/server-finance/src/application/finance-reads.ts'),
-   source('packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts'),
-   source('packages/feature-finance/src/routes/api/v1/holdings/[holdingSlug]/finance/route.ts'),
+   source('modules/finance/server/src/adapters/finance-invoice-read.ts'),
+   source('modules/finance/server/src/adapters/finance.ts'),
+   source('modules/finance/server/src/application/finance-reads.ts'),
+   source('platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts'),
+   source('modules/finance/ui/src/routes/api/v1/holdings/[holdingSlug]/finance/route.ts'),
   ]);
   expect(adapter+bridge+reads).not.toMatch(/listJournals|SELECT \* FROM finance_journals WHERE \$\{clauses/);
   expect(adapter).toMatch(/financeOverviewCounts: async/);
@@ -217,14 +217,14 @@ describe('native finance journal-list cutover',()=>{
 describe('finance flow-routing posted_by read dedupe',()=>{
  const SQL='SELECT posted_by FROM finance_journals WHERE id=? AND company_id=?';
  it('keeps one byte-identical literal and adopts no FOR SHARE variant',async()=>{
-  const text=await readFile(new URL('../../../packages/server-finance/src/adapters/workflow-flow-routing-facts.ts',import.meta.url),'utf8');
+  const text=await readFile(new URL('../../../modules/finance/server/src/adapters/workflow-flow-routing-facts.ts',import.meta.url),'utf8');
   expect(text).toContain("columnByIdSql('posted_by', 'finance_journals')");
   expect(text).not.toContain('FOR SHARE');
  });
  it('both readDefinitionsJournal variants prepare the same SQL and binds',async()=>{
   const prepares:string[]=[];const binds:unknown[][]=[];
   const db={prepare:(sql:string)=>{prepares.push(sql);return{bind:(...values:unknown[])=>{binds.push(values);return{first:async()=>({posted_by:'u-1'})};}};}} as unknown as SqlDatabase;
-  const {createFlowRoutingSourceRepository}=await import('@erpx/server-finance/adapters/workflow-flow-routing-facts');
+  const {createFlowRoutingSourceRepository}=await import('@erpx/finance-server/adapters/workflow-flow-routing-facts');
   const repo=createFlowRoutingSourceRepository(db);
   await expect(repo.readDefinitionsJournal('j-1','c-1')).resolves.toEqual({posted_by:'u-1'});
   await expect(repo.readDefinitionsJournal2('j-1','c-1')).resolves.toEqual({posted_by:'u-1'});

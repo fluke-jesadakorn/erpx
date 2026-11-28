@@ -4,9 +4,9 @@ import { resolve } from 'node:path';
 import {
   attachmentPublicationByIdSql,
   ledgerBytesSumSql,
-} from '../../../packages/server-files/src/adapters/read-tail-r31-source-sql';
+} from '../../../modules/files/server/src/adapters/read-tail-r31-source-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-files/src');
+const srcRoot = resolve(__dirname, '../../../modules/files/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const literalSelectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
 const selectCount = (text: string) => (text.match(/SELECT\s/g) ?? []).length;

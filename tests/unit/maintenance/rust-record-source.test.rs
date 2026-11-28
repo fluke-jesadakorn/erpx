@@ -1,7 +1,7 @@
 //! Portable Maintenance record-source shape used by the Collaboration
 //! workspace. Database behaviour lives in the PostgreSQL companion test.
-use erpx_server_maintenance::public::record_source::CONTRACT_VERSION;
-use erpx_server_shared::public::record_source_contract::{SourceKind, SourceRecord};
+use erpx_maintenance_server::public::record_source::CONTRACT_VERSION;
+use erpx_platform_shared_server::public::record_source_contract::{SourceKind, SourceRecord};
 
 fn payload(kind: &str, title: &str, version: i64) -> serde_json::Value {
     serde_json::json!({

@@ -4,12 +4,12 @@ import { resolve } from "node:path";
 
 const ROOT = new URL("../../../", import.meta.url).pathname.replace(/\/$/, "");
 const read = (path: string) => readFileSync(resolve(ROOT, path), "utf8");
-const TS = read("packages/server-inventory/src/adapters/inventory-transfers.ts");
-const TRANSPORT = read("packages/server-inventory/src/adapters/native-transfer-detail-read.ts");
-const PG = read("packages/server-inventory/src/adapters/native_transfer_detail/postgres.rs");
-const HTTP = read("packages/server-inventory/src/adapters/native_transfer_detail/http.rs");
-const APP = read("packages/server-inventory/src/adapters/native_transfer_detail/application.rs");
-const DOMAIN = read("packages/server-inventory/src/adapters/native_transfer_detail/domain.rs");
+const TS = read("modules/inventory/server/src/adapters/inventory-transfers.ts");
+const TRANSPORT = read("modules/inventory/server/src/adapters/native-transfer-detail-read.ts");
+const PG = read("modules/inventory/server/src/adapters/native_transfer_detail/postgres.rs");
+const HTTP = read("modules/inventory/server/src/adapters/native_transfer_detail/http.rs");
+const APP = read("modules/inventory/server/src/adapters/native_transfer_detail/application.rs");
+const DOMAIN = read("modules/inventory/server/src/adapters/native_transfer_detail/domain.rs");
 
 describe("native stock-transfer detail payload parity", () => {
   test("the TypeScript SQL authority is deleted and the transport has no SQL", () => {

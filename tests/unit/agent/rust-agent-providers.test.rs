@@ -1,8 +1,8 @@
 //! AI provider settings contracts: retained URL/preset/model rules, fail-closed
 //! credential sealing and transport, and bounded selection decisions.
-use erpx_server_agent::public::providers::*;
-use erpx_server_shared::public::{AssignmentId, BusinessError, CompanyId, UserId};
-use erpx_server_workflow::public::commands::{
+use erpx_agent_server::public::providers::*;
+use erpx_platform_shared_server::public::{AssignmentId, BusinessError, CompanyId, UserId};
+use erpx_workflow_server::public::commands::{
     CommandActor, CommandField, CommandJson, WorkAuthority,
 };
 use serde_json::{Value, json};

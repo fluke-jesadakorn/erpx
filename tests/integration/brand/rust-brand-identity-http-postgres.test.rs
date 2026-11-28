@@ -5,28 +5,28 @@
 mod review;
 #[path = "../../support/runtime/private-session-config.rs"]
 mod private_fixture;
-use erpx_server_identity_access::public::SystemAuthenticationSecrets;
-use erpx_service::private_development_api::{DevelopmentApiConfiguration, assemble_development_api};
+use erpx_identity_access_server::public::SystemAuthenticationSecrets;
+use erpx_platform_composition::private_development_api::{DevelopmentApiConfiguration, assemble_development_api};
 use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_identity_access::public::work_context::HoldingWorkspaceRequest;
-use erpx_service::brand_identity::{
+use erpx_identity_access_server::public::work_context::HoldingWorkspaceRequest;
+use erpx_platform_composition::brand_identity::{
     BrandIdentityConfiguration, BrandIdentityService,
 };
-use erpx_service::brand_identity_http::{BrandIdentityTarget, brand_identity_router};
-use erpx_service::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
-use erpx_server_identity_access::public::account_holding_bindings::{
+use erpx_platform_composition::brand_identity_http::{BrandIdentityTarget, brand_identity_router};
+use erpx_platform_composition::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
+use erpx_identity_access_server::public::account_holding_bindings::{
     ConfiguredAccountHolding, ConfiguredHoldingRegistry,
 };
-use erpx_server_shared::public::{Clock, CompanyId, HoldingId};
+use erpx_platform_shared_server::public::{Clock, CompanyId, HoldingId};
 use std::sync::Arc;
 use tower::ServiceExt;
 
 fn owned_maker(
     p: &review::Prepared,
-) -> impl FnOnce() -> Result<HoldingWorkspaceRequest, erpx_server_shared::public::BusinessError>
+) -> impl FnOnce() -> Result<HoldingWorkspaceRequest, erpx_platform_shared_server::public::BusinessError>
        + Send
        + 'static {
     let request = p.maker_selection.clone();
@@ -372,7 +372,7 @@ async fn brand_http_independent_publication_replays_and_rejects_self_review() {
     let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let oracle=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
         .current_dir(&root).args(["--conditions=react-server","-e",script])
-        .arg(root.join("packages/server-brand/src/domain/policy.ts")).output().unwrap();
+        .arg(root.join("modules/brand/server/src/domain/policy.ts")).output().unwrap();
     assert!(oracle.status.success(),"actual TS Brand oracle: {}",String::from_utf8_lossy(&oracle.stderr));
     let ts_error:serde_json::Value=serde_json::from_slice(&oracle.stdout).unwrap();
     assert_eq!(ts_error,serde_json::json!({"status":403,"code":"BRAND_INDEPENDENT_PUBLICATION"}));

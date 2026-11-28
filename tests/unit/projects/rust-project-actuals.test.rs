@@ -3,7 +3,7 @@
 //! These tests prove work-day/engagement limits, independent review, cost
 //! source and cap rules, exact money conversion, Finance-scope reads and
 //! replay against a fake repository. No journal is posted by this owner.
-use erpx_server_projects::public::project_actuals::{
+use erpx_projects_server::public::project_actuals::{
     ActualCommandReceipt, ActualReviewAction, CostAllocationFact, CostAllocationRow, CostPlan,
     CostSourceRow, CreateCostAllocationCommand, DecideCostAllocationCommand, DecideWorkLogCommand,
     ExpenseLineFact, ProjectActualsActor, ProjectActualsCommandRepository, ProjectActualsFuture,
@@ -11,8 +11,8 @@ use erpx_server_projects::public::project_actuals::{
     create_cost_allocation, decide_cost_allocation, decide_work_log, list_cost_sources,
     list_work_logs, save_work_log,
 };
-use erpx_server_projects::public::project_commands::ProjectCommandProject;
-use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
+use erpx_projects_server::public::project_commands::ProjectCommandProject;
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, TimestampMillis};
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
 const KEY: &str = "key-actuals-0001";
@@ -703,7 +703,7 @@ async fn replay_returns_the_retained_actual_receipt() {
     let record_id = "project-time-key-actuals-0001";
     let input = save_input();
     let input_json = serde_json::to_value(&input).unwrap();
-    let fingerprint = erpx_server_projects::public::project_actuals::actual_fingerprint(
+    let fingerprint = erpx_projects_server::public::project_actuals::actual_fingerprint(
         operation,
         "project",
         record_id,

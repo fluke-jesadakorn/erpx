@@ -2,22 +2,22 @@
 //! ingress. Owner dispatch is exercised without opening a socket; mounting the
 //! composed Commerce/Finance producer ports and the router remains a lead
 //! integration step.
-use erpx_server_ecommerce::public::catalog::EcommerceActor;
-use erpx_server_ecommerce::public::ecommerce_http::{
+use erpx_ecommerce_server::public::catalog::EcommerceActor;
+use erpx_ecommerce_server::public::ecommerce_http::{
     EcommerceHttpFuture, EcommerceHttpResponse, EcommerceListingChangeHttpRequest,
     EcommerceListingCreateHttpRequest, EcommerceListingHttpBackend, EcommerceListingHttpState,
     EcommerceListingHttpTarget, ecommerce_listing_router,
 };
-use erpx_server_ecommerce::public::listing::{
+use erpx_ecommerce_server::public::listing::{
     AuditEntry, ChangeListing, CommandReceipt, CreateListing, EcommerceFunctionalCurrency,
     EcommerceFuture, EcommerceListingMoneyRequest, EcommerceListingMoneySnapshot,
     EcommerceListingRepository, ListingDraft, ListingRecord, OutboxEntry, ReceiptEntry,
     change_listing, create_listing,
 };
-use erpx_server_runtime::public::http_support::{
+use erpx_platform_runtime_server::public::http_support::{
     HeaderMap, HeaderValue, StatusCode, body::to_bytes,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, RecordId,
     TimestampMillis, UserId,
 };
@@ -253,7 +253,7 @@ impl EcommerceListingRepository for ListingProbe {
 
     fn commit_listing_change<'a>(
         &'a mut self,
-        _: &'a erpx_server_ecommerce::public::listing::ValidatedListingChange,
+        _: &'a erpx_ecommerce_server::public::listing::ValidatedListingChange,
         _: &'a CompanyId,
         _: &'a EcommerceActor,
         _: TimestampMillis,
@@ -320,7 +320,7 @@ fn run_create(
     probe: &mut ListingProbe,
     actor: &EcommerceActor,
     command: &CreateListing,
-) -> Result<erpx_server_ecommerce::public::listing::EcommerceReceipt, BusinessError> {
+) -> Result<erpx_ecommerce_server::public::listing::EcommerceReceipt, BusinessError> {
     sqlx::test_block_on(create_listing(actor, command, probe, NOW))
 }
 
@@ -328,7 +328,7 @@ fn run_change(
     probe: &mut ListingProbe,
     actor: &EcommerceActor,
     command: &ChangeListing,
-) -> Result<erpx_server_ecommerce::public::listing::EcommerceReceipt, BusinessError> {
+) -> Result<erpx_ecommerce_server::public::listing::EcommerceReceipt, BusinessError> {
     sqlx::test_block_on(change_listing(actor, command, probe, NOW))
 }
 
@@ -627,7 +627,7 @@ fn create_listing_fails_closed_on_missing_or_stale_sources() {
 
     let mut unavailable = ListingProbe {
         money_override: Some(Err(
-            erpx_server_ecommerce::public::listing::money_source_unavailable(),
+            erpx_ecommerce_server::public::listing::money_source_unavailable(),
         )),
         ..ListingProbe::ready()
     };
@@ -965,7 +965,7 @@ fn change_body() -> Vec<u8> {
 }
 
 async fn reply(
-    response: erpx_server_runtime::public::http_support::Response,
+    response: erpx_platform_runtime_server::public::http_support::Response,
 ) -> (StatusCode, serde_json::Value) {
     let status = response.status();
     let bytes = to_bytes(response.into_body(), 1 << 20).await.unwrap();

@@ -2,14 +2,14 @@ import { readFile, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
-import { hospitalityOwnerProjectionSources } from '@erpx/server-organization/public/hospitality-owner-projection-sources';
+import { hospitalityOwnerProjectionSources } from '@erpx/organization-server/public/hospitality-owner-projection-sources';
 import {
   pmsBookingReplaySql,
   pmsBranchLabelSql,
   PMS_REFUND_NON_LOCK_HEAD_SQL,
-} from '../../../packages/server-pms/src/adapters/pms-read-tail-r40-sql';
+} from '../../../modules/pms/server/src/adapters/pms-read-tail-r40-sql';
 
-const dir = new URL('../../../packages/server-pms/src/', import.meta.url);
+const dir = new URL('../../../modules/pms/server/src/', import.meta.url);
 const src = (name: string) => readFile(new URL(name, dir), 'utf8');
 const SHARED = 'adapters/pms-read-tail-r40-sql.ts';
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -74,12 +74,12 @@ describe('pms read-tail r40 receipt/change, branch-label and refund dedupe', () 
 
   it('confirms each oracle is the exact text replaced at its HEAD call site', () => {
     const atHead = (p: string) => execFileSync('git', ['show', `5d67645ce:${p}`], { encoding: 'utf8' });
-    expect(atHead('packages/server-pms/src/adapters/property-purchase-boundary.ts')).toContain(HEAD.receipts);
-    expect(atHead('packages/server-pms/src/adapters/property-purchase-boundary.ts')).toContain(HEAD.changes);
-    const emHead = atHead('packages/server-pms/src/adapters/executive-metric-projections.ts');
+    expect(atHead('modules/pms/server/src/adapters/property-purchase-boundary.ts')).toContain(HEAD.receipts);
+    expect(atHead('modules/pms/server/src/adapters/property-purchase-boundary.ts')).toContain(HEAD.changes);
+    const emHead = atHead('modules/pms/server/src/adapters/executive-metric-projections.ts');
     expect(emHead).toContain(HEAD.branchN);
     expect(emHead).toContain(HEAD.branchN2);
-    const rfHead = atHead('packages/server-pms/src/adapters/pms-booking-refunds.ts');
+    const rfHead = atHead('modules/pms/server/src/adapters/pms-booking-refunds.ts');
     expect(rfHead).toContain(HEAD.refundById);
     expect(rfHead).toContain(HEAD.refundByState);
   });

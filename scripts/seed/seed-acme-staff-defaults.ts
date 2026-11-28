@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { getLocalProxy } from "../local/fixtures";
-import { defaultCatalog } from "@erpx/server-organization/public/staff-defaults";
-import { runLeaveAccruals } from "@erpx/server-people_payroll/public/leave-self-service";
-import type { SqlStatement } from "@erpx/server-runtime/adapters/runtime/types";
+import { defaultCatalog } from "@erpx/organization-server/public/staff-defaults";
+import { runLeaveAccruals } from "@erpx/people-payroll-server/public/leave-self-service";
+import type { SqlStatement } from "@erpx/platform-runtime-server/adapters/runtime/types";
 
 const mode=process.argv[2]??"--preview";
 if(!["--preview","--defaults","--apply","--verify"].includes(mode))throw new Error("Use --preview, --defaults, --apply, or --verify.");

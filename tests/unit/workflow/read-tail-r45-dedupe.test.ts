@@ -2,13 +2,13 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { flowRoutesClosedProjectionSql, commandReceiptsProjectionSql } from '../../../packages/server-workflow/src/adapters/closed-projection-sources';
-import { commandReceiptByCommandSql, receiptRecordIdSql, exportReceiptResultSql } from '../../../packages/server-workflow/src/adapters/receipt-sql';
-import { collaborationNotificationSnapshotSources } from '../../../packages/server-workflow/src/adapters/collaboration-notification-snapshot-sources';
-import { peoplePayrollFinalOwnerProjections } from '../../../packages/server-workflow/src/adapters/people-payroll-final-owner-projections';
-import { projectWorkerCommandEvidence } from '../../../packages/server-workflow/src/adapters/project-worker-startup-evidence';
+import { flowRoutesClosedProjectionSql, commandReceiptsProjectionSql } from '../../../modules/workflow/server/src/adapters/closed-projection-sources';
+import { commandReceiptByCommandSql, receiptRecordIdSql, exportReceiptResultSql } from '../../../modules/workflow/server/src/adapters/receipt-sql';
+import { collaborationNotificationSnapshotSources } from '../../../modules/workflow/server/src/adapters/collaboration-notification-snapshot-sources';
+import { peoplePayrollFinalOwnerProjections } from '../../../modules/workflow/server/src/adapters/people-payroll-final-owner-projections';
+import { projectWorkerCommandEvidence } from '../../../modules/workflow/server/src/adapters/project-worker-startup-evidence';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-workflow/src');
+const srcRoot = resolve(__dirname, '../../../modules/workflow/server/src');
 
 describe('workflow closed projection generator families (r45)', () => {
   it('A1 emits byte-identical flow-routes closed projections for both exact separators', () => {
@@ -36,11 +36,11 @@ describe('workflow closed projection generator families (r45)', () => {
 
   it('keeps one generator per family and no inline projection literals in callers', async () => {
     const [shared, collab, payroll, worker, receipt] = await Promise.all([
-      readFile(new URL('../../../packages/server-workflow/src/adapters/closed-projection-sources.ts', import.meta.url), 'utf8'),
-      readFile(new URL('../../../packages/server-workflow/src/adapters/collaboration-notification-snapshot-sources.ts', import.meta.url), 'utf8'),
-      readFile(new URL('../../../packages/server-workflow/src/adapters/people-payroll-final-owner-projections.ts', import.meta.url), 'utf8'),
-      readFile(new URL('../../../packages/server-workflow/src/adapters/project-worker-startup-evidence.ts', import.meta.url), 'utf8'),
-      readFile(new URL('../../../packages/server-workflow/src/adapters/receipt-sql.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/workflow/server/src/adapters/closed-projection-sources.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/workflow/server/src/adapters/collaboration-notification-snapshot-sources.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/workflow/server/src/adapters/people-payroll-final-owner-projections.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/workflow/server/src/adapters/project-worker-startup-evidence.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/workflow/server/src/adapters/receipt-sql.ts', import.meta.url), 'utf8'),
     ]);
     expect(shared.match(/export const flowRoutesClosedProjectionSql =/g)).toHaveLength(1);
     expect(shared.match(/export const commandReceiptsProjectionSql =/g)).toHaveLength(1);

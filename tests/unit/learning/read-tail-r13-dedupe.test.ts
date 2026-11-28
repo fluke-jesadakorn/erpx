@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import {packageClockSql} from '@erpx/server-commercial/public/purchased-capability-sql';
+import {packageClockSql} from '@erpx/commercial-server/public/purchased-capability-sql';
 import {
   benefitConsumptionHead,
   clockProbe,
@@ -9,9 +9,9 @@ import {
   identitySourceRead,
   latestEventLateral,
   workspaceImageFrame,
-} from '../../../packages/server-learning/src/adapters/learning-read-sql';
+} from '../../../modules/learning/server/src/adapters/learning-read-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-learning/src');
+const srcRoot = resolve(__dirname, '../../../modules/learning/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
 const readOnly = (sql: string) => {

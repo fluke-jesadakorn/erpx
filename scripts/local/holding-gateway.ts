@@ -1,5 +1,5 @@
-import {holdingHostForHost, parseHoldingRoute, holdingPathMatches,holdingUiUrl,holdingPublicUiUrl,holdingFrontUiUrl} from '@erpx/feature-runtime/lib/holding-hosts';
-import {destinationProduct, isProductHostKey, type ProductHostKey} from '@erpx/contracts/product-registry';
+import {holdingHostForHost, parseHoldingRoute, holdingPathMatches,holdingUiUrl,holdingPublicUiUrl,holdingFrontUiUrl} from '@erpx/platform-runtime-ui/lib/holding-hosts';
+import {destinationProduct, isProductHostKey, type ProductHostKey} from '@erpx/platform-contracts/product-registry';
 import catalogue from '../architecture/workspace-app-routes.json';
 
 const apiRoutes = catalogue.apps.flatMap(app => app.entries.filter(entry => entry.endsWith('/route.ts') && entry.includes('/api/')).map(entry => {

@@ -4,7 +4,7 @@ vi.mock('server-only', () => ({}));
 import {
   nativePosEvidenceDetail,
   type NativePosEvidenceDetailRow,
-} from '../../../packages/server-pos/src/adapters/native-lane-25/detail-client';
+} from '../../../modules/pos/server/src/adapters/native-lane-25/detail-client';
 
 const ENV = 'ERPX_NATIVE_POS_LANE25_CONFIG';
 const previous = process.env[ENV];
@@ -155,7 +155,7 @@ describe('native POS evidence detail transport (lane 25 wave 2)', () => {
 
   it('leaves no replaced TS SQL literal in the POS adapter', () => {
     const source = readFileSync(
-      new URL('../../../packages/server-pos/src/adapters/pos.ts', import.meta.url),
+      new URL('../../../modules/pos/server/src/adapters/pos.ts', import.meta.url),
       'utf8',
     );
     expect(source).not.toContain('refundPaymentSumTextSql');

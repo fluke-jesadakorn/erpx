@@ -8,17 +8,17 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_manufacturing::public::bom::BomActor;
-use erpx_server_manufacturing::public::specification::{
+use erpx_manufacturing_server::public::bom::BomActor;
+use erpx_manufacturing_server::public::specification::{
     APPROVE_OPERATION, CREATE_OPERATION, CreateRequest, PgSpecificationCommands, ReviewAction,
     ReviewRequest, SpecificationCommandRepository, create_specification, review_specification,
 };
-use erpx_server_runtime::public::http_support::serde_json;
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::http_support::serde_json;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CommandKey, CompanyId, RecordId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey, CompanyId, RecordId, TimestampMillis};
 use serde_json::Value;
 use sqlx::{AssertSqlSafe, Connection, Row};
 
@@ -641,7 +641,7 @@ async fn transaction_guards_and_late_failures_roll_back_every_owner_effect() {
                     create_specification(&mut repository, &actor("company", "maker"), &key, request(), NOW)
                         .await?;
                     Err(BusinessError::new(
-                        erpx_server_shared::public::FailureKind::Unavailable,
+                        erpx_platform_shared_server::public::FailureKind::Unavailable,
                         "MANUFACTURING_TEST_LATE_FAILURE",
                         "Late failure after specification creation.",
                     )
@@ -693,7 +693,7 @@ async fn transaction_guards_and_late_failures_roll_back_every_owner_effect() {
                     create_specification(&mut repository, &actor("company", "maker"), &key, request(), NOW)
                         .await?;
                     Err(BusinessError::new(
-                        erpx_server_shared::public::FailureKind::Unavailable,
+                        erpx_platform_shared_server::public::FailureKind::Unavailable,
                         "MANUFACTURING_TEST_POST_RECEIPT_FAILURE",
                         "Late failure after the receipt.",
                     )

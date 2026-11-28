@@ -1,27 +1,27 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it, vi } from 'vitest';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
-import { supportRecipientEligibility } from '../../../packages/server-support/src/adapters/support-recipient';
-import { supportEligibleFlagSql } from '../../../packages/server-support/src/adapters/eligibility-projection-sources';
-import { scope as ticketScope } from '../../../packages/server-support/src/adapters/support-ticket-read-sources';
-import { finalRootOwnerProjectionSources as identityAccessProjections } from '@erpx/server-identity_access/public/final-root-owner-projection-sources';
-import { finalRootOwnerProjectionSources as payrollProjections } from '@erpx/server-people_payroll/public/final-root-owner-projection-sources';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
+import { supportRecipientEligibility } from '../../../modules/support/server/src/adapters/support-recipient';
+import { supportEligibleFlagSql } from '../../../modules/support/server/src/adapters/eligibility-projection-sources';
+import { scope as ticketScope } from '../../../modules/support/server/src/adapters/support-ticket-read-sources';
+import { finalRootOwnerProjectionSources as identityAccessProjections } from '@erpx/identity-access-server/public/final-root-owner-projection-sources';
+import { finalRootOwnerProjectionSources as payrollProjections } from '@erpx/people-payroll-server/public/final-root-owner-projection-sources';
 
 vi.mock('server-only', () => ({}));
-vi.mock('@erpx/server-support/adapters/command-runtime', () => ({
+vi.mock('@erpx/support-server/adapters/command-runtime', () => ({
   nativeSupportRuntime: () => ({
     purchase: async () => ({ history: true }),
     requirePurchase: async () => ({ history: true }),
   }),
 }));
 const metricSourceMock = vi.hoisted(() => vi.fn(async (..._args: unknown[]) => ({ rows: [] })));
-vi.mock('@erpx/server-support/adapters/ticket-source-read-policy', () => ({
+vi.mock('@erpx/support-server/adapters/ticket-source-read-policy', () => ({
   supportTicketSourceIdSets: async () => ({ posSale: ['pos-1'], asset: ['asset-1'], pmsRecord: [] }),
 }));
-vi.mock('@erpx/server-runtime/public/executive/metric-sources', () => ({
+vi.mock('@erpx/platform-runtime-server/public/executive/metric-sources', () => ({
   readMetricSources: (...args: unknown[]) => metricSourceMock(...args),
 }));
-vi.mock('@erpx/server-commerce/public/support-attachment-sources', () => ({
+vi.mock('@erpx/commerce-server/public/support-attachment-sources', () => ({
   supportOrderAttachmentSourceLocks: () => [],
   supportOrderAttachmentSourceImage: async () => ({ id: 'order-1' }),
 }));
@@ -43,10 +43,10 @@ const ok = (sql: string, values: unknown[]) =>
 
 describe('support service-team coverage native read', () => {
   it('carries no retired owner SQL in the switched adapters', async () => {
-    const history = await source('packages/server-support/src/adapters/flow-settings-facts.ts');
-    const teams = await source('packages/server-support/src/adapters/service-team-reads.ts');
-    const employee = await source('packages/server-support/src/adapters/records-employee-requests-owned-facts.ts');
-    const routing = await source('packages/server-support/src/adapters/workflow-flow-routing-facts.ts');
+    const history = await source('modules/support/server/src/adapters/flow-settings-facts.ts');
+    const teams = await source('modules/support/server/src/adapters/service-team-reads.ts');
+    const employee = await source('modules/support/server/src/adapters/records-employee-requests-owned-facts.ts');
+    const routing = await source('modules/support/server/src/adapters/workflow-flow-routing-facts.ts');
     for (const adapter of [history, employee, routing]) expect(adapter).not.toContain('SELECT');
     expect(teams).not.toContain('service_team_coverage c JOIN');
     expect(teams).not.toContain('service_team_revisions');
@@ -61,7 +61,7 @@ describe('support service-team coverage native read', () => {
       ok('SELECT name FROM service_teams WHERE id=? AND company_id=?', ['team-1', 'company']),
     );
     try {
-      const { EmployeeRequestsSupportOwnedFacts } = await import('@erpx/server-support/adapters/records-employee-requests-owned-facts');
+      const { EmployeeRequestsSupportOwnedFacts } = await import('@erpx/support-server/adapters/records-employee-requests-owned-facts');
       await expect(EmployeeRequestsSupportOwnedFacts(db).readEmployeeRequestDetailTeam('team-1', 'company')).resolves.toEqual({ name: 'Support' });
       expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({
         kind: 'support_rd_service_team_name',
@@ -69,7 +69,7 @@ describe('support service-team coverage native read', () => {
       });
 
       fetchMock.mockClear();
-      const { createFlowRoutingSourceRepository } = await import('@erpx/server-support/adapters/workflow-flow-routing-facts');
+      const { createFlowRoutingSourceRepository } = await import('@erpx/support-server/adapters/workflow-flow-routing-facts');
       await expect(createFlowRoutingSourceRepository(db).readDefinitionsTeam('company', 'team-1')).resolves.toEqual({ name: 'Support' });
       expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({
         kind: 'support_rd_service_team_name',
@@ -94,7 +94,7 @@ describe('support service-team coverage native read', () => {
       ok('SELECT t.name title FROM service_team_revisions r', ['company']),
     );
     try {
-      const { serviceCoverageSettingsHistory } = await import('@erpx/server-support/adapters/flow-settings-facts');
+      const { serviceCoverageSettingsHistory } = await import('@erpx/support-server/adapters/flow-settings-facts');
       await expect(serviceCoverageSettingsHistory(db, 'company')).resolves.toMatchObject([{ version: 2 }]);
       const call = fetchMock.mock.calls[0]!;
       expect(String(call[0])).toContain('/support/command-plan');
@@ -117,7 +117,7 @@ describe('support service-team coverage native read', () => {
       ok('SELECT t.* FROM service_team_coverage c', ['company', 'it', 'company', null, null]),
     );
     try {
-      const { resolveServiceTeam } = await import('@erpx/server-support/adapters/service-team-reads');
+      const { resolveServiceTeam } = await import('@erpx/support-server/adapters/service-team-reads');
       const scope = { company_id: 'company', branch_id: null, department_id: null } as never;
       await expect(resolveServiceTeam(db, scope, 'it')).resolves.toBeNull();
       const call = fetchMock.mock.calls[0]!;
@@ -133,7 +133,7 @@ describe('support service-team coverage native read', () => {
   });
 
   it('carries no retired ticket-portal response/acknowledgement SQL in the switched adapter', async () => {
-    const portal = await source('packages/server-support/src/adapters/ticket-portal.ts');
+    const portal = await source('modules/support/server/src/adapters/ticket-portal.ts');
     expect(portal).not.toContain('FROM support_ticket_portal_responses WHERE binding_id=?');
     expect(portal).not.toContain('FROM support_ticket_portal_acknowledgements WHERE binding_id=?');
     expect(portal).toContain('SUPPORT_RD_TICKET_PORTAL_RESPONSE');
@@ -150,7 +150,7 @@ describe('support service-team coverage native read', () => {
       ok('SELECT id,response_version,message,created_at FROM support_ticket_portal_responses WHERE binding_id=?', ['binding-1']),
     );
     try {
-      const { ticketPortalResponse, ticketPortalAcknowledgedAt } = await import('@erpx/server-support/adapters/ticket-portal');
+      const { ticketPortalResponse, ticketPortalAcknowledgedAt } = await import('@erpx/support-server/adapters/ticket-portal');
       await expect(ticketPortalResponse(db, 'binding-1')).resolves.toEqual({ id: 'response-1', version: 3, message: 'hello', publishedAt: 42 });
       const responseCall = fetchMock.mock.calls[0]!;
       expect(String(responseCall[0])).toContain('/support/command-plan');
@@ -171,8 +171,8 @@ describe('support service-team coverage native read', () => {
   });
 
   it('carries no retired ticket/incident event-history SQL in the switched adapters', async () => {
-    const detail = await source('packages/server-support/src/adapters/support.ts');
-    const incidents = await source('packages/server-support/src/adapters/support-incidents.ts');
+    const detail = await source('modules/support/server/src/adapters/support.ts');
+    const incidents = await source('modules/support/server/src/adapters/support-incidents.ts');
     expect(detail).not.toContain('FROM support_ticket_events WHERE ticket_id=?');
     expect(incidents).not.toContain('FROM support_incident_events WHERE incident_id=?');
     expect(detail).toContain("nativeSupportEventHistory<Row>(a, 'ticket', id)");
@@ -190,7 +190,7 @@ describe('support service-team coverage native read', () => {
     );
     try {
       const { nativeSupportReadAll, SUPPORT_RD_TICKET_EVENT_HISTORY, SUPPORT_RD_INCIDENT_EVENT_HISTORY } =
-        await import('@erpx/server-support/adapters/native-support-read');
+        await import('@erpx/support-server/adapters/native-support-read');
       await expect(nativeSupportReadAll(SUPPORT_RD_TICKET_EVENT_HISTORY, ['ticket-1'], db)
         .then((result: { results: unknown[] }) => result.results)).resolves.toEqual([{ id: 'e1', version: 2 }]);
       expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({
@@ -222,7 +222,7 @@ describe('support service-team coverage native read', () => {
     );
     const actor = { holdingSlug: 'acme', holdingId: 'h1', companyId: 'company' };
     try {
-      const { nativeSupportEventHistory } = await import('@erpx/server-support/adapters/native-support-read');
+      const { nativeSupportEventHistory } = await import('@erpx/support-server/adapters/native-support-read');
       await expect(nativeSupportEventHistory(actor as never, 'ticket', 'ticket-1')).resolves.toEqual(rows);
       expect(String(fetchMock.mock.calls[0]![0])).toBe(
         'http://127.0.0.1:3997/api/v1/holdings/acme/support/tickets/ticket-1/events',
@@ -244,8 +244,8 @@ describe('support service-team coverage native read', () => {
   });
 
   it('carries no retired incident-ticket link SQL in the switched adapters', async () => {
-    const detail = await source('packages/server-support/src/adapters/support.ts');
-    const incidents = await source('packages/server-support/src/adapters/support-incidents.ts');
+    const detail = await source('modules/support/server/src/adapters/support.ts');
+    const incidents = await source('modules/support/server/src/adapters/support-incidents.ts');
     expect(detail).not.toContain('FROM support_incident_tickets l JOIN support_incidents i');
     expect(incidents).not.toContain('FROM support_incident_tickets l JOIN support_tickets t');
     expect(detail).toContain('SUPPORT_RD_TICKET_INCIDENT_LINKS');
@@ -261,7 +261,7 @@ describe('support service-team coverage native read', () => {
     );
     try {
       const { nativeSupportReadAll, SUPPORT_RD_TICKET_INCIDENT_LINKS, SUPPORT_RD_INCIDENT_TICKET_LINKS } =
-        await import('@erpx/server-support/adapters/native-support-read');
+        await import('@erpx/support-server/adapters/native-support-read');
       await expect(nativeSupportReadAll(SUPPORT_RD_TICKET_INCIDENT_LINKS, ['ticket-1'], db)
         .then((result: { results: unknown[] }) => result.results)).resolves.toEqual([{ id: 'l1', title: 'Linked', status: 'open' }]);
       expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({
@@ -283,8 +283,8 @@ describe('support service-team coverage native read', () => {
   });
 
   it('carries no retired ticket source-image SQL in the switched adapters', async () => {
-    const preview = await source('packages/server-support/src/adapters/portal-preview-sources.ts');
-    const attachment = await source('packages/server-support/src/adapters/attachment-read.ts');
+    const preview = await source('modules/support/server/src/adapters/portal-preview-sources.ts');
+    const attachment = await source('modules/support/server/src/adapters/attachment-read.ts');
     expect(preview).not.toContain('to_jsonb(ticket)::text image FROM support_tickets');
     expect(attachment).not.toContain('to_jsonb(t)::text image,t.source_record_json');
     expect(preview).toContain('SUPPORT_RD_TICKET_SOURCE_IMAGE');
@@ -292,7 +292,7 @@ describe('support service-team coverage native read', () => {
   });
 
   it('carries no retired attachment-migration scope SQL in the switched adapter', async () => {
-    const adapter = await source('packages/server-support/src/adapters/attachment-migration-owner.ts');
+    const adapter = await source('modules/support/server/src/adapters/attachment-migration-owner.ts');
     expect(adapter).not.toContain('SELECT');
     expect(adapter).toContain('SUPPORT_RD_ATTACHMENT_MIGRATION_SCOPE');
   });
@@ -307,7 +307,7 @@ describe('support service-team coverage native read', () => {
       ok('SELECT company_id,branch_id branch_id,department_id department_id,version FROM support_tickets WHERE id=?', ['ticket-1']),
     );
     try {
-      const { legacyAttachmentScopesupport } = await import('@erpx/server-support/public/attachment-migration-owner');
+      const { legacyAttachmentScopesupport } = await import('@erpx/support-server/public/attachment-migration-owner');
       await expect(legacyAttachmentScopesupport(db, 'support_ticket', 'ticket-1')).resolves.toEqual({
         company_id: 'company', branch_id: 'branch-1', department_id: 'dept-1', version: 7,
       });
@@ -335,7 +335,7 @@ describe('support service-team coverage native read', () => {
       ok('SELECT to_jsonb(ticket)::text image FROM support_tickets ticket WHERE ticket.id=? AND ticket.company_id=?', ['ticket-1', 'company']),
     );
     try {
-      const { portalPreviewSupportSourceImage } = await import('@erpx/server-support/public/portal-preview-sources');
+      const { portalPreviewSupportSourceImage } = await import('@erpx/support-server/public/portal-preview-sources');
       await expect(portalPreviewSupportSourceImage(db, 'company', 'ticket-1')).resolves.toBe('{"id":"ticket-1"}');
       expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({
         kind: 'support_rd_ticket_source_image',
@@ -344,7 +344,7 @@ describe('support service-team coverage native read', () => {
 
       fetchMock.mockClear();
       const { nativeSupportReadAll, SUPPORT_RD_TICKET_ATTACHMENT_SOURCE_IMAGE } =
-        await import('@erpx/server-support/adapters/native-support-read');
+        await import('@erpx/support-server/adapters/native-support-read');
       await expect(nativeSupportReadAll<{ image: string }>(SUPPORT_RD_TICKET_ATTACHMENT_SOURCE_IMAGE, ['ticket-1', 'company'], db)
         .then((result: { results: unknown[] }) => result.results)).resolves.toEqual([{ image: '{"id":"ticket-1"}', source_record_json: null, order_id: null, customer_id: null }]);
       expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({
@@ -358,7 +358,7 @@ describe('support service-team coverage native read', () => {
   });
 
   it('carries no retired service-team option SQL in the switched adapter', async () => {
-    const adapter = await source('packages/server-support/src/adapters/service-team-options.ts');
+    const adapter = await source('modules/support/server/src/adapters/service-team-options.ts');
     for (const fragment of [
       'SELECT * FROM service_teams',
       'FROM service_team_revisions',
@@ -389,7 +389,7 @@ describe('support service-team coverage native read', () => {
         SUPPORT_RD_SERVICE_TEAM_OPTION_HANDLERS,
         SUPPORT_RD_SERVICE_TEAM_OPTION_COVERAGE,
         SUPPORT_RD_SERVICE_TEAM_OPTION_NODES,
-      } = await import('@erpx/server-support/adapters/native-support-read');
+      } = await import('@erpx/support-server/adapters/native-support-read');
       const cases: [string, string[]][] = [
         [SUPPORT_RD_SERVICE_TEAM_OPTIONS, ['company']],
         [SUPPORT_RD_SERVICE_TEAM_OPTION_HISTORY, ['company', 'team-1']],
@@ -410,13 +410,13 @@ describe('support service-team coverage native read', () => {
   });
 
   it('carries no retired incident ticket candidate SQL in the switched adapter', async () => {
-    const adapter = await source('packages/server-support/src/adapters/support-incidents.ts');
+    const adapter = await source('modules/support/server/src/adapters/support-incidents.ts');
     expect(adapter).not.toContain('source_kind=\'sales_order\' AND id NOT IN(SELECT ticket_id FROM support_incident_tickets');
     expect(adapter).toContain('SUPPORT_RD_INCIDENT_TICKET_CANDIDATES');
   });
 
   it('carries no retired SLA workspace ticket SQL in the switched adapter', async () => {
-    const adapter = await source('packages/server-support/src/adapters/support-sla.ts');
+    const adapter = await source('modules/support/server/src/adapters/support-sla.ts');
     expect(adapter).not.toContain('sla_policy_version,sla_clock_json FROM support_tickets');
     expect(adapter).toContain('ERPX_NATIVE_SUPPORT_READ_CONFIG');
   });
@@ -431,7 +431,7 @@ describe('support service-team coverage native read', () => {
     );
     try {
       const { nativeSupportReadAll, SUPPORT_RD_SLA_WORKSPACE_TICKETS } =
-        await import('@erpx/server-support/adapters/native-support-read');
+        await import('@erpx/support-server/adapters/native-support-read');
       await expect(nativeSupportReadAll<{ id: string }>(SUPPORT_RD_SLA_WORKSPACE_TICKETS, values, db)
         .then((result: { results: unknown[] }) => result.results)).resolves.toEqual([{ id: 'ticket-1', status: 'open', sla_clock_json: '{}' }]);
       const call = fetchMock.mock.calls[0]!;
@@ -456,7 +456,7 @@ describe('support service-team coverage native read', () => {
     );
     try {
       const { nativeSupportReadAll, SUPPORT_RD_INCIDENT_TICKET_CANDIDATES } =
-        await import('@erpx/server-support/adapters/native-support-read');
+        await import('@erpx/support-server/adapters/native-support-read');
       await expect(nativeSupportReadAll<{ id: string; title: string; version: number }>(SUPPORT_RD_INCIDENT_TICKET_CANDIDATES, values, db)
         .then((result: { results: unknown[] }) => result.results)).resolves.toEqual([{ id: 'ticket-1', title: 'Ticket', version: 3 }]);
       const call = fetchMock.mock.calls[0]!;
@@ -472,7 +472,7 @@ describe('support service-team coverage native read', () => {
   });
 
   it('carries no retired package-obligation/Portal SQL in the switched adapter', async () => {
-    const adapter = await source('packages/server-support/src/adapters/package-obligations.ts');
+    const adapter = await source('modules/support/server/src/adapters/package-obligations.ts');
     expect(adapter).not.toContain('SELECT');
     for (const constant of [
       'SUPPORT_RD_PORTAL_BINDINGS_INSTALLED',
@@ -496,7 +496,7 @@ describe('support service-team coverage native read', () => {
         SUPPORT_RD_PORTAL_BINDINGS_INSTALLED,
         SUPPORT_RD_SUPPORT_PACKAGE_PORTAL_BINDINGS,
         SUPPORT_RD_SUPPORT_PACKAGE_OBLIGATION_FACTS,
-      } = await import('@erpx/server-support/adapters/native-support-read');
+      } = await import('@erpx/support-server/adapters/native-support-read');
       const cases: [string, unknown[]][] = [
         [SUPPORT_RD_PORTAL_BINDINGS_INSTALLED, []],
         [SUPPORT_RD_SUPPORT_PACKAGE_PORTAL_BINDINGS, portalValues],
@@ -516,7 +516,7 @@ describe('support service-team coverage native read', () => {
   });
 
   it('leaves no retired owner SQL in the Support Calendar adapter', async () => {
-    const calendar = await source('packages/server-support/src/adapters/calendar-support-facts.ts');
+    const calendar = await source('modules/support/server/src/adapters/calendar-support-facts.ts');
     expect(calendar).not.toContain('SELECT');
     expect(calendar).toContain('SUPPORT_RD_CALENDAR_SUPPORT_TICKETS');
     expect(calendar).toContain('SUPPORT_RD_CALENDAR_SUPPORT_INCIDENTS');
@@ -529,7 +529,7 @@ describe('support service-team coverage native read', () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(ok('SELECT 1', []));
     const actor = { assignmentId: 'assignment-1', userId: 'user-1', role: 'support', companyId: 'company', holdingId: 'h1' } as never;
     try {
-      const { calendarSupportSupportFacts } = await import('@erpx/server-support/adapters/calendar-support-facts');
+      const { calendarSupportSupportFacts } = await import('@erpx/support-server/adapters/calendar-support-facts');
       const rows = await calendarSupportSupportFacts(db).read1({
         value1: 'Asia/Bangkok', value2: 'company', value3: null, value4: null,
         value5: '["company"]', value6: '2026-10-01', value7: '2026-11-01', value8: 'team',
@@ -556,7 +556,7 @@ describe('support service-team coverage native read', () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(ok('SELECT 1', []));
     const actor = { assignmentId: 'assignment-1', userId: 'user-1', role: 'support', companyId: 'company', holdingId: 'h1' } as never;
     try {
-      const { calendarSupportSupportFacts } = await import('@erpx/server-support/adapters/calendar-support-facts');
+      const { calendarSupportSupportFacts } = await import('@erpx/support-server/adapters/calendar-support-facts');
       const rows = await calendarSupportSupportFacts(db).read2({
         value1: 'company', value2: null, value3: null, value4: '["company"]',
         value5: '2026-10-01', value6: '2026-11-01', value7: 'team', value8: 'user-1',
@@ -576,7 +576,7 @@ describe('support service-team coverage native read', () => {
   });
 
   it('leaves no retired owner SQL in the executive metric projection', async () => {
-    const metric = await source('packages/server-support/src/adapters/executive-metric-projections.ts');
+    const metric = await source('modules/support/server/src/adapters/executive-metric-projections.ts');
     expect(metric).not.toContain('SELECT');
     expect(metric).toContain('SUPPORT_RD_EXEC_TICKET_METRIC');
     expect(metric).toContain('SUPPORT_RD_EXEC_INCIDENT_METRIC');
@@ -594,7 +594,7 @@ describe('support service-team coverage native read', () => {
     metricSourceMock.mockClear();
     const actor = { assignmentId: 'assignment-1', userId: 'user-1', role: 'support', companyId: 'company', branchId: 'branch', departmentId: null } as never;
     try {
-      const { readExecutiveMetricProjection } = await import('@erpx/server-support/adapters/executive-metric-projections');
+      const { readExecutiveMetricProjection } = await import('@erpx/support-server/adapters/executive-metric-projections');
       const snapshot = await readExecutiveMetricProjection(db, actor, 'open-support-tickets', { from: '2026-01-01', to: '2026-12-31', currency: 'THB' }, 'status');
       expect(snapshot.raw).toEqual([{ label: 'triage', value: '1' }]);
       const body = JSON.parse(String(fetchMock.mock.calls[0]![1]!.body));
@@ -627,7 +627,7 @@ describe('support service-team coverage native read', () => {
       ok('SELECT t.status label,count(*)::text value FROM support_incidents t GROUP BY 1 ORDER BY 1', []));
     const actor = { assignmentId: 'assignment-1', userId: 'user-1', role: 'support', companyId: 'company', branchId: 'branch', departmentId: null } as never;
     try {
-      const { readExecutiveMetricProjection } = await import('@erpx/server-support/adapters/executive-metric-projections');
+      const { readExecutiveMetricProjection } = await import('@erpx/support-server/adapters/executive-metric-projections');
       const snapshot = await readExecutiveMetricProjection(db, actor, 'active-support-incidents', { from: '2026-01-01', to: '2026-12-31', currency: 'THB' }, 'status');
       expect(snapshot.raw).toEqual([{ label: 'open', value: '1' }]);
       const body = JSON.parse(String(fetchMock.mock.calls[0]![1]!.body));
@@ -645,10 +645,10 @@ describe('support service-team coverage native read', () => {
   });
 
   it('plans the incident-attachment and Sales read tails in Rust with no local SELECT', async () => {
-    const incident = await source('packages/server-support/src/adapters/incident-attachment-read-sources.ts');
-    const sales = await source('packages/server-support/src/adapters/sales-projection.ts');
-    const registry = await source('packages/server-support/src/adapters/native_support_read_sql.rs');
-    const transport = await source('packages/server-support/src/adapters/native-support-read.ts');
+    const incident = await source('modules/support/server/src/adapters/incident-attachment-read-sources.ts');
+    const sales = await source('modules/support/server/src/adapters/sales-projection.ts');
+    const registry = await source('modules/support/server/src/adapters/native_support_read_sql.rs');
+    const transport = await source('modules/support/server/src/adapters/native-support-read.ts');
     for (const text of [incident, sales]) expect(text).not.toContain('SELECT');
     expect(incident).toContain('LOCK TABLE support_incidents');
     expect(incident).toContain('supportOrderAttachmentSourceImage');
@@ -671,7 +671,7 @@ describe('support service-team coverage native read', () => {
     const db = { prepare: vi.fn(() => ({ bind: vi.fn() })), batch: vi.fn() } as unknown as SqlDatabase;
     try {
       const { nativeSupportReadAll, SUPPORT_RD_SALES_SUPPORT_COUNTS } = await import(
-        '@erpx/server-support/adapters/native-support-read'
+        '@erpx/support-server/adapters/native-support-read'
       );
       await expect(nativeSupportReadAll(SUPPORT_RD_SALES_SUPPORT_COUNTS, ['company'], db))
         .rejects.toMatchObject({ status: 422, code: 'SUPPORT_NATIVE_READ_BINDS_INVALID' });
@@ -691,7 +691,7 @@ describe('support service-team coverage native read', () => {
     const actor = { companyId: 'company', branchId: 'branch', departmentId: 'dept', assignmentId: 'assignment', userId: 'user', role: 'role' } as never;
     try {
       const { salesSupportCounts, salesOpenSupportCases, supportCustomerSourceCases } = await import(
-        '@erpx/server-support/adapters/sales-projection'
+        '@erpx/support-server/adapters/sales-projection'
       );
       const valuesOf = (index: number) => JSON.parse(String(fetchMock.mock.calls[index]![1]!.body)).values;
       await salesSupportCounts(db, actor, ['customer-1', 'customer-2']);
@@ -732,7 +732,7 @@ describe('support service-team coverage native read', () => {
     const actor = { userId: 'user', companyId: 'company' } as never;
     try {
       const { supportIncidentAttachmentReadSourceImage } = await import(
-        '@erpx/server-support/adapters/incident-attachment-read-sources'
+        '@erpx/support-server/adapters/incident-attachment-read-sources'
       );
       const witness = await supportIncidentAttachmentReadSourceImage(db, actor, 'incident-1');
       expect(JSON.parse(String(witness))).toEqual([
@@ -753,8 +753,8 @@ describe('support service-team coverage native read', () => {
   });
 
   it('carries no retired SLA-alert or ticket-recipient SQL in the switched adapters', async () => {
-    const alerts = await source('packages/server-support/src/adapters/support-sla-alerts.ts');
-    const ticket = await source('packages/server-support/src/adapters/support.ts');
+    const alerts = await source('modules/support/server/src/adapters/support-sla-alerts.ts');
+    const ticket = await source('modules/support/server/src/adapters/support.ts');
     expect(alerts).not.toContain('FROM support_sla_alerts s JOIN support_tickets t');
     expect(alerts).not.toContain('supportEligibleFlagSql(');
     expect(alerts).not.toContain('supportReviewerCountSql(');
@@ -777,7 +777,7 @@ describe('support service-team coverage native read', () => {
     );
     try {
       const { nativeSupportReadAll, SUPPORT_RD_SLA_ALERTS } =
-        await import('@erpx/server-support/adapters/native-support-read');
+        await import('@erpx/support-server/adapters/native-support-read');
       const result = await nativeSupportReadAll<{ id: string }>(SUPPORT_RD_SLA_ALERTS, values, db);
       expect(result.results).toEqual([{ id: 'alert-1', can_ack: 1, recipients: 2 }]);
       expect(String(fetchMock.mock.calls[0]![0])).toContain('/support/command-plan');
@@ -807,7 +807,7 @@ describe('support service-team coverage native read', () => {
     );
     try {
       const { nativeSupportReadAll, SUPPORT_RD_TICKET_RECIPIENTS } =
-        await import('@erpx/server-support/adapters/native-support-read');
+        await import('@erpx/support-server/adapters/native-support-read');
       const result = await nativeSupportReadAll<{ id: string; name: string }>(SUPPORT_RD_TICKET_RECIPIENTS, values, db);
       expect(result.results).toEqual([{ id: 'user-1', name: 'Support Manager' }]);
       expect(String(fetchMock.mock.calls[0]![0])).toContain('/support/command-plan');
@@ -824,7 +824,7 @@ describe('support service-team coverage native read', () => {
   });
 
   it('keeps the retired SLA-alert and ticket-recipient SQL byte-identical in the Rust registry', async () => {
-    const registry = await source('packages/server-support/src/adapters/native_support_read_sql.rs');
+    const registry = await source('modules/support/server/src/adapters/native_support_read_sql.rs');
     const eligibility = supportRecipientEligibility().replaceAll('t.owner_id', 'm.user_id');
     const recipient = 'm.company_id=t.company_id AND iam_assignment_active(m.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)'
       + " AND iam_role_allows(m.role,m.company_id,'support.manage')"

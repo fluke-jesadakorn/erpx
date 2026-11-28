@@ -7,9 +7,9 @@ import {
   nativePosStripeConnectionsReadyStatement,
   nativePosStripeSaleNumberStatement,
   nativePosStripeRefundPaymentStatement,
-} from '../../../packages/server-pos/src/adapters/native-pos-stripe-reads';
+} from '../../../modules/pos/server/src/adapters/native-pos-stripe-reads';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-pos/src');
+const srcRoot = resolve(__dirname, '../../../modules/pos/server/src');
 const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const config = () => JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:44994', timeoutMs: 1000 });
 const previous = process.env.ERPX_NATIVE_POS_OWNER_CONFIG;

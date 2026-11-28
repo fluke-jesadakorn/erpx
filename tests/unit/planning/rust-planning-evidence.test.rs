@@ -3,15 +3,15 @@
 //! application admission and the fail-closed HTTP ingress. No PostgreSQL,
 //! composition mount or browser journey is implied.
 use base64::Engine;
-use erpx_server_planning::public::evidence::{
+use erpx_planning_server::public::evidence::{
     CAPACITY_FEASIBLE_RECOMMENDATIONS, EvidenceActor, EvidenceEligibility, EvidenceFuture,
     EvidenceHttpBackend, EvidenceHttpFuture, EvidenceHttpRequest, EvidenceHttpResponse,
     EvidenceHttpTarget, EvidenceQuery, EvidenceQueryInput, EvidenceRepository, EvidenceRow,
     PROPOSED_RECOMMENDATIONS, SHORTAGE_SCENARIOS, build_search_sql, cursor_id, planning_evidence_router,
     search_evidence, valid_rows, validate_rows,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 fn query(metric: &str) -> EvidenceQuery {

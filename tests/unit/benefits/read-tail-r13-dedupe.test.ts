@@ -2,9 +2,9 @@ import { describe, expect, test, vi } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
-import { settlementConfiguration, createSettlementEventsClient, readSettlementEventsReply } from '../../../packages/server-benefits/src/adapters/native-lane-settlement/client';
+import { settlementConfiguration, createSettlementEventsClient, readSettlementEventsReply } from '../../../modules/benefits/server/src/adapters/native-lane-settlement/client';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-benefits/src');
+const srcRoot = resolve(__dirname, '../../../modules/benefits/server/src');
 const read = (name: string) => readFileSync(resolve(srcRoot, name), 'utf8');
 const sql = read('adapters/native_settlement_events/postgres.rs');
 const source = sql.match(/pub const SOURCE_SQL: &str = "([^"]+)"/)?.[1] ?? '';

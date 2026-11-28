@@ -3,7 +3,7 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
-use erpx_server_runtime::public::module_contracts::{ModuleCatalog, validate};
+use erpx_platform_runtime_server::public::module_contracts::{ModuleCatalog, validate};
 use tower::ServiceExt;
 const MANIFEST: &str = include_str!("../../../contracts/modules/backend-modules.json");
 fn catalog() -> ModuleCatalog {
@@ -11,7 +11,7 @@ fn catalog() -> ModuleCatalog {
 }
 #[tokio::test]
 async fn field_selection_reports_its_actual_closure_without_other_business_owners() {
-    let response = erpx_service::module_assembly::assemble()
+    let response = erpx_platform_composition::module_assembly::assemble()
         .unwrap()
         .oneshot(
             Request::builder()
@@ -52,7 +52,7 @@ async fn field_selection_reports_its_actual_closure_without_other_business_owner
 }
 #[tokio::test]
 async fn real_outer_router_keeps_core_health_and_optional_route() {
-    let router = erpx_service::module_assembly::assemble().unwrap();
+    let router = erpx_platform_composition::module_assembly::assemble().unwrap();
     for (path, status) in [
         ("/api/health", StatusCode::OK),
         ("/api/ready", StatusCode::SERVICE_UNAVAILABLE),
@@ -105,7 +105,7 @@ fn required_api_and_event_versions_and_external_boundary_are_checked() {
         .find(|m| m.id == "erpx-example")
         .unwrap();
     example.requires_events.push(
-        erpx_server_runtime::public::module_contracts::RequiredContract {
+        erpx_platform_runtime_server::public::module_contracts::RequiredContract {
             name: "erpx.example.observed".into(),
             range: ">=2.0.0".into(),
         },
@@ -120,7 +120,7 @@ fn required_api_and_event_versions_and_external_boundary_are_checked() {
         .version = "2.0.0".into();
     assert_eq!(validate(&c, &core), Err("MODULE_CONTRACT_INCOMPATIBLE"));
     let mut c = catalog();
-    let external:erpx_server_runtime::public::module_contracts::ExternalDescriptor=serde_json::from_value(serde_json::json!({"id":"external","api":[{"name":"external.api","version":"1.0.0"}],"events":[{"name":"external.event","version":"2.0.0"}]})).unwrap();
+    let external:erpx_platform_runtime_server::public::module_contracts::ExternalDescriptor=serde_json::from_value(serde_json::json!({"id":"external","api":[{"name":"external.api","version":"1.0.0"}],"events":[{"name":"external.event","version":"2.0.0"}]})).unwrap();
     c.external.push(external);
     let example = c
         .modules
@@ -128,13 +128,13 @@ fn required_api_and_event_versions_and_external_boundary_are_checked() {
         .find(|m| m.id == "erpx-example")
         .unwrap();
     example.requires.push(
-        erpx_server_runtime::public::module_contracts::RequiredContract {
+        erpx_platform_runtime_server::public::module_contracts::RequiredContract {
             name: "external.api".into(),
             range: ">=1.0.0, <2.0.0".into(),
         },
     );
     example.requires_events.push(
-        erpx_server_runtime::public::module_contracts::RequiredContract {
+        erpx_platform_runtime_server::public::module_contracts::RequiredContract {
             name: "external.event".into(),
             range: ">=2.0.0, <3.0.0".into(),
         },
@@ -153,7 +153,7 @@ fn required_api_and_event_versions_and_external_boundary_are_checked() {
         json[prohibited] = serde_json::json!("not-allowed");
         assert!(
             serde_json::from_value::<
-                erpx_server_runtime::public::module_contracts::ExternalDescriptor,
+                erpx_platform_runtime_server::public::module_contracts::ExternalDescriptor,
             >(json)
             .is_err()
         );

@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { marketingProjectionSourceSql } from '../../../packages/server-marketing/src/adapters/owner-projection-source';
+import { marketingProjectionSourceSql } from '../../../modules/marketing/server/src/adapters/owner-projection-source';
 
 const src = (name: string) =>
-  readFile(new URL(`../../../packages/server-marketing/src/adapters/${name}`, import.meta.url), 'utf8');
+  readFile(new URL(`../../../modules/marketing/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 async function selectTokens(): Promise<number> {
   let total = 0;
@@ -16,7 +16,7 @@ async function selectTokens(): Promise<number> {
         total += ((await readFile(path, 'utf8')).match(/SELECT /g) ?? []).length;
     }
   };
-  await walk(resolve('packages/server-marketing/src'));
+  await walk(resolve('modules/marketing/server/src'));
   return total;
 }
 

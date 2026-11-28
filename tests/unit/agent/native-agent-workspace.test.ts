@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
-import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
+import type { WorkContext } from '@erpx/identity-access-server/public/authorization';
 import {
   NativeAgentWorkspaceError,
   createNativeAgentWorkspaceClient,
-} from '../../../packages/server-agent/src/public/native-agent-workspace';
+} from '../../../modules/agent/server/src/public/native-agent-workspace';
 
 const actor: WorkContext = {
   userId: 'user',

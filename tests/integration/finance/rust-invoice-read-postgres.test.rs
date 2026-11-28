@@ -8,14 +8,14 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_commercial::public::purchases::current_package_catalogue;
-use erpx_server_finance::public::finance_invoice_read::InvoicePageQuery;
-use erpx_server_identity_access::public::work_context::HoldingWorkspaceRequest;
-use erpx_server_runtime::public::postgres::DatabasePool;
-use erpx_server_shared::public::{CompanyId, HoldingId};
-use erpx_service::finance_journal_detail::*;
-use erpx_service::finance_journal_detail_http::*;
-use erpx_service::finance_journal_review::FinanceJournalEnvironment;
+use erpx_commercial_server::public::purchases::current_package_catalogue;
+use erpx_finance_server::public::finance_invoice_read::InvoicePageQuery;
+use erpx_identity_access_server::public::work_context::HoldingWorkspaceRequest;
+use erpx_platform_runtime_server::public::postgres::DatabasePool;
+use erpx_platform_shared_server::public::{CompanyId, HoldingId};
+use erpx_platform_composition::finance_journal_detail::*;
+use erpx_platform_composition::finance_journal_detail_http::*;
+use erpx_platform_composition::finance_journal_review::FinanceJournalEnvironment;
 use facts::{Prepared, account, setup};
 use std::sync::Arc;
 use tower::ServiceExt;
@@ -36,7 +36,7 @@ fn service(p: &Prepared) -> FinanceJournalDetailService<facts::TestClock> {
 
 fn owned_maker(
     p: &Prepared,
-) -> impl FnOnce() -> Result<HoldingWorkspaceRequest, erpx_server_shared::public::BusinessError>
+) -> impl FnOnce() -> Result<HoldingWorkspaceRequest, erpx_platform_shared_server::public::BusinessError>
        + Send
        + 'static {
     let request = p.maker_selection.clone();
@@ -226,7 +226,7 @@ async fn invoice_page_reads_filters_and_paginates() {
             )
             .await
         {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                 assert_eq!(error.code, "INVALID_CURSOR");
             }
             other => panic!("foreign cursor must fail: {other:?}"),
@@ -238,7 +238,7 @@ async fn invoice_page_reads_filters_and_paginates() {
             .execute(&mut *tx)
             .await
             .unwrap();
-        let foreign = erpx_server_finance::public::finance_invoice_read::read_invoice_page(
+        let foreign = erpx_finance_server::public::finance_invoice_read::read_invoice_page(
             &mut tx,
             "another-company",
             &query("", "", "", "", None, None),
@@ -323,7 +323,7 @@ async fn invoice_aging_reads_historical_buckets_and_scope() {
             )
             .await
         {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                 assert_eq!(error.code, "FINANCE_INVOICE_AGING_QUERY_INVALID");
             }
             other => panic!("invalid date must fail: {other:?}"),

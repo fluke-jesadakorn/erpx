@@ -4,9 +4,9 @@ import { resolve } from 'node:path';
 import {
   childJsonAggSql,
   childJoinJsonAggSql,
-} from '../../../packages/server-inventory/src/adapters/read-tail-sql';
+} from '../../../modules/inventory/server/src/adapters/read-tail-sql';
 
-const adapterDir = resolve(__dirname, '../../../packages/server-inventory/src/adapters');
+const adapterDir = resolve(__dirname, '../../../modules/inventory/server/src/adapters');
 const src = (name: string) => readFileSync(resolve(adapterDir, name), 'utf8');
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
 

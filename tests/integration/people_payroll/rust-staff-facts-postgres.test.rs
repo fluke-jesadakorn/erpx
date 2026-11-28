@@ -1,8 +1,8 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_people_payroll::public::staff_facts::{active_staff, person_name, ActiveStaffFact};
-use erpx_server_runtime::public::postgres::{
+use erpx_people_payroll_server::public::staff_facts::{active_staff, person_name, ActiveStaffFact};
+use erpx_platform_runtime_server::public::postgres::{
     load_migrations, migrate_database, DatabasePool, MigrationTrack,
 };
 

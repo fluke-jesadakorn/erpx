@@ -4,7 +4,7 @@
 mod facts;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_quality::public::quality_alerts::drain_quality_alerts;
+use erpx_quality_server::public::quality_alerts::drain_quality_alerts;
 
 /// 2026-09-21T12:00:00Z.
 const NOW: i64 = 1_789_992_000_000;

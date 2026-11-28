@@ -1,9 +1,9 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
-const file = new URL('../../../packages/server-talent/src/adapters/metric-purchases.ts', import.meta.url);
-const util = new URL('../../../packages/server-talent/src/adapters/talent-read-tail-r32-sources.ts', import.meta.url);
-const srcDir = new URL('../../../packages/server-talent/src/', import.meta.url);
+const file = new URL('../../../modules/talent/server/src/adapters/metric-purchases.ts', import.meta.url);
+const util = new URL('../../../modules/talent/server/src/adapters/talent-read-tail-r32-sources.ts', import.meta.url);
+const srcDir = new URL('../../../modules/talent/server/src/', import.meta.url);
 
 // Exact pre-dedupe emitted SQL (r27 baseline, BEFORE=51). Both metric source
 // rows are owner-local literals, so the pinned strings are stable.

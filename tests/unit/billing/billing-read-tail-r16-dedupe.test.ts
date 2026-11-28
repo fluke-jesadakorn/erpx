@@ -4,7 +4,7 @@ import {
   BILLING_ROLLOUT_ELIGIBILITY_SQL,
   BILLING_LEGACY_ENROLLMENT_OVERLAP_SQL,
   BILLING_MONTH_INVOICE_SQL,
-} from '../../../packages/server-billing/src/adapters/billing-read-tail-r16-sql';
+} from '../../../modules/billing/server/src/adapters/billing-read-tail-r16-sql';
 
 const GROUPS: [string, string, string][] = [
   ['BILLING_ROLLOUT_ELIGIBILITY_SQL', BILLING_ROLLOUT_ELIGIBILITY_SQL, `SELECT 1 FROM billing_target_sandbox_holdings WHERE holding_id=$1
@@ -20,7 +20,7 @@ const SUBSCRIPTION_SELECT = 'SELECT source_kind,record_id,plan_name,status,start
 describe('billing read-tail r16 byte-identical SQL dedupe', () => {
   it('keeps exactly one literal per family in the shared constants file', async () => {
     const shared = await readFile(
-      new URL('../../../packages/server-billing/src/adapters/billing-read-tail-r16-sql.ts', import.meta.url),
+      new URL('../../../modules/billing/server/src/adapters/billing-read-tail-r16-sql.ts', import.meta.url),
       'utf8',
     );
     expect(shared.split('SELECT ').length - 1).toBe(0); // r36 routes the UNION ALL guard through r29
@@ -34,7 +34,7 @@ describe('billing read-tail r16 byte-identical SQL dedupe', () => {
   it('removes every inline family literal from both owner-local repositories', async () => {
     for (const file of ['billing.ts', 'billing-target.ts']) {
       const text = await readFile(
-        new URL(`../../../packages/server-billing/src/adapters/${file}`, import.meta.url),
+        new URL(`../../../modules/billing/server/src/adapters/${file}`, import.meta.url),
         'utf8',
       );
       expect(text.split("'./billing-read-tail-r16-sql'").length - 1).toBe(1);
@@ -47,7 +47,7 @@ describe('billing read-tail r16 byte-identical SQL dedupe', () => {
 
   it('shares the byte-identical commercial subscription projection prefix', async () => {
     const text = await readFile(
-      new URL('../../../packages/server-billing/src/adapters/executive-main-evidence-sources.ts', import.meta.url),
+      new URL('../../../modules/billing/server/src/adapters/executive-main-evidence-sources.ts', import.meta.url),
       'utf8',
     );
     // Native lane 38 wave 2: the owner crate owns this statement text.

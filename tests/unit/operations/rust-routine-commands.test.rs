@@ -1,16 +1,16 @@
 //! Native routine template/schedule application use cases over in-memory owner
 //! ports. The PostgreSQL adapter has its own companion test.
-use erpx_server_operations::public::routine_commands::{
+use erpx_operations_server::public::routine_commands::{
     RoutineCommandRepository, RoutineCommandSources, RoutineFuture, RoutineReceipt,
     RoutineScheduleRow, RoutineTemplateRow, SaveRoutineScheduleCommand,
     SaveRoutineTemplateCommand, SaveSchedulePlan, SaveTemplatePlan, ScheduleStateCommand,
     ScheduleStatePlan, StoredRoutineReceipt, change_schedule_state, end_schedule,
     next_occurrence, save_schedule, save_template,
 };
-use erpx_server_operations::public::staff_tasks::{
+use erpx_operations_server::public::staff_tasks::{
     ProjectFact, RouteFact, StaffFact, StaffTaskActor, TaskScope,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 
@@ -698,9 +698,9 @@ async fn ends_a_schedule_once_and_records_the_capture_kind() {
     let created = create_template(&mut repo, &mut sources, "routine-create-six").await;
     let schedule =
         create_schedule(&mut repo, &mut sources, &created.id, "schedule-create-four").await;
-    let capture = erpx_server_operations::public::routine_commands::RoutineCapture {
+    let capture = erpx_operations_server::public::routine_commands::RoutineCapture {
         kind: "create",
-        authority: erpx_server_operations::public::routine_commands::RoutineAuthority {
+        authority: erpx_operations_server::public::routine_commands::RoutineAuthority {
             actor_json: "{\"userId\":\"creator\"}".into(),
             role: "owner".into(),
         },

@@ -1,7 +1,7 @@
 /** Test-only bootstrap for an explicitly owned, network-isolated PostgreSQL container. */
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
-import {validateNativeEngineeringRoster,type NativeEngineeringRoster} from '@erpx/server-runtime/public/native-engineering-roster';
+import {validateNativeEngineeringRoster,type NativeEngineeringRoster} from '@erpx/platform-runtime-server/public/native-engineering-roster';
 const exec=promisify(execFile);
 export async function grantNativeEngineeringCatalogLocks(input:{dockerHost:string;containerId:string;run:string;nonce:string;sourceFingerprint:string;fileManifestSha256:string;roster:NativeEngineeringRoster}){
  if(!/^unix:\/\//.test(input.dockerHost)||!/^[a-f0-9]{64}$/.test(input.containerId)||!/^[a-f0-9]{32}$/.test(input.nonce)||!/^[a-f0-9]{12}$/.test(input.run)||!validateNativeEngineeringRoster(input.roster,input.run,input.sourceFingerprint,input.fileManifestSha256))throw Error('NATIVE_CATALOG_GRANT_INPUT_INVALID');

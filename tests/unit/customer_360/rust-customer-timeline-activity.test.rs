@@ -1,14 +1,14 @@
 //! Owner-local validation and policy tests for the native Customer 360
 //! timeline activity read port. No PostgreSQL or composition mount required.
-use erpx_server_customer_360::public::customer_timeline::{
+use erpx_customer_360_server::public::customer_timeline::{
     CustomerTimelineActor, CustomerTimelineFuture, CustomerTimelineSupportEntitlement,
     CustomerTimelineView,
 };
-use erpx_server_customer_360::public::customer_timeline_activity::{
+use erpx_customer_360_server::public::customer_timeline_activity::{
     CustomerTimelineActivityQuery, CustomerTimelineActivityRepository,
     CustomerTimelineActivityRow, customer_timeline_activity,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, TimestampMillis};
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
 const DAY: i64 = 24 * 60 * 60 * 1000;

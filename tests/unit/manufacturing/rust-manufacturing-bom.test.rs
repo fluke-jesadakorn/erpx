@@ -1,11 +1,11 @@
 //! Native Manufacturing BOM register domain/application tests.
-use erpx_server_manufacturing::public::bom::{
+use erpx_manufacturing_server::public::bom::{
     BomActor, BomLine, BomOperation, BomReadFuture, BomReadRepository, BomSpecification,
     MAX_LINES_PER_SPECIFICATION, MAX_OPERATIONS_PER_SPECIFICATION, MAX_SPECIFICATIONS,
     bom_register, validate_register,
 };
-use erpx_server_runtime::public::http_support::serde_json;
-use erpx_server_shared::public::{
+use erpx_platform_runtime_server::public::http_support::serde_json;
+use erpx_platform_shared_server::public::{
     BusinessError, CompanyId, FailureKind, RecordId, TimestampMillis,
 };
 use std::sync::{

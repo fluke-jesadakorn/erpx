@@ -1,1 +1,1 @@
-export { default } from "@erpx/feature-people/routes/holdings/[holdingSlug]/people-organization/people/external/teams/page";
+export { default } from "@erpx/product-people-ui/routes/holdings/[holdingSlug]/people-organization/people/external/teams/page";

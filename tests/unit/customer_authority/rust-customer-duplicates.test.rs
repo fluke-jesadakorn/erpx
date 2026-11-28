@@ -6,15 +6,15 @@
 mod http_cases;
 mod identity_cases;
 
-use erpx_server_customer_authority::public::access::{AccessActor, AccessReceipt, ReceiptSnapshot};
-use erpx_server_customer_authority::public::duplicates::{
+use erpx_customer_authority_server::public::access::{AccessActor, AccessReceipt, ReceiptSnapshot};
+use erpx_customer_authority_server::public::duplicates::{
     ChangePlan, DuplicateChange, DuplicateReviewCommandRepository, DuplicateReviewCustomer,
     DuplicateReviewEventRow, DuplicateReviewReadRepository, DuplicateReviewRequest,
     DuplicateReviewRow, MergeBlockers, MergePartyFacts, MergePlan, RequestPlan,
     change_duplicate_review, duplicate_review_detail, duplicate_review_workspace,
     request_duplicate_review,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, RecordId, UserId,
 };
 use serde_json::Value;
@@ -30,7 +30,7 @@ fn actor_with(user: &str, permissions: &[&str]) -> AccessActor {
         company_id: CompanyId::new("company").unwrap(),
         branch_id: None,
         department_id: None,
-        assignment_id: erpx_server_shared::public::AssignmentId::new(format!(
+        assignment_id: erpx_platform_shared_server::public::AssignmentId::new(format!(
             "assignment-{user}"
         ))
         .unwrap(),
@@ -139,41 +139,41 @@ impl Fake {
 
 impl DuplicateReviewCommandRepository for Fake {
     type Error = BusinessError;
-    fn digest<'a>(&'a mut self, _value: &'a str) -> erpx_server_customer_authority::public::duplicates::DuplicateAccessFuture<'a, String, Self::Error> {
+    fn digest<'a>(&'a mut self, _value: &'a str) -> erpx_customer_authority_server::public::duplicates::DuplicateAccessFuture<'a, String, Self::Error> {
         Box::pin(async move {
             if self.deny_digest { return Err(BusinessError::invalid("X","Y")); }
             Ok("a".repeat(64))
         })
     }
-    fn receipt<'a>(&'a mut self, _key: &'a str) -> erpx_server_customer_authority::public::duplicates::DuplicateAccessFuture<'a, Option<ReceiptSnapshot>, Self::Error> {
+    fn receipt<'a>(&'a mut self, _key: &'a str) -> erpx_customer_authority_server::public::duplicates::DuplicateAccessFuture<'a, Option<ReceiptSnapshot>, Self::Error> {
         let r = self.receipt.clone();
         Box::pin(async move { Ok(r) })
     }
-    fn customers_active<'a>(&'a mut self, _company: &'a str, _left: &'a str, _right: &'a str) -> erpx_server_customer_authority::public::duplicates::DuplicateAccessFuture<'a, i64, Self::Error> {
+    fn customers_active<'a>(&'a mut self, _company: &'a str, _left: &'a str, _right: &'a str) -> erpx_customer_authority_server::public::duplicates::DuplicateAccessFuture<'a, i64, Self::Error> {
         let c = self.customers_active;
         Box::pin(async move { Ok(c) })
     }
-    fn customer_active<'a>(&'a mut self, _company: &'a str, _customer: &'a str) -> erpx_server_customer_authority::public::duplicates::DuplicateAccessFuture<'a, i64, Self::Error> {
+    fn customer_active<'a>(&'a mut self, _company: &'a str, _customer: &'a str) -> erpx_customer_authority_server::public::duplicates::DuplicateAccessFuture<'a, i64, Self::Error> {
         let c = self.customer_active;
         Box::pin(async move { Ok(c) })
     }
-    fn review_for_update<'a>(&'a mut self, _actor: &'a AccessActor, _id: &'a str) -> erpx_server_customer_authority::public::duplicates::DuplicateAccessFuture<'a, Option<DuplicateReviewRow>, Self::Error> {
+    fn review_for_update<'a>(&'a mut self, _actor: &'a AccessActor, _id: &'a str) -> erpx_customer_authority_server::public::duplicates::DuplicateAccessFuture<'a, Option<DuplicateReviewRow>, Self::Error> {
         let row = self.review.clone();
         Box::pin(async move { Ok(row) })
     }
-    fn reviewer_eligible<'a>(&'a mut self, _actor: &'a AccessActor, _id: &'a str) -> erpx_server_customer_authority::public::duplicates::DuplicateAccessFuture<'a, bool, Self::Error> {
+    fn reviewer_eligible<'a>(&'a mut self, _actor: &'a AccessActor, _id: &'a str) -> erpx_customer_authority_server::public::duplicates::DuplicateAccessFuture<'a, bool, Self::Error> {
         let eligible = self.eligible;
         Box::pin(async move { Ok(eligible) })
     }
-    fn merge_blockers<'a>(&'a mut self, _merged: &'a str) -> erpx_server_customer_authority::public::duplicates::DuplicateAccessFuture<'a, MergeBlockers, Self::Error> {
+    fn merge_blockers<'a>(&'a mut self, _merged: &'a str) -> erpx_customer_authority_server::public::duplicates::DuplicateAccessFuture<'a, MergeBlockers, Self::Error> {
         let blockers = self.blockers.clone();
         Box::pin(async move { Ok(blockers) })
     }
-    fn merge_parties<'a>(&'a mut self, _company: &'a str, _canonical: &'a str, _merged: &'a str) -> erpx_server_customer_authority::public::duplicates::DuplicateAccessFuture<'a, Option<MergePartyFacts>, Self::Error> {
+    fn merge_parties<'a>(&'a mut self, _company: &'a str, _canonical: &'a str, _merged: &'a str) -> erpx_customer_authority_server::public::duplicates::DuplicateAccessFuture<'a, Option<MergePartyFacts>, Self::Error> {
         let facts = self.facts.clone();
         Box::pin(async move { Ok(facts) })
     }
-    fn commit_request<'a>(&'a mut self, _actor: &'a AccessActor, key: &'a str, plan: &'a RequestPlan, _hash: &'a str) -> erpx_server_customer_authority::public::duplicates::DuplicateAccessFuture<'a, Value, Self::Error> {
+    fn commit_request<'a>(&'a mut self, _actor: &'a AccessActor, key: &'a str, plan: &'a RequestPlan, _hash: &'a str) -> erpx_customer_authority_server::public::duplicates::DuplicateAccessFuture<'a, Value, Self::Error> {
         self.commits.lock().unwrap().push(key.to_owned());
         self.request_pairs
             .lock()
@@ -182,7 +182,7 @@ impl DuplicateReviewCommandRepository for Fake {
         let result = serde_json::json!({"id": plan.id, "status": "pending", "version": 1});
         Box::pin(async move { Ok(result) })
     }
-    fn commit_change<'a>(&'a mut self, _actor: &'a AccessActor, key: &'a str, plan: &'a ChangePlan, _hash: &'a str) -> erpx_server_customer_authority::public::duplicates::DuplicateAccessFuture<'a, Value, Self::Error> {
+    fn commit_change<'a>(&'a mut self, _actor: &'a AccessActor, key: &'a str, plan: &'a ChangePlan, _hash: &'a str) -> erpx_customer_authority_server::public::duplicates::DuplicateAccessFuture<'a, Value, Self::Error> {
         self.changes.lock().unwrap().push(key.to_owned());
         let result = serde_json::json!({
             "id": plan.id,
@@ -191,7 +191,7 @@ impl DuplicateReviewCommandRepository for Fake {
         });
         Box::pin(async move { Ok(result) })
     }
-    fn commit_merge<'a>(&'a mut self, _actor: &'a AccessActor, key: &'a str, plan: &'a MergePlan, _hash: &'a str) -> erpx_server_customer_authority::public::duplicates::DuplicateAccessFuture<'a, Value, Self::Error> {
+    fn commit_merge<'a>(&'a mut self, _actor: &'a AccessActor, key: &'a str, plan: &'a MergePlan, _hash: &'a str) -> erpx_customer_authority_server::public::duplicates::DuplicateAccessFuture<'a, Value, Self::Error> {
         self.merges.lock().unwrap().push(key.to_owned());
         let result = serde_json::json!({
             "id": plan.id,
@@ -206,15 +206,15 @@ impl DuplicateReviewCommandRepository for Fake {
 
 impl DuplicateReviewReadRepository for Fake {
     type Error = BusinessError;
-    fn workspace<'a>(&'a mut self, _actor: &'a AccessActor) -> erpx_server_customer_authority::public::duplicates::DuplicateAccessFuture<'a, Vec<DuplicateReviewRow>, Self::Error> {
+    fn workspace<'a>(&'a mut self, _actor: &'a AccessActor) -> erpx_customer_authority_server::public::duplicates::DuplicateAccessFuture<'a, Vec<DuplicateReviewRow>, Self::Error> {
         let rows = self.workspace.clone();
         Box::pin(async move { Ok(rows) })
     }
-    fn customers<'a>(&'a mut self, _actor: &'a AccessActor) -> erpx_server_customer_authority::public::duplicates::DuplicateAccessFuture<'a, Vec<DuplicateReviewCustomer>, Self::Error> {
+    fn customers<'a>(&'a mut self, _actor: &'a AccessActor) -> erpx_customer_authority_server::public::duplicates::DuplicateAccessFuture<'a, Vec<DuplicateReviewCustomer>, Self::Error> {
         let c = self.customers.clone();
         Box::pin(async move { Ok(c) })
     }
-    fn history<'a>(&'a mut self, _id: &'a str) -> erpx_server_customer_authority::public::duplicates::DuplicateAccessFuture<'a, Vec<DuplicateReviewEventRow>, Self::Error> {
+    fn history<'a>(&'a mut self, _id: &'a str) -> erpx_customer_authority_server::public::duplicates::DuplicateAccessFuture<'a, Vec<DuplicateReviewEventRow>, Self::Error> {
         let e = self.events.clone();
         Box::pin(async move { Ok(e) })
     }

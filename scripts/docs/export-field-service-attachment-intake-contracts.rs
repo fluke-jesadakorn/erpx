@@ -1,5 +1,5 @@
 #![allow(dead_code, reason="Path anchors generate OpenAPI metadata; runtime handlers live in composition")]
-use erpx_service::field_attachment_intake_contracts::*;
+use erpx_platform_composition::field_attachment_intake_contracts::*;
 use ts_rs::{Config, TS};
 #[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/attachment-sets",params(("holding_slug"=String,Path),("targetType"=String,Query),("targetId"=String,Query),("purposeKey"=Option<String>,Query),("componentKind"=Option<String>,Query),("expectedTargetVersion"=Option<String>,Query)),responses((status=200,body=FieldIntakeListResponse),(status=422,body=FieldIntakeErrorResponse)))]
 fn list() {}

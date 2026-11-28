@@ -1,20 +1,20 @@
 /** Native business sources for one disposable normal-login browser run. */
-import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import type {SqlDatabase} from "@erpx/server-runtime/adapters/runtime/types";
-import {PostgresDatabase} from "@erpx/server-runtime/adapters/runtime/postgres";
-import {moduleRegistry} from "@erpx/catalogue/module-registry";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
+import type {SqlDatabase} from "@erpx/platform-runtime-server/adapters/runtime/types";
+import {PostgresDatabase} from "@erpx/platform-runtime-server/adapters/runtime/postgres";
+import {moduleRegistry} from "@erpx/platform-catalogue/module-registry";
 import type {seedExpenseCompany} from "../../expenses/company";
-import {projectSchema,taskSchema} from '@erpx/server-operations/public/staff-tasks';
+import {projectSchema,taskSchema} from '@erpx/operations-server/public/staff-tasks';
 import {saveTask} from '../../../tests/support/operations/staff-tasks-fixture';
 import {seedProjectFor} from '../../../tests/integration/projects/project-actual-fixtures';
-import {createAccount,createAccountSchema} from '@erpx/server-finance/public/finance';
+import {createAccount,createAccountSchema} from '@erpx/finance-server/public/finance';
 import {seedFinanceJournal} from '../../../tests/support/helpers/finance-journal-seed';
-import {saveMaster,saveOrder,orderSchema,transitionOrder} from '@erpx/server-commerce/public/commerce';
-import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
-import {saveCount,transitionCount,countSchema} from "@erpx/server-inventory/public/inventory-counts";
+import {saveMaster,saveOrder,orderSchema,transitionOrder} from '@erpx/commerce-server/public/commerce';
+import {assignFlowPrimary,resolveFlow} from '@erpx/workflow-server/public/flow-routing';
+import {saveCount,transitionCount,countSchema} from "@erpx/inventory-server/public/inventory-counts";
 import {saveProductionResource,saveProductionResourceCalendar} from "../../../tests/support/planning";
-import {createChannel,createListing,createCart,addCartLine,changeEcommerce} from "@erpx/server-ecommerce/public/ecommerce";
-import {posCommand} from '@erpx/server-pos/public/pos-core';
+import {createChannel,createListing,createCart,addCartLine,changeEcommerce} from "@erpx/ecommerce-server/public/ecommerce";
+import {posCommand} from '@erpx/pos-server/public/pos-core';
 import {prepareCustomerAccessNotice1} from "../../../tests/support/collaboration/customer-authority-notifications-fixture";
 
 type Fixture=Awaited<ReturnType<typeof seedExpenseCompany>>;

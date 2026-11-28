@@ -6,13 +6,13 @@
 //! lifecycle without adding a locked workspace dependency.
 #![allow(dead_code)]
 
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabaseConfig, DatabasePool, MigrationTrack, PgTransactionError, PoolLimits, connect_pool,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::record_source_contract::SourceKind;
-use erpx_server_shared::public::{BusinessError, CompanyId};
-use erpx_server_support::public::record_source::{lock_record_sources, read_record_source};
+use erpx_platform_shared_server::public::record_source_contract::SourceKind;
+use erpx_platform_shared_server::public::{BusinessError, CompanyId};
+use erpx_support_server::public::record_source::{lock_record_sources, read_record_source};
 use sqlx::postgres::PgConnectOptions;
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row};
 use std::future::Future;

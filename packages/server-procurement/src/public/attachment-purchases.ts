@@ -1,1 +1,0 @@
-export {procurementAttachmentPurchaseScope,authorizeProcurementAttachmentPurchase,procurementAttachmentCommandBoundary,procurementAttachmentFailure,procurementAttachmentSourceReadLocks,type ProcurementAttachmentPurchase} from "@erpx/server-procurement/adapters/attachment-purchases";

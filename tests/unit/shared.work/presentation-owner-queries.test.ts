@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
 
 const state = vi.hoisted(() => ({
   db: { identity: "provided Holding database" }, read: { identity: "private read replica" }, files: { identity: "private file store" },
@@ -10,33 +10,33 @@ const state = vi.hoisted(() => ({
   workspace: vi.fn(), slot: vi.fn(),
   brand: { workspace: vi.fn(), profiles: vi.fn() },
 }));
-vi.mock("@erpx/server-runtime/public/runtime", () => ({ holdingResources: state.holding, runtimeEnv: state.env, activeHoldingBindings: state.bindings }));
-vi.mock("@erpx/server-operations/public/staff-settings", () => ({ staffSettings: state.settings }));
-vi.mock("@erpx/server-organization/public/organization", () => ({ organizationOverview: state.organization }));
-vi.mock("@erpx/server-people_payroll/public/people-lifecycle", () => ({ peopleLifecycleData: state.lifecycle }));
-vi.mock("@erpx/server-identity_access/public/iam-context", () => ({ iamContext: state.iam }));
-vi.mock("@erpx/server-identity_access/public/user-management", () => ({ readManagement: state.management }));
-vi.mock("@erpx/server-work_projection/public/staff-page", () => ({ staffPage: state.staff }));
-vi.mock("@erpx/server-operations/public/staff-tasks", () => ({ getProject: state.project, listTasks: vi.fn(), taskDetail: vi.fn() }));
-vi.mock("@erpx/server-legal/public/legal/portal", () => ({ portalContext: state.portal, portalList: state.portalList }));
-vi.mock("@erpx/server-pms/public/pms-booking", () => ({ bookingDatabase: state.booking, bookingCatalog: state.catalog }));
-vi.mock("@erpx/server-work_projection/public/workspace-preferences", () => ({ readWorkspacePreference: state.workspace }));
-vi.mock("@erpx/server-manage_erpx/public/people-app-entrypoint-facts", () => ({ ownerOnboardingSlot: state.slot }));
-vi.mock("@erpx/server-brand/public/branding", async (importOriginal) => ({
+vi.mock("@erpx/platform-runtime-server/public/runtime", () => ({ holdingResources: state.holding, runtimeEnv: state.env, activeHoldingBindings: state.bindings }));
+vi.mock("@erpx/operations-server/public/staff-settings", () => ({ staffSettings: state.settings }));
+vi.mock("@erpx/organization-server/public/organization", () => ({ organizationOverview: state.organization }));
+vi.mock("@erpx/people-payroll-server/public/people-lifecycle", () => ({ peopleLifecycleData: state.lifecycle }));
+vi.mock("@erpx/identity-access-server/public/iam-context", () => ({ iamContext: state.iam }));
+vi.mock("@erpx/identity-access-server/public/user-management", () => ({ readManagement: state.management }));
+vi.mock("@erpx/work-projection-server/public/staff-page", () => ({ staffPage: state.staff }));
+vi.mock("@erpx/operations-server/public/staff-tasks", () => ({ getProject: state.project, listTasks: vi.fn(), taskDetail: vi.fn() }));
+vi.mock("@erpx/legal-server/public/legal/portal", () => ({ portalContext: state.portal, portalList: state.portalList }));
+vi.mock("@erpx/pms-server/public/pms-booking", () => ({ bookingDatabase: state.booking, bookingCatalog: state.catalog }));
+vi.mock("@erpx/work-projection-server/public/workspace-preferences", () => ({ readWorkspacePreference: state.workspace }));
+vi.mock("@erpx/manage-erpx-server/public/people-app-entrypoint-facts", () => ({ ownerOnboardingSlot: state.slot }));
+vi.mock("@erpx/brand-server/public/branding", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   resolveWorkspaceBrand: state.brand.workspace,
   nativeListBrandProfiles: state.brand.profiles,
 }));
-import { peoplePayrollPresentationQueries } from "@erpx/server-people_payroll/public/presentation-queries";
-import { iamPresentationQueries } from "@erpx/server-identity_access/public/presentation-context-queries";
-import { staffPresentationQueries } from "@erpx/server-work_projection/public/presentation-context-queries";
-import { legalPortalPresentationQueries } from "@erpx/server-legal/public/presentation-context-queries";
-import { bookingPresentationQueries } from "@erpx/server-pms/public/presentation-context-queries";
-import { workProjectionPresentationQueries } from "@erpx/server-work_projection/public/presentation-queries";
-import { operationsPresentationQueries } from "@erpx/server-operations/public/presentation-queries";
-import { publicBetaEnabled } from "@erpx/server-runtime/public/presentation-configuration";
-import { savedWorkspaceForPresentation } from "@erpx/server-work_projection/public/workspace-entry-presentation-query";
-import { onboardingPresentationQueries } from "@erpx/server-manage_erpx/public/onboarding-presentation-query";
+import { peoplePayrollPresentationQueries } from "@erpx/people-payroll-server/public/presentation-queries";
+import { iamPresentationQueries } from "@erpx/identity-access-server/public/presentation-context-queries";
+import { staffPresentationQueries } from "@erpx/work-projection-server/public/presentation-context-queries";
+import { legalPortalPresentationQueries } from "@erpx/legal-server/public/presentation-context-queries";
+import { bookingPresentationQueries } from "@erpx/pms-server/public/presentation-context-queries";
+import { workProjectionPresentationQueries } from "@erpx/work-projection-server/public/presentation-queries";
+import { operationsPresentationQueries } from "@erpx/operations-server/public/presentation-queries";
+import { publicBetaEnabled } from "@erpx/platform-runtime-server/public/presentation-configuration";
+import { savedWorkspaceForPresentation } from "@erpx/work-projection-server/public/workspace-entry-presentation-query";
+import { onboardingPresentationQueries } from "@erpx/manage-erpx-server/public/onboarding-presentation-query";
 const actor = state.actor as unknown as WorkContext;
 beforeEach(() => {
   vi.clearAllMocks();

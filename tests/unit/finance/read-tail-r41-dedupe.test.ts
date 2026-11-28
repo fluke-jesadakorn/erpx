@@ -5,12 +5,12 @@ import {
   APPROVED_SECONDARY_CHART_CORRELATED_GUARD,
   withholdingRemittedGuardSql,
   ORIGINAL_PAYMENT_REVERSAL_GUARD,
-} from '../../../packages/server-finance/src/adapters/finance-read-tail-r41-sql';
-import { financePaymentReversalSources } from '../../../packages/server-finance/src/adapters/supplier-payment-correction-sources';
+} from '../../../modules/finance/server/src/adapters/finance-read-tail-r41-sql';
+import { financePaymentReversalSources } from '../../../modules/finance/server/src/adapters/supplier-payment-correction-sources';
 
 vi.mock('server-only', () => ({}));
 
-const srcRoot = resolve(__dirname, '../../../packages/server-finance/src');
+const srcRoot = resolve(__dirname, '../../../modules/finance/server/src');
 const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const helper = read('finance-read-tail-r41-sql.ts');
 const financeAssets = read('finance-assets.ts');

@@ -1,11 +1,11 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_organization::public::organization_nodes::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_organization_server::public::organization_nodes::*;
+use erpx_platform_runtime_server::public::postgres::{
     MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions, load_migrations,
     migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, Clock, CompanyId, HoldingId, TimestampMillis, UserId,
 };
 use serde_json::json;
@@ -123,7 +123,7 @@ fn existing(
     .unwrap()
 }
 
-async fn seed(pool: &erpx_server_runtime::public::postgres::DatabasePool) {
+async fn seed(pool: &erpx_platform_runtime_server::public::postgres::DatabasePool) {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
     let files = load_migrations(root, MigrationTrack::HoldingWrite)
         .await
@@ -164,7 +164,7 @@ async fn seed(pool: &erpx_server_runtime::public::postgres::DatabasePool) {
 }
 
 async fn run<T, F>(
-    pool: erpx_server_runtime::public::postgres::DatabasePool,
+    pool: erpx_platform_runtime_server::public::postgres::DatabasePool,
     f: F,
 ) -> Result<T, PgTransactionError<BusinessError>>
 where
@@ -1251,7 +1251,7 @@ async fn page_read_returns_owned_catalog_facts_with_company_and_placement_isolat
 
 #[tokio::test]
 async fn organization_authority_held_locks_cover_all_three_sources() {
-    use erpx_server_organization::public::{lock_organization_authority_sources,require_organization_authority_sources_held};
+    use erpx_organization_server::public::{lock_organization_authority_sources,require_organization_authority_sources_held};
     fixture::with_database(2, |pool| async move {
         seed(&pool).await;
         let mut outside=pool.raw().acquire().await.unwrap();assert!(require_organization_authority_sources_held(&mut outside).await.is_err());drop(outside);
@@ -1267,7 +1267,7 @@ async fn organization_authority_held_locks_cover_all_three_sources() {
 
 #[tokio::test]
 async fn organization_sales_authority_boundary_checks_canonical_sources_and_unit() {
-    use erpx_server_organization::public::{lock_organization_authority_sources,inspect_organization_sales_authority_boundary};
+    use erpx_organization_server::public::{lock_organization_authority_sources,inspect_organization_sales_authority_boundary};
     fixture::with_database(2,|pool|async move {
         seed(&pool).await;
         let mut tx=pool.raw().begin().await.unwrap();

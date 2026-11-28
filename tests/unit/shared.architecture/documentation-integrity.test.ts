@@ -53,11 +53,15 @@ describe("documentation integrity", () => {
     put(".gitignore", ".scratch/\n.tmp/\n");
     put(".scratch/closed/map.md", "old plan\n");
     put(".tmp/old.md", "temporary\n");
+    put(".scratch-probe.out", "temporary output\n");
+    put(".scratch-probe-cache/state.json", "{}\n");
     put(".scratch/dev/private.txt", "fixture private file\n");
-    execFileSync("git", ["add", "--force", ".scratch/closed/map.md", ".tmp/old.md"], { cwd: root });
-    expect(trackedTemporaryFiles(root)).toEqual([".scratch/closed/map.md", ".tmp/old.md"]);
+    execFileSync("git", ["add", "--force", ".scratch-probe-cache/state.json", ".scratch-probe.out", ".scratch/closed/map.md", ".tmp/old.md"], { cwd: root });
+    expect(trackedTemporaryFiles(root)).toEqual([".scratch-probe-cache/state.json", ".scratch-probe.out", ".scratch/closed/map.md", ".tmp/old.md"]);
     rmSync(join(root, ".scratch/closed/map.md"));
     rmSync(join(root, ".tmp/old.md"));
+    rmSync(join(root, ".scratch-probe.out"));
+    rmSync(join(root, ".scratch-probe-cache/state.json"));
     expect(trackedTemporaryFiles(root)).toEqual([]);
     expect(readFileSync(join(root, ".scratch/dev/private.txt"), "utf8")).toBe("fixture private file\n");
   });

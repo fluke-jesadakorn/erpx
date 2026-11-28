@@ -7,7 +7,7 @@ import {
 	nativeFinanceBankPageFailure,
 	nativeFinanceBankWorkspace,
 	type NativeFinanceBankWorkspace,
-} from '../../../packages/feature-finance/src/adapters/server/native-finance-bank-read';
+} from '../../../modules/finance/ui/src/adapters/server/native-finance-bank-read';
 
 const config = JSON.stringify({
 	privateBaseUrl: 'http://127.0.0.1:44993',

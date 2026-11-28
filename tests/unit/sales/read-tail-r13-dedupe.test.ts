@@ -4,9 +4,9 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { salesPackageSettlementSources } from '../../../packages/server-sales/src/adapters/package-obligations';
+import { salesPackageSettlementSources } from '../../../modules/sales/server/src/adapters/package-obligations';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-sales/src');
+const srcRoot = resolve(__dirname, '../../../modules/sales/server/src');
 const src = readFileSync(resolve(srcRoot, 'adapters/package-obligations.ts'), 'utf8');
 
 // Pre-dedupe literals, copied from HEAD, used only as the byte-identity oracle.

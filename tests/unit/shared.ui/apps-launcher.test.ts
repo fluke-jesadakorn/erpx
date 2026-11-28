@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { appsMemoryKey, buildAppsCompanies, emptyAppsMemory, feedEntryHref, readAppsMemory, recentApps, rememberAppsLaunch, restoreAppsSelection, saveFeedScroll, takeFeedScroll, selectAppsCompany, visibleApps, writeAppsMemory, type AppsEntry, type AppsMemory } from "@erpx/feature-work_projection/lib/apps-launcher";
-import type { HoldingWorkspaceScope } from "@erpx/feature-work_projection/lib/workspace";
+import { appsMemoryKey, buildAppsCompanies, emptyAppsMemory, feedEntryHref, readAppsMemory, recentApps, rememberAppsLaunch, restoreAppsSelection, saveFeedScroll, takeFeedScroll, selectAppsCompany, visibleApps, writeAppsMemory, type AppsEntry, type AppsMemory } from "@erpx/work-projection-ui/lib/apps-launcher";
+import type { HoldingWorkspaceScope } from "@erpx/work-projection-ui/lib/workspace";
 
 const companyScope: HoldingWorkspaceScope = { kind: "holding", holdingSlug: "group" };
 const branchScope: HoldingWorkspaceScope = { kind: "branch", holdingSlug: "group", branchSlug: "bangkok" };
@@ -146,12 +146,12 @@ describe("Optional account-separated browser memory", () => {
 
 const preferences = vi.hoisted(() => ({ workspace: vi.fn(), company: vi.fn(), bindings: vi.fn() }));
 vi.mock('server-only', () => ({}));
-vi.mock('@erpx/server-runtime/public/runtime', () => ({ runtimeEnv: async () => ({ CONTROL_DB: 'control' }), activeHoldingBindings: preferences.bindings }));
-vi.mock('@erpx/server-work_projection/public/workspace-preferences', () => ({ readWorkspacePreference: preferences.workspace, readCompanyPreference: preferences.company }));
+vi.mock('@erpx/platform-runtime-server/public/runtime', () => ({ runtimeEnv: async () => ({ CONTROL_DB: 'control' }), activeHoldingBindings: preferences.bindings }));
+vi.mock('@erpx/work-projection-server/public/workspace-preferences', () => ({ readWorkspacePreference: preferences.workspace, readCompanyPreference: preferences.company }));
 
 describe('Central account workspace memory across product hosts', () => {
   it('reads Company and exact Department for the same account without exposing authority or SSO links', async () => {
-    const { savedAppsWorkspaceForPresentation } = await import('@erpx/server-work_projection/public/workspace-entry-presentation-query');
+    const { savedAppsWorkspaceForPresentation } = await import('@erpx/work-projection-server/public/workspace-entry-presentation-query');
     preferences.workspace.mockResolvedValue({ workspace_path: '/holdings/group/branches/bangkok/departments/accounts/home' });
     preferences.bindings.mockResolvedValue([{ id: 'h1', slug: 'group' }]);
     preferences.company.mockResolvedValue({ company_id: 'c1' });
@@ -163,7 +163,7 @@ describe('Central account workspace memory across product hosts', () => {
     expect(preferences.workspace).toHaveBeenLastCalledWith('control', 'account-b');
   });
   it('treats a removed Holding or Company as an invalid hint to be checked against current choices', async () => {
-    const { savedAppsWorkspaceForPresentation } = await import('@erpx/server-work_projection/public/workspace-entry-presentation-query');
+    const { savedAppsWorkspaceForPresentation } = await import('@erpx/work-projection-server/public/workspace-entry-presentation-query');
     preferences.workspace.mockResolvedValue({ workspace_path: '/holdings/removed/home' });
     preferences.bindings.mockResolvedValue([]);
     const hint = await savedAppsWorkspaceForPresentation('account-a');

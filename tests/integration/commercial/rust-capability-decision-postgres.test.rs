@@ -1,14 +1,14 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_commercial::public::capability_decision::*;
-use erpx_server_commercial::public::purchases::{
+use erpx_commercial_server::public::capability_decision::*;
+use erpx_commercial_server::public::purchases::{
     CapabilityPurpose, PackageDecisionCode, PackageEnforcementMode, current_package_catalogue,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, TimestampMillis};
 use sqlx::Connection;
 
 type Error = PgTransactionError<BusinessError>;
@@ -250,7 +250,7 @@ async fn postgres_current_expired_history_and_settlement_match_the_retained_deci
         };
         assert_eq!(
             error.kind,
-            erpx_server_shared::public::FailureKind::Forbidden
+            erpx_platform_shared_server::public::FailureKind::Forbidden
         );
         assert_eq!(error.code, "PACKAGE_DRAINING");
     })

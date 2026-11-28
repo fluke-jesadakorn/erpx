@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { attachmentArrayFact, attachmentPointFact } from '../../../packages/server-benefits/src/adapters/attachment-read-sources';
+import { attachmentArrayFact, attachmentPointFact } from '../../../modules/benefits/server/src/adapters/attachment-read-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-benefits/src');
+const srcRoot = resolve(__dirname, '../../../modules/benefits/server/src');
 const src = readFileSync(resolve(srcRoot, 'adapters/attachment-read-sources.ts'), 'utf8');
 
 // Pre-dedupe literals, copied from HEAD, used only as the byte-identity oracle.

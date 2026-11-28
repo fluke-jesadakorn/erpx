@@ -1,19 +1,19 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { inventoryExecutiveOwnerProjections as financeProjectionSources } from '../../../packages/server-finance/src/public/inventory-executive-owner-projections';
-import { inventoryExecutiveOwnerProjections as people_payrollProjectionSources } from '../../../packages/server-people_payroll/src/public/inventory-executive-owner-projections';
+import { inventoryExecutiveOwnerProjections as financeProjectionSources } from '../../../modules/finance/server/src/public/inventory-executive-owner-projections';
+import { inventoryExecutiveOwnerProjections as people_payrollProjectionSources } from '../../../modules/people-payroll/server/src/public/inventory-executive-owner-projections';
 import {
   projectActualHoursFrom,
   projectMilestoneOwnerJoin,
   projectMilestoneProjectJoin,
   projectPostedCostFrom,
-} from '../../../packages/server-projects/src/adapters/executive-evidence-chains';
-import { projectOwnerOrMemberColumnSql, socialProjectAudienceSql } from '../../../packages/server-projects/src/adapters/project-read-projections';
-import { socialProjectAudienceReadPredicate } from '../../../packages/server-projects/src/adapters/collaboration-home-sources';
-import { projectSocialSourceReadPolicy } from '../../../packages/server-projects/src/adapters/social-purchase-sources';
+} from '../../../modules/projects/server/src/adapters/executive-evidence-chains';
+import { projectOwnerOrMemberColumnSql, socialProjectAudienceSql } from '../../../modules/projects/server/src/adapters/project-read-projections';
+import { socialProjectAudienceReadPredicate } from '../../../modules/projects/server/src/adapters/collaboration-home-sources';
+import { projectSocialSourceReadPolicy } from '../../../modules/projects/server/src/adapters/social-purchase-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-projects/src');
+const srcRoot = resolve(__dirname, '../../../modules/projects/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 describe('Projects read-tail r25 byte-identical FROM/JOIN family dedupe', () => {

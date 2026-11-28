@@ -1,12 +1,12 @@
 // Native PMS staff reservation command domain/application facts. No database,
 // browser, adapter, persisted receipt or HTTP acceptance is inferred.
-#[path = "../../../packages/server-pms/src/application/reservation.rs"]
+#[path = "../../../modules/pms/server/src/application/reservation.rs"]
 pub mod application_reservation;
-#[path = "../../../packages/server-pms/src/application/room_board.rs"]
+#[path = "../../../modules/pms/server/src/application/room_board.rs"]
 pub mod application_room_board;
-#[path = "../../../packages/server-pms/src/domain/reservation.rs"]
+#[path = "../../../modules/pms/server/src/domain/reservation.rs"]
 pub mod reservation;
-#[path = "../../../packages/server-pms/src/domain/room_board.rs"]
+#[path = "../../../modules/pms/server/src/domain/room_board.rs"]
 pub mod room_board;
 
 pub mod domain {
@@ -24,7 +24,7 @@ use domain::reservation::{
     plan_reservation_command,
 };
 use domain::room_board::{PmsBoardActor, PmsPropertyRow, PmsRecord};
-use erpx_server_shared::public::{CommandKey, FailureKind};
+use erpx_platform_shared_server::public::{CommandKey, FailureKind};
 use serde_json::json;
 
 fn board() -> PmsBoardActor {
@@ -230,7 +230,7 @@ fn with_reservation(facts: &mut PmsReservationFacts) {
     )];
 }
 
-fn code(error: &erpx_server_shared::public::BusinessError) -> &'static str {
+fn code(error: &erpx_platform_shared_server::public::BusinessError) -> &'static str {
     error.code
 }
 

@@ -2,14 +2,14 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
-import { ApiError } from "@erpx/server-runtime/public/http";
+import { ApiError } from "@erpx/platform-runtime-server/public/http";
 import {
   createNativeLane19Client,
   nativeLane19Configured,
   nativeLane19GuestAccountEvidence,
   parseNativeLane19Config,
   type NativeLane19Actor,
-} from "../../../packages/server-pms/src/adapters/native-lane-19/client";
+} from "../../../modules/pms/server/src/adapters/native-lane-19/client";
 
 const ENV = "ERPX_NATIVE_LANE_19_CONFIG";
 
@@ -266,7 +266,7 @@ describe("native lane 19 guest-account evidence transport", () => {
 
   it("leaves no SQL in the replaced TypeScript adapter", () => {
     const source = readFileSync(
-      new URL("../../../packages/server-pms/src/adapters/guest-account-finance-evidence.ts", import.meta.url),
+      new URL("../../../modules/pms/server/src/adapters/guest-account-finance-evidence.ts", import.meta.url),
       "utf8",
     );
     expect(source).not.toMatch(/\bSELECT\b/i);

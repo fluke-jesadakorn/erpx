@@ -2,7 +2,7 @@
  * Native-seeding oracle for retained CRM activity integration reads.
  *
  * The TypeScript `createCRMActivity` / `changeCRMActivity` writers were retired
- * with the native CRM activity command (`packages/server-crm/src/adapters/
+ * with the native CRM activity command (`modules/crm/server/src/adapters/
  * activities_native.rs` + composition `CrmActivityCommandService`). This helper
  * is test-only. It writes the same `crm_lead_activities` and immutable
  * `crm_lead_activity_events` rows as the native owner adapter so the retained
@@ -13,7 +13,7 @@
  * command paths are covered by the Rust owner tests. Do not import this module
  * outside tests.
  */
-import type {SqlDatabase,TransactionalSqlDatabase} from "@erpx/server-runtime/public/runtime/types";
+import type {SqlDatabase,TransactionalSqlDatabase} from "@erpx/platform-runtime-server/public/runtime/types";
 
 type ActivityRow = Readonly<{
   id: string;

@@ -1,13 +1,13 @@
 //! Files-side Projects attachment binding guards. No database or bytes involved.
-use erpx_server_files::public::project_attachment::{
+use erpx_files_server::public::project_attachment::{
     PROJECT_ATTACHMENT_BINDING_TYPE, PROJECT_ATTACHMENT_PURPOSES,
     validate_project_attachment_binding,
 };
-use erpx_server_projects::public::project_attachment::{
+use erpx_projects_server::public::project_attachment::{
     ProjectAttachmentBindingCommand, ProjectAttachmentGrant, ProjectAttachmentPurpose,
     ProjectAttachmentTargetType,
 };
-use erpx_server_shared::public::CompanyId;
+use erpx_platform_shared_server::public::CompanyId;
 
 fn grant_fixture() -> ProjectAttachmentGrant {
     ProjectAttachmentGrant {

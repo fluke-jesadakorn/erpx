@@ -3,15 +3,15 @@
 //! idempotency, POS audit persistence, rollback and committed readback. They do
 //! not prove a Next/browser journey, Finance/Inventory effects or composition
 //! mounting.
-use erpx_server_pos::public::cash_movement::{
+use erpx_pos_server::public::cash_movement::{
     CashMovementActor, CashMovementReceipt, CreateCashMovement, PgCashMovementCommand,
     create_cash_movement, valid_uuid,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabaseConfig, DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, PoolLimits,
     TransactionOptions, connect_pool, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, RecordId,
     TimestampMillis, UserId,
 };
@@ -568,7 +568,7 @@ fn rollback_clears_owner_rows_and_committed_readback_survives() {
                         let id = receipt.id.clone();
                         Box::pin(async move {
                             let mut repository = PgCashMovementCommand::new(connection);
-                            let value = erpx_server_pos::public::cash_movement::CashMovementRepository::readback(
+                            let value = erpx_pos_server::public::cash_movement::CashMovementRepository::readback(
                                 &mut repository,
                                 &id,
                                 "shift-1",

@@ -15,15 +15,15 @@
 //! them.
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_collaboration::public::inbox::{
+use erpx_collaboration_server::public::inbox::{
     CustomerInboxTargets, InboxTarget, InboxTargetPort, PgInboxTargets,
 };
-use erpx_server_commercial::public::purchases::PackageEnforcementMode;
-use erpx_server_runtime::public::postgres::{
+use erpx_commercial_server::public::purchases::PackageEnforcementMode;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 
 async fn seed(pool: &DatabasePool) {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
@@ -454,7 +454,7 @@ async fn port_commits_nothing_and_rolls_back_with_the_caller() {
                             .await?;
                         assert!(resolved.is_some());
                         Err(BusinessError::new(
-                            erpx_server_shared::public::FailureKind::Conflict,
+                            erpx_platform_shared_server::public::FailureKind::Conflict,
                             "SYNTHETIC_ROLLBACK",
                             "Synthetic caller failure.",
                         )

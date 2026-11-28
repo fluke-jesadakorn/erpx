@@ -1,0 +1,86 @@
+[package]
+name="erpx-work-projection-server"
+version.workspace=true
+edition.workspace=true
+rust-version.workspace=true
+license.workspace=true
+publish.workspace=true
+autotests=false
+[lib]
+path="src/lib.rs"
+[features]
+contracts=["dep:ts-rs","dep:utoipa"]
+[dependencies]
+serde.workspace=true
+serde_json.workspace=true
+ts-rs={workspace=true,optional=true}
+utoipa={workspace=true,optional=true}
+erpx-platform-shared-server.workspace=true
+erpx-platform-runtime-server.workspace=true
+erpx-workflow-server.workspace=true
+erpx-field-service-server.workspace = true
+erpx-support-server.workspace = true
+erpx-finance-server.workspace = true
+erpx-collaboration-server.workspace = true
+erpx-operations-server.workspace = true
+erpx-maintenance-server.workspace = true
+erpx-quality-server.workspace = true
+erpx-learning-server.workspace = true
+erpx-marketing-server.workspace = true
+erpx-organization-server.workspace = true
+erpx-benefits-server.workspace = true
+erpx-customer-authority-server.workspace = true
+erpx-identity-access-server.workspace = true
+sqlx.workspace=true
+sha2.workspace=true
+[dev-dependencies]
+tokio.workspace=true
+uuid.workspace=true
+
+[[test]]
+name="quick_access_preferences_postgres"
+path="../../../tests/integration/shared.work/rust-quick-access-preferences-postgres.test.rs"
+
+[[test]]
+name="work_role_initialization"
+path="../../../tests/unit/shared.work/rust-work-role-initialization.test.rs"
+
+[[test]]
+name = "work_snapshot_maintenance_postgres"
+path = "../../../tests/integration/shared.work/rust-work-snapshot-maintenance-postgres.test.rs"
+
+[[test]]
+name = "work_card_preferences_postgres"
+path = "../../../tests/integration/shared.work/rust-work-card-preferences-postgres.test.rs"
+
+[[test]]
+name = "work_report_projection_postgres"
+path = "../../../tests/integration/shared.work/rust-work-report-projection-postgres.test.rs"
+
+[[test]]
+name = "work_navigation_postgres"
+path = "../../../tests/integration/shared.work/rust-work-navigation-postgres.test.rs"
+
+[[test]]
+name = "work_home_unread_http"
+path = "../../../tests/unit/shared.work/rust-work-home-unread-http.test.rs"
+
+[[test]]
+name = "work_projection_calendar_spec"
+path = "../../../tests/unit/work_projection/rust-work-projection-calendar-spec.test.rs"
+
+[[test]]
+name = "work_projection_calendar_read_spec"
+path = "../../../tests/unit/work_projection/rust-work-projection-calendar-read-spec.test.rs"
+
+[[test]]
+name = "work_projection_calendar_read_postgres"
+path = "../../../tests/integration/work_projection/rust-calendar-read-postgres.test.rs"
+
+[[test]]
+name = "work_report_read_http"
+path = "../../../tests/unit/shared.work/rust-work-report-http.test.rs"
+
+[[test]]
+name = "work_report_composition"
+path = "../../../tests/unit/shared.work/rust-work-report-composition.test.rs"

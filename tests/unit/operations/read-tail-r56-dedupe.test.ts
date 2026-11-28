@@ -3,14 +3,14 @@ import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { OPERATIONS_SELECT_1_FROM } from '../../../packages/server-operations/src/adapters/read-tail-r56-sources';
-import { projectSourceProbe } from '../../../packages/server-operations/src/adapters/record-purchases';
+import { OPERATIONS_SELECT_1_FROM } from '../../../modules/operations/server/src/adapters/read-tail-r56-sources';
+import { projectSourceProbe } from '../../../modules/operations/server/src/adapters/record-purchases';
 import {
   OPERATIONS_CLOCK_CTE_SQL, OPERATIONS_VIEWER_CLOCK_SQL, operationsClockProbe, operationsViewerClockHead,
-} from '../../../packages/server-operations/src/adapters/workforce-actor-scope-source';
+} from '../../../modules/operations/server/src/adapters/workforce-actor-scope-source';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-operations/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-operations/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/operations/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/operations/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const sha = (sql: string) => createHash('sha256').update(sql).digest('hex');
 const binds = (sql: string) => (sql.match(/\?/g) ?? []).length;
 

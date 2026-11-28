@@ -7,18 +7,18 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgUnitOfWork, TransactionOptions, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CommandKey};
-use erpx_server_work_projection::public::calendar_read::{
+use erpx_platform_shared_server::public::{BusinessError, CommandKey};
+use erpx_work_projection_server::public::calendar_read::{
     CalendarReadCommand, READ_60, READ_61, READ_62, READ_63, READ_64, READ_65, READ_66, READ_67,
     execute_calendar_read,
 };
-use erpx_server_work_projection::public::owner_write::{
+use erpx_work_projection_server::public::owner_write::{
     OwnerWriteCommand, PgOwnerWrite, WP_CAL_APPOINTMENT_STATUS, execute_owner_write,
 };
-use erpx_server_work_projection::public::calendar_read_tail::CalendarReadTail;
+use erpx_work_projection_server::public::calendar_read_tail::CalendarReadTail;
 use serde_json::{Value, json};
 use sqlx::Row;
 

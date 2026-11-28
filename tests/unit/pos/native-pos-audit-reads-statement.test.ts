@@ -4,7 +4,7 @@ vi.mock('server-only', () => ({}));
 import {
   nativePosAuditChargeToRoomStatement,
   nativePosAuditKitchenStartStatement,
-} from '../../../packages/server-pos/src/adapters/native-pos-audit-reads';
+} from '../../../modules/pos/server/src/adapters/native-pos-audit-reads';
 
 const config = () => JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:44994', timeoutMs: 1000 });
 const previous = process.env.ERPX_NATIVE_POS_OWNER_CONFIG;
@@ -90,17 +90,17 @@ describe('native POS audit actor read bridge', () => {
   });
 
   it('keeps no retired audit actor SQL literal in the TS core adapter', () => {
-    const core = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-core.ts', import.meta.url), 'utf8');
+    const core = readFileSync(new URL('../../../modules/pos/server/src/adapters/pos-core.ts', import.meta.url), 'utf8');
     for (const item of cases) expect(core).not.toContain(item.sql);
     for (const fn of ['nativePosAuditChargeToRoomStatement', 'nativePosAuditKitchenStartStatement'])
       expect(core).toContain(fn);
   });
 
   it('keeps row locks, the day-report registry and the Stripe registry inline', () => {
-    const core = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-core.ts', import.meta.url), 'utf8');
+    const core = readFileSync(new URL('../../../modules/pos/server/src/adapters/pos-core.ts', import.meta.url), 'utf8');
     expect(core).toContain("const posSaleByIdLockSql = (): string => 'SELECT * FROM pos_sales WHERE id=? FOR UPDATE';");
     expect(core).toContain("SELECT * FROM pos_fulfillments WHERE id=? FOR UPDATE");
-    const owner = readFileSync(new URL('../../../packages/server-pos/src/adapters/owner_writes.rs', import.meta.url), 'utf8');
+    const owner = readFileSync(new URL('../../../modules/pos/server/src/adapters/owner_writes.rs', import.meta.url), 'utf8');
     expect(owner).toContain('crate::adapters::day_report_reads::SETTLEMENTS');
     expect(owner).toContain('crate::adapters::stripe_reads::REFUND_ID_BY_PROVIDER');
     expect(owner).toContain('crate::adapters::audit_reads::AUDIT_ACTOR_CHARGE_TO_ROOM');

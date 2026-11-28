@@ -1,13 +1,13 @@
 //! HTTP transport tests for the native Procurement supplier-invoice policy read.
 //! These prove target/origin isolation, the retained response envelope and the
 //! closed error mapping; the owner payload is projected in the crate unit tests.
-//! Register as a `[[test]]` target in packages/server-procurement/Cargo.toml.
-use erpx_server_procurement::public::supplier_bill_policy_read::{
+//! Register as a `[[test]]` target in modules/procurement/server/Cargo.toml.
+use erpx_procurement_server::public::supplier_bill_policy_read::{
     SupplierBillPolicyHttpBackend, SupplierBillPolicyHttpFuture, SupplierBillPolicyHttpRequest,
     SupplierBillPolicyHttpResponse, SupplierBillPolicyHttpTarget, supplier_bill_policy_http_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::Arc;
 
 fn policy() -> serde_json::Value {

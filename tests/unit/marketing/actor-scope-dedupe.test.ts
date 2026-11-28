@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-marketing/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/marketing/server/src/adapters/${name}`, import.meta.url);
 
 const scope = '(SELECT ?::text company_id,?::text branch_id,?::text department_id)';
 
@@ -36,14 +36,14 @@ describe('marketing actor-scope subquery dedupe', () => {
 
   it('emits the original byte-identical scope for the canonical const', async () => {
     const { marketingActorScopeSql } = await import(
-      '../../../packages/server-marketing/src/adapters/marketing-actor-scope-sql.ts'
+      '../../../modules/marketing/server/src/adapters/marketing-actor-scope-sql.ts'
     );
     expect(marketingActorScopeSql).toBe(scope);
   });
 
   it('preserves the original emitted reviewer-guard suffix and alias spacing', async () => {
     const { attachmentReviewerGuardSql } = await import(
-      '../../../packages/server-marketing/src/adapters/attachment-reviewer-guard.ts'
+      '../../../modules/marketing/server/src/adapters/attachment-reviewer-guard.ts'
     );
     expect(attachmentReviewerGuardSql()).toContain(` FROM ${scope} marketing_file_review`);
     expect(attachmentReviewerGuardSql('allowed')).toContain(` allowed FROM ${scope} marketing_file_review`);

@@ -1,4 +1,4 @@
-use erpx_server_finance::public::journal_review::{JournalReviewInput, JournalReviewResult};
+use erpx_finance_server::public::journal_review::{JournalReviewInput, JournalReviewResult};
 use ts_rs::{Config, TS};
 #[derive(utoipa::ToSchema)]
 struct JournalPostResponse {

@@ -10,11 +10,11 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_commerce::public::order_http::{
+use erpx_commerce_server::public::order_http::{
     CommerceOrderHttpTarget, commerce_order_http_router,
 };
-use erpx_server_shared::public::{CompanyId, HoldingId};
-use erpx_service::{
+use erpx_platform_shared_server::public::{CompanyId, HoldingId};
+use erpx_platform_composition::{
     commerce::{CommerceBackend, CommerceConfiguration, CommerceService},
     finance_journal_detail_http::FinanceJournalReadScopeHeaders,
 };
@@ -75,13 +75,13 @@ async fn json(response: axum::response::Response) -> (StatusCode, serde_json::Va
 }
 
 async fn snapshot(
-    db: &erpx_server_runtime::public::postgres::DatabasePool,
+    db: &erpx_platform_runtime_server::public::postgres::DatabasePool,
     id: &str,
 ) -> serde_json::Value {
     sqlx::query_scalar("SELECT jsonb_build_object('order',to_jsonb(o),'lines',COALESCE((SELECT jsonb_agg(to_jsonb(l) ORDER BY l.id) FROM public.commerce_order_lines l WHERE l.order_id=o.id),'[]'::jsonb)) FROM public.commerce_orders o WHERE o.id=$1").bind(id).fetch_one(db.raw()).await.unwrap()
 }
 async fn money_snapshot(
-    db: &erpx_server_runtime::public::postgres::DatabasePool,
+    db: &erpx_platform_runtime_server::public::postgres::DatabasePool,
     company: &str,
 ) -> serde_json::Value {
     sqlx::query_scalar("SELECT COALESCE(jsonb_agg(jsonb_build_object('source_type',source_type,'source_id',source_id,'amount_kind',amount_kind,'transaction_date',transaction_date::text,'currency',currency,'currency_scale',currency_scale,'amount_units',amount_units::text,'usd_units',usd_units::text,'fx_rate_id',fx_rate_id,'used_latest_fallback',used_latest_fallback) ORDER BY source_type,source_id,amount_kind),'[]'::jsonb) FROM public.money_transaction_snapshots WHERE company_id=$1 AND source_type IN ('commerce_order_revision','commerce_order_line_revision')").bind(company).fetch_one(db.raw()).await.unwrap()
@@ -129,7 +129,7 @@ fn expected_money(
     rows
 }
 async fn assert_saved_effects(
-    db: &erpx_server_runtime::public::postgres::DatabasePool,
+    db: &erpx_platform_runtime_server::public::postgres::DatabasePool,
     key: &str,
     id: &str,
     company: &str,
@@ -198,8 +198,8 @@ async fn two_companies_use_normal_sso_and_selected_context_without_cross_company
         }
         #[cfg(feature="private-field-api")]
         {
-            use erpx_service::private_development_api::{assemble_development_api,DevelopmentApiConfiguration};
-            use erpx_server_identity_access::public::SystemAuthenticationSecrets;
+            use erpx_platform_composition::private_development_api::{assemble_development_api,DevelopmentApiConfiguration};
+            use erpx_identity_access_server::public::SystemAuthenticationSecrets;
             let mut document=private_session_config::document(&p.system.control,&p.system.holdings).await;
             document["commerceCompanies"]=serde_json::json!([{"holdingId":"h001","companyId":"company"},{"holdingId":"h001","companyId":"foreign"}]);
             let config=DevelopmentApiConfiguration::parse(&document.to_string()).expect("two distinct Company targets should parse");
@@ -453,9 +453,9 @@ async fn two_companies_use_normal_sso_and_selected_context_without_cross_company
 
 #[tokio::test]
 async fn records_and_procurement_linkage_matches_original_typescript_and_detects_deferred_drift() {
-    use erpx_service::commerce_request_linkage::{inspect,lock_sources};
+    use erpx_platform_composition::commerce_request_linkage::{inspect,lock_sources};
     let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let script=r#"if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');const fs=await import('node:fs'),a=await import('./packages/server-records/src/adapters/commerce-final-owner-projection-sources.ts'),b=await import('./packages/server-procurement/src/adapters/commerce-final-owner-projection-sources.ts');const text=fs.readFileSync('./packages/server-commerce/src/adapters/commerce.ts','utf8'),m=text.match(/readEmployeeRequests1:[\s\S]*?db\.prepare\(`([^`]+)`\)/);if(!m)throw Error('SOURCE_CHANGED');let sql=m[1].replace('${recordsProjectionSources.employee_requests}',a.commerceFinalOwnerProjectionSources.employee_requests).replace('${procurementProjectionSources.procurement_request_orders}',b.commerceFinalOwnerProjectionSources.procurement_request_orders);if(sql.includes('${')||(sql.match(/\?/g)||[]).length!==3)throw Error('SOURCE_BINDS_CHANGED');let n=0;sql=sql.replace(/\?/g,()=>++n===1?'$2':'$1');process.stdout.write(sql);"#;
+    let script=r#"if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');const fs=await import('node:fs'),a=await import('./modules/records/server/src/adapters/commerce-final-owner-projection-sources.ts'),b=await import('./modules/procurement/server/src/adapters/commerce-final-owner-projection-sources.ts');const text=fs.readFileSync('./modules/commerce/server/src/adapters/commerce.ts','utf8'),m=text.match(/readEmployeeRequests1:[\s\S]*?db\.prepare\(`([^`]+)`\)/);if(!m)throw Error('SOURCE_CHANGED');let sql=m[1].replace('${recordsProjectionSources.employee_requests}',a.commerceFinalOwnerProjectionSources.employee_requests).replace('${procurementProjectionSources.procurement_request_orders}',b.commerceFinalOwnerProjectionSources.procurement_request_orders);if(sql.includes('${')||(sql.match(/\?/g)||[]).length!==3)throw Error('SOURCE_BINDS_CHANGED');let n=0;sql=sql.replace(/\?/g,()=>++n===1?'$2':'$1');process.stdout.write(sql);"#;
     let oracle=std::process::Command::new(std::env::var("ERPX_NODE_BIN").expect("pinned Node required")).current_dir(root).args(["--conditions=react-server","--input-type=module","-e",script]).output().unwrap();assert!(oracle.status.success(),"actual TS oracle: {}",String::from_utf8_lossy(&oracle.stderr));let original=String::from_utf8(oracle.stdout).unwrap();
     review::account::with_system(|system|async move {
         let prepared=review::setup_with_finance(system,false).await;let db=&prepared.system.holdings[0];

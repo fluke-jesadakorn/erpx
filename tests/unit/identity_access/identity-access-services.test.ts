@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
-import { createIdentitySession, createPlatformContext, createRequestedHoldingScope } from "@erpx/server-identity_access/application/authorization";
-import { createBetaAccess } from "@erpx/server-identity_access/application/beta-access";
-import { createRequirePermission } from "@erpx/server-identity_access/application/permissions";
-import { createIamActorFromWork } from "@erpx/server-identity_access/application/iam-context";
-import type { IdentitySession, WorkContext } from "@erpx/server-identity_access/domain/authorization";
-import type { RoleRevision, PermissionActor } from "@erpx/feature-identity_access/lib/iam";
+import { createIdentitySession, createPlatformContext, createRequestedHoldingScope } from "@erpx/identity-access-server/application/authorization";
+import { createBetaAccess } from "@erpx/identity-access-server/application/beta-access";
+import { createRequirePermission } from "@erpx/identity-access-server/application/permissions";
+import { createIamActorFromWork } from "@erpx/identity-access-server/application/iam-context";
+import type { IdentitySession, WorkContext } from "@erpx/identity-access-server/domain/authorization";
+import type { RoleRevision, PermissionActor } from "@erpx/identity-access-ui/lib/iam";
 const error = (status: number, code: string, message: string) => Object.assign(new Error(message), { status, code });
 const session: IdentitySession = { session: { id: "session", expiresAt: new Date(5000) }, user: { id: "user", name: "User", email: "user@example.test" } };
 const role: RoleRevision = { id: "employee", name: "Employee", companyId: "company", revision: 1, builtIn: true, permissions: [], grantablePermissions: [], scopes: ["holding"], status: "active" };
@@ -17,8 +17,8 @@ describe("Identity workspace and principal policies through semantic ports", () 
     it("dispatches page permission failures through the framework port", () => { const forbidden = vi.fn<() => never>(() => { throw new Error("page forbidden"); }); expect(() => createRequirePermission({ error, forbidden })({ role: "employee", pageRequest: true }, "iam.manage")).toThrow("page forbidden"); expect(forbidden).toHaveBeenCalledOnce(); });
     it("requires fresh authority before converting a work role into an IAM actor", () => { expect(() => createIamActorFromWork({ error })({ userId: "user" } as WorkContext)).toThrow(expect.objectContaining({ code: "FRESH_MFA_REQUIRED" })); });
 });
-import { createIamCommand, type IamCommandTransaction } from "@erpx/server-identity_access/application/iam-command";
-import type { IamActor } from "@erpx/server-identity_access/domain/iam-actor";
+import { createIamCommand, type IamCommandTransaction } from "@erpx/identity-access-server/application/iam-command";
+import type { IamActor } from "@erpx/identity-access-server/domain/iam-actor";
 const iamActor: IamActor = { userId: "user", assignmentId: "assignment", role: "holding_owner", companyId: "company", sessionId: "session", holdingId: "h001", scopeKind: "holding", scopeNodeId: null, branchId: null, departmentId: null, platform: false, iam, authority: { revision: 4, assignmentVersion: 1, sessionId: "session" } };
 function command() { const tx: IamCommandTransaction<{
     ok: boolean;
@@ -37,8 +37,8 @@ describe("Identity command policy inside an owned transaction", () => {
     it("checks sensitive-command MFA after business changes and before receipt or audit", async () => { const c = command(); c.tx.freshMfa = vi.fn(async () => { throw error(403, "FRESH_MFA_REQUIRED", "Verify MFA"); }); await expect(c.run(iamActor, "command-key", "role.propose", {}, "iam.manage")).rejects.toMatchObject({ code: "FRESH_MFA_REQUIRED" }); expect(c.tx.perform).toHaveBeenCalledOnce(); expect(c.tx.recordReceipt).not.toHaveBeenCalled(); expect(c.tx.recordAudit).not.toHaveBeenCalled(); });
     it("records receipt and audit after a successful independent change", async () => { const c = command(); expect(await c.run(iamActor, "command-key", "review.decide", { review: "id" }, "iam.manage")).toEqual({ ok: true }); expect(c.tx.freshMfa).toHaveBeenCalledOnce(); expect(c.tx.recordReceipt).toHaveBeenCalledWith(expect.objectContaining({ operation: "review.decide", digest: "digest" }), { ok: true }, 1000); expect(c.tx.recordAudit).toHaveBeenCalledOnce(); });
 });
-import { createBeginMfa, createVerifyMfa, createRequireFreshMfa } from "@erpx/server-identity_access/application/mfa";
-import { createIamAuthority, createCurrentPersonPrincipals, type IamAuthorityPorts } from "@erpx/server-identity_access/application/authority";
+import { createBeginMfa, createVerifyMfa, createRequireFreshMfa } from "@erpx/identity-access-server/application/mfa";
+import { createIamAuthority, createCurrentPersonPrincipals, type IamAuthorityPorts } from "@erpx/identity-access-server/application/authority";
 const mfaActor = { userId: 'user', sessionId: 'session' };
 function authority(): IamAuthorityPorts { return { role: async () => role, member: async () => null, person: async () => null, aliases: async () => [], emergency: async () => null, hrAppointment: async () => null, now: () => 1000, error }; }
 describe('Identity MFA, principals and emergency access policies', () => {
@@ -53,7 +53,7 @@ describe('Identity MFA, principals and emergency access policies', () => {
 
 it('keeps one fixed POS Stripe holding-assignment role projection for both facts reads', async () => {
     const { readFile } = await import("node:fs/promises");
-    const source = await readFile(new URL("../../../packages/server-identity_access/src/adapters/pos-stripe-facts.ts", import.meta.url), "utf8");
+    const source = await readFile(new URL("../../../modules/identity-access/server/src/adapters/pos-stripe-facts.ts", import.meta.url), "utf8");
     expect(source).toContain("const holdingAssignmentRoleSql");
     expect(source.split('assignmentRoleSql("scope_kind=\'holding\' AND revoked_at IS NULL AND valid_from<=? AND valid_until>?")').length - 1).toBe(1);
     expect(source.split("one(db,holdingAssignmentRoleSql,").length - 1).toBe(2);
@@ -61,7 +61,7 @@ it('keeps one fixed POS Stripe holding-assignment role projection for both facts
 
 it('keeps one fixed Records active-assignment projection for both facts reads', async () => {
     const { readFile } = await import("node:fs/promises");
-    const source = await readFile(new URL("../../../packages/server-identity_access/src/adapters/records-records-facts.ts", import.meta.url), "utf8");
+    const source = await readFile(new URL("../../../modules/identity-access/server/src/adapters/records-records-facts.ts", import.meta.url), "utf8");
     expect(source).toContain("const activeAssignmentSql");
     expect(source.split("SELECT 1 AS ok FROM assignments WHERE user_id=?").length - 1).toBe(1);
     expect(source.split("database.prepare(activeAssignmentSql)").length - 1).toBe(2);
@@ -69,7 +69,7 @@ it('keeps one fixed Records active-assignment projection for both facts reads', 
 
 it('keeps one fixed People roster role-authorization projection for both facts reads', async () => {
     const { readFile } = await import("node:fs/promises");
-    const source = await readFile(new URL("../../../packages/server-identity_access/src/adapters/people-roster-facts.ts", import.meta.url), "utf8");
+    const source = await readFile(new URL("../../../modules/identity-access/server/src/adapters/people-roster-facts.ts", import.meta.url), "utf8");
     // r14: the roster projection now shares the owner's single role probe literal.
     expect(source).toContain('import { roleAllowsSql } from "./iam-probe-sql";');
     expect(source).not.toContain("SELECT 1 WHERE iam_role_allows(?,?,?)");

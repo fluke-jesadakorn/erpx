@@ -4,10 +4,10 @@
 #[path = "../../support/rust-postgres.rs"]
 #[allow(dead_code)]
 mod fixture;
-use erpx_server_inventory::public::supply_package_obligations::{
+use erpx_inventory_server::public::supply_package_obligations::{
     lock_supply_inventory_package_sources, read_supply_inventory_package_obligations,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
 

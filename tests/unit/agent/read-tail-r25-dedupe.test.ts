@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { readFile, readdir } from 'node:fs/promises';
-import { agentMonthlyUnionCountSql } from '../../../packages/server-agent/src/adapters/read-tail-r25-source-sql';
-import { collaborationAiSources } from '@erpx/server-agent/adapters/collaboration-ai-sources';
-import { executiveGenerationQuota } from '@erpx/server-agent/adapters/executive-generation-quota';
+import { agentMonthlyUnionCountSql } from '../../../modules/agent/server/src/adapters/read-tail-r25-source-sql';
+import { collaborationAiSources } from '@erpx/agent-server/adapters/collaboration-ai-sources';
+import { executiveGenerationQuota } from '@erpx/agent-server/adapters/executive-generation-quota';
 
 const src = (name: string) =>
-  readFile(new URL(`../../../packages/server-agent/src/${name}`, import.meta.url), 'utf8');
+  readFile(new URL(`../../../modules/agent/server/src/${name}`, import.meta.url), 'utf8');
 
 async function agentSelectCount(dir: URL): Promise<number> {
   let total = 0;
@@ -68,7 +68,7 @@ describe('Agent read-tail r25 dedupe (BEFORE=49)', () => {
     expect(gov).not.toContain('EXISTS(SELECT 1 FROM agent_pool_members m WHERE m.pool_id=p.id');
   });
 
-  it('KPI: TS SELECT tokens in packages/server-agent/src drop from 49 to 42', async () => {
-    expect(await agentSelectCount(new URL('../../../packages/server-agent/src/', import.meta.url))).toBe(38);
+  it('KPI: TS SELECT tokens in modules/agent/server/src drop from 49 to 42', async () => {
+    expect(await agentSelectCount(new URL('../../../modules/agent/server/src/', import.meta.url))).toBe(38);
   });
 });

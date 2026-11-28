@@ -1,5 +1,5 @@
-use erpx_server_runtime::public::http_support::{serde_json,serve};
-use erpx_server_customer_authority::public::portal_support_commands::{CustomerAckBackend,CustomerAckRequest,CustomerTarget,StaffBackend,StaffCommand,StaffRequest,SupportFuture,SupportReply,SupportTarget,portal_support_customer_router,portal_support_staff_router};
+use erpx_platform_runtime_server::public::http_support::{serde_json,serve};
+use erpx_customer_authority_server::public::portal_support_commands::{CustomerAckBackend,CustomerAckRequest,CustomerTarget,StaffBackend,StaffCommand,StaffRequest,SupportFuture,SupportReply,SupportTarget,portal_support_customer_router,portal_support_staff_router};
 use std::sync::{Arc,Mutex};
 struct Probe{seen:Arc<Mutex<Vec<String>>>}
 impl StaffBackend for Probe{fn execute<'a>(&'a self,r:StaffRequest<'a>)->SupportFuture<'a,SupportReply>{Box::pin(async move{let label=match &r.command{StaffCommand::Respond{request_id,input}=>format!("respond|{request_id}|{}|{}",input.expected_binding_version,input.expected_response_version),StaffCommand::Close{request_id,input}=>format!("close|{request_id}|{}",input.expected_binding_version)};self.seen.lock().unwrap().push(format!("{}|{}|{}|{}",r.host,r.holding_slug,r.key,label));Ok(SupportReply{data:serde_json::json!({"id":"receipt","requestId":"request","bindingId":"binding","version":1,"status":"published","publishedAt":1}),context:serde_json::json!({"userId":"user"})})})}}

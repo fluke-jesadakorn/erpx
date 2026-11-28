@@ -1,17 +1,17 @@
 //! Native Ecommerce catalog, channel-draft and review policy/sequencing.
-use erpx_server_ecommerce::public::catalog::{
+use erpx_ecommerce_server::public::catalog::{
     CATALOG_LIMIT, EcommerceCatalogRepository, EcommerceChannelRow, EcommerceFuture,
     EcommerceListingRow, storefront_catalog,
 };
-use erpx_server_ecommerce::public::channel::{
+use erpx_ecommerce_server::public::channel::{
     AuditEntry, ChannelDraft, ChannelReadback, CommandReceipt, CreateChannel,
     EcommerceCommandRepository, OutboxEntry, ReceiptEntry, create_channel,
 };
-use erpx_server_ecommerce::public::review::{
+use erpx_ecommerce_server::public::review::{
     ReviewAction, ReviewCommand, ReviewKind, ReviewReadback, ReviewSource, ValidatedReview,
     review_ecommerce_record,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, RecordId,
     TimestampMillis, UserId,
 };
@@ -21,8 +21,8 @@ const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
 const KEY: &str = "ecommerce-command-0001";
 const CHANNEL_ID: &str = "ecommerce-channel-ecommerce-command-0001";
 
-fn actor() -> erpx_server_ecommerce::public::catalog::EcommerceActor {
-    erpx_server_ecommerce::public::catalog::EcommerceActor {
+fn actor() -> erpx_ecommerce_server::public::catalog::EcommerceActor {
+    erpx_ecommerce_server::public::catalog::EcommerceActor {
         user_id: UserId::new("user").unwrap(),
         holding_id: HoldingId::new("h001").unwrap(),
         company_id: CompanyId::new("company").unwrap(),
@@ -155,7 +155,7 @@ impl EcommerceCommandRepository for CommandProbe {
 
     fn insert_channel<'a>(
         &'a mut self,
-        _: &'a erpx_server_ecommerce::public::catalog::EcommerceActor,
+        _: &'a erpx_ecommerce_server::public::catalog::EcommerceActor,
         channel: &'a ChannelDraft,
         _: TimestampMillis,
     ) -> EcommerceFuture<'a, bool, Self::Error> {
@@ -190,7 +190,7 @@ impl EcommerceCommandRepository for CommandProbe {
         &'a mut self,
         _: &'a ValidatedReview,
         _: &'a CompanyId,
-        _: &'a erpx_server_ecommerce::public::catalog::EcommerceActor,
+        _: &'a erpx_ecommerce_server::public::catalog::EcommerceActor,
         _: TimestampMillis,
     ) -> EcommerceFuture<'a, bool, Self::Error> {
         self.calls.push("commit");
@@ -221,7 +221,7 @@ impl EcommerceCommandRepository for CommandProbe {
 
     fn audit<'a>(
         &'a mut self,
-        _: &'a erpx_server_ecommerce::public::catalog::EcommerceActor,
+        _: &'a erpx_ecommerce_server::public::catalog::EcommerceActor,
         entry: &'a AuditEntry<'a>,
         _: TimestampMillis,
     ) -> EcommerceFuture<'a, (), Self::Error> {
@@ -254,8 +254,8 @@ impl EcommerceCommandRepository for CommandProbe {
 
 fn run_catalog(
     probe: &mut CatalogProbe,
-    actor: &erpx_server_ecommerce::public::catalog::EcommerceActor,
-) -> Result<erpx_server_ecommerce::public::catalog::StorefrontCatalog, BusinessError> {
+    actor: &erpx_ecommerce_server::public::catalog::EcommerceActor,
+) -> Result<erpx_ecommerce_server::public::catalog::StorefrontCatalog, BusinessError> {
     sqlx::test_block_on(storefront_catalog(actor, probe, NOW))
 }
 
@@ -332,17 +332,17 @@ fn review_readback(kind: ReviewKind, status: &str) -> ReviewReadback {
 
 fn run_create(
     probe: &mut CommandProbe,
-    actor: &erpx_server_ecommerce::public::catalog::EcommerceActor,
-) -> Result<erpx_server_ecommerce::public::channel::EcommerceReceipt, BusinessError> {
+    actor: &erpx_ecommerce_server::public::catalog::EcommerceActor,
+) -> Result<erpx_ecommerce_server::public::channel::EcommerceReceipt, BusinessError> {
     let command = create_command();
     sqlx::test_block_on(create_channel(actor, &command, probe, NOW))
 }
 
 fn run_review(
     probe: &mut CommandProbe,
-    actor: &erpx_server_ecommerce::public::catalog::EcommerceActor,
+    actor: &erpx_ecommerce_server::public::catalog::EcommerceActor,
     command: &ReviewCommand,
-) -> Result<erpx_server_ecommerce::public::channel::EcommerceReceipt, BusinessError> {
+) -> Result<erpx_ecommerce_server::public::channel::EcommerceReceipt, BusinessError> {
     sqlx::test_block_on(review_ecommerce_record(actor, command, probe, NOW))
 }
 

@@ -2,7 +2,7 @@ import {createHash} from 'node:crypto';
 import {readdirSync,readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {describe,expect,it,vi} from 'vitest';
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
+import type {SqlDatabase} from '@erpx/platform-runtime-server/public/runtime/types';
 
 // The retired owner-local readers build no SQL of their own. Mock the native
 // transport and assert the exact typed kind and positional values they send.
@@ -10,21 +10,21 @@ const one = vi.hoisted(() => vi.fn(async (_db: unknown, _companyId: string, _kin
 const all = vi.hoisted(() => vi.fn(async (_db: unknown, _companyId: string, _kind: string, _values: unknown[]) => [] as unknown[]));
 const execute = vi.hoisted(() => vi.fn(async (_companyId: string, _kind: string, _values: unknown[], _key: string) => ({kind: _kind, rows: 0})));
 const laneMarketLevels = vi.hoisted(() => vi.fn(async (_target: unknown, _companyId: string) => [] as unknown[]));
-vi.mock('../../../packages/server-organization/src/adapters/native-organization-owner-write', () => ({
+vi.mock('../../../modules/organization/server/src/adapters/native-organization-owner-write', () => ({
   nativeOrgOne: one,
   nativeOrgAll: all,
   nativeOrgExecute: execute,
 }));
-vi.mock('../../../packages/server-organization/src/adapters/native-lane-24/client', () => ({
+vi.mock('../../../modules/organization/server/src/adapters/native-lane-24/client', () => ({
   nativeLane24MarketLevels: laneMarketLevels,
 }));
-const {companyAcceptanceResultProjection} = await import('@erpx/server-organization/adapters/company-acceptance-result-projection');
-const {activeDepartmentFact} = await import('@erpx/server-organization/adapters/profile-facts');
-const {publicMarketingReceivingBranch} = await import('@erpx/server-organization/adapters/public-marketing-receiving-branch');
-const {workReportOrganizationFacts} = await import('@erpx/server-organization/public/work-report-facts');
-const {activeSpendingPosition} = await import('@erpx/server-organization/adapters/spending-position');
-const {pmsRolloutOrganizationFacts} = await import('@erpx/server-organization/adapters/pms-rollout-facts');
-const {calendarAccessOrganizationFacts} = await import('@erpx/server-organization/adapters/calendar-access-facts');
+const {companyAcceptanceResultProjection} = await import('@erpx/organization-server/adapters/company-acceptance-result-projection');
+const {activeDepartmentFact} = await import('@erpx/organization-server/adapters/profile-facts');
+const {publicMarketingReceivingBranch} = await import('@erpx/organization-server/adapters/public-marketing-receiving-branch');
+const {workReportOrganizationFacts} = await import('@erpx/organization-server/public/work-report-facts');
+const {activeSpendingPosition} = await import('@erpx/organization-server/adapters/spending-position');
+const {pmsRolloutOrganizationFacts} = await import('@erpx/organization-server/adapters/pms-rollout-facts');
+const {calendarAccessOrganizationFacts} = await import('@erpx/organization-server/adapters/calendar-access-facts');
 
 function db(): SqlDatabase {
   return {prepare: vi.fn(() => {throw new Error('owner-local reader must not build local SQL');})} as unknown as SqlDatabase;
@@ -98,12 +98,12 @@ describe('Organization owner-local read tail', () => {
   });
 
   it('shares one canonical projection source across the owner projection maps', async () => {
-    const {ORG_NODES_SOURCE,ORG_POSITIONS_SOURCE} = await import('../../../packages/server-organization/src/adapters/org-sources');
-    const {commercialOwnerProjectionSources} = await import('@erpx/server-organization/adapters/commercial-owner-projection-sources');
-    const {finalRootOwnerProjectionSources} = await import('@erpx/server-organization/adapters/final-root-owner-projection-sources');
-    const {hospitalityOwnerProjectionSources} = await import('@erpx/server-organization/adapters/hospitality-owner-projection-sources');
-    const {inventoryExecutiveOwnerProjections} = await import('@erpx/server-organization/adapters/inventory-executive-owner-projections');
-    const {platformOwnerProjectionSources} = await import('@erpx/server-organization/adapters/platform-owner-projection-sources');
+    const {ORG_NODES_SOURCE,ORG_POSITIONS_SOURCE} = await import('../../../modules/organization/server/src/adapters/org-sources');
+    const {commercialOwnerProjectionSources} = await import('@erpx/organization-server/adapters/commercial-owner-projection-sources');
+    const {finalRootOwnerProjectionSources} = await import('@erpx/organization-server/adapters/final-root-owner-projection-sources');
+    const {hospitalityOwnerProjectionSources} = await import('@erpx/organization-server/adapters/hospitality-owner-projection-sources');
+    const {inventoryExecutiveOwnerProjections} = await import('@erpx/organization-server/adapters/inventory-executive-owner-projections');
+    const {platformOwnerProjectionSources} = await import('@erpx/organization-server/adapters/platform-owner-projection-sources');
     for (const map of [commercialOwnerProjectionSources, finalRootOwnerProjectionSources, hospitalityOwnerProjectionSources, inventoryExecutiveOwnerProjections, platformOwnerProjectionSources])
       expect(map.organization_nodes).toBe(ORG_NODES_SOURCE);
     for (const map of [finalRootOwnerProjectionSources, hospitalityOwnerProjectionSources])
@@ -113,9 +113,9 @@ describe('Organization owner-local read tail', () => {
   });
 
   it('shares one canonical branch-Company source across the beta invitation readers', async () => {
-    const {ORG_BRANCH_COMPANY_SOURCE} = await import('../../../packages/server-organization/src/adapters/org-sources');
-    const {betaManagementOrganizationSources} = await import('@erpx/server-organization/adapters/beta-management-sources');
-    const {betaInvitationSources} = await import('@erpx/server-organization/adapters/beta-invitation-sources');
+    const {ORG_BRANCH_COMPANY_SOURCE} = await import('../../../modules/organization/server/src/adapters/org-sources');
+    const {betaManagementOrganizationSources} = await import('@erpx/organization-server/adapters/beta-management-sources');
+    const {betaInvitationSources} = await import('@erpx/organization-server/adapters/beta-invitation-sources');
     const seen: string[] = [];
     const first = vi.fn(async () => ({company_id: 'company'}));
     const bind = vi.fn(() => ({first}));
@@ -127,10 +127,10 @@ describe('Organization owner-local read tail', () => {
   });
 
   it('shares one canonical Company display-name source across the PMS/POS owner facts', async () => {
-    const {ORG_NODE_DISPLAY_NAME_SOURCE} = await import('../../../packages/server-organization/src/adapters/org-sources');
-    const {pmsHospitalitySetupOrganizationFacts} = await import('@erpx/server-organization/adapters/pms-hospitality-setup-facts');
-    const {posCoreOrganizationFacts} = await import('@erpx/server-organization/adapters/pos-core-facts');
-    const {PosReadOrganizationFacts} = await import('@erpx/server-organization/adapters/pos-facts');
+    const {ORG_NODE_DISPLAY_NAME_SOURCE} = await import('../../../modules/organization/server/src/adapters/org-sources');
+    const {pmsHospitalitySetupOrganizationFacts} = await import('@erpx/organization-server/adapters/pms-hospitality-setup-facts');
+    const {posCoreOrganizationFacts} = await import('@erpx/organization-server/adapters/pos-core-facts');
+    const {PosReadOrganizationFacts} = await import('@erpx/organization-server/adapters/pos-facts');
     const seen: string[] = [];
     const first = vi.fn(async () => ({display_name: 'Acme'}));
     const bind = vi.fn(() => ({first}));
@@ -143,9 +143,9 @@ describe('Organization owner-local read tail', () => {
   });
 
   it('shares one canonical Company-scoped display-name source across the finance/payroll company reads', async () => {
-    const {ORG_COMPANY_DISPLAY_NAME_SOURCE} = await import('../../../packages/server-organization/src/adapters/org-sources');
-    const {financeSalesCompanyName} = await import('@erpx/server-organization/adapters/finance-sales-company');
-    const {companySource} = await import('@erpx/server-organization/adapters/payroll-payslip-company');
+    const {ORG_COMPANY_DISPLAY_NAME_SOURCE} = await import('../../../modules/organization/server/src/adapters/org-sources');
+    const {financeSalesCompanyName} = await import('@erpx/organization-server/adapters/finance-sales-company');
+    const {companySource} = await import('@erpx/organization-server/adapters/payroll-payslip-company');
     const seen: string[] = [];
     const first = vi.fn(async (column?: string) => column === 'display_name' ? 'Acme' : {display_name: 'Acme'});
     const bind = vi.fn(() => ({first}));
@@ -157,16 +157,16 @@ describe('Organization owner-local read tail', () => {
   });
 
   it('shares one canonical authority-seats projection fragment across the IAM and workflow consumers', async () => {
-    const {identityVerifiedContextProjections} = await import('@erpx/server-organization/adapters/identity-access-verified-context-projections');
+    const {identityVerifiedContextProjections} = await import('@erpx/organization-server/adapters/identity-access-verified-context-projections');
     const projections = identityVerifiedContextProjections();
     expect(projections.iam_store_authority_seats_s_from).toBe(projections.workflow_approvals_facts_authority_seats_s_from);
     expect(projections.iam_store_authority_seats_s_from).toBe('FROM (SELECT "company_id","kind","scope_id","version","position_id","person_id","effective_at" FROM authority_seats) s');
   });
 
   it('shares one canonical active-branch source across the collaboration home and beta readers', async () => {
-    const {ORG_ACTIVE_BRANCHES_SOURCE} = await import('../../../packages/server-organization/src/adapters/org-sources');
-    const {collaborationHomeSources} = await import('@erpx/server-organization/adapters/collaboration-home-sources');
-    const {betaManagementFacts} = await import('@erpx/server-organization/adapters/beta-management-facts');
+    const {ORG_ACTIVE_BRANCHES_SOURCE} = await import('../../../modules/organization/server/src/adapters/org-sources');
+    const {collaborationHomeSources} = await import('@erpx/organization-server/adapters/collaboration-home-sources');
+    const {betaManagementFacts} = await import('@erpx/organization-server/adapters/beta-management-facts');
     const rows = [{id: 'branch', display_name: 'Branch'}] as never[];
     const rowsAll = vi.fn(async () => ({results: rows}));
     const bind = vi.fn(() => ({all: rowsAll}));
@@ -179,7 +179,7 @@ describe('Organization owner-local read tail', () => {
   });
 
   it('shares one canonical roster-required source across the save-directory person reads', async () => {
-    const {peopleDirectoryOrganizationFacts} = await import('@erpx/server-organization/adapters/people-directory-facts');
+    const {peopleDirectoryOrganizationFacts} = await import('@erpx/organization-server/adapters/people-directory-facts');
     const seen: string[] = [];
     const first = vi.fn(async () => ({roster_required: 1}));
     const bind = vi.fn(() => ({first}));
@@ -194,7 +194,7 @@ describe('Organization owner-local read tail', () => {
   });
 
   it('shares one canonical alias=organization_nodes projection across the IAM snapshot source map', async () => {
-    const {identitySnapshotSources} = await import('../../../packages/server-organization/src/adapters/identity-snapshot-sources');
+    const {identitySnapshotSources} = await import('../../../modules/organization/server/src/adapters/identity-snapshot-sources');
     const p = identitySnapshotSources();
     const keys = [
       'access_diagnosis_organization_nodes_from',
@@ -212,7 +212,7 @@ describe('Organization owner-local read tail', () => {
   });
 
   it('shares one canonical alias=organization_nodes projection across the collaboration notification snapshot source map', async () => {
-    const {collaborationNotificationSnapshotSources} = await import('../../../packages/server-organization/src/adapters/collaboration-notification-snapshot-sources');
+    const {collaborationNotificationSnapshotSources} = await import('../../../modules/organization/server/src/adapters/collaboration-notification-snapshot-sources');
     const p = collaborationNotificationSnapshotSources();
     const keys = [
       'organization_channels_organization_nodes_from',
@@ -224,9 +224,9 @@ describe('Organization owner-local read tail', () => {
   });
 
   it('shares one canonical alias=organization_nodes projection across the IAM and collaboration snapshot source maps', async () => {
-    const spaced = await import('../../../packages/server-organization/src/adapters/organization-nodes-spaced-projections');
-    const {identitySnapshotSources} = await import('../../../packages/server-organization/src/adapters/identity-snapshot-sources');
-    const {collaborationNotificationSnapshotSources} = await import('../../../packages/server-organization/src/adapters/collaboration-notification-snapshot-sources');
+    const spaced = await import('../../../modules/organization/server/src/adapters/organization-nodes-spaced-projections');
+    const {identitySnapshotSources} = await import('../../../modules/organization/server/src/adapters/identity-snapshot-sources');
+    const {collaborationNotificationSnapshotSources} = await import('../../../modules/organization/server/src/adapters/collaboration-notification-snapshot-sources');
     const id = identitySnapshotSources();
     const cn = collaborationNotificationSnapshotSources();
     const projection = spaced.ORG_NODES_SPACED_CLAUSE('FROM','organization_nodes');
@@ -247,7 +247,7 @@ describe('Organization owner-local read tail', () => {
   });
 
   it('shares one canonical alias=l staff_levels projection across the people/payroll final-owner source map', async () => {
-    const {peoplePayrollFinalOwnerProjections} = await import('../../../packages/server-organization/src/adapters/people-payroll-final-owner-projections');
+    const {peoplePayrollFinalOwnerProjections} = await import('../../../modules/organization/server/src/adapters/people-payroll-final-owner-projections');
     const p = peoplePayrollFinalOwnerProjections();
     const keys = [
       'executive_engagement_source_staff_levels_l_join',
@@ -260,7 +260,7 @@ describe('Organization owner-local read tail', () => {
   });
 
   it('shares canonical alias=n/c organization_nodes and alias=op organization_positions joins across the people/payroll final-owner source map', async () => {
-    const {peoplePayrollFinalOwnerProjections} = await import('../../../packages/server-organization/src/adapters/people-payroll-final-owner-projections');
+    const {peoplePayrollFinalOwnerProjections} = await import('../../../modules/organization/server/src/adapters/people-payroll-final-owner-projections');
     const p = peoplePayrollFinalOwnerProjections();
     const nodesN = [
       'executive_report_sources_organization_nodes_n_join',
@@ -289,10 +289,10 @@ describe('Organization owner-local read tail', () => {
   });
 
   it('shares one canonical spaced-column projection per alias across the IAM snapshot source maps', async () => {
-    const c = await import('../../../packages/server-organization/src/adapters/organization-nodes-spaced-projections');
-    const {identitySnapshotSources} = await import('../../../packages/server-organization/src/adapters/identity-snapshot-sources');
-    const {learningTalentSnapshotSources} = await import('../../../packages/server-organization/src/adapters/learning-talent-snapshot-sources');
-    const {collaborationNotificationSnapshotSources} = await import('../../../packages/server-organization/src/adapters/collaboration-notification-snapshot-sources');
+    const c = await import('../../../modules/organization/server/src/adapters/organization-nodes-spaced-projections');
+    const {identitySnapshotSources} = await import('../../../modules/organization/server/src/adapters/identity-snapshot-sources');
+    const {learningTalentSnapshotSources} = await import('../../../modules/organization/server/src/adapters/learning-talent-snapshot-sources');
+    const {collaborationNotificationSnapshotSources} = await import('../../../modules/organization/server/src/adapters/collaboration-notification-snapshot-sources');
     const id = identitySnapshotSources();
     const lt = learningTalentSnapshotSources();
     const cn = collaborationNotificationSnapshotSources();
@@ -330,9 +330,9 @@ describe('Organization owner-local read tail', () => {
   });
 
   it('shares the C_FROM projection, staff-levels join and branch-active guard literals', async () => {
-    const spaced = await import('../../../packages/server-organization/src/adapters/organization-nodes-spaced-projections');
-    const shared = await import('../../../packages/server-organization/src/adapters/organization-read-tail-sources');
-    const {identitySnapshotSources} = await import('../../../packages/server-organization/src/adapters/identity-snapshot-sources');
+    const spaced = await import('../../../modules/organization/server/src/adapters/organization-nodes-spaced-projections');
+    const shared = await import('../../../modules/organization/server/src/adapters/organization-read-tail-sources');
+    const {identitySnapshotSources} = await import('../../../modules/organization/server/src/adapters/identity-snapshot-sources');
     const id = identitySnapshotSources();
     const cFromClause = spaced.ORG_NODES_SPACED_CLAUSE('FROM','c');
 
@@ -357,9 +357,9 @@ describe('Organization owner-local read tail', () => {
   });
 
   it('delegates the evaluation active-id read to the native lane-24 client, placement stays owner-local', async () => {
-    const {activeIdByCompanySource} = await import('../../../packages/server-organization/src/adapters/org-sources');
-    const {peopleEvaluationOrganizationFacts} = await import('@erpx/server-organization/adapters/people-evaluation-facts');
-    const {peoplePlacementBatchFacts} = await import('@erpx/server-organization/adapters/people-placement-batch-facts');
+    const {activeIdByCompanySource} = await import('../../../modules/organization/server/src/adapters/org-sources');
+    const {peopleEvaluationOrganizationFacts} = await import('@erpx/organization-server/adapters/people-evaluation-facts');
+    const {peoplePlacementBatchFacts} = await import('@erpx/organization-server/adapters/people-placement-batch-facts');
     const actor = {holdingId: 'h001', holdingSlug: 'acme', companyId: 'company'};
     laneMarketLevels.mockClear();
     const seen: string[] = [];
@@ -378,7 +378,7 @@ describe('Organization owner-local read tail', () => {
   });
 
   it('renders one byte-identical table-parameterized department absence guard', async () => {
-    const {departmentSnapshotMissing} = await import('../../../packages/server-organization/src/adapters/organization-read-tail-sources');
+    const {departmentSnapshotMissing} = await import('../../../modules/organization/server/src/adapters/organization-read-tail-sources');
     expect(departmentSnapshotMissing('department_heads')).toBe('NOT EXISTS(SELECT 1 FROM department_heads WHERE company_id=? AND department_id=?)');
     expect(departmentSnapshotMissing('department_flow_versions')).toBe('NOT EXISTS(SELECT 1 FROM department_flow_versions WHERE company_id=? AND department_id=?)');
     expect(departmentSnapshotMissing('department_heads').replace('department_heads', 'T')).toBe(
@@ -386,7 +386,7 @@ describe('Organization owner-local read tail', () => {
   });
 
   it('renders one byte-identical table-parameterized attachment version guard', async () => {
-    const {ownerVersionGuardSource} = await import('../../../packages/server-organization/src/adapters/organization-read-tail-sources');
+    const {ownerVersionGuardSource} = await import('../../../modules/organization/server/src/adapters/organization-read-tail-sources');
     // The Finance and Service attachment facts previously inlined the same
     // guard; only the relation varied. The shared helper renders it unchanged.
     expect(ownerVersionGuardSource('organization_node_changes')).toBe(
@@ -400,7 +400,7 @@ describe('Organization owner-local read tail', () => {
   });
 
   it('renders one byte-identical alias-parameterized level_leave_defaults projection', async () => {
-    const {peopleVerifiedContextProjections} = await import('../../../packages/server-organization/src/adapters/people-payroll-verified-context-projections');
+    const {peopleVerifiedContextProjections} = await import('../../../modules/organization/server/src/adapters/people-payroll-verified-context-projections');
     const p = peopleVerifiedContextProjections();
     const d = p.people_payroll_level_leave_defaults_d_from;
     const x = p.people_payroll_level_leave_defaults_x_from;
@@ -412,7 +412,7 @@ describe('Organization owner-local read tail', () => {
   });
 
   it('renders byte-identical alias/keyword-parameterized final-owner projections', async () => {
-    const {peoplePayrollFinalOwnerProjections} = await import('../../../packages/server-organization/src/adapters/people-payroll-final-owner-projections');
+    const {peoplePayrollFinalOwnerProjections} = await import('../../../modules/organization/server/src/adapters/people-payroll-final-owner-projections');
     const p = peoplePayrollFinalOwnerProjections();
     const nodeCols = '"id","kind","slug","display_name","parent_id","company_id","branch_id","status","hierarchy_revision"';
     const posCols = '"id","company_id","branch_id","department_id","title","level_id","reports_to_position_id","is_ceo","active","version","created_by","created_at","updated_at","requirements","roster_required"';
@@ -437,7 +437,7 @@ describe('Organization owner-local read tail', () => {
 });
 
 describe('Organization read-tail r30 native cutover — finance starter node list', () => {
-  const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+  const srcRoot = resolve(__dirname, '../../../modules/organization/server/src');
   const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
   const sha = (value: string) => createHash('sha256').update(value).digest('hex');
   const KIND = 'finance_starter_organization_nodes';
@@ -454,7 +454,7 @@ describe('Organization read-tail r30 native cutover — finance starter node lis
     // The Company-owning row lock is deliberately untouched by this slice.
     expect(source).toContain("kind='company' AND status='active' FOR UPDATE");
     const {financeStarterOrganizationNodes, lockFinanceStarterCompany} = await import(
-      '../../../packages/server-organization/src/adapters/finance-starter-sources'
+      '../../../modules/organization/server/src/adapters/finance-starter-sources'
     );
     expect(lockFinanceStarterCompany).toBeTypeOf('function');
     all.mockClear();
@@ -497,7 +497,7 @@ describe('Organization read-tail r30 native cutover — finance starter node lis
 });
 
 describe('Organization people-lifecycle node read native cutover', () => {
-  const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+  const srcRoot = resolve(__dirname, '../../../modules/organization/server/src');
   const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
   const sha = (value: string) => createHash('sha256').update(value).digest('hex');
   const KIND = 'people_lifecycle_data_nodes';
@@ -514,7 +514,7 @@ describe('Organization people-lifecycle node read native cutover', () => {
     // The retained Company-owning row lock and package effects stay untouched.
     expect(source).toContain('FOR UPDATE');
     const {peopleLifecycleOrganizationFacts} = await import(
-      '../../../packages/server-organization/src/adapters/people-lifecycle-facts'
+      '../../../modules/organization/server/src/adapters/people-lifecycle-facts'
     );
     all.mockClear();
     const handle = db();
@@ -539,7 +539,7 @@ describe('Organization people-lifecycle node read native cutover', () => {
 });
 
 describe('Organization lifecycle save position native cutover', () => {
-  const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+  const srcRoot = resolve(__dirname, '../../../modules/organization/server/src');
   const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
   const sha = (value: string) => createHash('sha256').update(value).digest('hex');
   const KIND = 'lifecycle_read_save_position';
@@ -553,7 +553,7 @@ describe('Organization lifecycle save position native cutover', () => {
     // The Company-owning row lock on the lifecycle position stays excluded.
     expect(source).toContain('FOR UPDATE');
     const {peopleLifecycleOrganizationFacts} = await import(
-      '../../../packages/server-organization/src/adapters/people-lifecycle-facts'
+      '../../../modules/organization/server/src/adapters/people-lifecycle-facts'
     );
     one.mockClear();
     const handle = db();
@@ -566,7 +566,7 @@ describe('Organization lifecycle save position native cutover', () => {
 
   it('keeps the nullable single-row parity for a missing position', async () => {
     const {peopleLifecycleOrganizationFacts} = await import(
-      '../../../packages/server-organization/src/adapters/people-lifecycle-facts'
+      '../../../modules/organization/server/src/adapters/people-lifecycle-facts'
     );
     one.mockClear();
     one.mockResolvedValueOnce(null);
@@ -587,7 +587,7 @@ describe('Organization lifecycle save position native cutover', () => {
 });
 
 describe('Organization lifecycle rehire position native cutover', () => {
-  const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+  const srcRoot = resolve(__dirname, '../../../modules/organization/server/src');
   const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
   const sha = (value: string) => createHash('sha256').update(value).digest('hex');
   const KIND = 'lifecycle_read_rehire_position';
@@ -602,7 +602,7 @@ describe('Organization lifecycle rehire position native cutover', () => {
     // The Company-owning FOR UPDATE lock on the lifecycle position stays excluded.
     expect(source).toContain('FOR UPDATE');
     const {peopleLifecycleOrganizationFacts} = await import(
-      '../../../packages/server-organization/src/adapters/people-lifecycle-facts'
+      '../../../modules/organization/server/src/adapters/people-lifecycle-facts'
     );
     one.mockClear();
     const handle = db();
@@ -615,7 +615,7 @@ describe('Organization lifecycle rehire position native cutover', () => {
 
   it('keeps the nullable single-row parity for an inactive or missing position', async () => {
     const {peopleLifecycleOrganizationFacts} = await import(
-      '../../../packages/server-organization/src/adapters/people-lifecycle-facts'
+      '../../../modules/organization/server/src/adapters/people-lifecycle-facts'
     );
     one.mockClear();
     one.mockResolvedValueOnce(null);
@@ -639,12 +639,12 @@ describe('Organization lifecycle worker position native cutover', () => {
   const KIND = 'lifecycle_read_rehire_position';
 
   it('reuses the owner kind and preserves the pg QueryResult shape', async () => {
-    const source = readFileSync(resolve(__dirname, '../../../packages/server-organization/src/adapters/people-lifecycle-worker-effects.ts'), 'utf8');
+    const source = readFileSync(resolve(__dirname, '../../../modules/organization/server/src/adapters/people-lifecycle-worker-effects.ts'), 'utf8');
     expect(source).not.toContain('activePositionById');
     expect(source).not.toContain('organization-column-alias-families-r38');
     expect(source).toContain(`nativeOrgAll<LifecyclePositionFacts>(database, company_id, '${KIND}', [company_id, positionId]).then(rows => ({ rows, rowCount: rows.length }))`);
     const {lifecycleOrganizationFacts} = await import(
-      '../../../packages/server-organization/src/adapters/people-lifecycle-worker-effects'
+      '../../../modules/organization/server/src/adapters/people-lifecycle-worker-effects'
     );
     all.mockClear();
     const row = {branch_id: null, department_id: 'department', level_id: 'level', title: 'Engineer'};
@@ -657,7 +657,7 @@ describe('Organization lifecycle worker position native cutover', () => {
 });
 
 describe('Organization draft leave-defaults read native cutover', () => {
-  const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+  const srcRoot = resolve(__dirname, '../../../modules/organization/server/src');
   const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
   const sha = (value: string) => createHash('sha256').update(value).digest('hex');
   const KIND = 'draft_read_leave_defaults';
@@ -687,7 +687,7 @@ describe('Organization draft leave-defaults read native cutover', () => {
 });
 
 describe('Organization change-event snapshot read native cutover', () => {
-  const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+  const srcRoot = resolve(__dirname, '../../../modules/organization/server/src');
   const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
   const sha = (value: string) => createHash('sha256').update(value).digest('hex');
   const APPLIED = "SELECT snapshot_json FROM organization_node_change_events WHERE change_id=? AND action='applied' ORDER BY created_at DESC LIMIT 1";
@@ -721,7 +721,7 @@ describe('Organization change-event snapshot read native cutover', () => {
 });
 
 describe('Organization attachment source image native cutover', () => {
-  const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+  const srcRoot = resolve(__dirname, '../../../modules/organization/server/src');
   const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
   const sha = (value: string) => createHash('sha256').update(value).digest('hex');
   const KIND = 'attachment_organization_source_image';
@@ -735,7 +735,7 @@ describe('Organization attachment source image native cutover', () => {
     // The table lock is a separate statement and stays byte-identical.
     expect(source).toContain('LOCK TABLE organization_nodes IN SHARE ROW EXCLUSIVE MODE');
     const {foundationAttachmentOrganizationSourceImage} = await import(
-      '../../../packages/server-organization/src/adapters/attachment-read-sources'
+      '../../../modules/organization/server/src/adapters/attachment-read-sources'
     );
     one.mockClear();
     const handle = db();
@@ -761,7 +761,7 @@ describe('Organization attachment source image native cutover', () => {
 });
 
 describe('Organization attachment node/change source image native cutover', () => {
-  const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+  const srcRoot = resolve(__dirname, '../../../modules/organization/server/src');
   const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
   const sha = (value: string) => createHash('sha256').update(value).digest('hex');
   const NODE_KIND = 'attachment_source_node_image';
@@ -776,7 +776,7 @@ describe('Organization attachment node/change source image native cutover', () =
     expect(source).not.toContain('correlatedNodeJson');
     expect(source).toContain(`const kind=type==='organization_node'?'${NODE_KIND}':'${CHANGE_KIND}';`);
     const {organizationAttachmentReadSourceImage} = await import(
-      '../../../packages/server-organization/src/adapters/attachment-read-sources'
+      '../../../modules/organization/server/src/adapters/attachment-read-sources'
     );
     one.mockClear();
     const handle = db();
@@ -810,7 +810,7 @@ describe('Organization attachment node/change source image native cutover', () =
 });
 
 describe('Organization staff settings levels read native cutover', () => {
-  const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+  const srcRoot = resolve(__dirname, '../../../modules/organization/server/src');
   const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
   const sha = (value: string) => createHash('sha256').update(value).digest('hex');
   const KIND = 'staff_settings_list_levels';
@@ -825,7 +825,7 @@ describe('Organization staff settings levels read native cutover', () => {
     expect(source).toContain('ownerVersionGuardSource');
     expect(source).toContain('nodeKindByIdCompany');
     const {StaffSettingsOrganizationFacts} = await import(
-      '../../../packages/server-organization/src/adapters/operations-staff-settings-facts'
+      '../../../modules/organization/server/src/adapters/operations-staff-settings-facts'
     );
     all.mockClear();
     const handle = db();
@@ -850,7 +850,7 @@ describe('Organization staff settings levels read native cutover', () => {
 });
 
 describe('Organization staff policy request route head native cutover', () => {
-  const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+  const srcRoot = resolve(__dirname, '../../../modules/organization/server/src');
   const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
   const sha = (value: string) => createHash('sha256').update(value).digest('hex');
   const KIND = 'staff_policy_request_route_head';
@@ -862,7 +862,7 @@ describe('Organization staff policy request route head native cutover', () => {
     expect(source).toContain(`}>(database, companyId, '${KIND}', [companyId, department_id]);`);
     expect(source.split(KIND).length - 1).toBe(1);
     const {StaffPolicyOrganizationFacts} = await import(
-      '../../../packages/server-organization/src/adapters/operations-staff-policy-facts'
+      '../../../modules/organization/server/src/adapters/operations-staff-policy-facts'
     );
     one.mockClear();
     const handle = db();
@@ -889,7 +889,7 @@ describe('Organization staff policy request route head native cutover', () => {
 });
 
 describe('Organization draft request list native cutover', () => {
-  const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+  const srcRoot = resolve(__dirname, '../../../modules/organization/server/src');
   const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
   const source = (path: string) => readFileSync(resolve(srcRoot, path), 'utf8');
   const sha = (value: string) => createHash('sha256').update(value).digest('hex');

@@ -2,10 +2,10 @@ import { describe, expect, test, vi } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
-import { holdEvidenceSource, inspectionEvidenceSource, inspectionMetricSource } from '../../../packages/server-quality/src/adapters/inspection-evidence-source-sql';
-import { commercialOwnerProjectionSources as commerce } from '@erpx/server-commerce/public/commercial-owner-projection-sources';
+import { holdEvidenceSource, inspectionEvidenceSource, inspectionMetricSource } from '../../../modules/quality/server/src/adapters/inspection-evidence-source-sql';
+import { commercialOwnerProjectionSources as commerce } from '@erpx/commerce-server/public/commercial-owner-projection-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-quality/src');
+const srcRoot = resolve(__dirname, '../../../modules/quality/server/src');
 const read = (path: string) => readFileSync(resolve(srcRoot, path), 'utf8');
 
 // Byte oracles copied from the pre-dedupe r25 source. The hold-evidence head

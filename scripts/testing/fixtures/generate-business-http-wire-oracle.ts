@@ -4,7 +4,7 @@ import {createHash} from 'node:crypto';
 import {writeFile,readFile,mkdir} from 'node:fs/promises';
 import {resolve} from 'node:path';
 const commit='a5ed8737a2f05eff1ee9841fda4a094b3926d732';
-const paths=['packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts','packages/feature-legal/src/routes/api/v1/holdings/[holdingSlug]/legal/[[...path]]/route.ts'];
+const paths=['platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts','modules/legal/ui/src/routes/api/v1/holdings/[holdingSlug]/legal/[[...path]]/route.ts'];
 const bytes=paths.map(path=>execFileSync('git',['show',`${commit}:${path}`]));
 const finance=bytes[0]!.toString('utf8'),legal=bytes[1]!.toString('utf8');
 function schema(kind:string){const start=finance.indexOf(`parts[2] === "${kind}") { const parsed = `);if(start<0)throw Error('ORIGINAL_WIRE_SCHEMA_BOUNDARY_REQUIRED');const a=finance.indexOf('const parsed = ',start)+'const parsed = '.length,b=finance.indexOf('.safeParse(input)',a);if(b<a)throw Error('ORIGINAL_WIRE_SCHEMA_BOUNDARY_REQUIRED');return finance.slice(a,b);}

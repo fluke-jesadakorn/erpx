@@ -1,11 +1,11 @@
 //! Native payroll run HTTP ingress tests: target selection, exact origin,
 //! Idempotency-Key, route dispatch and business-error mapping.
-use erpx_server_people_payroll::public::payroll_run_http::{
+use erpx_people_payroll_server::public::payroll_run_http::{
     PayrollCommandHttpBackend, PayrollCommandHttpFuture, PayrollCommandHttpKind,
     PayrollCommandHttpRequest, PayrollCommandHttpResponse, PayrollCommandHttpTarget,
     people_payroll_command_router,
 };
-use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Probe {
@@ -88,7 +88,7 @@ async fn router_retains_target_origin_key_paths_and_error_mapping() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = tokio::spawn(async move {
-        let _ = erpx_server_runtime::public::http_support::serve(listener, router).await;
+        let _ = erpx_platform_runtime_server::public::http_support::serve(listener, router).await;
     });
 
     let body = r#"{"payGroupId":"group","periodStart":"2026-10-01","periodEnd":"2026-10-31","payDate":"2026-10-31","currency":"THB","mode":"preview"}"#;

@@ -2,11 +2,11 @@ import { describe, expect, test, vi } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
-import { qualityReturnAnchorSql } from '../../../packages/server-quality/src/adapters/quality-return-anchor-sql';
-import { qualityObligationFactArm } from '../../../packages/server-quality/src/adapters/quality-obligation-fact-arm-sql';
-import { qualitySourceArmHead } from '../../../packages/server-quality/src/adapters/quality-source-arm-head';
+import { qualityReturnAnchorSql } from '../../../modules/quality/server/src/adapters/quality-return-anchor-sql';
+import { qualityObligationFactArm } from '../../../modules/quality/server/src/adapters/quality-obligation-fact-arm-sql';
+import { qualitySourceArmHead } from '../../../modules/quality/server/src/adapters/quality-source-arm-head';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-quality/src');
+const srcRoot = resolve(__dirname, '../../../modules/quality/server/src');
 const read = (path: string) => readFileSync(resolve(srcRoot, path), 'utf8');
 
 // Byte oracles copied from the r22 (four return anchors) and r23 (five

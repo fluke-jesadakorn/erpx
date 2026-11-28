@@ -15,11 +15,11 @@ This checklist is distinct from Field18, workflows206 and owners41. Nothing is c
 
 ## Source and retained consumers
 
-The existing Rust composition is `src/composition/src/service_parts_posting_setup.rs`, `service_parts_prerequisite_setup.rs` and `service_stock_setup.rs`; the current native Next adapter is `packages/feature-field_service/src/adapters/server/native-parts-setup.ts`. The public parts-setup BFF/settings page already select these native ports and fail closed when absent. The replaced internal legacy write exports are removed.
+The existing Rust composition is `platform/composition/src/service_parts_posting_setup.rs`, `service_parts_prerequisite_setup.rs` and `service_stock_setup.rs`; the current native Next adapter is `modules/field-service/ui/src/adapters/server/native-parts-setup.ts`. The public parts-setup BFF/settings page already select these native ports and fail closed when absent. The replaced internal legacy write exports are removed.
 
 Commerce retains only the actual `service-parts-posting-setup` ProductEntry authority reader. The duplicate Stock/master implementation and Finance prerequisite/rate wrappers are removed. Generic Finance/Commerce functions used outside this Service capability remain. The Service presenter now requires native Stock/prerequisite reads and fails503 if unavailable; the legacy fallback is removed.
 
-`packages/server-identity_access/src/adapters/product-workspace.ts` and `packages/server-work_projection/src/adapters/product-launcher.ts` retain `servicePartsPostingSetupProductEntry` authority reads. Their genuine Finance/Stock assignment, current IAM and purchase semantics must remain until equivalent native entry behavior is migrated and verified; they do not authorize duplicate setup writers. Shared contracts/types are retained only for actual consumers, with no compatibility business writer.
+`modules/identity-access/server/src/adapters/product-workspace.ts` and `modules/work-projection/server/src/adapters/product-launcher.ts` retain `servicePartsPostingSetupProductEntry` authority reads. Their genuine Finance/Stock assignment, current IAM and purchase semantics must remain until equivalent native entry behavior is migrated and verified; they do not authorize duplicate setup writers. Shared contracts/types are retained only for actual consumers, with no compatibility business writer.
 
 ## Evidence and next blockers
 

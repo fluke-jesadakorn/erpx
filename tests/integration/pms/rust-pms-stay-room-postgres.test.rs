@@ -4,19 +4,19 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_pms::public::room_board::PmsBoardActor;
-use erpx_server_pms::public::stay_room::{
+use erpx_pms_server::public::room_board::PmsBoardActor;
+use erpx_pms_server::public::stay_room::{
     MAX_TASKS, PgPmsStayRoomRepository, PmsBoardFuture, PmsStayRoomActor, PmsStayRoomCommand,
     PmsStayRoomEntitlement, PmsStayRoomEntitlementPort, PmsStayRoomHttpBackend,
     PmsStayRoomHttpCommandRequest, PmsStayRoomHttpFuture, PmsStayRoomHttpResponse,
     PmsStayRoomHttpTarget, PmsStayRoomOperation, lock_stay_room_sources, pms_stay_room,
     pms_stay_room_router, stay_room_request_hash,
 };
-use erpx_server_runtime::public::http_support::serve;
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::http_support::serve;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey, FailureKind};
 use serde_json::{Value, json};
 use sqlx::Row;
 use std::sync::{
@@ -292,7 +292,7 @@ async fn execute(
     key: &CommandKey,
     command: &PmsStayRoomCommand,
     now: i64,
-) -> Result<erpx_server_pms::public::stay_room::PmsStayRoomResult, PgTransactionError<BusinessError>>
+) -> Result<erpx_pms_server::public::stay_room::PmsStayRoomResult, PgTransactionError<BusinessError>>
 {
     let mut repository = PgPmsStayRoomRepository::new(&mut **tx);
     let mut packages = Packages;
@@ -342,7 +342,7 @@ async fn assign_reserved_stay_persists_plan_receipt_audit_outbox_and_replays() {
         let result = execute(&mut tx, &key, &assign, 5_000).await.unwrap();
         assert_eq!(
             result,
-            erpx_server_pms::public::stay_room::PmsStayRoomResult {
+            erpx_pms_server::public::stay_room::PmsStayRoomResult {
                 id: "stay-reserved".into(),
                 property_id: "property-1".into(),
                 version: 2,

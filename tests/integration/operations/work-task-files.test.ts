@@ -2,19 +2,19 @@ import {afterEach,beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from '../../support/runtime-env';
 import {expenseDb as db,expenseFixture,key} from '../../support/helpers/expense-fixture';
 import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from '../../support/helpers/attachment-v2';
-import {projectSchema,taskSchema} from '@erpx/server-operations/public/staff-tasks';
+import {projectSchema,taskSchema} from '@erpx/operations-server/public/staff-tasks';
 import {saveTask} from '../../support/operations/staff-tasks-fixture';
-import {getTask} from '@erpx/server-operations/public/staff-task-read';
+import {getTask} from '@erpx/operations-server/public/staff-task-read';
 import {seedRoutineFor,seedRoutineRunTask} from './routine-fixtures';
-import {createAttachmentSet,reserveAttachmentFile,listAttachmentSets,attachmentContent} from '@erpx/server-files/public/attachments/service';
+import {createAttachmentSet,reserveAttachmentFile,listAttachmentSets,attachmentContent} from '@erpx/files-server/public/attachments/service';
 import {withdrawSeededAttachment} from '../../support/helpers/attachment-v2';
-import {workTaskAttachmentFailure} from '@erpx/server-operations/public/task-attachment-purchases';
-import {packageGrantStore,readCompanyPackageGrants,packageGrantRevision} from '@erpx/server-commercial/public/package-grants';
-import {withOwnerPackageObligations,ownerPackageObligations} from '@erpx/server-commercial/public/owner-package-obligations';
-import type {FileStore} from '@erpx/server-runtime/public/runtime/types';
+import {workTaskAttachmentFailure} from '@erpx/operations-server/public/task-attachment-purchases';
+import {packageGrantStore,readCompanyPackageGrants,packageGrantRevision} from '@erpx/commercial-server/public/package-grants';
+import {withOwnerPackageObligations,ownerPackageObligations} from '@erpx/commercial-server/public/owner-package-obligations';
+import type {FileStore} from '@erpx/platform-runtime-server/public/runtime/types';
 import {seedProjectFor} from '../projects/project-actual-fixtures';
 
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>applyMigrations(db,env.STAFF_TEST_MIGRATIONS));
 beforeEach(async()=>{enableAttachmentV2ForTest();f=await expenseFixture();});
@@ -50,7 +50,7 @@ it('keeps actual ordinary task evidence through active draining and normal inact
  await purchased();await purchased('work','draining');await act(id,'start');
  const files=await seedAttachmentSet(db,f.head,input(id,2,'in_progress')),objectKey=String(await db.prepare('SELECT object_key FROM attachments WHERE id=?').bind(files.sourceId).first('object_key')),bytes='%PDF-1.7 original Work evidence';await env.H001_FILES.put(objectKey,bytes,{httpMetadata:{contentType:'application/pdf'}});await db.prepare('UPDATE attachments SET legal_hold=1 WHERE id=?').bind(files.sourceId).run();
  await act(id,'save-progress',[files.setId]);expect(await attachmentBindingState(db,files.setId)).toMatchObject({set_state:'bound',link_state:'bound'});await act(id,'complete');
- const {changeInboxState}=await import('@erpx/server-collaboration/public/inbox'),deliveries=(await db.prepare("SELECT id,user_id FROM staff_notifications WHERE company_id=? AND record_type='task' AND record_id=? AND read_at IS NULL").bind(f.company,id).all<{id:string;user_id:string}>()).results;for(const delivery of deliveries){const recipient=[f.claimant,f.head,f.manager,f.owner].find(actor=>actor.userId===delivery.user_id);if(!recipient)throw Error('ORIGINAL_WORK_FILE_NOTICE_RECIPIENT_REQUIRED');await changeInboxState(db,recipient,delivery.id,{read:true});}await inactivate();
+ const {changeInboxState}=await import('@erpx/collaboration-server/public/inbox'),deliveries=(await db.prepare("SELECT id,user_id FROM staff_notifications WHERE company_id=? AND record_type='task' AND record_id=? AND read_at IS NULL").bind(f.company,id).all<{id:string;user_id:string}>()).results;for(const delivery of deliveries){const recipient=[f.claimant,f.head,f.manager,f.owner].find(actor=>actor.userId===delivery.user_id);if(!recipient)throw Error('ORIGINAL_WORK_FILE_NOTICE_RECIPIENT_REQUIRED');await changeInboxState(db,recipient,delivery.id,{read:true});}await inactivate();
  expect(await (await attachmentContent(db,env.H001_FILES,f.head,files.linkId,'original')).object.text()).toBe(bytes);expect(await db.prepare('SELECT legal_hold,revoked_at FROM attachments WHERE id=?').bind(files.sourceId).first()).toEqual({legal_hold:1,revoked_at:null});expect((await readCompanyPackageGrants(db,f.company)).map(row=>[row.packageId,row.state])).toEqual([['work','inactive']]);
  await db.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(f.head.assignmentId).run();await expect(attachmentContent(db,env.H001_FILES,f.head,files.linkId,'original')).rejects.toMatchObject({status:404});
 });
@@ -109,7 +109,7 @@ it('keeps the original reviewer read policy distinct from evidence writers and b
 });
 
 it('reads separate Company task bytes through deferred source assertions without hidden lease-upgrade deadlock retries',async()=>{
- const {measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics'),other=await expenseFixture(),id=await ordinary(),otherTask=await saveTask(db,other.claimant,null,taskSchema.parse({title:'Separate Company private evidence',assigneeUserId:other.head.userId,startApprovers:[],completionApprovers:[]}),key());
+ const {measureReads}=await import('@erpx/platform-runtime-server/public/runtime/read-metrics'),other=await expenseFixture(),id=await ordinary(),otherTask=await saveTask(db,other.claimant,null,taskSchema.parse({title:'Separate Company private evidence',assigneeUserId:other.head.userId,startApprovers:[],completionApprovers:[]}),key());
  await purchased();await packageGrantStore(db,{authorize:async()=>({userId:'isolated-Work-Files-provider'}),obligations:async()=>{throw Error('WORK_READ_CANNOT_INACTIVATE');}}).apply({expectedVersion:0,idempotencyKey:key(),grant:{companyId:other.company,packageId:'work',packageVersion:1,state:'active',startsAt:0,endsAt:null,version:1,reason:'Independent actual Company Work fixture',evidence:'test:work-byte-companies'}});
  const first=await seedAttachmentSet(db,f.head,input(id,1)),second=await seedAttachmentSet(db,other.head,input(String(otherTask.id),1)),cases=[{fixture:f,id,file:first,bytes:'%PDF-1.7 first Company exact task'},{fixture:other,id:String(otherTask.id),file:second,bytes:'%PDF-1.7 separate Company exact task'}];
  for(const item of cases){const objectKey=String(await db.prepare('SELECT object_key FROM attachments WHERE id=?').bind(item.file.sourceId).first('object_key'));await env.H001_FILES.put(objectKey,item.bytes);}

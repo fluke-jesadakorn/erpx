@@ -1,15 +1,15 @@
 //! Native manual routine run application use cases over in-memory owner ports.
 //! The PostgreSQL adapter and HTTP transport have their own companion tests.
-use erpx_server_operations::public::routine_commands::{
+use erpx_operations_server::public::routine_commands::{
     RoutineTemplateRow, RunRoutineTemplateCommand, run_fingerprint, run_template,
 };
-use erpx_server_operations::public::staff_tasks::{
+use erpx_operations_server::public::staff_tasks::{
     ApprovalView, AttachmentRow, DecisionFact, DelegationFact, DelegationHistoryRow, PostFact,
     ProjectFact, RouteFact, SaveTaskPlan, StaffFact, StaffTaskActor, StaffTaskFuture,
     StaffTaskRepository, StaffTaskSources, StoredTaskReceipt, TaskReceipt, TaskRow, TaskScope,
     TaskSourceWitness,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 
@@ -153,19 +153,19 @@ impl StaffTaskRepository for Repo {
     }
     fn transition<'a>(
         &'a mut self,
-        _plan: erpx_server_operations::public::staff_tasks::TransitionTaskPlan,
+        _plan: erpx_operations_server::public::staff_tasks::TransitionTaskPlan,
     ) -> StaffTaskFuture<'a, TaskReceipt, Self::Error> {
         Box::pin(async move { Err(unavailable()) })
     }
     fn delegate<'a>(
         &'a mut self,
-        _plan: erpx_server_operations::public::staff_tasks::DelegateTaskPlan,
+        _plan: erpx_operations_server::public::staff_tasks::DelegateTaskPlan,
     ) -> StaffTaskFuture<'a, TaskReceipt, Self::Error> {
         Box::pin(async move { Err(unavailable()) })
     }
     fn revoke<'a>(
         &'a mut self,
-        _plan: erpx_server_operations::public::staff_tasks::RevokeDelegationPlan,
+        _plan: erpx_operations_server::public::staff_tasks::RevokeDelegationPlan,
     ) -> StaffTaskFuture<'a, TaskReceipt, Self::Error> {
         Box::pin(async move { Err(unavailable()) })
     }
@@ -173,13 +173,13 @@ impl StaffTaskRepository for Repo {
         &'a mut self,
         _now: i64,
         _warning_window_ms: i64,
-    ) -> StaffTaskFuture<'a, Vec<erpx_server_operations::public::staff_tasks::AlertTask>, Self::Error>
+    ) -> StaffTaskFuture<'a, Vec<erpx_operations_server::public::staff_tasks::AlertTask>, Self::Error>
     {
         Box::pin(async move { Ok(Vec::new()) })
     }
     fn stage_alert<'a>(
         &'a mut self,
-        _plan: erpx_server_operations::public::staff_tasks::AlertPlan,
+        _plan: erpx_operations_server::public::staff_tasks::AlertPlan,
     ) -> StaffTaskFuture<'a, bool, Self::Error> {
         Box::pin(async move { Ok(false) })
     }

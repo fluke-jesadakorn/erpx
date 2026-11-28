@@ -1,11 +1,11 @@
 //! Actual leased Control/Holding proof for the Field physical cleanup boundary.
 use super::system::{clock, config, fixture};
-use erpx_server_files::public::field_visit_upload::{
+use erpx_files_server::public::field_visit_upload::{
     FieldCleanupTransactions, LocalFieldQuarantineWriter, reconcile_field_upload_object,
 };
-use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{BusinessError, CompanyId};
-use erpx_service::files_system_scan::{
+use erpx_platform_runtime_server::public::postgres::{PgTransactionError, PgWorkFuture};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId};
+use erpx_platform_composition::files_system_scan::{
     DevelopmentFilesScanTransactions, assemble_development_files_scan,
 };
 use sqlx::{PgConnection, PgPool};
@@ -21,7 +21,7 @@ struct Interposed<C> {
     steps: AtomicUsize,
     mode: u8,
 }
-impl<C: erpx_server_shared::public::Clock + Send + Sync + 'static> FieldCleanupTransactions
+impl<C: erpx_platform_shared_server::public::Clock + Send + Sync + 'static> FieldCleanupTransactions
     for Interposed<C>
 {
     async fn metadata<T, F>(&self, work: F) -> Result<T, Error>
@@ -169,16 +169,16 @@ async fn revoked_binding_and_reference_committed_while_waiting_preserve_objects_
 
 #[derive(Clone)]
 struct RegressingClock(std::sync::Arc<AtomicUsize>);
-impl erpx_server_shared::public::Clock for RegressingClock {
-    fn now(&self) -> erpx_server_shared::public::TimestampMillis {
+impl erpx_platform_shared_server::public::Clock for RegressingClock {
+    fn now(&self) -> erpx_platform_shared_server::public::TimestampMillis {
         let calls = self.0.fetch_add(1, Ordering::SeqCst);
-        erpx_server_shared::public::TimestampMillis::new(if calls >= 4 { 400 } else { 1000 })
+        erpx_platform_shared_server::public::TimestampMillis::new(if calls >= 4 { 400 } else { 1000 })
     }
 }
 
 #[tokio::test]
 async fn abandoned_pin_recovers_only_after_object_lock_and_fresh_expiry() {
-    use erpx_server_files::public::field_visit_upload::FieldCleanupOutcome;
+    use erpx_files_server::public::field_visit_upload::FieldCleanupOutcome;
     use nix::fcntl::{Flock, FlockArg};
     for mode in [0, 1, 2, 3] {
         fixture::account::with_system(move |s| async move {
@@ -222,7 +222,7 @@ async fn abandoned_pin_recovers_only_after_object_lock_and_fresh_expiry() {
 
 #[tokio::test]
 async fn owned_publish_stages_are_reconciled_or_fail_closed() {
-    use erpx_server_files::public::field_visit_upload::FieldCleanupOutcome;
+    use erpx_files_server::public::field_visit_upload::FieldCleanupOutcome;
     for mode in [0, 1, 2, 3, 4] {
         fixture::account::with_system(move |s| async move {
             let root=tempfile::Builder::new().permissions(std::fs::Permissions::from_mode(0o700)).tempdir().unwrap();

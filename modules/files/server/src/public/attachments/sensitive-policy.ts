@@ -1,0 +1,1 @@
+export {sensitiveAttachmentPolicies,isSensitiveAttachmentTarget,authorizeSensitiveAttachmentTarget,sensitiveAttachmentTargetVersionGuard,sensitiveAttachmentRecordVersionStep} from "@erpx/files-server/adapters/attachments/sensitive-policy";

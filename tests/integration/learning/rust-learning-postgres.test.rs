@@ -5,26 +5,26 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_learning::public::eligibility_facts::{
+use erpx_learning_server::public::eligibility_facts::{
     BenefitConsumptionActor, BenefitConsumptionCommand, BenefitConsumptionRequest, EligibilityQuery,
     EligibilityScope, consume_benefit, finalize_benefit_consumption,
     learning_eligibility_consumer_facts, learning_eligibility_facts, prepare_benefit_consumption,
     validate_benefit_consumption,
 };
-use erpx_server_learning::public::benefit_learning::PgBenefitLearning;
-use erpx_server_benefits::public::command::{BenefitLearningRequest, BenefitsLearningPort};
-use erpx_server_learning::public::learning::{
+use erpx_learning_server::public::benefit_learning::PgBenefitLearning;
+use erpx_benefits_server::public::command::{BenefitLearningRequest, BenefitsLearningPort};
+use erpx_learning_server::public::learning::{
     AssignmentAction, AssignmentChange, AssignmentRequest, Attendance, CertificateRevocation,
     CourseAction, CourseChange, CourseRequest, EvidenceManifestItem, LearningActor,
     LearningEvidencePort, LearningEvidenceRequest, PgLearning, PreparedLearningEvidence,
     change_assignment, change_course, create_assignment, create_course, learning_detail,
     learning_workspace, revoke_certificate, utc_date,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, RecordId,
     TimestampMillis, UserId,
 };
@@ -448,10 +448,10 @@ async fn eligibility_code_survives_real_owner_handoff_and_consumer_read() {
             assert_eq!(facts["eligible"], true);
             assert_eq!(facts["eligibility_code"], code);
             let other = run_consumer_eligibility(&pool, "company", None, None, "person-learner", "different", "2026-11-04").await.unwrap_err();
-            assert_eq!(other.kind, erpx_server_shared::public::FailureKind::NotFound);
+            assert_eq!(other.kind, erpx_platform_shared_server::public::FailureKind::NotFound);
             assert_eq!(other.code, "LEARNING_ELIGIBILITY_NOT_FOUND");
             let foreign = run_consumer_eligibility(&pool, "foreign", None, None, "person-learner", &code, "2026-11-04").await.unwrap_err();
-            assert_eq!(foreign.kind, erpx_server_shared::public::FailureKind::NotFound);
+            assert_eq!(foreign.kind, erpx_platform_shared_server::public::FailureKind::NotFound);
             assert_eq!(foreign.code, "LEARNING_ELIGIBILITY_NOT_FOUND");
             let after: (i64,i64,i64,i64,i64,i64) = sqlx::query_as("SELECT (SELECT count(*) FROM learning_eligibility_handoffs),(SELECT count(*) FROM learning_certificates),(SELECT count(*) FROM learning_benefit_consumption_receipts),(SELECT count(*) FROM command_receipts),(SELECT count(*) FROM audit_events),(SELECT count(*) FROM outbox_events)").fetch_one(pool.raw()).await.unwrap();
             assert_eq!(after, before);
@@ -1802,7 +1802,7 @@ async fn eligibility_handoff_facts_are_current_scoped_and_consumption_preserving
 // not evidence of a People authorization or a Benefits consumption transaction.
 #[tokio::test(flavor = "multi_thread")]
 async fn certificate_digest_matches_node_postgres_stringify_oracle() {
-    use erpx_server_workflow::public::commands::CommandJson;
+    use erpx_workflow_server::public::commands::CommandJson;
     use serde::Serialize;
     use sha2::{Digest, Sha256};
 
@@ -1849,7 +1849,7 @@ async fn certificate_digest_matches_node_postgres_stringify_oracle() {
             // Import the real runtime module to register its pg type parsers.
             // The leased database and ID are argv; credentials stay in the inherited environment.
             let script = r#"
-import '@erpx/server-runtime/adapters/runtime/postgres';
+import '@erpx/platform-runtime-server/adapters/runtime/postgres';
 import pg from 'pg';
 import { createHash } from 'node:crypto';
 const url = new URL(process.env.ERPX_TEST_ADMIN_URL);
@@ -2289,7 +2289,7 @@ impl LearningEvidencePort for FakeEvidence {
         &'a mut self,
         _connection: &'a mut sqlx::PgConnection,
         request: LearningEvidenceRequest,
-    ) -> erpx_server_learning::public::learning::LearningFuture<
+    ) -> erpx_learning_server::public::learning::LearningFuture<
         'a,
         Option<PreparedLearningEvidence>,
         BusinessError,
@@ -2326,7 +2326,7 @@ impl LearningEvidencePort for FakeEvidence {
         &'a mut self,
         _connection: &'a mut sqlx::PgConnection,
         _prepared: &'a PreparedLearningEvidence,
-    ) -> erpx_server_learning::public::learning::LearningFuture<'a, (), BusinessError> {
+    ) -> erpx_learning_server::public::learning::LearningFuture<'a, (), BusinessError> {
         Box::pin(async move {
             self.currents += 1;
             Ok(())

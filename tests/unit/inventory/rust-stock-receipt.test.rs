@@ -1,6 +1,6 @@
 //! Portable goods-receipt guards for the Commerce-owned purchase command.
 //! These cases do not prove IAM, purchase, Quality or a PostgreSQL effect.
-use erpx_server_inventory::public::stock_receipt::*;
+use erpx_inventory_server::public::stock_receipt::*;
 
 fn source(tracking: &str, lots: Vec<StockReceiptLot>) -> StockReceiptSource {
     StockReceiptSource {
@@ -83,12 +83,12 @@ fn input(
 
 #[test]
 fn receipt_quarantine_policy_matches_installed_legacy_schema_and_application_guard() {
-    use erpx_server_commerce::public::receipt::{ReceiptAllocationCommand,ReceiptCommand,ReceiptDisposition as CommerceDisposition,ReceiptLineCommand};
-    use erpx_server_shared::public::{CommandKey,RecordId};
+    use erpx_commerce_server::public::receipt::{ReceiptAllocationCommand,ReceiptCommand,ReceiptDisposition as CommerceDisposition,ReceiptLineCommand};
+    use erpx_platform_shared_server::public::{CommandKey,RecordId};
     use std::process::Command;
     let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let node=std::env::var_os("ERPX_NODE_BIN").map(std::path::PathBuf::from).unwrap_or_else(||root.join(".runtime/node/node-v26.11.1-darwin-arm64/bin/node"));
-    let script=r#"if(process.version!=='v26.11.1')throw Error('NODE_VERSION');const fs=require('node:fs'),z=require('zod');if(require('zod/package.json').version!=='4.6.7')throw Error('ZOD_VERSION');const s=fs.readFileSync('packages/server-commerce/src/domain/commerce.ts','utf8');const q=s.slice(s.indexOf('const quantity = z'),s.indexOf('export const orderSchema'));const f=s.slice(s.indexOf('export const fulfillmentSchema'),s.indexOf('export const invoiceFromDeliverySchema')).replace('export const fulfillmentSchema','const fulfillmentSchema');const schema=new Function('z',q+f+';return fulfillmentSchema')(z);const app=fs.readFileSync('packages/server-commerce/src/application/commerce.ts','utf8');const guard="if (incoming && allocation.disposition === 'quarantine' && (!allocation.quarantineReason || !allocation.quarantineDueDate))";if(!app.includes(guard))throw Error('GUARD_CHANGED');const reject=new Function('incoming','allocation','return '+guard.slice(4,-1));const parsed=schema.safeParse(JSON.parse(process.argv[1]));process.stdout.write(parsed.success&&!reject(true,parsed.data.lines[0].allocations[0])?'accepted':'rejected');"#;
+    let script=r#"if(process.version!=='v26.11.1')throw Error('NODE_VERSION');const fs=require('node:fs'),z=require('zod');if(require('zod/package.json').version!=='4.6.7')throw Error('ZOD_VERSION');const s=fs.readFileSync('modules/commerce/server/src/domain/commerce.ts','utf8');const q=s.slice(s.indexOf('const quantity = z'),s.indexOf('export const orderSchema'));const f=s.slice(s.indexOf('export const fulfillmentSchema'),s.indexOf('export const invoiceFromDeliverySchema')).replace('export const fulfillmentSchema','const fulfillmentSchema');const schema=new Function('z',q+f+';return fulfillmentSchema')(z);const app=fs.readFileSync('modules/commerce/server/src/application/commerce.ts','utf8');const guard="if (incoming && allocation.disposition === 'quarantine' && (!allocation.quarantineReason || !allocation.quarantineDueDate))";if(!app.includes(guard))throw Error('GUARD_CHANGED');const reject=new Function('incoming','allocation','return '+guard.slice(4,-1));const parsed=schema.safeParse(JSON.parse(process.argv[1]));process.stdout.write(parsed.success&&!reject(true,parsed.data.lines[0].allocations[0])?'accepted':'rejected');"#;
     let cases=[(true,Some(" x "),Some("2020-01-01")),(true,Some("😀"),Some("0000-02-29")),(true,Some("  "),Some("2026-11-10")),(true,Some("x"),None),(true,Some("x"),Some("2026-02-30")),(false,Some(" ignored "),Some("2020-01-01")),(false,Some(""),Some(""))];
     for (quarantine,reason,due) in cases {
         let disposition=if quarantine {"quarantine"} else {"available"};
@@ -458,7 +458,7 @@ fn receipt_identities_use_utf16_bounds_like_the_transport() {
 
 #[test]
 fn public_stock_write_surface_exposes_one_receipt_writer_and_the_issue_writer() {
-    use erpx_server_inventory::public::stock_write::{
+    use erpx_inventory_server::public::stock_write::{
         InventoryStockReceipt, ProductionInventoryStockReceipt, QualityReceiptHoldPort,
         apply_stock_issue,
     };

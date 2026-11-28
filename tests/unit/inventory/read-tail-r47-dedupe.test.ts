@@ -6,9 +6,9 @@ import {
   reservationsCteHeadSql,
   markedCountExistsSql,
   reservedWarehouseProductQtySql,
-} from '../../../packages/server-inventory/src/adapters/read-tail-sql';
+} from '../../../modules/inventory/server/src/adapters/read-tail-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-inventory/src');
+const srcRoot = resolve(__dirname, '../../../modules/inventory/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, name), 'utf8');
 const adapter = (name: string) => src(`adapters/${name}`);
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;

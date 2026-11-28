@@ -1,7 +1,7 @@
 //! Native POS approval-queue (`posWork`) read statements on isolated PostgreSQL.
 //!
 //! The four `pos_read*` owner kinds retired from
-//! `packages/server-pos/src/adapters/pos.ts` execute on the caller's
+//! `modules/pos/server/src/adapters/pos.ts` execute on the caller's
 //! serializable transaction with fixed Company/branch scope and independence
 //! filters. These tests prove the retired statements return exactly the rows
 //! the retained `posWork` queue consumed: requested refunds, closed shifts and
@@ -10,15 +10,15 @@
 //! guard fail closed. The final test covers the Stripe by-id payment registry
 //! statement: its `FOR UPDATE` lock is taken on the caller's unit and blocks a
 //! second caller until the holder commits.
-use erpx_server_pos::public::owner_writes_http::{
+use erpx_pos_server::public::owner_writes_http::{
     POS_READPOSCASHMOVEMENTS2_242, POS_READPOSJOBS1_245, POS_READPOSREFUNDS3_230,
     POS_READPOSSHIFTS1_236, STRIPE_READPOSPAYMENTSBYID_527, owner_write_statement,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabaseConfig, DatabasePool, MigrationTrack, PgTransactionError, PoolLimits, connect_pool,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::CompanyId;
+use erpx_platform_shared_server::public::CompanyId;
 use serde_json::Value;
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row, postgres::PgConnectOptions};
 use std::{

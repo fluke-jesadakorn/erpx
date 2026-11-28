@@ -1,12 +1,12 @@
 //! Native Projects milestone command policy, replay and validation tests.
-use erpx_server_projects::public::project_commands::{
+use erpx_projects_server::public::project_commands::{
     DependencyFact, MilestoneAction, MilestoneCommandReceipt, ParentMilestone,
     ProjectCommandActor, ProjectCommandFuture, ProjectCommandMilestone, ProjectCommandProject,
     ProjectMilestoneCommandRepository, SaveMilestoneCommand, SaveMilestonePlan,
     StoredMilestoneReceipt, TransitionMilestoneCommand, TransitionMilestonePlan, save_milestone,
     transition_milestone,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, CompanyId, FailureKind, TimestampMillis,
 };
 
@@ -16,8 +16,8 @@ fn actor() -> ProjectCommandActor {
     ProjectCommandActor {
         user_id: "owner".into(),
         company_id: CompanyId::new("company").unwrap(),
-        branch_id: Some(erpx_server_shared::public::RecordId::new("branch").unwrap()),
-        department_id: Some(erpx_server_shared::public::RecordId::new("department").unwrap()),
+        branch_id: Some(erpx_platform_shared_server::public::RecordId::new("branch").unwrap()),
+        department_id: Some(erpx_platform_shared_server::public::RecordId::new("department").unwrap()),
         assignment_id: "assignment".into(),
         permissions: vec!["records.write".into()],
         modules: vec!["projects".into()],
@@ -754,7 +754,7 @@ async fn replay_returns_retained_receipt_without_writes_and_rejects_conflicts() 
     assert_eq!(error.code, "COMMAND_KEY_CONFLICT");
 
     let mut valid = repo();
-    let fingerprint = erpx_server_projects::public::project_commands::fingerprint(
+    let fingerprint = erpx_projects_server::public::project_commands::fingerprint(
         "project.milestone.create",
         "project",
         "milestone-command-1",

@@ -1,8 +1,8 @@
 import {describe,expect,test} from 'vitest';
 import {readFileSync} from 'node:fs';
-import {PP_RD16_HR_PEOPLE_P_JOIN_SQL} from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r16-sources';
+import {PP_RD16_HR_PEOPLE_P_JOIN_SQL} from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r16-sources';
 
-const src = (name: string) => readFileSync(new URL(`../../../packages/server-people_payroll/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFileSync(new URL(`../../../modules/people-payroll/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const LITERAL = 'JOIN (SELECT "id", "user_id", "company_id", "legal_name", "preferred_name", "email", "phone", "country_code", "status", "version", "created_by", "created_at", "updated_at", "merged_into_id", "work_email", "work_phone" FROM hr_people) p';
 const QUOTED = '"' + LITERAL.replace(/"/g, '\\"') + '"';
 const CALLERS = [

@@ -13,25 +13,25 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_commerce::public::native_read as plans;
-use erpx_server_commerce::public::{ReadPlan, bind};
+use erpx_commerce_server::public::native_read as plans;
+use erpx_commerce_server::public::{ReadPlan, bind};
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row};
 
 /// Retained TypeScript authority, read at compile time for source parity.
 const TS_GUARDS: &str =
-    include_str!("../../../packages/server-commerce/src/adapters/guarded-source-dedupe-sql.ts");
+    include_str!("../../../modules/commerce/server/src/adapters/guarded-source-dedupe-sql.ts");
 const TS_SETTINGS: &str =
-    include_str!("../../../packages/server-commerce/src/adapters/settings-dedupe-sql.ts");
+    include_str!("../../../modules/commerce/server/src/adapters/settings-dedupe-sql.ts");
 const TS_PAGES: &str =
-    include_str!("../../../packages/server-commerce/src/adapters/commerce-pages.ts");
-const TS_UNIT: &str = include_str!("../../../packages/server-commerce/src/adapters/commerce.ts");
+    include_str!("../../../modules/commerce/server/src/adapters/commerce-pages.ts");
+const TS_UNIT: &str = include_str!("../../../modules/commerce/server/src/adapters/commerce.ts");
 const TS_ECOMMERCE: &str =
-    include_str!("../../../packages/server-commerce/src/adapters/ecommerce-sources.ts");
+    include_str!("../../../modules/commerce/server/src/adapters/ecommerce-sources.ts");
 const TS_RECORDS: &str = include_str!(
-    "../../../packages/server-commerce/src/adapters/records-record-details-owned-facts.ts"
+    "../../../modules/commerce/server/src/adapters/records-record-details-owned-facts.ts"
 );
 const TS_POS: &str =
-    include_str!("../../../packages/server-commerce/src/adapters/pos-core-facts.ts");
+    include_str!("../../../modules/commerce/server/src/adapters/pos-core-facts.ts");
 
 const DDL: &str = "\
 CREATE TABLE commerce_products(id text primary key,company_id text not null,sku text,name text,status text,item_type text,tracking_mode text,unit text,price_minor bigint,tax_bps bigint,description text,version bigint);\
@@ -124,13 +124,13 @@ async fn rowset(conn: &mut PgConnection, sql: &str, values: &[Option<String>]) -
 
 struct Case<'a> {
     kind: &'static str,
-    scope: erpx_server_commerce::public::ReadScope<'a>,
+    scope: erpx_commerce_server::public::ReadScope<'a>,
     /// Exact ordered values the retained TypeScript caller binds.
     live: Vec<Option<String>>,
 }
 
 fn cases<'a>() -> Vec<Case<'a>> {
-    let s = |record, company, branch| erpx_server_commerce::public::ReadScope {
+    let s = |record, company, branch| erpx_commerce_server::public::ReadScope {
         record_id: record,
         company_id: Some(company),
         branch_id: branch,
@@ -232,7 +232,7 @@ async fn parity(
     conn: &mut PgConnection,
     plan: &ReadPlan,
     live: &[Option<String>],
-    scope: &erpx_server_commerce::public::ReadScope<'_>,
+    scope: &erpx_commerce_server::public::ReadScope<'_>,
 ) {
     let bound = bind(plan.kind, scope).unwrap_or_else(|error| panic!("{}: {error:?}", plan.kind));
     assert_eq!(bound.binds, live, "{}: bind order", plan.kind);

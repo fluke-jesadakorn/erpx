@@ -7,7 +7,7 @@ import {
   nativeManageErpxFailure,
   NativeManageErpxError,
   type NativeManageErpxTransport,
-} from '../../../packages/feature-platform_administration/src/adapters/server/native-manage-erpx';
+} from '../../../modules/platform-administration/ui/src/adapters/server/native-manage-erpx';
 
 const config=(overrides:Record<string,unknown>={})=>({
   privateBaseUrl:'http://127.0.0.1:3301',
@@ -115,7 +115,7 @@ describe('native Manage ERPX onboarding transport',()=>{
   });
 
   it('fails closed without configuration and never falls back to the legacy owner query',async()=>{
-    const wrapper=await import('../../../packages/workplace/src/lib/native-manage-erpx');
+    const wrapper=await import('../../../platform/workplace/src/lib/native-manage-erpx');
     const saved=process.env.ERPX_NATIVE_MANAGE_ERPX_CONFIG;
     try{
       delete process.env.ERPX_NATIVE_MANAGE_ERPX_CONFIG;

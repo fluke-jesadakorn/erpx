@@ -1,7 +1,7 @@
 //! Actual owner-local HTTP router tests for the native Talent requisition slice.
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
-use erpx_server_talent::public::requisition_http::{
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
+use erpx_talent_server::public::requisition_http::{
     TalentRequisitionHttpBackend, TalentRequisitionHttpCommand, TalentRequisitionHttpFuture,
     TalentRequisitionHttpRequest, TalentRequisitionHttpResponse, TalentRequisitionHttpTarget,
     talent_requisition_http_router,

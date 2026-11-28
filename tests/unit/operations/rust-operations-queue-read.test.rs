@@ -1,7 +1,7 @@
 //! Native Operations queue read policy and application facts. No database,
 //! browser, command, purchase or Workflow acceptance is inferred.
-use erpx_server_operations::public::queue_read::*;
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_operations_server::public::queue_read::*;
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::{
     collections::BTreeMap,
     sync::{Arc, Mutex},

@@ -1,13 +1,13 @@
 //! Actual owner-local Benefits workspace HTTP router tests. These prove
 //! ingress facts only; composition, Account session and PostgreSQL remain
 //! separate responsibilities.
-use erpx_server_benefits::public::workspace_http::{
+use erpx_benefits_server::public::workspace_http::{
     BenefitsDetailHttpRequest, BenefitsWorkspaceHttpBackend, BenefitsWorkspaceHttpFuture,
     BenefitsWorkspaceHttpReadRequest, BenefitsWorkspaceHttpResponse, BenefitsWorkspaceHttpTarget,
     benefits_workspace_http_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Noop;

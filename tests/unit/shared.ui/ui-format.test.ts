@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultTimePreference, formatPreferredDateTime, formatUiDateTime, formatUiNumber, utcOffset } from "@erpx/feature-shared/lib/ui-format";
+import { defaultTimePreference, formatPreferredDateTime, formatUiDateTime, formatUiNumber, utcOffset } from "@erpx/platform-shared-ui/lib/ui-format";
 
 describe("English Gregorian UI formatting", () => {
   it("uses a Gregorian year and English month regardless of runtime locale", () => {

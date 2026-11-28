@@ -1,13 +1,13 @@
 //! Native Planning workspace policy, source validation and bounded read tests.
-use erpx_server_planning::public::planning::{
+use erpx_planning_server::public::planning::{
     MAX_CALENDAR, MAX_RECOMMENDATIONS, MAX_SCENARIOS, PlanningActor, PlanningAllocation,
     PlanningCalendarDay, PlanningComparison, PlanningContext, PlanningContextAllocation,
     PlanningReadFuture, PlanningRecommendation, PlanningResource, PlanningScenario,
     PlanningShortage, PlanningWorkspace, PlanningWorkspaceRepository, parse_context,
     parse_shortages, parse_work_weekdays, planning_workspace, validate_workspace,
 };
-use erpx_server_runtime::public::http_support::serde_json;
-use erpx_server_shared::public::{
+use erpx_platform_runtime_server::public::http_support::serde_json;
+use erpx_platform_shared_server::public::{
     BusinessError, CompanyId, FailureKind, RecordId, TimestampMillis,
 };
 

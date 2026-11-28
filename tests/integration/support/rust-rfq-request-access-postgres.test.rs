@@ -1,6 +1,6 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_support::public::rfq_request_access::*;
+use erpx_support_server::public::rfq_request_access::*;
 
 #[tokio::test]
 async fn workspace_and_team_source_match_original_scope() {

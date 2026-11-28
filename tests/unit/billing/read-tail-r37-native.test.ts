@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
-const src = (path: string) => readFile(new URL(`../../../packages/server-billing/src/${path}`, import.meta.url), 'utf8');
-const commercial = () => readFile(new URL('../../../packages/server-commercial/src/domain/owner_read.rs', import.meta.url), 'utf8');
+const src = (path: string) => readFile(new URL(`../../../modules/billing/server/src/${path}`, import.meta.url), 'utf8');
+const commercial = () => readFile(new URL('../../../modules/commercial/server/src/domain/owner_read.rs', import.meta.url), 'utf8');
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
 const KIND = {
@@ -53,7 +53,7 @@ const HASHES = {
 async function tsFiles(): Promise<string[]> {
   const found: string[] = [];
   const walk = async (path: string) => {
-    for (const entry of await readdir(new URL(`../../../packages/server-billing/src/${path}`, import.meta.url), { withFileTypes: true })) {
+    for (const entry of await readdir(new URL(`../../../modules/billing/server/src/${path}`, import.meta.url), { withFileTypes: true })) {
       const child = `${path}${entry.name}`;
       if (entry.isDirectory()) await walk(`${child}/`);
       else if (entry.isFile() && entry.name.endsWith('.ts')) found.push(child);

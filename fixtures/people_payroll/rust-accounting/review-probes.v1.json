@@ -12,9 +12,9 @@
     "typescriptEngine": "6.0.3"
   },
   "inputs": {
-    "packages/server-people_payroll/src/domain/payroll-accounting.ts": "0c3c3814af6a577ab7d4f9ea2c4eb829399a1cffbb88c8c16db25faf4d07b451",
-    "packages/feature-finance/src/lib/finance-money.ts": "c36415b741869d868e321634749ddd97854ccf81dfb32740a0c41789488651b8",
-    "packages/server-shared/src/domain/error.ts": "ff9c315f159f7adcff264d6637617b80760f758c7cb0b19e1896f85bb51b798c",
+    "modules/people-payroll/server/src/domain/payroll-accounting.ts": "0c3c3814af6a577ab7d4f9ea2c4eb829399a1cffbb88c8c16db25faf4d07b451",
+    "modules/finance/ui/src/lib/finance-money.ts": "c36415b741869d868e321634749ddd97854ccf81dfb32740a0c41789488651b8",
+    "platform/shared/server/src/domain/error.ts": "ff9c315f159f7adcff264d6637617b80760f758c7cb0b19e1896f85bb51b798c",
     "package.json": "e158b60b978f47f7a718283bbaa23b8296b1d075f710ac9ef2e64d241320555a",
     "bun.lock": "714d959fc1f827a8ebdfef2edf73a9f29c52c7c2bd9c0a3e5a613d844d03376a",
     "node_modules/typescript/package.json": "d9b8fb53c67c947fece83bcb73fa8512227ea6a12b110e096fdab8ecdc02b655",

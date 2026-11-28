@@ -1,0 +1,1 @@
+export {assertExpenseAttachmentPurchases,payrollAttachmentPurchaseScope,authorizePayrollAttachmentPurchase,payrollAttachmentCommandBoundary,type PayrollAttachmentPurchase} from "@erpx/people-payroll-server/adapters/attachment-purchases";

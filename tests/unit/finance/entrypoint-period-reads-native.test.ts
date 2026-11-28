@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { financeEntrypointQueries } from '../../../packages/server-finance/src/public/entrypoint-queries';
+import { financeEntrypointQueries } from '../../../modules/finance/server/src/public/entrypoint-queries';
 import {
   FINANCE_RD_PERIOD_END_DATES,
   FINANCE_RD_ALL_PERIODS,
-} from '../../../packages/server-finance/src/adapters/native-finance-read';
+} from '../../../modules/finance/server/src/adapters/native-finance-read';
 
 const envKey = 'ERPX_NATIVE_FINANCE_READ_CONFIG';
 const original = process.env[envKey];

@@ -4,11 +4,11 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::BusinessError;
-use erpx_server_work_projection::public::quick_access_preferences::{
+use erpx_platform_shared_server::public::BusinessError;
+use erpx_work_projection_server::public::quick_access_preferences::{
     QuickAccessPreference, SaveQuickAccessInput, read_quick_access, request_hash, result_json,
     save_quick_access,
 };
@@ -297,7 +297,7 @@ async fn scope_isolation_replay_conflict_stale_and_availability() {
 async fn request_hash_and_result_match_actual_typescript() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let application =
-        root.join("packages/server-work_projection/src/application/quick-access-preferences.ts");
+        root.join("modules/work-projection/server/src/application/quick-access-preferences.ts");
     let script = r#"import {createHash} from 'node:crypto';
 const {createQuickPreferenceService}=await import(process.argv[1]);
 let hashValue;

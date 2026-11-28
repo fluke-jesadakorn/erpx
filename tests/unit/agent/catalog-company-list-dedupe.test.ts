@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFile, readdir } from 'node:fs/promises';
 
 const src = (name: string) =>
-  readFile(new URL(`../../../packages/server-agent/src/${name}`, import.meta.url), 'utf8');
+  readFile(new URL(`../../../modules/agent/server/src/${name}`, import.meta.url), 'utf8');
 
 async function agentSelectCount(dir: URL): Promise<number> {
   let total = 0;
@@ -39,7 +39,7 @@ describe('Agent read-tail r20 catalog-joined company list retired to native', ()
   });
 
   it('records a strictly lower SELECT count than BEFORE=57', async () => {
-    expect(await agentSelectCount(new URL('../../../packages/server-agent/src/', import.meta.url))).toBeLessThan(57);
+    expect(await agentSelectCount(new URL('../../../modules/agent/server/src/', import.meta.url))).toBeLessThan(57);
   });
 
   it('leaves the retained guard, lock and write-read families untouched', async () => {

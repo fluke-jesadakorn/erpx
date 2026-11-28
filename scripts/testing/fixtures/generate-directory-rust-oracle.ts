@@ -5,7 +5,7 @@ import {mkdir,readFile,writeFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 const baseline='a5ed8737a2f05eff1ee9841fda4a094b3926d732';
-const paths=['packages/feature-organization/src/lib/hierarchy.ts','packages/server-identity_access/src/domain/providers.ts'];
+const paths=['modules/organization/ui/src/lib/hierarchy.ts','modules/identity-access/server/src/domain/providers.ts'];
 const sources=[];
 for(const path of paths){const bytes=await readFile(path);if(!bytes.equals(execFileSync('git',['show',`${baseline}:${path}`])))throw Error(`DIRECTORY_ORACLE_SOURCE_CHANGED:${path}`);sources.push({path,sha256:createHash('sha256').update(bytes).digest('hex')});}
 const node=process.env.ERPX_NODE_BIN??'node';if(execFileSync(node,['--version'],{encoding:'utf8'}).trim()!=='v26.11.1')throw Error('DIRECTORY_ORACLE_NODE_REQUIRED');

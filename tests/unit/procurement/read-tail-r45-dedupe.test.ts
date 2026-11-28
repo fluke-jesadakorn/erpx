@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
-import { attachmentVersionWitness } from '../../../packages/server-procurement/src/adapters/read-tail-r28';
-import { procurementAttachmentReadOuterFrame } from '../../../packages/server-procurement/src/adapters/read-tail-r45';
-import { commandReceiptMissing } from '../../../packages/server-procurement/src/adapters/read-tail-r44';
+import { attachmentVersionWitness } from '../../../modules/procurement/server/src/adapters/read-tail-r28';
+import { procurementAttachmentReadOuterFrame } from '../../../modules/procurement/server/src/adapters/read-tail-r45';
+import { commandReceiptMissing } from '../../../modules/procurement/server/src/adapters/read-tail-r44';
 
 const src = (name: string) => readFileSync(
-  new URL(`../../../packages/server-procurement/src/adapters/${name}`, import.meta.url), 'utf8',
+  new URL(`../../../modules/procurement/server/src/adapters/${name}`, import.meta.url), 'utf8',
 );
 const count = (s: string, needle: string) => s.split(needle).length - 1;
 const STEPS = 'STEPS';
@@ -108,7 +108,7 @@ describe('Procurement read-tail r45 byte-exact delegation', () => {
   });
 
   test('worktree SELECT count is 99 - 3 - 1 = 95', () => {
-    const root = new URL('../../../packages/server-procurement/src/', import.meta.url);
+    const root = new URL('../../../modules/procurement/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {

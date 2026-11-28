@@ -3,7 +3,7 @@ import { constants } from 'node:fs';
 import { lstat, mkdir, open, readFile, realpath } from 'node:fs/promises';
 import { isAbsolute, join, sep } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import { oasisDemoAccountHost, oasisDemoHolding } from '@erpx/contracts/holding-hosts';
+import { oasisDemoAccountHost, oasisDemoHolding } from '@erpx/platform-contracts/holding-hosts';
 import { oasisDemoRouting, startCompiledWorkspaceGateway } from './compiled-workspace-gateway';
 import { hasPortListener } from './port-listeners';
 import { oasisDemoApps, verifyWorkspaceRelease } from './workspace-release-manifest';

@@ -3,12 +3,12 @@ import {randomBytes} from "node:crypto";
 import {readFile,mkdir,writeFile,chmod} from "node:fs/promises";
 import {join,resolve} from "node:path";
 import {hashPassword} from "better-auth/crypto";
-import {getRuntime,closeRuntime} from "@erpx/server-runtime/adapters/runtime/env";
-import {assertHospitalityDevelopmentTarget} from "@erpx/feature-shared/lib/hospitality-seed-target";
+import {getRuntime,closeRuntime} from "@erpx/platform-runtime-server/adapters/runtime/env";
+import {assertHospitalityDevelopmentTarget} from "@erpx/platform-shared-ui/lib/hospitality-seed-target";
 import {seedExpenseCompany} from "../../../fixtures/expenses/company";
 import {mapSpendingOrganization} from "../../../tests/support/helpers/spending-organization";
-import {moduleRegistry} from "@erpx/catalogue/module-registry";
-import {businessRoles} from "@erpx/feature-identity_access/lib/business-roles";
+import {moduleRegistry} from "@erpx/platform-catalogue/module-registry";
+import {businessRoles} from "@erpx/identity-access-ui/lib/business-roles";
 
 const manifestPath=process.env.ERPX_DATABASE_MANIFEST;
 if(!manifestPath||process.env.ERPX_PUBLIC_ORIGIN!=="https://console-dev-erpx.jesadakorn.com")throw new Error("EXACT_DEVELOPMENT_CONSOLE_REQUIRED");

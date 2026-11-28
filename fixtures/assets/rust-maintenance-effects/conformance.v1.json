@@ -6,7 +6,7 @@
   "description": "Development-only execution of the unchanged B0 prepared SQL scalar CASE/NULL expressions in in-memory SQLite. No authority, PostgreSQL constraints/locking or owner command acceptance is established; actual migrated PostgreSQL effect conformance remains required.",
   "sources": [
     {
-      "path": "packages/server-assets/src/adapters/maintenance-transaction.ts",
+      "path": "modules/assets/server/src/adapters/maintenance-transaction.ts",
       "sha256": "c81c66d04c64b150dc8f586a482ac5012f8e1e4097566176d0dfdcfb0c355bbd"
     }
   ],

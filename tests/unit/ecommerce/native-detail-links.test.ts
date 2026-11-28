@@ -6,7 +6,7 @@ import {
   nativeDetailLinksEcomConfigured,
   type DetailLinkHoldingContext,
   type DetailLinkTransport,
-} from "../../../packages/server-ecommerce/src/adapters/native-detail-links/client";
+} from "../../../modules/ecommerce/server/src/adapters/native-detail-links/client";
 
 /** Exact dev value for ERPX_NATIVE_ECOM_DETAIL_LINKS_CONFIG (1..64 holdings). */
 export const DEV_CONFIG = {

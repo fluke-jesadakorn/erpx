@@ -5,16 +5,16 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_records::public::record_context::{RecordContextActor, RecordRow};
-use erpx_server_records::public::record_registry::{
+use erpx_records_server::public::record_context::{RecordContextActor, RecordRow};
+use erpx_records_server::public::record_registry::{
     MAX_FETCH, PgRecordRegistry, RecordRegistryFuture, RecordRegistryGuard,
     RecordRegistryRepository, RecordView, RegistryPage, RegistryQuery, record_registry_list,
     record_registry_page,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::collections::BTreeSet;
 
 const NOW: i64 = 500;

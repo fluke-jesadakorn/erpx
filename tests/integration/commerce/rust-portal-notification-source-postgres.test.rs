@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 #[path = "../../support/rust-postgres.rs"] mod fixture;
-use erpx_server_commerce::public::portal_notification_source::*;
-use erpx_server_runtime::public::postgres::{DatabasePool,MigrationTrack,load_migrations,migrate_database};
-use erpx_server_shared::public::CompanyId;
+use erpx_commerce_server::public::portal_notification_source::*;
+use erpx_platform_runtime_server::public::postgres::{DatabasePool,MigrationTrack,load_migrations,migrate_database};
+use erpx_platform_shared_server::public::CompanyId;
 use sqlx::Connection;
 async fn setup(pool: &DatabasePool) {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");

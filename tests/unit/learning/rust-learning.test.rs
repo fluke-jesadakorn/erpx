@@ -1,7 +1,7 @@
 //! Unit policy for the native Learning owner: current actor scope, reviewed
 //! course catalogue, eligible assignment, learner evidence, certification and
 //! revocation. No database or HTTP effect is reachable here.
-use erpx_server_learning::public::eligibility_facts::{
+use erpx_learning_server::public::eligibility_facts::{
     BenefitConsumptionActor, BenefitConsumptionPlan, BenefitConsumptionRequest,
     EligibilityCertificateRow, EligibilityConsumptionRow, EligibilityQuery, EligibilityScope,
     MAX_ELIGIBILITY_CERTIFICATES, MAX_ELIGIBILITY_CONSUMPTIONS, PreparedBenefitConsumption,
@@ -9,13 +9,13 @@ use erpx_server_learning::public::eligibility_facts::{
     eligibility_facts_json, learning_benefit_continuation, require_certificate_current,
     select_benefit_certificate,
 };
-use erpx_server_learning::public::benefit_learning::{
+use erpx_learning_server::public::benefit_learning::{
     PgBenefitLearning, benefit_consumption_request, benefit_learning_identity,
 };
-use erpx_server_benefits::public::command::{
+use erpx_benefits_server::public::command::{
     BenefitLearningRequest, BenefitsLearningPort, PreparedBenefitLearning,
 };
-use erpx_server_learning::public::learning::{
+use erpx_learning_server::public::learning::{
     AssignmentAction, AssignmentChange, AssignmentRequest, AssignmentRow, Attendance,
     CertificateRevocation, CertificateRow, CourseAction, CourseChange, CourseRequest, CourseRow,
     EvidenceManifestItem, HandoffRow, LearningActor, PlacementRow,
@@ -23,7 +23,7 @@ use erpx_server_learning::public::learning::{
     assignment_evidence_request, certificate_revoke_plan, course_change_plan, course_create_plan,
     utc_date, valid_date,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, CompanyId, FailureKind, HoldingId, RecordId, TimestampMillis, UserId,
 };
 
@@ -300,11 +300,11 @@ fn learning_field_boundaries_and_js_whitespace_are_preserved() {
     row.validate_source().unwrap();
     row.title.push('ก');
     assert!(row.validate_source().is_err());
-    assert!(erpx_server_learning::public::learning::normalize_reason(&"ก".repeat(3_000)).is_ok());
-    assert!(erpx_server_learning::public::learning::normalize_reason(&"ก".repeat(3_001)).is_err());
-    assert!(erpx_server_learning::public::learning::normalize_reason(&"😀".repeat(3_000)).is_ok());
-    assert!(erpx_server_learning::public::learning::normalize_reason(&"😀".repeat(3_001)).is_err());
-    assert!(erpx_server_learning::public::learning::normalize_reason("🙂x").is_err());
+    assert!(erpx_learning_server::public::learning::normalize_reason(&"ก".repeat(3_000)).is_ok());
+    assert!(erpx_learning_server::public::learning::normalize_reason(&"ก".repeat(3_001)).is_err());
+    assert!(erpx_learning_server::public::learning::normalize_reason(&"😀".repeat(3_000)).is_ok());
+    assert!(erpx_learning_server::public::learning::normalize_reason(&"😀".repeat(3_001)).is_err());
+    assert!(erpx_learning_server::public::learning::normalize_reason("🙂x").is_err());
     let revoke = CertificateRevocation { expected_assignment_version: 1, reason: format!("\u{feff}{}\u{feff}", "😀".repeat(1_000)) };
     assert_eq!(revoke.validate().unwrap().reason, "😀".repeat(1_000));
     assert!(CertificateRevocation { reason: "😀".repeat(2_000), ..revoke.clone() }.validate().is_ok());
@@ -452,8 +452,8 @@ fn assignment_input_and_action_shape_are_strict() {
     };
     assert_eq!(input.validate().unwrap().due_date, "2026-11-30");
     assert!(AssignmentRequest { due_date: " 2026-11-30 ".into(), ..input.clone() }.validate().is_err());
-    assert_eq!(erpx_server_learning::public::learning::normalize_reason("\u{0085}abc\nxyz").unwrap(), "\u{0085}abc\nxyz");
-    assert!(erpx_server_learning::public::learning::normalize_reason("abc\0xyz").is_err());
+    assert_eq!(erpx_learning_server::public::learning::normalize_reason("\u{0085}abc\nxyz").unwrap(), "\u{0085}abc\nxyz");
+    assert!(erpx_learning_server::public::learning::normalize_reason("abc\0xyz").is_err());
     assert!(
         AssignmentRequest {
             due_date: "2026-02-30".into(),
@@ -1578,10 +1578,10 @@ fn benefit_continuation_requires_benefits_navigation_authority_and_exact_source(
 
 #[tokio::test]
 async fn detail_payload_always_emits_benefit_continuation_key() {
-    use erpx_server_learning::public::learning::{
+    use erpx_learning_server::public::learning::{
         EventRow, LearningFuture, LearningReadRepository, PersonRow, learning_detail,
     };
-    use erpx_server_shared::public::BusinessError;
+    use erpx_platform_shared_server::public::BusinessError;
 
     struct DetailRead {
         row: AssignmentRow,
@@ -1870,11 +1870,11 @@ async fn benefits_learning_port_refuses_without_the_caller_unit() {
 
 #[tokio::test]
 async fn work_read_inherits_owner_scope_and_redacts_result_history() {
-    use erpx_server_learning::public::learning::{
+    use erpx_learning_server::public::learning::{
         EventRow, LearningFuture, LearningReadRepository, PersonRow,
     };
-    use erpx_server_learning::public::learning_work::{learning_work, redact_result_history};
-    use erpx_server_shared::public::BusinessError;
+    use erpx_learning_server::public::learning_work::{learning_work, redact_result_history};
+    use erpx_platform_shared_server::public::BusinessError;
     use serde_json::{Value, json};
 
     struct EmptyRead;

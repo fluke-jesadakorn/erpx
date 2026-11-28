@@ -9,7 +9,7 @@ import {
   attachmentsV2Readable,
   requireAttachmentsV2,
   requireAttachmentsV2Read,
-} from "@erpx/server-files/public/attachments/feature";
+} from "@erpx/files-server/public/attachments/feature";
 
 function environment(values: Record<string, string | undefined> = {}): NodeJS.ProcessEnv {
   return { NODE_ENV: 'test', ...values };

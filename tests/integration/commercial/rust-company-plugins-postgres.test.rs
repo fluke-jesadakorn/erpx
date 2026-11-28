@@ -1,12 +1,12 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_commercial::public::company_plugins::{
+use erpx_commercial_server::public::company_plugins::{
     PluginPin, install_company_plugin, list_company_plugins, verify_plugin_version,
     withdraw_company_plugin,
 };
-use erpx_server_runtime::public::postgres::{MigrationTrack, load_migrations, migrate_database};
-use erpx_server_shared::public::{CompanyId, UserId};
+use erpx_platform_runtime_server::public::postgres::{MigrationTrack, load_migrations, migrate_database};
+use erpx_platform_shared_server::public::{CompanyId, UserId};
 use sha2::{Digest, Sha256};
 
 #[tokio::test]
@@ -14,7 +14,7 @@ async fn withdrawal_and_retry_respect_the_installation_version_and_company() {
     fixture::with_database(2, check_installations).await;
 }
 
-async fn check_installations(pool: erpx_server_runtime::public::postgres::DatabasePool) {
+async fn check_installations(pool: erpx_platform_runtime_server::public::postgres::DatabasePool) {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
     let files = load_migrations(&root, MigrationTrack::HoldingWrite)
         .await

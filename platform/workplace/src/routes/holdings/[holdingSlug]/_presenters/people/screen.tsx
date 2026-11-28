@@ -1,0 +1,157 @@
+import { canonicalUiHref } from "@erpx/work-projection-ui/lib/destination-registry";
+import { peopleSettingsHref } from "@erpx/people-payroll-ui/lib/people-route-context";
+import { peoplePayrollPresentationQueries } from "@erpx/people-payroll-server/public/presentation-queries";
+
+import { ActionLink as UiActionLink } from "@erpx/platform-ui/components/foundation";
+import { BetaPeople } from "@erpx/collaboration-ui/components/people-page";
+import { FeaturePage, FeatureWidget, WidgetGrid } from "@erpx/platform-shared-ui/components/features/feature-page";
+import { MemberProfile } from "@erpx/identity-access-ui/components/member-profile";
+import { PeopleNavigation } from "@erpx/people-payroll-ui/components/people-navigation";
+import { PeopleDirectoryWorkspace } from "@erpx/people-payroll-ui/components/people-directory-workspace";
+import { ListPagination } from "@erpx/platform-ui/components/list-pagination";
+import { PageHeader } from "@erpx/platform-ui/components/primitives";
+import { PeopleEditor } from "@erpx/people-payroll-ui/components/lazy-people-editor";
+import { hasPermission } from "@erpx/identity-access-ui/lib/permissions";
+import { workspaceBase } from "@erpx/work-projection-ui/lib/workspace";
+import { publicScope,requireWorkContext } from "@erpx/identity-access-server/public/authorization";
+import { pageError } from "@erpx/work-projection-server/public/page-error";
+
+import { canManagePeople,directoryOptions } from "@erpx/people-payroll-server/public/people-directory";
+import { peopleDirectoryPage } from "@erpx/people-payroll-server/public/people-directory-page";
+
+import { getPerson } from "@erpx/people-payroll-server/public/people-payroll";
+
+
+import { forbidden, redirect } from "next/navigation";
+
+import directory from "@erpx/platform-workplace/routes/holdings/[holdingSlug]/_presenters/people/directory.module.css";
+import { PeopleOrganizationPage } from "@erpx/platform-workplace/routes/holdings/[holdingSlug]/_presenters/people/people-organization-page";
+
+export const dynamic = "force-dynamic";
+
+export default async function PeoplePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ holdingSlug: string }>;
+  searchParams: Promise<{
+    panel?: string; editor?: string; unit?: string; company?: string;
+    display?: string;
+    new?: string;
+    person?: string;
+    retirement?: string;
+    cursor?: string;
+    "archived.cursor"?: string; "archived.q"?: string; "archived.retirement"?: string;
+    q?: string;
+    status?: string;
+    level?: string;
+    department?: string;
+    team?: string;
+    view?: string;
+    section?: string;
+    member?: string;
+    position?:string;
+    case?:string;
+    tab?: string;
+    edit?: string;
+  }>;
+}) {
+  const { holdingSlug } = await params;
+  const actor = await requireWorkContext(holdingSlug);
+  const search = await searchParams;
+  if (search.panel === "settings") redirect(peopleSettingsHref(workspaceBase(publicScope(actor)), search));
+  if (search.view === "payroll" && !actor.beta) redirect(canonicalUiHref(`${workspaceBase(publicScope(actor))}/people/payroll`));
+  if (actor.beta) return <BetaPeople actor={actor} member={search.member} />;
+  const base = workspaceBase(publicScope(actor));
+  if (search.view === "users" || search.view === "external" || search.view === "unclassified") {
+    const query=new URLSearchParams(Object.entries(search).filter((entry):entry is [string,string]=>entry[1]!==undefined));
+    redirect(canonicalUiHref(`${base}/people?${query}`));
+  }
+  const archived = search.status === "archived";
+  const canManage = canManagePeople(actor);
+  if (!canManage && (archived || search.new === "person" || search.member || search.case)) forbidden();
+  // Preserve explicit legacy add-person, archived, linked-account, and case flows.
+  // The normal directory and all structure selections use the shared explorer.
+  if (!search.member && !search.case) {
+    return <PeopleOrganizationPage actor={actor} search={search} />;
+  }
+  const editing = canManage && search.new === "person";
+  const editingSelectedPerson = canManage && !!search.person;
+  const canExplore = ["people.read","people.manage"].some(p=>hasPermission(actor,p));
+  const exploring = canExplore && search.display === "explorer";
+  const presentation = await peoplePayrollPresentationQueries(actor.holdingId);
+  const [directoryPage, staffOptions, nodes, organization, lifecycle, selectedPersonData] = await Promise.all([
+    peopleDirectoryPage(actor,{
+      ...search,
+      status: archived ? "archived" : "current",
+      q: archived ? search["archived.q"] ?? search.q : search.q,
+      retirement: archived ? search["archived.retirement"] ?? search.retirement : search.retirement,
+      cursor: archived ? search["archived.cursor"] ?? search.cursor : search.cursor,
+    }),
+    editing || editingSelectedPerson ? presentation.staffSettings(actor) : null,
+    editing || editingSelectedPerson ? directoryOptions(actor) : [],
+    editing || editingSelectedPerson ? presentation.organizationOverview(actor) : undefined,
+    (editing || exploring || search.person || search.member || search.case) && ["people.manage","people.read","iam.read","organization.manage"].some(p=>hasPermission(actor,p)) ? presentation.peopleLifecycleData(actor) : null,
+    editingSelectedPerson ? getPerson(actor, search.person!).catch(() => null) : null,
+  ]).catch(error => pageError(error, holdingSlug));
+  const selectedMember = directoryPage?.members.find(m=>m.id===search.member);
+  return (
+    <FeaturePage className="content" data-source="live">
+      <PageHeader appearance="standard"
+        eyebrow="Your team"
+        title="People"
+        description="Manage people, positions, and employment changes. IT prepares their resources in Technology."
+        action={!editing && canManage ? <UiActionLink appearance="standard" variant="primary" href={canonicalUiHref(`${base}/people?new=person`)}>Add person</UiActionLink> : undefined}
+      />
+      <PeopleNavigation base={base} actor={actor} scopeKind={actor.scope.kind} active="directory"/>
+      <div className={directory.directory}>
+          {selectedMember && !selectedMember.personId && (
+            <MemberProfile actor={actor} base={base} member={selectedMember} />
+          )}
+          {editing && staffOptions && (
+            <PeopleEditor appearance="standard"
+              initialOpen
+              initialPositionId={organization?.positions.some(p=>p.id===search.position)?search.position:undefined}
+              base={base}
+              nodes={nodes}
+              levels={staffOptions.levels}
+              people={staffOptions.people}
+              organization={organization}
+              gpoPositions={lifecycle?.positions}
+            />
+          )}
+          <WidgetGrid>
+            {directoryPage && <FeatureWidget appearance="standard" id={archived ? "archived-profiles" : exploring ? "people-explorer" : "current-profiles"} title={archived ? "Archived profiles" : exploring ? "People explorer" : "Current profiles"}>
+              <PeopleDirectoryWorkspace
+                base={base}
+                lifecycle={archived ? null : lifecycle}
+                selectedRow={directoryPage.selected}
+                initialCaseId={search.case}
+                initialMemberId={search.member}
+                initialPositionId={search.position}
+                rows={directoryPage.items}
+                canManage={canManage}
+                hasExplorer={!archived && canExplore}
+                editor={staffOptions && organization && directoryPage.selected && (selectedPersonData || !directoryPage.selected.personId) ? {
+                  person: selectedPersonData?.person,
+                  member: !directoryPage.selected.personId ? {
+                    id: directoryPage.selected.userId ?? directoryPage.selected.id,
+                    name: directoryPage.selected.name,
+                    email: directoryPage.selected.email,
+                  } : undefined,
+                  nodes,
+                  levels: staffOptions.levels,
+                  people: staffOptions.people,
+                  organization,
+                  levelManagedSeparately: staffOptions.canManage,
+                } : null}
+              />
+              <ListPagination {...directoryPage} query={search} count={directoryPage.items.length}/>
+            </FeatureWidget>}
+          </WidgetGrid>
+
+
+      </div>
+    </FeaturePage>
+  );
+}

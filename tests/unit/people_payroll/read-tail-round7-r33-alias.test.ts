@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
-import { ppRdRound4ByProjectionIdCompany } from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-round4-sources';
-import { ppRd33FourColByIdCompany, ppRd33StarByTwoPredicates } from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r33-sources';
+import { ppRdRound4ByProjectionIdCompany } from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-round4-sources';
+import { ppRd33FourColByIdCompany, ppRd33StarByTwoPredicates } from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r33-sources';
 
 const src = (name: string) => readFileSync(
-  new URL(`../../../packages/server-people_payroll/src/adapters/${name}`, import.meta.url), 'utf8',
+  new URL(`../../../modules/people-payroll/server/src/adapters/${name}`, import.meta.url), 'utf8',
 );
 
 describe('People Payroll round-7 r33 id/company alias fold', () => {
@@ -36,7 +36,7 @@ describe('People Payroll round-7 r33 id/company alias fold', () => {
   });
 
   test('the fold lowers the owner SELECT count below 1140', () => {
-    const root = new URL('../../../packages/server-people_payroll/src/', import.meta.url);
+    const root = new URL('../../../modules/people-payroll/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {

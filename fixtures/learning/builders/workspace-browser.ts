@@ -1,6 +1,6 @@
 /** Purchased-product visibility for disposable Learn workspace fixtures only. */
 import { createHash } from 'node:crypto';
-import type { PostgresDatabase } from '@erpx/server-runtime/adapters/runtime/postgres';
+import type { PostgresDatabase } from '@erpx/platform-runtime-server/adapters/runtime/postgres';
 import type { EngineeringMoneyPeopleBrowser } from '../../finance/builders/engineering-money-people-browser';
 
 export async function seedLearningWorkspacePackages(input: { run: string; db: PostgresDatabase; academy: EngineeringMoneyPeopleBrowser }) {

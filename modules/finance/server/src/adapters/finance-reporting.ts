@@ -1,0 +1,103 @@
+import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
+import { tableByIdSql } from './finance-read-tail-r49-sql';
+import { ACCOUNT_SELECT_PREFIX } from './finance-read-tail-r30-sql';
+import { EARLIER_PERIODS_GUARD_SQL, PERIOD_OPEN_END_DATE_GUARD_SQL } from './finance-read-tail-r45-sql';
+import { CHART_ID_BY_COMPANY_SQL } from './finance-read-tail-r36-sql';
+import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/finance-server/adapters/purchase-boundary";
+import { nativeFinanceReporting } from '@erpx/collaboration-server/adapters/native-finance-reporting';
+import { nativeFinanceReadAll, nativeFinanceReadFirst, nativeFinanceReadScalarFirst, FINANCE_RD_REPORT_REVISION, FINANCE_RD_REPORT_PROFILE, FINANCE_RD_REPORT_PACKAGE_LIST, FINANCE_RD_REPORT_CLOSING_LIST, FINANCE_RD_REPORT_ACCOUNT_LIST, FINANCE_RD_REPORT_STATEMENT_HISTORY, FINANCE_RD_REPORT_PREVIOUS_PACKAGE, FINANCE_RD_REPORT_NEXT_EDITION } from './native-finance-read';
+import {financeReportingCompanyFacts} from '@erpx/organization-server/public/finance-reporting-company-facts';
+import { fiscalCloseSourceSql } from "@erpx/finance-server/public/finance-fiscal-close-source";
+import "server-only";
+import { z } from "zod";
+import { createHash } from "node:crypto";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import type { SqlDatabase, SqlStatement } from "@erpx/platform-runtime-server/public/runtime/types";
+import { holdingResources } from "../../../../../platform/runtime/server/src/public/runtime";
+import { requirePermission } from "@erpx/identity-access-server/public/iam-permissions";
+import {assertion} from "@erpx/workflow-server/public/command-assertions";
+import {executeCommand,replayCommand} from "@erpx/workflow-server/public/commands";
+import { ApiError } from "@erpx/platform-runtime-server/public/http";
+import {prepareJournal} from '@erpx/finance-server/public/journal-planning';
+import {snapshotMoney} from '@erpx/finance-server/public/company-money';
+import { createFinanceReporting } from "@erpx/finance-server/application/reporting";
+import { statementPackageSchema, reportingDecisionSchema, yearClosingSchema, type Chart, type Profile, type Account, type Package } from "@erpx/finance-server/domain/reporting";
+export { statementPackageSchema, reportingDecisionSchema, yearClosingSchema, type StatementSnapshot, type StatementSet } from "@erpx/finance-server/domain/reporting";
+async function revision(db: SqlDatabase, chartId: string) { return Number(await nativeFinanceReadScalarFirst<number>(FINANCE_RD_REPORT_REVISION, [chartId], db, 'revision') ?? 0); }
+function sourceGuards(db: SqlDatabase, actor: WorkContext, key: string, chartId: string, profileId: string, profileVersion: number, sourceRevision: number): SqlStatement[] {
+    return [
+        db.prepare("SELECT chart_id FROM finance_reporting_revisions WHERE chart_id=? FOR UPDATE").bind(chartId),
+        assertion(db, key, "reporting-revision", "EXISTS(SELECT 1 FROM finance_reporting_revisions WHERE chart_id=? AND revision=?)", [chartId, sourceRevision]),
+        assertion(db, key, "reporting-profile", "EXISTS(SELECT 1 FROM finance_accounting_profiles WHERE id=? AND company_id=? AND statutory_chart_id=? AND status='approved' AND version=?)", [profileId, actor.companyId, chartId, profileVersion]),
+    ];
+}
+async function totals(db: SqlDatabase, actor: WorkContext, chartId: string, startDate: string, endDate: string) {
+    return (await db.prepare(`WITH dates AS (SELECT ?::text starts,?::text ends)
+  SELECT a.id,a.code,a.name,a.category,a.currency,a.status,
+   COALESCE(SUM(l.base_debit_minor-l.base_credit_minor) FILTER(WHERE j.entry_date<=d.ends),0) balance_minor,
+   COALESCE(SUM(l.base_debit_minor-l.base_credit_minor) FILTER(WHERE j.entry_date<d.starts),0) opening_minor,
+   COALESCE(SUM(l.base_debit_minor-l.base_credit_minor) FILTER(WHERE j.entry_date BETWEEN d.starts AND d.ends AND NOT ${fiscalCloseSourceSql()}),0) income_minor,
+   COALESCE(SUM(l.base_credit_minor-l.base_debit_minor) FILTER(WHERE j.entry_date BETWEEN d.starts AND d.ends AND NOT ${fiscalCloseSourceSql()} AND a.category='equity'),0) owner_movements_minor,
+   COALESCE(SUM(l.base_credit_minor-l.base_debit_minor) FILTER(WHERE j.entry_date BETWEEN d.starts AND d.ends AND ${fiscalCloseSourceSql()} AND a.category='equity'),0) closing_transfer_minor
+  FROM finance_accounts a CROSS JOIN dates d LEFT JOIN finance_journals j ON j.company_id=a.company_id AND j.chart_id=a.chart_id AND j.status IN ('posted','reversed') AND j.entry_date<=d.ends
+  LEFT JOIN finance_journal_lines l ON l.journal_id=j.id AND l.account_id=a.id
+  WHERE a.company_id=? AND a.chart_id=? GROUP BY a.id,a.code,a.name,a.category,a.currency,a.status ORDER BY a.code,a.id`)
+        .bind(startDate, endDate, actor.companyId, chartId).all<Account>()).results;
+}
+async function sourceEvidence(db: SqlDatabase, actor: WorkContext, chartId: string, endDate: string) { return (await db.prepare("SELECT j.id,j.version,j.entry_date,j.source_type,j.source_id,j.currency,j.fx_rate_micros,l.id line_id,l.account_id,l.base_debit_minor,l.base_credit_minor,l.ordinal FROM finance_journals j JOIN finance_journal_lines l ON l.journal_id=j.id WHERE j.company_id=? AND j.chart_id=? AND j.status IN ('posted','reversed') AND j.entry_date<=? ORDER BY j.id,l.ordinal,l.id").bind(actor.companyId, chartId, endDate).all()).results; }
+export async function reportingWorkspace(actor: WorkContext, chartId: string) { return withFinancePurchasedRead(actor,db=>nativeReporting(db).reportingWorkspace(actor,chartId)); }
+export async function statementPackageDetail(actor: WorkContext, id: string) { return withFinancePurchasedRead(actor,db=>nativeReporting(db).statementPackageDetail(actor,id)); }
+export async function prepareStatementPackage(actor: WorkContext, input: z.input<typeof statementPackageSchema>, key: string) { return withFinancePurchasedCommand(actor,{key,operation:"finance.statement.prepare",purpose:"settle-existing"},tx=>nativeReporting(tx).prepareStatementPackage(actor,input,key)); }
+export async function decideStatementPackage(actor: WorkContext, id: string, action: "issue" | "reject" | "cancel", input: z.input<typeof reportingDecisionSchema>, key: string) { return withFinancePurchasedCommand(actor,{key,operation:`finance.statement.${action}`,purpose:"settle-existing"},tx=>nativeReporting(tx).decideStatementPackage(actor,id,action,input,key)); }
+export async function statementPackageExport(actor: WorkContext, id: string) { return withFinancePurchasedRead(actor,db=>nativeReporting(db).statementPackageExport(actor,id)); }
+export async function prepareYearClosing(actor: WorkContext, input: z.input<typeof yearClosingSchema>, key: string) { return withFinancePurchasedCommand(actor,{key,operation:"finance.year-close.prepare",purpose:"settle-existing",capability:"finance.close"},tx=>nativeReporting(tx).prepareYearClosing(actor,input,key)); }
+export async function decideYearClosing(actor: WorkContext, id: string, action: "post" | "reject" | "cancel", input: z.input<typeof reportingDecisionSchema>, key: string) { return withFinancePurchasedCommand(actor,{key,operation:`finance.year-close.${action}`,purpose:"settle-existing",capability:"finance.close"},tx=>nativeReporting(tx).decideYearClosing(actor,id,action,input,key)); }
+export async function statementSourceAccounts(actor: WorkContext, id: string, args: Record<string, string>, page = 1) { return withFinancePurchasedRead(actor,db=>nativeReporting(db).statementSourceAccounts(actor,id,args,page)); }
+function nativeReporting(provided?:SqlDatabase) {
+    let pending: Promise<SqlDatabase> | undefined = provided?Promise.resolve(provided):undefined, preparedMoney: Awaited<ReturnType<typeof snapshotMoney>> | null = null;
+    const journals = new Map<string, Awaited<ReturnType<typeof prepareJournal>>>(), database = () => pending!;
+    return createFinanceReporting({ error: (...args) => new ApiError(...args), permission: requirePermission, ready: async (actor) => { await (pending ??= holdingResources(actor.holdingId).then(r => r.write)); }, now: Date.now, hash: bytes => createHash("sha256").update(bytes, "utf8").digest("hex"), replay: async <Result>(actor:WorkContext,key:string,op:string,id:string,input:unknown) => replayCommand<Result>(await database(), actor, key, op, id, input), chart: async (actor, chartId) => (await database()).prepare(`SELECT c.id,c.name,c.base_currency,c.status,${financeReportingCompanyFacts().companyName} FROM finance_charts c ${financeReportingCompanyFacts().companyJoin} WHERE c.id=? AND c.company_id=?`).bind(chartId, actor.companyId).first<Chart>(), profile: async (actor, chartId, startDate) => nativeFinanceReadFirst<Profile>(FINANCE_RD_REPORT_PROFILE, [actor.companyId, chartId, startDate], await database()), revision: async (chart) => revision(await database(), chart), totals: async (actor, chart, start, end) => totals(await database(), actor, chart, start, end), evidence: async (actor, chart, end) => sourceEvidence(await database(), actor, chart, end), chartExists: async (actor, chart) => !!await (await database()).prepare(CHART_ID_BY_COMPANY_SQL).bind(chart, actor.companyId).first(), packages: async (actor, chart) => (await nativeFinanceReadAll<Package>(FINANCE_RD_REPORT_PACKAGE_LIST, [actor.companyId, chart], await database())).results, closings: async (actor, chart) => (await nativeFinanceReadAll<Package>(FINANCE_RD_REPORT_CLOSING_LIST, [actor.companyId, chart], await database())).results, accounts: async (actor, chart) => (await nativeFinanceReadAll<Package>(FINANCE_RD_REPORT_ACCOUNT_LIST, [actor.companyId, chart], await database())).results, package: async (actor, id) => (await database()).prepare(tableByIdSql('finance_statement_packages')).bind(id, actor.companyId).first<Package>(), statementHistory: async (id) => (await nativeFinanceReadAll<Record<string, unknown>>(FINANCE_RD_REPORT_STATEMENT_HISTORY, [id], await database())).results, previousPackage: async (actor, input) => nativeFinanceReadFirst(FINANCE_RD_REPORT_PREVIOUS_PACKAGE, [input.previousPackageId, actor.companyId, input.chartId, input.startDate, input.endDate], await database()), nextEdition: async (input) => Number(await nativeFinanceReadScalarFirst<number>(FINANCE_RD_REPORT_NEXT_EDITION, [input.chartId, input.startDate, input.endDate], await database(), 'edition')), existingClosing: async (actor, input) => !!await (await database()).prepare("SELECT id FROM finance_year_closings WHERE company_id=? AND chart_id=? AND start_date=? AND end_date=? AND status IN ('draft','posted')").bind(actor.companyId, input.chartId, input.startDate, input.endDate).first(), period: async (actor, input) => (await database()).prepare("SELECT id,start_date,end_date,state FROM finance_periods WHERE id=? AND company_id=?").bind(input.periodId, actor.companyId).first<{
+            id: string;
+            start_date: string;
+            end_date: string;
+            state: string;
+        }>(), equityAccount: async (actor, input, currency) => !!await (await database()).prepare(ACCOUNT_SELECT_PREFIX + "id=? AND company_id=? AND chart_id=? AND category='equity' AND status='active' AND currency=?").bind(input.retainedEarningsAccountId, actor.companyId, input.chartId, currency).first(), closing: async (actor, id) => (await database()).prepare(tableByIdSql('finance_year_closings')).bind(id, actor.companyId).first<Package>(), prepareJournal: async (actor, input, key) => { const p = await prepareJournal(await database(), actor, input, key, "posted"); journals.set(p.result.id, p); return { result: { id: p.result.id } }; }, prepareMoney: async (actor, input) => { preparedMoney = await snapshotMoney(await database(), actor, input); },
+        commitStatement: async ({ actor, input, key, id, op, profile, sourceRevision, sourceFingerprint, snapshot, edition, now }) => {
+            const write = await database();
+            return executeCommand(write, actor, key, op, input, id, 1, { id, status: "draft", version: 1, edition, sourceFingerprint }, [
+                ...sourceGuards(write, actor, key, input.chartId, profile.id, profile.version, sourceRevision),
+                assertion(write, key, "statement-edition", "NOT EXISTS(SELECT 1 FROM finance_statement_packages WHERE chart_id=? AND start_date=? AND end_date=? AND edition=?)", [input.chartId, input.startDate, input.endDate, edition]),
+                await nativeFinanceReporting(write, actor.companyId).statementPackage([id, actor.companyId, input.chartId, profile.id, profile.version, input.startDate, input.endDate, input.comparativeStartDate, input.comparativeEndDate, input.previousPackageId ?? null, edition, sourceRevision, sourceFingerprint, JSON.stringify(input.presentation), JSON.stringify(input.notes), JSON.stringify(snapshot), input.reason, actor.userId, now, now]),
+                await nativeFinanceReporting(write, actor.companyId).statementEventPrepared([`statement-event-${key}`, id, actor.companyId, actor.userId, input.reason, key, now]),
+            ]);
+        }, commitStatementDecision: async ({ actor, id, action, input, key, op, row, html, sha256, now, status, next }) => {
+            const write = await database();
+            return executeCommand(write, actor, key, op, input, id, next, { id, status, version: next, edition: Number(row.edition), sha256 }, [
+                ...(action === "issue" ? sourceGuards(write, actor, key, String(row.chart_id), String(row.profile_id), Number(row.profile_version), Number(row.source_revision)) : []),
+                assertion(write, key, "statement-version", idCompanyStatusVersionGuard("finance_statement_packages", "draft"), [id, actor.companyId, input.expectedVersion]),
+                await nativeFinanceReporting(write, actor.companyId).statementPackageDecision([status, actor.userId, input.reason, now, html, sha256, now, id]),
+                await nativeFinanceReporting(write, actor.companyId).statementEventDecision([`statement-event-${key}`, id, actor.companyId, status, actor.userId, next, input.reason, key, now]),
+            ]);
+        }, commitYearClosing: async ({ actor, input, key, id, op, profile, sourceRevision, sourceFingerprint, snapshot, profit, now }) => {
+            const write = await database();
+            return executeCommand(write, actor, key, op, input, id, 1, { id, status: "draft", version: 1, profitMinor: profit, sourceFingerprint }, [
+                ...sourceGuards(write, actor, key, input.chartId, profile.id, profile.version, sourceRevision),
+                assertion(write, key, "earlier-periods", EARLIER_PERIODS_GUARD_SQL, [actor.companyId, input.periodId, input.endDate, input.startDate]),
+                assertion(write, key, "year-drafts", "NOT EXISTS(SELECT 1 FROM finance_journals WHERE company_id=? AND chart_id=? AND entry_date BETWEEN ? AND ? AND status IN ('draft','in_review'))", [actor.companyId, input.chartId, input.startDate, input.endDate]),
+                await nativeFinanceReporting(write, actor.companyId).yearClosingInsert([id, actor.companyId, input.chartId, profile.id, profile.version, input.startDate, input.endDate, input.periodId, input.retainedEarningsAccountId, sourceRevision, sourceFingerprint, JSON.stringify(snapshot), profit, input.reason, actor.userId, now, now]),
+                await nativeFinanceReporting(write, actor.companyId).statementEventPrepared([`year-closing-event-${key}`, id, actor.companyId, actor.userId, input.reason, key, now]),
+            ]);
+        }, commitClosingDecision: async ({ actor, id, action, input, key, op, row, now, status, next, journalId }) => {
+            const write = await database();
+            const journal = journalId ? journals.get(journalId)! : null, money = preparedMoney;
+            return executeCommand(write, actor, key, op, input, id, next, { id, status, version: next, profitMinor: Number(row.profit_minor), journalId: journal?.result.id ?? null }, [
+                ...(action === "post" ? sourceGuards(write, actor, key, String(row.chart_id), String(row.profile_id), Number(row.profile_version), Number(row.source_revision)) : []),
+                assertion(write, key, "closing-version", idCompanyStatusVersionGuard("finance_year_closings", "draft"), [id, actor.companyId, input.expectedVersion]),
+                ...(action === "post" ? [assertion(write, key, "closing-period", PERIOD_OPEN_END_DATE_GUARD_SQL, [row.period_id, actor.companyId, row.end_date]), assertion(write, key, "earlier-periods", EARLIER_PERIODS_GUARD_SQL, [actor.companyId, row.period_id, row.end_date, row.start_date])] : []),
+                ...(journal?.steps ?? []), ...(money ? [money.statement] : []),
+                await nativeFinanceReporting(write, actor.companyId).yearClosingDecision([status, journal?.result.id ?? null, actor.userId, input.reason, now, now, id]),
+                await nativeFinanceReporting(write, actor.companyId).statementEventDecision([`year-closing-event-${key}`, id, actor.companyId, status, actor.userId, next, input.reason, key, now]),
+            ]);
+        }
+    });
+}

@@ -8,8 +8,8 @@
  * receipt. Metric rows are inserted while the header is still a draft because
  * `quality_spec_metric_edit_guard` freezes them after activation.
  */
-import {type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
-import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
+import {type SqlDatabase} from '@erpx/platform-runtime-server/public/runtime/types';
+import type {WorkContext} from '@erpx/identity-access-server/public/authorization';
 
 export type QualitySpecMetricSeed = {
   code: string;

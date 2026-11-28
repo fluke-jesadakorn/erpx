@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createWebPushApplication, type WebPushPorts } from '@erpx/server-collaboration/application/web-push';
-import type { Preference } from '@erpx/server-collaboration/domain/web-push';
+import { createWebPushApplication, type WebPushPorts } from '@erpx/collaboration-server/application/web-push';
+import type { Preference } from '@erpx/collaboration-server/domain/web-push';
 
 type Settings = Parameters<ReturnType<typeof createWebPushApplication>['pushSettings']>[0];
 const actor = {

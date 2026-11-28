@@ -2,10 +2,10 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { describe, it, expect } from 'vitest';
-import { operationsJsonbImageHead } from '../../../packages/server-operations/src/adapters/read-tail-r61-sources';
+import { operationsJsonbImageHead } from '../../../modules/operations/server/src/adapters/read-tail-r61-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-operations/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-operations/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/operations/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/operations/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const sha = (sql: string) => createHash('sha256').update(sql).digest('hex');
 const binds = (sql: string) => (sql.match(/\?/g) ?? []).length;
 

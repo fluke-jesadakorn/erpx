@@ -3,9 +3,9 @@ import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
-import { manufacturingScopedExistsProbe } from '../../../packages/server-manufacturing/src/adapters/manufacturing-read-tail-r29-sql';
+import { manufacturingScopedExistsProbe } from '../../../modules/manufacturing/server/src/adapters/manufacturing-read-tail-r29-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-manufacturing/src');
+const srcRoot = resolve(__dirname, '../../../modules/manufacturing/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 const PURCHASED = 'EXISTS(SELECT 1 FROM (SUBQ_A) purchased_production WHERE purchased_production.id=o.id)';

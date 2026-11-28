@@ -1,10 +1,10 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_files::public::count_submission::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_files_server::public::count_submission::*;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, HoldingId};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, HoldingId};
 use sqlx::PgConnection;
 type Error = PgTransactionError<BusinessError>;
 struct Owner {

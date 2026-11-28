@@ -1,6 +1,6 @@
 import { beforeAll, expect, it } from "vitest";
-import { retirementInstant, retirementLocalTime, nextRetirementDay } from "@erpx/feature-people_payroll/lib/retirement";
-import { lifecycleInput } from "@erpx/feature-people_payroll/lib/people-lifecycle";
+import { retirementInstant, retirementLocalTime, nextRetirementDay } from "@erpx/people-payroll-ui/lib/retirement";
+import { lifecycleInput } from "@erpx/people-payroll-ui/lib/people-lifecycle";
 import { seedRetirement } from "../../../scripts/seed/seed-people-retirement";
 import { env, applyMigrations } from "../../support/runtime-env";
 beforeAll(async()=>{await applyMigrations(env.H001_DB,env.STAFF_TEST_MIGRATIONS);});

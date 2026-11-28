@@ -1,36 +1,36 @@
-import {socialPostSourceEntry} from '@erpx/server-collaboration/public/rules/product-entry';
-import {GET as launchGet,POST as launchPost} from "@erpx/workplace/routes/launch/route";
-import {productFrontLaunch} from "@erpx/server-identity_access/public/product-front-launch";
-import {financeDocumentEntry,salesCustomerReceiptEntry} from "@erpx/server-finance/public/rules/document-entry";
-import {qualitySourceEntry} from "@erpx/server-quality/public/rules/product-entry";
+import {socialPostSourceEntry} from '@erpx/collaboration-server/public/rules/product-entry';
+import {GET as launchGet,POST as launchPost} from "@erpx/platform-workplace/routes/launch/route";
+import {productFrontLaunch} from "@erpx/identity-access-server/public/product-front-launch";
+import {financeDocumentEntry,salesCustomerReceiptEntry} from "@erpx/finance-server/public/rules/document-entry";
+import {qualitySourceEntry} from "@erpx/quality-server/public/rules/product-entry";
 import { beforeEach,afterEach, expect, it, vi } from "vitest";
-import type { AccountAccessContext } from "@erpx/server-identity_access/public/authorization";
+import type { AccountAccessContext } from "@erpx/identity-access-server/public/authorization";
 vi.mock("server-only", () => ({}));
 const mocks = vi.hoisted(() => ({ access: vi.fn(), modules: vi.fn(), grants: vi.fn(), history: vi.fn(), ready: vi.fn(), selection: vi.fn(), select: vi.fn(),front:vi.fn(),legal:vi.fn(),posting:vi.fn(),salesPosting:vi.fn(),salesReceipt:vi.fn() }));
-vi.mock("@erpx/server-finance/public/sales-receipt-sources",async importOriginal=>({...await importOriginal<typeof import("@erpx/server-finance/public/sales-receipt-sources")>(),salesCustomerReceiptProductEntry:mocks.salesReceipt}));
-vi.mock("@erpx/server-finance/public/sales-posting-setup",()=>({salesPostingSetupProductEntry:mocks.salesPosting}));
-vi.mock("@erpx/server-commerce/public/posting-setup",()=>({commercePostingSetupProductEntry:mocks.posting}));
-vi.mock("@erpx/server-finance/public/legal-setup",()=>({financeProductLegalSetupEntry:mocks.legal}));
-vi.mock("@erpx/server-quality/public/product-entry",()=>({qualityProductSourceEntry:vi.fn()}));
-vi.mock("@erpx/server-people_payroll/public/self-service-product-entry",()=>({workforceProductSelfServiceEntry:vi.fn()}));
-vi.mock("@erpx/server-collaboration/public/native-social-page",()=>({nativeSocialSourceEntry:vi.fn()}));
-vi.mock("@erpx/server-projects/public/product-entry",()=>({projectTaskProductSourceEntry:vi.fn()}));
-vi.mock("@erpx/server-talent/public/product-entry",()=>({talentHireProductSourceEntry:vi.fn(),talentCandidatePrivacyProductSourceEntry:vi.fn()}));
-vi.mock("@erpx/server-identity_access/adapters/authorization", () => ({ requireAccountAccess: mocks.access }));
-vi.mock("@erpx/server-identity_access/adapters/work-module-access", () => ({ accountWorkModuleAccess: mocks.modules }));
-vi.mock("@erpx/server-commercial/public/package-grants", () => ({ readCompanyPurchaseFacts: async (...args: unknown[]) => ({grants:await mocks.grants(...args),history:await mocks.history(...args)}) }));
-vi.mock("@erpx/server-runtime/public/runtime", () => ({ holdingResources: async () => ({ write: {} }) }));
-vi.mock("@erpx/server-pms/public/feature-availability", () => ({ assertProductionModuleEnabled: mocks.ready }));
-vi.mock("@erpx/server-work_projection/public/work-role-store", () => ({ initializeWorkSelection: mocks.selection, selectWorkRole: mocks.select }));
-vi.mock("@erpx/server-organization/public/product-company", () => ({ productCompany: async () => ({ id: "c2", name: "Fixture Company" }) }));
-vi.mock("@erpx/server-work_projection/public/front-app",()=>({frontCompanyApp:mocks.front}));
-vi.mock("@erpx/feature-runtime/lib/product-hosts", () => ({ productHostForHost: (host: string) => host === "finance-dev-erpx.jesadakorn.com" ? "finance" : host==="pms-dev-erpx.jesadakorn.com"?"pms":host==="pos-dev-erpx.jesadakorn.com"?"pos":host==="supply-dev-erpx.jesadakorn.com"?"supply":host==="sales-dev-erpx.jesadakorn.com"?"sales":null,
+vi.mock("@erpx/finance-server/public/sales-receipt-sources",async importOriginal=>({...await importOriginal<typeof import("@erpx/finance-server/public/sales-receipt-sources")>(),salesCustomerReceiptProductEntry:mocks.salesReceipt}));
+vi.mock("@erpx/finance-server/public/sales-posting-setup",()=>({salesPostingSetupProductEntry:mocks.salesPosting}));
+vi.mock("@erpx/commerce-server/public/posting-setup",()=>({commercePostingSetupProductEntry:mocks.posting}));
+vi.mock("@erpx/finance-server/public/legal-setup",()=>({financeProductLegalSetupEntry:mocks.legal}));
+vi.mock("@erpx/quality-server/public/product-entry",()=>({qualityProductSourceEntry:vi.fn()}));
+vi.mock("@erpx/people-payroll-server/public/self-service-product-entry",()=>({workforceProductSelfServiceEntry:vi.fn()}));
+vi.mock("@erpx/collaboration-server/public/native-social-page",()=>({nativeSocialSourceEntry:vi.fn()}));
+vi.mock("@erpx/projects-server/public/product-entry",()=>({projectTaskProductSourceEntry:vi.fn()}));
+vi.mock("@erpx/talent-server/public/product-entry",()=>({talentHireProductSourceEntry:vi.fn(),talentCandidatePrivacyProductSourceEntry:vi.fn()}));
+vi.mock("@erpx/identity-access-server/adapters/authorization", () => ({ requireAccountAccess: mocks.access }));
+vi.mock("@erpx/identity-access-server/adapters/work-module-access", () => ({ accountWorkModuleAccess: mocks.modules }));
+vi.mock("@erpx/commercial-server/public/package-grants", () => ({ readCompanyPurchaseFacts: async (...args: unknown[]) => ({grants:await mocks.grants(...args),history:await mocks.history(...args)}) }));
+vi.mock("@erpx/platform-runtime-server/public/runtime", () => ({ holdingResources: async () => ({ write: {} }) }));
+vi.mock("@erpx/pms-server/public/feature-availability", () => ({ assertProductionModuleEnabled: mocks.ready }));
+vi.mock("@erpx/work-projection-server/public/work-role-store", () => ({ initializeWorkSelection: mocks.selection, selectWorkRole: mocks.select }));
+vi.mock("@erpx/organization-server/public/product-company", () => ({ productCompany: async () => ({ id: "c2", name: "Fixture Company" }) }));
+vi.mock("@erpx/work-projection-server/public/front-app",()=>({frontCompanyApp:mocks.front}));
+vi.mock("@erpx/platform-runtime-ui/lib/product-hosts", () => ({ productHostForHost: (host: string) => host === "finance-dev-erpx.jesadakorn.com" ? "finance" : host==="pms-dev-erpx.jesadakorn.com"?"pms":host==="pos-dev-erpx.jesadakorn.com"?"pos":host==="supply-dev-erpx.jesadakorn.com"?"supply":host==="sales-dev-erpx.jesadakorn.com"?"sales":null,
   requestProductOrigin:(key:string)=>`https://${key}-dev-erpx.jesadakorn.com`,configuredProductOrigin: (key:string) => `https://${key}-dev-erpx.jesadakorn.com` }));
-import { productWorkspaceRequest } from "@erpx/server-identity_access/adapters/product-workspace";
-import { ApiError } from "@erpx/server-runtime/public/http";
-import { createProductWorkspace } from "@erpx/server-identity_access/application/product-workspace";
-import { productWorkspaceTarget } from "@erpx/server-identity_access/domain/product-workspace";
-import { builtInPermissions } from "@erpx/feature-identity_access/lib/permissions";
+import { productWorkspaceRequest } from "@erpx/identity-access-server/adapters/product-workspace";
+import { ApiError } from "@erpx/platform-runtime-server/public/http";
+import { createProductWorkspace } from "@erpx/identity-access-server/application/product-workspace";
+import { productWorkspaceTarget } from "@erpx/identity-access-server/domain/product-workspace";
+import { builtInPermissions } from "@erpx/identity-access-ui/lib/permissions";
 
 const request = () => new Request("https://finance-dev-erpx.jesadakorn.com/launch?companyId=c2&next=%2Fholdings%2Facme%2Ffinance%2Fdocuments%3Fstatus%3Dpaid", { headers: { host: "finance-dev-erpx.jesadakorn.com" } });
 const access = (): AccountAccessContext => ({ scope: { kind: "holding", holdingSlug: "acme", holdingId: "h001", holdingName: "Acme", companyId: "c2" },
@@ -462,13 +462,13 @@ it('uses normal Finance launch for a Sales receipt with the actual Account sessi
 });
 
 const initialStockEntryMock=vi.hoisted(()=>vi.fn());
-vi.mock("@erpx/server-inventory/public/initial-physical-stock-count",()=>({initialPhysicalStockCountProductEntry:initialStockEntryMock}));
+vi.mock("@erpx/inventory-server/public/initial-physical-stock-count",()=>({initialPhysicalStockCountProductEntry:initialStockEntryMock}));
 it('keeps the actual Stock role on the exact included Sales entry without granting Sales discovery or changing the selected role',async()=>{
  initialStockEntryMock.mockReset().mockResolvedValue({capability:'inventory.stock-core',purchasePurpose:'history'});
  const value=access();value.assignments=[{...value.assignments[0],role:'warehouse_manager',modules:['inventory']}];mocks.access.mockResolvedValue(value);
  mocks.modules.mockResolvedValue({modulesByAssignment:new Map([['assignment',['inventory']]]),presentationModulesByAssignment:new Map([['assignment',['inventory']]]),permissionsByAssignment:new Map([['assignment',['inventory.read','inventory.prepare']]]),beta:false});
  mocks.grants.mockResolvedValue([{companyId:'c2',packageId:'sales',packageVersion:1,state:'active',startsAt:0,endsAt:null,version:1,reason:'Actual purchased Sales fixture',evidence:'test:fixture'}]);
- const next=`/holdings/acme/${(await import('@erpx/server-commercial/public/rules/product-registry')).product('sales')!.landing}?tag=one&tag=two#original`,request=new Request('https://sales-dev-erpx.jesadakorn.com/launch?'+new URLSearchParams({companyId:'c2',next}),{headers:{host:'sales-dev-erpx.jesadakorn.com'}}),response=await productWorkspaceRequest(request);
+ const next=`/holdings/acme/${(await import('@erpx/commercial-server/public/rules/product-registry')).product('sales')!.landing}?tag=one&tag=two#original`,request=new Request('https://sales-dev-erpx.jesadakorn.com/launch?'+new URLSearchParams({companyId:'c2',next}),{headers:{host:'sales-dev-erpx.jesadakorn.com'}}),response=await productWorkspaceRequest(request);
  expect(response.status).toBe(303);expect(response.headers.get('location')).toBe('https://sales-dev-erpx.jesadakorn.com/holdings/acme/customers-sales/sales/settings/initial-stock?tag=one&tag=two#original');
  expect(initialStockEntryMock).toHaveBeenCalledWith({},expect.objectContaining({companyId:'c2',assignmentId:'assignment',assignmentVersion:1,role:'warehouse_manager',sessionId:'session'}),{});expect(mocks.select).not.toHaveBeenCalled();
  initialStockEntryMock.mockResolvedValue(null);const denied=await productWorkspaceRequest(request);expect(denied.status).toBe(403);expect(denied.headers.get('set-cookie')).toBeNull();expect(mocks.select).not.toHaveBeenCalled();
@@ -481,7 +481,7 @@ it('requires exact native source entry even for a Sales-visible Company and pres
 });
 
 
-vi.mock("@erpx/server-manufacturing/public/posting-setup",()=>({manufacturingPostingSetupProductEntry:vi.fn()}));
+vi.mock("@erpx/manufacturing-server/public/posting-setup",()=>({manufacturingPostingSetupProductEntry:vi.fn()}));
 it('keeps Manufacturing-only Finance setup entry exact and owner-proven with the original role, query and fragment',async()=>{
  const account=access();account.assignments[0].modules=[];let permissions=['finance.read','finance.write'],eligible=true,beta=false,unreleased='';
  const owner=vi.fn(async()=>eligible?{revision:'private-mfg-setup-revision',purchasePurpose:'history' as const}:null),ready=vi.fn(async(_access:unknown,id:string)=>id!==unreleased);
@@ -494,7 +494,7 @@ it('keeps Manufacturing-only Finance setup entry exact and owner-proven with the
  for(const release of ['manufacturing','inventory','finance']){unreleased=release;owner.mockClear();await expect(service.read('manufacturing',input)).rejects.toMatchObject({code:'PRODUCT_ROLE_REQUIRED'});expect(owner).not.toHaveBeenCalled();}unreleased='';
  eligible=false;await expect(service.read('manufacturing',input)).rejects.toMatchObject({code:'PRODUCT_ROLE_REQUIRED'});eligible=true;
  for(const path of ['production/manufacturing/settings','production/manufacturing/settings/posting/extra','production/manufacturing/orders','production/planning'])await expect(service.read('manufacturing',productWorkspaceTarget('manufacturing','c2','/holdings/acme/'+path)!)).rejects.toMatchObject({code:'PRODUCT_ROLE_REQUIRED'});
- const {product}=await import('@erpx/server-commercial/public/rules/product-registry');const normal=productWorkspaceTarget('manufacturing','c2','/holdings/acme/'+product('manufacturing')!.landing+'?tag=one&tag=two#profile')!;expect(await service.read('manufacturing',normal)).toMatchObject({target,sourceRecord:true});
+ const {product}=await import('@erpx/commercial-server/public/rules/product-registry');const normal=productWorkspaceTarget('manufacturing','c2','/holdings/acme/'+product('manufacturing')!.landing+'?tag=one&tag=two#profile')!;expect(await service.read('manufacturing',normal)).toMatchObject({target,sourceRecord:true});
  account.scope={...account.scope,kind:'branch',branchId:'main',branchSlug:'main',branchName:'Main'};owner.mockClear();await expect(service.read('manufacturing',productWorkspaceTarget('manufacturing','c2','/holdings/acme/branches/main/production/manufacturing/settings/posting')!)).rejects.toMatchObject({code:'PRODUCT_ROLE_REQUIRED'});expect(owner).not.toHaveBeenCalled();expect(mocks.select).not.toHaveBeenCalled();expect(account.assignments[0].modules).toEqual([]);
 });
 
@@ -509,7 +509,7 @@ it('requires named Manufacturing setup source and all releases when the ordinary
 });
 
 
-vi.mock("@erpx/server-inventory/public/manufacturing-initial-physical-stock-count",()=>({manufacturingInitialPhysicalStockCountProductEntry:vi.fn()}));
+vi.mock("@erpx/inventory-server/public/manufacturing-initial-physical-stock-count",()=>({manufacturingInitialPhysicalStockCountProductEntry:vi.fn()}));
 it('keeps Manufacturing physical Counts on the actual Stock role with exact native source entry and retained id authority',async()=>{
  const account=access();account.assignments=[{...account.assignments[0],role:'warehouse_manager',modules:['inventory']}];let permissions=['inventory.read','inventory.prepare'],eligible=true,deniedRelease='';
  const owner=vi.fn(async(_account:unknown,_assignment:unknown,target:{countId?:string})=>eligible&&(target.countId||permissions.includes('inventory.prepare'))?{capability:'inventory.stock-core',purchasePurpose:'history' as const}:null),service=createProductWorkspace({access:async()=>account,modules:async()=>({modulesByAssignment:new Map([['assignment',['inventory']]]),presentationModulesByAssignment:new Map([['assignment',['inventory']]]),permissionsByAssignment:new Map([['assignment',permissions]]),beta:false}),purchaseFacts:async()=>({grants:[{companyId:'c2',packageId:'manufacturing',packageVersion:1,state:'active' as const,startsAt:0,endsAt:null,version:1,reason:'Fixture',evidence:'test:mfg-stock-role'}],history:[]}),ready:async(_access,id)=>id!==deniedRelease,manufacturingInitialPhysicalStockCountEntry:owner,selection:async()=>selected(),select:mocks.select,now:Date.now,error:(status,code,message)=>new ApiError(status,code,message)});
@@ -635,7 +635,7 @@ it('keeps the Service parts Stock preparation entry scoped and source proven wit
  permissions=['inventory.read','inventory.prepare'];account.scope={...account.scope,kind:'department',departmentId:'ops',departmentSlug:'ops',departmentName:'Ops'};owner.mockClear();await expect(service.read('service',productWorkspaceTarget('service','c2','/holdings/acme/branches/main/departments/ops/services/field-service/settings/parts')!)).rejects.toMatchObject({code:'PRODUCT_ROLE_REQUIRED'});expect(owner).not.toHaveBeenCalled();expect(mocks.select).not.toHaveBeenCalled();expect(account.assignments[0].modules).toEqual([]);
 });
 
-vi.mock("@erpx/server-people_payroll/public/project-worker-startup",()=>({projectWorkerStartupProductEntry:vi.fn()}));
+vi.mock("@erpx/people-payroll-server/public/project-worker-startup",()=>({projectWorkerStartupProductEntry:vi.fn()}));
 it('keeps Projects worker preparation on the exact current Company HR role and owner-proven Person without a People module',async()=>{
  const account=access();account.assignments[0].modules=[];let permissions=['people.manage','organization.manage'],eligible=true,beta=false,unreleased='';
  const owner=vi.fn(async()=>eligible?{revision:'private-project-worker-authority',purchasePurpose:'history' as const}:null),ready=vi.fn(async(_access:unknown,id:string)=>id!==unreleased);
@@ -663,7 +663,7 @@ it('uses Projects worker preparation only as the missing ordinary landing fallba
  permissions=['people.manage','organization.manage'];account.assignments[0].modules=[];for(const path of ['people-organization/people/directory/current','projects-routines/projects/settings/other','projects-routines/projects/settings/workers/person-real/extra']){const target=productWorkspaceTarget('projects','c2','/holdings/acme/'+path);if(target)await expect(service.read('projects',target)).rejects.toMatchObject({code:'PRODUCT_ROLE_REQUIRED'});else expect(target).toBeNull();}expect(mocks.select).not.toHaveBeenCalled();
 });
 
-vi.mock("@erpx/server-people_payroll/public/learning-worker-startup",()=>({learningWorkerStartupProductEntry:vi.fn()}));
+vi.mock("@erpx/people-payroll-server/public/learning-worker-startup",()=>({learningWorkerStartupProductEntry:vi.fn()}));
 it('keeps Learning worker preparation on the exact current Company HR role and owner-proven Person without a People module',async()=>{
  const account=access();account.assignments[0].modules=[];let permissions=['people.manage','organization.manage'],eligible=true,beta=false,unreleased='';
  const owner=vi.fn(async()=>eligible?{revision:'private-learning-worker-authority',purchasePurpose:'history' as const}:null),ready=vi.fn(async(_access:unknown,id:string)=>id!==unreleased);
@@ -694,7 +694,7 @@ it('uses Learning worker preparation only as the missing ordinary landing fallba
 
 // Permission-based included financial entry; no People module or base Finance purchase.
 it('requires the named Employee Expenses purchase and the current Finance owner proof',async()=>{
- const {productEntryCapability}=await import('@erpx/server-commercial/public/rules/product-entry-capability');
+ const {productEntryCapability}=await import('@erpx/commercial-server/public/rules/product-entry-capability');
  const account=access();account.assignments[0]={...account.assignments[0],role:'custom_expense_accounting',modules:['finance']};
  let packages=['finance'],modules=['finance'],permissions=['module.finance.read','finance.read','expense.read','expense.prepare'],ownerAllowed=true;
  const owner=vi.fn(async()=>ownerAllowed?{revision:'private-employee-expense-source',purchasePurpose:'history' as const}:null),input=productWorkspaceTarget('finance','c2','/holdings/acme/finance/documents/expenses/claim-original/overview')!;
@@ -709,7 +709,7 @@ it('requires the named Employee Expenses purchase and the current Finance owner 
 });
 
 it('requires the Helpdesk Portal add-on, its Support base dependency, and the existing Support owner permission',async()=>{
- const {supportTicketPortalLanding}=await import('@erpx/server-support/public/rules/ticket-portal-entry');
+ const {supportTicketPortalLanding}=await import('@erpx/support-server/public/rules/ticket-portal-entry');
  const account=access();account.assignments[0]={...account.assignments[0],role:'custom_support_agent',modules:['support']};
  let packages=['support'],modules=['support'],permissions=['support.read'];
  const service=createProductWorkspace({access:async()=>account,modules:async()=>({modulesByAssignment:new Map([['assignment',modules]]),presentationModulesByAssignment:new Map([['assignment',modules]]),permissionsByAssignment:new Map([['assignment',permissions]]),beta:false}),purchaseFacts:async()=>({grants:packages.map(packageId=>({companyId:'c2',packageId,packageVersion:1,state:'active' as const,startsAt:0,endsAt:null,version:1,reason:'Fixture',evidence:'test:helpdesk-portal-entry'})),history:[]}),ready:async()=>true,selection:async()=>selected(),select:mocks.select,now:Date.now,error:(status,code,message)=>new ApiError(status,code,message)}),input=productWorkspaceTarget('support','c2',`/holdings/acme/${supportTicketPortalLanding}/binding-original`)!;
@@ -721,7 +721,7 @@ it('requires the Helpdesk Portal add-on, its Support base dependency, and the ex
 });
 
 it('opens exact Expense Finance and Payroll People owner pages for the current financial assignment without expanding its modules',async()=>{
- const {peopleFinancialEntry}=await import('@erpx/server-people_payroll/public/rules/financial-product-entry');
+ const {peopleFinancialEntry}=await import('@erpx/people-payroll-server/public/rules/financial-product-entry');
  const account=access();account.assignments[0]={...account.assignments[0],role:'custom_financial_settlement',modules:['finance']};
  const permissions=['module.finance.read','expense.pay','payroll.payment.read','finance.pay'];
  const source=vi.fn(async()=>({revision:'private-owner-image',purchasePurpose:'history' as const}));
@@ -766,7 +766,7 @@ it('keeps financial source entry closed to missing owner proof, scope, module ce
 
 async function financialOwnerPage(name:'Expenses'|'PayrollPage',ports:Record<string,unknown>){
  const {readFile}=await import('node:fs/promises'),ts=await import('typescript');
- const file=name==='Expenses'?"packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/expenses/screen.tsx":"packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/people/payroll/screen.tsx";
+ const file=name==='Expenses'?"platform/workplace/src/routes/holdings/[holdingSlug]/_presenters/expenses/screen.tsx":"platform/workplace/src/routes/holdings/[holdingSlug]/_presenters/people/payroll/screen.tsx";
  const source=await readFile(new URL('../../../'+file,import.meta.url),'utf8'),tree=ts.createSourceFile(file,source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),node=tree.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text===name);
  if(!node||!ts.isFunctionDeclaration(node))throw Error('ACTUAL_FINANCIAL_PAGE_REQUIRED');
  const declaration=node.getText(tree).replace(/^export\s+default\s+/,''),code=ts.transpileModule(declaration,{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React,jsxFactory:'createElement',jsxFragmentFactory:'Fragment'}}).outputText;
@@ -788,8 +788,8 @@ it('retains actual Payroll payment presentation but omits preparation only for t
 });
 
 it('selects financial presentation from the actual canonical request and current selected owner entry, preserving ordinary and unexpected failures',async()=>{
- const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),{peopleFinancialEntry}=await import('@erpx/server-people_payroll/public/rules/financial-product-entry'),{workspacePathParts}=await import('@erpx/feature-work_projection/lib/destination-registry'),actualHosts=await vi.importActual<typeof import("@erpx/feature-runtime/lib/product-hosts")>("@erpx/feature-runtime/lib/product-hosts");
- const file='packages/server-people_payroll/src/adapters/financial-product-presentation-request.ts',source=await readFile(new URL('../../../'+file,import.meta.url),'utf8'),tree=ts.createSourceFile(file,source,ts.ScriptTarget.Latest,true),node=tree.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='peopleFinancialSourcePresentation');
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),{peopleFinancialEntry}=await import('@erpx/people-payroll-server/public/rules/financial-product-entry'),{workspacePathParts}=await import('@erpx/work-projection-ui/lib/destination-registry'),actualHosts=await vi.importActual<typeof import("@erpx/platform-runtime-ui/lib/product-hosts")>("@erpx/platform-runtime-ui/lib/product-hosts");
+ const file='modules/people-payroll/server/src/adapters/financial-product-presentation-request.ts',source=await readFile(new URL('../../../'+file,import.meta.url),'utf8'),tree=ts.createSourceFile(file,source,ts.ScriptTarget.Latest,true),node=tree.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='peopleFinancialSourcePresentation');
  if(!node||!ts.isFunctionDeclaration(node))throw Error('ACTUAL_FINANCIAL_PRESENTATION_REQUIRED');
  const code=ts.transpileModule(node.getText(tree).replace(/^export\s+/,''),{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
  let request=new Headers({host:'console-dev-erpx.jesadakorn.com','x-erpx-page-path':'/holdings/acme/finance/documents/expenses'});
@@ -804,9 +804,9 @@ it('selects financial presentation from the actual canonical request and current
 });
 
 // Current source-port decisions are mocked here; these tests do not replace native IAM/source proof.
-import {payrollPostingPrerequisitesEntry,payrollPostingPrerequisitesLanding,payrollPostingPrerequisitesPresentationAllowed} from '@erpx/server-finance/public/rules/payroll-posting-prerequisites-entry';
-import {purchasedCapabilities as payrollPrerequisiteCapabilities} from '@erpx/server-commercial/public/rules/packages';
-import type {CompanyPackageGrant as PayrollPrerequisiteGrant,CompanyPackageHistoryRight as PayrollPrerequisiteHistory} from '@erpx/server-commercial/public/packages';
+import {payrollPostingPrerequisitesEntry,payrollPostingPrerequisitesLanding,payrollPostingPrerequisitesPresentationAllowed} from '@erpx/finance-server/public/rules/payroll-posting-prerequisites-entry';
+import {purchasedCapabilities as payrollPrerequisiteCapabilities} from '@erpx/commercial-server/public/rules/packages';
+import type {CompanyPackageGrant as PayrollPrerequisiteGrant,CompanyPackageHistoryRight as PayrollPrerequisiteHistory} from '@erpx/commercial-server/public/packages';
 it('opens only exact Payroll posting prerequisites for a Finance-approve role and keeps retained history and explicit role selection separate',async()=>{
  const account=access();account.expiresAt=Date.now()+60000;account.assignments[0]={...account.assignments[0],role:'custom_finance_approver',modules:['finance']};
  let history=false,selection={...selected(),assignment_id:'another-live-role'};const grants=():PayrollPrerequisiteGrant[]=>['people','people-payroll'].map(packageId=>({companyId:'c2',packageId,packageVersion:1,state:'active',startsAt:history?Date.now()+60000:0,endsAt:null,version:history?3:1,reason:'Fixture',evidence:'test:posting-entry'})),retained=():PayrollPrerequisiteHistory[]=>history?['people','people-payroll'].map(packageId=>({companyId:'c2',packageId,packageVersion:1,sourceGrantVersion:1,sourceEventId:'private-old-'+packageId,retainedAt:0})):[];
@@ -827,7 +827,7 @@ it('denies Payroll prerequisite entry before the owner port when module, scope, 
 });
 
 // Closed Expense setup source-port integration only; no native owner/source proof is inferred.
-import {expensePostingPrerequisitesEntry,expensePostingPrerequisitesLanding,expensePostingPrerequisitesPresentationAllowed} from '@erpx/server-finance/public/rules/expense-posting-prerequisites-entry';
+import {expensePostingPrerequisitesEntry,expensePostingPrerequisitesLanding,expensePostingPrerequisitesPresentationAllowed} from '@erpx/finance-server/public/rules/expense-posting-prerequisites-entry';
 it('opens only exact Expense setup for current Company Finance read/write or read/approve while preserving explicit selection and retained history',async()=>{
  const account=access();account.expiresAt=Date.now()+60000;account.assignments[0]={...account.assignments[0],role:'custom_expense_finance',modules:['finance']};let permissions=['finance.read','finance.write'],history=false,selection={...selected(),assignment_id:'another-live-role'};
  const grants=():PayrollPrerequisiteGrant[]=>['people','people-expenses'].map(packageId=>({companyId:'c2',packageId,packageVersion:1,state:'active',startsAt:history?Date.now()+60000:0,endsAt:null,version:history?3:1,reason:'Fixture',evidence:'test:expense-setup-entry'})),retained=():PayrollPrerequisiteHistory[]=>history?['people','people-expenses'].map(packageId=>({companyId:'c2',packageId,packageVersion:1,sourceGrantVersion:1,sourceEventId:'private-old-'+packageId,retainedAt:0})):[],owner=vi.fn(async()=>({revision:'private-expense-prerequisite-revision',purchasePurpose:'history' as const})),choose=vi.fn(async()=>{selection=selected();return selection;}),ports={access:async()=>account,modules:async()=>({modulesByAssignment:new Map([['assignment',['finance']]]),presentationModulesByAssignment:new Map([['assignment',['finance']]]),permissionsByAssignment:new Map([['assignment',permissions]]),beta:false}),purchaseFacts:async()=>({grants:grants(),history:retained()}),ready:async()=>true,expensePostingPrerequisitesEntry:owner,selection:async()=>selection,select:choose,now:Date.now,error:(status:number,code:string,message:string)=>new ApiError(status,code,message)},service=createProductWorkspace(ports),target='/holdings/acme/'+expensePostingPrerequisitesLanding+'?tag=one&tag=two#references',input=productWorkspaceTarget('finance','c2',target)!;
@@ -847,5 +847,5 @@ it.each(['expense.prepare','expense.approve'])('retains original %s Expense acco
  expect(await service.read('finance',input)).toMatchObject({target:null,options:[{assignmentId:'assignment',assignmentVersion:1,target,purchasePurpose:'history',sourceRecord:true}]});expect(owner).toHaveBeenLastCalledWith(account,account.assignments[0],{kind:'expense',id:'actual-claim'});expect(select).not.toHaveBeenCalled();await service.choose('finance',input,'assignment',selection.revision,1);expect(await service.read('finance',input)).toMatchObject({target,sourceRecord:true});expect(select).toHaveBeenCalledTimes(1);expect(permissions).not.toContain('expense.pay');expect(permissions).not.toContain('expense.audit.read');expect(account.assignments[0].modules).toEqual(['finance']);allowed=false;await expect(service.read('finance',input)).rejects.toMatchObject({code:'PRODUCT_ROLE_REQUIRED'});for(const path of ['finance/documents','finance/accounting/journals','finance/documents/expenses/new','people-organization/people/directory/current']){owner.mockClear();const other=productWorkspaceTarget('finance','c2','/holdings/acme/'+path);if(other)await expect(service.read('finance',other)).rejects.toMatchObject({status:403});expect(owner).not.toHaveBeenCalled();}
 });
 it('preserves the exact original Expense Treasury branch and requires both original reader and accounting duty on the new accounting branch',async()=>{
- const {peopleFinancialPresentationAllowed:allowed}=await import('@erpx/server-people_payroll/public/rules/financial-product-entry'),context={scopeKind:'holding',beta:false,modules:['finance']};expect(allowed({...context,permissions:['expense.pay']},'expense')).toBe(true);for(const action of ['expense.prepare','expense.approve'])expect(allowed({...context,permissions:['expense.read',action]},'expense')).toBe(true);for(const permissions of [[],['expense.read'],['expense.prepare'],['expense.approve'],['expense.review.read'],['expense.audit.read'],['finance.read','finance.write'],['finance.read','finance.approve']])expect(allowed({...context,permissions},'expense')).toBe(false);for(const patch of [{modules:[]},{modules:['people_payroll']},{scopeKind:'branch'},{scopeKind:'department'},{beta:true}])expect(allowed({...context,permissions:['expense.read','expense.prepare'],...patch},'expense')).toBe(false);expect(allowed({...context,permissions:['expense.read','expense.approve']},'payroll')).toBe(false);expect(allowed({...context,permissions:['finance.pay','payroll.payment.read']},'payroll')).toBe(true);
+ const {peopleFinancialPresentationAllowed:allowed}=await import('@erpx/people-payroll-server/public/rules/financial-product-entry'),context={scopeKind:'holding',beta:false,modules:['finance']};expect(allowed({...context,permissions:['expense.pay']},'expense')).toBe(true);for(const action of ['expense.prepare','expense.approve'])expect(allowed({...context,permissions:['expense.read',action]},'expense')).toBe(true);for(const permissions of [[],['expense.read'],['expense.prepare'],['expense.approve'],['expense.review.read'],['expense.audit.read'],['finance.read','finance.write'],['finance.read','finance.approve']])expect(allowed({...context,permissions},'expense')).toBe(false);for(const patch of [{modules:[]},{modules:['people_payroll']},{scopeKind:'branch'},{scopeKind:'department'},{beta:true}])expect(allowed({...context,permissions:['expense.read','expense.prepare'],...patch},'expense')).toBe(false);expect(allowed({...context,permissions:['expense.read','expense.approve']},'payroll')).toBe(false);expect(allowed({...context,permissions:['finance.pay','payroll.payment.read']},'payroll')).toBe(true);
 });

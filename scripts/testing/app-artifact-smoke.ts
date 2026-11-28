@@ -3,7 +3,7 @@ import { mkdir, open, readFile, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { request } from 'node:http';
 import { join, resolve } from 'node:path';
-import { appDefinition } from '@erpx/contracts/apps';
+import { appDefinition } from '@erpx/platform-contracts/apps';
 import { pinnedNode } from '../local/app-task';
 import { verifyAppArtifact } from '../local/app-artifact-cache';
 

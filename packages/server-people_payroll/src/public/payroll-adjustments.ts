@@ -1,2 +1,0 @@
-/** Compatibility entry; its legacy implementation is tracked in ownership.json. */
-export { payrollAdjustmentValuesSchema, payrollAdjustmentCreateSchema, payrollAdjustmentEditSchema, originalSource, createPayrollAdjustment, editPayrollAdjustment, payrollAdjustmentInputs, calculatePayrollAdjustmentItem, calculatePayrollAdjustmentRun, payrollAdjustmentSourceFresh, payrollAdjustmentPanel, payrollAdjustmentGuards } from "@erpx/server-people_payroll/adapters/payroll-adjustments";

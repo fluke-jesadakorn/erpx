@@ -5,9 +5,9 @@ import { resolve } from 'node:path';
 
 vi.mock('server-only', () => ({}));
 
-import { projectRowsSql, projectPackageSettlementSources } from '../../../packages/server-projects/src/adapters/package-obligations';
+import { projectRowsSql, projectPackageSettlementSources } from '../../../modules/projects/server/src/adapters/package-obligations';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-projects/src');
+const srcRoot = resolve(__dirname, '../../../modules/projects/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 

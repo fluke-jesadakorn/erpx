@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-pos/src');
+const srcRoot = resolve(__dirname, '../../../modules/pos/server/src');
 const adapters = resolve(srcRoot, 'adapters');
 const read = (name: string) => readFileSync(resolve(adapters, name), 'utf8');
 const occurrences = (text: string, needle: string) => text.split(needle).length - 1;

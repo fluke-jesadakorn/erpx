@@ -5,10 +5,10 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_assets::public::asset_register::{AcquisitionCostProvider, NewAsset};
-use erpx_server_runtime::public::postgres::{MigrationTrack, load_migrations, migrate_database};
-use erpx_server_shared::public::{Clock, CompanyId, TimestampMillis};
-use erpx_service::asset_http::FinanceAssetCost;
+use erpx_assets_server::public::asset_register::{AcquisitionCostProvider, NewAsset};
+use erpx_platform_runtime_server::public::postgres::{MigrationTrack, load_migrations, migrate_database};
+use erpx_platform_shared_server::public::{Clock, CompanyId, TimestampMillis};
+use erpx_platform_composition::asset_http::FinanceAssetCost;
 
 struct TestClock;
 
@@ -99,19 +99,19 @@ async fn composition_finance_cost_snapshot_is_exact_and_rolls_back_with_the_asse
 
 #[tokio::test]
 async fn maintenance_purchase_image_matches_real_ts_query_for_work_and_plan() {
-    use erpx_server_assets::public::asset_purchase_source::{inspect_asset_maintenance_join,lock_asset_purchase_sources};
-    use erpx_server_maintenance::public::{asset_purchase_locks::{bind_maintenance_asset_purchase_sources,lock_maintenance_asset_purchase_sources},asset_purchase_record::{observe_maintenance_asset_purchase_record,MaintenanceAssetPurchaseKind}};
-    use erpx_server_identity_access::public::{permission_catalog_lock::lock_permission_catalog_sources,sales_recipient::{lock_sales_recipient_sources,inspect_sales_assignment_join,inspect_sales_iam_boundary}};
-    use erpx_server_people_payroll::public::{workforce_reference::inspect_sales_workforce_join,identity_facts::inspect_people_sales_authority_boundary};
-    use erpx_server_organization::public::inspect_organization_sales_authority_boundary;
-    use erpx_server_manage_erpx::public::inspect_beta_policy_authority_boundary;
-    use erpx_service::maintenance_asset_purchase_image::MaintenanceAssetPurchaseSources;
+    use erpx_assets_server::public::asset_purchase_source::{inspect_asset_maintenance_join,lock_asset_purchase_sources};
+    use erpx_maintenance_server::public::{asset_purchase_locks::{bind_maintenance_asset_purchase_sources,lock_maintenance_asset_purchase_sources},asset_purchase_record::{observe_maintenance_asset_purchase_record,MaintenanceAssetPurchaseKind}};
+    use erpx_identity_access_server::public::{permission_catalog_lock::lock_permission_catalog_sources,sales_recipient::{lock_sales_recipient_sources,inspect_sales_assignment_join,inspect_sales_iam_boundary}};
+    use erpx_people_payroll_server::public::{workforce_reference::inspect_sales_workforce_join,identity_facts::inspect_people_sales_authority_boundary};
+    use erpx_organization_server::public::inspect_organization_sales_authority_boundary;
+    use erpx_manage_erpx_server::public::inspect_beta_policy_authority_boundary;
+    use erpx_platform_composition::maintenance_asset_purchase_image::MaintenanceAssetPurchaseSources;
     fixture::with_database(2,|pool|async move {
         let files=load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
         sqlx::raw_sql("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status,hierarchy_revision) VALUES('company','company','company','Company',NULL,'company',NULL,'active',1),('branch','branch','branch','Branch','company','company',NULL,'active',1),('department','department','department','Department','branch','company','branch','active',1),('foreign','company','foreign','Foreign',NULL,'foreign',NULL,'active',1); INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status) VALUES('*','maintenance_purchase_test','Maintenance',false,1,'active'); INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','maintenance_purchase_test',1,'[\"records.write\"]','[]','[\"holding\",\"branch\",\"department\"]','fixture',0); INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind) VALUES('maintenance-grant','worker','maintenance_purchase_test','[]','company',0,9007199254740991,1,'holding'); INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,created_by,created_at,updated_at) VALUES('person','worker','company','Worker','TH','fixture',0,0); INSERT INTO hr_engagements(id,person_id,company_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at) VALUES('engagement','person','company','employee','salaried','active','2000-01-01','Worker','THB','fixture',0,0); INSERT INTO operational_assets(id,company_id,branch_id,department_id,code,name,category,currency,cost_minor,acquired_date,created_by,created_at,updated_at) VALUES('asset-work','company','branch',NULL,'A1','Work asset','equipment','THB',0,'2026-01-01','fixture',1,1),('asset-plan','company','branch','department','A2','Plan asset','equipment','THB',0,'2026-01-01','fixture',1,1); INSERT INTO maintenance_work_orders(id,company_id,branch_id,department_id,asset_id,title,priority,status,owner_id,created_by,created_at,updated_at) VALUES('work','company','branch',NULL,'asset-work','Work','normal','open','worker','fixture',1,1); INSERT INTO maintenance_preventive_plans(id,company_id,branch_id,department_id,asset_id,title,priority,owner_id,interval_days,time_zone,first_due_local,next_due_local,next_due_at,lead_days,created_by,edited_by,created_at,updated_at) VALUES('plan','company','branch','department','asset-plan','Plan','normal','worker',30,'Asia/Bangkok','2026-11-10T09:00','2026-11-10T09:00',1800000000000,7,'fixture','fixture',1,1); INSERT INTO maintenance_preventive_events(id,plan_id,version,action,actor_id,reason,snapshot_json,created_at) SELECT 'plan-event',id,version,'create','fixture','Fixture',to_jsonb(p),1 FROM maintenance_preventive_plans p WHERE id='plan'").execute(pool.raw()).await.unwrap();
         let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const m=await import(process.argv[1]);let n=0;const sql=(kind,file)=>{n=0;return m.maintenancePurchaseSourceQuery(kind,file).replace(/\?/g,()=>'$'+(++n))};process.stdout.write(JSON.stringify([sql('work',false),sql('work',true),sql('plan',false),sql('plan',true)]));"#;
-        let path=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/server-maintenance/src/adapters/purchase-sources.ts");
+        let path=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../modules/maintenance/server/src/adapters/purchase-sources.ts");
         let oracle=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).args(["--conditions=react-server","-e",script]).arg(path).output().unwrap();
         assert!(oracle.status.success(),"actual Maintenance TS source unavailable");
         let sqls:Vec<String>=serde_json::from_slice(&oracle.stdout).unwrap();
@@ -170,15 +170,15 @@ async fn maintenance_purchase_image_matches_real_ts_query_for_work_and_plan() {
 
 #[tokio::test]
 async fn linked_asset_purchase_image_matches_actual_ts_and_revalidates() {
-    use erpx_server_assets::public::asset_purchase_source::{lock_asset_purchase_sources,observe_asset_purchase_source};
-    use erpx_server_finance::public::asset_purchase_source::{lock_asset_purchase_finance_source,inspect_asset_purchase_finance_join};
-    use erpx_service::asset_purchase_image::AssetPurchaseSources;
+    use erpx_assets_server::public::asset_purchase_source::{lock_asset_purchase_sources,observe_asset_purchase_source};
+    use erpx_finance_server::public::asset_purchase_source::{lock_asset_purchase_finance_source,inspect_asset_purchase_finance_join};
+    use erpx_platform_composition::asset_purchase_image::AssetPurchaseSources;
     fixture::with_database(2,|pool|async move {
         let files=load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
         sqlx::raw_sql("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status) VALUES ('company','company','company','Company',NULL,'company',NULL,'active'),('branch','branch','branch','Branch','company','company',NULL,'active'),('department','department','department','Department','branch','company','branch','active'),('foreign','company','foreign','Foreign',NULL,'foreign',NULL,'active'); INSERT INTO finance_charts(id,company_id,name,base_currency,status,created_by,created_at,updated_at) VALUES('chart','company','Chart','THB','active','fixture',0,0); INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,created_at,updated_at) VALUES('account','chart','company','1000','Asset','asset',0,0); INSERT INTO finance_assets(id,company_id,asset_number,name,account_id,cost_minor,useful_life_months,in_service_date,status,currency,version,created_by,created_at,updated_at) VALUES('finance','company','FA1','Finance','account',1000,12,'2026-01-01','in_service','THB',1,'fixture',0,0),('foreign-finance','foreign','FA2','Foreign Finance','account',1000,12,'2026-01-01','in_service','THB',1,'fixture',0,0); INSERT INTO operational_assets(id,company_id,branch_id,department_id,code,name,category,currency,cost_minor,acquired_date,finance_asset_id,finance_asset_version,created_by,created_at,updated_at) VALUES('asset','company','branch','department','A1','Asset','equipment','THB',1000,'2026-01-01','finance',1,'fixture',1,1),('foreign-linked','company','branch',NULL,'A2','Foreign linked','equipment','THB',1000,'2026-01-01','foreign-finance',1,'fixture',1,1),('unlinked','company','branch',NULL,'A3','Unlinked','equipment','THB',0,'2026-01-01',NULL,NULL,'fixture',1,1); INSERT INTO operational_asset_finance_links(id,asset_id,finance_asset_id,asset_version,finance_asset_version,cost_minor,currency,reason,created_by,created_at) VALUES('link-a','asset','finance',1,1,1000,'THB','fixture','fixture',1)").execute(pool.raw()).await.unwrap();
         let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const m=await import(process.argv[1]);const db={prepare(sql){return {bind(){return {async first(){return sql}}}}}};let out=[];for(const file of [false,true]){let n=0;const sql=await m.assetOwnerSourceImage(db,{companyId:'company',branchId:'branch',departmentId:'department'},{kind:'asset',id:'asset'},file);out.push(sql.replace(/\?/g,()=>'$'+(++n)))}process.stdout.write(JSON.stringify(out));"#;
-        let path=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/server-assets/src/adapters/purchases.ts");
+        let path=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../modules/assets/server/src/adapters/purchases.ts");
         let out=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).args(["--conditions=react-server","-e",script]).arg(path).output().unwrap();assert!(out.status.success(),"actual TS query unavailable");let legacy:Vec<String>=serde_json::from_slice(&out.stdout).unwrap();
         let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();sqlx::query("SET LOCAL search_path TO pg_catalog, public, pg_temp").execute(&mut *tx).await.unwrap();
         lock_asset_purchase_sources(&mut tx).await.unwrap();lock_asset_purchase_finance_source(&mut tx).await.unwrap();
@@ -202,14 +202,14 @@ async fn linked_asset_purchase_image_matches_actual_ts_and_revalidates() {
 
 #[tokio::test]
 async fn retirement_work_port_uses_actual_maintenance_witness_and_global_predicate() {
-    use erpx_server_assets::public::asset_register::{AssetAction,AssetActor,AssetChange,AssetFuture,AssetRepository,NoCommandLedger,PgAssetRegister,asset_after,change_asset};
-    use erpx_server_shared::public::{RecordId,UserId};
-    use erpx_server_assets::public::asset_purchase_source::{lock_asset_purchase_sources,observe_asset_purchase_source};
-    use erpx_service::asset_retirement_work::inspect_asset_retirement_guard;
-    use erpx_server_assets::public::retirement_work::{AssetRetirementWorkEffect,AssetRetirementWorkSource,prepare_asset_retirement_work};
-    use erpx_server_maintenance::public::{asset_purchase_locks::{MaintenanceAssetPurchaseLocks,lock_maintenance_asset_purchase_sources,bind_maintenance_asset_purchase_sources},asset_purchase_record::{CurrentAssetRetirementWork,observe_asset_retirement_work}};
-    use erpx_server_runtime::public::postgres::PgTransactionError;
-    use erpx_server_shared::public::BusinessError;
+    use erpx_assets_server::public::asset_register::{AssetAction,AssetActor,AssetChange,AssetFuture,AssetRepository,NoCommandLedger,PgAssetRegister,asset_after,change_asset};
+    use erpx_platform_shared_server::public::{RecordId,UserId};
+    use erpx_assets_server::public::asset_purchase_source::{lock_asset_purchase_sources,observe_asset_purchase_source};
+    use erpx_platform_composition::asset_retirement_work::inspect_asset_retirement_guard;
+    use erpx_assets_server::public::retirement_work::{AssetRetirementWorkEffect,AssetRetirementWorkSource,prepare_asset_retirement_work};
+    use erpx_maintenance_server::public::{asset_purchase_locks::{MaintenanceAssetPurchaseLocks,lock_maintenance_asset_purchase_sources,bind_maintenance_asset_purchase_sources},asset_purchase_record::{CurrentAssetRetirementWork,observe_asset_retirement_work}};
+    use erpx_platform_runtime_server::public::postgres::PgTransactionError;
+    use erpx_platform_shared_server::public::BusinessError;
     type Error=PgTransactionError<BusinessError>;
     struct Source<'a>(&'a MaintenanceAssetPurchaseLocks);
     struct Effect<'a>(CurrentAssetRetirementWork<'a>);
@@ -220,7 +220,7 @@ async fn retirement_work_port_uses_actual_maintenance_witness_and_global_predica
     fixture::with_database(2,|pool|async move{
         let files=load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
         sqlx::raw_sql("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status) VALUES('company','company','company','Company',NULL,'company',NULL,'active'),('branch','branch','branch','Branch','company','company',NULL,'active'),('foreign','company','foreign','Foreign',NULL,'foreign',NULL,'active'),('foreign-branch','branch','foreign-branch','Foreign branch','foreign','foreign',NULL,'active'); INSERT INTO operational_assets(id,company_id,branch_id,code,name,category,currency,cost_minor,acquired_date,created_by,created_at,updated_at) VALUES('blocked','company','branch','B','Blocked','equipment','THB',0,'2026-01-01','fixture',1,1),('clear','company','branch','C','Clear','equipment','THB',0,'2026-01-01','fixture',1,1); INSERT INTO maintenance_work_orders(id,company_id,branch_id,asset_id,title,priority,status,owner_id,created_by,created_at,updated_at) VALUES('foreign-work','foreign','foreign-branch','blocked','Work','normal','open','worker','fixture',1,1)").execute(pool.raw()).await.unwrap();
-        let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const m=await import(process.argv[1]);process.stdout.write(m.finalRootOwnerProjectionSources.maintenance_work_orders)"#;let path=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/server-maintenance/src/adapters/final-root-owner-projection-sources.ts");let out=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).args(["--conditions=react-server","-e",script]).arg(path).output().unwrap();assert!(out.status.success(),"actual Maintenance projection unavailable");let projection=String::from_utf8(out.stdout).unwrap();let oracle=format!("SELECT NOT EXISTS(SELECT 1 FROM ({projection}) maintenance_work_orders WHERE asset_id=$1 AND status NOT IN ('completed','cancelled'))");
+        let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const m=await import(process.argv[1]);process.stdout.write(m.finalRootOwnerProjectionSources.maintenance_work_orders)"#;let path=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../modules/maintenance/server/src/adapters/final-root-owner-projection-sources.ts");let out=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).args(["--conditions=react-server","-e",script]).arg(path).output().unwrap();assert!(out.status.success(),"actual Maintenance projection unavailable");let projection=String::from_utf8(out.stdout).unwrap();let oracle=format!("SELECT NOT EXISTS(SELECT 1 FROM ({projection}) maintenance_work_orders WHERE asset_id=$1 AND status NOT IN ('completed','cancelled'))");
         let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_asset_purchase_sources(&mut tx).await.unwrap();lock_maintenance_asset_purchase_sources(&mut tx).await.unwrap();let locks=bind_maintenance_asset_purchase_sources(&mut tx).await.unwrap();let mut source=Source(&locks);
         let company=CompanyId::new("company").unwrap();
         let blocked_asset=observe_asset_purchase_source(&mut tx,&company,Some("branch"),None,"blocked",false).await.unwrap();assert!(blocked_asset.exists());
@@ -259,7 +259,7 @@ async fn retirement_work_port_uses_actual_maintenance_witness_and_global_predica
         let valid=AssetChange{expected_version:2,action:AssetAction::RetireRequest,actor_id:actor.user_id.clone(),command_key:"refresh-valid".into(),reason:"Reviewed again".into(),at:3};
         let transition=asset_after(&current,&valid,Some(&actor.user_id),true).unwrap();
         let mut wrong=valid.clone();wrong.actor_id=UserId::new("other-user").unwrap();wrong.command_key="refresh-wrong".into();
-        let result=repo.apply_change("clear",&wrong,&transition).await;assert!(matches!(result,Err(PgTransactionError::Business(ref e)) if e.code=="ASSET_RETIREMENT_REFRESH_FORBIDDEN" && e.kind==erpx_server_shared::public::FailureKind::Forbidden));drop(repo);
+        let result=repo.apply_change("clear",&wrong,&transition).await;assert!(matches!(result,Err(PgTransactionError::Business(ref e)) if e.code=="ASSET_RETIREMENT_REFRESH_FORBIDDEN" && e.kind==erpx_platform_shared_server::public::FailureKind::Forbidden));drop(repo);
         let no_extra:(i64,i64)=sqlx::query_as("SELECT (SELECT version FROM public.operational_assets WHERE id='clear'),(SELECT count(*) FROM public.operational_asset_events WHERE asset_id='clear')").fetch_one(&mut *tx).await.unwrap();assert_eq!(no_extra,(2,1));
         sqlx::query("ROLLBACK TO SAVEPOINT owner_write").execute(&mut *tx).await.unwrap();let rolled_back:(i64,i64)=sqlx::query_as("SELECT (SELECT version FROM public.operational_assets WHERE id='clear'),(SELECT count(*) FROM public.operational_asset_events WHERE asset_id='clear')").fetch_one(&mut *tx).await.unwrap();assert_eq!(rolled_back,(1,0));
         let mut other=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();assert!(effect.require_current(&mut other).await.is_err());assert!(guard.require_current_after_effects(&mut other).await.is_err());other.rollback().await.unwrap();tx.rollback().await.unwrap();

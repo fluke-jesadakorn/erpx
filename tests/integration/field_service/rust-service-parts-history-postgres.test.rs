@@ -1,10 +1,10 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_field_service::public::service_parts_posting::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_field_service_server::public::service_parts_posting::*;
+use erpx_platform_runtime_server::public::postgres::{
     MigrationTrack, PgUnitOfWork, TransactionOptions, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId};
 use std::sync::Arc;
 #[tokio::test]
 async fn field_service_history_is_company_scoped_and_bound_to_original_transaction() {
@@ -20,7 +20,7 @@ async fn field_service_history_is_company_scoped_and_bound_to_original_transacti
         })).await.unwrap();
         let current=Arc::new(current);
         let changed=PgUnitOfWork::new(pool.clone()).run::<_,BusinessError,_>(TransactionOptions::default(),|c|{let current=current.clone();Box::pin(async move{current.require_current(c).await})}).await;
-        assert!(matches!(changed,Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e)) if e.code=="SERVICE_PARTS_POSTING_SOURCE_CHANGED"));
+        assert!(matches!(changed,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e)) if e.code=="SERVICE_PARTS_POSTING_SOURCE_CHANGED"));
     }).await;
 }
 
@@ -52,8 +52,8 @@ async fn field_history_lock_waits_before_serializable_snapshot() {
 
 #[tokio::test]
 async fn field_invoice_history_candidate_matches_legacy_field_predicate() {
-    use erpx_server_field_service::public::finance_lineage::*;
-    use erpx_server_runtime::public::postgres::PgTransactionError;
+    use erpx_field_service_server::public::finance_lineage::*;
+    use erpx_platform_runtime_server::public::postgres::PgTransactionError;
     use sqlx::Acquire;
     fixture::with_database(2,|pool|async move {
         let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
@@ -110,8 +110,8 @@ async fn field_invoice_history_candidate_matches_legacy_field_predicate() {
 
 #[tokio::test]
 async fn field_parts_journal_candidate_matches_actual_typescript_history() {
-    use erpx_server_field_service::public::finance_lineage::*;
-    use erpx_server_runtime::public::postgres::PgTransactionError;
+    use erpx_field_service_server::public::finance_lineage::*;
+    use erpx_platform_runtime_server::public::postgres::PgTransactionError;
     use sqlx::Acquire;
     fixture::with_database(2,|pool|async move {
         let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let files=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();

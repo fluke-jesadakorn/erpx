@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { socialDraftImageExistsSql } from '../../../packages/server-files/src/adapters/social-draft-image-guard-sql';
+import { socialDraftImageExistsSql } from '../../../modules/files/server/src/adapters/social-draft-image-guard-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-files/src');
+const srcRoot = resolve(__dirname, '../../../modules/files/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 const selectCount = (text: string) => (text.match(/SELECT\s/g) ?? []).length;

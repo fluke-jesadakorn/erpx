@@ -6,11 +6,11 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
-use erpx_server_workflow::public::job_projector::{
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
+use erpx_workflow_server::public::job_projector::{
     EventMessage, EventPayload, ProjectionOwnerSources, ProjectionResult, ProjectionSource,
     ProjectionSourceFuture, project_event,
 };
@@ -472,64 +472,64 @@ impl RecordingEffects {
     }
 }
 
-impl erpx_server_workflow::public::job_projector::ProjectionSideEffects for RecordingEffects {
+impl erpx_workflow_server::public::job_projector::ProjectionSideEffects for RecordingEffects {
     fn customer_notification_queue<'a>(
         &'a mut self,
         _fulfillment_id: &'a str,
-    ) -> erpx_server_workflow::public::job_projector::SideEffectFuture<'a> {
+    ) -> erpx_workflow_server::public::job_projector::SideEffectFuture<'a> {
         Box::pin(async move { self.record("customer.queue") })
     }
 
     fn customer_notification_retry<'a>(
         &'a mut self,
         _notification_id: &'a str,
-    ) -> erpx_server_workflow::public::job_projector::SideEffectFuture<'a> {
+    ) -> erpx_workflow_server::public::job_projector::SideEffectFuture<'a> {
         Box::pin(async move { self.record("customer.retry") })
     }
 
     fn legal_ai<'a>(
         &'a mut self,
-    ) -> erpx_server_workflow::public::job_projector::SideEffectFuture<'a> {
+    ) -> erpx_workflow_server::public::job_projector::SideEffectFuture<'a> {
         Box::pin(async move { self.record("legal.ai") })
     }
 
     fn executive_generation<'a>(
         &'a mut self,
-    ) -> erpx_server_workflow::public::job_projector::SideEffectFuture<'a> {
+    ) -> erpx_workflow_server::public::job_projector::SideEffectFuture<'a> {
         Box::pin(async move { self.record("executive.generation") })
     }
 
     fn social_agent<'a>(
         &'a mut self,
         _post_id: &'a str,
-    ) -> erpx_server_workflow::public::job_projector::SideEffectFuture<'a> {
+    ) -> erpx_workflow_server::public::job_projector::SideEffectFuture<'a> {
         Box::pin(async move { self.record("social.agent") })
     }
 
     fn expense_ai<'a>(
         &'a mut self,
         _claim_id: &'a str,
-    ) -> erpx_server_workflow::public::job_projector::SideEffectFuture<'a> {
+    ) -> erpx_workflow_server::public::job_projector::SideEffectFuture<'a> {
         Box::pin(async move { self.record("expense.ai") })
     }
 
     fn finance_ai<'a>(
         &'a mut self,
-    ) -> erpx_server_workflow::public::job_projector::SideEffectFuture<'a> {
+    ) -> erpx_workflow_server::public::job_projector::SideEffectFuture<'a> {
         Box::pin(async move { self.record("finance.ai") })
     }
 
     fn request_ai<'a>(
         &'a mut self,
         _request_id: &'a str,
-    ) -> erpx_server_workflow::public::job_projector::SideEffectFuture<'a> {
+    ) -> erpx_workflow_server::public::job_projector::SideEffectFuture<'a> {
         Box::pin(async move { self.record("request.ai") })
     }
 }
 
 #[tokio::test]
 async fn full_projector_rejects_unknown_holdings_and_runs_effects_before_projection() {
-    use erpx_server_workflow::public::job_projector::project_message;
+    use erpx_workflow_server::public::job_projector::project_message;
 
     fixture::with_database(2, |write| async move {
         migrate(&write, MigrationTrack::HoldingWrite).await;

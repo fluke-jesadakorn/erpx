@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-runtime/src');
+const srcRoot = resolve(__dirname, '../../../platform/runtime/server/src');
 const adapterDir = resolve(srcRoot, 'adapters');
 const src = (name: string) => readFileSync(resolve(adapterDir, name), 'utf8');
 const tails = () =>

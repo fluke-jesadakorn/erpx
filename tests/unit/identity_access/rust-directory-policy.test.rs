@@ -1,4 +1,4 @@
-use erpx_server_identity_access::public::directory::*;
+use erpx_identity_access_server::public::directory::*;
 use serde::Deserialize;
 use std::collections::BTreeMap;
 

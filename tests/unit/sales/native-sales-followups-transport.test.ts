@@ -7,7 +7,7 @@ import {
   customerFollowupCreateInput,
   nativeFollowupFailure,
   type NativeFollowupPageContext,
-} from '../../../packages/feature-sales/src/public/native-sales-followups';
+} from '../../../modules/sales/ui/src/public/native-sales-followups';
 
 const incoming = (overrides: Record<string, string> = {}) =>
   new Headers({ host: 'acme.example.com', cookie: '__Host-erpx-product=session', ...overrides });

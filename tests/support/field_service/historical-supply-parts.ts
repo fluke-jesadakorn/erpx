@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto';
-import type {PostgresDatabase} from '@erpx/server-runtime/adapters/runtime/postgres';
-import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
+import type {PostgresDatabase} from '@erpx/platform-runtime-server/adapters/runtime/postgres';
+import type {WorkContext} from '@erpx/identity-access-server/public/authorization';
 
 type Actors={company:string;reviewer:WorkContext;manager:WorkContext};
 const key=()=>randomUUID();
@@ -14,9 +14,9 @@ export async function seedHistoricalSupplyMapping(db:PostgresDatabase,z:Actors){
  const lease=await db.prepare("SELECT current_database() name,pg_get_userbyid(datdba)::text owner,shobj_description(oid,'pg_database') lease FROM pg_database WHERE datname=current_database()").first<{name:string;owner:string;lease:string}>();
  if(!lease||!/^erpx_dev_rust_[0-9a-f]{32}$/.test(lease.name)||lease.owner!=='erpx_test_admin'||lease.lease!==`erpx-rust-test:${lease.name.slice('erpx_dev_rust_'.length)}`)throw Error('HISTORICAL_SUPPLY_LEASE_REQUIRED');
  if(z.reviewer.companyId!==z.company||z.manager.companyId!==z.company||z.reviewer.userId===z.manager.userId)throw Error('HISTORICAL_SUPPLY_ACTORS_REQUIRED');
- const {packageGrantStore,packageGrantRevision,readCompanyPackageGrants,readCompanyPackageHistoryRights}=await import('@erpx/server-commercial/public/package-grants');
- const {withOwnerPackageObligations,ownerPackageObligations,readOwnerPackageObligations}=await import('@erpx/server-commercial/public/owner-package-obligations');
- const finance=await import('@erpx/server-finance/public/finance'),money=await import('@erpx/server-finance/public/company-money'),supply=await import('@erpx/server-commerce/public/posting-setup');
+ const {packageGrantStore,packageGrantRevision,readCompanyPackageGrants,readCompanyPackageHistoryRights}=await import('@erpx/commercial-server/public/package-grants');
+ const {withOwnerPackageObligations,ownerPackageObligations,readOwnerPackageObligations}=await import('@erpx/commercial-server/public/owner-package-obligations');
+ const finance=await import('@erpx/finance-server/public/finance'),money=await import('@erpx/finance-server/public/company-money'),supply=await import('@erpx/commerce-server/public/posting-setup');
  const grant={companyId:z.company,packageId:'supply',packageVersion:1,state:'active' as const,startsAt:0,endsAt:null,version:1,reason:'Original Supply mapping before Service adoption',evidence:'test:historical-Service-parts-map'};
  const provider=packageGrantStore(db,{authorize:async()=>({userId:'isolated-Service-existing-map-provider'}),obligations:(transaction,companyId,packageId)=>ownerPackageObligations(db,transaction,companyId,packageId)});
  await provider.apply({expectedVersion:0,idempotencyKey:key(),grant});

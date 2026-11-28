@@ -1,11 +1,11 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_projects::public::staff_facts::{
+use erpx_projects_server::public::staff_facts::{
     ProjectStaffFact, SocialProjectAccess, social_project_audiences, social_project_reference,
     staff_project,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     load_migrations, migrate_database, DatabasePool, MigrationTrack,
 };
 

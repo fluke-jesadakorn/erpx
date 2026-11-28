@@ -1,7 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
-const dir = new URL('../../../packages/server-billing/src/adapters/', import.meta.url);
+const dir = new URL('../../../modules/billing/server/src/adapters/', import.meta.url);
 const src = (name: string) => readFile(new URL(name, dir), 'utf8');
 
 const GUARD = 'SELECT 1 FROM ${table} WHERE holding_id=$1 AND effective_month<=$2';
@@ -84,7 +84,7 @@ describe('billing read-tail r17 alias-parameterized family dedupe', () => {
   });
 
   it('lowers the billing owner SELECT KPI strictly below the r16 after=80 baseline', async () => {
-    const files = await tsFiles(new URL('../../../packages/server-billing/src/', import.meta.url));
+    const files = await tsFiles(new URL('../../../modules/billing/server/src/', import.meta.url));
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThanOrEqual(69);

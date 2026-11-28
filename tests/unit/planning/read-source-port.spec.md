@@ -9,8 +9,8 @@ The two blocked TypeScript read sources contain 23 SELECT tokens:
 
 | Retained source | Tokens | Registered plans |
 | --- | --- | --- |
-| `packages/server-planning/src/adapters/production-command-sources-read.ts` | 16 | 15 |
-| `packages/server-planning/src/adapters/resources-read.ts` | 7 | 7 |
+| `modules/planning/server/src/adapters/production-command-sources-read.ts` | 16 | 15 |
+| `modules/planning/server/src/adapters/resources-read.ts` | 7 | 7 |
 
 Each executive projection folds its lateral shortage SELECT into the single
 statement the caller executes; the recommendation's runtime eligibility branch
@@ -18,12 +18,12 @@ is registered as two variants. The closed registry therefore holds 22 plans.
 
 ## Deliverables
 
-- `packages/server-planning/src/public/read_source.rs` — owner-local registry.
+- `modules/planning/server/src/public/read_source.rs` — owner-local registry.
   Every plan carries the exact retained SQL, ordered bind fields, caller,
   authority and disclosed cross-owner fragments. `include_str!` unit tests bind
   each literal to the retained TypeScript file; cross-owner fragments are bound
   to their owner projection sources.
-- `packages/server-planning/src/adapters/read_source.rs` — bind adapter. Maps
+- `modules/planning/server/src/adapters/read_source.rs` — bind adapter. Maps
   caller scope to ordered binds on the caller's own transaction; a `None`
   branch scope binds SQL NULL and keeps the unscoped predicate. No connection,
   commit, lock or status marker.

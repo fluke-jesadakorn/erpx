@@ -1,11 +1,11 @@
 //! Owner-local HTTP router tests for the native Planning commands.
-use erpx_server_planning::public::planning_command_http::{
+use erpx_planning_server::public::planning_command_http::{
     PlanningCommandHttpBackend, PlanningCommandHttpCommand, PlanningCommandHttpFuture,
     PlanningCommandHttpRequest, PlanningCommandHttpResponse, PlanningCommandHttpTarget,
     planning_command_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 

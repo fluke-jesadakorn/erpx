@@ -1,18 +1,18 @@
-#[path = "../../../src/composition/src/procurement_rfq_notice.rs"]
+#[path = "../../../platform/composition/src/procurement_rfq_notice.rs"]
 mod binding;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-#[path = "../../../src/composition/src/procurement_rfq_request.rs"]
+#[path = "../../../platform/composition/src/procurement_rfq_request.rs"]
 mod request_binding;
-#[path = "../../../src/composition/src/procurement_rfq_materialization.rs"]
+#[path = "../../../platform/composition/src/procurement_rfq_materialization.rs"]
 mod procurement_rfq_materialization;
-use erpx_server_collaboration::public::rfq_notifications::lock_rfq_notifications;
-use erpx_server_procurement::public::rfq_notification_source::bind_rfq_notification_source;
-use erpx_server_records::public::rfq_request_source::{
+use erpx_collaboration_server::public::rfq_notifications::lock_rfq_notifications;
+use erpx_procurement_server::public::rfq_notification_source::bind_rfq_notification_source;
+use erpx_records_server::public::rfq_request_source::{
     lock_rfq_request_sources, observe_rfq_request,
 };
-use erpx_server_runtime::public::postgres::{MigrationTrack, load_migrations, migrate_database};
-use erpx_server_shared::public::CompanyId;
+use erpx_platform_runtime_server::public::postgres::{MigrationTrack, load_migrations, migrate_database};
+use erpx_platform_shared_server::public::CompanyId;
 use sqlx::Connection;
 
 #[tokio::test]

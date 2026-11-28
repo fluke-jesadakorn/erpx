@@ -8,13 +8,13 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_commercial::public::purchases::current_package_catalogue;
-use erpx_server_identity_access::public::work_context::HoldingWorkspaceRequest;
-use erpx_server_runtime::public::postgres::DatabasePool;
-use erpx_server_shared::public::{CompanyId, HoldingId};
-use erpx_service::finance_journal_detail::*;
-use erpx_service::finance_journal_detail_http::*;
-use erpx_service::finance_journal_review::FinanceJournalEnvironment;
+use erpx_commercial_server::public::purchases::current_package_catalogue;
+use erpx_identity_access_server::public::work_context::HoldingWorkspaceRequest;
+use erpx_platform_runtime_server::public::postgres::DatabasePool;
+use erpx_platform_shared_server::public::{CompanyId, HoldingId};
+use erpx_platform_composition::finance_journal_detail::*;
+use erpx_platform_composition::finance_journal_detail_http::*;
+use erpx_platform_composition::finance_journal_review::FinanceJournalEnvironment;
 use facts::{Prepared, account, setup};
 use std::sync::Arc;
 use tower::ServiceExt;

@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { planningPackageFactRows } from '../../../packages/server-planning/src/adapters/planning-package-fact-sql';
+import { planningPackageFactRows } from '../../../modules/planning/server/src/adapters/planning-package-fact-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-planning/src');
+const srcRoot = resolve(__dirname, '../../../modules/planning/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
 

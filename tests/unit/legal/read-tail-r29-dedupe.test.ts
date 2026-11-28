@@ -2,11 +2,11 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { legalPurchaseClockExistsSql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r29-sources';
-import { legalPurchaseClockCteSql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r21-sources';
+import { legalPurchaseClockExistsSql } from '../../../modules/legal/server/src/adapters/legal-read-tail-r29-sources';
+import { legalPurchaseClockCteSql } from '../../../modules/legal/server/src/adapters/legal-read-tail-r21-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-legal/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-legal/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/legal/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/legal/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 describe('legal read-tail r29 parameterized family dedupe', () => {
   it('renders byte-identical purchase-clock EXISTS wrappers for all three callers', () => {

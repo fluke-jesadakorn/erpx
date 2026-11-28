@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { accessBindingOrderProjection } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r26-sources';
-import { finalRootOwnerProjectionSources as commerceProjectionSources } from '../../../packages/server-commerce/src/adapters/final-root-owner-projection-sources';
-import { finalRootOwnerProjectionSources as identityAccessProjectionSources } from '../../../packages/server-identity_access/src/adapters/final-root-owner-projection-sources';
-import { salesRecipientEligibility } from '../../../packages/server-sales/src/adapters/recipient';
+import { accessBindingOrderProjection } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-tail-r26-sources';
+import { finalRootOwnerProjectionSources as commerceProjectionSources } from '../../../modules/commerce/server/src/adapters/final-root-owner-projection-sources';
+import { finalRootOwnerProjectionSources as identityAccessProjectionSources } from '../../../modules/identity-access/server/src/adapters/final-root-owner-projection-sources';
+import { salesRecipientEligibility } from '../../../modules/sales/server/src/adapters/recipient';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-customer_authority/src');
+const srcRoot = resolve(__dirname, '../../../modules/customer-authority/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 // Closed locals reconstructed verbatim from the pre-dedupe access.ts HEAD

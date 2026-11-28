@@ -3,16 +3,16 @@ import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { selectHeadSql } from '../../../packages/server-workflow/src/adapters/closed-projection-sources';
+import { selectHeadSql } from '../../../modules/workflow/server/src/adapters/closed-projection-sources';
 import {
   jsonEachSql,
   jsonEachApproverPoolSql,
   approverUnionProjectionSql,
-} from '../../../packages/server-workflow/src/adapters/json-each-sources';
-import { approvalStepByOrdinalSql } from '../../../packages/server-workflow/src/adapters/approval-projection-sources';
+} from '../../../modules/workflow/server/src/adapters/json-each-sources';
+import { approvalStepByOrdinalSql } from '../../../modules/workflow/server/src/adapters/approval-projection-sources';
 
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
-const srcRoot = resolve(__dirname, '../../../packages/server-workflow/src');
+const srcRoot = resolve(__dirname, '../../../modules/workflow/server/src');
 const src = (rel: string) => readFile(resolve(srcRoot, rel), 'utf8');
 type Oracle = readonly [digest: string, length: number, binds: number];
 const check = (sql: string, [digest, length, binds]: Oracle) => {

@@ -6,7 +6,7 @@ import ts from 'typescript';
 
 vi.mock('server-only', () => ({}));
 
-const srcRoot = resolve(__dirname, '../../../packages/server-sales/src');
+const srcRoot = resolve(__dirname, '../../../modules/sales/server/src');
 const helper = readFileSync(resolve(srcRoot, 'adapters/point-read.ts'), 'utf8');
 const workflowSource = readFileSync(resolve(srcRoot, 'adapters/workflow-notification-source.ts'), 'utf8');
 const followups = readFileSync(resolve(srcRoot, 'adapters/followups.ts'), 'utf8');

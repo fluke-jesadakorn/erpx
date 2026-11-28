@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { createServer, request, type ClientRequest, type IncomingMessage } from 'node:http';
 import { connect } from 'node:net';
 import { expect, it } from 'vitest';
-import { appDefinition, appIds } from '@erpx/contracts/apps';
+import { appDefinition, appIds } from '@erpx/platform-contracts/apps';
 import { consoleWorkspaceCutoverBlockers } from '../../../scripts/local/console-workspace-cutover';
 import { startWorkspaceGateway, developmentApplicationBudget, developmentApplicationBundler } from '../../../scripts/local/workspace-gateway-runtime';
 

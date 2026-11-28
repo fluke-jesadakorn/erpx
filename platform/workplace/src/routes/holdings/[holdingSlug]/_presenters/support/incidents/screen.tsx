@@ -1,0 +1,76 @@
+import { canonicalUiHref } from "@erpx/work-projection-ui/lib/destination-registry";
+import { Button, Field, Select } from "@erpx/platform-ui/components/foundation";
+import { RecordLink as Link } from "@erpx/records-ui/components/record-link";
+import { requireWorkContext, publicScope } from "@erpx/identity-access-server/public/authorization";
+import { workspaceBase } from "@erpx/work-projection-ui/lib/workspace";
+import { pageError } from "@erpx/work-projection-server/public/page-error";
+import { createNativeSupportReader } from "@erpx/support-ui/lib/native-support-read";
+import { ApiError } from "@erpx/platform-runtime-server/public/http";
+import { headers } from "next/headers";
+import { SupportIncidentConsole } from "@erpx/support-ui/components/support-incident-console";
+import { PageContent, FormLayout, Card } from "@erpx/platform-ui/components/foundation";
+export const dynamic = "force-dynamic";
+export default async function Page({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ holdingSlug: string }>;
+  searchParams: Promise<{ ticketId?: string }>;
+}) {
+  const { holdingSlug } = await params,
+    a = await requireWorkContext(holdingSlug),
+    base = workspaceBase(publicScope(a)),
+    config = process.env.ERPX_NATIVE_SUPPORT_READ_CONFIG,
+    { ticketId } = await searchParams;
+  if (!config) throw new ApiError(503, "NATIVE_SUPPORT_READ_UNAVAILABLE", "The native Support reader is unavailable.");
+  const reader = createNativeSupportReader(config),
+    incoming = await headers(),
+    data = await reader.incidents(incoming, holdingSlug).catch((e) => pageError(e, holdingSlug)),
+    source =
+      ticketId && data.canManage
+        ? (await reader.detail(incoming, holdingSlug, ticketId)).row
+        : null,
+    recipients = source ? await reader.recipients(incoming, holdingSlug, String(source.order_id)) : [];
+  return (
+    <PageContent as="div" className="ui-page-content">
+      <Link href={canonicalUiHref(`${base}/support`)}>Support cases</Link>
+      <h1>Shared incidents</h1>
+      <p>
+        Coordinate a common cause. Each affected customer case keeps its own owner, clock and
+        customer confirmation.
+      </p>
+      {data.canManage && (
+        <FormLayout className="ui-panel ui-form-grid">
+          <Field appearance="standard">
+            Initial customer case
+            <Select appearance="standard" name="ticketId" required defaultValue={ticketId ?? ""}>
+              <option value="">Choose case</option>
+              {data.tickets.map((t) => (
+                <option key={String(t.id)} value={String(t.id)}>
+                  {String(t.title)}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Button appearance="standard" type="submit" variant="primary">
+            Choose initial case
+          </Button>
+        </FormLayout>
+      )}
+      <SupportIncidentConsole
+        key={ticketId}
+        base={base}
+        source={source ? { id: String(source.id), version: Number(source.version) } : undefined}
+        recipients={recipients}
+      />
+      <Card as="section" appearance="standard" className="ui-panel">
+        {data.items.map((r) => (
+          <Link className="ui-record-item" key={String(r.id)} href={canonicalUiHref(`${base}/support/incidents/${r.id}`)}>
+            {String(r.title)} · {String(r.severity)} · {String(r.status)} · Due {String(r.due_date)}
+          </Link>
+        ))}
+        {!data.items.length && <p>No shared incidents in this scope.</p>}
+      </Card>
+    </PageContent>
+  );
+}

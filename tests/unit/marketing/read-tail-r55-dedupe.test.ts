@@ -3,10 +3,10 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import ts from 'typescript';
-import { marketingPackageSettlementSources } from '../../../packages/server-marketing/src/adapters/package-obligations';
+import { marketingPackageSettlementSources } from '../../../modules/marketing/server/src/adapters/package-obligations';
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-marketing/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/marketing/server/src/adapters/${name}`, import.meta.url);
 const src = (name: string) => readFile(adapter(name), 'utf8');
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 
@@ -52,7 +52,7 @@ async function ownerTokens(): Promise<{ spaced: number; bare: number }> {
       }
     }
   };
-  await walk(resolve('packages/server-marketing/src'));
+  await walk(resolve('modules/marketing/server/src'));
   return { spaced, bare };
 }
 

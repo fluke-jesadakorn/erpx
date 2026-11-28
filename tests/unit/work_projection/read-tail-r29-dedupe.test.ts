@@ -6,10 +6,10 @@ import {
   appointmentAttendeeSeriesSql,
   reminderAttendeesSql,
   reminderAttendeePointSql,
-} from '../../../packages/server-work_projection/src/adapters/read-tail-sql.ts';
+} from '../../../modules/work-projection/server/src/adapters/read-tail-sql.ts';
 
 const src = (name: string) =>
-  new URL(`../../../packages/server-work_projection/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/work-projection/server/src/adapters/${name}`, import.meta.url);
 
 const head = 'SELECT ${columns} FROM calendar_appointments a JOIN calendar_attendees t ON t.appointment_id=a.id AND t.company_id=a.company_id';
 
@@ -64,7 +64,7 @@ describe('work_projection read-tail r29 dedupe', () => {
     const count = Number(
       execFileSync(
         'git',
-        ['grep', '-I', '-o', '-E', 'SELECT', '--', ':(glob)packages/server-work_projection/src/**/*.ts'],
+        ['grep', '-I', '-o', '-E', 'SELECT', '--', ':(glob)modules/work-projection/server/src/**/*.ts'],
         { encoding: 'utf8' },
       )
         .trim()

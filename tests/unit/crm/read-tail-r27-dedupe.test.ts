@@ -5,9 +5,9 @@ import {
   crmCampaignOptionsSql,
   crmOpportunityOwnerGuardSql,
   crmOpportunityOwnerReadSql,
-} from '../../../packages/server-crm/src/adapters/read-tail-r27-sql';
+} from '../../../modules/crm/server/src/adapters/read-tail-r27-sql';
 
-const owner = resolve(__dirname, '../../../packages/server-crm/src');
+const owner = resolve(__dirname, '../../../modules/crm/server/src');
 const src = (name: string) => readFileSync(resolve(owner, 'adapters', name), 'utf8');
 const totalSelects = () => {
   let total = 0;

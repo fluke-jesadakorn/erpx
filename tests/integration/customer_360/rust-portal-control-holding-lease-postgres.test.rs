@@ -2,12 +2,12 @@
 //! production composition, TS wrapper parity or distributed atomicity.
 #![allow(dead_code)]
 #[path = "../../support/rust-postgres.rs"] mod fixture;
-use erpx_server_identity_access::public::portal_private_session_lease::AuthenticatedPortalLease;
-use erpx_server_identity_access::public::portal_session::PortalSessionReadRequest;
-use erpx_server_customer_authority::public::portal_session::{PgPortalEnrollment,PortalCustomerRequest,PortalSessionEvidence,PortalSessionVerifier,PortalSessionFuture,resolve_portal_customer};
-use erpx_server_customer_360::public::customer_portal::{PgCustomerPortal,PortalCustomerActor,PortalCommandFacts,PortalCommandInput,PortalAction};
-use erpx_server_runtime::public::postgres::{DatabasePool,MigrationTrack,load_migrations,migrate_database,PgTransactionError};
-use erpx_server_shared::public::BusinessError;
+use erpx_identity_access_server::public::portal_private_session_lease::AuthenticatedPortalLease;
+use erpx_identity_access_server::public::portal_session::PortalSessionReadRequest;
+use erpx_customer_authority_server::public::portal_session::{PgPortalEnrollment,PortalCustomerRequest,PortalSessionEvidence,PortalSessionVerifier,PortalSessionFuture,resolve_portal_customer};
+use erpx_customer_360_server::public::customer_portal::{PgCustomerPortal,PortalCustomerActor,PortalCommandFacts,PortalCommandInput,PortalAction};
+use erpx_platform_runtime_server::public::postgres::{DatabasePool,MigrationTrack,load_migrations,migrate_database,PgTransactionError};
+use erpx_platform_shared_server::public::BusinessError;
 use sqlx::{Connection,PgConnection};
 const NOW:i64=1_800_000_000_000;
 async fn setup_control(pool: &DatabasePool) {

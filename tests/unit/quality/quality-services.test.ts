@@ -1,8 +1,8 @@
 import {describe,expect,test} from 'vitest';
-import {createQualityApplication,type QualityRepository} from "@erpx/server-quality/application/quality";
-import {createQualityAlertApplication,type QualityAlertRepository} from "@erpx/server-quality/application/alerts";
-import type {QualityRow} from "@erpx/server-quality/domain/quality";
-import type {QualityAlert} from "@erpx/server-quality/domain/alerts";
+import {createQualityApplication,type QualityRepository} from "@erpx/quality-server/application/quality";
+import {createQualityAlertApplication,type QualityAlertRepository} from "@erpx/quality-server/application/alerts";
+import type {QualityRow} from "@erpx/quality-server/domain/quality";
+import type {QualityAlert} from "@erpx/quality-server/domain/alerts";
 
 function fixture(overrides:Partial<QualityRepository<string[]>>={}){
  const calls:string[]=[];
@@ -26,11 +26,11 @@ describe('Quality alert recovery',()=>{
 import {afterEach,vi} from 'vitest';
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {qualityCommandAllowed,type QualityPurchaseControls} from '@erpx/feature-quality/lib/quality-purchase-controls';
-import {createQualityCommandFetch,qualityFormUnchanged,validQualityAcknowledgement} from '@erpx/feature-quality/lib/quality-command-fetch';
-import {createQualityCommandAttempt,type QualityCommandAttempt} from '@erpx/feature-quality/lib/quality-command-attempt';
-import {QualityPurchaseProvider} from '@erpx/feature-quality/components/quality-purchase-context';
-import {QualityConsole} from '@erpx/feature-quality/components/quality-console';
+import {qualityCommandAllowed,type QualityPurchaseControls} from '@erpx/quality-ui/lib/quality-purchase-controls';
+import {createQualityCommandFetch,qualityFormUnchanged,validQualityAcknowledgement} from '@erpx/quality-ui/lib/quality-command-fetch';
+import {createQualityCommandAttempt,type QualityCommandAttempt} from '@erpx/quality-ui/lib/quality-command-attempt';
+import {QualityPurchaseProvider} from '@erpx/quality-ui/components/quality-purchase-context';
+import {QualityConsole} from '@erpx/quality-ui/components/quality-console';
 vi.mock('next/navigation',()=>({useRouter:()=>({push:vi.fn(),replace:vi.fn(),refresh:vi.fn()}),usePathname:()=>'/holdings/acme/quality',useSearchParams:()=>new URLSearchParams()}));
 afterEach(()=>vi.unstubAllGlobals());
 const activeQuality:QualityPurchaseControls={newWork:true,settleExisting:true,history:true,revision:'opaque'},drainingQuality={...activeQuality,newWork:false},historyQuality={...drainingQuality,settleExisting:false};
@@ -73,7 +73,7 @@ test('Quality retained history suppresses mutation tools while original independ
  expect(renderQuality({base:'/holdings/acme',data:uiWorkspace},drainingQuality)).not.toContain('Quarantine stock');const history=renderQuality({base:'/holdings/acme',detail:uiDetail},historyQuality);expect(history).not.toContain('Record inspection');expect(history).not.toContain('Request cancellation');expect(renderQuality({base:'/holdings/acme',detail:{...uiDetail,hold:{...uiHold,decision:{...uiDecision,canInspect:false,canCancel:false}}}},activeQuality)).not.toContain('Record inspection');for(const secret of ['company_package_grants','assignment_permissions','source_witness'])expect(history).not.toContain(secret);
 });
 
-import {qualitySourceEntry} from "@erpx/server-quality/public/rules/product-entry";
+import {qualitySourceEntry} from "@erpx/quality-server/public/rules/product-entry";
 describe('existing Quality/Count product source destinations',()=>{
  test('parses only canonical exact source detail identities',()=>{
   expect(qualitySourceEntry('inventory-quality/quality/quality-return-123-0')).toEqual({kind:'hold',id:'quality-return-123-0'});
@@ -87,12 +87,12 @@ import {resolve,join} from 'node:path';
 describe('retired Quality stock new-work read branch',()=>{
  const source=(path:string)=>resolve(process.cwd(),path);
  test('the quality-stock adapter, barrel and Commerce package exports are absent',()=>{
-  expect(existsSync(source('packages/server-commerce/src/adapters/quality-stock.ts'))).toBe(false);
-  expect(existsSync(source('packages/server-commerce/src/public/quality-stock.ts'))).toBe(false);
-  expect(readFileSync(source('packages/server-commerce/package.json'),'utf8')).not.toContain('quality-stock');
+  expect(existsSync(source('modules/commerce/server/src/adapters/quality-stock.ts'))).toBe(false);
+  expect(existsSync(source('modules/commerce/server/src/public/quality-stock.ts'))).toBe(false);
+  expect(readFileSync(source('modules/commerce/server/package.json'),'utf8')).not.toContain('quality-stock');
  });
  test('the unreachable new-work branch and its Commerce read imports are gone from Quality purchases',()=>{
-  const purchases=readFileSync(source('packages/server-quality/src/adapters/purchases.ts'),'utf8');
+  const purchases=readFileSync(source('modules/quality/server/src/adapters/purchases.ts'),'utf8');
   expect(purchases).not.toContain('qualityStockFacts');
   expect(purchases).not.toContain('qualityProductFacts');
   expect(purchases).not.toContain('new-work');
@@ -102,10 +102,10 @@ describe('retired Quality stock new-work read branch',()=>{
 describe('quality metric branch-label dedupe',()=>{
  const source=(path:string)=>resolve(process.cwd(),path);
  test('one fixed Organization node label SELECT guards both metric breakdowns',async()=>{
-  const {qualityBranchDisplayLabelSql,readExecutiveMetricProjection}=await import('@erpx/server-quality/adapters/executive-metric-projections');
+  const {qualityBranchDisplayLabelSql,readExecutiveMetricProjection}=await import('@erpx/quality-server/adapters/executive-metric-projections');
   expect(qualityBranchDisplayLabelSql.match(/SELECT n\.display_name/g)).toHaveLength(1);
   expect(qualityBranchDisplayLabelSql).toContain('organization_nodes');
-  const text=readFileSync(source('packages/server-quality/src/adapters/executive-metric-projections.ts'),'utf8');
+  const text=readFileSync(source('modules/quality/server/src/adapters/executive-metric-projections.ts'),'utf8');
   expect(text.match(/SELECT n\.display_name/g)??[]).toHaveLength(0);
   expect(text).toContain('import { scopeSql } from "./quality-scope-sql";');
   expect(text).toContain('COALESCE(${scopeSql(`n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=h.branch_id AND n.company_id=h.company_id`)},\'Company-wide\')');
@@ -121,7 +121,7 @@ describe('quality metric branch-label dedupe',()=>{
 describe('quality attachment owner version-guard dedupe',()=>{
  const source=(path:string)=>resolve(process.cwd(),path);
  test('both CAS guards are closed native kinds with byte-exact three-bind SQL',async()=>{
-  const plans=readFileSync(source('packages/server-quality/src/adapters/native_quality_read_sql.rs'),'utf8');
+  const plans=readFileSync(source('modules/quality/server/src/adapters/native_quality_read_sql.rs'),'utf8');
   for(const [kind,sql] of [
    ['quality_rd_attach_hold_cas','EXISTS(SELECT 1 FROM inventory_quality_holds WHERE id=? AND company_id=? AND version=?)'],
    ['quality_rd_attach_spec_cas','EXISTS(SELECT 1 FROM inventory_quality_specs WHERE id=? AND company_id=? AND version=?)'],
@@ -135,9 +135,9 @@ describe('quality attachment owner version-guard dedupe',()=>{
   expect(plans).toContain('RD_ATTACH_SPEC_CAS => Some(&READ_ATTACH_SPEC_CAS)');
  });
  test('both attachment owner facts delegate to the native guard bridge',()=>{
-  const service=readFileSync(source('packages/server-quality/src/adapters/attachments-service-facts.ts'),'utf8');
-  const operational=readFileSync(source('packages/server-quality/src/adapters/attachments-operational-facts.ts'),'utf8');
-  const bridge=readFileSync(source('packages/server-quality/src/adapters/native-quality-read.ts'),'utf8');
+  const service=readFileSync(source('modules/quality/server/src/adapters/attachments-service-facts.ts'),'utf8');
+  const operational=readFileSync(source('modules/quality/server/src/adapters/attachments-operational-facts.ts'),'utf8');
+  const bridge=readFileSync(source('modules/quality/server/src/adapters/native-quality-read.ts'),'utf8');
   const inline=/EXISTS\(SELECT 1 FROM \$\{[^}]+\} WHERE id=\? AND company_id=\? AND version=\?/g;
   expect(service.match(inline)??[]).toHaveLength(0);
   expect(operational.match(inline)??[]).toHaveLength(0);
@@ -155,13 +155,13 @@ describe('quality attachment owner version-guard dedupe',()=>{
 describe('retired Quality dead read branch',()=>{
  const source=(path:string)=>resolve(process.cwd(),path);
  test('the active-spec and evidence-version reads are gone from the Quality application, adapter and public layers',()=>{
-  for(const path of ['packages/server-quality/src/application/quality.ts','packages/server-quality/src/adapters/quality.ts','packages/server-quality/src/public/quality.ts']){
+  for(const path of ['modules/quality/server/src/application/quality.ts','modules/quality/server/src/adapters/quality.ts','modules/quality/server/src/public/quality.ts']){
    const text=readFileSync(source(path),'utf8');
    expect(text).not.toContain('activeSpec');
    expect(text).not.toContain('evidenceVersionGuard');
    expect(text).not.toContain('qualityEvidenceGuard');
   }
-  const adapter=readFileSync(source('packages/server-quality/src/adapters/quality.ts'),'utf8');
+  const adapter=readFileSync(source('modules/quality/server/src/adapters/quality.ts'),'utf8');
   expect(adapter).not.toContain('inventory_quality_specs');
   expect(adapter).not.toContain('quality-evidence-version');
   expect(adapter).not.toContain('SELECT');
@@ -181,18 +181,18 @@ describe('quality attachment owner-scope reads are fully native',()=>{
  const source=(path:string)=>resolve(process.cwd(),path);
  const text=(path:string)=>readFileSync(source(path),'utf8');
  test('both retained scope statements are closed native read-plan kinds',()=>{
-  const registry=text('packages/server-quality/src/adapters/native_quality_read_sql.rs');
+  const registry=text('modules/quality/server/src/adapters/native_quality_read_sql.rs');
   expect(registry).toContain('pub const RD_LEGACY_ATTACHMENT_SCOPE: &str = "quality_rd_legacy_attachment_scope"');
   expect(registry).toContain('pub const RD_ATTACHMENT_SPEC_SCOPE: &str = "quality_rd_attachment_spec_scope"');
   expect(registry).toContain('SELECT company_id,branch_id branch_id,NULL department_id,version FROM inventory_quality_holds WHERE id=?');
   expect(registry).toContain('SELECT company_id,NULL::text branch_id,NULL::text department_id,version FROM inventory_quality_specs WHERE id=? AND company_id=?');
-  expect(()=>text('packages/server-quality/src/adapters/quality-attachment-scope-read-sql.ts')).toThrow();
+  expect(()=>text('modules/quality/server/src/adapters/quality-attachment-scope-read-sql.ts')).toThrow();
  });
  test('owner adapters emit no SQL and delegate to the native scope transport',()=>{
-  const migration=text('packages/server-quality/src/adapters/attachment-migration-owner.ts');
-  const policy=text('packages/server-quality/src/adapters/attachments-policy-facts.ts');
-  const operational=text('packages/server-quality/src/adapters/attachments-operational-facts.ts');
-  const scope=text('packages/server-quality/src/adapters/native-quality-scope.ts');
+  const migration=text('modules/quality/server/src/adapters/attachment-migration-owner.ts');
+  const policy=text('modules/quality/server/src/adapters/attachments-policy-facts.ts');
+  const operational=text('modules/quality/server/src/adapters/attachments-operational-facts.ts');
+  const scope=text('modules/quality/server/src/adapters/native-quality-scope.ts');
   for(const value of [migration,policy,operational,scope]){
    expect(value).not.toContain('SELECT ');
    expect(value).not.toContain('qualityAttachmentScopeReadSql');
@@ -210,19 +210,19 @@ describe('quality package-obligation scope and clock CTE dedupe',()=>{
  const source=(path:string)=>resolve(process.cwd(),path);
  const files=(dir:string):string[]=>readdirSync(dir).flatMap(name=>{const path=join(dir,name);return statSync(path).isDirectory()?files(path):path.endsWith('.ts')?[path]:[];});
  test('one fixed scope CTE and one fixed clock CTE back the obligation and purchase reads',async()=>{
-  const {qualityPackageScopeCte,qualityClockCte}=await import('../../../packages/server-quality/src/adapters/quality-scope-sql');
-  const {packageClockSql}=await import('@erpx/server-commercial/public/purchased-capability-sql');
+  const {qualityPackageScopeCte,qualityClockCte}=await import('../../../modules/quality/server/src/adapters/quality-scope-sql');
+  const {packageClockSql}=await import('@erpx/commercial-server/public/purchased-capability-sql');
   expect(qualityPackageScopeCte).toBe('(SELECT ?::text company_id,?::boolean full)');
   expect(qualityPackageScopeCte.match(/SELECT /g)).toHaveLength(1);
   for(const name of ['quality_source_clock','quality_entry_clock','quality_calendar_clock'])expect(qualityClockCte(name)).toBe(`WITH ${name} AS MATERIALIZED (SELECT ${packageClockSql} now_ms)`);
-  const supply='packages/server-quality/src/adapters/supply-package-obligations.ts';
-  const manuf='packages/server-quality/src/adapters/manufacturing-package-obligations.ts';
+  const supply='modules/quality/server/src/adapters/supply-package-obligations.ts';
+  const manuf='modules/quality/server/src/adapters/manufacturing-package-obligations.ts';
   for(const path of [supply,manuf]){const text=readFileSync(source(path),'utf8');expect(text).toContain('WITH scope AS${qualityPackageScopeCte}');expect(text).not.toContain('WITH scope AS(SELECT');}
-  const clockSites=[['packages/server-quality/src/adapters/record-purchases.ts','quality_source_clock'],['packages/server-quality/src/adapters/product-entry.ts','quality_entry_clock'],['packages/server-quality/src/adapters/calendar-quality-facts.ts','quality_calendar_clock']] as const;
+  const clockSites=[['modules/quality/server/src/adapters/record-purchases.ts','quality_source_clock'],['modules/quality/server/src/adapters/product-entry.ts','quality_entry_clock'],['modules/quality/server/src/adapters/calendar-quality-facts.ts','quality_calendar_clock']] as const;
   for(const [path,name] of clockSites){const text=readFileSync(source(path),'utf8');expect(text).toContain(`qualityClockCte("${name}")`);expect(text).not.toContain(`WITH ${name} AS MATERIALIZED (SELECT`);}
  });
  test('the owner TS statement KPI stays strictly below the r17 BEFORE=75 baseline',()=>{
-  const count=files(source('packages/server-quality/src')).reduce((total,path)=>total+(readFileSync(path,'utf8').match(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)?.length??0),0);
+  const count=files(source('modules/quality/server/src')).reduce((total,path)=>total+(readFileSync(path,'utf8').match(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)?.length??0),0);
   expect(count).toBeLessThan(75);
   expect(count).toBe(1);
  });
@@ -230,7 +230,7 @@ describe('quality package-obligation scope and clock CTE dedupe',()=>{
 describe('quality command-receipt guard dedupe',()=>{
  const source=(path:string)=>resolve(process.cwd(),path);
  test('one parameterized helper reproduces the four receipt authority/result guards',async()=>{
-  const {qualityReceiptGuardSql}=await import('../../../packages/server-quality/src/adapters/quality-receipt-guard-sql');
+  const {qualityReceiptGuardSql}=await import('../../../modules/quality/server/src/adapters/quality-receipt-guard-sql');
   const cases=[
    ['hold.id','quality.hold.release','hold.company_id','version','hold.version::text','hold.released_by'],
    ['alert.id','quality.alert.acknowledge','hold.company_id','version','alert.version::text','alert.acknowledged_by'],
@@ -249,10 +249,10 @@ describe('quality command-receipt guard dedupe',()=>{
    expect(sql).toBe(expected[i]);
    expect(sql.match(/SELECT /g)).toHaveLength(1);
   }
-  const adapter=readFileSync(source('packages/server-quality/src/adapters/supply-package-obligations.ts'),'utf8');
+  const adapter=readFileSync(source('modules/quality/server/src/adapters/supply-package-obligations.ts'),'utf8');
   expect(adapter.match(/qualityReceiptGuardSql\(/g)).toHaveLength(4);
   expect(adapter).not.toContain('SELECT 1 FROM command_receipts receipt');
-  const guardHelper=readFileSync(source('packages/server-quality/src/adapters/quality-receipt-guard-sql.ts'),'utf8');
+  const guardHelper=readFileSync(source('modules/quality/server/src/adapters/quality-receipt-guard-sql.ts'),'utf8');
   expect(guardHelper.match(/SELECT /g) ?? []).toHaveLength(0);
   expect(guardHelper).toContain('import {evidenceHead} from "./inspection-evidence-source-sql";');
   expect(guardHelper).toContain("evidenceHead('1', ` FROM command_receipts receipt WHERE");
@@ -261,7 +261,7 @@ describe('quality command-receipt guard dedupe',()=>{
 describe('quality hold child aggregate dedupe',()=>{
  const source=(path:string)=>resolve(process.cwd(),path);
  test('one parameterized helper reproduces the six hold-keyed child aggregates byte-for-byte',async()=>{
-  const {qualityChildAggSql}=await import('../../../packages/server-quality/src/adapters/quality-child-agg-sql');
+  const {qualityChildAggSql}=await import('../../../modules/quality/server/src/adapters/quality-child-agg-sql');
   const cases=[
    ['inventory_quality_inspections','i','hold_id','h.id'],
    ['inventory_quality_cancellations','c','hold_id','h.id'],
@@ -275,7 +275,7 @@ describe('quality hold child aggregate dedupe',()=>{
    expect(sql).toBe(`(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${table} ${alias} WHERE ${alias}.${key}=${parent})`);
    expect(sql.match(/SELECT /g)).toHaveLength(1);
   }
-  for(const path of ['packages/server-quality/src/adapters/attachment-read-sources.ts','packages/server-quality/src/adapters/supply-package-obligations.ts']){
+  for(const path of ['modules/quality/server/src/adapters/attachment-read-sources.ts','modules/quality/server/src/adapters/supply-package-obligations.ts']){
    const text=readFileSync(source(path),'utf8');
    expect(text).toContain('qualityChildAggSql(');
    expect(text).not.toMatch(/jsonb_agg\(to_jsonb\((i|c|d|inspection|event)\) ORDER BY \1\.id\) FROM inventory_quality_/);
@@ -285,7 +285,7 @@ describe('quality hold child aggregate dedupe',()=>{
 describe('quality r15 child aggregate family dedupe',()=>{
  const source=(path:string)=>resolve(process.cwd(),path);
  test('spec-metric and inspection-joined child aggregates stay byte-identical through the shared helpers',async()=>{
-  const {qualityChildAggSql,qualityJoinedChildAggSql}=await import('../../../packages/server-quality/src/adapters/quality-child-agg-sql');
+  const {qualityChildAggSql,qualityJoinedChildAggSql}=await import('../../../modules/quality/server/src/adapters/quality-child-agg-sql');
   const spec=[
    ['inventory_quality_spec_metrics','m','spec_id','s.id'],
    ['inventory_quality_spec_metrics','metric','spec_id','spec.id'],
@@ -304,8 +304,8 @@ describe('quality r15 child aggregate family dedupe',()=>{
    expect(sql).toBe(before);
    expect(sql.match(/SELECT /g)).toHaveLength(1);
   }
-  const attach=readFileSync(source('packages/server-quality/src/adapters/attachment-read-sources.ts'),'utf8');
-  const supply=readFileSync(source('packages/server-quality/src/adapters/supply-package-obligations.ts'),'utf8');
+  const attach=readFileSync(source('modules/quality/server/src/adapters/attachment-read-sources.ts'),'utf8');
+  const supply=readFileSync(source('modules/quality/server/src/adapters/supply-package-obligations.ts'),'utf8');
   expect(attach.match(/qualityChildAggSql\(/g)).toHaveLength(4);
   expect(attach.match(/qualityJoinedChildAggSql\(/g)).toHaveLength(2);
   expect(supply.match(/qualityChildAggSql\(/g)).toHaveLength(4);
@@ -313,7 +313,7 @@ describe('quality r15 child aggregate family dedupe',()=>{
   expect(supply).not.toContain('jsonb_agg(to_jsonb(metric) ORDER BY metric.id) FROM inventory_quality_spec_metrics');
   expect(attach).not.toContain('jsonb_agg(to_jsonb(m) ORDER BY m.id) FROM inventory_quality_measurements');
   expect(attach).not.toContain('jsonb_agg(to_jsonb(a) ORDER BY a.inspection_id,a.attachment_id) FROM inventory_quality_inspection_attachments');
-  const aggHelper=readFileSync(source('packages/server-quality/src/adapters/quality-child-agg-sql.ts'),'utf8');
+  const aggHelper=readFileSync(source('modules/quality/server/src/adapters/quality-child-agg-sql.ts'),'utf8');
   expect(aggHelper.match(/SELECT /g) ?? []).toHaveLength(0);
   expect(aggHelper).toContain('import {scopeSql} from "./quality-scope-sql";');
   expect(aggHelper).toContain('scopeSql(`jsonb_agg(to_jsonb(${alias}) ORDER BY ${order}) FROM ${table} ${alias} WHERE ${alias}.${key}=${parent}`)');
@@ -328,27 +328,27 @@ describe('quality source-rows family dedupe (r12)',()=>{
   cancellations:'SELECT * FROM inventory_quality_cancellations',
  } as const;
  test('one parameterized helper reproduces the four full-row source reads byte-for-byte',async()=>{
-  const {qualitySourceRows}=await import('../../../packages/server-quality/src/adapters/quality-source-rows-sql');
+  const {qualitySourceRows}=await import('../../../modules/quality/server/src/adapters/quality-source-rows-sql');
   for(const literal of Object.values(pre)){
    const table=literal.slice('SELECT * FROM '.length);
    expect(qualitySourceRows(table)).toBe(literal);
    expect(qualitySourceRows(table).match(/SELECT /g)).toHaveLength(1);
   }
-  const {salesQualitySettlementSources}=await import('../../../packages/server-quality/src/adapters/sales-package-sources');
+  const {salesQualitySettlementSources}=await import('../../../modules/quality/server/src/adapters/sales-package-sources');
   for(const [key,literal] of Object.entries(pre))expect(salesQualitySettlementSources[key as keyof typeof pre]).toBe(literal);
  });
  test('the four callers share one helper literal with no inline copies',()=>{
-  const adapter=readFileSync(source('packages/server-quality/src/adapters/sales-package-sources.ts'),'utf8');
+  const adapter=readFileSync(source('modules/quality/server/src/adapters/sales-package-sources.ts'),'utf8');
   expect(adapter.match(/qualitySourceRows\(/g)).toHaveLength(4);
   for(const literal of Object.values(pre))expect(adapter).not.toContain(literal);
-  const helper=readFileSync(source('packages/server-quality/src/adapters/quality-source-rows-sql.ts'),'utf8');
+  const helper=readFileSync(source('modules/quality/server/src/adapters/quality-source-rows-sql.ts'),'utf8');
   expect(helper.match(/SELECT /g) ?? []).toHaveLength(0);
  });
  test('source locks and r10/r11 helpers stay independent and untouched',()=>{
-  const adapter=readFileSync(source('packages/server-quality/src/adapters/sales-package-sources.ts'),'utf8');
+  const adapter=readFileSync(source('modules/quality/server/src/adapters/sales-package-sources.ts'),'utf8');
   expect(adapter).toContain('LOCK TABLE inventory_quality_holds,inventory_quality_inspections,inventory_quality_disposition_events,inventory_quality_cancellations,inventory_quality_specs,inventory_quality_spec_metrics IN SHARE MODE');
   expect(adapter).toContain('export function salesQualitySettlementSourceReadLocks');
-  const helper=readFileSync(source('packages/server-quality/src/adapters/quality-source-rows-sql.ts'),'utf8');
+  const helper=readFileSync(source('modules/quality/server/src/adapters/quality-source-rows-sql.ts'),'utf8');
   expect(helper).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
  });
 });

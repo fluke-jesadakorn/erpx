@@ -1,5 +1,5 @@
-use erpx_server_identity_access::public::*;
-use erpx_server_shared::public::{BusinessError, Clock, TimestampMillis};
+use erpx_identity_access_server::public::*;
+use erpx_platform_shared_server::public::{BusinessError, Clock, TimestampMillis};
 
 pub const NOW: i64 = 1_800_000_000_000;
 pub fn policy() -> AccountPolicy {
@@ -79,14 +79,14 @@ pub fn holding_registry() -> std::sync::Arc<account_holding_bindings::Configured
             &policy(),
             vec![
                 ConfiguredAccountHolding {
-                    holding_id: erpx_server_shared::public::HoldingId::new("h001").unwrap(),
+                    holding_id: erpx_platform_shared_server::public::HoldingId::new("h001").unwrap(),
                     slug: "acme".into(),
                     write_binding: "HOLDING_H001_DB".into(),
                     read_binding: "HOLDING_H001_READ_DB".into(),
                     files_binding: "HOLDING_H001_FILES".into(),
                 },
                 ConfiguredAccountHolding {
-                    holding_id: erpx_server_shared::public::HoldingId::new("h002").unwrap(),
+                    holding_id: erpx_platform_shared_server::public::HoldingId::new("h002").unwrap(),
                     slug: "northstar".into(),
                     write_binding: "HOLDING_H002_DB".into(),
                     read_binding: "HOLDING_H002_READ_DB".into(),

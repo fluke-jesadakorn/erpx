@@ -10,7 +10,7 @@ import {
   financeOverviewCountsNative,
   nativeLane2Config,
   nativeLane2Configured,
-} from '../../../packages/server-finance/src/adapters/native-lane-2/client';
+} from '../../../modules/finance/server/src/adapters/native-lane-2/client';
 
 const actor = { holdingId: 'h001', holdingSlug: 'acme', companyId: 'acme:co-1' };
 const counts = {
@@ -72,12 +72,12 @@ afterEach(() => {
 describe('native Finance lane 2 overview counts', () => {
   it('carries no SQL in the client and no replaced SQL in the adapter', () => {
     const client = readFileSync(
-      new URL('../../../packages/server-finance/src/adapters/native-lane-2/client.ts', import.meta.url),
+      new URL('../../../modules/finance/server/src/adapters/native-lane-2/client.ts', import.meta.url),
       'utf8',
     );
     expect(client).not.toMatch(/\bSELECT\b|\bINSERT\b|\bUPDATE\b|\bDELETE\b/);
     const adapter = readFileSync(
-      new URL('../../../packages/server-finance/src/adapters/finance-invoice-read.ts', import.meta.url),
+      new URL('../../../modules/finance/server/src/adapters/finance-invoice-read.ts', import.meta.url),
       'utf8',
     );
     expect(adapter).not.toContain('companyCountSql');

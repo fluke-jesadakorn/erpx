@@ -1,0 +1,41 @@
+{
+  "name": "@erpx/brand-ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/brand-administration.module.css": "./src/components/brand-administration.module.css",
+    "./components/brand-identity-console": "./src/components/brand-identity-console.tsx",
+    "./components/product-brand": "./src/components/product-brand.tsx",
+    "./components/appearance-switcher": "./src/components/appearance-switcher.tsx",
+    "./components/appearance-switcher.module.css": "./src/components/appearance-switcher.module.css",
+    "./components/business-document": "./src/components/business-document.tsx",
+    "./components/workspace-brand": "./src/components/workspace-brand.tsx",
+    "./components/brand-administration": "./src/components/brand-administration.tsx",
+    "./components/print-controls": "./src/components/print-controls.tsx",
+    "./components/business-document.module.css": "./src/components/business-document.module.css",
+    "./components/workspace-brand.module.css": "./src/components/workspace-brand.module.css",
+    "./adapters/server/native-brand-identity": "./src/adapters/server/native-brand-identity.ts",
+    "./adapters/server/native-brand-identity-page": "./src/adapters/server/native-brand-identity-page.ts",
+    "./lib/native-brand-identity": "./src/lib/native-brand-identity.ts",
+    "./adapters/server/native-branding": "./src/adapters/server/native-branding.ts",
+    "./adapters/server/native-branding-page": "./src/adapters/server/native-branding-page.ts",
+    "./lib/native-branding": "./src/lib/native-branding.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/files-ui": "workspace:*",
+    "@erpx/people-payroll-ui": "workspace:*",
+    "@erpx/records-ui": "workspace:*",
+    "@erpx/platform-shared-ui": "workspace:*",
+    "@erpx/work-projection-ui": "workspace:*",
+    "@erpx/brand-server": "workspace:*",
+    "@erpx/identity-access-server": "workspace:*",
+    "@erpx/platform-ui": "workspace:*",
+    "next": "16.4.3",
+    "react": "19.3.1"
+  }
+}

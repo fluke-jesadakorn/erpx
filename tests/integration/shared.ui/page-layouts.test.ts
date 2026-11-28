@@ -10,17 +10,17 @@ import {
   pageLayoutSchema,
   reconcileLayout,
   resetWidgetToOrganization,
-} from "@erpx/feature-work_projection/lib/page-layouts";
-import { pageLayoutRequest } from "@erpx/server-work_projection/public/page-layouts";
+} from "@erpx/work-projection-ui/lib/page-layouts";
+import { pageLayoutRequest } from "@erpx/work-projection-server/public/page-layouts";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
 import { applyMigrations, env } from "../../support/runtime-env";
 let actor: WorkContext;
 let user = "",
   sessionId = "",
   assignment = "";
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ runtimeEnv: async () => env, holdingResources: async () => ({ write: env.H001_DB }) }));
-vi.mock("@erpx/server-identity_access/public/authorization", () => ({
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({ runtimeEnv: async () => env, holdingResources: async () => ({ write: env.H001_DB }) }));
+vi.mock("@erpx/identity-access-server/public/authorization", () => ({
   currentSession: async () => ({
     session: await env.CONTROL_DB.prepare("SELECT id FROM session WHERE id=?").bind(sessionId).first() ? { user: { id: user }, session: { id: sessionId } } : null,
   }),
@@ -33,7 +33,7 @@ vi.mock("@erpx/server-identity_access/public/authorization", () => ({
   publicScope: (work: WorkContext) => work.scope,
 
 }));
-vi.mock("@erpx/server-work_projection/public/navigation-context", () => ({ navigationContext: async () => ({
+vi.mock("@erpx/work-projection-server/public/navigation-context", () => ({ navigationContext: async () => ({
   workspaceBase: "/holdings/test", scopeKind: "holding", role: actor.role,
   adminSections: ["people", "organization"], executiveVisible: true,
 }) }));

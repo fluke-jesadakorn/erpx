@@ -4,10 +4,10 @@ import {
   moduleAvailability,
   capabilitySupport,
   liveDestination,
-} from "@erpx/catalogue/module-registry";
-import { queueFor, type WorkRow } from "@erpx/feature-work_projection/lib/work-queue";
-import { modulesForRole } from "@erpx/feature-identity_access/lib/business-roles";
-import { hasModuleAccess } from "@erpx/catalogue/module-access";
+} from "@erpx/platform-catalogue/module-registry";
+import { queueFor, type WorkRow } from "@erpx/work-projection-ui/lib/work-queue";
+import { modulesForRole } from "@erpx/identity-access-ui/lib/business-roles";
+import { hasModuleAccess } from "@erpx/platform-catalogue/module-access";
 
 describe("Enterprise UI coverage and routing", () => {
   it("matches module access by exact assignment module id", () => {

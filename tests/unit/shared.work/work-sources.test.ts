@@ -1,13 +1,13 @@
-import {createWorkSnapshot} from "@erpx/server-work_projection/application/work-items";
+import {createWorkSnapshot} from "@erpx/work-projection-server/application/work-items";
 import { expect, it, vi } from "vitest";
 import {
   mergeWorkItems,
   nextWorkSteps,
-} from "@erpx/server-work_projection/domain/work-items";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import type { WorkItem } from "@erpx/feature-work_projection/lib/work-item";
-import { filterWork } from "@erpx/feature-work_projection/lib/work-item";
-import { operationFromWork } from "@erpx/feature-shared/lib/operation-presentation";
+} from "@erpx/work-projection-server/domain/work-items";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import type { WorkItem } from "@erpx/work-projection-ui/lib/work-item";
+import { filterWork } from "@erpx/work-projection-ui/lib/work-item";
+import { operationFromWork } from "@erpx/platform-shared-ui/lib/operation-presentation";
 const item = (id: string, extra: Partial<WorkItem> = {}): WorkItem => ({
   id,
   type: "staff_task",

@@ -1,8 +1,8 @@
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import type { SqlDatabase } from "@erpx/server-runtime/adapters/runtime/types";
-import { isTransactionalSqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import type { SqlDatabase } from "@erpx/platform-runtime-server/adapters/runtime/types";
+import { isTransactionalSqlDatabase } from "@erpx/platform-runtime-server/public/runtime/types";
 import { createHash } from "node:crypto";
-import { ApiError } from "@erpx/server-runtime/public/http";
+import { ApiError } from "@erpx/platform-runtime-server/public/http";
 
 type SeedAttachmentSetInput = {
   targetType: string;

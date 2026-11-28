@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it, vi } from 'vitest';
-import { ApiError } from '@erpx/server-runtime/public/http';
+import { ApiError } from '@erpx/platform-runtime-server/public/http';
 
 vi.mock('server-only', () => ({}));
 
@@ -10,10 +10,10 @@ import {
   nativeBillingWatermarks,
   type NativeLane38Context,
   type NativeLane38Transport,
-} from '../../../packages/server-billing/src/adapters/native-lane-38/client';
-import { billingWatermarkRevisionSql as revision } from '../../../packages/server-billing/src/adapters/billing-read-tail-r22-sql';
-import { billingPointReadSql } from '../../../packages/server-billing/src/adapters/billing-read-tail-r29-sql';
-import { billingProjectionSql } from '../../../packages/server-billing/src/adapters/billing-read-tail-r35-sql';
+} from '../../../modules/billing/server/src/adapters/native-lane-38/client';
+import { billingWatermarkRevisionSql as revision } from '../../../modules/billing/server/src/adapters/billing-read-tail-r22-sql';
+import { billingPointReadSql } from '../../../modules/billing/server/src/adapters/billing-read-tail-r29-sql';
+import { billingProjectionSql } from '../../../modules/billing/server/src/adapters/billing-read-tail-r35-sql';
 
 const host = 'acme.jesadakorn.com';
 const origin = `https://${host}`;
@@ -234,7 +234,7 @@ describe('native lane 38 owner oracle and dev configuration', () => {
 
   it('the Rust owner contains the rendered statement with the single sqlx bind', async () => {
     const rust = await readFile(
-      new URL('../../../packages/server-billing/src/adapters/native_lane_38/postgres.rs', import.meta.url),
+      new URL('../../../modules/billing/server/src/adapters/native_lane_38/postgres.rs', import.meta.url),
       'utf8',
     );
     expect(rust).toContain('FROM billing_accounts a WHERE a.holding_id=$1');
@@ -244,7 +244,7 @@ describe('native lane 38 owner oracle and dev configuration', () => {
 
   it('the retained TS adapter issues no statement text and delegates to the native client', async () => {
     const adapter = await readFile(
-      new URL('../../../packages/server-billing/src/adapters/executive-metric-watermarks.ts', import.meta.url),
+      new URL('../../../modules/billing/server/src/adapters/executive-metric-watermarks.ts', import.meta.url),
       'utf8',
     );
     expect(adapter).toContain("from './native-lane-38/client'");

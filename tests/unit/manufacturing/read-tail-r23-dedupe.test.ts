@@ -1,9 +1,9 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { manufacturingStockFootprintSelect } from '../../../packages/server-manufacturing/src/adapters/manufacturing-read-tail-r23-sql';
+import { manufacturingStockFootprintSelect } from '../../../modules/manufacturing/server/src/adapters/manufacturing-read-tail-r23-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-manufacturing/src');
+const srcRoot = resolve(__dirname, '../../../modules/manufacturing/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 /** The two stock-footprint UNION branches were byte-identical apart from their

@@ -10,7 +10,7 @@
  * `migrate.commerce.return-approval-native`): delete once the fixture seeds the
  * hold through the native owner directly.
  */
-import type { SqlDatabase, SqlStatement } from '@erpx/server-runtime/public/runtime/types';
+import type { SqlDatabase, SqlStatement } from '@erpx/platform-runtime-server/public/runtime/types';
 
 export function fixtureCustomerReturnHold(
   db: SqlDatabase,

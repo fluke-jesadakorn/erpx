@@ -6,14 +6,14 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, LeaseCompletion, MigrationTrack, OutboxAttestation, OutboxHandlerRegistry,
     OutboxHolding, OutboxHoldingOutcome, OutboxJob, OutboxJobHandler, OutboxSupervisor,
     OutboxSupervisorPolicy, WorkerFuture, WorkerOutcome, attest_outbox_holding, claim, complete,
     complete_lease, load_migrations, migrate_database, record_outbox_attestation,
     run_outbox_supervisor, worker_failure,
 };
-use erpx_server_shared::public::{Clock, TimestampMillis};
+use erpx_platform_shared_server::public::{Clock, TimestampMillis};
 use sqlx::PgPool;
 use std::{
     path::Path,

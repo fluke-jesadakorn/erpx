@@ -1,0 +1,28 @@
+import type { AuthorizedSourceRecord } from "@erpx/records-server/public/source-record-policy";
+export type Row = Record<string, string | number | null>;
+export type Exception = {
+    id: string;
+    company_id: string;
+    branch_id: string | null;
+    department_id: string | null;
+    area: string;
+    source_kind: AuthorizedSourceRecord["kind"];
+    source_id: string;
+    source_version: number;
+    source_reference_json: string;
+    policy_id: string;
+    policy_snapshot_json: string;
+    title: string;
+    issue: string;
+    priority: string;
+    status: string;
+    owner_id: string;
+    escalation_owner_id: string | null;
+    resolution: string | null;
+    created_by: string;
+    resolved_by: string | null;
+    reviewed_by: string | null;
+    version: number;
+    updated_at: number;
+    due_at: number;
+};

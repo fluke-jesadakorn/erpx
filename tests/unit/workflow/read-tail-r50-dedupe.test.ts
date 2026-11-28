@@ -2,16 +2,16 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-vi.mock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+vi.mock('../../../modules/workflow/server/src/adapters/native-workflow-read', () => ({
   nativeWorkflowReadAll: vi.fn(async () => []),
   nativeWorkflowReadFirst: vi.fn(async () => null),
 }));
-import { tableExistsGuardSql } from '../../../packages/server-workflow/src/adapters/closed-projection-sources';
-import { nativeApprovalPlanningPorts } from '../../../packages/server-workflow/src/adapters/approval-planning';
-import { nativeFlowPlanningPorts } from '../../../packages/server-workflow/src/adapters/flow-planning-ports';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import { tableExistsGuardSql } from '../../../modules/workflow/server/src/adapters/closed-projection-sources';
+import { nativeApprovalPlanningPorts } from '../../../modules/workflow/server/src/adapters/approval-planning';
+import { nativeFlowPlanningPorts } from '../../../modules/workflow/server/src/adapters/flow-planning-ports';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-workflow/src');
+const srcRoot = resolve(__dirname, '../../../modules/workflow/server/src');
 const src = (rel: string) => readFile(resolve(srcRoot, rel), 'utf8');
 // Guards build assertion descriptors synchronously; no SQL is executed.
 const db = { batch: () => { throw new Error('unexpected batch'); } } as unknown as SqlDatabase;

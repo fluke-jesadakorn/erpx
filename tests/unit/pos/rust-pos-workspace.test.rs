@@ -1,13 +1,13 @@
 //! Native POS workspace/day read policy, source validation and bounded payload.
-use erpx_server_pos::public::read::{
+use erpx_pos_server::public::read::{
     MAX_CASH_MOVEMENTS, MAX_REGISTERS, MAX_SALES, MAX_SHIFTS, POS_PERMISSION_NAMES,
     PosCashMovementRow, PosCashSummary, PosDayCloseRow, PosLineRow, PosPaymentRow, PosReadActor,
     PosReadFuture, PosRegisterRow, PosSaleRow, PosSettingsRow, PosShiftRow,
     PosWorkspaceEntitlements, PosWorkspaceQuery, PosWorkspaceRepository, PosWorkspaceSource,
     PosWorkspaceTab, WORKSPACE_KEYS, business_date, pos_workspace,
 };
-use erpx_server_runtime::public::http_support::serde_json;
-use erpx_server_shared::public::{
+use erpx_platform_runtime_server::public::http_support::serde_json;
+use erpx_platform_shared_server::public::{
     BusinessError, CompanyId, FailureKind, RecordId, TimestampMillis,
 };
 use std::collections::BTreeSet;
@@ -505,7 +505,7 @@ fn selected_sale_outside_scope_is_not_found() {
 #[test]
 fn company_branch_and_orphan_rows_fail_closed() {
     let assemble = |source: PosWorkspaceSource| {
-        erpx_server_pos::public::read::assemble(
+        erpx_pos_server::public::read::assemble(
             &actor(),
             &query(),
             &PosWorkspaceEntitlements::default(),
@@ -538,7 +538,7 @@ fn company_branch_and_orphan_rows_fail_closed() {
     let mut detail_without_selection = source();
     detail_without_selection.sale = None;
     assert_eq!(
-        erpx_server_pos::public::read::assemble(
+        erpx_pos_server::public::read::assemble(
             &actor(),
             &PosWorkspaceQuery::default(),
             &PosWorkspaceEntitlements::default(),
@@ -554,7 +554,7 @@ fn company_branch_and_orphan_rows_fail_closed() {
 #[test]
 fn corrupt_amounts_references_and_dates_fail_closed() {
     let assemble = |source: PosWorkspaceSource| {
-        erpx_server_pos::public::read::assemble(
+        erpx_pos_server::public::read::assemble(
             &actor(),
             &query(),
             &PosWorkspaceEntitlements::default(),
@@ -599,7 +599,7 @@ fn corrupt_amounts_references_and_dates_fail_closed() {
 #[test]
 fn source_pages_are_bounded() {
     let assemble = |source: PosWorkspaceSource| {
-        erpx_server_pos::public::read::assemble(
+        erpx_pos_server::public::read::assemble(
             &actor(),
             &query(),
             &PosWorkspaceEntitlements::default(),
@@ -630,7 +630,7 @@ fn source_pages_are_bounded() {
         ..query()
     };
     assert_eq!(
-        erpx_server_pos::public::read::assemble(
+        erpx_pos_server::public::read::assemble(
             &actor(),
             &bounded,
             &PosWorkspaceEntitlements::default(),
@@ -721,7 +721,7 @@ fn business_date_tracks_the_bangkok_calendar() {
 
 #[test]
 fn workspace_payload_is_bounded_to_known_keys() {
-    let workspace = erpx_server_pos::public::read::assemble(
+    let workspace = erpx_pos_server::public::read::assemble(
         &actor(),
         &query(),
         &PosWorkspaceEntitlements::default(),

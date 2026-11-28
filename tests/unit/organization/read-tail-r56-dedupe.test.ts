@@ -2,9 +2,9 @@ import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { notExistsOrgNodeSql } from '../../../packages/server-organization/src/adapters/organization-read-tail-sources-r56';
+import { notExistsOrgNodeSql } from '../../../modules/organization/server/src/adapters/organization-read-tail-sources-r56';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+const srcRoot = resolve(__dirname, '../../../modules/organization/server/src');
 const adapters = resolve(srcRoot, 'adapters');
 const read = (name: string) => readFileSync(resolve(adapters, name), 'utf8');
 const count = (src: string, needle: string) => src.split(needle).length - 1;

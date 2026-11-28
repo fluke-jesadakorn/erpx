@@ -3,12 +3,12 @@
 //! These cases run inside the registered `customer_access` Cargo target, so no
 //! Cargo.toml change is needed. They exercise the public owner port and router
 //! with a fake source/backend: no SQL string restatement, no server and no TS.
-use erpx_server_customer_authority::public::access_sources::{
+use erpx_customer_authority_server::public::access_sources::{
     CUSTOMER_ACCESS_SOURCES_PATH, AccessSourceRow, AccessSourcesBackend, AccessSourcesQuery,
     AccessSourcesRequest, AccessSourcesSource, SourcesFuture, customer_access_sources,
     customer_access_sources_router, validate_rows,
 };
-use erpx_server_shared::public::FailureKind;
+use erpx_platform_shared_server::public::FailureKind;
 use std::sync::Arc;
 
 #[derive(Default)]
@@ -101,7 +101,7 @@ fn router_uses_the_native_customer_access_sources_path_and_rejects_bad_targets()
         CUSTOMER_ACCESS_SOURCES_PATH,
         "/api/v1/holdings/{holding_slug}/customer-access/sources"
     );
-    let good = erpx_server_customer_authority::public::access_sources::AccessSourcesTarget {
+    let good = erpx_customer_authority_server::public::access_sources::AccessSourcesTarget {
         host: "acme.example.test".into(),
         holding_slug: "acme".into(),
         origin: "https://acme.example.test".into(),

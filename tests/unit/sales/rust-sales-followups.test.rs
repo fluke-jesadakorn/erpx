@@ -1,10 +1,10 @@
 //! Native Sales customer follow-up command rules and orchestration.
-use erpx_server_sales::public::customer_followup_commands::{
+use erpx_sales_server::public::customer_followup_commands::{
     ChangeFollowup, CreateFollowup, FollowupAction, FollowupActor, FollowupCommandRepository,
     FollowupFuture, FollowupOrder, FollowupPurpose, FollowupReceiptSnapshot, FollowupSource,
     change_customer_followup, create_customer_followup, valid_due_date,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 use std::sync::{Arc, Mutex};
 
 const NOW: i64 = 1_800_000_000_000;
@@ -162,13 +162,13 @@ impl FollowupCommandRepository for Fake {
     }
     fn commit_create<'a>(
         &'a mut self,
-        plan: &'a erpx_server_sales::public::customer_followup_commands::CreateFollowupPlan<'a>,
+        plan: &'a erpx_sales_server::public::customer_followup_commands::CreateFollowupPlan<'a>,
         _: i64,
     ) -> FollowupFuture<'a, (), Self::Error> {
         let authority = self.authority;
         if !authority {
             return Box::pin(async {
-                Err(erpx_server_sales::public::customer_followup_commands::access_changed())
+                Err(erpx_sales_server::public::customer_followup_commands::access_changed())
             });
         }
         self.commits
@@ -179,7 +179,7 @@ impl FollowupCommandRepository for Fake {
     }
     fn commit_change<'a>(
         &'a mut self,
-        plan: &'a erpx_server_sales::public::customer_followup_commands::ChangeFollowupPlan<'a>,
+        plan: &'a erpx_sales_server::public::customer_followup_commands::ChangeFollowupPlan<'a>,
         _: i64,
     ) -> FollowupFuture<'a, (), Self::Error> {
         self.commits.lock().unwrap().push(format!(

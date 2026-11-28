@@ -1,13 +1,13 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
-import {ppRd42FourColOwnerProjection} from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r42-sources';
-import {ppRd46NamedJoinSource} from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r46-sources';
-import {ppRd47GraphSnapshotProjection} from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r47-sources';
-import {platformOwnerProjectionSources} from '../../../packages/server-people_payroll/src/adapters/platform-owner-projection-sources';
-import {collaborationNotificationSnapshotSources} from '../../../packages/server-people_payroll/src/adapters/collaboration-notification-snapshot-sources';
-import {organizationGraphSnapshotSources} from '../../../packages/server-people_payroll/src/adapters/organization-graph-snapshot-sources';
+import {ppRd42FourColOwnerProjection} from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r42-sources';
+import {ppRd46NamedJoinSource} from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r46-sources';
+import {ppRd47GraphSnapshotProjection} from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r47-sources';
+import {platformOwnerProjectionSources} from '../../../modules/people-payroll/server/src/adapters/platform-owner-projection-sources';
+import {collaborationNotificationSnapshotSources} from '../../../modules/people-payroll/server/src/adapters/collaboration-notification-snapshot-sources';
+import {organizationGraphSnapshotSources} from '../../../modules/people-payroll/server/src/adapters/organization-graph-snapshot-sources';
 
-const src = (name: string) => readFileSync(new URL(`../../../packages/server-people_payroll/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFileSync(new URL(`../../../modules/people-payroll/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const readOnly = (literal: string) => {
   expect(literal).toContain('SELECT ');
   expect(literal).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
@@ -211,7 +211,7 @@ describe('People Payroll read-tail r47 three-family dedupe', () => {
   });
 
   test('retirement:ts-statements stays strictly below the recorded BEFORE=1261', () => {
-    const root = new URL('../../../packages/server-people_payroll/src/', import.meta.url);
+    const root = new URL('../../../modules/people-payroll/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {

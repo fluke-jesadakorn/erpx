@@ -1,13 +1,13 @@
 //! Native PMS room-board HTTP transport facts over a real loopback listener.
-use erpx_server_pms::public::pms_http::{
+use erpx_pms_server::public::pms_http::{
     PmsHttpBackend, PmsHttpFrontDeskRequest, PmsHttpFuture, PmsHttpReadRequest,
     PmsHttpRefundContextRequest, PmsHttpRefundRequest, PmsHttpResponse, PmsHttpTarget,
     parse_refund_command, pms_http_router,
 };
-use erpx_server_runtime::public::http_support::{
+use erpx_platform_runtime_server::public::http_support::{
     Router, serde_json::Value, serde_json::json, serve,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},

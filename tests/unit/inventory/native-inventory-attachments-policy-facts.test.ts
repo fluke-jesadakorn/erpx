@@ -1,6 +1,6 @@
 import {describe,it,expect,vi,beforeEach,afterEach} from 'vitest';
 vi.mock('server-only',()=>({}));
-import {policyInventoryFacts} from '../../../packages/server-inventory/src/adapters/attachments-policy-facts';
+import {policyInventoryFacts} from '../../../modules/inventory/server/src/adapters/attachments-policy-facts';
 import {
   INVENTORY_RD_TRANSIT_ATTACHMENT_DESCRIPTOR,
   INVENTORY_RD_ATTACHMENT_DESCRIPTOR_LANDED_COST,
@@ -8,7 +8,7 @@ import {
   INVENTORY_RD_ATTACHMENT_DESCRIPTOR_TRANSFER,
   INVENTORY_RD_ATTACHMENT_DESCRIPTOR_TRANSIT,
   INVENTORY_RD_ATTACHMENT_DESCRIPTOR_LOT,
-} from '../../../packages/server-inventory/src/adapters/native-inventory-read';
+} from '../../../modules/inventory/server/src/adapters/native-inventory-read';
 
 describe('native Inventory attachments-policy-facts caller-unit read',()=>{
   const envKey='ERPX_NATIVE_INVENTORY_CONFIG';

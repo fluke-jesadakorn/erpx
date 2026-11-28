@@ -1,11 +1,11 @@
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
-import { guidedIntakeHandoffKey, guidedIntakeInputSchema, saveGuidedIntakeHandoff } from "@erpx/feature-shared/lib/ai/guided-intake";
-import { guidedIntakeOptions, prepareGuidedIntake } from "@erpx/server-operations/public/guided-intake";
-import type { AiEndpoint, AiMessage } from "@erpx/server-agent/public/ai-transport";
+import { guidedIntakeHandoffKey, guidedIntakeInputSchema, saveGuidedIntakeHandoff } from "@erpx/platform-shared-ui/lib/ai/guided-intake";
+import { guidedIntakeOptions, prepareGuidedIntake } from "@erpx/operations-server/public/guided-intake";
+import type { AiEndpoint, AiMessage } from "@erpx/agent-server/public/ai-transport";
 
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 const aiEnv = {AI_BASE_URL:"https://opencode.ai/zen/go/v1",AI_MODEL:"muse-spark-1.3-contributor",AI_API_KEY:"synthetic-key"};
 let f: Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});

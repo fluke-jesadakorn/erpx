@@ -11,19 +11,19 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_assets::public::native_read as plans;
-use erpx_server_assets::public::{bind, ReadScope};
+use erpx_assets_server::public::native_read as plans;
+use erpx_assets_server::public::{bind, ReadScope};
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row};
 
 /// Cross-owner and cutover-guard TypeScript authority, read at compile time.
-const TS_FS: &str = include_str!("../../../packages/server-assets/src/adapters/field-service-references.ts");
-const TS_PKG: &str = include_str!("../../../packages/server-assets/src/adapters/package-obligations.ts");
-const TS_PROBE: &str = include_str!("../../../packages/server-assets/src/adapters/record-purchases.ts");
-const TS_HEAD: &str = include_str!("../../../packages/server-assets/src/adapters/asset-scope-tuple.ts");
-const TS_PLACEMENTS: &str = include_str!("../../../packages/server-organization/src/adapters/talent-settlement-sources.ts");
-const TS_FINANCIAL: &str = include_str!("../../../packages/server-finance/src/adapters/assets-settlement-sources.ts");
-const TS_REFS: &str = include_str!("../../../packages/server-maintenance/src/adapters/asset-settlement-refs.ts");
-const TS_CONSUMPTIONS: &str = include_str!("../../../packages/server-inventory/src/adapters/maintenance-settlement-sources.ts");
+const TS_FS: &str = include_str!("../../../modules/assets/server/src/adapters/field-service-references.ts");
+const TS_PKG: &str = include_str!("../../../modules/assets/server/src/adapters/package-obligations.ts");
+const TS_PROBE: &str = include_str!("../../../modules/assets/server/src/adapters/record-purchases.ts");
+const TS_HEAD: &str = include_str!("../../../modules/assets/server/src/adapters/asset-scope-tuple.ts");
+const TS_PLACEMENTS: &str = include_str!("../../../modules/organization/server/src/adapters/talent-settlement-sources.ts");
+const TS_FINANCIAL: &str = include_str!("../../../modules/finance/server/src/adapters/assets-settlement-sources.ts");
+const TS_REFS: &str = include_str!("../../../modules/maintenance/server/src/adapters/asset-settlement-refs.ts");
+const TS_CONSUMPTIONS: &str = include_str!("../../../modules/inventory/server/src/adapters/maintenance-settlement-sources.ts");
 
 // Verbatim fragments from the cross-owner TypeScript source adapters. Macros
 // (not named consts) let `concat!` compose the byte-exact live statements.
@@ -129,7 +129,7 @@ fn cross_owner_fragments_match_typescript_authority() {
     assert!(!TS_HEAD.contains("SELECT"));
     assert!(TS_HEAD.contains("heads.selectHead.replace"));
     assert_eq!(
-        erpx_server_assets::public::projection_head::render_projection_from(
+        erpx_assets_server::public::projection_head::render_projection_from(
             "id,version", " operational_assets", " WHERE id=?"
         ),
         "SELECT id,version FROM operational_assets WHERE id=?"

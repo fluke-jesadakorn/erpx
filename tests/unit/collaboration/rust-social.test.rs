@@ -1,12 +1,12 @@
 //! Native Social command sequencing with a caller-owned unit. PostgreSQL
 //! persistence, Company isolation and readback live in the integration target.
-use erpx_server_collaboration::public::social::{
+use erpx_collaboration_server::public::social::{
     Access, Audience, Change, CommentSnapshot, CommentState, DraftSnapshot, FollowTarget,
     HandoverAuthority, HandoverRecipientAuthority, HandoverSource, HandoverSourceAuthority,
     MentionInput, MentionKind, OwnerPlan, PostSnapshot, PostState, Receipt, SocialActor, SocialUnit,
     execute, hashtags, normalize_tag, normalize_tags, post_not_found, post_tags, text,
 };
-use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey, FailureKind};
 use std::collections::BTreeMap;
 
 struct Unit {
@@ -169,7 +169,7 @@ impl SocialUnit for Unit {
         key: &CommandKey,
         plan: OwnerPlan,
     ) -> Result<Receipt, BusinessError> {
-        let receipt = erpx_server_collaboration::public::social::plan_receipt(key, &plan)?;
+        let receipt = erpx_collaboration_server::public::social::plan_receipt(key, &plan)?;
         self.applied = Some(plan);
         Ok(receipt)
     }
@@ -270,7 +270,7 @@ async fn publishes_a_post_with_normalized_topics_resolved_mentions_and_record() 
                 },
             ],
             linked_record: Some(
-                erpx_server_collaboration::public::social::LinkedRecordInput {
+                erpx_collaboration_server::public::social::LinkedRecordInput {
                     module: "people_payroll".into(),
                     id: "leave-1".into(),
                 },

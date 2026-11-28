@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { createNativeQualityReader, type QualityTransport } from '../../../packages/feature-quality/src/adapters/server/native-quality';
+import { createNativeQualityReader, type QualityTransport } from '../../../modules/quality/ui/src/adapters/server/native-quality';
 
 const config = JSON.stringify({
   privateBaseUrl: 'http://127.0.0.1:44991',

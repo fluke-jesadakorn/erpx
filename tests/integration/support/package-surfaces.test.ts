@@ -1,41 +1,41 @@
 import {withNativeFieldFixture} from '../../support/files/field-files-native-parity';
 import {seedExpenseCompany} from '../../../fixtures/expenses/company';
-import type {PostgresDatabase} from '@erpx/server-runtime/adapters/runtime/postgres';
-import { crmDetail, createCRMLead, getCRMLead } from "@erpx/server-crm/public/crm";
+import type {PostgresDatabase} from '@erpx/platform-runtime-server/adapters/runtime/postgres';
+import { crmDetail, createCRMLead, getCRMLead } from "@erpx/crm-server/public/crm";
 import { createHash } from "node:crypto";
-import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import { changeCRMIdentity } from "@erpx/server-crm/public/crm-identities";
-import { readExecutiveMetricProjection } from "@erpx/server-support/public/executive-metric-projections";
-import { executiveMainEvidenceSources as supportMetricEvidence } from "@erpx/server-support/public/executive-main-evidence-sources";
-import { metricCatalogFor, queryMetric } from "@erpx/server-runtime/public/executive/metrics";
-import { pmsCommand, loadPms } from "@erpx/server-pms/public/pms";
-import { readablePmsSource, readablePmsSourceIds } from "@erpx/server-pms/public/pms/source";
+import type { SqlDatabase } from "@erpx/platform-runtime-server/public/runtime/types";
+import { changeCRMIdentity } from "@erpx/crm-server/public/crm-identities";
+import { readExecutiveMetricProjection } from "@erpx/support-server/public/executive-metric-projections";
+import { executiveMainEvidenceSources as supportMetricEvidence } from "@erpx/support-server/public/executive-main-evidence-sources";
+import { metricCatalogFor, queryMetric } from "@erpx/platform-runtime-server/public/executive/metrics";
+import { pmsCommand, loadPms } from "@erpx/pms-server/public/pms";
+import { readablePmsSource, readablePmsSourceIds } from "@erpx/pms-server/public/pms/source";
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
-import {supportDetail,getSupportTicket,supportWork} from '@erpx/server-support/public/support';
+import {supportDetail,getSupportTicket,supportWork} from '@erpx/support-server/public/support';
 import {seedSupportTicket,seedSupportTicketState} from '../../support/helpers/support-ticket-seed';
 import {seedSupportIncident} from '../../support/helpers/support-incident-seed';
-import { supportEvidence } from "@erpx/server-support/public/support-evidence";
-import {incidentWorkspace} from '@erpx/server-support/public/support-incidents';
-import { packageGrantStore } from "@erpx/server-commercial/adapters/package-grants";
-import { readCompanyPackageGrants, packageGrantRevision } from "@erpx/server-commercial/public/package-grants";
-import { ownerPackageObligations, withOwnerPackageObligations } from "@erpx/server-commercial/public/owner-package-obligations";
-import type { CompanyPackageGrant } from "@erpx/server-commercial/public/packages";
-import { attachmentPolicy, authorizeAttachmentTarget } from "@erpx/server-files/public/attachments/policy";
-import { createAttachmentSet } from "@erpx/server-files/public/attachments/service";
-import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/commerce';
-import { startSupportClock } from "@erpx/server-support/public/rules/support-clock";
+import { supportEvidence } from "@erpx/support-server/public/support-evidence";
+import {incidentWorkspace} from '@erpx/support-server/public/support-incidents';
+import { packageGrantStore } from "@erpx/commercial-server/adapters/package-grants";
+import { readCompanyPackageGrants, packageGrantRevision } from "@erpx/commercial-server/public/package-grants";
+import { ownerPackageObligations, withOwnerPackageObligations } from "@erpx/commercial-server/public/owner-package-obligations";
+import type { CompanyPackageGrant } from "@erpx/commercial-server/public/packages";
+import { attachmentPolicy, authorizeAttachmentTarget } from "@erpx/files-server/public/attachments/policy";
+import { createAttachmentSet } from "@erpx/files-server/public/attachments/service";
+import {saveMaster,saveOrder,orderSchema} from '@erpx/commerce-server/public/commerce';
+import { startSupportClock } from "@erpx/support-server/public/rules/support-clock";
 import { seedSupportClock, seedSupportPolicy } from "../../support/helpers/support-sla-seed";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { POST as reserveFile } from "@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/uploads/route";
-import { PUT as uploadFile } from "@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/uploads/[id]/content/route";
-import { GET as downloadFile } from "@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/attachments/[id]/content/route";
-import { holdingResources } from "@erpx/server-runtime/public/runtime";
-import { customerTimeline } from "@erpx/server-customer_360/public/customer-timeline";
-import { salesCustomersAccess, customerSummaries, customerWorkspaceProfile } from "@erpx/server-sales/public/sales-customers";
-import { calendarSupportSupportFacts } from "@erpx/server-support/public/calendar-support-facts";
-import { executiveMainEvidenceSources, type CustomerActivityTransport } from "@erpx/server-customer_360/public/executive-main-evidence-sources";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import { POST as reserveFile } from "@erpx/platform-workplace/routes/api/v1/holdings/[holdingSlug]/uploads/route";
+import { PUT as uploadFile } from "@erpx/platform-workplace/routes/api/v1/holdings/[holdingSlug]/uploads/[id]/content/route";
+import { GET as downloadFile } from "@erpx/platform-workplace/routes/api/v1/holdings/[holdingSlug]/attachments/[id]/content/route";
+import { holdingResources } from "@erpx/platform-runtime-server/public/runtime";
+import { customerTimeline } from "@erpx/customer-360-server/public/customer-timeline";
+import { salesCustomersAccess, customerSummaries, customerWorkspaceProfile } from "@erpx/sales-server/public/sales-customers";
+import { calendarSupportSupportFacts } from "@erpx/support-server/public/calendar-support-facts";
+import { executiveMainEvidenceSources, type CustomerActivityTransport } from "@erpx/customer-360-server/public/executive-main-evidence-sources";
 
 // Owner rows the native Assets register command persists; the TypeScript writer
 // is retired and the native Rust suites own command behavior.
@@ -47,18 +47,18 @@ async function seedAsset(actor:{companyId:string;userId:string},input:{branchId:
  ]);
  return {id,version:1};
 }
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: vi.fn(async () => ({ write: env.H001_DB, files: env.H001_FILES })), runtimeEnv: async () => env }));
-vi.mock("@erpx/server-files/public/attachments/scanner", () => ({
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({ holdingResources: vi.fn(async () => ({ write: env.H001_DB, files: env.H001_FILES })), runtimeEnv: async () => env }));
+vi.mock("@erpx/files-server/public/attachments/scanner", () => ({
   attachmentScannerReadiness: async () => ({ enabled: true, ready: true, engine: "Declared native fixture", definitionUpdatedAt: Date.now(), error: null }),
   scanAttachmentBytes: async () => ({ clean: true, signature: null, engine: "Declared native fixture", definitionUpdatedAt: Date.now() }),
 }));
-vi.mock("@erpx/server-files/public/attachments/preview", () => ({
+vi.mock("@erpx/files-server/public/attachments/preview", () => ({
   attachmentPreviewReadiness: async () => ({ ready: true, heifConvert: "/fixture/heif-convert", pdftoppm: "/fixture/pdftoppm", error: null }),
   detectedAttachmentMediaType: (_bytes: Uint8Array, declared: string) => declared,
   sanitizedAttachmentPreview: async () => null,
 }));
 const session = vi.hoisted(() => ({ actor: null as WorkContext | null }));
-vi.mock("@erpx/server-identity_access/public/authorization", async original => ({ ...await original<typeof import("@erpx/server-identity_access/public/authorization")>(), requireWorkContext: async () => session.actor! }));
+vi.mock("@erpx/identity-access-server/public/authorization", async original => ({ ...await original<typeof import("@erpx/identity-access-server/public/authorization")>(), requireWorkContext: async () => session.actor! }));
 let f: Awaited<ReturnType<typeof expenseFixture>>, ticketId: string;
 beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });
 beforeEach(async () => {

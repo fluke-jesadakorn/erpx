@@ -3,8 +3,8 @@ import { existsSync, mkdirSync, openSync, closeSync, readFileSync, unlinkSync, w
 import { resolve, dirname } from "node:path";
 import { connect } from "node:net";
 import { execFileSync } from "node:child_process";
-import { appDefinition } from "@erpx/contracts/apps";
-import {holdingRoutingEnabled,activeHoldingHosts,accountDevelopmentOrigin} from '@erpx/feature-runtime/lib/holding-hosts';
+import { appDefinition } from "@erpx/platform-contracts/apps";
+import {holdingRoutingEnabled,activeHoldingHosts,accountDevelopmentOrigin} from '@erpx/platform-runtime-ui/lib/holding-hosts';
 import { prepareNextDevelopment } from "./prepare-next-development";
 import { expandNativeApiPaths, loadNativeApiPaths } from "./native-api-paths";
 import { pinnedNode } from "./app-task";

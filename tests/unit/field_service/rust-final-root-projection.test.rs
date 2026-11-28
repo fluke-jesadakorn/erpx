@@ -2,7 +2,7 @@
 //! The TS authority was retired with the last cross-owner imports; the native
 //! enum is the sole owner of these fixed statements and the literals below are
 //! the independent test oracle that detects any accidental drift.
-use erpx_server_field_service::public::final_root_projection::FinalRootProjectionSource;
+use erpx_field_service_server::public::final_root_projection::FinalRootProjectionSource;
 
 const NATIVE_SQL: [(FinalRootProjectionSource, &str); 5] = [
     (

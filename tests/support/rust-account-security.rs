@@ -4,7 +4,7 @@
 )]
 #[path = "rust-account-device-http.rs"]
 pub mod http;
-use erpx_server_identity_access::public::{account_security::*, *};
+use erpx_identity_access_server::public::{account_security::*, *};
 pub use http::revocation as fixture;
 use sqlx::Row;
 use std::sync::Arc;
@@ -59,7 +59,7 @@ pub async fn code(
     user: &str,
     offset: i64,
 ) -> String {
-    use erpx_server_shared::public::Clock;
+    use erpx_platform_shared_server::public::Clock;
     let envelope: String = sqlx::query_scalar("SELECT secret FROM iam_mfa WHERE user_id=$1")
         .bind(user)
         .fetch_one(system.control.raw())

@@ -2,9 +2,9 @@ import { describe, expect, test, vi } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
-import { qualityAttachmentSourceSelect } from '../../../packages/server-quality/src/adapters/quality-attachment-source-select-sql';
+import { qualityAttachmentSourceSelect } from '../../../modules/quality/server/src/adapters/quality-attachment-source-select-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-quality/src');
+const srcRoot = resolve(__dirname, '../../../modules/quality/server/src');
 const read = (path: string) => readFileSync(resolve(srcRoot, path), 'utf8');
 
 // Pre-dedupe attachment source projection literals copied byte-for-byte from HEAD.

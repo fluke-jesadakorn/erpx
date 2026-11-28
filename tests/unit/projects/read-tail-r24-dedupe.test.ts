@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { projectsClockCte } from '../../../packages/server-projects/src/adapters/clock-cte';
+import { projectsClockCte } from '../../../modules/projects/server/src/adapters/clock-cte';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-projects/src');
+const srcRoot = resolve(__dirname, '../../../modules/projects/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 // Verbatim pre-dedupe literals from HEAD before the r24 edits. These are

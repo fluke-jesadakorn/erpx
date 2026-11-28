@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { commandReceiptByCommandSql } from '../../../packages/server-workflow/src/adapters/receipt-sql';
-import { departmentOverrideReceiptOperation } from '../../../packages/server-workflow/src/adapters/department-override-facts';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import { commandReceiptByCommandSql } from '../../../modules/workflow/server/src/adapters/receipt-sql';
+import { departmentOverrideReceiptOperation } from '../../../modules/workflow/server/src/adapters/department-override-facts';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
 
 const pointReadSql = (column: string) => `SELECT ${column} FROM command_receipts WHERE command_id=?`;
 
@@ -31,9 +31,9 @@ describe('workflow command-receipt projection generator family (r31)', () => {
   it('keeps one generator definition and no inline point-read literals', async () => {
     const { readFile } = await import('node:fs/promises');
     const [shared, facts, projections] = await Promise.all([
-      readFile(new URL('../../../packages/server-workflow/src/adapters/receipt-sql.ts', import.meta.url), 'utf8'),
-      readFile(new URL('../../../packages/server-workflow/src/adapters/department-override-facts.ts', import.meta.url), 'utf8'),
-      readFile(new URL('../../../packages/server-workflow/src/adapters/closed-projection-sources.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/workflow/server/src/adapters/receipt-sql.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/workflow/server/src/adapters/department-override-facts.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/workflow/server/src/adapters/closed-projection-sources.ts', import.meta.url), 'utf8'),
     ]);
     expect(projections.match(/`\$\{selectHeadSql\}\$\{columns\.join\(separator\)\} FROM command_receipts\$\{tail\}`/g) ?? []).toHaveLength(1);
     expect(shared).toContain("commandReceiptsProjectionSql([column], ',', ' WHERE command_id=?')");

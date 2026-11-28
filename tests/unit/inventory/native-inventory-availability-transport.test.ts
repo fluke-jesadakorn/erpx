@@ -1,8 +1,8 @@
 import {describe,it,expect,vi,beforeEach,afterEach} from 'vitest';
 vi.mock('server-only',()=>({}));
-import {createNativeInventoryAvailabilityReader,createNativeInventoryMovementsReader,type NativeAvailabilityContext} from '../../../packages/feature-inventory/src/adapters/server/native-availability';
-import {RecordDetailsInventoryOwnedFacts} from '../../../packages/server-inventory/src/adapters/records-record-details-owned-facts';
-import {INVENTORY_RD_LEDGER_SUPPLEMENT_ROW,INVENTORY_RD_LOT_SUPPLEMENT_ROW,INVENTORY_RD_STOCK_SUPPLEMENT_ROW} from '../../../packages/server-inventory/src/adapters/native-inventory-read';
+import {createNativeInventoryAvailabilityReader,createNativeInventoryMovementsReader,type NativeAvailabilityContext} from '../../../modules/inventory/ui/src/adapters/server/native-availability';
+import {RecordDetailsInventoryOwnedFacts} from '../../../modules/inventory/server/src/adapters/records-record-details-owned-facts';
+import {INVENTORY_RD_LEDGER_SUPPLEMENT_ROW,INVENTORY_RD_LOT_SUPPLEMENT_ROW,INVENTORY_RD_STOCK_SUPPLEMENT_ROW} from '../../../modules/inventory/server/src/adapters/native-inventory-read';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44991',

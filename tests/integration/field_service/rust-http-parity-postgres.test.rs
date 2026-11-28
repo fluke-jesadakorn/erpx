@@ -12,18 +12,18 @@ use axum::{
     body::{Body, to_bytes},
     http::{HeaderMap, Request, StatusCode},
 };
-use erpx_server_commercial::public::purchases::PackageEnforcementMode;
+use erpx_commercial_server::public::purchases::PackageEnforcementMode;
 #[cfg(feature = "private-field-api")]
-use erpx_server_identity_access::public::SystemAuthenticationSecrets;
-use erpx_server_identity_access::public::effective_authority::AuthorizedWorkContext;
-use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
-use erpx_server_workflow::public::commands::CommandJson;
+use erpx_identity_access_server::public::SystemAuthenticationSecrets;
+use erpx_identity_access_server::public::effective_authority::AuthorizedWorkContext;
+use erpx_platform_runtime_server::public::postgres::{PersistenceError, PgTransactionError, PgWorkFuture};
+use erpx_platform_shared_server::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
+use erpx_workflow_server::public::commands::CommandJson;
 #[cfg(feature = "private-field-api")]
-use erpx_service::private_development_api::{
+use erpx_platform_composition::private_development_api::{
     DevelopmentApiConfiguration, assemble_development_api,
 };
-use erpx_service::{
+use erpx_platform_composition::{
     business_http::BusinessScopeSlugs, field_service_http::*, field_service_parts::*,
 };
 use facts::*;
@@ -61,13 +61,13 @@ use tower::ServiceExt;
 /// owner rows in an isolated test Holding. It grants no IAM or purchase right.
 #[cfg(feature = "private-field-api")]
 async fn assert_actual_field_journal_history(db:&sqlx::PgPool,id:&str,company:&str,expected:bool,stale_order:Option<&str>) {
-    use erpx_server_field_service::public::finance_lineage::{field_finance_source,inspect_field_history_join,lock_field_history_join_sources};
-    use erpx_server_finance::public::attachment_target_source::{FinanceAttachmentTargetKind,inspect_canonical_finance_history_journal_roots,lock_canonical_finance_attachment_targets,lock_canonical_finance_history_book_roots,observe_canonical_finance_attachment_target};
-    use erpx_server_finance::public::field_history_candidates::{inspect_field_history_finance_candidates,lock_field_history_finance_candidate_sources};
-    use erpx_server_finance::public::field_history_money_lines::{inspect_field_history_money_lines,lock_field_history_money_line_sources};
-    use erpx_server_inventory::public::field_history_consumption::{inspect_field_history_consumption_join,lock_field_history_consumption_join_sources};
-    use erpx_server_workflow::public::record_origin::{inspect_field_history_receipt_join,lock_field_history_receipt_join_sources};
-    use erpx_service::field_finance_history::{FieldFinanceHistoryPhase,inspect_field_finance_history};
+    use erpx_field_service_server::public::finance_lineage::{field_finance_source,inspect_field_history_join,lock_field_history_join_sources};
+    use erpx_finance_server::public::attachment_target_source::{FinanceAttachmentTargetKind,inspect_canonical_finance_history_journal_roots,lock_canonical_finance_attachment_targets,lock_canonical_finance_history_book_roots,observe_canonical_finance_attachment_target};
+    use erpx_finance_server::public::field_history_candidates::{inspect_field_history_finance_candidates,lock_field_history_finance_candidate_sources};
+    use erpx_finance_server::public::field_history_money_lines::{inspect_field_history_money_lines,lock_field_history_money_line_sources};
+    use erpx_inventory_server::public::field_history_consumption::{inspect_field_history_consumption_join,lock_field_history_consumption_join_sources};
+    use erpx_workflow_server::public::record_origin::{inspect_field_history_receipt_join,lock_field_history_receipt_join_sources};
+    use erpx_platform_composition::field_finance_history::{FieldFinanceHistoryPhase,inspect_field_finance_history};
     // Oracles are the owner's fixed Rust SQL contract; no TypeScript source
     // import and no Node runtime are needed for the retired literals.
     let original=|source:&str|format!("SELECT EXISTS(SELECT 1 FROM public.finance_journals d WHERE d.id=$1 AND d.company_id=$2 AND EXISTS(SELECT 1 FROM (SELECT d.id,d.company_id UNION SELECT p.id,p.company_id FROM public.finance_book_postings b JOIN public.finance_journals p ON p.id=b.primary_journal_id AND p.company_id=d.company_id WHERE b.secondary_journal_id=d.id) root JOIN ({source}) owner_source ON owner_source.id=root.id AND owner_source.company_id=root.company_id))");
@@ -229,7 +229,7 @@ async fn joined_real_reserve_issue_replay_and_late_key_source_order() {
         let cases=leaf["cases"].as_array().unwrap();assert_eq!(cases.len(),8);
         for case in cases {
             let units=case["inputUtf16"].as_array().unwrap().iter().map(|n|n.as_u64().unwrap() as u16).collect();
-            let target=erpx_server_field_service::public::parts::FieldServiceRawOrderTarget::from_utf16(units);
+            let target=erpx_field_service_server::public::parts::FieldServiceRawOrderTarget::from_utf16(units);
             let actual=sqlx::query_as::<_,(String,String,i32)>("SELECT $1::text,encode(convert_to($1::text,'UTF8'),'hex'),octet_length($1::text)").bind(target.storage_text()).fetch_one(p.pool().raw()).await;
             if case["ok"].as_bool().unwrap() {
                 let (value,hex,bytes)=actual.unwrap();assert_eq!(value,case["result"]["value"].as_str().unwrap());assert_eq!(hex,case["bindHex"].as_str().unwrap());assert_eq!(i64::from(bytes),case["result"]["bytes"].as_i64().unwrap());
@@ -478,7 +478,7 @@ async fn private_reserve_readback_is_explicit_scoped_and_receipt_bound() {
 
 #[tokio::test]
 async fn advancing_clock_retains_early_order_witness_across_real_retry() {
-    use erpx_server_shared::public::TimestampMillis;
+    use erpx_platform_shared_server::public::TimestampMillis;
     use std::sync::atomic::AtomicI64;
     struct AdvancingClock(AtomicI64);
     impl Clock for AdvancingClock {
@@ -1400,9 +1400,9 @@ mod bind_scan_facts;
 #[tokio::test]
 #[cfg(feature = "private-field-api")]
 async fn private_field_attachment_bind_replays_component_scanned_manifest() {
-    use erpx_server_files::public::attachment_scan::*;
-    use erpx_server_runtime::public::postgres::{PgUnitOfWork, TransactionOptions};
-    use erpx_server_shared::public::RecordId;
+    use erpx_files_server::public::attachment_scan::*;
+    use erpx_platform_runtime_server::public::postgres::{PgUnitOfWork, TransactionOptions};
+    use erpx_platform_shared_server::public::RecordId;
     use sha2::{Digest, Sha256};
     account::with_system(|system| async move {
         let now=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
@@ -1451,7 +1451,7 @@ async fn private_field_attachment_bind_replays_component_scanned_manifest() {
             let writer_holds:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND relation='company_package_grants'::regclass AND mode='RowExclusiveLock' AND granted)").bind(writer_pid).fetch_one(db).await.unwrap();
             assert!(writer_holds);
             let mut probe=db.begin().await.unwrap();
-            let conflict=erpx_server_commercial::public::purchases::lock_purchase_write_sources(&mut probe).await.err().expect("writer must conflict with the same owner fence");
+            let conflict=erpx_commercial_server::public::purchases::lock_purchase_write_sources(&mut probe).await.err().expect("writer must conflict with the same owner fence");
             assert!(matches!(conflict,PgTransactionError::Persistence(ref e) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));
             probe.rollback().await.unwrap();
             let response=tokio::time::timeout(std::time::Duration::from_secs(5),runtime.router().oneshot(post("bind-writer-first",3))).await.unwrap().unwrap();
@@ -1538,12 +1538,12 @@ async fn private_field_attachment_bind_replays_component_scanned_manifest() {
         // Real HTTP bind receipt, not the target identifier alone, admits
         // the Files native projector and excludes every legacy claimant.
         {
-            use erpx_server_workflow::public::service_count_outbox::{claim,eligible,complete};
+            use erpx_workflow_server::public::service_count_outbox::{claim,eligible,complete};
             let legacy=sqlx::query("UPDATE outbox_events SET lease_token='legacy-bind' WHERE command_id='bind-retry-key'").execute(db).await.unwrap_err();assert_eq!(legacy.as_database_error().and_then(|e|e.constraint()),Some("native_outbox_runtime_required"));
             let mut c=db.acquire().await.unwrap();
-            let event=claim(&mut c,erpx_server_files::public::field_outbox::QUARANTINE,"native-bind",now+1).await.unwrap().unwrap();assert_eq!(event.aggregate_id,"issue-order");
-            let evidence=format!("({}) AND ({})",erpx_server_files::public::field_outbox::ELIGIBLE,erpx_server_workflow::public::field_outbox::FILES_COMMAND_EVIDENCE);
-            let mut probe=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT (");probe.push(erpx_server_files::public::field_outbox::ELIGIBLE).push(") IS TRUE,(").push(erpx_server_workflow::public::field_outbox::FILES_COMMAND_EVIDENCE).push(") IS TRUE FROM outbox_events e WHERE e.id=").push_bind(&event.id);
+            let event=claim(&mut c,erpx_files_server::public::field_outbox::QUARANTINE,"native-bind",now+1).await.unwrap().unwrap();assert_eq!(event.aggregate_id,"issue-order");
+            let evidence=format!("({}) AND ({})",erpx_files_server::public::field_outbox::ELIGIBLE,erpx_workflow_server::public::field_outbox::FILES_COMMAND_EVIDENCE);
+            let mut probe=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT (");probe.push(erpx_files_server::public::field_outbox::ELIGIBLE).push(") IS TRUE,(").push(erpx_workflow_server::public::field_outbox::FILES_COMMAND_EVIDENCE).push(") IS TRUE FROM outbox_events e WHERE e.id=").push_bind(&event.id);
             let source_ledger:(bool,bool)=probe.build_query_as().fetch_one(&mut *c).await.unwrap();
             assert!(eligible(&mut c,&evidence,&event).await.unwrap(),"Files/Workflow evidence: {source_ledger:?}");
             let saved:String=sqlx::query_scalar("SELECT result_json FROM command_receipts WHERE command_id='bind-retry-key'").fetch_one(&mut *c).await.unwrap();
@@ -1584,15 +1584,15 @@ async fn private_field_source_record_preserves_modes_and_current_scope() {
   let finance_cookie=format!("__Host-erpx-product={}",p.review.reviewer_token.expose());let unauthorized=Request::builder().uri("/api/v1/holdings/acme/field-service/orders/issue-order/source-record").header("host","acme.example.test").header("cookie",finance_cookie).body(Body::empty()).unwrap();assert_eq!(enforced.router().oneshot(unauthorized).await.unwrap().status(),StatusCode::FORBIDDEN);
   let default_cfg={let mut v=cfg.clone();v.as_object_mut().unwrap().remove("fieldServiceSourceRecordReads");v};let closed=assemble_development_api(DevelopmentApiConfiguration::parse(&default_cfg.to_string()).unwrap(),system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await.unwrap();assert_ne!(closed.router().oneshot(get("issue-order","")).await.unwrap().status(),StatusCode::OK);closed.close().await;
   let mut tx=db.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
-  erpx_server_field_service::public::source_record::lock_source_record(&mut tx).await.unwrap();erpx_server_support::public::field_service_workspace::lock_service_workspace_tickets(&mut tx).await.unwrap();
-  let company=CompanyId::new("company").unwrap();let field=erpx_server_field_service::public::source_record::read_source_record(&mut tx,&company,None,None,"issue-order").await.unwrap();
+  erpx_field_service_server::public::source_record::lock_source_record(&mut tx).await.unwrap();erpx_support_server::public::field_service_workspace::lock_service_workspace_tickets(&mut tx).await.unwrap();
+  let company=CompanyId::new("company").unwrap();let field=erpx_field_service_server::public::source_record::read_source_record(&mut tx,&company,None,None,"issue-order").await.unwrap();
   sqlx::query("UPDATE field_service_orders SET issue='Unexpected late change' WHERE id='issue-order'").execute(&mut *tx).await.unwrap();assert!(field.require_current(&mut tx).await.is_err());
-  let absent=erpx_server_support::public::field_service_source_record::read_field_source_ticket(&mut tx,&company,"source-late-ticket").await.unwrap();assert!(absent.data().is_none());
+  let absent=erpx_support_server::public::field_service_source_record::read_field_source_ticket(&mut tx,&company,"source-late-ticket").await.unwrap();assert!(absent.data().is_none());
   sqlx::query("INSERT INTO support_tickets(id,company_id,branch_id,title,issue,owner_id,due_date,source_kind,created_by,created_at,updated_at) VALUES('source-late-ticket','company','branch','Late source','Issue','fixture-a','2027-12-31','general','fixture-a',$1,$1)").bind(now).execute(&mut *tx).await.unwrap();assert!(absent.require_current(&mut tx).await.is_err());tx.rollback().await.unwrap();
   withdraw(&p,"service").await;system.scenario.clock.0.store(now+10000,Ordering::SeqCst);assert_eq!(enforced.router().oneshot(get("issue-order","")).await.unwrap().status(),StatusCode::OK);enforced.close().await;
   {
-   use erpx_server_commercial::public::purchases::{CapabilityPurpose,PurchaseRequest,PgCompanyPurchaseReader,current_package_catalogue,lock_commercial_authority_sources};
-   use erpx_service::field_service_source_record::{SourceRecordMode,observe_source_purchase,write_source_purchase_observation};
+   use erpx_commercial_server::public::purchases::{CapabilityPurpose,PurchaseRequest,PgCompanyPurchaseReader,current_package_catalogue,lock_commercial_authority_sources};
+   use erpx_platform_composition::field_service_source_record::{SourceRecordMode,observe_source_purchase,write_source_purchase_observation};
    let mut tx=db.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_commercial_authority_sources(&mut tx).await.unwrap();
    let catalogue=current_package_catalogue().unwrap();let holding=HoldingId::new("h001").unwrap();let company=CompanyId::new("company").unwrap();let mut observations=Vec::new();
    for purpose in [CapabilityPurpose::NewWork,CapabilityPurpose::SettleExisting,CapabilityPurpose::History] {
@@ -1627,20 +1627,20 @@ async fn private_field_source_record_requires_actual_asset_history() {
 
 #[tokio::test]
 async fn service_posting_history_owner_images_match_original_postgres_text() {
-    use erpx_server_commerce::public::service_parts_posting::{
+    use erpx_commerce_server::public::service_parts_posting::{
         lock_service_parts_posting_sources, read_service_parts_posting,
     };
-    use erpx_server_field_service::public::service_parts_posting::{
+    use erpx_field_service_server::public::service_parts_posting::{
         lock_service_parts_field_history, read_service_parts_field_history,
     };
-    use erpx_server_finance::public::service_parts_posting::{
+    use erpx_finance_server::public::service_parts_posting::{
         lock_service_parts_posting_references, read_service_parts_posting_references,
     };
-    use erpx_server_inventory::public::service_parts_posting::{
+    use erpx_inventory_server::public::service_parts_posting::{
         lock_service_parts_inventory_history, read_service_parts_inventory_history,
     };
-    use erpx_server_runtime::public::postgres::{PgUnitOfWork, TransactionOptions};
-    use erpx_service::service_parts_posting_setup::{PostingHistoryImages, retained_history_image};
+    use erpx_platform_runtime_server::public::postgres::{PgUnitOfWork, TransactionOptions};
+    use erpx_platform_composition::service_parts_posting_setup::{PostingHistoryImages, retained_history_image};
     account::with_system(|system| async move {
         let p=setup_workspace(system).await;
         PgUnitOfWork::new(p.pool().clone()).run::<_,BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move {
@@ -1665,8 +1665,8 @@ async fn service_posting_history_owner_images_match_original_postgres_text() {
 
 #[tokio::test]
 async fn service_posting_setup_reads_actual_selected_finance_and_owner_sources() {
-    use erpx_server_identity_access::public::effective_authority::WorkAuthorizationRequest;
-    use erpx_service::service_parts_posting_setup::{
+    use erpx_identity_access_server::public::effective_authority::WorkAuthorizationRequest;
+    use erpx_platform_composition::service_parts_posting_setup::{
         ServicePostingEnvironment, ServicePostingSources, read_service_posting_setup,
     };
     account::with_system(|system| async move {
@@ -1716,10 +1716,10 @@ use service_posting_fixture::service_posting_finance_fixture;
 
 #[tokio::test]
 async fn service_posting_setup_initializes_and_replays_actual_owner_transaction() {
-    use erpx_server_commerce::public::service_parts_posting::PostingMode;
-    use erpx_server_identity_access::public::effective_authority::WorkAuthorizationRequest;
-    use erpx_server_workflow::public::commands::CommandJson;
-    use erpx_service::service_parts_posting_setup::{
+    use erpx_commerce_server::public::service_parts_posting::PostingMode;
+    use erpx_identity_access_server::public::effective_authority::WorkAuthorizationRequest;
+    use erpx_workflow_server::public::commands::CommandJson;
+    use erpx_platform_composition::service_parts_posting_setup::{
         ServicePostingEnvironment, ServicePostingSources, execute_service_posting_setup,
         normalize_service_posting_command, read_service_posting_setup,
     };
@@ -1734,7 +1734,7 @@ async fn service_posting_setup_initializes_and_replays_actual_owner_transaction(
         sqlx::raw_sql("INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status) VALUES('*','posting_readonly','Synthetic Finance reader',false,1,'active'); INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','posting_readonly',1,'[\"finance.read\",\"finance.approve\",\"module.finance.read\"]','[]','[\"holding\"]','synthetic',0)").execute(pool.raw()).await.unwrap();
         sqlx::query("INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind) VALUES('posting-reader-b','fixture-b','posting_readonly','[\"finance\"]','company',$1,$2,3,'holding')").bind(p.system.scenario.clock.now().get()-1000).bind(p.system.scenario.clock.now().get()+3_600_000).execute(pool.raw()).await.unwrap();
         sqlx::query("UPDATE active_work_contexts SET assignment_id='posting-reader-b',revision=8 WHERE user_id='fixture-b'").execute(pool.raw()).await.unwrap();
-        let mut readonly_selection=p.reviewer_selection.clone();readonly_selection.expected=Some(erpx_server_identity_access::public::work_context::ExpectedWorkSelection{revision:8,assignment_id:erpx_server_shared::public::AssignmentId::new("posting-reader-b").unwrap(),assignment_version:3});
+        let mut readonly_selection=p.reviewer_selection.clone();readonly_selection.expected=Some(erpx_identity_access_server::public::work_context::ExpectedWorkSelection{revision:8,assignment_id:erpx_platform_shared_server::public::AssignmentId::new("posting-reader-b").unwrap(),assignment_version:3});
         let denied_input=input.clone();let denied_clock=clock.clone();
         let denied=p.authorizer.execute_with_sources("acme.example.test",p.reviewer.clone(),readonly_selection,access(),ServicePostingSources,move|db,current|{let clock=denied_clock.clone();let input=denied_input.clone();Box::pin(async move{execute_service_posting_setup(db,current,clock.as_ref(),ServicePostingEnvironment::Development,"setup-readonly",&input).await})}).await;
         assert!(matches!(denied,Err(PgTransactionError::Business(e)) if e.kind==FailureKind::Forbidden));
@@ -1751,10 +1751,10 @@ async fn service_posting_setup_initializes_and_replays_actual_owner_transaction(
 
 #[tokio::test]
 async fn service_posting_setup_confirms_existing_mapping_without_rewriting_it() {
-    use erpx_server_commerce::public::service_parts_posting::PostingMode;
-    use erpx_server_identity_access::public::effective_authority::WorkAuthorizationRequest;
-    use erpx_server_workflow::public::commands::CommandJson;
-    use erpx_service::service_parts_posting_setup::{
+    use erpx_commerce_server::public::service_parts_posting::PostingMode;
+    use erpx_identity_access_server::public::effective_authority::WorkAuthorizationRequest;
+    use erpx_workflow_server::public::commands::CommandJson;
+    use erpx_platform_composition::service_parts_posting_setup::{
         ServicePostingEnvironment, ServicePostingSources, execute_service_posting_setup,
         normalize_service_posting_command, read_service_posting_setup,
     };
@@ -1779,14 +1779,14 @@ async fn service_posting_setup_confirms_existing_mapping_without_rewriting_it() 
 
 #[tokio::test]
 async fn service_posting_setup_selected_actor_without_finance_gets_unavailable_view() {
-    use erpx_service::service_parts_posting_setup::{
+    use erpx_platform_composition::service_parts_posting_setup::{
         ServicePostingEnvironment, ServicePostingTarget, read_selected_service_posting_setup,
     };
     account::with_system(|system| async move {
         let p = setup_workspace(system).await;
         for company in [
             CompanyId::new("company").unwrap().into(),
-            erpx_service::service_company_ownership::ServiceCompanyOwnership::RegisteredHolding,
+            erpx_platform_composition::service_company_ownership::ServiceCompanyOwnership::RegisteredHolding,
         ] {
             let result = read_selected_service_posting_setup(
                 &p.review.authorizer,
@@ -1818,7 +1818,7 @@ async fn service_posting_setup_selected_actor_without_finance_gets_unavailable_v
             move || Ok(missing_capture),
             ServicePostingTarget {
                 holding: HoldingId::new("h001").unwrap(),
-                company: erpx_service::service_company_ownership::ServiceCompanyOwnership::RegisteredHolding,
+                company: erpx_platform_composition::service_company_ownership::ServiceCompanyOwnership::RegisteredHolding,
                 clock: p.review.system.scenario.clock.clone(),
                 environment: ServicePostingEnvironment::Development,
             },
@@ -1893,18 +1893,18 @@ async fn service_posting_setup_private_http_confirms_existing_mapping() {
 
 #[tokio::test]
 async fn service_posting_context_matches_javascript_with_actual_same_unit_sources() {
-    use erpx_server_commerce::public::service_parts_posting::read_service_parts_posting;
-    use erpx_server_field_service::public::service_parts_posting::read_service_parts_field_history;
-    use erpx_server_finance::public::service_parts_posting::read_service_parts_posting_references;
-    use erpx_server_identity_access::public::{
+    use erpx_commerce_server::public::service_parts_posting::read_service_parts_posting;
+    use erpx_field_service_server::public::service_parts_posting::read_service_parts_field_history;
+    use erpx_finance_server::public::service_parts_posting::read_service_parts_posting_references;
+    use erpx_identity_access_server::public::{
         effective_authority::WorkAuthorizationRequest,
         selected_command_authority::{
             ServicePartsAuthorityPurpose, capture_service_parts_command_authority,
         },
     };
-    use erpx_server_inventory::public::service_parts_posting::read_service_parts_inventory_history;
-    use erpx_server_workflow::public::service_parts_posting::read_service_posting_receipt;
-    use erpx_service::service_parts_posting_setup::{
+    use erpx_inventory_server::public::service_parts_posting::read_service_parts_inventory_history;
+    use erpx_workflow_server::public::service_parts_posting::read_service_posting_receipt;
+    use erpx_platform_composition::service_parts_posting_setup::{
         PostingHistoryImages, ServicePostingEnvironment, ServicePostingSources,
         read_service_posting_setup, retained_history_image,
     };
@@ -1944,14 +1944,14 @@ async fn service_posting_context_matches_javascript_with_actual_same_unit_source
 
 #[tokio::test]
 async fn service_prerequisite_read_matches_actual_javascript_context_key() {
-    use erpx_server_identity_access::public::{
+    use erpx_identity_access_server::public::{
         effective_authority::WorkAuthorizationRequest,
         selected_command_authority::{
             ServicePartsAuthorityPurpose, capture_service_parts_command_authority,
         },
     };
-    use erpx_service::service_parts_posting_setup::ServicePostingEnvironment;
-    use erpx_service::service_parts_prerequisite_setup::{
+    use erpx_platform_composition::service_parts_posting_setup::ServicePostingEnvironment;
+    use erpx_platform_composition::service_parts_prerequisite_setup::{
         ServicePrerequisiteSources, read_service_prerequisites,
     };
     use std::io::Write;
@@ -1991,9 +1991,9 @@ async fn service_prerequisite_read_matches_actual_javascript_context_key() {
 
 #[tokio::test]
 async fn service_prerequisite_read_rejects_unsafe_javascript_metadata() {
-    use erpx_server_identity_access::public::effective_authority::WorkAuthorizationRequest;
-    use erpx_service::service_parts_posting_setup::ServicePostingEnvironment;
-    use erpx_service::service_parts_prerequisite_setup::{
+    use erpx_identity_access_server::public::effective_authority::WorkAuthorizationRequest;
+    use erpx_platform_composition::service_parts_posting_setup::ServicePostingEnvironment;
+    use erpx_platform_composition::service_parts_prerequisite_setup::{
         ServicePrerequisiteSources, read_service_prerequisites,
     };
     account::with_system(|system| async move {
@@ -2019,9 +2019,9 @@ async fn service_prerequisite_read_rejects_unsafe_javascript_metadata() {
 
 #[tokio::test]
 async fn service_prerequisite_commands_preserve_approve_only_and_legacy_authority() {
-    use erpx_server_identity_access::public::effective_authority::WorkAuthorizationRequest;
-    use erpx_service::service_parts_posting_setup::ServicePostingEnvironment;
-    use erpx_service::service_parts_prerequisite_setup::{
+    use erpx_identity_access_server::public::effective_authority::WorkAuthorizationRequest;
+    use erpx_platform_composition::service_parts_posting_setup::ServicePostingEnvironment;
+    use erpx_platform_composition::service_parts_prerequisite_setup::{
         ServicePrerequisiteSources, ServicePrerequisiteWriteSources, execute_service_prerequisite,
         normalize_service_prerequisite, read_service_prerequisites,
     };
@@ -2062,14 +2062,14 @@ async fn service_prerequisite_private_http_all_four_and_exact_replay() {
 
 #[tokio::test]
 async fn service_stock_workspace_uses_actual_mapping_receipt_and_stock_authority() {
-    use erpx_server_commerce::public::service_parts_posting::PostingMode;
-    use erpx_server_identity_access::public::effective_authority::WorkAuthorizationRequest;
-    use erpx_server_workflow::public::commands::CommandJson;
-    use erpx_service::service_parts_posting_setup::{
+    use erpx_commerce_server::public::service_parts_posting::PostingMode;
+    use erpx_identity_access_server::public::effective_authority::WorkAuthorizationRequest;
+    use erpx_workflow_server::public::commands::CommandJson;
+    use erpx_platform_composition::service_parts_posting_setup::{
         ServicePostingEnvironment, ServicePostingSources, execute_service_posting_setup,
         normalize_service_posting_command, read_service_posting_setup,
     };
-    use erpx_service::service_stock_setup::{
+    use erpx_platform_composition::service_stock_setup::{
         ServiceStockSources, execute_service_stock_master, normalize_service_stock_master,
         read_service_stock_workspace,
     };
@@ -2120,11 +2120,11 @@ async fn service_stock_workspace_uses_actual_mapping_receipt_and_stock_authority
 #[tokio::test]
 #[cfg(feature = "private-field-api")]
 async fn direct_selected_field_bind_persists_and_replays_scanned_source() {
-    use erpx_server_files::public::attachment_scan::*;
-    use erpx_server_runtime::public::postgres::{PgUnitOfWork,TransactionOptions};
-    use erpx_server_shared::public::RecordId;
-    use erpx_service::field_service_parts::FieldServicePartsEnvironment;
-    use erpx_service::field_service_reservation_read::{FieldServiceReservationReadConfiguration,FieldServiceReservationReadService};
+    use erpx_files_server::public::attachment_scan::*;
+    use erpx_platform_runtime_server::public::postgres::{PgUnitOfWork,TransactionOptions};
+    use erpx_platform_shared_server::public::RecordId;
+    use erpx_platform_composition::field_service_parts::FieldServicePartsEnvironment;
+    use erpx_platform_composition::field_service_reservation_read::{FieldServiceReservationReadConfiguration,FieldServiceReservationReadService};
     account::with_system(|system| async move {
         let p=setup_workspace(system).await;let db=p.pool().raw();let clock=p.review.system.scenario.clock.clone();
         let now=clock.now().get();let checksum="ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
@@ -2142,7 +2142,7 @@ async fn direct_selected_field_bind_persists_and_replays_scanned_source() {
             let claim=claim_attachment_scan(c,&scope,Some(&id),&*clock,&mut bind_scan_facts::Ids).await?.expect("pending actual scan");let prepared=prepare_current_attachment_scan(c,claim,&*clock).await?;
             let evidence=AttachmentScanEvidence::Clean{engine:"deterministic component provider".into(),definition_updated_at:1,preview:None};let retained=retain_current_attachment_scan(c,&prepared,&evidence,&*clock,&mut bind_scan_facts::Ids).await?;sqlx::query("SET CONSTRAINTS ALL IMMEDIATE").execute(&mut *c).await?;retained.require_current(c,&*clock).await?;Ok(())
         })}}).await.unwrap();
-        let config=FieldServiceReservationReadConfiguration::new(FieldServicePartsEnvironment::Development,HoldingId::new("h001").unwrap(),CompanyId::new("company").unwrap(),Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap())).unwrap().with_attachment_binds(false);
+        let config=FieldServiceReservationReadConfiguration::new(FieldServicePartsEnvironment::Development,HoldingId::new("h001").unwrap(),CompanyId::new("company").unwrap(),Arc::new(erpx_commercial_server::public::purchases::current_package_catalogue().unwrap())).unwrap().with_attachment_binds(false);
         let service=FieldServiceReservationReadService::new(p.review.authorizer.clone(),config,clock.clone());
         let selection=p.selection.clone();let first=service.attachment_bind("acme.example.test",p.review.maker.clone(),move||Ok(selection),"direct-bind-set".into(),"direct-bind-key".into(),Body::from(r#"{"expectedTargetVersion":3}"#)).await.unwrap();
         let selection=p.selection.clone();let replay=service.attachment_bind("acme.example.test",p.review.maker.clone(),move||Ok(selection),"direct-bind-set".into(),"direct-bind-key".into(),Body::from(r#"{"expectedTargetVersion":3}"#)).await.unwrap();
@@ -2190,8 +2190,8 @@ async fn selected_workspace_omits_null_general_ticket_order_without_losing_neigh
 #[tokio::test]
 #[cfg(feature = "private-field-api")]
 async fn selected_field_attachment_denies_null_general_ticket_source() {
-    use erpx_service::field_service_parts::FieldServicePartsEnvironment;
-    use erpx_service::field_service_reservation_read::{FieldServiceReservationReadConfiguration,FieldServiceReservationReadService};
+    use erpx_platform_composition::field_service_parts::FieldServicePartsEnvironment;
+    use erpx_platform_composition::field_service_reservation_read::{FieldServiceReservationReadConfiguration,FieldServiceReservationReadService};
     account::with_system(|system| async move {
         let p=setup_workspace(system).await;let db=p.pool().raw();let clock=p.review.system.scenario.clock.clone();let now=clock.now().get();
         let mut tx=db.begin().await.unwrap();
@@ -2202,7 +2202,7 @@ async fn selected_field_attachment_denies_null_general_ticket_source() {
             sqlx::query("INSERT INTO attachment_links(id,set_id,state,created_by,created_at,expires_at) VALUES($1,$2,'draft','fixture-a',$3,$4)").bind(link).bind(set).bind(now).bind(now+3600000).execute(&mut *tx).await.unwrap();
         }
         sqlx::query("SET CONSTRAINTS ALL IMMEDIATE").execute(&mut *tx).await.unwrap();tx.commit().await.unwrap();
-        let config=FieldServiceReservationReadConfiguration::new(FieldServicePartsEnvironment::Development,HoldingId::new("h001").unwrap(),CompanyId::new("company").unwrap(),Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap())).unwrap().with_attachments(false);
+        let config=FieldServiceReservationReadConfiguration::new(FieldServicePartsEnvironment::Development,HoldingId::new("h001").unwrap(),CompanyId::new("company").unwrap(),Arc::new(erpx_commercial_server::public::purchases::current_package_catalogue().unwrap())).unwrap().with_attachments(false);
         let service=FieldServiceReservationReadService::new(p.review.authorizer.clone(),config,clock.clone());
         let selection=p.selection.clone();let valid=service.attachment_status("acme.example.test",p.review.maker.clone(),move||Ok(selection),"file-valid-link".into()).await.unwrap();assert_eq!(valid.data.link_id,"file-valid-link");
         let selection=p.selection.clone();let denied=service.attachment_status("acme.example.test",p.review.maker.clone(),move||Ok(selection),"file-null-link".into()).await;
@@ -2213,7 +2213,7 @@ async fn selected_field_attachment_denies_null_general_ticket_source() {
 
 #[tokio::test]
 async fn workspace_empty_asset_reference_matches_original_typescript_flags() {
-    use erpx_service::field_service_reservation_read::{FieldServiceReservationReadConfiguration,FieldServiceReservationReadService};
+    use erpx_platform_composition::field_service_reservation_read::{FieldServiceReservationReadConfiguration,FieldServiceReservationReadService};
     use std::io::Write;
     account::with_system(|system| async move {
         let p=setup_workspace_without_parts(system).await;
@@ -2223,7 +2223,7 @@ async fn workspace_empty_asset_reference_matches_original_typescript_flags() {
         sqlx::raw_sql("INSERT INTO operational_assets(id,company_id,branch_id,code,name,category,currency,created_by,created_at,updated_at) VALUES('','company','branch','EMPTY-ASSET','Synthetic empty ID asset','equipment','THB','fixture-a',0,0); INSERT INTO field_service_agreements SELECT (jsonb_populate_record(NULL::field_service_agreements,to_jsonb(g)||jsonb_build_object('id','empty-asset-agreement','asset_id','','status','draft','title','Empty Asset agreement'))).* FROM field_service_agreements g WHERE id='agreement'; INSERT INTO support_tickets SELECT (jsonb_populate_record(NULL::support_tickets,to_jsonb(t)||jsonb_build_object('id','ticket-empty-asset-order','service_order_id','empty-asset-order'))).* FROM support_tickets t WHERE id='ticket-issue-order'; INSERT INTO field_service_orders SELECT (jsonb_populate_record(NULL::field_service_orders,to_jsonb(o)||jsonb_build_object('id','empty-asset-order','ticket_id','ticket-empty-asset-order','asset_id',''))).* FROM field_service_orders o WHERE id='issue-order'").execute(&mut *seed).await.unwrap();
         sqlx::query("INSERT INTO field_service_order_events SELECT (jsonb_populate_record(NULL::field_service_order_events,to_jsonb(e)||jsonb_build_object('id','empty-asset-order-event','order_id','empty-asset-order'))).* FROM field_service_order_events e JOIN field_service_orders o ON o.id=e.order_id AND o.version=e.version WHERE o.id='issue-order'").execute(&mut *seed).await.unwrap();
         seed.commit().await.unwrap();
-        let clock=p.review.system.scenario.clock.clone();let catalogue=Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap());
+        let clock=p.review.system.scenario.clock.clone();let catalogue=Arc::new(erpx_commercial_server::public::purchases::current_package_catalogue().unwrap());
         let cfg=FieldServiceReservationReadConfiguration::new(FieldServicePartsEnvironment::Development,HoldingId::new("h001").unwrap(),CompanyId::new("company").unwrap(),catalogue).unwrap().with_workspace();
         let service=FieldServiceReservationReadService::new(p.review.authorizer.clone(),cfg,clock);
         let selection=p.selection.clone();let response=service.read_workspace("acme.example.test",p.review.maker.clone(),move||Ok(selection)).await.unwrap();
@@ -2241,7 +2241,7 @@ async fn workspace_empty_asset_reference_matches_original_typescript_flags() {
         let mut o=order.clone();o["asset_id"]=serde_json::json!(raw_order.0);o["asset_code"]=serde_json::json!(raw_order.1);
         let script=r#"
 if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const {execFileSync}=await import('node:child_process');
-const src=execFileSync('git',['show','e4be8bddb^:packages/server-field_service/src/adapters/service.ts'],{encoding:'utf8'});
+const src=execFileSync('git',['show','e4be8bddb^:modules/field-service/server/src/adapters/service.ts'],{encoding:'utf8'});
 const start=src.indexOf('agreements: agreements.map(row => {'),end=src.indexOf('    customers: agreementAccess.newWork',start);if(start<0||end<0)throw Error('ORIGINAL_WORKSPACE_SOURCE_MISSING');
 const block=src.slice(start,end);const project=Function('agreements','orders','canWrite','hasPermission','a','samePerson','partsAccess','agreementAccess','orderAccess','today','return ({'+block+'})');
 const input=JSON.parse(await Bun.stdin.text());const result=project([input.agreement],[input.order],input.canWrite,()=>true,{userId:'fixture-a'},(_,id)=>id==='fixture-a',{history:false,newWork:false,settleExisting:false},{newWork:true,settleExisting:true},{newWork:true,settleExisting:true},'2026-11-09');
@@ -2261,7 +2261,7 @@ const keys=['requires_asset_capability','asset_id','asset_code','can_activate','
         withdraw(&p,"service-parts-assets").await;
         let retained:i64=sqlx::query_scalar("SELECT count(*) FROM company_package_history_rights WHERE company_id='company' AND package_id='service-parts-assets'").fetch_one(p.pool().raw()).await.unwrap();
         assert!(retained>0);
-        let catalogue=Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap());
+        let catalogue=Arc::new(erpx_commercial_server::public::purchases::current_package_catalogue().unwrap());
         let cfg=FieldServiceReservationReadConfiguration::new(FieldServicePartsEnvironment::Development,HoldingId::new("h001").unwrap(),CompanyId::new("company").unwrap(),catalogue).unwrap().with_workspace().with_detail();
         let service=FieldServiceReservationReadService::new(p.review.authorizer.clone(),cfg,p.review.system.scenario.clock.clone());
         let selection=p.selection.clone();
@@ -2272,7 +2272,7 @@ const keys=['requires_asset_capability','asset_id','asset_code','can_activate','
         let detail_script=r#"
 if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');
 const {execFileSync}=await import('node:child_process');
-const source=execFileSync('git',['show','e4be8bddb^:packages/server-field_service/src/adapters/service.ts'],{encoding:'utf8'});
+const source=execFileSync('git',['show','e4be8bddb^:modules/field-service/server/src/adapters/service.ts'],{encoding:'utf8'});
 const found=source.match(/canEditVisitFiles:(.*),\s*\n/);if(!found)throw Error('ORIGINAL_FIELD_DETAIL_SOURCE_MISSING');
 const predicate=Function('a','order','visitAccess','partsAccess','hasPermission','return ('+found[1]+');');
 const order=JSON.parse(await Bun.stdin.text());
@@ -2294,7 +2294,7 @@ process.stdout.write(JSON.stringify(predicate({},order,{settleExisting:true},{se
 /// imports; the oracle literals below are Rust-owned and no TS fragment is read.
 #[tokio::test]
 async fn final_root_projection_sources_match_native_oracle_under_postgres_fence() {
-    use erpx_server_field_service::public::final_root_projection::{
+    use erpx_field_service_server::public::final_root_projection::{
         inspect_final_root_projection_sources, lock_final_root_projection_sources,
         FinalRootProjectionSource,
     };

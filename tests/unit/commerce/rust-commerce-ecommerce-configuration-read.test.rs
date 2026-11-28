@@ -2,11 +2,11 @@
 //! coverage for the owner-local successor of `adapters/ecommerce-sources.ts`.
 //! The read shares the already-mounted Commerce currency route.
 
-use erpx_server_commerce::public::records_request_page_source::{
+use erpx_commerce_server::public::records_request_page_source::{
     CommerceConfigurationFacts, CommerceCurrencyFacts, CommerceCurrencyRead,
     CommerceCurrencyReadFuture, CommerceCurrencyReadTarget, commerce_currency_read_router,
 };
-use erpx_server_runtime::public::http_support::serve;
+use erpx_platform_runtime_server::public::http_support::serve;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 

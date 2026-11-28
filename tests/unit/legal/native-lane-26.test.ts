@@ -14,8 +14,8 @@ import {
   nativeLegalTextApproved,
   nativeLegalTrustApprovedMaterials,
   nativeLegalTrustMaterial,
-} from '../../../packages/server-legal/src/adapters/native-lane-26/client';
-import type { NativeExecutedCopyRead } from '../../../packages/server-legal/src/adapters/native-lane-26/client';
+} from '../../../modules/legal/server/src/adapters/native-lane-26/client';
+import type { NativeExecutedCopyRead } from '../../../modules/legal/server/src/adapters/native-lane-26/client';
 
 const root = process.cwd();
 const ENV = 'ERPX_NATIVE_LEGAL_LANE26_CONFIG';
@@ -505,7 +505,7 @@ describe('native Legal lane 26 executed-copy reads', () => {
 
   it('removed all seven owner statements from the TypeScript read source', () => {
     const source = fs.readFileSync(
-      path.join(root, 'packages/server-legal/src/adapters/legal/executed-copies.ts'),
+      path.join(root, 'modules/legal/server/src/adapters/legal/executed-copies.ts'),
       'utf8',
     );
     for (const sql of RETIRED_SQL) expect(source).not.toContain(sql);
@@ -514,7 +514,7 @@ describe('native Legal lane 26 executed-copy reads', () => {
     expect(source).toContain("from '../native-lane-26/client'");
 
     const validation = fs.readFileSync(
-      path.join(root, 'packages/server-legal/src/adapters/legal/pdf-validation.ts'),
+      path.join(root, 'modules/legal/server/src/adapters/legal/pdf-validation.ts'),
       'utf8',
     );
     expect(validation).not.toContain(TRUST_SQL[0]);
@@ -522,7 +522,7 @@ describe('native Legal lane 26 executed-copy reads', () => {
     expect(validation).toContain("from '../native-lane-26/client'");
 
     const trust = fs.readFileSync(
-      path.join(root, 'packages/server-legal/src/adapters/legal/trust.ts'),
+      path.join(root, 'modules/legal/server/src/adapters/legal/trust.ts'),
       'utf8',
     );
     expect(trust).not.toContain(TRUST_SQL[1]);
@@ -530,7 +530,7 @@ describe('native Legal lane 26 executed-copy reads', () => {
     expect(trust).toContain("from '../native-lane-26/client'");
 
     const citation = fs.readFileSync(
-      path.join(root, 'packages/server-legal/src/adapters/legal/citations.ts'),
+      path.join(root, 'modules/legal/server/src/adapters/legal/citations.ts'),
       'utf8',
     );
     expect(citation).not.toContain(CITATION_SQL[0]);
@@ -540,7 +540,7 @@ describe('native Legal lane 26 executed-copy reads', () => {
     expect(citation).toContain("from '../native-lane-26/client'");
 
     const knowledge = fs.readFileSync(
-      path.join(root, 'packages/server-legal/src/adapters/legal/knowledge.ts'),
+      path.join(root, 'modules/legal/server/src/adapters/legal/knowledge.ts'),
       'utf8',
     );
     expect(knowledge).not.toContain('legalStatePointSql');
@@ -557,7 +557,7 @@ describe('native Legal lane 26 executed-copy reads', () => {
           total += (fs.readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length;
       }
     };
-    walk(path.join(root, 'packages/server-legal/src'));
+    walk(path.join(root, 'modules/legal/server/src'));
     expect(total).toBeLessThan(127);
     expect(total).toBeLessThanOrEqual(126);
   });

@@ -3,27 +3,27 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_collaboration::public::messaging_http::{
+use erpx_collaboration_server::public::messaging_http::{
     MessagingFilesBindRequest, MessagingFilesContentRequest, MessagingFilesPort,
 };
-use erpx_server_collaboration::public::messaging_file_discard::{
+use erpx_collaboration_server::public::messaging_file_discard::{
     DiscardReceipt, MessagingFileDiscardFuture, MessagingFileDiscardPort,
     MessagingFileWithdrawRequest, discard_file,
 };
-use erpx_server_collaboration::public::messaging_native::MessagingActor;
-use erpx_server_files::public::attachment_command::{
+use erpx_collaboration_server::public::messaging_native::MessagingActor;
+use erpx_files_server::public::attachment_command::{
     AttachmentWithdrawAuthority, WithdrawAttachmentRequest, WithdrawTarget, withdraw_attachment,
 };
-use erpx_server_files::public::canonical_original::OriginalByteStore;
-use erpx_server_files::public::messaging_files::{
+use erpx_files_server::public::canonical_original::OriginalByteStore;
+use erpx_files_server::public::messaging_files::{
     MessagingFilesActor, MessagingFilesAudience, MessagingFilesFuture, PgMessagingFiles,
 };
-use erpx_server_runtime::public::http_support::HeaderMap;
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::http_support::HeaderMap;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, PgWorkFuture, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, Clock, CompanyId, FailureKind, TimestampMillis};
 use sqlx::PgConnection;
 use std::future::Future;
 use std::sync::Arc;

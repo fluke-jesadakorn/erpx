@@ -4,20 +4,20 @@ import {createAssignmentSeed,createCourseSeed,publishCourseSeed} from '../../../
 import {chmod,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {hashPassword} from 'better-auth/crypto';
-import {PostgresDatabase} from "@erpx/server-runtime/adapters/runtime/postgres";
-import type {FileStore} from "@erpx/server-runtime/adapters/runtime/types";
-import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
+import {PostgresDatabase} from "@erpx/platform-runtime-server/adapters/runtime/postgres";
+import type {FileStore} from "@erpx/platform-runtime-server/adapters/runtime/types";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
 import {seedExpenseCompany} from "../../expenses/company";
-import {businessRoles} from "@erpx/feature-identity_access/lib/business-roles";
-import {product,type ProductId} from '@erpx/contracts/product-registry';
-import {loadIamAuthority} from "@erpx/server-identity_access/public/iam-store";
+import {businessRoles} from "@erpx/identity-access-ui/lib/business-roles";
+import {product,type ProductId} from '@erpx/platform-contracts/product-registry';
+import {loadIamAuthority} from "@erpx/identity-access-server/public/iam-store";
 import {seedFinanceJournal} from '../../../tests/support/helpers/finance-journal-seed';
-import {createAccount,createAccountSchema,createChart,createChartSchema,createPeriod,createPeriodSchema,postJournalBatch,createParty,createPayment,importBankStatement} from '@erpx/server-finance/public/finance';
-import {prepareAccountingProfile,decideAccountingProfile} from "@erpx/server-finance/public/accounting-profiles";
-import {confirmManualRate} from '@erpx/server-finance/public/company-money';
-import {createPayGroup,payGroupSchema} from "@erpx/server-people_payroll/public/people-payroll";
-import {createTalentOffer,changeTalentRecord,talentDetail} from "@erpx/server-talent/public/talent";
-import {changeLearningAssignment} from "@erpx/server-learning/public/learning";
+import {createAccount,createAccountSchema,createChart,createChartSchema,createPeriod,createPeriodSchema,postJournalBatch,createParty,createPayment,importBankStatement} from '@erpx/finance-server/public/finance';
+import {prepareAccountingProfile,decideAccountingProfile} from "@erpx/finance-server/public/accounting-profiles";
+import {confirmManualRate} from '@erpx/finance-server/public/company-money';
+import {createPayGroup,payGroupSchema} from "@erpx/people-payroll-server/public/people-payroll";
+import {createTalentOffer,changeTalentRecord,talentDetail} from "@erpx/talent-server/public/talent";
+import {changeLearningAssignment} from "@erpx/learning-server/public/learning";
 
 type Input={run:string;directory:string;control:PostgresDatabase;db:PostgresDatabase;files:FileStore;workspaceProducts?:readonly ProductId[]};
 export type EngineeringMoneyPeopleUser={key:string;email:string;userId:string;role:string;assignmentId:string;workspaceBase:string};
@@ -66,7 +66,7 @@ export async function seedEngineeringMoneyPeopleBrowser(input:Input){
   const finance=await register('finance-author','finance_preparer'),approver=await register('finance-reviewer','finance_approver');await register('hr','custom_engineering_hr');const academy=await register('academy-author','custom_engineering_academy'),academyReview=await register('academy-reviewer','custom_engineering_academy'),learner=await register('learner','custom_engineering_learner'),talent=await register('talent-author','custom_engineering_talent',true),talentReview=await register('talent-reviewer','custom_engineering_talent',true);
   if(input.workspaceProducts?.length){
    const owner=await register('workspace-owner','holding_owner');
-   if(input.workspaceProducts.includes('legal')){const {legalCommand}=await import('@erpx/server-legal/public/legal/service');await legalCommand(input.db,owner,{action:'settings',enabled:true},key());}
+   if(input.workspaceProducts.includes('legal')){const {legalCommand}=await import('@erpx/legal-server/public/legal/service');await legalCommand(input.db,owner,{action:'settings',enabled:true},key());}
   }
   const accumulated=String((await createAccount(finance,createAccountSchema.parse({chartId:f.chart,code:'ACCUMULATED',name:'Accumulated depreciation',category:'asset'}),key())).id);
   const reportChart=String((await createChart(finance,createChartSchema.parse({name:'Synthetic NPAEs reporting ledger',baseCurrency:'THB',accountingBasis:'TFRS for NPAEs'}),key())).id),reportAccounts:Record<string,string>={};

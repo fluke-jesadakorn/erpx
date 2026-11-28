@@ -7,8 +7,8 @@ import {
   createNativeOrganizationClient,
   NativeOrganizationError,
   type NativeOrganizationPageContext,
-} from '../../../packages/feature-organization/src/adapters/server/native-organization';
-import { nativeOrganizationAcceptance } from '@erpx/feature-organization/lib/native-organization';
+} from '../../../modules/organization/ui/src/adapters/server/native-organization';
+import { nativeOrganizationAcceptance } from '@erpx/organization-ui/lib/native-organization';
 
 const actor: NativeOrganizationPageContext = {
   userId: 'user-1',
@@ -156,7 +156,7 @@ describe('nativeOrganizationAcceptance route contract', () => {
 
 const routeSource = readFileSync(
   new URL(
-    '../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts',
+    '../../../platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts',
     import.meta.url,
   ),
   'utf8',
@@ -175,7 +175,7 @@ describe('organization/acceptance catch-all cutover', () => {
     expect(branch).not.toContain('companyBusinessAcceptance(');
     expect(branch).not.toMatch(/\bSELECT\b|\bINSERT\b|\bUPDATE\b|\bDELETE\b/);
     const ownerImport = lines.find((line) =>
-      line.includes('@erpx/server-finance/public/company-business-acceptance'),
+      line.includes('@erpx/finance-server/public/company-business-acceptance'),
     );
     expect(ownerImport).toBeDefined();
     expect(ownerImport).not.toMatch(/\bcompanyBusinessAcceptance\b/);
@@ -201,14 +201,14 @@ describe('organization/acceptance catch-all cutover', () => {
   it('retains the internal TS read only for business readiness while the HTTP GET is native', () => {
     const adapter = readFileSync(
       new URL(
-        '../../../packages/server-organization/src/adapters/company-business-acceptance.ts',
+        '../../../modules/organization/server/src/adapters/company-business-acceptance.ts',
         import.meta.url,
       ),
       'utf8',
     );
     const publicExport = readFileSync(
       new URL(
-        '../../../packages/server-organization/src/public/company-business-acceptance.ts',
+        '../../../modules/organization/server/src/public/company-business-acceptance.ts',
         import.meta.url,
       ),
       'utf8',

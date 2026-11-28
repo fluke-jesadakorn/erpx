@@ -5,10 +5,10 @@ vi.mock('server-only', () => ({}));
 import {
   nativeCommercialOwnerRead,
   COMMERCIAL_RD_PURCHASE_FACTS,
-} from '../../../packages/server-commercial/src/adapters/native-owner-read';
+} from '../../../modules/commercial/server/src/adapters/native-owner-read';
 
 const src = (name: string) => readFileSync(
-  resolve(__dirname, '../../../packages/server-commercial/src', name), 'utf8',
+  resolve(__dirname, '../../../modules/commercial/server/src', name), 'utf8',
 );
 const factsSql = 'SELECT grants,history FROM company_purchase_facts';
 

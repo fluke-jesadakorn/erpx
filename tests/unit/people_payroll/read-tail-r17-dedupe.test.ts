@@ -1,7 +1,7 @@
 import {describe,expect,test} from 'vitest';
 import {readFileSync,existsSync} from 'node:fs';
 
-const dir = new URL('../../../packages/server-people_payroll/src/adapters/', import.meta.url);
+const dir = new URL('../../../modules/people-payroll/server/src/adapters/', import.meta.url);
 const src = (name: string) => readFileSync(new URL(name, dir), 'utf8');
 
 const EXPECTED_CTE = `WITH accounts AS (
@@ -56,7 +56,7 @@ describe('People Payroll read-tail r17 byte-identical dedupe', () => {
   test('gpo-sources orphan adapter, barrel and package exports are removed', () => {
     expect(existsSync(new URL('gpo-sources.ts', dir))).toBe(false);
     expect(existsSync(new URL('../public/gpo-sources.ts', dir))).toBe(false);
-    const pkg = readFileSync(new URL('../../../packages/server-people_payroll/package.json', import.meta.url), 'utf8');
+    const pkg = readFileSync(new URL('../../../modules/people-payroll/server/package.json', import.meta.url), 'utf8');
     expect(pkg).not.toContain('"./adapters/gpo-sources"');
     expect(pkg).not.toContain('"./public/gpo-sources"');
   });

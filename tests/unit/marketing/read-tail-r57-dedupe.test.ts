@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import ts from 'typescript';
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-marketing/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/marketing/server/src/adapters/${name}`, import.meta.url);
 const src = (name: string) => readFile(adapter(name), 'utf8');
 
 /** AST evidence: count SELECT tokens only inside string/template text nodes. */
@@ -39,7 +39,7 @@ async function ownerTokens(): Promise<{ spaced: number; bare: number }> {
       }
     }
   };
-  await walk(resolve('packages/server-marketing/src'));
+  await walk(resolve('modules/marketing/server/src'));
   return { spaced, bare };
 }
 

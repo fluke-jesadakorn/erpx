@@ -4,8 +4,8 @@ import {
   nativeCrmReadAll,
   nativeCrmReadFirst,
   CRM_RD_COLLAB_NOTIFICATION_LEAD,
-} from '../../../packages/server-crm/src/adapters/native-crm-read';
-import { collaborationNotificationLead } from '../../../packages/server-crm/src/adapters/collaboration-notification-lead';
+} from '../../../modules/crm/server/src/adapters/native-crm-read';
+import { collaborationNotificationLead } from '../../../modules/crm/server/src/adapters/collaboration-notification-lead';
 
 const envKey = 'ERPX_NATIVE_CRM_CONFIG';
 const original = process.env[envKey];

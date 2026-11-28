@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { existsSync, readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { resolve } from 'node:path';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-projects/src');
+const srcRoot = resolve(__dirname, '../../../modules/projects/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 describe('Projects read-tail r30 visible project rows retired to native Rust', () => {

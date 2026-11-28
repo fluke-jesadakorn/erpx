@@ -3,23 +3,23 @@
 #![allow(dead_code)]
 #[path = "../../support/finance/review-composition.rs"]
 mod review;
-use erpx_server_commercial::public::purchases::current_package_catalogue;
-use erpx_server_identity_access::public::work_context::{
+use erpx_commercial_server::public::purchases::current_package_catalogue;
+use erpx_identity_access_server::public::work_context::{
     ExpectedWorkSelection, HoldingWorkspaceRequest,
 };
-use erpx_server_runtime::public::postgres::PgTransactionError;
-use erpx_server_shared::public::{AssignmentId, Clock, CommandKey, CompanyId, HoldingId};
-use erpx_server_support::public::incident::{
+use erpx_platform_runtime_server::public::postgres::PgTransactionError;
+use erpx_platform_shared_server::public::{AssignmentId, Clock, CommandKey, CompanyId, HoldingId};
+use erpx_support_server::public::incident::{
     IncidentChange, IncidentCreate,
 };
-use erpx_server_workflow::public::commands::CommandJson;
-use erpx_service::support_incident_command::SupportIncidentCommand;
+use erpx_workflow_server::public::commands::CommandJson;
+use erpx_platform_composition::support_incident_command::SupportIncidentCommand;
 use std::sync::Arc;
 
 #[derive(Clone)]
 struct TestClock(Arc<review::account::fixture::MutableClock>);
 impl Clock for TestClock {
-    fn now(&self) -> erpx_server_shared::public::TimestampMillis {
+    fn now(&self) -> erpx_platform_shared_server::public::TimestampMillis {
         self.0.now()
     }
 }
@@ -107,7 +107,7 @@ async fn support_setup(
     (p, command)
 }
 
-async fn seed_ticket(pool: &erpx_server_runtime::public::postgres::DatabasePool, id: &str, source_kind: &str, version: i64) {
+async fn seed_ticket(pool: &erpx_platform_runtime_server::public::postgres::DatabasePool, id: &str, source_kind: &str, version: i64) {
     sqlx::raw_sql(
         "INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status)VALUES('branch','branch','support','Support Branch','company','company','branch','active') ON CONFLICT DO NOTHING;\
          INSERT INTO finance_parties(id,company_id,kind,code,name,currency,created_at,updated_at)VALUES('support-customer','company','customer','SUPPORT-C','Support Customer','THB',0,0) ON CONFLICT DO NOTHING;\
@@ -421,8 +421,8 @@ async fn support_incident_http_route_accepts_real_session_and_rendered_context()
         body::{Body, to_bytes},
         http::Request,
     };
-    use erpx_service::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
-    use erpx_service::support_incident_http::{
+    use erpx_platform_composition::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
+    use erpx_platform_composition::support_incident_http::{
         SupportIncidentHttpTarget, support_incident_http_router,
     };
     use tower::ServiceExt;

@@ -3,10 +3,10 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import ts from 'typescript';
-import { marketingSelectHeadSql } from '../../../packages/server-marketing/src/adapters/select-head-sql';
+import { marketingSelectHeadSql } from '../../../modules/marketing/server/src/adapters/select-head-sql';
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-marketing/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/marketing/server/src/adapters/${name}`, import.meta.url);
 const src = (name: string) => readFile(adapter(name), 'utf8');
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 
@@ -79,7 +79,7 @@ async function ownerHeadTokens(): Promise<{ spaced: number; bare: number }> {
       }
     }
   };
-  await walk(resolve('packages/server-marketing/src'));
+  await walk(resolve('modules/marketing/server/src'));
   return { spaced, bare };
 }
 

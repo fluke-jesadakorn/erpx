@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 
-const adapters = new URL('../../../packages/server-people_payroll/src/adapters/', import.meta.url);
+const adapters = new URL('../../../modules/people-payroll/server/src/adapters/', import.meta.url);
 const src = (name: string) => readFileSync(new URL(name, adapters), 'utf8');
 
 /** Write-stage adapters for the employees/leave/expenses migration slice. */
@@ -32,7 +32,7 @@ describe('People Payroll employees/leave/expense writers stay native-owned', () 
   });
 
   test('the owner has zero TypeScript DML literals across every .ts source', () => {
-    const root = new URL('../../../packages/server-people_payroll/src/', import.meta.url);
+    const root = new URL('../../../modules/people-payroll/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {

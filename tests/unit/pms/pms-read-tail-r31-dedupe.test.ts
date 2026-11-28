@@ -5,9 +5,9 @@ import {
   PMS_RECORD_POINT_PREFIX_SQL,
   pmsFinanceSnapshotWrapperSql,
   pmsSetupExistsSql,
-} from '../../../packages/server-pms/src/adapters/pms-read-tail-r31-sql';
+} from '../../../modules/pms/server/src/adapters/pms-read-tail-r31-sql';
 
-const dir = new URL('../../../packages/server-pms/src/', import.meta.url);
+const dir = new URL('../../../modules/pms/server/src/', import.meta.url);
 const src = (name: string) => readFile(new URL(name, dir), 'utf8');
 const SHARED = 'adapters/pms-read-tail-r31-sql.ts';
 const FINANCE = 'adapters/finance-owned-snapshot-sources.ts';

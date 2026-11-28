@@ -1,10 +1,10 @@
 import { beforeAll,beforeEach,expect,it,vi } from "vitest";
 import { env,applyMigrations } from "../../support/runtime-env";
 import { expenseFixture,expenseDb as db,key } from "../../support/helpers/expense-fixture";
-import {messagingOverview,messagingHistory,messagingFile,sendMessagingMessage,messageSchema,messagingGuard,manageMessaging} from '@erpx/server-collaboration/public/messaging';
-import {messagingRoom} from '@erpx/server-collaboration/public/messaging-read';
-import { executeCommand } from "@erpx/server-workflow/public/commands";
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:db,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+import {messagingOverview,messagingHistory,messagingFile,sendMessagingMessage,messageSchema,messagingGuard,manageMessaging} from '@erpx/collaboration-server/public/messaging';
+import {messagingRoom} from '@erpx/collaboration-server/public/messaging-read';
+import { executeCommand } from "@erpx/workflow-server/public/commands";
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:db,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);await applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();});

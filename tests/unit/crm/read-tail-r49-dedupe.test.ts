@@ -1,10 +1,10 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { crmSelectBodySql } from '../../../packages/server-crm/src/adapters/read-tail-r46-sql';
-import { crmJsonbAggregateSql } from '../../../packages/server-crm/src/adapters/read-tail-r49-sql';
+import { crmSelectBodySql } from '../../../modules/crm/server/src/adapters/read-tail-r46-sql';
+import { crmJsonbAggregateSql } from '../../../modules/crm/server/src/adapters/read-tail-r49-sql';
 
-const owner = resolve(__dirname, '../../../packages/server-crm/src');
+const owner = resolve(__dirname, '../../../modules/crm/server/src');
 const src = (name: string) => readFileSync(resolve(owner, 'adapters', name), 'utf8');
 const totalSelects = () => {
   let total = 0;
@@ -71,8 +71,8 @@ describe('crm read-tail r49 byte-identical JSONB-aggregate read head', () => {
     expect(a).toContain('await database.batch([crmAttachmentCustomerSourceLocks(database)');
     expect(a).toContain('await lockQueuedCommandAuthority(database);');
     expect(src('purchases.ts')).toContain('SELECT 1 FROM command_receipts WHERE command_id=?');
-    expect(src('purchases.ts')).toContain('@erpx/server-pms/public/crm-purchase-sources');
-    expect(src('marketing-package-obligations.ts')).toContain('@erpx/server-marketing/public/package-obligations');
+    expect(src('purchases.ts')).toContain('@erpx/pms-server/public/crm-purchase-sources');
+    expect(src('marketing-package-obligations.ts')).toContain('@erpx/marketing-server/public/package-obligations');
   });
 
   test.each([

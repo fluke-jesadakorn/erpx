@@ -13,11 +13,11 @@ use axum::{
     body::{Body, to_bytes},
     http::{HeaderMap, Request, StatusCode, Uri, header},
 };
-use erpx_server_identity_access::public::{
+use erpx_identity_access_server::public::{
     account_security_http::account_security_router, account_sso::*, *,
 };
-use erpx_server_shared::public::{BusinessError, Clock};
-use erpx_service::{business_http::BusinessScopeSlugs, directory_source_http::*};
+use erpx_platform_shared_server::public::{BusinessError, Clock};
+use erpx_platform_composition::{business_http::BusinessScopeSlugs, directory_source_http::*};
 pub use security::http::Jar;
 use serde_json::{Value, json};
 use std::sync::Arc;

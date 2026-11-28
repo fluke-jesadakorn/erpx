@@ -11,7 +11,7 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_platform_administration::public::native_engineering_verification_read::*;
+use erpx_platform_administration_server::public::native_engineering_verification_read::*;
 use sqlx::{AssertSqlSafe, Connection, Row, postgres::PgRow};
 
 // Verbatim from `engineering-verification.ts` (prior, predicate context read)

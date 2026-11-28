@@ -5,11 +5,11 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_inventory::public::commerce_order_cancellation::release_confirmed_sales_order_reservations;
-use erpx_server_runtime::public::postgres::{
+use erpx_inventory_server::public::commerce_order_cancellation::release_confirmed_sales_order_reservations;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::CompanyId;
+use erpx_platform_shared_server::public::CompanyId;
 use sqlx::PgConnection;
 
 fn company() -> CompanyId {

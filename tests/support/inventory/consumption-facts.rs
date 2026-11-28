@@ -1,8 +1,8 @@
 //! Newly leased fully migrated databases only. Seed facts are not actor grants.
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, RecordId};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, RecordId};
 pub type Error = PgTransactionError<BusinessError>;
 pub fn id(value: &str) -> RecordId {
     RecordId::new(value).unwrap()

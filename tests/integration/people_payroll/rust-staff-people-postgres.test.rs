@@ -1,8 +1,8 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_people_payroll::public::staff_facts::{StaffPersonFact, staff_people};
-use erpx_server_runtime::public::postgres::{
+use erpx_people_payroll_server::public::staff_facts::{StaffPersonFact, staff_people};
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
 
@@ -148,7 +148,7 @@ async fn staff_people_validates_identifiers_before_any_read() {
         let mut connection = pool.raw().acquire().await.unwrap();
         let error = staff_people(&mut connection, "").await.unwrap_err();
         assert_eq!(error.code, "INVALID_IDENTIFIER");
-        assert_eq!(error.kind, erpx_server_shared::public::FailureKind::InvalidInput);
+        assert_eq!(error.kind, erpx_platform_shared_server::public::FailureKind::InvalidInput);
     })
     .await;
 }

@@ -1,5 +1,5 @@
 //! Native integration fixtures own only newly-created, leased erpx_dev_rust_* databases.
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabaseConfig, DatabasePool, PoolLimits, connect_pool,
 };
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row, postgres::PgConnectOptions};

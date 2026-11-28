@@ -3,12 +3,12 @@
 //! shape against a recording repository; they make no browser or database
 //! claim.
 #![allow(dead_code)]
-use erpx_server_customer_360::public::customer_timeline::{
+use erpx_customer_360_server::public::customer_timeline::{
     CustomerAccount, CustomerTimelineActor, CustomerTimelineCursor, CustomerTimelineFuture,
     CustomerTimelineItem, CustomerTimelinePage, CustomerTimelineQuery, CustomerTimelineRepository,
     CustomerTimelineSupportEntitlement, CustomerTimelineView, LIMITATIONS, customer_timeline,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, RecordId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, RecordId, TimestampMillis};
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
 

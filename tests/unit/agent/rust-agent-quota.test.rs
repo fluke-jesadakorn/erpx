@@ -1,6 +1,6 @@
 //! Per-Company AI quota reservation/finish decisions.
-use erpx_server_agent::public::quota::*;
-use erpx_server_shared::public::BusinessError;
+use erpx_agent_server::public::quota::*;
+use erpx_platform_shared_server::public::BusinessError;
 use serde_json::json;
 use std::collections::BTreeMap;
 

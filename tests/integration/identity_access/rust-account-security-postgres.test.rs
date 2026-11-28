@@ -8,12 +8,12 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode, header},
 };
-use erpx_server_identity_access::public::{
+use erpx_identity_access_server::public::{
     account_security_http::account_security_router,
     recovery::{EmergencyAccess, PgRecoveryCommands, PgRecoveryRegistry, RecoveryCommands, RecoveryInput, target as recovery_target},
     *,
 };
-use erpx_server_shared::public::Clock;
+use erpx_platform_shared_server::public::Clock;
 use serde_json::{Value, json};
 use std::sync::Arc;
 use support::{fixture, *};
@@ -293,7 +293,7 @@ async fn actual_axum_security_contract_rejects_foreign_origin_scope_cookie_repla
 #[tokio::test]
 async fn foreign_child_reference_and_oversized_receipt_or_mfa_material_fail_without_ack() {
     fixture::with_system(|system|async move{
-    use erpx_server_identity_access::public::account_security::AccountSecurityActor;
+    use erpx_identity_access_server::public::account_security::AccountSecurityActor;
     use sha2::{Digest,Sha256};
     let proof=fixture::login(&system,"a@example.test",None).await;let child=fixture::child(&system,&proof,fixture::ACME).await;let foreign=fixture::login(&system,"b@example.test",None).await;let foreign_child=fixture::child(&system,&foreign,fixture::ACME).await;let s=services(&system);verified(&system,&s,&proof).await;
     let parent=system.scenario.auth.session(&proof,RequestAudience::Account).await.unwrap().unwrap();

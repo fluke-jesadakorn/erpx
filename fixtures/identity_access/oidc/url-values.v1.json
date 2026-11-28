@@ -15,8 +15,8 @@
   "node": "v26.11.1",
   "scope": "Actual pinned core and genericOAuth fake discovery; synthetic data only. Graph observations cover String conversion; native tranche implements encoding only.",
   "hashes": {
-    "packages/server-identity_access/src/adapters/iam-auth.ts": "b5f951b2edfd78706e31b57fb685116748fd79f4bfc6d9e9d67465b0b3914440",
-    "packages/server-identity_access/src/adapters/iam-providers.ts": "6eadcc90a72155865dd45b84617205ab080c4075ef82cfc48ef40584c6454f33",
+    "modules/identity-access/server/src/adapters/iam-auth.ts": "b5f951b2edfd78706e31b57fb685116748fd79f4bfc6d9e9d67465b0b3914440",
+    "modules/identity-access/server/src/adapters/iam-providers.ts": "6eadcc90a72155865dd45b84617205ab080c4075ef82cfc48ef40584c6454f33",
     "node_modules/@better-auth/core/dist/oauth2/create-authorization-url.mjs": "85992584e8b56957865c0252581d491d324b8c488c76dc3f52c54240629082a5",
     "node_modules/@better-auth/core/dist/oauth2/utils.mjs": "7df229d54a861e809d5af6ad85ad317a294e4de9b8fc2f92c471fdc16949e3ed",
     "node_modules/better-auth/dist/plugins/generic-oauth/index.mjs": "18884817ac20450f6d2341f93754f09d03309a564838a1257737570c43b5cfbd",

@@ -7,7 +7,7 @@
 //! HTTP. Asserts the native payload, private headers, the ABSENT 404 contract
 //! and malformed-query rejection.
 #![allow(dead_code)]
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabaseConfig, DatabasePool, MigrationTrack, PoolLimits, connect_pool, load_migrations,
     migrate_database,
 };

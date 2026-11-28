@@ -1,7 +1,7 @@
 //! Native Quality alert sweep planning facts. The PostgreSQL sweep itself is
 //! proved by rust-quality-alert-sweep-postgres; these cases pin the retained
 //! identity, phase and UTC business-date planning without a database.
-use erpx_server_quality::public::quality_alerts::{
+use erpx_quality_server::public::quality_alerts::{
     QUALITY_ALERT_WARNING_WINDOW_MS, QualityAlertPhase, quality_alert_sweep_plan,
 };
 

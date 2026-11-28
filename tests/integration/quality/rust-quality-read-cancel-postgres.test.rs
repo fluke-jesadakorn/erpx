@@ -3,18 +3,18 @@
 mod facts;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_quality::public::quality_http::{
+use erpx_quality_server::public::quality_http::{
     PgQualityCancellation, PgQualityRead, apply_quality_cancellation, lock_quality_read_sources,
     lock_quality_cancellation_writes,
     read_quality_detail, read_quality_workspace, prepare_quality_cancellation,
     read_quality_cancellation_history_page, read_quality_detail_core,
 };
-use erpx_server_quality::public::quality_read::{
+use erpx_quality_server::public::quality_read::{
     CancellationAction, HoldStatus, QualityActor, QualityCancellationCommand, cancel_quality_hold,
     quality_detail, quality_detail_core_from_source, quality_workspace,
 };
-use erpx_server_runtime::public::postgres::{PgTransactionError, PgUnitOfWork, TransactionOptions};
-use erpx_server_shared::public::{
+use erpx_platform_runtime_server::public::postgres::{PgTransactionError, PgUnitOfWork, TransactionOptions};
+use erpx_platform_shared_server::public::{
     BusinessError, Clock, CommandKey, CompanyId, FailureKind, RecordId, TimestampMillis, UserId,
 };
 
@@ -27,13 +27,13 @@ const DESCRIPTOR_PLAN_SQL: &str = "SELECT CASE WHEN octet_length(company_id)+coa
 // Test-only stand-in for Inventory's same-unit posted Count port. Production
 // composition must use the actual Inventory public witness.
 struct FixtureCount;
-struct FixtureCountWitness { request: erpx_server_quality::public::purchase_lineage::CountLineageRequest, tx: String }
+struct FixtureCountWitness { request: erpx_quality_server::public::purchase_lineage::CountLineageRequest, tx: String }
 
 // Test-only Inventory source: verifies actual same-transaction lot balance;
 // production still needs the Inventory prepared-allocation owner witness.
-struct FixtureReceiptSource { facts: erpx_server_quality::public::goods_receipt_hold::GoodsReceiptHoldFacts, tx:String }
-impl erpx_server_quality::public::goods_receipt_hold::GoodsReceiptHoldSource for FixtureReceiptSource {
-    fn facts(&self)->&erpx_server_quality::public::goods_receipt_hold::GoodsReceiptHoldFacts { &self.facts }
+struct FixtureReceiptSource { facts: erpx_quality_server::public::goods_receipt_hold::GoodsReceiptHoldFacts, tx:String }
+impl erpx_quality_server::public::goods_receipt_hold::GoodsReceiptHoldSource for FixtureReceiptSource {
+    fn facts(&self)->&erpx_quality_server::public::goods_receipt_hold::GoodsReceiptHoldFacts { &self.facts }
     async fn require_before(&self,c:&mut sqlx::PgConnection)->Result<(),PgTransactionError<BusinessError>> {
         let tx:String=sqlx::query_scalar("SELECT pg_current_xact_id()::text").fetch_one(&mut *c).await?;
         let found:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM inventory_lots l JOIN inventory_lot_balances b ON b.lot_id=l.id WHERE l.id=$1 AND l.company_id=$2 AND l.product_id=$3 AND b.warehouse_id=$4 AND b.quantity_milli>= $5)").bind(&self.facts.lot_id).bind(&self.facts.company_id).bind(&self.facts.product_id).bind(&self.facts.warehouse_id).bind(self.facts.quantity_milli).fetch_one(c).await?;
@@ -45,7 +45,7 @@ impl erpx_server_quality::public::goods_receipt_hold::GoodsReceiptHoldSource for
 
 #[tokio::test]
 async fn receipt_hold_binds_active_spec_source_and_actual_afterimage() {
-    use erpx_server_quality::public::goods_receipt_hold::{GoodsReceiptHoldFacts,lock_goods_receipt_hold_sources,prepare_goods_receipt_hold};
+    use erpx_quality_server::public::goods_receipt_hold::{GoodsReceiptHoldFacts,lock_goods_receipt_hold_sources,prepare_goods_receipt_hold};
     fixture::with_database(2, |pool| async move {
         facts::setup(&pool).await;
         sqlx::raw_sql("INSERT INTO commerce_products(id,company_id,sku,name,price_minor,tracking_mode) VALUES('receipt-product','company','RECEIPT','Receipt product',1000,'lot'); INSERT INTO commerce_stock(warehouse_id,product_id,quantity_milli,value_minor) VALUES('warehouse','receipt-product',5000,1000); INSERT INTO inventory_lots(id,company_id,product_id,tracking_mode,lot_code,created_by,created_at) VALUES('lot','company','receipt-product','lot','L1','maker',1); INSERT INTO inventory_lot_balances(lot_id,warehouse_id,quantity_milli,value_minor) VALUES('lot','warehouse',5000,1000); INSERT INTO inventory_quality_specs(id,company_id,product_id,name,status,version,created_by,approved_by,approval_reason,created_at,updated_at,activated_at) VALUES('spec','company','receipt-product','Spec','active',2,'maker','reviewer','Approved',1,2,2)").execute(pool.raw()).await.unwrap();
@@ -80,7 +80,7 @@ async fn receipt_hold_binds_active_spec_source_and_actual_afterimage() {
 
 #[tokio::test]
 async fn quality_inspection_attachment_reference_witness_retains_scope_and_absence() {
-    use erpx_server_quality::public::quality_inspection_attachment_refs::{inspect_quality_inspection_attachment_ref_page, inspect_quality_inspection_attachment_refs, lock_quality_inspection_attachment_refs};
+    use erpx_quality_server::public::quality_inspection_attachment_refs::{inspect_quality_inspection_attachment_ref_page, inspect_quality_inspection_attachment_refs, lock_quality_inspection_attachment_refs};
     fixture::with_database(3, |pool| async move {
         facts::setup(&pool).await;
         facts::hold(&pool, "refs-hold").await;
@@ -133,7 +133,7 @@ async fn quality_inspection_attachment_reference_witness_retains_scope_and_absen
 
 #[tokio::test]
 async fn quality_reference_pages_retain_all_raw_refs_before_files_filtering() {
-    use erpx_server_quality::public::quality_inspection_attachment_refs::{inspect_quality_inspection_attachment_ref_page, lock_quality_inspection_attachment_refs};
+    use erpx_quality_server::public::quality_inspection_attachment_refs::{inspect_quality_inspection_attachment_ref_page, lock_quality_inspection_attachment_refs};
     fixture::with_database(2, |pool| async move {
         facts::setup(&pool).await;
         facts::hold(&pool, "many-refs-hold").await;
@@ -173,16 +173,16 @@ fn different_parent_id_decompositions_cannot_share_both_lineage_suffixes() {
     let source_a=format!("{}:remaining:{}","origin","a-remaining-b");
     assert!(!source_a.ends_with(":remaining:b"));
 }
-impl erpx_server_quality::public::purchase_lineage::QualityLineageCountPort for FixtureCount {
+impl erpx_quality_server::public::purchase_lineage::QualityLineageCountPort for FixtureCount {
     type Witness = FixtureCountWitness;
-    fn inspect<'a>(&'a mut self,c:&'a mut sqlx::PgConnection,r:erpx_server_quality::public::purchase_lineage::CountLineageRequest)->erpx_server_runtime::public::postgres::PgWorkFuture<'a,Option<Self::Witness>,BusinessError> {
+    fn inspect<'a>(&'a mut self,c:&'a mut sqlx::PgConnection,r:erpx_quality_server::public::purchase_lineage::CountLineageRequest)->erpx_platform_runtime_server::public::postgres::PgWorkFuture<'a,Option<Self::Witness>,BusinessError> {
         Box::pin(async move {
             let valid:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM inventory_counts WHERE id=$1 AND company_id=$2 AND branch_id=$3 AND warehouse_id=$4 AND quality_hold_id=$5 AND status='posted')").bind(&r.count_id).bind(r.company_id.as_str()).bind(&r.branch_id).bind(&r.warehouse_id).bind(&r.hold_id).fetch_one(&mut *c).await?;
             let tx:String=sqlx::query_scalar("SELECT pg_current_xact_id()::text").fetch_one(c).await?;
             Ok(valid.then_some(FixtureCountWitness{request:r,tx}))
         })
     }
-    fn require_current<'a>(&'a mut self,c:&'a mut sqlx::PgConnection,w:&'a Self::Witness)->erpx_server_runtime::public::postgres::PgWorkFuture<'a,(),BusinessError> {
+    fn require_current<'a>(&'a mut self,c:&'a mut sqlx::PgConnection,w:&'a Self::Witness)->erpx_platform_runtime_server::public::postgres::PgWorkFuture<'a,(),BusinessError> {
         Box::pin(async move {
             let tx:String=sqlx::query_scalar("SELECT pg_current_xact_id()::text").fetch_one(&mut *c).await?;
             if tx!=w.tx || self.inspect(c,w.request.clone()).await?.is_none() { return Err(BusinessError::invalid("COUNT_CHANGED","Count changed.").into()); }
@@ -193,7 +193,7 @@ impl erpx_server_quality::public::purchase_lineage::QualityLineageCountPort for 
 
 #[tokio::test]
 async fn purchase_lineage_follows_only_posted_reciprocal_count_and_disposition() {
-    use erpx_server_quality::public::purchase_lineage::{QualityLineageRequest,inspect_quality_purchase_lineage,lock_quality_purchase_lineage};
+    use erpx_quality_server::public::purchase_lineage::{QualityLineageRequest,inspect_quality_purchase_lineage,lock_quality_purchase_lineage};
     fixture::with_database(2,|pool|async move {
         facts::setup(&pool).await;
         sqlx::raw_sql("INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,status,created_by,created_at,updated_at,quantity_scope,held_quantity_milli,source_type,source_id) VALUES('root','company','branch','warehouse','product','Review','2026-11-10','held','maker',0,0,'partial',3000,'goods_receipt','origin'); INSERT INTO inventory_counts(id,company_id,branch_id,warehouse_id,number,count_date,reason,status,quality_hold_id,created_by,prepared_by,created_at,updated_at) VALUES('count-1','company','branch','warehouse','C1','2026-11-10','Scrap','posted','root','maker','maker',0,0); UPDATE inventory_quality_holds SET status='disposed',last_result='fail',disposition_kind='scrap',disposition_reason='Scrap',disposition_requested_by='reviewer',disposition_count_id='count-1',disposition_quantity_milli=1000,disposed_by='approver',disposed_at=1 WHERE id='root'; INSERT INTO inventory_quality_disposition_events(id,hold_id,count_id,action,actor_id,reviewed_version,reason,created_at) VALUES('event-1','root','count-1','post','approver',1,'Scrap',1); INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,status,created_by,created_at,updated_at,quantity_scope,held_quantity_milli,source_type,source_id) VALUES('root-remaining-count-1','company','branch','warehouse','product','Remaining','2026-11-10','held','maker',1,1,'partial',2000,'goods_receipt','origin:remaining:count-1')").execute(pool.raw()).await.unwrap();
@@ -238,7 +238,7 @@ async fn purchase_lineage_follows_only_posted_reciprocal_count_and_disposition()
 
 #[tokio::test]
 async fn purchase_lineage_stops_after_sixty_four_posted_edges() {
-    use erpx_server_quality::public::purchase_lineage::{QualityLineageRequest,inspect_quality_purchase_lineage,lock_quality_purchase_lineage};
+    use erpx_quality_server::public::purchase_lineage::{QualityLineageRequest,inspect_quality_purchase_lineage,lock_quality_purchase_lineage};
     fixture::with_database(2,|pool|async move {
         facts::setup(&pool).await;
         let mut seed=pool.raw().begin().await.unwrap();
@@ -529,10 +529,10 @@ fn denied<T: std::fmt::Debug>(result: Result<T, PgTransactionError<BusinessError
 }
 
 async fn read_workspace_view(
-    pool: &erpx_server_runtime::public::postgres::DatabasePool,
+    pool: &erpx_platform_runtime_server::public::postgres::DatabasePool,
     actor: QualityActor,
 ) -> Result<
-    erpx_server_quality::public::quality_read::QualityWorkspace,
+    erpx_quality_server::public::quality_read::QualityWorkspace,
     PgTransactionError<BusinessError>,
 > {
     PgUnitOfWork::new(pool.clone())
@@ -550,11 +550,11 @@ async fn read_workspace_view(
 }
 
 async fn read_detail_view(
-    pool: &erpx_server_runtime::public::postgres::DatabasePool,
+    pool: &erpx_platform_runtime_server::public::postgres::DatabasePool,
     actor: QualityActor,
     id: &str,
 ) -> Result<
-    erpx_server_quality::public::quality_read::QualityDetail,
+    erpx_quality_server::public::quality_read::QualityDetail,
     PgTransactionError<BusinessError>,
 > {
     let id = id.to_owned();
@@ -574,11 +574,11 @@ async fn read_detail_view(
 }
 
 async fn cancel(
-    pool: &erpx_server_runtime::public::postgres::DatabasePool,
+    pool: &erpx_platform_runtime_server::public::postgres::DatabasePool,
     actor: QualityActor,
     command: QualityCancellationCommand,
 ) -> Result<
-    erpx_server_quality::public::quality_read::QualityCancellationReceipt,
+    erpx_quality_server::public::quality_read::QualityCancellationReceipt,
     PgTransactionError<BusinessError>,
 > {
     PgUnitOfWork::new(pool.clone())
@@ -674,7 +674,7 @@ async fn workspace_and_detail_read_only_quality_owned_facts_in_current_scope() {
         let missing = read_detail_view(&pool, other, "hold-other").await;
         denied(missing, "QUALITY_HOLD_NOT_FOUND");
 
-        let foreign = erpx_server_quality::public::quality_read::QualityActor {
+        let foreign = erpx_quality_server::public::quality_read::QualityActor {
             company_id: CompanyId::new("foreign").unwrap(),
             ..actor("manager", &["quality.read"])
         };
@@ -1026,7 +1026,7 @@ async fn readback_uses_the_owner_transaction_and_persists_the_cancellation_event
 
 #[tokio::test]
 async fn attachment_hold_retains_scoped_presence_absence_and_stored_lineage_facts() {
-    use erpx_server_quality::public::attachment_hold::*;
+    use erpx_quality_server::public::attachment_hold::*;
     fixture::with_database(2, |pool| async move {
         facts::setup(&pool).await;
         facts::hold(&pool, "attachment-hold").await;
@@ -1064,7 +1064,7 @@ async fn attachment_hold_retains_scoped_presence_absence_and_stored_lineage_fact
 
 #[tokio::test]
 async fn purchase_lineage_requires_and_retains_quality_relation_fences() {
-    use erpx_server_quality::public::purchase_lineage::{QualityLineageRequest,inspect_quality_purchase_lineage,lock_quality_purchase_lineage};
+    use erpx_quality_server::public::purchase_lineage::{QualityLineageRequest,inspect_quality_purchase_lineage,lock_quality_purchase_lineage};
     fixture::with_database(2, |pool| async move {
         facts::setup(&pool).await;
         facts::hold(&pool,"lineage-lock-hold").await;
@@ -1115,7 +1115,7 @@ async fn workspace_and_detail_require_and_retain_quality_read_locks() {
 
 #[tokio::test]
 async fn quality_attachment_descriptor_native_plan_revalidates_under_source_fence() {
-    use erpx_server_quality::public::attachment_descriptor::{inspect_quality_attachment_descriptor,lock_quality_attachment_descriptor};
+    use erpx_quality_server::public::attachment_descriptor::{inspect_quality_attachment_descriptor,lock_quality_attachment_descriptor};
     // The cutover leaves no TypeScript descriptor SQL; the native plan is the
     // only descriptor statement the owner serves.
     let policy = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/adapters/attachments-policy-facts.ts")).unwrap();
@@ -1150,7 +1150,7 @@ async fn quality_attachment_descriptor_native_plan_revalidates_under_source_fenc
 
 #[tokio::test]
 async fn quality_attachment_descriptor_read_port_matches_native_plan() {
-    use erpx_server_quality::public::attachment_descriptor::{
+    use erpx_quality_server::public::attachment_descriptor::{
         QualityAttachmentDescriptorRow, QualityAttachmentDescriptorTarget,
         lock_quality_attachment_descriptor, read_quality_attachment_descriptor,
     };
@@ -1214,10 +1214,10 @@ async fn quality_attachment_owner_scope_native_plans_match_retired_rows() {
 
 #[tokio::test]
 async fn quality_purchase_raw_sources_match_both_actual_typescript_lineages() {
-    use erpx_server_quality::public::purchase_lineage_join::{inspect_quality_purchase_lineage_join,lock_quality_purchase_lineage_join};
+    use erpx_quality_server::public::purchase_lineage_join::{inspect_quality_purchase_lineage_join,lock_quality_purchase_lineage_join};
     let script=r#"
 if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');
-const {qualityPurchaseSourceRows,qualityHoldPurchaseSource}=await import('./packages/server-quality/src/adapters/purchase-sources.ts');
+const {qualityPurchaseSourceRows,qualityHoldPurchaseSource}=await import('./modules/quality/server/src/adapters/purchase-sources.ts');
 const end=qualityPurchaseSourceRows.indexOf(' SELECT h.id,h.company_id');if(end<0)throw Error('QUALITY_GLOBAL_LINEAGE_SOURCE_MISSING');
 const queries=[];const row={id:'child',company_id:'company',branch_id:'branch',warehouse_id:'warehouse',product_id:'product',lot_id:null,source_type:'goods_receipt',source_id:'root:remaining:count',spec_id:'spec',spec_version:1,created_by:'maker',held_quantity_milli:500};
 const db={prepare(sql){return{bind(...args){return{first(){queries.push({sql,args});return Promise.resolve(row)}}}}}};

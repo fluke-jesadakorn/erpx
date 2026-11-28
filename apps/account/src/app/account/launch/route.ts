@@ -1,6 +1,6 @@
-import {accountWorkspaceRequest} from '@erpx/server-identity_access/public/account-workspace';
-import {configuredProductOrigin} from '@erpx/feature-runtime/lib/product-hosts';
-import {applicationRequest} from '@erpx/server-runtime/public/application-request';
+import {accountWorkspaceRequest} from '@erpx/identity-access-server/public/account-workspace';
+import {configuredProductOrigin} from '@erpx/platform-runtime-ui/lib/product-hosts';
+import {applicationRequest} from '@erpx/platform-runtime-server/public/application-request';
 
 export const dynamic='force-dynamic';
 export function GET(request: Request) {

@@ -1,4 +1,4 @@
-use erpx_server_identity_access::public::*;
+use erpx_identity_access_server::public::*;
 
 #[test]
 fn invitation_scope_matches_current_grant_rules_without_missing_node_wildcards() {

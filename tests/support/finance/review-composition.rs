@@ -4,22 +4,22 @@
 #[path = "../rust-account-revocation.rs"]
 pub mod account;
 use account::System;
-use erpx_server_commercial::public::purchases::*;
-use erpx_server_finance::public::{journal_review::*, *};
-use erpx_server_identity_access::public::{
+use erpx_commercial_server::public::purchases::*;
+use erpx_finance_server::public::{journal_review::*, *};
+use erpx_identity_access_server::public::{
     AuthenticationSecrets, DeviceProof, PresentedSecrets, SecretPurpose,
     SystemAuthenticationSecrets,
     command_metadata::project_command_iam,
     effective_authority::{AuthorizedWorkContext, HoldingWorkAuthorizer, WorkAuthorizationRequest},
     work_context::{ExpectedWorkSelection, HoldingWorkspaceRequest, WorkScopeKind},
 };
-use erpx_server_runtime::public::postgres::{DatabasePool, PgTransactionError};
-use erpx_server_shared::public::{
+use erpx_platform_runtime_server::public::postgres::{DatabasePool, PgTransactionError};
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId,
     IdentifierSource, RecordId,
 };
-use erpx_server_workflow::public::commands::*;
-use erpx_service::finance_journal_review::*;
+use erpx_workflow_server::public::commands::*;
+use erpx_platform_composition::finance_journal_review::*;
 use sqlx::PgConnection;
 use std::sync::Arc;
 pub type Error = PgTransactionError<BusinessError>;
@@ -27,9 +27,9 @@ pub type TestClock = account::fixture::MutableClock;
 pub struct Prepared {
     pub system: System,
     pub maker: DeviceProof,
-    pub maker_token: erpx_server_identity_access::public::OpaqueSecret,
+    pub maker_token: erpx_identity_access_server::public::OpaqueSecret,
     pub reviewer: DeviceProof,
-    pub reviewer_token: erpx_server_identity_access::public::OpaqueSecret,
+    pub reviewer_token: erpx_identity_access_server::public::OpaqueSecret,
     pub reviewer_central: PresentedSecrets,
     pub reviewer_selection: HoldingWorkspaceRequest,
     pub maker_selection: HoldingWorkspaceRequest,
@@ -198,7 +198,7 @@ async fn grant_until(pool: &DatabasePool, now: i64, expires: i64) {
     sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at)SELECT 'finance-origin-grant','company','finance','fixture-a','synthetic-request',NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),$1 FROM company_package_grants WHERE company_id='company'AND package_id='finance'").bind(now).execute(&mut *tx).await.unwrap();
     tx.commit().await.unwrap();
 }
-fn proof(raw: &erpx_server_identity_access::public::OpaqueSecret) -> DeviceProof {
+fn proof(raw: &erpx_identity_access_server::public::OpaqueSecret) -> DeviceProof {
     DeviceProof {
         active: Some(SystemAuthenticationSecrets.digest(SecretPurpose::Session, raw)),
         ..Default::default()

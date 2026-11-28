@@ -2,15 +2,15 @@
 //! channel/review commands. The exact owner dispatch is exercised without
 //! opening a socket; mounting the router into composition remains an
 //! integration step.
-use erpx_server_ecommerce::public::ecommerce_http::{
+use erpx_ecommerce_server::public::ecommerce_http::{
     EcommerceCatalogHttpRequest, EcommerceChannelHttpRequest, EcommerceHttpBackend,
     EcommerceHttpFuture, EcommerceHttpResponse, EcommerceHttpState, EcommerceHttpTarget,
     EcommerceReviewHttpRequest, ecommerce_router,
 };
-use erpx_server_runtime::public::http_support::{
+use erpx_platform_runtime_server::public::http_support::{
     HeaderMap, HeaderValue, StatusCode, body::to_bytes, header, serde_json,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use serde_json::json;
 use std::sync::{Arc, Mutex};
 
@@ -150,7 +150,7 @@ fn review_body() -> Vec<u8> {
 }
 
 async fn reply(
-    response: erpx_server_runtime::public::http_support::Response,
+    response: erpx_platform_runtime_server::public::http_support::Response,
 ) -> (StatusCode, serde_json::Value) {
     let status = response.status();
     let bytes = to_bytes(response.into_body(), 1 << 20).await.unwrap();

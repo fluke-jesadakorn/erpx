@@ -3,39 +3,39 @@
   "node": "v26.11.1",
   "sources": [
     {
-      "path": "packages/server-inventory/src/application/consumption.ts",
+      "path": "modules/inventory/server/src/application/consumption.ts",
       "sha256": "12f2906f33b342abf67a6a130753e91c9a88dc63c72b48ea8ece64f8d2b95bf3"
     },
     {
-      "path": "packages/server-finance/src/application/journal.ts",
+      "path": "modules/finance/server/src/application/journal.ts",
       "sha256": "2610904c5de6f0f4d02f917de23c33afb3ecd98fe44ee8738e3a269a4674d314"
     },
     {
-      "path": "packages/server-finance/src/application/company-money.ts",
+      "path": "modules/finance/server/src/application/company-money.ts",
       "sha256": "c983dc6c1cf65e4ea72fed5c7577b48ae532d1114d722994aaf42bd650732ace"
     },
     {
-      "path": "packages/server-finance/src/application/functional-fx.ts",
+      "path": "modules/finance/server/src/application/functional-fx.ts",
       "sha256": "7cd9d9eea281c99541fef1481f88113cdf298e40634cd2cacd6b0da2f69b1e07"
     },
     {
-      "path": "packages/server-finance/src/domain/finance-policy.ts",
+      "path": "modules/finance/server/src/domain/finance-policy.ts",
       "sha256": "96331eb867f351f214fe028f88d488d42d18f8447b9eb92a077efffe0f12e61f"
     },
     {
-      "path": "packages/server-finance/src/domain/company-money.ts",
+      "path": "modules/finance/server/src/domain/company-money.ts",
       "sha256": "70100b128ab2afdf60e3a65a744e27287347b2f9dfeea3101c9586d7f3e0977f"
     },
     {
-      "path": "packages/feature-finance/src/lib/finance-money.ts",
+      "path": "modules/finance/ui/src/lib/finance-money.ts",
       "sha256": "c36415b741869d868e321634749ddd97854ccf81dfb32740a0c41789488651b8"
     },
     {
-      "path": "packages/feature-finance/src/lib/company-money.ts",
+      "path": "modules/finance/ui/src/lib/company-money.ts",
       "sha256": "1a23b5275688dde81e899296370ff76cf9c0175c602067cf89f40020562c1fb2"
     },
     {
-      "path": "packages/feature-commerce/src/lib/commerce-math.ts",
+      "path": "modules/commerce/ui/src/lib/commerce-math.ts",
       "sha256": "ac385a1604df6e125a3fed58ea5ee52b43459bbb898c280f7b874ae1996d9221"
     }
   ],

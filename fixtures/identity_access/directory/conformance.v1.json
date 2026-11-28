@@ -3,11 +3,11 @@
   "sourceCommit": "a5ed8737a2f05eff1ee9841fda4a094b3926d732",
   "sources": [
     {
-      "path": "packages/feature-organization/src/lib/hierarchy.ts",
+      "path": "modules/organization/ui/src/lib/hierarchy.ts",
       "sha256": "1ad7307f2f11938e0d995a21bfe7bdcea7d63a1107a13ce148180f7b9a003ccc"
     },
     {
-      "path": "packages/server-identity_access/src/domain/providers.ts",
+      "path": "modules/identity-access/server/src/domain/providers.ts",
       "sha256": "67b74b43b7875022c582f2111991601d72464409e2d8bc05f20cbe3ef30ec97e"
     }
   ],

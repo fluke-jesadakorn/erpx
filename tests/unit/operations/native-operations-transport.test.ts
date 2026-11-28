@@ -6,8 +6,8 @@ import {
   nativeOperationsConfiguration,
   NativeOperationsError,
   type NativeOperationsPageContext,
-} from '../../../packages/feature-operations/src/adapters/server/native-operations';
-import {nativeOperationsAvailable} from '../../../packages/workplace/src/lib/native-operations';
+} from '../../../modules/operations/ui/src/adapters/server/native-operations';
+import {nativeOperationsAvailable} from '../../../platform/workplace/src/lib/native-operations';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44993',
@@ -207,7 +207,7 @@ describe('native Operations queue transport',()=>{
 });
 
 describe('native Operations fixed task-source read plans',()=>{
-  const adapter=(name:string)=>readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+  const adapter=(name:string)=>readFileSync(new URL(`../../../modules/operations/server/src/adapters/${name}`,import.meta.url),'utf8');
   it('retires the record-purchases task-project TypeScript literal',()=>{
     const source=adapter('record-purchases.ts');
     expect(source).not.toContain('SELECT project_id FROM staff_tasks WHERE id=? AND company_id=?');
@@ -219,7 +219,7 @@ describe('native Operations fixed task-source read plans',()=>{
     expect(source).toContain('OPERATIONS_RD_WORK_TASK_SOURCE');
   });
   it('registers both fixed-source reads in the native allow-list',()=>{
-    const source=readFileSync(new URL('../../../packages/server-operations/src/adapters/native_operations_read_sql.rs',import.meta.url),'utf8');
+    const source=readFileSync(new URL('../../../modules/operations/server/src/adapters/native_operations_read_sql.rs',import.meta.url),'utf8');
     expect(source).toContain('operations_rd_record_task_project');
     expect(source).toContain('operations_rd_work_task_source');
     expect(source).toContain('READ_RECORD_TASK_PROJECT,');
@@ -228,36 +228,36 @@ describe('native Operations fixed task-source read plans',()=>{
 });
 
 describe('native Operations task attachment assignee read plan',()=>{
-  const adapter=(name:string)=>readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+  const adapter=(name:string)=>readFileSync(new URL(`../../../modules/operations/server/src/adapters/${name}`,import.meta.url),'utf8');
   it('retires the task-attachment-purchases assignee TypeScript literal',()=>{
     const source=adapter('task-attachment-purchases.ts');
     expect(source).not.toContain('SELECT iam_same_person(?,?,?) assigned');
     expect(source).toContain('OPERATIONS_RD_TASK_ATTACHMENT_ASSIGNEE');
   });
   it('registers the assignee read in the native allow-list',()=>{
-    const source=readFileSync(new URL('../../../packages/server-operations/src/adapters/native_operations_read_sql.rs',import.meta.url),'utf8');
+    const source=readFileSync(new URL('../../../modules/operations/server/src/adapters/native_operations_read_sql.rs',import.meta.url),'utf8');
     expect(source).toContain('operations_rd_task_attachment_assignee');
     expect(source).toContain('READ_TASK_ATTACHMENT_ASSIGNEE,');
   });
 });
 
 describe('native Operations work task alert source read plan',()=>{
-  const adapter=(name:string)=>readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+  const adapter=(name:string)=>readFileSync(new URL(`../../../modules/operations/server/src/adapters/${name}`,import.meta.url),'utf8');
   it('retires the work-task-alert-purchases source TypeScript literal',()=>{
     const source=adapter('work-task-alert-purchases.ts');
     expect(source).not.toContain('SELECT t.id,t.company_id,t.project_id,t.template_id,t.version,t.title,t.due_at,t.assignee_user_id,t.creator_user_id,t.state,(SELECT sd.delegate_user_id FROM staff_task_delegations sd WHERE sd.task_id=t.id');
     expect(source).toContain('OPERATIONS_RD_WORK_TASK_ALERT_SOURCE');
   });
   it('registers the work task alert source read in the native allow-list',()=>{
-    const source=readFileSync(new URL('../../../packages/server-operations/src/adapters/native_operations_read_sql.rs',import.meta.url),'utf8');
+    const source=readFileSync(new URL('../../../modules/operations/server/src/adapters/native_operations_read_sql.rs',import.meta.url),'utf8');
     expect(source).toContain('operations_rd_work_task_alert_source');
     expect(source).toContain('READ_WORK_TASK_ALERT_SOURCE,');
   });
 });
 
 describe('native Operations work task image read plans',()=>{
-  const adapter=(name:string)=>readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
-  const registry=()=>readFileSync(new URL('../../../packages/server-operations/src/adapters/native_operations_read_sql.rs',import.meta.url),'utf8');
+  const adapter=(name:string)=>readFileSync(new URL(`../../../modules/operations/server/src/adapters/${name}`,import.meta.url),'utf8');
+  const registry=()=>readFileSync(new URL('../../../modules/operations/server/src/adapters/native_operations_read_sql.rs',import.meta.url),'utf8');
   it('retires both composed TypeScript image literals',()=>{
     const completed=adapter('work-task-purchases.ts');
     expect(completed).not.toContain("const taskImageSql=`SELECT jsonb_build_object('task',to_jsonb(t)-'updated_at'");

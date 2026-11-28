@@ -11,8 +11,8 @@ import {
   nativeLearningEvidenceRow,
   nativeLearningEvidenceSearch,
   type NativeLearningEvidenceRow,
-} from '../../../packages/server-learning/src/adapters/native-lane-31/client';
-import { ApiError } from '@erpx/server-runtime/public/http';
+} from '../../../modules/learning/server/src/adapters/native-lane-31/client';
+import { ApiError } from '@erpx/platform-runtime-server/public/http';
 
 const ENV = 'ERPX_NATIVE_LEARNING_EVIDENCE_CONFIG';
 const host = 'acme.jesadakorn.com';
@@ -358,7 +358,7 @@ describe('native Learning evidence-search transport', () => {
   });
 });
 
-const srcRoot = resolve(__dirname, '../../../packages/server-learning/src');
+const srcRoot = resolve(__dirname, '../../../modules/learning/server/src');
 const postgres = readFileSync(resolve(srcRoot, 'adapters/native_lane_31/postgres.rs'), 'utf8');
 const learning = readFileSync(resolve(srcRoot, 'adapters/learning.ts'), 'utf8');
 const evidenceSources = readFileSync(resolve(srcRoot, 'adapters/executive-evidence-sources.ts'), 'utf8');

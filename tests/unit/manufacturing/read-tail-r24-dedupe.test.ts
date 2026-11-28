@@ -1,10 +1,10 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { manufacturingPurchaseScopedSelect } from '../../../packages/server-manufacturing/src/adapters/manufacturing-read-tail-r24-sql';
-import { manufacturingPurchaseScopedRows } from '../../../packages/server-manufacturing/src/adapters/purchases';
+import { manufacturingPurchaseScopedSelect } from '../../../modules/manufacturing/server/src/adapters/manufacturing-read-tail-r24-sql';
+import { manufacturingPurchaseScopedRows } from '../../../modules/manufacturing/server/src/adapters/purchases';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-manufacturing/src');
+const srcRoot = resolve(__dirname, '../../../modules/manufacturing/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 /** The three purchased-scope readers (metric, workspace record, attachment)

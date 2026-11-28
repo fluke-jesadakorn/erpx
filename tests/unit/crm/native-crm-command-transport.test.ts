@@ -10,13 +10,13 @@ import {
   nativeCrmCommandFailure,
   nativeCrmCommandRequired,
   NativeCrmCommandError,
-} from '../../../packages/feature-sales/src/public/native-crm-command';
+} from '../../../modules/sales/ui/src/public/native-crm-command';
 vi.mock('server-only',()=>({}));
 const historyTransport=vi.hoisted(()=>vi.fn());
 vi.mock('next/headers',()=>({headers:async()=>new Headers({cookie:'__Host-erpx-product=fixture'})}));
-vi.mock('@erpx/server-runtime/public/native-http',()=>({nativeRequest:historyTransport}));
-import {nativeCrmCaseEventHistory} from '../../../packages/server-crm/src/adapters/native-crm-history';
-import type {WorkContext} from '../../../packages/server-identity_access/src/public/authorization';
+vi.mock('@erpx/platform-runtime-server/public/native-http',()=>({nativeRequest:historyTransport}));
+import {nativeCrmCaseEventHistory} from '../../../modules/crm/server/src/adapters/native-crm-history';
+import type {WorkContext} from '../../../modules/identity-access/server/src/public/authorization';
 
 const config=()=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44995',

@@ -5,15 +5,15 @@
 //! current-owner matching, beta resource selection, idempotent replay,
 //! incomplete provisioning and activation. The PostgreSQL adapter tests cover
 //! the actual writes and transaction boundary.
-use erpx_server_manage_erpx::public::onboarding::CompanySlotState;
-use erpx_server_manage_erpx::public::onboarding_command::{
+use erpx_manage_erpx_server::public::onboarding::CompanySlotState;
+use erpx_manage_erpx_server::public::onboarding_command::{
     OnboardingBootstrapOutcome, OnboardingBootstrapPlan, OnboardingBootstrapPort,
     OnboardingClaimOutcome, OnboardingCommandActor, OnboardingCommandInput,
     OnboardingCommandLimits, OnboardingCommandReceipt, OnboardingCommandResource,
     OnboardingCommandState, OnboardingControlPort, OnboardingReservation, OnboardingSlotFacts,
     activate_onboarding, provision_onboarding, reserve_onboarding,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind, UserId};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind, UserId};
 
 fn actor(verified: bool) -> OnboardingCommandActor {
     OnboardingCommandActor {
@@ -65,7 +65,7 @@ struct Probe {
     waitlisted: bool,
     bootstrap: Option<OnboardingBootstrapPlan>,
     activation:
-        Option<erpx_server_manage_erpx::public::onboarding_command::OnboardingActivationPlan>,
+        Option<erpx_manage_erpx_server::public::onboarding_command::OnboardingActivationPlan>,
 }
 
 impl OnboardingControlPort for Probe {
@@ -122,7 +122,7 @@ impl OnboardingControlPort for Probe {
 
     async fn activate(
         &mut self,
-        plan: &erpx_server_manage_erpx::public::onboarding_command::OnboardingActivationPlan,
+        plan: &erpx_manage_erpx_server::public::onboarding_command::OnboardingActivationPlan,
     ) -> Result<(), Self::Error> {
         self.calls.push("activate");
         self.activation = Some(plan.clone());

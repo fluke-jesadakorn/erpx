@@ -6,15 +6,15 @@
 //! fail-closed behaviour and that a caller rollback stages nothing.
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_finance::public::attachment_version::{
+use erpx_finance_server::public::attachment_version::{
     AttachmentVersionActor, AttachmentVersionStep, assert_attachment_version,
     bump_attachment_version,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CommandKey};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey};
 use sqlx::Row;
 
 type Error = PgTransactionError<BusinessError>;
@@ -305,7 +305,7 @@ async fn receipt_audit_and_outbox_share_the_callers_unit() {
                     let command = CommandKey::new("rollback-key").map_err(PgTransactionError::Business)?;
                     bump_attachment_version(connection, &actor(), &command, "finance_journal", "journal-co", 1, 300).await?;
                     Err(BusinessError::new(
-                        erpx_server_shared::public::FailureKind::Conflict,
+                        erpx_platform_shared_server::public::FailureKind::Conflict,
                         "CALLER_ROLLBACK",
                         "Caller forced rollback.",
                     )

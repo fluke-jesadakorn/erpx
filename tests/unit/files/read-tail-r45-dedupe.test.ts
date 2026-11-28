@@ -5,19 +5,19 @@ import { resolve } from 'node:path';
 import {
   ATTACHMENT_EVENTS_WHERE_HEAD_SQL,
   ATTACHMENT_SETS_STAR_WHERE_HEAD_SQL,
-} from '../../../packages/server-files/src/adapters/read-tail-r45-source-sql';
-import { socialDraftImageExistsSql } from '../../../packages/server-files/src/adapters/social-draft-image-guard-sql';
-import { ATTACHMENT_EVENT_EVENT_HEAD_SQL } from '../../../packages/server-files/src/adapters/read-tail-r38-source-sql';
-import { SANITIZATION_ATTESTED_HEAD_SQL } from '../../../packages/server-files/src/adapters/read-tail-r40-source-sql';
+} from '../../../modules/files/server/src/adapters/read-tail-r45-source-sql';
+import { socialDraftImageExistsSql } from '../../../modules/files/server/src/adapters/social-draft-image-guard-sql';
+import { ATTACHMENT_EVENT_EVENT_HEAD_SQL } from '../../../modules/files/server/src/adapters/read-tail-r38-source-sql';
+import { SANITIZATION_ATTESTED_HEAD_SQL } from '../../../modules/files/server/src/adapters/read-tail-r40-source-sql';
 
 const rootDir = resolve(__dirname, '../../..');
-const srcRoot = resolve(rootDir, 'packages/server-files/src');
+const srcRoot = resolve(rootDir, 'modules/files/server/src');
 const BASE = 'fc31f7947cc7df1f47f0690708f2b2ea0dfeae09';
 const SR = 'adapters/attachments/service-repository.ts';
 const HOME = 'adapters/collaboration-home-sources.ts';
 const src = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
 const git = (...a: string[]) => execFileSync('git', a, { cwd: rootDir, encoding: 'utf8' });
-const before = (rel: string) => git('show', `${BASE}:packages/server-files/src/${rel}`);
+const before = (rel: string) => git('show', `${BASE}:modules/files/server/src/${rel}`);
 const count = (text: string, needle: string) => text.split(needle).length - 1;
 
 /** Verbatim byte oracles: the exact 38/36/40-byte heads lifted by r45. */

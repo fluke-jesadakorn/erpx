@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-planning/src');
+const srcRoot = resolve(__dirname, '../../../modules/planning/server/src');
 /** Pre-r28 byte oracle for the retired builder; no longer a live query source. */
 const planningSelectColumnsFrom = (columns: string, rest: string) =>
   `SELECT ${columns} FROM ${rest}`;

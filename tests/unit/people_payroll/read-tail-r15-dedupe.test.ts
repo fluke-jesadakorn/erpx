@@ -3,9 +3,9 @@ import {readFileSync} from 'node:fs';
 import {
   PP_RD15_FINAL_PAY_VALID_SQL,
   PP_RD15_PEOPLE_SNAPSHOT_SQL,
-} from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r15-sources';
+} from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r15-sources';
 
-const src = (name: string) => readFileSync(new URL(`../../../packages/server-people_payroll/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFileSync(new URL(`../../../modules/people-payroll/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const ALL = [PP_RD15_FINAL_PAY_VALID_SQL, PP_RD15_PEOPLE_SNAPSHOT_SQL];
 
 describe('People Payroll read-tail r15 byte-identical dedupe', () => {

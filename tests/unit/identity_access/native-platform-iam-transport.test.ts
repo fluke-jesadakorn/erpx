@@ -6,12 +6,12 @@ import {
   nativePlatformIamFailure,
   NativePlatformIamError,
   type NativePlatformIamActor,
-} from '../../../packages/feature-platform_administration/src/adapters/server/native-platform-iam';
+} from '../../../modules/platform-administration/ui/src/adapters/server/native-platform-iam';
 import {
   nativePlatformIamActor,
   nativePlatformIamAvailable,
   nativePlatformIamCommand,
-} from '../../../packages/feature-platform_administration/src/lib/native-platform-administration';
+} from '../../../modules/platform-administration/ui/src/lib/native-platform-administration';
 
 const origin = 'https://erpx-internal.example.test';
 const config = () =>
@@ -237,7 +237,7 @@ describe('native Platform IAM transport', () => {
 describe('retired platform access-review command route', () => {
   const route = () =>
     import(
-      '../../../packages/feature-admin/src/routes/api/v1/platform/iam/[[...path]]/route'
+      '../../../products/admin/ui/src/routes/api/v1/platform/iam/[[...path]]/route'
     );
 
   it('fails closed for access-review POST instead of falling back to TypeScript', async () => {
@@ -271,7 +271,7 @@ describe('retired platform access-review command route', () => {
 describe('retired platform role-save command route', () => {
   const route = () =>
     import(
-      '../../../packages/feature-admin/src/routes/api/v1/platform/iam/[[...path]]/route'
+      '../../../products/admin/ui/src/routes/api/v1/platform/iam/[[...path]]/route'
     );
 
   it('fails closed for role-save POST instead of falling back to TypeScript', async () => {

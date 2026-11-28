@@ -1,9 +1,9 @@
 //! Deterministic fakes and request facts for the portal-session unit rules.
-use erpx_server_customer_authority::public::portal_session::{
+use erpx_customer_authority_server::public::portal_session::{
     PortalCustomerProof, PortalCustomerRequest, PortalEnrollmentSource, PortalSessionEvidence,
     PortalSessionFuture, PortalSessionVerifier,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 
 #[derive(Default)]
 pub struct Session {

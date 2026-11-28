@@ -1,8 +1,8 @@
 import {architectureStatus} from "../../../scripts/architecture/status";
 import { describe, expect, test } from "vitest";
 import { inspectSource, evaluateBaseline } from "../../../scripts/architecture/boundaries";
-import { moduleIds, ownersForSource, ownershipPatternMatches, serviceOwnership } from "@erpx/contracts/ownership";
-import registry from "@erpx/catalogue/module-registry.json";
+import { moduleIds, ownersForSource, ownershipPatternMatches, serviceOwnership } from "@erpx/platform-contracts/ownership";
+import registry from "@erpx/platform-catalogue/module-registry.json";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -12,8 +12,8 @@ import {spawnSync} from "node:child_process";
 import {pinnedBunBinary} from "../../../scripts/testing/runtime-tooling";
 
 const root = process.cwd();
-const domain = "packages/server-brand/src/domain/policy.ts";
-const application = "packages/server-brand/src/application/publish.ts";
+const domain = "modules/brand/server/src/domain/policy.ts";
+const application = "modules/brand/server/src/application/publish.ts";
 const rules = (source: string, text: string) => inspectSource(root, source, text).map((issue) => issue.rule);
 
 describe("architecture enforcement", () => {
@@ -32,18 +32,18 @@ describe("architecture enforcement", () => {
     }
   });
   test("matches source patterns without crossing a slash for a single star", () => {
-    expect(ownershipPatternMatches("packages/server-brand/src/**", "./packages/server-brand/src/domain/policy.ts")).toBe(true);
+    expect(ownershipPatternMatches("modules/brand/server/src/**", "./modules/brand/server/src/domain/policy.ts")).toBe(true);
     expect(ownershipPatternMatches("src/server/*.ts", "src/server/brand.ts")).toBe(true);
     expect(ownershipPatternMatches("src/server/*.ts", "src/server/brand/service.ts")).toBe(false);
     expect(ownershipPatternMatches("src/server/a.ts", "src/server/aXts")).toBe(false);
   });
   test("owns portable rules and rejects private helper imports across owners", () => {
     for (const [owner, helper, facade] of [
-      ["organization", "packages/feature-organization/src/lib/organization-domain.ts", "organization-domain"],
-      ["people_payroll", "packages/feature-people_payroll/src/lib/people-roster-domain.ts", "people-roster-domain"],
-      ["work_projection", "packages/feature-work_projection/src/lib/calendar-domain.ts", "calendar-domain"],
-      ["work_projection", "packages/feature-work_projection/src/lib/calendar-date-domain.ts", "calendar-date-domain"],
-      ["runtime", "packages/feature-runtime/src/lib/executive/canvas-domain.ts", "canvas-domain"],
+      ["organization", "modules/organization/ui/src/lib/organization-domain.ts", "organization-domain"],
+      ["people_payroll", "modules/people-payroll/ui/src/lib/people-roster-domain.ts", "people-roster-domain"],
+      ["work_projection", "modules/work-projection/ui/src/lib/calendar-domain.ts", "calendar-domain"],
+      ["work_projection", "modules/work-projection/ui/src/lib/calendar-date-domain.ts", "calendar-date-domain"],
+      ["runtime", "platform/runtime/ui/src/lib/executive/canvas-domain.ts", "canvas-domain"],
     ]) {
       expect(ownersForSource(helper).map((entry) => entry.id)).toEqual([owner]);
       expect(rules(application, `import {rule} from "${helper.replace(/^packages\/([^/]+)\/src\/(.+)\.ts$/, "@erpx/$1/$2")}";`)).toContain("owner-private-import");
@@ -94,7 +94,7 @@ describe("architecture enforcement", () => {
     `;
     expect(rules(domain, code)).toEqual([]);
     expect(rules(application, code)).toEqual([]);
-    expect(rules("packages/server-brand/src/adapters/clock.ts", "const now=new Date(); const id=crypto.randomUUID(); const value=Date.now()+Math.random();")).toEqual([]);
+    expect(rules("modules/brand/server/src/adapters/clock.ts", "const now=new Date(); const id=crypto.randomUUID(); const value=Date.now()+Math.random();")).toEqual([]);
   });
   test("rejects literal SQL execution in UI API and worker entrypoints", () => {
     for (const source of ["src/app/finance/page.tsx", "src/app/api/finance/route.ts", "src/workers/finance.ts", "src/components/finance.tsx"]) for (const code of [
@@ -111,10 +111,10 @@ describe("architecture enforcement", () => {
   test("rejects cooked SQL passed through any callable argument in presentation API and workers", () => {
     for (const source of ["src/app/pos/page.tsx", "src/app/api/pos/route.ts", "src/workers/pos.ts", "src/components/pos.tsx"]) for (const code of [
       'one(db,"SELECT sale_id FROM pos_lines",saleId);',
-      'import {one as lookup} from "@erpx/server-pos/public/pos-core"; lookup(db,`SELECT ${fields} FROM pos_lines WHERE id=?`,id);',
-      'import * as queries from "@erpx/server-pos/public/pos-core"; queries.all(db,"SELECT sale_id FROM pos_lines");',
-      'const queries=await import("@erpx/server-pos/public/pos-core"); queries.one(db,"SELECT sale_id FROM pos_lines");',
-      'const {one:lookup}=require("@erpx/server-pos/public/pos-core"); lookup(db,"SELECT sale_id FROM pos_lines");',
+      'import {one as lookup} from "@erpx/pos-server/public/pos-core"; lookup(db,`SELECT ${fields} FROM pos_lines WHERE id=?`,id);',
+      'import * as queries from "@erpx/pos-server/public/pos-core"; queries.all(db,"SELECT sale_id FROM pos_lines");',
+      'const queries=await import("@erpx/pos-server/public/pos-core"); queries.one(db,"SELECT sale_id FROM pos_lines");',
+      'const {one:lookup}=require("@erpx/pos-server/public/pos-core"); lookup(db,"SELECT sale_id FROM pos_lines");',
       'const prefix="SELECT sale_id "; const query=prefix+"FROM pos_lines"; lookup(db,query);',
       'const prefix="SELECT"; const relation="pos_lines"; lookup(db,`${prefix} sale_id FROM ${relation}`);',
       'const query="SELECT sale_id FROM pos_lines"; const copied=query; arbitrary(actor,{},copied);',
@@ -146,8 +146,8 @@ describe("architecture enforcement", () => {
   test("keeps owner semantic arguments UI instructions and structured business errors outside the SQL guard", () => {
     const source = "src/app/pos/page.tsx";
     for (const code of [
-      'import {holdingBindingBySlug,isHoldingId} from "@erpx/server-runtime/public/runtime"; const binding=await holdingBindingBySlug(slug); isHoldingId(binding.id);',
-      'import {getExpense} from "@erpx/server-people_payroll/public/expenses"; getExpense(actor,id);',
+      'import {holdingBindingBySlug,isHoldingId} from "@erpx/platform-runtime-server/public/runtime"; const binding=await holdingBindingBySlug(slug); isHoldingId(binding.id);',
+      'import {getExpense} from "@erpx/people-payroll-server/public/expenses"; getExpense(actor,id);',
       'owner.query({companyId,filters:{state:"posted"}}); owner.prepare({periodId});',
       'showMessage("Select a current delivery from this checkout.");',
       'fail(409,"DELIVERY_REQUIRED","Select a current delivery from this checkout.");',
@@ -160,15 +160,15 @@ describe("architecture enforcement", () => {
   });
   test("rejects native resource acquisition and bindings in non-API presentation through every import form", () => {
     for (const source of ["src/app/holdings/[holdingSlug]/page.tsx", "src/app/book/page.tsx", "src/app/pos/page.ts", "src/app/pos/presentation-helper.ts", "src/app/api/preview/page.tsx", "src/components/booking.tsx"]) for (const code of [
-      'import {holdingResources as resources} from "@erpx/server-runtime/public/runtime"; resources(holdingId);',
-      'import * as runtime from "@erpx/server-runtime/public/runtime"; runtime.holdingResources(holdingId);',
-      'const runtime=await import("@erpx/server-runtime/public/runtime"); runtime.holdingResources(holdingId);',
-      'const runtime=require("@erpx/server-runtime/public/runtime/env"); runtime.getRuntime();',
-      'import runtime = require("@erpx/server-runtime/public/runtime"); runtime.holdingResources(holdingId);',
-      'import {iamContext as context} from "@erpx/server-identity_access/public/iam-context"; const {db}=await context(slug);',
-      'import * as iam from "@erpx/server-identity_access/public/iam-context"; iam.iamContext(slug);',
-      'const {iamContext:context}=await import("@erpx/server-identity_access/public/iam-context"); context(slug);',
-      'const {bookingDatabase:database}=require("@erpx/server-pms/public/pms-booking"); database(slug);',
+      'import {holdingResources as resources} from "@erpx/platform-runtime-server/public/runtime"; resources(holdingId);',
+      'import * as runtime from "@erpx/platform-runtime-server/public/runtime"; runtime.holdingResources(holdingId);',
+      'const runtime=await import("@erpx/platform-runtime-server/public/runtime"); runtime.holdingResources(holdingId);',
+      'const runtime=require("@erpx/platform-runtime-server/public/runtime/env"); runtime.getRuntime();',
+      'import runtime = require("@erpx/platform-runtime-server/public/runtime"); runtime.holdingResources(holdingId);',
+      'import {iamContext as context} from "@erpx/identity-access-server/public/iam-context"; const {db}=await context(slug);',
+      'import * as iam from "@erpx/identity-access-server/public/iam-context"; iam.iamContext(slug);',
+      'const {iamContext:context}=await import("@erpx/identity-access-server/public/iam-context"); context(slug);',
+      'const {bookingDatabase:database}=require("@erpx/pms-server/public/pms-booking"); database(slug);',
       'const resource=holdingResources; const copied=resource; copied(holdingId);',
       'const key="bookingDatabase"; booking[key](slug);',
       'const db=env.CONTROL_DB; owner.query(db,actor);',
@@ -178,9 +178,9 @@ describe("architecture enforcement", () => {
       'const {CONTROL_DB:db}=env; owner.query(db,actor);',
       'const {H007_READ_DB}=env; owner.query(H007_READ_DB,actor);',
       'const files=env.H001_FILES; files.get(id);',
-      'import {staffPage as context} from "@erpx/server-work_projection/public/staff-page"; const {write}=await context(slug);',
-      'import {portalContext as context} from "@erpx/server-legal/public/legal/portal"; const {write}=await context(slug);',
-      'const {customerPortalContext:context}=await import("@erpx/server-customer_authority/public/customer-portal"); const {files}=await context(slug);',
+      'import {staffPage as context} from "@erpx/work-projection-server/public/staff-page"; const {write}=await context(slug);',
+      'import {portalContext as context} from "@erpx/legal-server/public/legal/portal"; const {write}=await context(slug);',
+      'const {customerPortalContext:context}=await import("@erpx/customer-authority-server/public/customer-portal"); const {files}=await context(slug);',
       'import {Pool} from "pg"; const db=new Pool();',
     ]) {
       const found = inspectSource(root, source, code).filter(issue => issue.rule.endsWith("runtime-composition"));
@@ -191,26 +191,26 @@ describe("architecture enforcement", () => {
   test("rejects generic SQL resource facades in presentation while allowing type-only contracts", () => {
     const source = "src/app/pos/page.tsx";
     for (const code of [
-      'import {one as read} from "@erpx/server-pos/public/pos-core"; read(db,query);',
-      'import * as queries from "@erpx/server-pos/public/pos-core"; const read=queries.one; read(db,query);',
-      'const queries=await import("@erpx/server-pos/public/pos-core"); queries.all(db,query);',
-      'const modulePath="@erpx/server-pos/public/pos-core"; const {one:read}=require(modulePath); read(db,query);',
-      'import queries = require("@erpx/server-pos/public/pos-core"); queries.one(db,query);',
-      'const {run:write}=require("@erpx/server-work_projection/public/calendar/access"); write(db,query);',
-      'import {readListPage as read} from "@erpx/server-work_projection/public/list-page"; read(db,{sql:query,args:[]});',
-      'import {assertion as guard} from "@erpx/server-workflow/public/commands"; guard(db,key,value,predicate,bindings);',
+      'import {one as read} from "@erpx/pos-server/public/pos-core"; read(db,query);',
+      'import * as queries from "@erpx/pos-server/public/pos-core"; const read=queries.one; read(db,query);',
+      'const queries=await import("@erpx/pos-server/public/pos-core"); queries.all(db,query);',
+      'const modulePath="@erpx/pos-server/public/pos-core"; const {one:read}=require(modulePath); read(db,query);',
+      'import queries = require("@erpx/pos-server/public/pos-core"); queries.one(db,query);',
+      'const {run:write}=require("@erpx/work-projection-server/public/calendar/access"); write(db,query);',
+      'import {readListPage as read} from "@erpx/work-projection-server/public/list-page"; read(db,{sql:query,args:[]});',
+      'import {assertion as guard} from "@erpx/workflow-server/public/commands"; guard(db,key,value,predicate,bindings);',
     ]) expect(rules(source, code)).toContain("presentation-runtime-composition");
-    expect(rules(source, 'import type {RuntimeEnv} from "@erpx/server-runtime/public/runtime/env"; import {type PosRow} from "@erpx/server-pos/public/pos-core";')).toEqual([]);
-    expect(rules(source, 'import {fail,str} from "@erpx/server-pos/public/pos-core"; str(input); fail(409,"POS_CHANGED","Review this sale.");')).toEqual([]);
-    expect(rules(source, 'import * as queries from "@erpx/server-pos/public/pos-core"; queries.str(input); function view(queries:{one(value:{id:string}):unknown}){return queries.one({id:"a"});}')).toEqual([]);
-    expect(rules(source, 'import * as queries from "@erpx/server-pos/public/pos-core"; {const queries=ports; queries.one({id:"a"});}')).toEqual([]);
-    expect(rules(source, 'import * as queries from "@erpx/server-pos/public/pos-core"; function view(){if(flag){var queries=ports;} return queries.one({id:"a"});}')).toEqual([]);
-    expect(rules(source, 'import * as queries from "@erpx/server-pos/public/pos-core"; function view(){function queries(){} return queries.one({id:"a"});}')).toEqual([]);
-    expect(rules(source, 'import * as queries from "@erpx/server-pos/public/pos-core"; function view(queries:{one(value:{id:string}):unknown}){return queries.one({id:"a"});} queries.one(db,query);')).toContain("presentation-runtime-composition");
+    expect(rules(source, 'import type {RuntimeEnv} from "@erpx/platform-runtime-server/public/runtime/env"; import {type PosRow} from "@erpx/pos-server/public/pos-core";')).toEqual([]);
+    expect(rules(source, 'import {fail,str} from "@erpx/pos-server/public/pos-core"; str(input); fail(409,"POS_CHANGED","Review this sale.");')).toEqual([]);
+    expect(rules(source, 'import * as queries from "@erpx/pos-server/public/pos-core"; queries.str(input); function view(queries:{one(value:{id:string}):unknown}){return queries.one({id:"a"});}')).toEqual([]);
+    expect(rules(source, 'import * as queries from "@erpx/pos-server/public/pos-core"; {const queries=ports; queries.one({id:"a"});}')).toEqual([]);
+    expect(rules(source, 'import * as queries from "@erpx/pos-server/public/pos-core"; function view(){if(flag){var queries=ports;} return queries.one({id:"a"});}')).toEqual([]);
+    expect(rules(source, 'import * as queries from "@erpx/pos-server/public/pos-core"; function view(){function queries(){} return queries.one({id:"a"});}')).toEqual([]);
+    expect(rules(source, 'import * as queries from "@erpx/pos-server/public/pos-core"; function view(queries:{one(value:{id:string}):unknown}){return queries.one({id:"a"});} queries.one(db,query);')).toContain("presentation-runtime-composition");
   });
   test("retains typed resource composition in HTTP and worker adapters without admitting their SQL", () => {
-    for (const source of ["src/app/api/pos/route.ts", "src/app/book/[holdingSlug]/route.ts", "src/workers/pos.ts", "packages/server-pos/src/adapters/presentation-queries.ts"]) {
-      const code='import {runtimeEnv,holdingResources} from "@erpx/server-runtime/public/runtime"; const env=await runtimeEnv(); const db=env.CONTROL_DB; const {write}=await holdingResources(holdingId); owner.query(db,actor);';
+    for (const source of ["src/app/api/pos/route.ts", "src/app/book/[holdingSlug]/route.ts", "src/workers/pos.ts", "modules/pos/server/src/adapters/presentation-queries.ts"]) {
+      const code='import {runtimeEnv,holdingResources} from "@erpx/platform-runtime-server/public/runtime"; const env=await runtimeEnv(); const db=env.CONTROL_DB; const {write}=await holdingResources(holdingId); owner.query(db,actor);';
       expect(rules(source, code)).toEqual([]);
       if (!source.includes("/adapters/")) expect(rules(source, `${code} arbitrary(db,"SELECT id FROM pos_sales");`)).toContain("entrypoint-sql");
       else expect(rules(source, `${code} arbitrary(db,"SELECT id FROM pos_sales");`)).toEqual([]);
@@ -221,31 +221,31 @@ describe("architecture enforcement", () => {
     expect(rules(source, 'const note="SELECT id FROM finance_periods"; const message="Select the current period.";')).toEqual([]);
     expect(rules(source, 'owner.prepare({companyId,periodId}); owner.query({periodId}); owner.prepare("Select the current period.");')).toEqual([]);
     expect(rules(source, 'periodsForCompany(write, companyId); prepareInvoice(actor, input);')).toEqual([]);
-    expect(rules("packages/server-finance/src/adapters/period-queries.ts", 'db.prepare("SELECT * FROM finance_periods"); db.pool.query("SELECT id FROM finance_periods");')).toEqual([]);
+    expect(rules("modules/finance/server/src/adapters/period-queries.ts", 'db.prepare("SELECT * FROM finance_periods"); db.pool.query("SELECT id FROM finance_periods");')).toEqual([]);
     expect(rules("packages/feature-client/src/components/finance.tsx", '"use client"; const text="SELECT id FROM finance_periods"; owner.prepare({periodId});')).toEqual([]);
-    expect(rules("src/components/finance.tsx", 'import {getExpense} from "@erpx/server-people_payroll/public/expenses"; getExpense(actor,id);')).toEqual([]);
+    expect(rules("src/components/finance.tsx", 'import {getExpense} from "@erpx/people-payroll-server/public/expenses"; getExpense(actor,id);')).toEqual([]);
   });
   test("rejects native runtime composition in components through aliases and dynamic imports", () => {
-    const source = "packages/feature-workflow/src/components/approval-administration.tsx";
+    const source = "modules/workflow/ui/src/components/approval-administration.tsx";
     for (const code of [
-      'import {holdingResources as resources} from "@erpx/server-runtime/public/runtime"; resources(holdingId);',
-      'import * as runtime from "@erpx/server-runtime/public/runtime"; runtime.holdingResources(holdingId);',
+      'import {holdingResources as resources} from "@erpx/platform-runtime-server/public/runtime"; resources(holdingId);',
+      'import * as runtime from "@erpx/platform-runtime-server/public/runtime"; runtime.holdingResources(holdingId);',
       'const runtime=await import("@/server/runtime"); runtime.holdingResources(holdingId);',
-      'const runtime=require("@erpx/server-runtime/public/runtime/env"); runtime.getRuntime();',
-      'import {iamDb as database} from "@erpx/server-identity_access/public/iam-db"; database(write);',
+      'const runtime=require("@erpx/platform-runtime-server/public/runtime/env"); runtime.getRuntime();',
+      'import {iamDb as database} from "@erpx/identity-access-server/public/iam-db"; database(write);',
       'holdingResources(holdingId);', 'runtimeEnv();', 'controlResources();', 'iamDb(write);',
     ]) {
       const found = inspectSource(root, source, code).filter(issue => issue.rule === "component-runtime-composition");
       expect(found).toHaveLength(1);
       expect(found[0].grandfatherable).toBe(false);
     }
-    expect(rules(source, 'import type {RuntimeEnv} from "@erpx/server-runtime/public/runtime/env";')).toEqual([]);
-    expect(rules(source, 'import {type HoldingId} from "@erpx/server-runtime/public/runtime";')).toEqual([]);
+    expect(rules(source, 'import type {RuntimeEnv} from "@erpx/platform-runtime-server/public/runtime/env";')).toEqual([]);
+    expect(rules(source, 'import {type HoldingId} from "@erpx/platform-runtime-server/public/runtime";')).toEqual([]);
     expect(rules(source, 'const description="holdingResources runtimeEnv controlResources iamDb"; owner.query({companyId});')).toEqual([]);
-    expect(rules(source, 'import {currentSession} from "@erpx/server-identity_access/public/authorization"; currentSession();')).toEqual([]);
+    expect(rules(source, 'import {currentSession} from "@erpx/identity-access-server/public/authorization"; currentSession();')).toEqual([]);
   });
   test("rejects cooked projection placeholders only when SQL is prepared or queried", () => {
-    const source = "packages/server-customer_authority/src/adapters/portal-access.ts";
+    const source = "modules/customer-authority/server/src/adapters/portal-access.ts";
     for (const code of [
       'db.prepare(`SELECT * FROM (\\${customer_360ProjectionSources.customer_portal_actions}) actions WHERE user_id=?`);',
       'db.pool.query("SELECT * FROM (${customer360ProjectionSources.customer_portal_actions}) actions WHERE user_id=$1", [userId]);',
@@ -293,17 +293,17 @@ describe("architecture enforcement", () => {
     expect(rules(application, 'fail(404,"delivery","Select a current delivery from this checkout.");')).toContain("core-sql");
   });
   test("rejects another owner's private adapter and public runtime facade values", () => {
-    expect(rules(application, 'import {save} from "@erpx/server-finance/adapters/repository";')).toContain("module-private-import");
-    expect(rules(domain, 'import {publish} from "@erpx/server-brand/application/publish";')).toContain("core-dependency-direction");
+    expect(rules(application, 'import {save} from "@erpx/finance-server/adapters/repository";')).toContain("module-private-import");
+    expect(rules(domain, 'import {publish} from "@erpx/brand-server/application/publish";')).toContain("core-dependency-direction");
     expect(rules(application, 'import {post} from "@/server/modules/finance";')).toContain("core-runtime-facade");
   });
   test("permits narrow shared ports and type-only owner contracts", () => {
-    expect(rules(application, 'import type {Clock} from "@/server/modules/shared"; import type {PersistedInvoiceLine} from "@erpx/server-finance/public/finance-invoice-lines";')).toEqual([]);
-    expect(rules(application, 'import {type PersistedInvoiceLine} from "@erpx/server-finance/public/finance-invoice-lines";')).toEqual([]);
-    expect(rules("src/app/example.ts",'import {missing} from "@erpx/server-finance/public/missing";')).toContain("public-entry-missing");
+    expect(rules(application, 'import type {Clock} from "@/server/modules/shared"; import type {PersistedInvoiceLine} from "@erpx/finance-server/public/finance-invoice-lines";')).toEqual([]);
+    expect(rules(application, 'import {type PersistedInvoiceLine} from "@erpx/finance-server/public/finance-invoice-lines";')).toEqual([]);
+    expect(rules("src/app/example.ts",'import {missing} from "@erpx/finance-server/public/missing";')).toContain("public-entry-missing");
   });
   test("rejects machine-specific paths in every dependency form including inline types",()=>{
-    const adapter="packages/server-brand/src/adapters/repository.ts";
+    const adapter="modules/brand/server/src/adapters/repository.ts";
     for(const text of [
       'import type {Facts} from "/Users/operator/work/erpx/src/server/contracts";',
       'export {save} from "/opt/work/erpx/src/server/service";',
@@ -313,20 +313,20 @@ describe("architecture enforcement", () => {
       'type Facts=import("/Users/operator/erpx/src/server/contracts").Facts;',
     ])expect(rules(adapter,text)).toContain("nonportable-source-import");
     expect(rules(application,'type Clock=import("@/server/modules/shared").Clock;')).toEqual([]);
-    expect(rules(application,'type Facts=import("@erpx/server-finance/adapters/repository").Facts;')).toContain("module-private-import");
+    expect(rules(application,'type Facts=import("@erpx/finance-server/adapters/repository").Facts;')).toContain("module-private-import");
     const issues=inspectSource(root,adapter,'type Facts=import("/Users/operator/erpx/src/server/contracts").Facts;');
     expect(evaluateBaseline(issues,issues.map(issue=>issue.id)).violations).toHaveLength(1);
   });
   test("rejects infrastructure concealed in a transitive portable library",()=>{
     const temporary=fs.mkdtempSync(path.join(os.tmpdir(),"erpx-core-boundary-"));
     try{
-      fs.mkdirSync(path.join(temporary,"packages/server-brand/src/domain"),{recursive:true});fs.mkdirSync(path.join(temporary,"src/lib"),{recursive:true});
-      fs.writeFileSync(path.join(temporary,"packages/server-brand/src/domain/policy.ts"),'import {clock} from "@/lib/clock"; export const calculate=()=>clock();');
+      fs.mkdirSync(path.join(temporary,"modules/brand/server/src/domain"),{recursive:true});fs.mkdirSync(path.join(temporary,"src/lib"),{recursive:true});
+      fs.writeFileSync(path.join(temporary,"modules/brand/server/src/domain/policy.ts"),'import {clock} from "@/lib/clock"; export const calculate=()=>clock();');
       fs.writeFileSync(path.join(temporary,"src/lib/clock.ts"),'import {readFileSync} from "fs"; export const clock=()=>Date.now();');
       const found=inspectArchitecture(temporary).filter(issue=>issue.rule==="core-transitive-dependency");
       expect(found.map(issue=>issue.target)).toEqual(expect.arrayContaining([expect.stringContaining("core-global-effect: Date.now"),expect.stringContaining("core-infrastructure: fs")]));
       expect(found.every(issue=>!issue.grandfatherable)).toBe(true);
-      fs.writeFileSync(path.join(temporary,"packages/server-brand/src/domain/policy.ts"),'import type {clock} from "@/lib/clock";');expect(inspectArchitecture(temporary)).toEqual([]);
+      fs.writeFileSync(path.join(temporary,"modules/brand/server/src/domain/policy.ts"),'import type {clock} from "@/lib/clock";');expect(inspectArchitecture(temporary)).toEqual([]);
     }finally{fs.rmSync(temporary,{recursive:true,force:true});}
   });
   test("allows public rule contracts only when their complete dependency closure stays pure",()=>{
@@ -334,13 +334,13 @@ describe("architecture enforcement", () => {
     try{
       for(const folder of ["brand/application","sales/public/rules","sales/domain","sales/adapters"]){const [owner,...parts]=folder.split("/");fs.mkdirSync(path.join(temporary,"packages",`server-${owner}`,"src",...parts),{recursive:true});}
       fs.mkdirSync(path.join(temporary,"src/lib"),{recursive:true});
-      fs.writeFileSync(path.join(temporary,"packages/server-brand/src/application/policy.ts"),'import {calculate} from "@erpx/server-sales/public/rules/policy"; export const run=()=>calculate(4);');
-      const facade=path.join(temporary,"packages/server-sales/src/public/rules/policy.ts");
+      fs.writeFileSync(path.join(temporary,"modules/brand/server/src/application/policy.ts"),'import {calculate} from "@erpx/sales-server/public/rules/policy"; export const run=()=>calculate(4);');
+      const facade=path.join(temporary,"modules/sales/server/src/public/rules/policy.ts");
       fs.writeFileSync(facade,'export {calculate} from "../../domain/policy";');
-      fs.writeFileSync(path.join(temporary,"packages/server-sales/src/domain/policy.ts"),'export const calculate=(value:number)=>value*2;');
+      fs.writeFileSync(path.join(temporary,"modules/sales/server/src/domain/policy.ts"),'export const calculate=(value:number)=>value*2;');
       expect(inspectArchitecture(temporary)).toEqual([]);
       fs.writeFileSync(facade,'export {calculate} from "../../adapters/policy";');
-      fs.writeFileSync(path.join(temporary,"packages/server-sales/src/adapters/policy.ts"),'export const calculate=()=>4;');
+      fs.writeFileSync(path.join(temporary,"modules/sales/server/src/adapters/policy.ts"),'export const calculate=()=>4;');
       expect(inspectArchitecture(temporary).some(issue=>issue.rule==="core-transitive-dependency"&&issue.target.includes("core-dependency-direction"))).toBe(true);
       fs.writeFileSync(facade,'export {calculate} from "@/lib/hidden-rule";');
       fs.writeFileSync(path.join(temporary,"src/lib/hidden-rule.ts"),'export const calculate=()=>Date.now();');
@@ -357,8 +357,8 @@ describe("architecture enforcement", () => {
     expect(evaluateBaseline([], old.map((issue) => issue.id)).stale).toEqual(old.map((issue) => issue.id));
   });
   test("rejects wildcard module exports and local dynamic private imports", () => {
-    expect(rules("packages/server-brand/src/index.ts", 'export * from "../../brand-identity";')).toContain("public-wildcard-export");
-    expect(rules("packages/server-brand/src/adapters/repository.ts", 'const other=await import("@erpx/server-finance/adapters/repository");')).toContain("module-private-import");
+    expect(rules("modules/brand/server/src/index.ts", 'export * from "../../brand-identity";')).toContain("public-wildcard-export");
+    expect(rules("modules/brand/server/src/adapters/repository.ts", 'const other=await import("@erpx/finance-server/adapters/repository");')).toContain("module-private-import");
   });
 });
 
@@ -400,14 +400,14 @@ test("require-clean CLI rejects incomplete capability states and accepts clean c
  const directory=fs.mkdtempSync(path.join(os.tmpdir(),"erpx-capability-status-cli-"));
  try{
   fs.mkdirSync(path.join(directory,"scripts/architecture"),{recursive:true});
-  fs.mkdirSync(path.join(directory,"packages/contracts/src"),{recursive:true});
+  fs.mkdirSync(path.join(directory,"platform/contracts/src"),{recursive:true});
   fs.mkdirSync(path.join(directory,"node_modules/@erpx"),{recursive:true});
-  fs.symlinkSync("../../packages/contracts",path.join(directory,"node_modules/@erpx/contracts"),"dir");
-  fs.copyFileSync(path.join(root,"packages/contracts/package.json"),path.join(directory,"packages/contracts/package.json"));
+  fs.symlinkSync("../../platform/contracts",path.join(directory,"node_modules/@erpx/platform-contracts"),"dir");
+  fs.copyFileSync(path.join(root,"platform/contracts/package.json"),path.join(directory,"platform/contracts/package.json"));
   // Execute copies of the actual command and registry reader, without a mirror implementation.
-  for(const source of ["scripts/architecture/status.ts","packages/contracts/src/ownership.ts"])fs.copyFileSync(path.join(root,source),path.join(directory,source));
+  for(const source of ["scripts/architecture/status.ts","platform/contracts/src/ownership.ts"])fs.copyFileSync(path.join(root,source),path.join(directory,source));
   for(const migration of ["partial","legacy",undefined,"clean"] as const){
-   fs.writeFileSync(path.join(directory,"packages/contracts/src/ownership.json"),JSON.stringify(capabilityStatusInventory(migration)));
+   fs.writeFileSync(path.join(directory,"platform/contracts/src/ownership.json"),JSON.stringify(capabilityStatusInventory(migration)));
    const result=spawnSync(pinnedBunBinary(root),["--env-file=/dev/null",path.join(directory,"scripts/architecture/status.ts"),"--require-clean"],{cwd:directory,env:process.env,timeout:10_000});
    expect(result.error).toBeUndefined();
    expect(result.status,result.stderr.toString()).toBe(migration==="clean"?0:1);

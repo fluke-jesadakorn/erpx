@@ -6,12 +6,12 @@
 mod fixture;
 #[path = "../../support/rust-directory-provenance-facts.rs"]
 mod source_facts;
-use erpx_server_identity_access::public::{
+use erpx_identity_access_server::public::{
     command_metadata::{project_command_iam, project_queued_command_iam},
     effective_authority::AuthorizedWorkContext,
 };
-use erpx_server_runtime::public::postgres::PgTransactionError;
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_runtime_server::public::postgres::PgTransactionError;
+use erpx_platform_shared_server::public::BusinessError;
 use serde_json::Value;
 use sqlx::Row;
 
@@ -193,7 +193,7 @@ async fn copied_audit_metadata_cannot_survive_a_changed_current_identity_as_comm
 
 #[tokio::test]
 async fn synchronous_service_parts_uses_selected_account_and_actual_assignment_version() {
-    use erpx_server_identity_access::public::selected_command_authority::{
+    use erpx_identity_access_server::public::selected_command_authority::{
         ServicePartsAuthorityPurpose, capture_service_parts_command_authority,
     };
     fixture::account::with_system(|system| async move {
@@ -245,24 +245,24 @@ async fn synchronous_service_parts_uses_selected_account_and_actual_assignment_v
 
 #[derive(Clone)]
 struct MetadataReadSources;
-impl erpx_server_identity_access::public::effective_authority::HoldingWorkSourcePreparation
+impl erpx_identity_access_server::public::effective_authority::HoldingWorkSourcePreparation
     for MetadataReadSources
 {
     fn prepare<'c>(
         &'c self,
         _: &'c mut sqlx::PgConnection,
-    ) -> erpx_server_runtime::public::postgres::PgWorkFuture<'c, (), BusinessError> {
+    ) -> erpx_platform_runtime_server::public::postgres::PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async { Ok(()) })
     }
 }
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
 enum MetadataDenial {
-    Unavailable(erpx_server_identity_access::public::effective_authority::SelectedContextRead),
+    Unavailable(erpx_identity_access_server::public::effective_authority::SelectedContextRead),
     Error(BusinessError),
 }
 fn denied_metadata(
-    value: &erpx_server_identity_access::public::effective_authority::SelectedContextRead,
+    value: &erpx_identity_access_server::public::effective_authority::SelectedContextRead,
     error: BusinessError,
 ) -> Result<MetadataDenial, BusinessError> {
     if error.code != "PERMISSION_REQUIRED" {
@@ -272,7 +272,7 @@ fn denied_metadata(
 }
 #[tokio::test]
 async fn genuine_selected_context_denial_exposes_only_current_read_metadata() {
-    use erpx_server_identity_access::public::effective_authority::{
+    use erpx_identity_access_server::public::effective_authority::{
         SelectedContextRead, SelectedIngressFuture, SelectedTransportCallbacks, SelectedWorkIngress,
     };
     fixture::account::with_system(|system| async move {
@@ -309,7 +309,7 @@ async fn genuine_selected_context_denial_exposes_only_current_read_metadata() {
 
 #[tokio::test]
 async fn service_stock_authority_uses_selected_stock_permissions_and_current_unit() {
-    use erpx_server_identity_access::public::selected_command_authority::capture_service_stock_authority;
+    use erpx_identity_access_server::public::selected_command_authority::capture_service_stock_authority;
     fixture::account::with_system(|system|async move {
         let prepared=fixture::prepare(system).await;let pool=prepared.system.holdings[0].clone();
         sqlx::raw_sql("INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','custom_queued_legal',2,'[\"legal.read\",\"module.legal.read\",\"inventory.read\",\"inventory.prepare\"]','[]','[\"holding\",\"branch\",\"department\"]','fixture',0); UPDATE iam_roles SET published_revision=2 WHERE id='custom_queued_legal'; INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status) VALUES('stock-branch','branch','stock-branch','Stock Branch','company','company','stock-branch','active')").execute(pool.raw()).await.unwrap();

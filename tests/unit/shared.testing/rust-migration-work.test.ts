@@ -86,7 +86,7 @@ describe('portable Rust migration work coordination', () => {
   });
 
   it('serializes simultaneous claims for the same task and overlapping owner paths', async () => {
-    const f = fixture([task('one', { allowedPaths: ['packages/server-files/**'] }), task('two', { allowedPaths: ['packages/server-files/src/adapters/file.rs'] })]);
+    const f = fixture([task('one', { allowedPaths: ['modules/files/server/**'] }), task('two', { allowedPaths: ['modules/files/server/src/adapters/file.rs'] })]);
     await begin(f.store);
     const other = new MigrationWorkStore(f.root);
     const same = await Promise.allSettled([claim(f.store), claim(other)]);
@@ -106,11 +106,11 @@ describe('portable Rust migration work coordination', () => {
   });
 
   it('respects directory boundaries and rejects wildcard/path escapes', () => {
-    expect(migrationPathsOverlap('packages/server-files/**', 'packages/server-files/src/file.rs')).toBe(true);
+    expect(migrationPathsOverlap('modules/files/server/**', 'modules/files/server/src/file.rs')).toBe(true);
     expect(migrationPathsOverlap('Cargo.toml', 'Cargo.toml')).toBe(true);
-    expect(migrationPathsOverlap('packages/server-files/**', 'packages/server-files-extra/**')).toBe(false);
+    expect(migrationPathsOverlap('modules/files/server/**', 'packages/server-files-extra/**')).toBe(false);
     for (const path of ['/absolute/**', '../outside', 'packages/../outside', 'packages/**/file.rs', 'packages/*', 'a\\b'])
-      expect(() => migrationPathsOverlap(path, 'packages/server-files/**')).toThrow('INVALID_ALLOWED_PATH');
+      expect(() => migrationPathsOverlap(path, 'modules/files/server/**')).toThrow('INVALID_ALLOWED_PATH');
   });
 
   it('blocks dependency consumers until completion and reports ports without inventing readiness', async () => {
@@ -124,9 +124,9 @@ describe('portable Rust migration work coordination', () => {
   });
 
   it('preserves external WIP reservations while allowing a read-only inventory', async () => {
-    const f = fixture([task('one', { allowedPaths: ['packages/server-files/**'] }), task('two', { kind: 'inventory', allowedPaths: ['packages/server-files/**'] })]);
+    const f = fixture([task('one', { allowedPaths: ['modules/files/server/**'] }), task('two', { kind: 'inventory', allowedPaths: ['modules/files/server/**'] })]);
     const ledger = f.store.read();
-    ledger.executionPlan.externalReservations.push({ id: 'existing-writer', allowedPaths: ['packages/server-files/src/**'], reason: 'Uncommitted work', status: 'active' });
+    ledger.executionPlan.externalReservations.push({ id: 'existing-writer', allowedPaths: ['modules/files/server/src/**'], reason: 'Uncommitted work', status: 'active' });
     atomicMigrationJson(f.store.ledgerPath, ledger);
     await begin(f.store);
     await expect(claim(f.store)).rejects.toThrow('EXTERNAL_RESERVATION');
@@ -135,23 +135,23 @@ describe('portable Rust migration work coordination', () => {
   });
 
   it('keeps external WIP protected until a reviewed narrowing or release and preserves its handoff history', async () => {
-    const f = fixture([task('one', { allowedPaths: ['packages/server-files/**'] })]), ledger = f.store.read();
-    ledger.executionPlan.externalReservations.push({ id: 'external-files', allowedPaths: ['packages/server-files/**'], reason: 'Existing writer owns WIP', status: 'active' });
+    const f = fixture([task('one', { allowedPaths: ['modules/files/server/**'] })]), ledger = f.store.read();
+    ledger.executionPlan.externalReservations.push({ id: 'external-files', allowedPaths: ['modules/files/server/**'], reason: 'Existing writer owns WIP', status: 'active' });
     atomicMigrationJson(f.store.ledgerPath, ledger); await begin(f.store);
     await expect(claim(f.store)).rejects.toThrow('EXTERNAL_RESERVATION');
     await expect(f.store.reservation('external-files', { runId: 'lead-1', reason: 'Unchecked', wipReviewed: false, release: true })).rejects.toThrow('RESERVATION_REVIEW_REQUIRED');
     await expect(f.store.reservation('external-files', { runId: 'lead-1', reason: 'Broader scope', wipReviewed: true, paths: ['packages/**'] })).rejects.toThrow('RESERVATION_MAY_ONLY_NARROW');
     const cli = (args: string[]) => runMigrationWorkCli([...args, `--root=${f.root}`], () => {});
-    writeFileSync(join(f.root, 'narrow.json'), JSON.stringify(['packages/server-files/src/**']));
+    writeFileSync(join(f.root, 'narrow.json'), JSON.stringify(['modules/files/server/src/**']));
     await cli(['reservation', 'external-files', '--run=lead-1', '--reason=Remaining source diff reviewed', '--wip-reviewed', '--paths-file=narrow.json']);
-    expect(f.store.read().executionPlan.externalReservations[0]).toMatchObject({ allowedPaths: ['packages/server-files/src/**'], status: 'active', handoff: { previousAllowedPaths: ['packages/server-files/**'], previousReason: 'Existing writer owns WIP' } });
+    expect(f.store.read().executionPlan.externalReservations[0]).toMatchObject({ allowedPaths: ['modules/files/server/src/**'], status: 'active', handoff: { previousAllowedPaths: ['modules/files/server/**'], previousReason: 'Existing writer owns WIP' } });
     await expect(claim(f.store)).rejects.toThrow('EXTERNAL_RESERVATION');
-    await expect(f.store.reservation('external-files', { runId: 'lead-1', reason: 'Cannot reopen released scope', wipReviewed: true, paths: ['packages/server-files/**'] })).rejects.toThrow('RESERVATION_MAY_ONLY_NARROW');
+    await expect(f.store.reservation('external-files', { runId: 'lead-1', reason: 'Cannot reopen released scope', wipReviewed: true, paths: ['modules/files/server/**'] })).rejects.toThrow('RESERVATION_MAY_ONLY_NARROW');
     await cli(['reservation', 'external-files', '--run=lead-1', '--reason=Holder handed off; dirty work preserved', '--wip-reviewed', '--release']);
     await claim(f.store);
     const reservation = f.store.read().executionPlan.externalReservations[0];
     expect(reservation.status).toBe('released'); expect(reservation.history).toHaveLength(2);
-    expect(reservation.handoff).toMatchObject({ previousAllowedPaths: ['packages/server-files/src/**'], wipReviewed: true });
+    expect(reservation.handoff).toMatchObject({ previousAllowedPaths: ['modules/files/server/src/**'], wipReviewed: true });
     expect(reservation.history![0]).toMatchObject({ previousReason: 'Existing writer owns WIP' });
   });
 
@@ -281,7 +281,7 @@ describe('portable Rust migration work coordination', () => {
     await f.store.handoff('migrate.files', { runId: 'lead-1', nextAction: 'Integrate' });
     await claim(f.store, 'migrate.files');
     const base = { runId: 'lead-1', status: 'migrated' as const, nextAction: 'Next', implementedCommit: candidate, pushedSha: pushed };
-    const partial = { command: 'retirement:ts-writes packages/server-files/src', before: 4, after: 2, result: 'passed', sourceSha: candidate };
+    const partial = { command: 'retirement:ts-writes modules/files/server/src', before: 4, after: 2, result: 'passed', sourceSha: candidate };
     await expect(f.store.update('migrate.files', { ...base, checks: [passed, partial] })).rejects.toThrow('RETIRE_TASK_REQUIRED');
     await f.store.addTask(task('retire.files.writers', { owner: 'files' }), { runId: 'lead-1' });
     await f.store.update('migrate.files', { ...base, checks: [passed, partial] });
@@ -294,16 +294,16 @@ describe('portable Rust migration work coordination', () => {
     await f.store.handoff('retire.files.writers', { runId: 'lead-1', nextAction: 'Integrate' });
     await claim(f.store, 'retire.files.writers');
     const base = { runId: 'lead-1', status: 'migrated' as const, nextAction: 'Next', implementedCommit: candidate, pushedSha: pushed };
-    const partial = { command: 'retirement:ts-writes packages/server-files/src', before: 4, after: 2, result: 'passed', sourceSha: candidate };
+    const partial = { command: 'retirement:ts-writes modules/files/server/src', before: 4, after: 2, result: 'passed', sourceSha: candidate };
     await expect(f.store.update('retire.files.writers', { ...base, checks: [passed, partial] })).rejects.toThrow('RETIREMENT_TARGET_REQUIRED');
-    const residual = [{ path: 'packages/server-files/src/adapters/legacy.ts', writes: 2, removalTaskId: 'retire.files.tail', removalCondition: 'Legacy consumer moves to the native port' }];
+    const residual = [{ path: 'modules/files/server/src/adapters/legacy.ts', writes: 2, removalTaskId: 'retire.files.tail', removalCondition: 'Legacy consumer moves to the native port' }];
     await f.store.update('retire.files.writers', { ...base, checks: [passed, { ...partial, residual }] });
     expect(f.store.read().executionPlan.tasks[0].status).toBe('migrated');
   });
 
   it('refuses a retirement KPI regression on the same owner command', async () => {
     const f = fixture(); await begin(f.store); await claim(f.store);
-    const command = 'retirement:ts-writes packages/server-files/src';
+    const command = 'retirement:ts-writes modules/files/server/src';
     await f.store.update('one', { runId: 'lead-1', status: 'in_progress', nextAction: 'Count', checks: [{ command, before: 4, after: 2, result: 'passed', sourceSha: candidate }] });
     await expect(f.store.update('one', { runId: 'lead-1', status: 'in_progress', nextAction: 'Recount', checks: [{ command, before: 2, after: 3, result: 'passed', sourceSha: candidate }] })).rejects.toThrow('RETIREMENT_KPI_REGRESSION');
     expect(f.store.read().executionPlan.tasks[0].checks).toHaveLength(1);
@@ -312,9 +312,9 @@ describe('portable Rust migration work coordination', () => {
   it('reports retirement coverage and open retire tasks in status', async () => {
     const f = fixture([
       task('migrate.files', { owner: 'files', status: 'migrated', implementedCommit: candidate, lastPushedSha: pushed,
-        checks: [passed, { command: 'retirement:ts-writes packages/server-files/src', before: 4, after: 2, result: 'passed', sourceSha: candidate }] }),
+        checks: [passed, { command: 'retirement:ts-writes modules/files/server/src', before: 4, after: 2, result: 'passed', sourceSha: candidate }] }),
       task('migrate.legal', { owner: 'legal', status: 'migrated', implementedCommit: candidate, lastPushedSha: pushed,
-        checks: [passed, { command: 'retirement:ts-writes packages/server-legal/src', before: 4, after: 0, result: 'passed', sourceSha: candidate }] }),
+        checks: [passed, { command: 'retirement:ts-writes modules/legal/server/src', before: 4, after: 0, result: 'passed', sourceSha: candidate }] }),
       task('retire.files.writers', { owner: 'files' }),
     ]);
     const status = f.store.status() as { retirement: Record<string, unknown> };
@@ -327,7 +327,7 @@ describe('portable Rust migration work coordination', () => {
     const f = fixture([
       task('integration.final', { kind: 'integration' }),
       task('migrate.legacy', { owner: 'files', status: 'migrated', implementedCommit: candidate, lastPushedSha: pushed,
-        checks: [passed, { command: 'retirement:ts-writes packages/server-files/src', before: 4, after: 2, result: 'passed', sourceSha: candidate }] }),
+        checks: [passed, { command: 'retirement:ts-writes modules/files/server/src', before: 4, after: 2, result: 'passed', sourceSha: candidate }] }),
     ]);
     await begin(f.store); await f.store.claim('integration.final', { runId: 'lead-1', agentId: 'lead' });
     await f.store.update('integration.final', { runId: 'lead-1', status: 'ready_for_integration', nextAction: 'Review' });
@@ -336,7 +336,7 @@ describe('portable Rust migration work coordination', () => {
     await expect(f.store.update('integration.final', { ...base, checks: [passed, { ...retired, after: 1 }] })).rejects.toThrow('GLOBAL_RETIREMENT_KPI_REQUIRED');
     await expect(f.store.update('integration.final', { ...base, checks: [passed, retired] })).rejects.toThrow('RETIREMENT_TASKS_INCOMPLETE');
     const bound = f.store.read(); bound.executionPlan.tasks.push(task('retire.files.writers', { owner: 'files', status: 'migrated',
-      implementedCommit: candidate, lastPushedSha: pushed, checks: [passed, { command: 'retirement:ts-writes packages/server-files/src', before: 4, after: 0, result: 'passed', sourceSha: candidate }] }));
+      implementedCommit: candidate, lastPushedSha: pushed, checks: [passed, { command: 'retirement:ts-writes modules/files/server/src', before: 4, after: 0, result: 'passed', sourceSha: candidate }] }));
     atomicMigrationJson(f.store.ledgerPath, bound);
     await f.store.update('integration.final', { ...base, checks: [passed, retired] });
     expect(f.store.read().executionPlan.tasks.find(task => task.id === 'integration.final')?.status).toBe('migrated');
@@ -355,7 +355,7 @@ describe('portable Rust migration work coordination', () => {
   it('refines bounded pending tasks, adds slices and excludes aggregate packets from derived progress', async () => {
     const f = fixture(); await begin(f.store);
     await f.store.addTask(task('one.slice'), { runId: 'lead-1' });
-    await f.store.refine('one', { allowedPaths: ['packages/server-files/src/adapters/one.rs'], dependsOn: ['two', 'one.slice'], aggregate: true, nextAction: 'Use bounded slices' }, { runId: 'lead-1' });
+    await f.store.refine('one', { allowedPaths: ['modules/files/server/src/adapters/one.rs'], dependsOn: ['two', 'one.slice'], aggregate: true, nextAction: 'Use bounded slices' }, { runId: 'lead-1' });
     expect(f.store.status().migrationProgress).toMatchObject({ totalPackets: 2, migratedPackets: 0 });
     await expect(f.store.refine('one', { owner: 'other' }, { runId: 'lead-1' })).rejects.toThrow('IMMUTABLE_TASK_FIELD');
     await expect(f.store.refine('one', { dependsOn: ['absent'] }, { runId: 'lead-1' })).rejects.toThrow('UNKNOWN_DEPENDENCY');
@@ -369,7 +369,7 @@ describe('portable Rust migration work coordination', () => {
     const f = fixture([task('one', { scopeRefinementRequired: true })]); await begin(f.store);
     await expect(claim(f.store)).rejects.toThrow('SCOPE_REFINEMENT_REQUIRED');
     await expect(f.store.refine('one', { scopeRefinementRequired: false }, { runId: 'lead-1' })).rejects.toThrow('SCOPE_PATHS_AND_RESOURCES_REQUIRED');
-    await f.store.refine('one', { scopeRefinementRequired: false, allowedPaths: ['packages/server-files/src/adapters/one.rs'], resources: ['owner:files'] }, { runId: 'lead-1' });
+    await f.store.refine('one', { scopeRefinementRequired: false, allowedPaths: ['modules/files/server/src/adapters/one.rs'], resources: ['owner:files'] }, { runId: 'lead-1' });
     await claim(f.store);
     expect(f.store.read().executionPlan.tasks[0].scopeRefinementRequired).toBe(false);
     for (const field of ['aggregate', 'scopeRefinementRequired']) {

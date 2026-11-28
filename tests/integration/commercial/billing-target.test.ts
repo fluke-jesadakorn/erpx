@@ -1,9 +1,9 @@
 import { beforeAll, expect, it } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
-import { billingCommand, type BillingActor } from "@erpx/server-billing/public/billing";
-import { readTargetBillingPeriod } from "@erpx/server-billing/public/billing-target";
-import { readTargetRolloutReadiness } from "@erpx/server-billing/public/billing-target-rollout";
-import { monthBounds } from "@erpx/feature-billing/lib/billing";
+import { billingCommand, type BillingActor } from "@erpx/billing-server/public/billing";
+import { readTargetBillingPeriod } from "@erpx/billing-server/public/billing-target";
+import { readTargetRolloutReadiness } from "@erpx/billing-server/public/billing-target-rollout";
+import { monthBounds } from "@erpx/billing-ui/lib/billing";
 
 const db = env.CONTROL_DB;
 const month = "2026-12";

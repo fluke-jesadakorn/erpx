@@ -1,14 +1,14 @@
 //! Owner-local HTTP adapter tests for native Collaboration action-card and
 //! record-relation ingress.
-use erpx_server_collaboration::public::collaboration_work::Receipt;
-use erpx_server_collaboration::public::collaboration_work_http::{
+use erpx_collaboration_server::public::collaboration_work::Receipt;
+use erpx_collaboration_server::public::collaboration_work_http::{
     CollaborationCardData, CollaborationRelationData, CollaborationWorkHttpBackend,
     CollaborationWorkHttpCommandRequest, CollaborationWorkHttpFuture,
     CollaborationWorkHttpReadReply, CollaborationWorkHttpReadRequest, CollaborationWorkHttpState,
     CollaborationWorkHttpTarget, CollaborationWorkReadKind, CollaborationWorkspaceData, ReadQuery,
     command, read_card, read_relation, read_workspace,
 };
-use erpx_server_runtime::public::http_support::{
+use erpx_platform_runtime_server::public::http_support::{
     Path, Query, Request, Response, State, StatusCode,
     body::{Body, to_bytes},
     header,

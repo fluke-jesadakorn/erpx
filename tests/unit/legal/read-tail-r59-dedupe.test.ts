@@ -3,13 +3,13 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { legalPointByIdSql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r32-sources';
-import { legalStatePointSql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r33-sources';
-import { legalPointByIdAndKeySql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r34-sources';
+import { legalPointByIdSql } from '../../../modules/legal/server/src/adapters/legal-read-tail-r32-sources';
+import { legalStatePointSql } from '../../../modules/legal/server/src/adapters/legal-read-tail-r33-sources';
+import { legalPointByIdAndKeySql } from '../../../modules/legal/server/src/adapters/legal-read-tail-r34-sources';
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
-const srcRoot = resolve(__dirname, '../../../packages/server-legal/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-legal/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/legal/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/legal/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 /** Independent pre-r59 byte + SHA oracles captured from the two removed inline
  * head literals. The r33 state/kind family is the citation/knowledge read; the

@@ -5,14 +5,14 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, HoldingId, RecordId, UserId,
 };
-use erpx_server_talent::public::requisition::{
+use erpx_talent_server::public::requisition::{
     PgTalentRequisitions, RequisitionAction, RequisitionChange, RequisitionRequest, TalentActor,
     change_requisition, create_requisition, requisition_detail, requisition_workspace,
 };

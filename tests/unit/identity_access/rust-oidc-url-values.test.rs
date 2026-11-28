@@ -1,4 +1,4 @@
-use erpx_server_identity_access::public::oidc_url_values as values;
+use erpx_identity_access_server::public::oidc_url_values as values;
 use serde_json::Value;
 use values::{encode_uri_component_utf16, set_authorization_parameters};
 #[test]

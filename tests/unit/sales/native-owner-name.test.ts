@@ -5,9 +5,9 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { SALES_RD_OWNER_NAME_PROJECTION } from '../../../packages/server-sales/src/adapters/native-sales-read';
+import { SALES_RD_OWNER_NAME_PROJECTION } from '../../../modules/sales/server/src/adapters/native-sales-read';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-sales/src');
+const srcRoot = resolve(__dirname, '../../../modules/sales/server/src');
 const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const registry = read('native_sales_read_sql.rs');
 const shared = read('followup-source-sql.ts');

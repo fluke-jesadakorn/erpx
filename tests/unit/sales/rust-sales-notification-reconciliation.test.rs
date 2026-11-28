@@ -3,13 +3,13 @@
 //! Pure input/provider/outcome rules plus the use case with recording fakes.
 //! The provider port is read-only and must be consulted exactly once on the
 //! first command and never on replay; the immutable attempt is never rewritten.
-use erpx_server_sales::public::sales_notification_execution::NotificationSource;
-use erpx_server_sales::public::sales_notification_reconciliation::{
+use erpx_sales_server::public::sales_notification_execution::NotificationSource;
+use erpx_sales_server::public::sales_notification_reconciliation::{
     NotificationReconciliationRepository, ProviderEvent, ProviderObservation,
     ProviderObservationPort, ReconcileActor, ReconcileAttempt, ReconcileFuture, ReconcileInput,
     ReconcilePlan, ReconcileReceiptSnapshot, reconcile_customer_notification,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 use std::sync::{Arc, Mutex};
 
 const NOW: i64 = 1_800_000_000_000;
@@ -211,7 +211,7 @@ impl NotificationReconciliationRepository for FakeRepository {
     ) -> ReconcileFuture<'a, (), Self::Error> {
         if self.fail_authority_on_commit {
             return Box::pin(async move {
-                Err(erpx_server_sales::public::sales_notification_reconciliation::authority_changed())
+                Err(erpx_sales_server::public::sales_notification_reconciliation::authority_changed())
             });
         }
         self.commits.push((
@@ -241,7 +241,7 @@ fn run<'a>(
     Box<
         dyn std::future::Future<
                 Output = Result<
-                    erpx_server_sales::public::sales_notification_reconciliation::ReconcileReceipt,
+                    erpx_sales_server::public::sales_notification_reconciliation::ReconcileReceipt,
                     BusinessError,
                 >,
             > + 'a,
@@ -407,7 +407,7 @@ async fn missing_identity_unconfirmed_and_mismatch_never_commit() {
 
     let mut unconfirmed = repository();
     let provider = FakeProvider {
-        observation: Err(erpx_server_sales::public::sales_notification_reconciliation::provider_unconfirmed()),
+        observation: Err(erpx_sales_server::public::sales_notification_reconciliation::provider_unconfirmed()),
         calls: calls.clone(),
     };
     assert_eq!(

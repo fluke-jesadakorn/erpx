@@ -1,12 +1,12 @@
 import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import registry from "@erpx/catalogue/module-registry.json";
-import { businessAcceptanceManifest } from "@erpx/catalogue/business-acceptance";
+import registry from "@erpx/platform-catalogue/module-registry.json";
+import { businessAcceptanceManifest } from "@erpx/platform-catalogue/business-acceptance";
 import {
   capabilityDelivery,
   deliveryModules,
   type DeliveryStatus,
-} from "@erpx/catalogue/capability-delivery";
+} from "@erpx/platform-catalogue/capability-delivery";
 
 const statuses = new Set<DeliveryStatus>([
   "implemented",

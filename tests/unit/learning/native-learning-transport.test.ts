@@ -2,8 +2,8 @@ import {describe,it,expect,vi,beforeEach,afterEach} from 'vitest';
 const {controls,nextHeaders}=vi.hoisted(()=>({controls:vi.fn(),nextHeaders:{current:new Headers()}}));
 vi.mock('server-only',()=>({}));
 vi.mock('next/headers',()=>({headers:async()=>nextHeaders.current}));
-vi.mock('@erpx/server-runtime/public/runtime',()=>({holdingResources:async()=>({write:{}})}));
-vi.mock('@erpx/server-learning/public/purchases',()=>({learningPurchaseControls:controls,requireLearningPurchasedRead:vi.fn()}));
+vi.mock('@erpx/platform-runtime-server/public/runtime',()=>({holdingResources:async()=>({write:{}})}));
+vi.mock('@erpx/learning-server/public/purchases',()=>({learningPurchaseControls:controls,requireLearningPurchasedRead:vi.fn()}));
 
 import {
   createNativeLearningClient,
@@ -11,10 +11,10 @@ import {
   nativeLearningConfiguration,
   nativeLearningFailure,
   NativeLearningError,
-} from '../../../packages/server-learning/src/public/native-learning';
-import {nativeLearningCommandRoute} from '../../../packages/feature-learn/src/lib/native-learning-command';
-import {nativeLearningDetailPage,nativeLearningProjectDetail,nativeLearningProjectWorkspace,nativeLearningWorkspacePage} from '../../../packages/workplace/src/lib/native-learning';
-import type {NativeLearningPageContext} from '../../../packages/server-learning/src/public/native-learning';
+} from '../../../modules/learning/server/src/public/native-learning';
+import {nativeLearningCommandRoute} from '../../../products/learn/ui/src/lib/native-learning-command';
+import {nativeLearningDetailPage,nativeLearningProjectDetail,nativeLearningProjectWorkspace,nativeLearningWorkspacePage} from '../../../platform/workplace/src/lib/native-learning';
+import type {NativeLearningPageContext} from '../../../modules/learning/server/src/public/native-learning';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44993',

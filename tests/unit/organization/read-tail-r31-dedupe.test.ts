@@ -1,9 +1,9 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { companyNodeByIdKind } from '../../../packages/server-organization/src/adapters/organization-column-alias-families-r31';
+import { companyNodeByIdKind } from '../../../modules/organization/server/src/adapters/organization-column-alias-families-r31';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+const srcRoot = resolve(__dirname, '../../../modules/organization/server/src');
 const adapters = resolve(srcRoot, 'adapters');
 const read = (name: string) => readFileSync(resolve(adapters, name), 'utf8');
 const helper = read('organization-column-alias-families-r31.ts');

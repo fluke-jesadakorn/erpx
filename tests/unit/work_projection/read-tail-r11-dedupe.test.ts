@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 
 const src = (name: string) =>
-  new URL(`../../../packages/server-work_projection/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/work-projection/server/src/adapters/${name}`, import.meta.url);
 
 const noopDefinition = 'export const noopSql = "SELECT 1";';
 const formerNoopSites = [
@@ -28,7 +28,7 @@ describe('work_projection read-tail r11 dedupe', () => {
 
   it('emits the original byte-identical inert SQL for every native owner write', async () => {
     const { noopSql } = await import(
-      '../../../packages/server-work_projection/src/adapters/read-tail-sql.ts'
+      '../../../modules/work-projection/server/src/adapters/read-tail-sql.ts'
     );
     expect(noopSql).toBe('SELECT 1');
   });

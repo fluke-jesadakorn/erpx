@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
-import type { OrganizationAccessData } from '@erpx/feature-organization/lib/organization-access';
-import type { AdminNativeOrganizationWorkspace } from '@erpx/workplace/lib/native-admin-organization';
-import { ApiError } from '@erpx/server-runtime/public/http';
+import type { WorkContext } from '@erpx/identity-access-server/public/authorization';
+import type { OrganizationAccessData } from '@erpx/organization-ui/lib/organization-access';
+import type { AdminNativeOrganizationWorkspace } from '@erpx/platform-workplace/lib/native-admin-organization';
+import { ApiError } from '@erpx/platform-runtime-server/public/http';
 
 vi.mock('server-only', () => ({}));
 
@@ -11,12 +11,12 @@ const native = vi.hoisted(() => ({
   failure: vi.fn(),
 }));
 
-vi.mock('@erpx/feature-identity_access/lib/permissions', () => ({
+vi.mock('@erpx/identity-access-ui/lib/permissions', () => ({
   hasPermission: (actor: { iam?: { permissions?: readonly string[] } }, permission: string) =>
     actor.iam?.permissions?.includes(permission) ?? false,
 }));
 
-vi.mock('@erpx/feature-organization/lib/native-organization', () => {
+vi.mock('@erpx/organization-ui/lib/native-organization', () => {
   class NativeOrganizationError extends Error {
     constructor(
       public readonly code: string,
@@ -56,7 +56,7 @@ import {
   composeAdminOrganizationAccess,
   nativeAdminOrganization,
   readAdminOrganization,
-} from '@erpx/workplace/lib/native-admin-organization';
+} from '@erpx/platform-workplace/lib/native-admin-organization';
 
 class NativeOrganizationError extends Error {
   constructor(public readonly code: string) {

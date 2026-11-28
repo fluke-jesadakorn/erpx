@@ -2,7 +2,7 @@
 //!
 //! The production SQL is executed only by the sqlx adapter; this file pins the
 //! stable owner port and the exact wire projection against a probe reader.
-use erpx_server_talent::public::native_talent_evidence::{
+use erpx_talent_server::public::native_talent_evidence::{
     EVIDENCE_APPLICATION_SQL, EVIDENCE_REQUISITION_SQL, EvidenceFuture, EvidenceHandler,
     EvidenceMetric, EvidenceQuery, EvidenceRange, TalentEvidence, TalentEvidenceRead,
 };

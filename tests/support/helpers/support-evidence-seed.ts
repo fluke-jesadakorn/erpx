@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import type { SqlDatabase } from "@erpx/platform-runtime-server/public/runtime/types";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
 
 /**
  * Seeds the owner rows the native Support evidence bind/revoke command persists.

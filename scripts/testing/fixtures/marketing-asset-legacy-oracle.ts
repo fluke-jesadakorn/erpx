@@ -1,8 +1,8 @@
 /** Temporary TS differential; remove under retire.marketing.asset-writers. */
 import {createHash} from 'node:crypto';
-import {assetSchema} from '@erpx/server-marketing/domain/asset';
-import {marketingPresentationReferences} from '@erpx/server-marketing/domain/presentation';
-import {createCommandApplication} from '@erpx/server-workflow/application/commands';
+import {assetSchema} from '@erpx/marketing-server/domain/asset';
+import {marketingPresentationReferences} from '@erpx/marketing-server/domain/presentation';
+import {createCommandApplication} from '@erpx/workflow-server/application/commands';
 async function main(){
 const cases=[
  {kind:'content',name:' Draft ',configuration:{z:1,a:2},preview:{}},

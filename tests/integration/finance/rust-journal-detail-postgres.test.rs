@@ -9,12 +9,12 @@ use axum::{
     body::{Body, to_bytes},
     http::{HeaderValue, Request, StatusCode},
 };
-use erpx_server_commercial::public::purchases::current_package_catalogue;
-use erpx_server_finance::public::{FinanceActor, journal_detail::*};
-use erpx_server_people_payroll::public::finance_journal_names::*;
-use erpx_server_runtime::public::postgres::DatabasePool;
-use erpx_server_shared::public::{CompanyId, HoldingId, RecordId, UserId};
-use erpx_service::{
+use erpx_commercial_server::public::purchases::current_package_catalogue;
+use erpx_finance_server::public::{FinanceActor, journal_detail::*};
+use erpx_people_payroll_server::public::finance_journal_names::*;
+use erpx_platform_runtime_server::public::postgres::DatabasePool;
+use erpx_platform_shared_server::public::{CompanyId, HoldingId, RecordId, UserId};
+use erpx_platform_composition::{
     finance_journal_detail::*, finance_journal_detail_http::*,
     finance_journal_review::FinanceJournalEnvironment,
 };
@@ -212,8 +212,8 @@ async fn current_control_lease_keeps_the_original_render_account_through_read_co
         let p=setup(system).await;p.create("retained-detail-account",false).await.unwrap();let pool=&p.system.holdings[0];
         let mut writer=pool.raw().begin().await.unwrap();let(database,pid):(String,i32)=sqlx::query_as("SELECT current_database(),pg_backend_pid()").fetch_one(&mut*writer).await.unwrap();sqlx::query("UPDATE finance_accounts SET name='Retained current account'WHERE id='cash'").execute(&mut*writer).await.unwrap();
         let app=router(&p);let first=app.clone();let r=request(&p,"journal-retained-detail-account");let reading=tokio::spawn(async move{invoke(&first,r).await});waiting(&p.system.control,&database,pid).await;
-        let authentication=p.system.scenario.auth.clone();let central=erpx_server_identity_access::public::PresentedSecrets{browser:p.reviewer_central.browser.clone(),active:p.reviewer_central.active.clone(),saved:p.reviewer_central.saved.clone()};
-        let retirement=tokio::spawn(async move{authentication.sign_out(&central,erpx_server_identity_access::public::RequestAudience::Account).await});
+        let authentication=p.system.scenario.auth.clone();let central=erpx_identity_access_server::public::PresentedSecrets{browser:p.reviewer_central.browser.clone(),active:p.reviewer_central.active.clone(),saved:p.reviewer_central.saved.clone()};
+        let retirement=tokio::spawn(async move{authentication.sign_out(&central,erpx_identity_access_server::public::RequestAudience::Account).await});
         tokio::time::timeout(Duration::from_secs(5),async{loop{if sqlx::query_scalar::<_,bool>("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database()AND cardinality(pg_blocking_pids(pid))>0)").fetch_one(p.system.control.raw()).await.unwrap(){break;}tokio::time::sleep(Duration::from_millis(10)).await;}}).await.expect("normal signout must actually wait for retained Control proof");
         assert!(!retirement.is_finished());writer.commit().await.unwrap();let(status,data)=reading.await.unwrap();assert_eq!(status,StatusCode::OK,"{data}");assert_eq!(data["context"]["userId"],"fixture-b");assert_eq!(data["data"]["lines"][0]["name"],"Retained current account");retirement.await.unwrap().unwrap();
         assert_eq!(invoke(&app,request(&p,"journal-retained-detail-account")).await.0,StatusCode::UNAUTHORIZED);
@@ -228,7 +228,7 @@ async fn people_name_tuple_fence_preserves_actual_40001_after_an_older_snapshot(
         let mut old=pool.raw().begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE").await.unwrap();let creator:String=sqlx::query_scalar("SELECT created_by FROM finance_journals WHERE id='journal-person-fence-detail'").fetch_one(&mut*old).await.unwrap();
         sqlx::query("UPDATE hr_people SET legal_name='Committed current name',version=version+1 WHERE id='name-fence'").execute(pool.raw()).await.unwrap();
         lock_finance_journal_name_sources(&mut old).await.unwrap();let result=read_finance_journal_names(&mut old,&CompanyId::new("company").unwrap(),&[UserId::new(creator).unwrap()]).await;
-        assert!(matches!(result,Err(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(ref e))if e.sql_state()==Some("40001")));old.rollback().await.unwrap();
+        assert!(matches!(result,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Persistence(ref e))if e.sql_state()==Some("40001")));old.rollback().await.unwrap();
     }).await;
 }
 
@@ -265,10 +265,10 @@ async fn new_reference_writer_must_finish_before_iam_snapshot_and_its_rows_are_c
 async fn full_workspace_reference_proof_rejects_local_mutation_detachment_and_real_old_snapshot_40001()
  {
     account::with_system(|system|async move{
-  use erpx_server_finance::public::journal_workspace::*;use sqlx::Connection;
+  use erpx_finance_server::public::journal_workspace::*;use sqlx::Connection;
   let p=setup(system).await;p.create("workspace-witness",false).await.unwrap();let pool=&p.system.holdings[0];let actor=FinanceActor{holding_id:HoldingId::new("h001").unwrap(),company_id:CompanyId::new("company").unwrap(),user_id:UserId::new("fixture-b").unwrap(),assignment_id:p.reviewer_selection.expected.as_ref().unwrap().assignment_id.clone()};let id=RecordId::new("journal-workspace-witness").unwrap();
   let mut connection=pool.raw().acquire().await.unwrap();let mut tx=connection.begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE").await.unwrap();lock_journal_workspace_sources(&mut tx).await.unwrap();let source=read_journal_record_workspace(&mut tx,&actor,&id).await.unwrap();source.require_current(&mut tx).await.unwrap();sqlx::query("UPDATE finance_periods SET name='Changed only in caller unit'WHERE id='period'").execute(&mut*tx).await.unwrap();assert!(source.require_current(&mut tx).await.is_err());tx.rollback().await.unwrap();let mut tx=connection.begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE").await.unwrap();assert!(source.require_current(&mut tx).await.is_err());tx.rollback().await.unwrap();
-  let mut old=connection.begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE").await.unwrap();sqlx::query("SELECT id FROM finance_periods WHERE id='period'").fetch_one(&mut*old).await.unwrap();sqlx::query("UPDATE finance_periods SET name='Committed after old snapshot'WHERE id='period'").execute(pool.raw()).await.unwrap();lock_journal_workspace_sources(&mut old).await.unwrap();let result=read_journal_record_workspace(&mut old,&actor,&id).await;assert!(matches!(result,Err(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(ref e))if e.sql_state()==Some("40001")));old.rollback().await.unwrap();
+  let mut old=connection.begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE").await.unwrap();sqlx::query("SELECT id FROM finance_periods WHERE id='period'").fetch_one(&mut*old).await.unwrap();sqlx::query("UPDATE finance_periods SET name='Committed after old snapshot'WHERE id='period'").execute(pool.raw()).await.unwrap();lock_journal_workspace_sources(&mut old).await.unwrap();let result=read_journal_record_workspace(&mut old,&actor,&id).await;assert!(matches!(result,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Persistence(ref e))if e.sql_state()==Some("40001")));old.rollback().await.unwrap();
  }).await;
 }
 #[tokio::test]

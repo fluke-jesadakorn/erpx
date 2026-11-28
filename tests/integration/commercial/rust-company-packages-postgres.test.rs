@@ -1,12 +1,12 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_commercial::public::purchases::*;
-use erpx_server_commercial::public::subscriptions::PgCompanySubscriptionReader;
-use erpx_server_runtime::public::postgres::{
+use erpx_commercial_server::public::purchases::*;
+use erpx_commercial_server::public::subscriptions::PgCompanySubscriptionReader;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, CompanyId, FailureKind, HoldingId, TimestampMillis,
 };
 use sqlx::Connection;
@@ -469,7 +469,7 @@ async fn actual_http_router_reads_overview_and_admission_over_postgres() {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
-            let _ = erpx_server_runtime::public::http_support::serve(listener, router).await;
+            let _ = erpx_platform_runtime_server::public::http_support::serve(listener, router).await;
         });
 
         let (status, body) = http(

@@ -9,12 +9,12 @@ import {
   nativeLane39BrandConfigured,
   type Lane39HoldingContext,
   type NativeLane39Transport,
-} from "../../../packages/server-brand/src/adapters/native-lane-39/client";
+} from "../../../modules/brand/server/src/adapters/native-lane-39/client";
 import {
   createLane39EvidenceClient,
   nativeLane39EvidenceConfigured,
   type EvidenceScope,
-} from "../../../packages/server-brand/src/adapters/native-lane-39/evidence-client";
+} from "../../../modules/brand/server/src/adapters/native-lane-39/evidence-client";
 
 /** Exact dev value for ERPX_NATIVE_BRAND_LANE39_CONFIG (1..64 holdings). */
 export const DEV_CONFIG = {
@@ -201,11 +201,11 @@ describe("lane 39 Brand native workspace-choice transport", () => {
           total += (readFileSync(path, "utf8").match(/SELECT /g) ?? []).length;
       }
     };
-    walk(resolve(process.cwd(), "packages/server-brand/src"));
+    walk(resolve(process.cwd(), "modules/brand/server/src"));
     expect(total).toBe(0);
     expect(
       (readFileSync(
-        resolve(process.cwd(), "packages/server-brand/src/adapters/workspace-choice-brand.ts"),
+        resolve(process.cwd(), "modules/brand/server/src/adapters/workspace-choice-brand.ts"),
         "utf8",
       ).match(/SELECT /g) ?? []).length,
     ).toBe(0);
@@ -213,7 +213,7 @@ describe("lane 39 Brand native workspace-choice transport", () => {
 
   it("pins the rendered SQL/result oracle against the Rust adapter literal", () => {
     const source = readFileSync(
-      resolve(process.cwd(), "packages/server-brand/src/adapters/native_lane_39/postgres.rs"),
+      resolve(process.cwd(), "modules/brand/server/src/adapters/native_lane_39/postgres.rs"),
       "utf8",
     );
     const sql =
@@ -355,18 +355,18 @@ describe("lane 39 Brand native evidence transport", () => {
 
   it("pins the TS-statement retirement and the exact owner SQL head oracle", () => {
     const owner = readFileSync(
-      resolve(process.cwd(), "packages/server-brand/src/adapters/executive-evidence-sources.ts"),
+      resolve(process.cwd(), "modules/brand/server/src/adapters/executive-evidence-sources.ts"),
       "utf8",
     );
     expect(owner).not.toMatch(/planBrandRead|BRAND_RD_EVIDENCE_SEARCH|db\.prepare|SELECT /);
     expect(owner).toContain("nativeBrandEvidence");
     const domain = readFileSync(
-      resolve(process.cwd(), "packages/server-brand/src/adapters/native_lane_39/evidence_domain.rs"),
+      resolve(process.cwd(), "modules/brand/server/src/adapters/native_lane_39/evidence_domain.rs"),
       "utf8",
     );
     expect(domain).toContain("pub const MAX_LIMIT: i64 = 51;");
     const source = readFileSync(
-      resolve(process.cwd(), "packages/server-brand/src/adapters/native_lane_39/evidence_postgres.rs"),
+      resolve(process.cwd(), "modules/brand/server/src/adapters/native_lane_39/evidence_postgres.rs"),
       "utf8",
     );
     expect(source).toMatch(/plan_brand_read\(\s*RD_EVIDENCE_SEARCH,/);

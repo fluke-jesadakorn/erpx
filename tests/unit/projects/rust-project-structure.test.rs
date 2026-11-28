@@ -4,16 +4,16 @@
 //! review rules, handoff snapshot/digest and replay contract against a fake
 //! repository. Persisted PostgreSQL effects are covered by the project
 //! structure integration target.
-use erpx_server_projects::public::project_commands::ProjectCommandActor;
-use erpx_server_projects::public::project_structure::{
+use erpx_projects_server::public::project_commands::ProjectCommandActor;
+use erpx_projects_server::public::project_structure::{
     ActualSourceKind, ApprovedCost, ApprovedTime, ProjectHandoffFact, ProjectPackageFact,
     ProjectStructureActor, ProjectStructureCommand, ProjectStructureCommandRepository,
     ProjectStructureFuture, ProjectStructureReceipt, ProjectStructureTask, ProjectTaskBinding,
     StoredStructureReceipt, StructurePlan, StructurePlanAction, execute_structure_command,
 };
-use erpx_server_projects::public::project_graph::{GraphActual, GraphTask};
-use erpx_server_projects::public::project_wbs::{MilestoneRow, ProjectRow};
-use erpx_server_shared::public::{
+use erpx_projects_server::public::project_graph::{GraphActual, GraphTask};
+use erpx_projects_server::public::project_wbs::{MilestoneRow, ProjectRow};
+use erpx_platform_shared_server::public::{
     BusinessError, CompanyId, RecordId, TimestampMillis,
 };
 
@@ -56,8 +56,8 @@ fn project(lifecycle: &str, owner: &str) -> ProjectRow {
     }
 }
 
-fn command_project(lifecycle: &str, owner: &str) -> erpx_server_projects::public::project_commands::ProjectCommandProject {
-    erpx_server_projects::public::project_commands::ProjectCommandProject {
+fn command_project(lifecycle: &str, owner: &str) -> erpx_projects_server::public::project_commands::ProjectCommandProject {
+    erpx_projects_server::public::project_commands::ProjectCommandProject {
         id: "project".into(),
         company_id: "company".into(),
         branch_id: None,
@@ -140,7 +140,7 @@ fn handoff(status: &str) -> ProjectHandoffFact {
 
 #[derive(Default)]
 struct Repo {
-    project: Option<erpx_server_projects::public::project_commands::ProjectCommandProject>,
+    project: Option<erpx_projects_server::public::project_commands::ProjectCommandProject>,
     stored: Option<StoredStructureReceipt>,
     task: Option<ProjectStructureTask>,
     binding: Option<ProjectTaskBinding>,
@@ -169,7 +169,7 @@ impl ProjectStructureCommandRepository for Repo {
         _: &'a CompanyId,
         _: &'a str,
         _: &'a str,
-    ) -> ProjectStructureFuture<'a, Option<erpx_server_projects::public::project_commands::ProjectCommandProject>, Self::Error> {
+    ) -> ProjectStructureFuture<'a, Option<erpx_projects_server::public::project_commands::ProjectCommandProject>, Self::Error> {
         Box::pin(async move { Ok(self.project.clone()) })
     }
 
@@ -687,7 +687,7 @@ async fn replay_returns_the_retained_receipt_without_committing() {
         binding_version: 1,
         reason: "Assign the current task.".into(),
     };
-    let fingerprint = erpx_server_projects::public::project_structure::structure_fingerprint(
+    let fingerprint = erpx_projects_server::public::project_structure::structure_fingerprint(
         &input,
         "project",
     )

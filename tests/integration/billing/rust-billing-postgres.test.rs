@@ -2,20 +2,20 @@
 //! PostgreSQL. These tests prove owner SQL, Holding isolation, exact account
 //! CAS, command idempotency, audit/receipt persistence, rollback and committed
 //! readback. They do not prove a Next/browser journey or composition mounting.
-use erpx_server_billing::public::cost::{
+use erpx_billing_server::public::cost::{
     BillingCostCommand, CompleteCostReview, DeleteCost, PgBillingCostCommand, RecordCost,
     execute_cost_command,
 };
-use erpx_server_billing::public::forecast_read::{
+use erpx_billing_server::public::forecast_read::{
     billing_month, next_billing_month, read_seat_forecast_baseline, target_holding,
 };
-use erpx_server_billing::public::target_assignment::read_target_assignment;
-use erpx_server_billing::public::workspace::{BillingActor, PgBillingWorkspace, billing_workspace};
-use erpx_server_runtime::public::postgres::{
+use erpx_billing_server::public::target_assignment::read_target_assignment;
+use erpx_billing_server::public::workspace::{BillingActor, PgBillingWorkspace, billing_workspace};
+use erpx_platform_runtime_server::public::postgres::{
     DatabaseConfig, DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, PoolLimits,
     TransactionOptions, connect_pool, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, HoldingId, RecordId, TimestampMillis, UserId,
 };
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row, postgres::PgConnectOptions};
@@ -61,9 +61,9 @@ async fn run_assign(
     pool: &DatabasePool,
     actor: &BillingActor,
     target: &HoldingId,
-    command: &erpx_server_billing::public::target_command::AssignTarget,
+    command: &erpx_billing_server::public::target_command::AssignTarget,
     now: TimestampMillis,
-) -> Result<erpx_server_billing::public::cost::CommandReceipt, PgTransactionError<BusinessError>> {
+) -> Result<erpx_billing_server::public::cost::CommandReceipt, PgTransactionError<BusinessError>> {
     let pool = pool.clone();
     let actor = actor.clone();
     let target = target.clone();
@@ -74,7 +74,7 @@ async fn run_assign(
             let target = target.clone();
             let command = command.clone();
             Box::pin(async move {
-                erpx_server_billing::public::target_command::assign_target(
+                erpx_billing_server::public::target_command::assign_target(
                     connection, &actor, &target, &command, now,
                 )
                 .await
@@ -87,9 +87,9 @@ async fn run_evidence(
     pool: &DatabasePool,
     actor: &BillingActor,
     target: &HoldingId,
-    command: &erpx_server_billing::public::target_evidence_command::BillingTargetEvidenceCommand,
+    command: &erpx_billing_server::public::target_evidence_command::BillingTargetEvidenceCommand,
     now: TimestampMillis,
-) -> Result<erpx_server_billing::public::cost::CommandReceipt, PgTransactionError<BusinessError>> {
+) -> Result<erpx_billing_server::public::cost::CommandReceipt, PgTransactionError<BusinessError>> {
     run_evidence_with_storage(pool, actor, target, command, now, 20_000_000_000).await
 }
 
@@ -97,10 +97,10 @@ async fn run_evidence_with_storage(
     pool: &DatabasePool,
     actor: &BillingActor,
     target: &HoldingId,
-    command: &erpx_server_billing::public::target_evidence_command::BillingTargetEvidenceCommand,
+    command: &erpx_billing_server::public::target_evidence_command::BillingTargetEvidenceCommand,
     now: TimestampMillis,
     storage_limit: i64,
-) -> Result<erpx_server_billing::public::cost::CommandReceipt, PgTransactionError<BusinessError>> {
+) -> Result<erpx_billing_server::public::cost::CommandReceipt, PgTransactionError<BusinessError>> {
     let pool = pool.clone();
     let actor = actor.clone();
     let target = target.clone();
@@ -111,7 +111,7 @@ async fn run_evidence_with_storage(
             let target = target.clone();
             let command = command.clone();
             Box::pin(async move {
-                erpx_server_billing::public::target_evidence_command::execute_target_evidence(
+                erpx_billing_server::public::target_evidence_command::execute_target_evidence(
                     connection,
                     &actor,
                     &target,
@@ -129,9 +129,9 @@ async fn run_provider(
     pool: &DatabasePool,
     actor: &BillingActor,
     target: &HoldingId,
-    command: &erpx_server_billing::public::target_provider_command::BillingTargetProviderCommand,
+    command: &erpx_billing_server::public::target_provider_command::BillingTargetProviderCommand,
     now: TimestampMillis,
-) -> Result<erpx_server_billing::public::cost::CommandReceipt, PgTransactionError<BusinessError>> {
+) -> Result<erpx_billing_server::public::cost::CommandReceipt, PgTransactionError<BusinessError>> {
     let pool = pool.clone();
     let actor = actor.clone();
     let target = target.clone();
@@ -142,7 +142,7 @@ async fn run_provider(
             let target = target.clone();
             let command = command.clone();
             Box::pin(async move {
-                erpx_server_billing::public::target_provider_command::execute_target_provider(
+                erpx_billing_server::public::target_provider_command::execute_target_provider(
                     connection, &actor, &target, &command, now,
                 )
                 .await
@@ -155,9 +155,9 @@ async fn run_rate(
     pool: &DatabasePool,
     actor: &BillingActor,
     target: &HoldingId,
-    command: &erpx_server_billing::public::target_rate_command::RateTarget,
+    command: &erpx_billing_server::public::target_rate_command::RateTarget,
     now: TimestampMillis,
-) -> Result<erpx_server_billing::public::cost::CommandReceipt, PgTransactionError<BusinessError>> {
+) -> Result<erpx_billing_server::public::cost::CommandReceipt, PgTransactionError<BusinessError>> {
     let pool = pool.clone();
     let actor = actor.clone();
     let target = target.clone();
@@ -168,7 +168,7 @@ async fn run_rate(
             let target = target.clone();
             let command = command.clone();
             Box::pin(async move {
-                erpx_server_billing::public::target_rate_command::execute_rate_target(
+                erpx_billing_server::public::target_rate_command::execute_rate_target(
                     connection, &actor, &target, &command, now,
                 )
                 .await
@@ -702,7 +702,7 @@ fn forecast_baseline_reads_control_projection_and_matches_typescript() {
         // Actual TypeScript application with the same projection rows.
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../");
         let application = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../packages/server-billing/src/application/forecast.ts");
+            .join("../../modules/billing/server/src/application/forecast.ts");
         let script = r#"const {readSeatForecastBaseline}=await import(process.argv[1]);
 const rows={current:{rows:[{id:'forecast-current-2026-10',effective_month:'2026-10',base_monthly_satang:'0',included_original_bytes:'20000000000',storage_satang_per_gb_month:'500',ai_markup_percent:10,seat_terms_status:'defined',included_seats:0,seat_monthly_satang:'49900',storage_allowance_mode:'per_paid_seat_time',rating_enabled:true}],rowCount:1},future:{rows:[],rowCount:0},snapshot:{rows:[{snapshot_id:'snap-1',refreshed_at:'1234',source_count:2,storage_coverage:'partial',active_seat_count:282,active_seat_observed_at:'1200'}],rowCount:1},totals:{rows:[{row_count:'2',active_original_bytes:'2636112'}],rowCount:1}};
 const repository={currentPrice:async()=>rows.current,futurePrice:async()=>rows.future,usageSnapshot:async()=>rows.snapshot,retainedStorageTotals:async()=>rows.totals};
@@ -813,7 +813,7 @@ fn target_assignment_and_price_read_matches_actual_typescript_mapping() {
         // Actual TypeScript target application mapping with the same rows.
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../");
         let application = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../packages/server-billing/src/application/target.ts");
+            .join("../../modules/billing/server/src/application/target.ts");
         let script = r#"const {calculateTargetBillingPeriod}=await import(process.argv[1]);
 const assignment={holding_id:'h001',effective_month:'2026-10',price_id:'target-assign-price',mode:'sandbox_invoice',service_started_at:'1790812800000'};
 const price={id:'target-assign-price',effective_month:'2026-10',base_monthly_satang:'0',included_original_bytes:'20000000000',storage_satang_per_gb_month:'500',ai_markup_percent:10,seat_terms_status:'defined',included_seats:0,seat_monthly_satang:'49900',storage_allowance_mode:'per_paid_seat_time',rating_enabled:true};
@@ -927,7 +927,7 @@ fn target_rollout_readiness_reads_control_evidence_and_isolates_holdings() {
         let now = TimestampMillis::new(1_790_787_600_000);
         let mut c = pool.raw().acquire().await.unwrap();
         let h001 = HoldingId::new("h001").unwrap();
-        let read = erpx_server_billing::public::target_rollout::read_target_rollout_readiness(
+        let read = erpx_billing_server::public::target_rollout::read_target_rollout_readiness(
             &mut c,
             &h001,
             "2026-10",
@@ -960,7 +960,7 @@ fn target_rollout_readiness_reads_control_evidence_and_isolates_holdings() {
         assert_eq!(read.capacity.company_limit_bytes, Some(25_000_000_000));
 
         let h002 = HoldingId::new("h002").unwrap();
-        let foreign = erpx_server_billing::public::target_rollout::read_target_rollout_readiness(
+        let foreign = erpx_billing_server::public::target_rollout::read_target_rollout_readiness(
             &mut c,
             &h002,
             "2026-10",
@@ -1058,7 +1058,7 @@ fn target_billing_period_reads_control_evidence_and_isolates_holdings() {
         let now = TimestampMillis::new(1_793_595_600_000);
         let mut c = pool.raw().acquire().await.unwrap();
         let h001 = HoldingId::new("h001").unwrap();
-        let read = erpx_server_billing::public::target::read_target_billing_period(
+        let read = erpx_billing_server::public::target::read_target_billing_period(
             &mut c, &h001, "2026-10", now,
         )
         .await
@@ -1129,7 +1129,7 @@ fn target_billing_period_reads_control_evidence_and_isolates_holdings() {
         assert!(read.total_satang.unwrap() > 149_000);
 
         let h002 = HoldingId::new("h002").unwrap();
-        let foreign = erpx_server_billing::public::target::read_target_billing_period(
+        let foreign = erpx_billing_server::public::target::read_target_billing_period(
             &mut c, &h002, "2026-10", now,
         )
         .await
@@ -1188,7 +1188,7 @@ fn target_assignment_command_is_immutable_replayable_and_owner_scoped() {
         .execute(pool.raw())
         .await
         .unwrap();
-        use erpx_server_billing::public::target_command::AssignTarget;
+        use erpx_billing_server::public::target_command::AssignTarget;
         let now = TimestampMillis::new(1_799_989_200_000);
         let owner = |holding: &str| BillingActor {
             user_id: UserId::new("owner").unwrap(),
@@ -1483,7 +1483,7 @@ fn target_evidence_commands_are_immutable_month_gated_and_owner_scoped() {
         .execute(pool.raw())
         .await
         .unwrap();
-        use erpx_server_billing::public::target_evidence_command::{
+        use erpx_billing_server::public::target_evidence_command::{
             BillingTargetEvidenceCommand, RecordOperatingCost, ReviewTargetCapacity,
         };
         let now = TimestampMillis::new(1_802_667_600_000);
@@ -1707,7 +1707,7 @@ fn approve_target_extra_requires_assignment_evidence_dates_and_records_audit() {
         .execute(pool.raw())
         .await
         .unwrap();
-        use erpx_server_billing::public::target_evidence_command::{
+        use erpx_billing_server::public::target_evidence_command::{
             ApproveTargetExtra, BillingTargetEvidenceCommand,
         };
         let now = TimestampMillis::new(1_802_667_600_000);
@@ -1946,7 +1946,7 @@ fn target_provider_cost_and_statement_commands_verify_fx_evidence_and_totals() {
         .execute(pool.raw())
         .await
         .unwrap();
-        use erpx_server_billing::public::target_provider_command::{
+        use erpx_billing_server::public::target_provider_command::{
             BillingTargetProviderCommand, VerifyProviderCost, VerifyStatement,
         };
         let now = TimestampMillis::new(1_802_667_600_000);
@@ -2309,7 +2309,7 @@ fn rate_target_appends_runs_and_replaces_only_unapproved_periods() {
         .execute(pool.raw())
         .await
         .unwrap();
-        use erpx_server_billing::public::target_rate_command::RateTarget;
+        use erpx_billing_server::public::target_rate_command::RateTarget;
         let now = TimestampMillis::new(1_802_667_600_000);
         let owner = |holding: &str| BillingActor {
             user_id: UserId::new("owner").unwrap(),
@@ -2502,7 +2502,7 @@ fn approve_target_rollout_uses_completed_shadow_months_storage_cap_and_records_a
         .execute(pool.raw())
         .await
         .unwrap();
-        use erpx_server_billing::public::target_evidence_command::{
+        use erpx_billing_server::public::target_evidence_command::{
             ApproveTargetRollout, BillingTargetEvidenceCommand,
         };
         let now = TimestampMillis::new(1_794_700_800_000);
@@ -2658,7 +2658,7 @@ fn approve_target_rollout_uses_completed_shadow_months_storage_cap_and_records_a
 fn retry_requeues_exactly_one_owned_job_or_legacy_event_and_replays_receipt() {
     with_database(|pool| async move {
         setup(&pool).await;
-        use erpx_server_billing::public::retry_job::{RetryJob, execute_retry_job};
+        use erpx_billing_server::public::retry_job::{RetryJob, execute_retry_job};
         let owner = |holding: &str| BillingActor {
             user_id: UserId::new("owner").unwrap(),
             assignment_id: AssignmentId::new("assignment").unwrap(),
@@ -2678,7 +2678,7 @@ fn retry_requeues_exactly_one_owned_job_or_legacy_event_and_replays_receipt() {
             target: &HoldingId,
             command: &RetryJob,
         ) -> Result<
-            erpx_server_billing::public::cost::CommandReceipt,
+            erpx_billing_server::public::cost::CommandReceipt,
             PgTransactionError<BusinessError>,
         > {
             let pool = pool.clone();

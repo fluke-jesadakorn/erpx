@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { preparedPostFields, preparedTaskFields } from "@erpx/feature-shared/lib/ai/prepared-work";
-import { projectsClockCte } from "../../../packages/server-projects/src/adapters/clock-cte";
+import { preparedPostFields, preparedTaskFields } from "@erpx/platform-shared-ui/lib/ai/prepared-work";
+import { projectsClockCte } from "../../../modules/projects/server/src/adapters/clock-cte";
 
 describe("guided intake details in owning forms", () => {
   it("only maps an unambiguous task owner and a real Gregorian date", () => {

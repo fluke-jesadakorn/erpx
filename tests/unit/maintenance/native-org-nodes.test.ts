@@ -3,10 +3,10 @@ import { createHash } from 'node:crypto';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 
-import { ORG_NODES_SOURCE } from '../../../packages/server-organization/src/adapters/org-sources';
+import { ORG_NODES_SOURCE } from '../../../modules/organization/server/src/adapters/org-sources';
 
 const slice = new URL(
-  '../../../packages/server-maintenance/src/adapters/native_org_nodes/',
+  '../../../modules/maintenance/server/src/adapters/native_org_nodes/',
   import.meta.url,
 );
 const read = (name: string) => readFile(new URL(name, slice), 'utf8');
@@ -84,7 +84,7 @@ describe('native Maintenance organization-node read parity', () => {
 describe('Maintenance Work repository org-node cutover', () => {
   it('routes the nodes read through the native transport', async () => {
     const work = await readFile(
-      new URL('../../../packages/server-maintenance/src/adapters/work.ts', import.meta.url),
+      new URL('../../../modules/maintenance/server/src/adapters/work.ts', import.meta.url),
       'utf8',
     );
     expect(work).toContain('nativeMaintenanceOrgNodes(a)');
@@ -93,7 +93,7 @@ describe('Maintenance Work repository org-node cutover', () => {
 
   it('keeps the transport SQL-free and Host-explicit', async () => {
     const client = await readFile(
-      new URL('../../../packages/server-maintenance/src/adapters/native-org-nodes.ts', import.meta.url),
+      new URL('../../../modules/maintenance/server/src/adapters/native-org-nodes.ts', import.meta.url),
       'utf8',
     );
     expect(client).toContain("process.env[ENV]");

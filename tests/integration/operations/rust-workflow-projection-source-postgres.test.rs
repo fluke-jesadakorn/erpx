@@ -2,10 +2,10 @@
 #[path = "../../support/operations/rust-operations-database.rs"]
 mod fixture;
 
-use erpx_server_operations::public::workflow_projection_source::{
+use erpx_operations_server::public::workflow_projection_source::{
     TaskProjectionSource, task_projection_source,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
 use sqlx::Connection;

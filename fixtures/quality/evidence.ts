@@ -7,10 +7,10 @@
  * Files suite retains its receipt/audit/outbox assertions. It is only a test
  * oracle; production Quality writes remain native-only.
  */
-import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
-import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
-import {prepareBusinessEvidence} from '@erpx/server-records/public/business-evidence';
-import {executeCommand} from '@erpx/server-workflow/public/commands';
+import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/platform-runtime-server/public/runtime/types';
+import type {WorkContext} from '@erpx/identity-access-server/public/authorization';
+import {prepareBusinessEvidence} from '@erpx/records-server/public/business-evidence';
+import {executeCommand} from '@erpx/workflow-server/public/commands';
 
 export type QualityEvidenceSeed = {
   companyId: string;

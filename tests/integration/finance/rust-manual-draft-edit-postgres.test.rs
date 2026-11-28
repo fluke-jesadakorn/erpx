@@ -7,12 +7,12 @@ mod fixture;
 )]
 mod source;
 
-use erpx_server_finance::public::{
+use erpx_finance_server::public::{
     journal_review::*, manual_draft_edit::*, manual_draft_provenance::*, *,
 };
-use erpx_server_runtime::public::postgres::{PgTransactionError, PgUnitOfWork, TransactionOptions};
-use erpx_server_shared::public::{BusinessError, CommandKey, UserId};
-use erpx_server_workflow::public::commands::*;
+use erpx_platform_runtime_server::public::postgres::{PgTransactionError, PgUnitOfWork, TransactionOptions};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey, UserId};
+use erpx_workflow_server::public::commands::*;
 use sqlx::PgConnection;
 
 type Error = PgTransactionError<BusinessError>;
@@ -178,7 +178,7 @@ fn dimensioned_draft(amount: &str, dimensions: serde_json::Value) -> JournalDraf
     ])).unwrap()}
 }
 async fn edit(
-    pool: &erpx_server_runtime::public::postgres::DatabasePool,
+    pool: &erpx_platform_runtime_server::public::postgres::DatabasePool,
     key: &str,
     expected: i64,
     fail_retain: bool,
@@ -199,7 +199,7 @@ async fn edit(
     reason = "The retained edit fixture varies actor, draft and evidence."
 )]
 async fn edit_as(
-    pool: &erpx_server_runtime::public::postgres::DatabasePool,
+    pool: &erpx_platform_runtime_server::public::postgres::DatabasePool,
     key: &str,
     expected: i64,
     fail_retain: bool,

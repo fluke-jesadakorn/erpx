@@ -24,24 +24,24 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("server-only", () => ({}));
-vi.mock("@erpx/server-commercial/public/purchase-command-boundary", () => ({ companyPurchaseReadLocks: () => [] }));
-vi.mock("@erpx/server-commercial/public/package-locks", () => ({ lockPackageSettlementSources: async () => undefined }));
-vi.mock("@erpx/server-identity_access/public/queued-command-authority", () => ({ lockQueuedCommandAuthority: async () => undefined }));
-vi.mock("@erpx/server-pms/public/scheduled-feature-source-locks", () => ({ lockScheduledFeatureSources: async () => undefined }));
-vi.mock("@erpx/server-finance/public/finance-transactions", () => ({ flushFinanceDeferredEffects: async () => undefined }));
-vi.mock("@erpx/server-identity_access/public/private-file-denial-authority", () => ({
+vi.mock("@erpx/commercial-server/public/purchase-command-boundary", () => ({ companyPurchaseReadLocks: () => [] }));
+vi.mock("@erpx/commercial-server/public/package-locks", () => ({ lockPackageSettlementSources: async () => undefined }));
+vi.mock("@erpx/identity-access-server/public/queued-command-authority", () => ({ lockQueuedCommandAuthority: async () => undefined }));
+vi.mock("@erpx/pms-server/public/scheduled-feature-source-locks", () => ({ lockScheduledFeatureSources: async () => undefined }));
+vi.mock("@erpx/finance-server/public/finance-transactions", () => ({ flushFinanceDeferredEffects: async () => undefined }));
+vi.mock("@erpx/identity-access-server/public/private-file-denial-authority", () => ({
   privateFileDenialAuthoritySourceLocks: () => [],
   privateFileDenialAuthorityWitness: async () => "denial-witness",
 }));
-vi.mock("@erpx/server-files/public/attachment-denied-read-audits", () => ({ attachmentDeniedReadAudits: async () => [] }));
-vi.mock("@erpx/server-files/public/private-attachment-reads", () => ({
+vi.mock("@erpx/files-server/public/attachment-denied-read-audits", () => ({ attachmentDeniedReadAudits: async () => [] }));
+vi.mock("@erpx/files-server/public/private-attachment-reads", () => ({
   attachmentReadSource: async () => h.source,
   attachmentPrivateReadSourceLocks: () => [],
   assertAttachmentReadRoute: () => undefined,
   requirePrivateAttachmentReaderCurrent: async () => undefined,
   bufferedAttachmentRead: (result: unknown) => result,
 }));
-vi.mock("@erpx/server-brand/adapters/attachment-read-sources", () => ({
+vi.mock("@erpx/brand-server/adapters/attachment-read-sources", () => ({
   isBrandAttachmentReadTarget: (type: string) => ["holding_brand", "branch_brand", "company_storefront_brand"].includes(type),
   brandAttachmentReadSourceLocks: () => [],
   brandAttachmentReadSourceImage: async () => {
@@ -88,8 +88,8 @@ const stored = () => ({
 
 describe("Brand attachment probe / Files consumer verification", () => {
   test("the live read path executes the recorded cross-owner probe with unchanged binds", async () => {
-    const { withBrandAttachmentContentRead } = await import("../../../packages/server-brand/src/adapters/attachment-read");
-    const { currentAssignmentReadScope } = await import("@erpx/server-identity_access/public/record-source-authority");
+    const { withBrandAttachmentContentRead } = await import("../../../modules/brand/server/src/adapters/attachment-read");
+    const { currentAssignmentReadScope } = await import("@erpx/identity-access-server/public/record-source-authority");
     h.statements.length = 0;
     h.image = "before";
     h.reads = 0;
@@ -113,7 +113,7 @@ describe("Brand attachment probe / Files consumer verification", () => {
   });
 
   test("a changed Brand source image still fails the read closed", async () => {
-    const { withBrandAttachmentContentRead } = await import("../../../packages/server-brand/src/adapters/attachment-read");
+    const { withBrandAttachmentContentRead } = await import("../../../modules/brand/server/src/adapters/attachment-read");
     h.statements.length = 0;
     h.image = "before";
     h.reads = 0;
@@ -127,22 +127,22 @@ describe("Brand attachment probe / Files consumer verification", () => {
   });
 
   test("Files and feature-brand consumers stay on native publication paths", () => {
-    const service = read("packages/server-files/src/adapters/attachments/service.ts");
+    const service = read("modules/files/server/src/adapters/attachments/service.ts");
     expect(service).toContain("if(selected&&isBrandAttachmentReadTarget(selected.targetType))return withBrandAttachmentContentRead(db,actor,linkId,selected,read,authorize);");
     expect(service).not.toContain("attachmentServiceBrandFacts");
     for (const kind of ["BRAND_PUB_71P", "BRAND_PUB_71I", "BRAND_PUB_72", "BRAND_PUB_73P", "BRAND_PUB_73I", "BRAND_PUB_74"])
       expect(service).toContain(kind);
-    const policy = read("packages/server-files/src/adapters/attachments/policy.ts");
-    expect(policy).toContain('requireBrandManagement: async (actor, type, id) => await (await import("@erpx/server-brand/public/branding")).requireBrandManagement(db, actor, type, id)');
-    const brand = read("packages/server-brand/src/adapters/branding.ts");
+    const policy = read("modules/files/server/src/adapters/attachments/policy.ts");
+    expect(policy).toContain('requireBrandManagement: async (actor, type, id) => await (await import("@erpx/brand-server/public/branding")).requireBrandManagement(db, actor, type, id)');
+    const brand = read("modules/brand/server/src/adapters/branding.ts");
     expect(brand).not.toMatch(/\bSELECT\s/);
     expect(brand).toContain("nativeBrandManagementBranch(db,actor,id)");
     expect(brand).toContain("nativeBrandManagementCompanyExists(db,actor,id)");
     for (const path of [
-      "packages/feature-brand/src/lib/native-branding.ts",
-      "packages/feature-brand/src/adapters/server/native-branding.ts",
-      "packages/server-brand/src/adapters/attachment-read-sources.ts",
-      "packages/server-brand/src/public/attachment-read.ts",
+      "modules/brand/ui/src/lib/native-branding.ts",
+      "modules/brand/ui/src/adapters/server/native-branding.ts",
+      "modules/brand/server/src/adapters/attachment-read-sources.ts",
+      "modules/brand/server/src/public/attachment-read.ts",
     ])
       expect(read(path)).not.toMatch(/\bSELECT\s/);
   });
@@ -156,11 +156,11 @@ describe("Brand attachment probe / Files consumer verification", () => {
         else if (entry.name.endsWith(".ts")) reads += (readFileSync(path, "utf8").match(/SELECT /g) ?? []).length;
       }
     };
-    walk(resolve(root, "packages/server-brand/src"));
+    walk(resolve(root, "modules/brand/server/src"));
     expect(reads).toBe(0);
-    expect(read("packages/server-brand/src/adapters/attachment-read.ts").match(/SELECT /g)).toHaveLength(0);
-    expect(read("packages/server-brand/src/adapters/attachment-scope-head.ts").match(/SELECT /g)).toHaveLength(0);
-    const writers = read("packages/server-files/src/adapters/attachments/service.ts").match(/attachmentServiceBrandFacts/g) ?? [];
+    expect(read("modules/brand/server/src/adapters/attachment-read.ts").match(/SELECT /g)).toHaveLength(0);
+    expect(read("modules/brand/server/src/adapters/attachment-scope-head.ts").match(/SELECT /g)).toHaveLength(0);
+    const writers = read("modules/files/server/src/adapters/attachments/service.ts").match(/attachmentServiceBrandFacts/g) ?? [];
     expect(writers).toHaveLength(0);
   });
 });

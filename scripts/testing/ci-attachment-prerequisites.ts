@@ -5,8 +5,8 @@ import {execFileSync} from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import sharp from 'sharp';
-import { attachmentScannerReadiness, scanAttachmentBytes } from '@erpx/server-files/public/attachments/scanner';
-import { sanitizedAttachmentPreview } from '@erpx/server-files/public/attachments/preview';
+import { attachmentScannerReadiness, scanAttachmentBytes } from '@erpx/files-server/public/attachments/scanner';
+import { sanitizedAttachmentPreview } from '@erpx/files-server/public/attachments/preview';
 import {ciHeifDecoderInventory} from './ci-attachment-contract';
 
 if (!isolatedVerificationRuntime(process.env.CI, process.env.GITHUB_ACTIONS, process.env.ERPX_LOCAL_VERIFICATION, process.platform, existsSync('/.dockerenv')) || process.platform!=='linux') throw new Error('ISOLATED_GITHUB_ATTACHMENT_PREREQUISITES_REQUIRED');

@@ -12,7 +12,7 @@ import {
   nativePublishGpoRule,
   nativeRemoveGpoRule,
   nativeRetryGpoRuleConfig,
-} from '@erpx/server-identity_access/public/native-position-gpo';
+} from '@erpx/identity-access-server/public/native-position-gpo';
 
 /**
  * Native Position GPO transport oracle. The owner's command, transaction and

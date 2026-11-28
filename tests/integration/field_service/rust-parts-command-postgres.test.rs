@@ -4,20 +4,20 @@
 )]
 #[path = "../../support/field_service/parts.rs"]
 mod facts;
-use erpx_server_shared::public::Clock;
+use erpx_platform_shared_server::public::Clock;
 use facts::*;
 
 /// Exercise the unmounted Field-source classifier against actual committed
 /// owner rows in an isolated test Holding. It grants no IAM or purchase right.
 async fn assert_actual_field_journal_history(db:&sqlx::PgPool,id:&str,company:&str,expected:bool,stale_order:Option<&str>) {
-    use erpx_server_shared::public::CompanyId;
-    use erpx_server_field_service::public::finance_lineage::{field_finance_source,inspect_field_history_join,lock_field_history_join_sources};
-    use erpx_server_finance::public::attachment_target_source::{FinanceAttachmentTargetKind,inspect_canonical_finance_history_journal_roots,lock_canonical_finance_attachment_targets,lock_canonical_finance_history_book_roots,observe_canonical_finance_attachment_target};
-    use erpx_server_finance::public::field_history_candidates::{inspect_field_history_finance_candidates,lock_field_history_finance_candidate_sources};
-    use erpx_server_finance::public::field_history_money_lines::{inspect_field_history_money_lines,lock_field_history_money_line_sources};
-    use erpx_server_inventory::public::field_history_consumption::{inspect_field_history_consumption_join,lock_field_history_consumption_join_sources};
-    use erpx_server_workflow::public::record_origin::{inspect_field_history_receipt_join,lock_field_history_receipt_join_sources};
-    use erpx_service::field_finance_history::{FieldFinanceHistoryPhase,inspect_field_finance_history};
+    use erpx_platform_shared_server::public::CompanyId;
+    use erpx_field_service_server::public::finance_lineage::{field_finance_source,inspect_field_history_join,lock_field_history_join_sources};
+    use erpx_finance_server::public::attachment_target_source::{FinanceAttachmentTargetKind,inspect_canonical_finance_history_journal_roots,lock_canonical_finance_attachment_targets,lock_canonical_finance_history_book_roots,observe_canonical_finance_attachment_target};
+    use erpx_finance_server::public::field_history_candidates::{inspect_field_history_finance_candidates,lock_field_history_finance_candidate_sources};
+    use erpx_finance_server::public::field_history_money_lines::{inspect_field_history_money_lines,lock_field_history_money_line_sources};
+    use erpx_inventory_server::public::field_history_consumption::{inspect_field_history_consumption_join,lock_field_history_consumption_join_sources};
+    use erpx_workflow_server::public::record_origin::{inspect_field_history_receipt_join,lock_field_history_receipt_join_sources};
+    use erpx_platform_composition::field_finance_history::{FieldFinanceHistoryPhase,inspect_field_finance_history};
     // Oracles are the owner's fixed Rust SQL contract; no TypeScript source
     // import and no Node runtime are needed for the retired literals.
     let original=|source:&str|format!("SELECT EXISTS(SELECT 1 FROM public.finance_journals d WHERE d.id=$1 AND d.company_id=$2 AND EXISTS(SELECT 1 FROM (SELECT d.id,d.company_id UNION SELECT p.id,p.company_id FROM public.finance_book_postings b JOIN public.finance_journals p ON p.id=b.primary_journal_id AND p.company_id=d.company_id WHERE b.secondary_journal_id=d.id) root JOIN ({source}) owner_source ON owner_source.id=root.id AND owner_source.company_id=root.company_id))");
@@ -45,8 +45,8 @@ async fn assert_actual_field_journal_history(db:&sqlx::PgPool,id:&str,company:&s
 /// command effects after rollback. This is a read-only classifier, not a writer.
 #[tokio::test]
 async fn field_parts_consumption_source_matches_actual_typescript_parts_journal_and_rolls_back_without_effects() {
-    use erpx_server_field_service::public::finance_lineage::{field_finance_source,inspect_field_history_join,lock_field_history_join_sources};
-    use erpx_server_inventory::public::field_history_consumption::{inspect_field_history_consumption_join,lock_field_history_consumption_join_sources};
+    use erpx_field_service_server::public::finance_lineage::{field_finance_source,inspect_field_history_join,lock_field_history_join_sources};
+    use erpx_inventory_server::public::field_history_consumption::{inspect_field_history_consumption_join,lock_field_history_consumption_join_sources};
     account::with_system(|system| async move {
         let p=setup(system).await;
         let key="field-consumption-source";
@@ -157,7 +157,7 @@ async fn independent_finance_reviewer_has_no_operational_hr_or_records_write_and
         // A blocked customer and an inactive operational worker do not become
         // new Finance reviewer requirements on this exact financial lineage.
         sqlx::raw_sql("UPDATE finance_parties SET status='blocked'WHERE id='customer';UPDATE hr_engagements SET status='suspended'WHERE id='field-engagement';INSERT INTO company_fx_rates(id,company_id,currency,effective_date,currency_per_usd,confirmed_by,confirmed_at)VALUES('later-rate','company','THB','2026-01-09',4,'fixture-b',1)").execute(p.pool().raw()).await.unwrap();
-        let result=p.review.review(&journal,"field-finance-post",post()).await.unwrap();assert!(matches!(result,erpx_server_finance::public::journal_review::JournalReviewResult::Posted{version:2,..}));
+        let result=p.review.review(&journal,"field-finance-post",post()).await.unwrap();assert!(matches!(result,erpx_finance_server::public::journal_review::JournalReviewResult::Posted{version:2,..}));
         let money:Vec<(String,String,String)>=sqlx::query_as("SELECT source_type,amount_units::text,usd_units::text FROM money_transaction_snapshots ORDER BY source_type").fetch_all(p.pool().raw()).await.unwrap();assert_eq!(money,vec![("finance_journal".into(),"200".into(),"50".into()),("operational_inventory_consumption".into(),"200".into(),"100".into())]);
         let iam:serde_json::Value=sqlx::query_scalar("SELECT authority_json::jsonb->'iam'FROM command_receipts WHERE command_id='field-finance-post'").fetch_one(p.pool().raw()).await.unwrap();assert!(!iam["permissions"].as_array().unwrap().iter().any(|p|p=="records.write"));
     }).await;
@@ -194,7 +194,7 @@ async fn original_quote_failure_precedes_late_reservation_and_stale_maximum_vers
         let raw=r#"{"action":"issue-part","expectedVersion":9007199254740991,"reservationId":"reserved-part","quantityMilli":1000,"entryDate":"2026-01-10","reason":"Synthetic stale request with missing quote"}"#;
         business(p.execute("issue-order","field-max-no-quote",raw).await,"MANUAL_RATE_REQUIRED");assert_eq!(p.counts("field-max-no-quote").await,(0,0,0,0,0));
         sqlx::query("INSERT INTO company_fx_rates(id,company_id,currency,effective_date,currency_per_usd,confirmed_by,confirmed_at)VALUES('euro-rate','company','EUR','2026-01-01',1,'fixture-a',1)").execute(p.pool().raw()).await.unwrap();
-        assert!(matches!(p.execute("issue-order","field-max-valid-quote",raw).await,Err(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(ref e)) if e.code=="DATABASE_NUMBER_OUT_OF_RANGE"));assert_eq!(p.counts("field-max-valid-quote").await,(0,0,0,0,0));
+        assert!(matches!(p.execute("issue-order","field-max-valid-quote",raw).await,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Persistence(ref e)) if e.code=="DATABASE_NUMBER_OUT_OF_RANGE"));assert_eq!(p.counts("field-max-valid-quote").await,(0,0,0,0,0));
     }).await;
 }
 
@@ -229,9 +229,9 @@ async fn raw_utf16_event_encoding_stays_after_real_quote_stock_and_receipt_failu
         business(p.execute("issue-order","field-raw-stock-first",&no_stock).await,"PART_STOCK_UNAVAILABLE");
         sqlx::raw_sql("UPDATE finance_charts SET base_currency='THB'WHERE id='chart';UPDATE finance_accounts SET currency='THB'WHERE id IN('inventory','expense');CREATE FUNCTION field_receipt_fault()RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'SYNTHETIC_RECEIPT_FIRST' USING ERRCODE='23514';END $$;CREATE TRIGGER field_receipt_fault BEFORE INSERT ON command_receipts FOR EACH ROW WHEN(NEW.command_id='field-raw-receipt-first')EXECUTE FUNCTION field_receipt_fault()").execute(p.pool().raw()).await.unwrap();
         let receipt=p.execute("issue-order","field-raw-receipt-first",raw).await;
-        match receipt{Err(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(e))=>assert_eq!(e.sql_state(),Some("23514")),_=>panic!("actual known-result receipt must fail before the raw event cast")}
+        match receipt{Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Persistence(e))=>assert_eq!(e.sql_state(),Some("23514")),_=>panic!("actual known-result receipt must fail before the raw event cast")}
         let encoded=p.execute("issue-order","field-raw-event-last",raw).await;
-        match encoded{Err(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(e))=>assert_eq!(e.sql_state(),Some("22P02")),_=>panic!("raw original event JSON must reach actual PostgreSQL Unicode validation")}
+        match encoded{Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Persistence(e))=>assert_eq!(e.sql_state(),Some("22P02")),_=>panic!("raw original event JSON must reach actual PostgreSQL Unicode validation")}
         for key in["field-raw-quote-first","field-raw-stock-first","field-raw-receipt-first","field-raw-event-last"]{assert_eq!(p.counts(key).await,(0,0,0,0,0));}
         assert_eq!(sqlx::query_scalar::<_,i64>("SELECT consumed_milli FROM field_service_part_reservations WHERE id=$1").bind("reserved-\u{fffd}").fetch_one(p.pool().raw()).await.unwrap(),0);
         assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*)FROM finance_journals").fetch_one(p.pool().raw()).await.unwrap(),0);
@@ -307,9 +307,9 @@ async fn late_original_reservation_expiry_and_remaining_assertions_follow_succes
 #[tokio::test]
 async fn guarded_administration_requires_actual_mutation_selection_before_wire_and_has_zero_effects_on_refusal()
  {
-    use erpx_server_commercial::public::purchases::PackageEnforcementMode;
-    use erpx_server_shared::public::{Clock, CompanyId, HoldingId};
-    use erpx_service::field_service_parts::{
+    use erpx_commercial_server::public::purchases::PackageEnforcementMode;
+    use erpx_platform_shared_server::public::{Clock, CompanyId, HoldingId};
+    use erpx_platform_composition::field_service_parts::{
         FieldServicePartsAdministration, FieldServicePartsAdministrationError,
         FieldServicePartsConfiguration, FieldServicePartsEnvironment,
     };
@@ -323,19 +323,19 @@ async fn guarded_administration_requires_actual_mutation_selection_before_wire_a
         let admin=make("h001","company");
         let mut no_expected=p.selection.clone(); no_expected.expected=None; no_expected.mutation=false;
         let missing=admin.execute("acme.example.test",p.review.maker.clone(),no_expected,"reserve-order".into(),b"{".to_vec(),"guarded-missing".into()).await;
-        assert!(matches!(missing,Err(FieldServicePartsAdministrationError::Transaction(erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e))) if e.code=="WORK_CONTEXT_CHANGED"));
+        assert!(matches!(missing,Err(FieldServicePartsAdministrationError::Transaction(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(ref e))) if e.code=="WORK_CONTEXT_CHANGED"));
         let mut stale=p.selection.clone();stale.expected.as_mut().unwrap().revision-=1;stale.mutation=false;
         let stale=admin.execute("acme.example.test",p.review.maker.clone(),stale,"reserve-order".into(),b"{".to_vec(),"guarded-stale".into()).await;
-        assert!(matches!(stale,Err(FieldServicePartsAdministrationError::Transaction(erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e))) if e.code=="WORK_CONTEXT_CHANGED"));
+        assert!(matches!(stale,Err(FieldServicePartsAdministrationError::Transaction(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(ref e))) if e.code=="WORK_CONTEXT_CHANGED"));
         let invalid=admin.execute("acme.example.test",p.review.maker.clone(),p.selection.clone(),"reserve-order".into(),b"{".to_vec(),"guarded-invalid".into()).await;
         assert!(matches!(invalid,Err(FieldServicePartsAdministrationError::Wire(ref e)) if e.invalid_json));
         let schema=admin.execute("acme.example.test",p.review.maker.clone(),p.selection.clone(),"reserve-order".into(),b"{}".to_vec(),"guarded-schema".into()).await;
         assert!(matches!(schema,Err(FieldServicePartsAdministrationError::Wire(ref e)) if !e.invalid_json && !e.issues.is_empty()));
         assert!(FieldServicePartsConfiguration::new(FieldServicePartsEnvironment::Production,HoldingId::new("h001").unwrap(),CompanyId::new("company").unwrap(),PackageEnforcementMode::Enforced).is_err());
         let wrong_holding=make("other","company").execute("acme.example.test",p.review.maker.clone(),p.selection.clone(),"reserve-order".into(),b"{".to_vec(),"guarded-holding".into()).await;
-        assert!(matches!(wrong_holding,Err(FieldServicePartsAdministrationError::Transaction(erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e))) if e.code=="FIELD_SERVICE_CONFIGURATION_SCOPE_CHANGED"));
+        assert!(matches!(wrong_holding,Err(FieldServicePartsAdministrationError::Transaction(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(ref e))) if e.code=="FIELD_SERVICE_CONFIGURATION_SCOPE_CHANGED"));
         let wrong_company=make("h001","other").execute("acme.example.test",p.review.maker.clone(),p.selection.clone(),"reserve-order".into(),b"{".to_vec(),"guarded-company".into()).await;
-        assert!(matches!(wrong_company,Err(FieldServicePartsAdministrationError::Transaction(erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e))) if e.code=="FIELD_SERVICE_CONFIGURATION_SCOPE_CHANGED"));
+        assert!(matches!(wrong_company,Err(FieldServicePartsAdministrationError::Transaction(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(ref e))) if e.code=="FIELD_SERVICE_CONFIGURATION_SCOPE_CHANGED"));
         for key in ["guarded-missing","guarded-stale","guarded-invalid","guarded-schema","guarded-holding","guarded-company"] { assert_eq!(p.counts(key).await,(0,0,0,0,0)); }
         let mut selected=p.selection.clone();selected.mutation=false;
         let result=admin.execute("acme.example.test",p.review.maker.clone(),selected,"reserve-order".into(),br#"{"action":"reserve-part","expectedVersion":1,"warehouseId":"warehouse","productId":"product","quantityMilli":1000,"expiresAt":2000000000000,"reason":"Synthetic guarded reserve"}"#.to_vec(),"guarded-valid".into()).await;
@@ -400,7 +400,7 @@ async fn reserve_lone_surrogate_uses_replacement_lookup_but_preserves_original_d
         sqlx::query("INSERT INTO commerce_stock(warehouse_id,product_id,quantity_milli,value_minor)VALUES('warehouse-�','product',5000,1000)").execute(p.pool().raw()).await.unwrap();
         let raw=format!(r#"{{"action":"reserve-part","expectedVersion":1,"warehouseId":"warehouse-\ud800","productId":"product","quantityMilli":1000,"expiresAt":{},"reason":"Synthetic surrogate"}}"#,now+3600000);
         let result=p.execute("reserve-order","raw-surrogate",&raw).await;
-        assert!(matches!(result,Err(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(_))));
+        assert!(matches!(result,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Persistence(_))));
         assert_eq!(p.counts("raw-surrogate").await,(0,0,0,0,0));
         assert_eq!(sqlx::query_scalar::<_,i64>("SELECT version FROM commerce_stock WHERE warehouse_id='warehouse-�' AND product_id='product'").fetch_one(p.pool().raw()).await.unwrap(),1);
     }).await;
@@ -428,7 +428,7 @@ async fn parts_nul_reason_cannot_preempt_original_stale_order_cas_and_current_st
                 let p=setup(system).await;let now=p.review.system.scenario.clock.now().get();
                 let value=if action=="reserve-part" {serde_json::json!({"action":action,"expectedVersion":if stale{2}else{1},"warehouseId":"warehouse","productId":"product","quantityMilli":1000,"expiresAt":now+3600000,"reason":"Synthetic\u{0}reason"})} else {serde_json::json!({"action":action,"expectedVersion":if stale{4}else{3},"reservationId":"reserved-part","quantityMilli":1000,"entryDate":"2026-01-10","allocations":[],"reason":"Synthetic\u{0}reason"})};
                 let key=format!("nul-{action}-{stale}");let order=if action=="reserve-part"{"reserve-order"}else{"issue-order"};let result=p.execute(order,&key,&value.to_string()).await;
-                if stale {business(result,"CONFLICT");} else {assert!(matches!(result,Err(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(_))));}
+                if stale {business(result,"CONFLICT");} else {assert!(matches!(result,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Persistence(_))));}
                 assert_eq!(p.counts(&key).await,(0,0,0,0,0));
                 assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM finance_journals").fetch_one(p.pool().raw()).await.unwrap(),0);
             }).await;
@@ -444,7 +444,7 @@ async fn missing_raw_reservation_reaches_lookup_and_nul_reaches_actual_database_
             let reservation=if nul {"missing\0reservation".to_owned()} else {format!("missing-{}","x".repeat(220))};
             let raw=serde_json::json!({"action":"issue-part","expectedVersion":3,"reservationId":reservation,"quantityMilli":1000,"entryDate":"2026-01-10","reason":"Synthetic missing reservation"}).to_string();
             let key=if nul{"raw-nul-reservation"}else{"raw-missing-reservation"};let result=p.execute("issue-order",key,&raw).await;
-            if nul {assert!(matches!(result,Err(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(_))));} else {business(result,"FIELD_SERVICE_PART_NOT_FOUND");}
+            if nul {assert!(matches!(result,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Persistence(_))));} else {business(result,"FIELD_SERVICE_PART_NOT_FOUND");}
             assert_eq!(p.counts(key).await,(0,0,0,0,0));
         }).await;
     }
@@ -460,7 +460,7 @@ async fn two_reservation_requests_observe_one_order_transition_and_exact_key_rep
             let (left,right)=tokio::join!(p.execute("reserve-order","concurrent-service-a",&raw),p.execute("reserve-order",if same_key{"concurrent-service-a"}else{"concurrent-service-b"},&raw));
             if same_key {let left=left.unwrap();let right=right.unwrap();assert_ne!(left.replayed,right.replayed);assert_eq!(left.result,right.result);} else {
                 match (left,right) {
-                    (Ok(ok),Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e)))|(Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e)),Ok(ok))=>{assert!(!ok.replayed);assert_eq!(e.code,"CONFLICT");},
+                    (Ok(ok),Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e)))|(Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e)),Ok(ok))=>{assert!(!ok.replayed);assert_eq!(e.code,"CONFLICT");},
                     _=>panic!("expected one committed reservation and one order CAS conflict"),
                 }
             }
@@ -493,7 +493,7 @@ async fn field_service_maximum_successor_refuses_before_nul_reason_encoding() {
             let p=setup(system).await;let now=p.review.system.scenario.clock.now().get();let order=if action=="reserve-part"{"reserve-order"}else{"issue-order"};
             let raw=if action=="reserve-part" {serde_json::json!({"action":action,"expectedVersion":9007199254740991_i64,"warehouseId":"warehouse","productId":"product","quantityMilli":1000,"expiresAt":now+3600000,"reason":"Synthetic\u{0}reason"})} else {serde_json::json!({"action":action,"expectedVersion":9007199254740991_i64,"reservationId":"reserved-part","quantityMilli":1000,"entryDate":"2026-01-10","reason":"Synthetic\u{0}reason"})};
             let key=format!("max-nul-{action}");let result=p.execute(order,&key,&raw.to_string()).await;
-            assert!(matches!(result,Err(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(ref e)) if e.code=="DATABASE_NUMBER_OUT_OF_RANGE"));assert_eq!(p.counts(&key).await,(0,0,0,0,0));
+            assert!(matches!(result,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Persistence(ref e)) if e.code=="DATABASE_NUMBER_OUT_OF_RANGE"));assert_eq!(p.counts(&key).await,(0,0,0,0,0));
         }).await;
     }
 }
@@ -529,7 +529,7 @@ async fn synthetic_long_historical_lineage_supports_independent_finance_review()
         sqlx::query("INSERT INTO operational_inventory_consumptions SELECT (jsonb_populate_record(NULL::operational_inventory_consumptions,to_jsonb(c)||jsonb_build_object('id',$1::text,'source_id',$2::text,'journal_id',$3::text,'created_by',$4::text))).* FROM operational_inventory_consumptions c WHERE id='operational-part-field-history-seed'").bind(&consumption).bind(&order).bind(journal).bind(&creator).execute(&mut *tx).await.unwrap();
         sqlx::query("INSERT INTO command_receipts SELECT (jsonb_populate_record(NULL::command_receipts,to_jsonb(r)||jsonb_build_object('command_id',$1::text,'record_id',$2::text,'actor_id',$3::text))).* FROM command_receipts r WHERE command_id='field-history-seed'").bind(key).bind(&order).bind(&creator).execute(&mut *tx).await.unwrap();
         tx.commit().await.unwrap();
-        let result=p.review.review(journal,"field-historical-raw-post",post()).await.unwrap();assert!(matches!(result,erpx_server_finance::public::journal_review::JournalReviewResult::Posted{version:2,..}));
+        let result=p.review.review(journal,"field-historical-raw-post",post()).await.unwrap();assert!(matches!(result,erpx_finance_server::public::journal_review::JournalReviewResult::Posted{version:2,..}));
     }).await;
 }
 
@@ -620,7 +620,7 @@ async fn raw_long_stock_references_reserve_then_issue_with_tracking_and_independ
             let stock:(i64,i64,i64)=sqlx::query_as("SELECT quantity_milli,value_minor,version FROM commerce_stock WHERE warehouse_id=$1 AND product_id=$2").bind(&warehouse).bind(&product).fetch_one(p.pool().raw()).await.unwrap();assert_eq!(stock,(0,0,5));
             let actual:(String,String)=sqlx::query_as("SELECT warehouse_id,product_id FROM operational_inventory_consumptions WHERE id='operational-part-raw-chain-issue'").fetch_one(p.pool().raw()).await.unwrap();assert_eq!(actual,(warehouse.clone(),product.clone()));
             if tracking!="none" {let lot:(String,i64,i64)=sqlx::query_as("SELECT l.status,b.quantity_milli,b.value_minor FROM inventory_lots l JOIN inventory_lot_balances b ON b.lot_id=l.id WHERE l.id='raw-lot'").fetch_one(p.pool().raw()).await.unwrap();assert_eq!(lot,("depleted".into(),0,0));}
-            let journal=p.journal("raw-chain-issue").await;let result=p.review.review(&journal,"raw-chain-finance",post()).await.unwrap();assert!(matches!(result,erpx_server_finance::public::journal_review::JournalReviewResult::Posted{version:2,..}));
+            let journal=p.journal("raw-chain-issue").await;let result=p.review.review(&journal,"raw-chain-finance",post()).await.unwrap();assert!(matches!(result,erpx_finance_server::public::journal_review::JournalReviewResult::Posted{version:2,..}));
         }).await;
     }
 }
@@ -692,9 +692,9 @@ async fn eligible_control_heavy_technician_notification_images_and_late_tamper_a
 
 #[tokio::test]
 async fn current_read_and_write_denials_precede_invalid_body_without_effects() {
-    use erpx_server_commercial::public::purchases::PackageEnforcementMode;
-    use erpx_server_shared::public::{CompanyId, HoldingId};
-    use erpx_service::field_service_parts::{
+    use erpx_commercial_server::public::purchases::PackageEnforcementMode;
+    use erpx_platform_shared_server::public::{CompanyId, HoldingId};
+    use erpx_platform_composition::field_service_parts::{
         FieldServicePartsAdministration, FieldServicePartsAdministrationError,
         FieldServicePartsConfiguration, FieldServicePartsEnvironment,
     };
@@ -707,7 +707,7 @@ async fn current_read_and_write_denials_precede_invalid_body_without_effects() {
             let config=FieldServicePartsConfiguration::new(FieldServicePartsEnvironment::Development,HoldingId::new("h001").unwrap(),CompanyId::new("company").unwrap(),PackageEnforcementMode::Enforced).unwrap();
             let admin=FieldServicePartsAdministration::new(p.review.authorizer.clone(),config,std::sync::Arc::new(WriteClock(std::sync::atomic::AtomicI64::new(guard.now().get()))),guard);
             let key=format!("missing-{missing}-invalid");let result=admin.execute("acme.example.test",p.review.maker.clone(),p.selection.clone(),"reserve-order".into(),b"{".to_vec(),key.clone()).await;
-            assert!(matches!(result,Err(FieldServicePartsAdministrationError::Transaction(erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e))) if e.code=="PERMISSION_REQUIRED"));
+            assert!(matches!(result,Err(FieldServicePartsAdministrationError::Transaction(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(ref e))) if e.code=="PERMISSION_REQUIRED"));
             assert_eq!(p.counts(&key).await,(0,0,0,0,0));
         }).await;
     }
@@ -734,7 +734,7 @@ async fn long_raw_lot_and_more_than_500_other_balances_preserve_physical_depleti
         assert_eq!(p.counts("field-long-lot").await,(1,1,1,1,1));
         let journal=p.journal("field-long-lot").await;
         let result=p.review.review(&journal,"field-long-lot-finance",post()).await.unwrap();
-        assert!(matches!(result,erpx_server_finance::public::journal_review::JournalReviewResult::Posted{version:2,..}));
+        assert!(matches!(result,erpx_finance_server::public::journal_review::JournalReviewResult::Posted{version:2,..}));
     }).await;
 }
 
@@ -811,8 +811,8 @@ async fn deferred_owner_finance_inbox_and_lot_faults_are_observed_and_atomically
             let result=p.execute("issue-order","field-final-matrix",raw).await;
             assert!(sqlx::query_scalar::<_,bool>("SELECT is_called FROM field_matrix_seen").fetch_one(p.pool().raw()).await.unwrap(),"fault was not reached: {scenario}");
             match scenario {
-                "event"=>assert!(matches!(result,Err(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(ref e)) if e.sql_state()==Some("23514")),"{scenario}"),
-                "stock-cost"=>assert!(matches!(result,Err(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(ref e)) if e.sql_state()==Some("23514")),"{scenario}"),
+                "event"=>assert!(matches!(result,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Persistence(ref e)) if e.sql_state()==Some("23514")),"{scenario}"),
+                "stock-cost"=>assert!(matches!(result,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Persistence(ref e)) if e.sql_state()==Some("23514")),"{scenario}"),
                 _=>business(result,match scenario {"order"=>"FIELD_SERVICE_SOURCE_CHANGED","support"=>"SUPPORT_SERVICE_SOURCE_CHANGED","journal"=>"PARTS_DRAFT_SOURCE_CHANGED","inbox"=>"FIELD_SERVICE_NOTIFICATION_SOURCE_CHANGED",_=>"INVENTORY_CONSUMPTION_SOURCE_CHANGED"}),
             }
             assert_eq!(p.counts("field-final-matrix").await,(0,0,0,0,0));
@@ -866,7 +866,7 @@ async fn malformed_lot_units_keep_early_duplicate_and_late_physical_alias_bounda
                 let moved:(String,i64,i64)=sqlx::query_as("SELECT lot_id,quantity_milli,value_minor FROM inventory_lot_moves WHERE source_id=$1").bind(format!("operational-part-{key}")).fetch_one(p.pool().raw()).await.unwrap();assert_eq!(moved,("�".into(),-1000,-200));
                 let state:(String,i64,i64,i64,i64,i64,i64)=sqlx::query_as("SELECT l.status,b.quantity_milli,b.value_minor,s.quantity_milli,s.value_minor,s.version,r.consumed_milli FROM inventory_lots l JOIN inventory_lot_balances b ON b.lot_id=l.id AND b.warehouse_id='warehouse' JOIN commerce_stock s ON s.warehouse_id=b.warehouse_id AND s.product_id=l.product_id JOIN field_service_part_reservations r ON r.id='reserved-part' WHERE l.id='�'").fetch_one(p.pool().raw()).await.unwrap();assert_eq!(state,("depleted".into(),0,0,4000,800,4,1000));
                 let details:serde_json::Value=sqlx::query_scalar("SELECT details_json FROM field_service_order_events WHERE id=$1").bind(format!("service-order-event-{key}")).fetch_one(p.pool().raw()).await.unwrap();assert!(details.get("allocations").is_none());
-                let journal=p.journal(&key).await;let posted=p.review.review(&journal,"malformed-lot-finance",post()).await.unwrap();assert!(matches!(posted,erpx_server_finance::public::journal_review::JournalReviewResult::Posted{version:2,..}));
+                let journal=p.journal(&key).await;let posted=p.review.review(&journal,"malformed-lot-finance",post()).await.unwrap();assert!(matches!(posted,erpx_finance_server::public::journal_review::JournalReviewResult::Posted{version:2,..}));
             } else {
                 business(result,match scenario {"duplicate"|"lexical"=>"PART_LOT_ALLOCATION_REQUIRED","quote"=>"MANUAL_RATE_REQUIRED","lot-tamper"|"other-tamper"=>"INVENTORY_CONSUMPTION_SOURCE_CHANGED",_=>"CONFLICT"});
                 assert_eq!(p.counts(&key).await,(0,0,0,0,0));
@@ -886,11 +886,11 @@ async fn malformed_lot_units_keep_early_duplicate_and_late_physical_alias_bounda
 #[tokio::test]
 async fn retained_lot_guard_assertion_observes_first_write_and_rejects_original_second_version() {
     let source =
-        include_str!("../../../packages/server-inventory/src/adapters/inventory-consumption.ts");
+        include_str!("../../../modules/inventory/server/src/adapters/inventory-consumption.ts");
     let body=source.split("guardLotAvailability(key:string,value:string,lotId:string,warehouseId:string,balanceVersion:number,quantityMilli:number,entryDate:string){return assertion(db,key,value,`").nth(1).unwrap().split('`').next().unwrap();
     assert_eq!(body,"EXISTS(SELECT 1 FROM inventory_lot_balances b JOIN inventory_lots l ON l.id=b.lot_id WHERE b.lot_id=? AND b.warehouse_id=? AND b.version=? AND b.quantity_milli>=?\n     AND l.status='active' AND (l.expiry_date IS NULL OR l.expiry_date>=?) AND NOT EXISTS(SELECT 1 ${inventoryQualityHoldReadSource()} WHERE h.lot_id=l.id AND h.warehouse_id=b.warehouse_id AND h.status NOT IN ('released','cancelled','disposed'))) ".trim_end());
     let quality =
-        include_str!("../../../packages/server-quality/src/adapters/inventory-hold-read-source.ts");
+        include_str!("../../../modules/quality/server/src/adapters/inventory-hold-read-source.ts");
     let projection = quality
         .split("return '")
         .nth(1)
@@ -903,7 +903,7 @@ async fn retained_lot_guard_assertion_observes_first_write_and_rejects_original_
         "FROM (SELECT warehouse_id, product_id, lot_id, status FROM inventory_quality_holds) h"
     );
     let wrapper =
-        include_str!("../../../packages/server-workflow/src/adapters/command-assertions.ts")
+        include_str!("../../../modules/workflow/server/src/adapters/command-assertions.ts")
             .split("db.prepare(`")
             .nth(1)
             .unwrap()
@@ -954,7 +954,7 @@ async fn retained_lot_guard_assertion_observes_first_write_and_rejects_original_
 
 #[tokio::test]
 async fn selected_schema_ingress_preserves_local_wire_before_owner_permissions_and_old_path() {
-    use erpx_service::field_service_parts::FieldServicePartsAdministrationError as AdminError;
+    use erpx_platform_composition::field_service_parts::FieldServicePartsAdministrationError as AdminError;
     for missing in ["read", "write"] {
         account::with_system(move |system| async move {
             let p=setup(system).await;
@@ -968,20 +968,20 @@ async fn selected_schema_ingress_preserves_local_wire_before_owner_permissions_a
                 assert!(matches!(result,Err(AdminError::Wire(_))));assert_eq!(p.counts("schema-wire-error").await,(0,0,0,0,0));
             }
             let now=p.review.system.scenario.clock.now().get();let valid=serde_json::json!({"action":"reserve-part","expectedVersion":1,"warehouseId":"warehouse","productId":"product","quantityMilli":1000,"expiresAt":now+3600000,"reason":"Synthetic valid"}).to_string();
-            assert!(matches!(p.execute_schema("reserve-order","schema-permission",&valid).await,Err(AdminError::Transaction(erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e))) if e.code=="PERMISSION_REQUIRED"));
+            assert!(matches!(p.execute_schema("reserve-order","schema-permission",&valid).await,Err(AdminError::Transaction(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(ref e))) if e.code=="PERMISSION_REQUIRED"));
             assert_eq!(p.counts("schema-permission").await,(0,0,0,0,0));
         }).await;
     }
     account::with_system(|system| async move {
         let p=setup(system).await;assert!(matches!(p.execute_schema("missing-order","schema-missing-wire","{").await,Err(AdminError::Wire(_))));
         let now=p.review.system.scenario.clock.now().get();let raw=serde_json::json!({"action":"reserve-part","expectedVersion":1,"warehouseId":"warehouse","productId":"product","quantityMilli":1000,"expiresAt":now+3600000,"reason":"Synthetic valid"}).to_string();
-        assert!(matches!(p.execute_schema("missing-order","schema-missing-source",&raw).await,Err(AdminError::Transaction(erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e))) if e.code=="FIELD_SERVICE_ORDER_NOT_FOUND"));
+        assert!(matches!(p.execute_schema("missing-order","schema-missing-source",&raw).await,Err(AdminError::Transaction(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(ref e))) if e.code=="FIELD_SERVICE_ORDER_NOT_FOUND"));
     }).await;
 }
 
 #[tokio::test]
 async fn selected_schema_ingress_executes_real_parts_replay_and_retains_late_failures() {
-    use erpx_service::field_service_parts::FieldServicePartsAdministrationError as AdminError;
+    use erpx_platform_composition::field_service_parts::FieldServicePartsAdministrationError as AdminError;
     for action in ["reserve", "issue"] {
         account::with_system(move |system| async move {
             let p=setup(system).await;let now=p.review.system.scenario.clock.now().get();
@@ -994,7 +994,7 @@ async fn selected_schema_ingress_executes_real_parts_replay_and_retains_late_fai
         account::with_system(move |system| async move {
             let p=setup(system).await;let body=serde_json::json!({"action":"issue-part","expectedVersion":if stale {4}else{3},"reservationId":"reserved-part","quantityMilli":1000,"entryDate":"2026-01-10","reason":"Synthetic\u{0}reason"}).to_string();
             let result=p.execute_schema("issue-order","selected-schema-nul",&body).await;
-            if stale {assert!(matches!(result,Err(AdminError::Transaction(erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e))) if e.code=="CONFLICT"));} else {assert!(matches!(result,Err(AdminError::Transaction(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(_)))));}
+            if stale {assert!(matches!(result,Err(AdminError::Transaction(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(ref e))) if e.code=="CONFLICT"));} else {assert!(matches!(result,Err(AdminError::Transaction(erpx_platform_runtime_server::public::postgres::PgTransactionError::Persistence(_)))));}
             assert_eq!(p.counts("selected-schema-nul").await,(0,0,0,0,0));
         }).await;
     }
@@ -1003,7 +1003,7 @@ async fn selected_schema_ingress_executes_real_parts_replay_and_retains_late_fai
         sqlx::raw_sql("CREATE SEQUENCE selected_context_fault_seen;CREATE FUNCTION selected_context_fault() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN PERFORM nextval('selected_context_fault_seen');UPDATE active_work_contexts SET revision=revision+1 WHERE session_id=NEW.command_id OR user_id='fixture-a';RETURN NEW;END$$;CREATE CONSTRAINT TRIGGER selected_context_fault AFTER INSERT ON outbox_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.command_id='selected-context-fault') EXECUTE FUNCTION selected_context_fault()").execute(p.pool().raw()).await.unwrap();
         let raw=r#"{"action":"issue-part","expectedVersion":3,"reservationId":"reserved-part","quantityMilli":1000,"entryDate":"2026-01-10","reason":"Synthetic selected fault"}"#;
         let result=p.execute_schema("issue-order","selected-context-fault",raw).await;
-        assert!(matches!(result,Err(AdminError::Transaction(erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e))) if e.code=="WORK_CONTEXT_CHANGED"));
+        assert!(matches!(result,Err(AdminError::Transaction(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(ref e))) if e.code=="WORK_CONTEXT_CHANGED"));
         assert!(sqlx::query_scalar::<_,bool>("SELECT is_called FROM selected_context_fault_seen").fetch_one(p.pool().raw()).await.unwrap());assert_eq!(p.counts("selected-context-fault").await,(0,0,0,0,0));
         let state:(i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT version FROM field_service_orders WHERE id='issue-order'),(SELECT consumed_milli FROM field_service_part_reservations WHERE id='reserved-part'),(SELECT quantity_milli FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='product'),(SELECT revision FROM active_work_contexts WHERE user_id='fixture-a')").fetch_one(p.pool().raw()).await.unwrap();assert_eq!(state,(3,0,5000,8));
         let absent:(i64,i64,i64,i64,i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM finance_journals),(SELECT count(*) FROM finance_journal_lines),(SELECT count(*) FROM money_transaction_snapshots),(SELECT count(*) FROM operational_inventory_consumption_lots),(SELECT count(*) FROM inventory_lot_moves),(SELECT count(*) FROM field_service_order_events WHERE id='service-order-event-selected-context-fault'),(SELECT count(*) FROM support_ticket_events WHERE id='ticket-service-event-service-order-event-selected-context-fault'),(SELECT count(*) FROM inbox_deliveries WHERE id='service-order-notice-selected-context-fault')").fetch_one(p.pool().raw()).await.unwrap();assert_eq!(absent,(0,0,0,0,0,0,0,0));

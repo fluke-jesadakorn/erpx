@@ -8,7 +8,7 @@ import {
   notificationRetryInput,
   notificationSettingsInput,
   type NativeNotificationPageContext,
-} from '../../../packages/feature-sales/src/public/native-sales-notification-commands';
+} from '../../../modules/sales/ui/src/public/native-sales-notification-commands';
 
 const incoming = (overrides: Record<string, string> = {}) =>
   new Headers({ host: 'acme.example.com', cookie: '__Host-erpx-product=session', ...overrides });

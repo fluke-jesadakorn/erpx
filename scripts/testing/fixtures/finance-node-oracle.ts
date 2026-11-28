@@ -10,9 +10,9 @@ export async function financeNodeOracle() {
   await mkdir(directory, { recursive: true, mode: 0o700 });
   const entry = resolve(directory, "entry.ts");
   await writeFile(entry, `
-import { resolveRate, convertUnits, currencyScale } from ${JSON.stringify(resolve("packages/feature-finance/src/lib/company-money.ts"))};
-import { allocateUnits } from ${JSON.stringify(resolve("packages/feature-finance/src/lib/finance-money.ts"))};
-import { createFunctionalFx } from ${JSON.stringify(resolve("packages/server-finance/src/application/functional-fx.ts"))};
+import { resolveRate, convertUnits, currencyScale } from ${JSON.stringify(resolve("modules/finance/ui/src/lib/company-money.ts"))};
+import { allocateUnits } from ${JSON.stringify(resolve("modules/finance/ui/src/lib/finance-money.ts"))};
+import { createFunctionalFx } from ${JSON.stringify(resolve("modules/finance/server/src/application/functional-fx.ts"))};
 import { readFileSync } from "node:fs";
 const input = JSON.parse(readFileSync(0, "utf8"));
 const outcome = (run) => { try { return { value: run() }; } catch (error) { return { error: error.message }; } };

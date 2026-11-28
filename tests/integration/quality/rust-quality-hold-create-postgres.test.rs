@@ -3,15 +3,15 @@
 mod facts;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_quality::public::quality_commands::{
+use erpx_quality_server::public::quality_commands::{
     QualityHoldCommand, lock_quality_command_sources, lock_quality_hold_create_sources,
     prepare_quality_hold,
 };
-use erpx_server_quality::public::quality_http::{
+use erpx_quality_server::public::quality_http::{
     lock_quality_read_sources, read_quality_detail, read_quality_workspace,
 };
-use erpx_server_runtime::public::postgres::PgTransactionError;
-use erpx_server_shared::public::{BusinessError, CommandKey, CompanyId, RecordId, UserId};
+use erpx_platform_runtime_server::public::postgres::PgTransactionError;
+use erpx_platform_shared_server::public::{BusinessError, CommandKey, CompanyId, RecordId, UserId};
 
 fn company() -> CompanyId {
     CompanyId::new("company").unwrap()
@@ -34,7 +34,7 @@ fn command(key: &str) -> QualityHoldCommand {
     }
 }
 
-async fn serializable(pool: &erpx_server_runtime::public::postgres::DatabasePool) -> sqlx::Transaction<'static, sqlx::Postgres> {
+async fn serializable(pool: &erpx_platform_runtime_server::public::postgres::DatabasePool) -> sqlx::Transaction<'static, sqlx::Postgres> {
     let mut tx = pool.raw().begin().await.unwrap();
     sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
         .execute(&mut *tx)
@@ -128,7 +128,7 @@ async fn manual_hold_persists_source_stock_spec_and_product_response() {
         assert!(data.specifications.iter().any(|row| row.id == "spec"
             && row.sku == "P1"
             && row.product_name == "Quality product"
-            && row.status == erpx_server_quality::public::quality_read::SpecStatus::Active));
+            && row.status == erpx_quality_server::public::quality_read::SpecStatus::Active));
         assert_eq!(data.specification_metrics.len(), 2);
         let hold = data
             .holds
@@ -495,12 +495,12 @@ fn hold_refusal_codes_remain_the_retained_owner_codes() {
     // drift visible without a database.
     let errors = [
         BusinessError::new(
-            erpx_server_shared::public::FailureKind::NotFound,
+            erpx_platform_shared_server::public::FailureKind::NotFound,
             "STOCK_NOT_FOUND",
             "Active stock location not found.",
         ),
         BusinessError::new(
-            erpx_server_shared::public::FailureKind::Conflict,
+            erpx_platform_shared_server::public::FailureKind::Conflict,
             "QUALITY_LOT_CHANGED",
             "The lot or serial balance changed. Refresh before placing the hold.",
         ),

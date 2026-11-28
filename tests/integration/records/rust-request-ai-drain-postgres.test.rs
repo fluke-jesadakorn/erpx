@@ -6,12 +6,12 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_records::public::request_ai_drain::{
+use erpx_records_server::public::request_ai_drain::{
     ClaimedProposal, DrainJobReport, ProviderFuture, ProviderOutput, RequestAiProvider,
     RequestSnapshot, drain_request_ai, lease_token, result_command, run_auth_key, run_drain_job,
     should_retry,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
 use sqlx::AssertSqlSafe;

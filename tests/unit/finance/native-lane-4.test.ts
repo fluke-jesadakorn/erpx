@@ -3,8 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { financePostingGuard, financeReferenceOptions, nativeFinanceLane4Configured, type Lane4Actor } from '../../../packages/server-finance/src/adapters/native-lane-4/client';
-import { pmsFinanceFacts } from '../../../packages/server-finance/src/public/pms-command-facts';
+import { financePostingGuard, financeReferenceOptions, nativeFinanceLane4Configured, type Lane4Actor } from '../../../modules/finance/server/src/adapters/native-lane-4/client';
+import { pmsFinanceFacts } from '../../../modules/finance/server/src/public/pms-command-facts';
 
 const ENV = 'ERPX_NATIVE_FINANCE_LANE4_CONFIG';
 const original = process.env[ENV];

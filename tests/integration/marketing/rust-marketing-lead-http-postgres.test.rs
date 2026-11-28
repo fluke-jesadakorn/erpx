@@ -7,15 +7,15 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_marketing::public::lead_candidate_command_http::{
+use erpx_marketing_server::public::lead_candidate_command_http::{
     MarketingLeadCommandHttpTarget, marketing_lead_command_http_router,
 };
-use erpx_server_marketing::public::lead_candidate_http::{
+use erpx_marketing_server::public::lead_candidate_http::{
     MarketingLeadHttpTarget, marketing_lead_http_router,
 };
-use erpx_server_shared::public::Clock;
-use erpx_service::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
-use erpx_service::marketing::{
+use erpx_platform_shared_server::public::Clock;
+use erpx_platform_composition::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
+use erpx_platform_composition::marketing::{
     MarketingBackend, MarketingConfiguration, MarketingService,
 };
 use std::sync::Arc;
@@ -176,8 +176,8 @@ fn router(p: &review::Prepared) -> axum::Router {
     let service = MarketingService::new(
         p.authorizer.clone(),
         MarketingConfiguration::new(
-            erpx_server_shared::public::HoldingId::new("h001").unwrap(),
-            erpx_server_shared::public::CompanyId::new("company").unwrap(),
+            erpx_platform_shared_server::public::HoldingId::new("h001").unwrap(),
+            erpx_platform_shared_server::public::CompanyId::new("company").unwrap(),
         ),
         p.system.scenario.clock.clone(),
     );
@@ -199,8 +199,8 @@ fn command_router(p: &review::Prepared) -> axum::Router {
     let service = MarketingService::new(
         p.authorizer.clone(),
         MarketingConfiguration::new(
-            erpx_server_shared::public::HoldingId::new("h001").unwrap(),
-            erpx_server_shared::public::CompanyId::new("company").unwrap(),
+            erpx_platform_shared_server::public::HoldingId::new("h001").unwrap(),
+            erpx_platform_shared_server::public::CompanyId::new("company").unwrap(),
         ),
         p.system.scenario.clock.clone(),
     );

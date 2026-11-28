@@ -2,9 +2,9 @@ import { readFile, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { nativePmsReadAll, PMS_RD_SECTION_RELATED_RECORDS } from '../../../packages/server-pms/src/adapters/native-pms-read';
+import { nativePmsReadAll, PMS_RD_SECTION_RELATED_RECORDS } from '../../../modules/pms/server/src/adapters/native-pms-read';
 
-const dir = new URL('../../../packages/server-pms/src/', import.meta.url);
+const dir = new URL('../../../modules/pms/server/src/', import.meta.url);
 const src = (name: string) => readFile(new URL(name, dir), 'utf8');
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 

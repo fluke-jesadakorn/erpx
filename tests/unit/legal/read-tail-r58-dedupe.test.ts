@@ -2,12 +2,12 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { legalItemKeyHeadSql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r54-sources';
-import { legalPointByKeySql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r36-sources';
-import { legalDisposedGuardSql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r39-sources';
+import { legalItemKeyHeadSql } from '../../../modules/legal/server/src/adapters/legal-read-tail-r54-sources';
+import { legalPointByKeySql } from '../../../modules/legal/server/src/adapters/legal-read-tail-r36-sources';
+import { legalDisposedGuardSql } from '../../../modules/legal/server/src/adapters/legal-read-tail-r39-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-legal/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-legal/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/legal/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/legal/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 /** Independent pre-r58 byte oracle captured from the removed inline holder. */
 const documentsSql = 'SELECT id,checksum,object_key,attachment_source_id,attachment_link_id FROM legal_documents WHERE item_id=? AND NOT EXISTS(SELECT 1 FROM legal_disposals disposed WHERE disposed.document_id=legal_documents.id)';

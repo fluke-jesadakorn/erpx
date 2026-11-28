@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
-use erpx_server_finance::public::JournalError;
-use erpx_server_finance::public::journal_batch::*;
-use erpx_server_finance::public::journal_batch_wire::*;
-use erpx_server_finance::public::journal_review::{
+use erpx_finance_server::public::JournalError;
+use erpx_finance_server::public::journal_batch::*;
+use erpx_finance_server::public::journal_batch_wire::*;
+use erpx_finance_server::public::journal_review::{
     JournalLedgerLine, JournalReviewCommand, JournalReviewResult,
 };
-use erpx_server_shared::public::{CommandKey, FailureKind, RecordId, TimestampMillis};
+use erpx_platform_shared_server::public::{CommandKey, FailureKind, RecordId, TimestampMillis};
 
 fn line(journal: &str, ordinal: i64, debit: i64, credit: i64) -> JournalLedgerLine {
     JournalLedgerLine {
@@ -203,7 +203,7 @@ impl JournalBatchPorts for Mock {
 
     async fn lock_sources(
         &mut self,
-        _: &erpx_server_finance::public::FinanceActor,
+        _: &erpx_finance_server::public::FinanceActor,
         _: &JournalBatchCommand,
     ) -> Result<(), Self::Error> {
         self.events.push("lock");
@@ -211,7 +211,7 @@ impl JournalBatchPorts for Mock {
     }
     async fn authorize_current(
         &mut self,
-        _: &erpx_server_finance::public::FinanceActor,
+        _: &erpx_finance_server::public::FinanceActor,
         _: &JournalBatchCommand,
     ) -> Result<(), Self::Error> {
         self.events.push("authorize");
@@ -287,14 +287,14 @@ impl JournalBatchPorts for Mock {
     }
 }
 
-use erpx_server_finance::public::journal_review::JournalReviewInput;
+use erpx_finance_server::public::journal_review::JournalReviewInput;
 
-fn actor() -> erpx_server_finance::public::FinanceActor {
-    erpx_server_finance::public::FinanceActor {
-        holding_id: erpx_server_shared::public::HoldingId::new("holding").unwrap(),
-        company_id: erpx_server_shared::public::CompanyId::new("company").unwrap(),
-        user_id: erpx_server_shared::public::UserId::new("reviewer").unwrap(),
-        assignment_id: erpx_server_shared::public::AssignmentId::new("assignment").unwrap(),
+fn actor() -> erpx_finance_server::public::FinanceActor {
+    erpx_finance_server::public::FinanceActor {
+        holding_id: erpx_platform_shared_server::public::HoldingId::new("holding").unwrap(),
+        company_id: erpx_platform_shared_server::public::CompanyId::new("company").unwrap(),
+        user_id: erpx_platform_shared_server::public::UserId::new("reviewer").unwrap(),
+        assignment_id: erpx_platform_shared_server::public::AssignmentId::new("assignment").unwrap(),
     }
 }
 

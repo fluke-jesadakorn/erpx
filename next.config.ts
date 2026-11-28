@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 import {contributorWebpackCachePlugin} from "./scripts/local/contributor-webpack-cache.ts";
 import { realpathSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { developmentProductOrigin, productIds, sharedHostKeys } from "@erpx/contracts/product-registry";
+import { developmentProductOrigin, productIds, sharedHostKeys } from "@erpx/platform-contracts/product-registry";
 const configurationRoot = resolve(import.meta.dirname);
 const cohortDirectory = process.env.ERPX_DATA_DIR;
 // Case apps link dependencies from an immutable sibling fixture template.

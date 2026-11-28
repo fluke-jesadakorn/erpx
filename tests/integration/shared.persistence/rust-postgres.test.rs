@@ -1,6 +1,6 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     PersistenceError, PgTransactionError, PgUnitOfWork, SessionLock, TransactionOptions,
 };
 use fixture::with_database;
@@ -283,7 +283,7 @@ async fn retry_budget_is_four_callbacks_and_business_failures_are_never_retried(
 
 #[tokio::test]
 async fn request_authorization_lease_never_replays_a_callback_after_a_holding_commit() {
-    use erpx_server_runtime::public::postgres::PgRequestLease;
+    use erpx_platform_runtime_server::public::postgres::PgRequestLease;
     with_database(2,|control|async move {
         sqlx::raw_sql("CREATE TABLE current_account(id int PRIMARY KEY,active boolean); INSERT INTO current_account VALUES(1,true); CREATE FUNCTION retry_after_commit() RETURNS void LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'must not replay' USING ERRCODE='40001'; END $$;").execute(control.raw()).await.unwrap();
         with_database(2,move|holding|async move {
@@ -307,7 +307,7 @@ async fn request_authorization_lease_never_replays_a_callback_after_a_holding_co
 
 #[tokio::test]
 async fn development_worker_pool_requires_the_current_exact_server_side_database_lease() {
-    use erpx_server_runtime::public::postgres::{LeasedDevelopmentDatabase, PoolLimits};
+    use erpx_platform_runtime_server::public::postgres::{LeasedDevelopmentDatabase, PoolLimits};
     use sqlx::{ConnectOptions, postgres::PgConnectOptions};
     use std::str::FromStr;
     with_database(2, |pool| async move {

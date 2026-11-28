@@ -1,12 +1,12 @@
 import {describe,it,expect,vi,beforeEach,afterEach} from 'vitest';
 vi.mock('server-only',()=>({}));
-import {workflowDocument,workflowDocumentPage} from '../../../packages/server-inventory/src/adapters/workflow-document-sources';
+import {workflowDocument,workflowDocumentPage} from '../../../modules/inventory/server/src/adapters/workflow-document-sources';
 import {
   INVENTORY_RD_WORKFLOW_DOCUMENT_STOCK_COUNT,
   INVENTORY_RD_WORKFLOW_DOCUMENT_TRANSFER,
   INVENTORY_RD_WORKFLOW_DOCUMENT_PAGE_STOCK_COUNT,
   INVENTORY_RD_WORKFLOW_DOCUMENT_PAGE_TRANSFER,
-} from '../../../packages/server-inventory/src/adapters/native-inventory-read';
+} from '../../../modules/inventory/server/src/adapters/native-inventory-read';
 
 describe('native Inventory workflow-document-sources caller-unit reads',()=>{
   const envKey='ERPX_NATIVE_INVENTORY_CONFIG';

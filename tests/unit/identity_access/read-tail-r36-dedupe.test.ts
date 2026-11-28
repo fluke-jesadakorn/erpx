@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test, vi, afterEach } from 'vitest';
-import { revokedSessionHeadSql } from '../../../packages/server-identity_access/src/adapters/read-tail-family-r36';
+import { revokedSessionHeadSql } from '../../../modules/identity-access/server/src/adapters/read-tail-family-r36';
 import {
   identityControlReadConfigured,
   parseIdentityControlReadConfig,
@@ -11,9 +11,9 @@ import {
   PC_CONTEXT_RECEIPT,
   PC_REVOKED_SESSION,
   PC_FRESH_MFA,
-} from '../../../packages/server-identity_access/src/adapters/native-control-read-plan';
+} from '../../../modules/identity-access/server/src/adapters/native-control-read-plan';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-identity_access/src');
+const srcRoot = resolve(__dirname, '../../../modules/identity-access/server/src');
 const read = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
 const hash = (rel: string) => createHash('sha256').update(read(rel)).digest('hex');
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');

@@ -7,11 +7,11 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_identity_access::public::staff_notifications::supplier_promise_recipients;
-use erpx_server_runtime::public::postgres::{MigrationTrack, load_migrations, migrate_database};
+use erpx_identity_access_server::public::staff_notifications::supplier_promise_recipients;
+use erpx_platform_runtime_server::public::postgres::{MigrationTrack, load_migrations, migrate_database};
 use sqlx::Connection;
 
-async fn setup(pool: &erpx_server_runtime::public::postgres::DatabasePool) {
+async fn setup(pool: &erpx_platform_runtime_server::public::postgres::DatabasePool) {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
     let files = load_migrations(root, MigrationTrack::HoldingWrite)
         .await

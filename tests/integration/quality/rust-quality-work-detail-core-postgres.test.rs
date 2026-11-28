@@ -4,14 +4,14 @@
 mod facts;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_quality::public::quality_http::{PgQualityRead, lock_quality_read_sources};
-use erpx_server_quality::public::quality_read::{
+use erpx_quality_server::public::quality_http::{PgQualityRead, lock_quality_read_sources};
+use erpx_quality_server::public::quality_read::{
     QualityActor, QualityReadRepository, quality_detail_core_from_source,
 };
-use erpx_server_quality::public::quality_work::{
+use erpx_quality_server::public::quality_work::{
     FnSourceAccess, MappedSourceAccess, QualitySourceAccess, quality_work,
 };
-use erpx_server_shared::public::{CompanyId, RecordId, UserId};
+use erpx_platform_shared_server::public::{CompanyId, RecordId, UserId};
 
 fn company() -> CompanyId {
     CompanyId::new("company").unwrap()

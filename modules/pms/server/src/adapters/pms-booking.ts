@@ -1,0 +1,412 @@
+import {hydratePmsReceiptAllocationCredits} from "./pms";
+import { PMS_WRITE_CONTEXT_SQL } from "./pms-read-tail-r17-sql";
+import { PMS_BOOKING_PAYMENT_BY_ID_SQL } from "./pms-read-tail-r18-sql";
+import { PMS_PURCHASE_CLOCK_CTE_SQL } from "./pms-read-tail-r27-sql";
+import { pmsRefundPaymentJoinHeadSql } from "./pms-read-tail-r34-sql";
+import { PMS_PROPERTY_POINT_HEAD_SQL } from "./pms-read-tail-r36-sql";
+import { PMS_BOOKING_PAYMENT_ID_HEAD_SQL } from "./pms-read-tail-r37-sql";
+import { pmsGuestIdJoinSql } from "./pms-read-tail-r41-sql";
+import {holdingRoutingEnabled,holdingHosts} from '@erpx/platform-contracts/holding-hosts';
+import {bookingEmailDeliveryPayload} from "@erpx/pms-server/adapters/booking-email-delivery";
+import "server-only";
+import {publicSurfaceOrigin} from '@erpx/identity-access-server/public/public-surface-entry';
+import { createHash, createHmac, randomUUID, randomBytes, createCipheriv, createDecipheriv, timingSafeEqual } from "node:crypto";
+import { type BookingSearch } from "@erpx/pms-ui/lib/pms-booking";
+import { type Kind, type Property, type Snapshot } from "@erpx/pms-server/public/rules/pms";
+import { effects as persistPmsEffects, persistPmsRecords } from "../public/pms";
+import {stripeCall} from '@erpx/pos-server/public/stripe-provider';
+import { verifiedStripePaymentTime } from "@erpx/pos-server/public/stripe-payment-time";
+import { ApiError } from "@erpx/platform-runtime-server/public/http";
+import {snapshotMoney} from '@erpx/finance-server/public/company-money';
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import { requirePermission } from "@erpx/identity-access-server/public/iam-permissions";
+import { holdingBindingBySlug, holdingResources, runtimeEnv } from "../../../../../platform/runtime/server/src/public/runtime";
+import { isTransactionalSqlDatabase, type SqlDatabase, type TransactionalSqlDatabase } from "@erpx/platform-runtime-server/public/runtime/types";
+import type { SqlStatement } from "@erpx/platform-runtime-server/public/runtime/types";
+import type { Effects } from "@erpx/pms-ui/lib/pms-engine";
+import { createPmsBooking, type PmsBookingUnit, type PmsBookingRepository } from "@erpx/pms-server/application/pms-booking";
+import { publicReservationSchema, type BookingEnv, type BookingPaymentRow, type PaymentAllocation } from "@erpx/pms-server/domain/booking";
+import { processBookingRefund } from "@erpx/pms-server/public/pms-booking-refunds";
+import { settleBookingChange, publicChangeQuote, confirmBookingChange } from "@erpx/pms-server/public/pms-booking-changes";
+import { pmsBookingPublications } from "@erpx/files-server/public/pms-booking-publications";
+import { pmsBookingPosFacts } from "@erpx/pos-server/public/pms-booking-facts";
+import { pmsPropertyPurchaseAllowed, pmsPropertyPurchaseFlags, requirePmsPropertyPurchase, withPmsPropertyPurchasedTransaction } from "@erpx/pms-server/adapters/property-purchase-boundary";
+import { pmsPackageEnforcementMode } from "@erpx/commercial-server/public/purchase-command-boundary";
+import { purchasedCapabilityPredicate } from "@erpx/commercial-server/public/purchased-capability-sql";
+import { nativePmsOwnerWrite } from "@erpx/pms-ui/public/native-pms";
+import { nativePmsReadAll, nativePmsReadFirst, PMS_RD_BOOKING_RECEIPT_BY_KEY, PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT, PMS_RD_BOOKING_DOCUMENTS, PMS_RD_CHANGE_PAYMENT_PENDING, PMS_RD_BOOKING_PROPERTY_SCOPE, PMS_RD_BOOKING_PROPERTY_SCOPE_BRANCH, PMS_RD_BOOKING_RECORDS, PMS_RD_BOOKING_RECORDS_SEARCH, PMS_RD_BOOKING_TOKEN } from "./native-pms-read";
+export async function bookingEnv(): Promise<BookingEnv> {
+    const env = await runtimeEnv();
+    return {
+        secret: env.BETTER_AUTH_SECRET,
+        origin: publicSurfaceOrigin('booking',env.ERPX_PUBLIC_ORIGIN),
+        ...(holdingRoutingEnabled(process.env)?{holdingOrigins:Object.fromEntries(holdingHosts.map(host=>[host.holdingSlug,`https://${host.hostname}`]))}:{}),
+        apiKey: env.RESEND_API_KEY,
+        from: env.RESEND_FROM,
+    };
+}
+export async function bookingDatabase(slug: string) {
+    const binding = await holdingBindingBySlug(slug), { write } = await holdingResources(binding.id);
+    if (!isTransactionalSqlDatabase(write))
+        throw new Error("POSTGRES_REQUIRED");
+    return write;
+}
+const hash = (v: string) => createHash("sha256").update(v).digest("hex");
+const sign = (secret: string, v: string) => createHmac("sha256", secret).update(`pms-booking:${v}`).digest("base64url");
+function protectMail(value: string, env: BookingEnv, id: string) {
+    const iv = randomBytes(12), cipher = createCipheriv("aes-256-gcm", createHash("sha256").update(`pms-mail:${env.secret}`).digest(), iv);
+    cipher.setAAD(Buffer.from(id));
+    const body = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
+    return JSON.stringify({
+        iv: iv.toString("base64"),
+        body: body.toString("base64"),
+        tag: cipher.getAuthTag().toString("base64"),
+    });
+}
+function unprotectMail(value: string, env: BookingEnv, id: string) {
+    const v = JSON.parse(value), decipher = createDecipheriv("aes-256-gcm", createHash("sha256").update(`pms-mail:${env.secret}`).digest(), Buffer.from(v.iv, "base64"));
+    decipher.setAAD(Buffer.from(id));
+    decipher.setAuthTag(Buffer.from(v.tag, "base64"));
+    return bookingEmailDeliveryPayload(Buffer.concat([
+        decipher.update(Buffer.from(v.body, "base64")),
+        decipher.final(),
+    ]).toString("utf8"),env);
+}
+const same = (a: string, b: string) => {
+    const x = Buffer.from(a), y = Buffer.from(b);
+    return x.length === y.length && timingSafeEqual(x, y);
+};
+const rows = async <T>(db: SqlDatabase, sql: string, ...v: unknown[]) => (await db
+    .prepare(sql)
+    .bind(...v)
+    .all<T>()).results;
+function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase, companyId = ''): PmsBookingUnit<SqlStatement> {
+        const write = (kind: string, values: unknown[]): any => nativePmsOwnerWrite(companyId, kind, values);
+    return {
+        hydrateReceiptAllocationCredits: snapshot => hydratePmsReceiptAllocationCredits(db,snapshot),
+        purchaseAllowed: (propertyId, purpose) => pmsPropertyPurchaseAllowed(db, propertyId, purpose),
+        purchaseFlags: propertyId => pmsPropertyPurchaseFlags(db, propertyId),
+        requirePurchase: input => requirePmsPropertyPurchase(db, input),
+        readPmsProperties1: (facts: {
+            propertyId: string;
+            lock: boolean;
+        }) => db.prepare(`${PMS_PROPERTY_POINT_HEAD_SQL} WHERE id=?${facts.lock ? " FOR UPDATE" : ""}`).bind(facts.propertyId).first<{
+            id: string;
+            company_id: string;
+            branch_id: string;
+            name: string;
+            business_date: string;
+            state: Property["state"];
+            version: number;
+            config_json: string;
+        }>(),
+        writePmsProperties1: (facts: {
+            version: number;
+            fact1: number;
+            id: string;
+        }) => write('pms_w025', [facts.version, facts.fact1, facts.id]),
+        writePmsBookingTokens1: (facts: {
+            id: `${string}-${string}-${string}-${string}-${string}`;
+            propertyId: string;
+            reservationId: string;
+            fact3: string;
+            fact4: number;
+            now: number;
+        }) => write('pms_w026', [facts.id, facts.propertyId, facts.reservationId, facts.fact3, facts.fact4, facts.now]),
+        writePmsBookingEmails1: (facts: {
+            mailId: `${string}-${string}-${string}-${string}-${string}`;
+            id: string;
+            reservationId: string;
+            id2: `${string}-${string}-${string}-${string}-${string}`;
+            slug: string;
+            kind: "access" | "refund" | "change" | "cancellation" | "confirmation";
+            fact6: string;
+            now: number;
+            now2: number;
+        }) => write('pms_w027', [facts.mailId, facts.id, facts.reservationId, facts.id2, facts.slug, facts.kind, facts.fact6, facts.now, facts.now2]),
+        readPmsBookingReceipts1: (facts: {
+            key: string;
+        }) => nativePmsReadFirst<{
+            body_hash: string;
+            reservation_id: string;
+            response_json: string | null;
+        }>(PMS_RD_BOOKING_RECEIPT_BY_KEY, [facts.key], db),
+        readPosConnections1: facts => pmsBookingPosFacts(db).readPosConnections1(facts),
+        writePmsBookingReceipts1: (facts: {
+            key: string;
+            id: string;
+            digest: string;
+            id2: string;
+            now: number;
+            fact5: string;
+        }) => write('pms_w028', [facts.key, facts.id, facts.digest, facts.id2, facts.now, facts.fact5]),
+        readPosSettings1: facts => pmsBookingPosFacts(db).readPosSettings1(facts),
+        writePmsBookingPayments1: (facts: {
+            attemptId: `${string}-${string}-${string}-${string}-${string}`;
+            id: string;
+            id2: string;
+            companyId: string;
+            slug: string;
+            fact5: string;
+            fact6: boolean;
+            dueNow: number;
+            expiresAt: number;
+            now: number;
+            now2: number;
+            fact11: string;
+            fact12: string;
+            clearing: unknown;
+        }) => write('pms_w029', [facts.attemptId, facts.id, facts.id2, facts.companyId, facts.slug, facts.fact5, facts.fact6, facts.dueNow, facts.expiresAt, facts.now, facts.now2, facts.fact11, facts.fact12, facts.clearing]),
+        writePmsBookingReceipts2: (facts: {
+            key: string;
+            id: string;
+            digest: string;
+            id2: string;
+            now: number;
+            fact5: string;
+        }) => write('pms_w030', [facts.key, facts.id, facts.digest, facts.id2, facts.now, facts.fact5]),
+        readPmsBookingPayments1: (facts: {
+            id: string;
+        }) => db.prepare(PMS_BOOKING_PAYMENT_BY_ID_SQL).bind(facts.id).first<BookingPaymentRow>(),
+        readPmsRecords1: (facts: {
+            reservation_id: string;
+            property_id: string;
+        }) => db.prepare(`${pmsGuestIdJoinSql('email')} WHERE r.id=? AND r.property_id=?`).bind(facts.reservation_id, facts.property_id).first<{
+            email: string;
+        }>(),
+        writePmsBookingPayments2: (facts: {
+            id: string;
+            url: string;
+            fact2: number;
+            id2: string;
+        }) => write('pms_w031', [facts.id, facts.url, facts.fact2, facts.id2]),
+        readPmsBookingPayments2: (facts: {
+            id: string;
+        }) => db.prepare(PMS_BOOKING_PAYMENT_BY_ID_SQL).bind(facts.id).first<BookingPaymentRow>(),
+        readPmsBookingReceipts2: (facts: {
+            reservation_id: string;
+            id: string;
+        }) => nativePmsReadFirst<{
+            response_json: string;
+        }>(PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT, [facts.reservation_id, facts.id], db),
+        readPmsBookingPayments3: (facts: {
+            id: string;
+        }) => db.prepare(PMS_BOOKING_PAYMENT_BY_ID_SQL).bind(facts.id).first<BookingPaymentRow>(),
+        writePmsBookingPayments3: (facts: {
+            paymentIntentId: string;
+            now: number;
+            id: string;
+        }) => write('pms_w032', [facts.paymentIntentId, facts.now, facts.id]),
+        writePmsBookingPayments4: (facts: {
+            paymentIntentId: string | null;
+            providerSucceededAt: number | null;
+            fact2: number;
+            id: string;
+        }) => write('pms_w033', [facts.paymentIntentId, facts.providerSucceededAt, facts.fact2, facts.id]),
+        readContext1: () => db.prepare(PMS_WRITE_CONTEXT_SQL).bind().first(),
+        readPmsBookingPayments4: (facts: {
+            id: string;
+        }) => db.prepare('SELECT * FROM pms_booking_payments WHERE id=? FOR UPDATE').bind(facts.id).first<BookingPaymentRow>(),
+        writePmsBookingPayments5: (facts: {
+            paymentIntentId: string | null;
+            providerSucceededAt: number | null;
+            fact2: number;
+            id: string;
+        }) => write('pms_w034', [facts.paymentIntentId, facts.providerSucceededAt, facts.fact2, facts.id]),
+        writePmsBookingAllocations1: (facts: {
+            fact0: `${string}-${string}-${string}-${string}-${string}`;
+            id: string;
+            stayId: string;
+            guestAccountId: string;
+            id2: string;
+            amount: number;
+            now: number;
+        }) => write('pms_w035', [facts.fact0, facts.id, facts.stayId, facts.guestAccountId, facts.id2, facts.amount, facts.now]),
+        writePmsBookingPayments6: (facts: {
+            now: number;
+            id: string;
+        }) => write('pms_w036', [facts.now, facts.id]),
+        writePmsBookingRefundRequests1: (facts: {
+            fact0: `${string}-${string}-${string}-${string}-${string}`;
+            id: string;
+            amount_minor: number;
+            now: number;
+            now2: number;
+        }) => write('pms_w037', [facts.fact0, facts.id, facts.amount_minor, facts.now, facts.now2]),
+        writePmsBookingPayments7: (facts: {
+            fact0: "expired" | "refund_review";
+            fact1: "requested" | null;
+            fact2: number | null;
+            now: number;
+            id: string;
+        }) => write('pms_w038', [facts.fact0, facts.fact1, facts.fact2, facts.now, facts.id]),
+        writePmsBookingPayments8: (facts: {
+            now: number;
+            id: string;
+        }) => write('pms_w039', [facts.now, facts.id]),
+        writePmsBookingPayments9: (facts: {
+            fact0: string;
+            now: number;
+            id: string;
+        }) => write('pms_w040', [facts.fact0, facts.now, facts.id]),
+        writePmsBookingRefundRequests2: (facts: {
+            fact0: string;
+            now: number;
+            id: string;
+        }) => write('pms_w041', [facts.fact0, facts.now, facts.id]),
+        readPmsBookingTokens1: (facts: {
+            fact0: string;
+            now: number;
+        }) => nativePmsReadFirst<{
+            property_id: string;
+            reservation_id: string;
+        }>(PMS_RD_BOOKING_TOKEN, [facts.fact0, facts.now], db),
+        readPmsBookingRefundRequests1: (facts: {
+            id: string;
+        }) => db.prepare(`${pmsRefundPaymentJoinHeadSql('brief')} WHERE p.reservation_id=? ORDER BY r.created_at DESC`).bind(facts.id).all<{
+            id: string;
+            amount_minor: number;
+            state: string;
+            reason: string;
+        }>(),
+        readPmsDocuments1: (facts: {
+            id: string;
+            id2: string;
+            id3: string;
+        }) => nativePmsReadAll<{
+            id: string;
+            kind: string;
+            created_at: number;
+        }>(PMS_RD_BOOKING_DOCUMENTS, [facts.id, facts.id2, facts.id3], db),
+        readPmsBookingPayments5: (facts: {
+            id: string;
+        }) => nativePmsReadFirst<{
+            id: string;
+            expires_at: number;
+        }>(PMS_RD_CHANGE_PAYMENT_PENDING, [facts.id], db),
+        readPmsBookingLimits1: (facts: {
+            fact0: string;
+            bucket: number;
+        }) => write('pms_w042', [facts.fact0, facts.bucket]).then((r: any) => r.row as { count: number } | null),
+        readPmsProperties2: (facts: {
+            propertyId: string;
+            companyId: string;
+            fact2: Array<string>;
+            actor: WorkContext;
+        }) => nativePmsReadFirst<{ id: string }>(
+            facts.actor.branchId ? PMS_RD_BOOKING_PROPERTY_SCOPE_BRANCH : PMS_RD_BOOKING_PROPERTY_SCOPE,
+            [facts.propertyId, facts.companyId, ...facts.fact2], db),
+        writePmsBookingLimits1: (facts: {
+            fact0: number;
+        }) => write('pms_w043', [facts.fact0]),
+        readPmsBookingEmails1: (facts: {
+            fact0: number;
+            now: number;
+            now2: number;
+        }) => write('pms_w044', [facts.fact0, facts.now, facts.now2]).then((r: any) => r.row as {
+            id: string;
+            property_id: string;
+            reservation_id: string;
+            token_id: string;
+            holding_slug: string;
+            kind: string;
+            attempts: number;
+            payload_json: string;
+        } | null),
+        writePmsBookingTokens2: (facts: {
+            fact0: number;
+            token_id: string;
+        }) => write('pms_w045', [facts.fact0, facts.token_id]),
+        writePmsBookingEmailsBlocked: facts => write('pms_w046', [facts.nextAt, facts.code, facts.id]),
+        writePmsBookingEmails2: (facts: {
+            now: number;
+            id: string;
+        }) => write('pms_w047', [facts.now, facts.id]),
+        writePmsBookingEmails3: (facts: {
+            fact0: "pending" | "failed";
+            fact1: number;
+            id: string;
+        }) => write('pms_w048', [facts.fact0, facts.fact1, facts.id]),
+        readPmsRecords2: (facts: {
+            propertyId: string;
+            fact1: Array<string>;
+            search: BookingSearch | undefined;
+        }) => nativePmsReadAll<{
+            id: string;
+            kind: Kind;
+            data_json: string;
+            version: number;
+            updated_at: number;
+        }>(facts.search ? PMS_RD_BOOKING_RECORDS_SEARCH : PMS_RD_BOOKING_RECORDS, [facts.propertyId, ...facts.fact1], db).then(result => result.results),
+        readPmsProperties3: async () => {
+            const mode = await pmsPackageEnforcementMode(), enforced = mode === "enforced";
+            const clock = enforced ? PMS_PURCHASE_CLOCK_CTE_SQL : "";
+            const join = enforced ? " CROSS JOIN purchase_clock" : "";
+            const purchase = enforced ? purchasedCapabilityPredicate("p.company_id", "pms.reservations", "new-work", "purchase_clock.observed_at") : "TRUE";
+            const hotels = await rows<{ id: string; name: string; config_json: string }>(db, `${clock}SELECT p.id,p.name,p.config_json FROM pms_properties p${join}
+              WHERE p.state IN ('open','closing') AND p.config_json::jsonb->'booking'->>'published'='true' AND ${purchase} ORDER BY p.name LIMIT 200`);
+            if (mode === "shadow") for (const hotel of hotels) await pmsPropertyPurchaseAllowed(db, hotel.id, "new-work");
+            return hotels;
+        },
+        readAttachmentPublications1: () => pmsBookingPublications(db, "SELECT jsonb_array_elements(config_json::jsonb->'booking'->'images')->>'publicationId' FROM pms_properties WHERE config_json::jsonb->'booking'->>'published'='true' UNION SELECT image->>'publicationId' FROM pms_properties CROSS JOIN LATERAL jsonb_array_elements(config_json::jsonb->'booking'->'roomContent') room CROSS JOIN LATERAL jsonb_array_elements(room->'images') image WHERE config_json::jsonb->'booking'->>'published'='true'").approved(),
+        readPmsBookingPayments6: (facts: {
+            fact0: number;
+            fact1: number;
+        }) => rows<{
+            id: string;
+        }>(db, `${PMS_BOOKING_PAYMENT_ID_HEAD_SQL} status='payment_pending' OR (status='expired' AND checkout_id IS NOT NULL AND updated_at<? AND expires_at>?) ORDER BY updated_at LIMIT 20`, facts.fact0, facts.fact1),
+        readPmsBookingPayments7: () => rows<{
+            id: string;
+        }>(db, `${PMS_BOOKING_PAYMENT_ID_HEAD_SQL} id IN (SELECT payment_id FROM pms_booking_refund_requests WHERE state IN ('approved','processing','requires_action')) ORDER BY updated_at LIMIT 20`),
+        readPmsRecords3: (facts: {
+            number: string;
+            email: string;
+        }) => rows<{
+            id: string;
+            property_id: string;
+        }>(db, `${pmsGuestIdJoinSql('reservationEmail')} WHERE r.kind='reservation' AND r.data_json::jsonb->>'number'=? AND lower(g.data_json::jsonb->>'email')=lower(?) LIMIT 1`, facts.number, facts.email),
+        persistPmsRecords: (arg0: Snapshot, arg1: Map<string, string>) => persistPmsRecords(db, arg0, arg1),
+        snapshotMoney: (arg0: {
+            companyId: string;
+        }, arg1: {
+            sourceType: string;
+            sourceId: `${string}-${string}-${string}-${string}-${string}`;
+            amountKind: string;
+            transactionDate: string;
+            currency: string;
+            amountUnits: string;
+        }) => snapshotMoney(db, arg0, arg1),
+        persistPmsEffects: (arg0: WorkContext, arg1: Snapshot, arg2: Effects) => persistPmsEffects(db, arg0, arg1, arg2),
+        processBookingRefund: (arg0: string, arg1: number) => processBookingRefund(requireWhole(whole), arg0, arg1),
+        settleBookingChange: (...args) => settleBookingChange(db, ...args),
+        publicChangeQuote: (...args) => publicChangeQuote(requireWhole(whole), ...args),
+        confirmBookingChange: (...args) => confirmBookingChange(requireWhole(whole), ...args)
+    };
+}
+function repository(db: TransactionalSqlDatabase, companyId = ''): PmsBookingRepository<SqlStatement> { return { ...unit(db, db, companyId), transaction: (work, purchase) => withPmsPropertyPurchasedTransaction(db, tx => work(unit(tx, db, companyId)), purchase) }; }
+function requireWhole(db: TransactionalSqlDatabase | undefined): TransactionalSqlDatabase { if (!db)
+    throw new Error("A booking command requires the original transaction-capable connection"); return db; }
+const application = createPmsBooking<SqlStatement>({ clock: { now: () => Date.now() }, uuid: randomUUID, hash, sign, same, protectMail, unprotectMail, encode: value => Buffer.from(value).toString("base64url"), decode: value => Buffer.from(value, "base64url").toString(), bookingEnv: (...args) => bookingEnv(...args), liveEnabled: () => process.env.PMS_STRIPE_LIVE_ENABLED, require: requirePermission, forActor: async (actor) => unit((await holdingResources(actor.holdingId)).write, undefined, actor.companyId), error: (status, code, message) => new ApiError(status, code, message), isBusinessError: (error): error is ApiError => error instanceof ApiError, stripeCall: (...args) => stripeCall(...args), verifiedStripePaymentTime: (...args) => verifiedStripePaymentTime(...args), sendMail: fetch, timeout: () => AbortSignal.timeout(10000) });
+export function bookingSnapshot(db: SqlDatabase, propertyId: string, search?: BookingSearch, lock = false) { return application.bookingSnapshot(unit(db), propertyId, search, lock); }
+export function bookingCatalog(db: SqlDatabase) { return application.bookingCatalog(unit(db)); }
+export function publicOffers(db: TransactionalSqlDatabase, input: unknown, propertyId?: string) { return application.publicOffers(repository(db), input, propertyId); }
+export function publicQuote(db: TransactionalSqlDatabase, propertyId: string, raw: unknown, env: BookingEnv, now = Date.now()) { return application.publicQuote(repository(db), propertyId, raw, env, now); }
+export function persist(db: SqlDatabase, s: Snapshot, before: Map<string, string>) { return application.persist(unit(db), s, before); }
+export function queueMail(db: SqlDatabase, s: Snapshot, reservationId: string, slug: string, kind: "confirmation" | "cancellation" | "access" | "change" | "refund", env: BookingEnv, now: number) { return application.queueMail(unit(db), s, reservationId, slug, kind, env, now); }
+export function bookingSummary(s: Snapshot, id: string, now: number) { return application.bookingSummary(s, id, now); }
+export function createPublicReservation(db: TransactionalSqlDatabase, slug: string, raw: unknown, key: string, env: BookingEnv, now = Date.now()) { return application.createPublicReservation(repository(db), slug, raw, key, env, now); }
+export function bookingCheckout(db: TransactionalSqlDatabase, slug: string, id: string, env: BookingEnv, now = Date.now()) { return application.bookingCheckout(repository(db), slug, id, env, now); }
+export function bookingPaymentStatus(db: TransactionalSqlDatabase, token: string, env: BookingEnv, now = Date.now()) { return application.bookingPaymentStatus(repository(db), token, env, now); }
+export function reconcileBookingPayment(db: TransactionalSqlDatabase, id: string, env: BookingEnv, now = Date.now()) { return application.reconcileBookingPayment(repository(db), id, env, now); }
+export function drainBookingPayments(db: TransactionalSqlDatabase, env: BookingEnv, now = Date.now()) { return application.drainBookingPayments(repository(db), env, now); }
+export function authorizedBooking(db: SqlDatabase, token: string, now: number, lock = false) { return application.authorizedBooking(unit(db), token, now, lock); }
+export function manageBooking(db: TransactionalSqlDatabase, token: string, now = Date.now()) { return application.manageBooking(repository(db), token, now); }
+export function cancelPublicReservation(db: TransactionalSqlDatabase, slug: string, token: string, env: BookingEnv, now = Date.now()) { return application.cancelPublicReservation(repository(db), slug, token, env, now); }
+export function recoverBooking(db: TransactionalSqlDatabase, slug: string, raw: unknown, env: BookingEnv, now = Date.now()) { return application.recoverBooking(repository(db), slug, raw, env, now); }
+export function bookingRateLimit(db: SqlDatabase, key: string, limit = 30, now = Date.now()) { return application.bookingRateLimit(unit(db), key, limit, now); }
+export function staffBookingSearch(actor: WorkContext, propertyId: string, operation: "availability" | "quote", input: unknown) { return application.staffBookingSearch(actor, propertyId, operation, input); }
+export function bookingError(error: unknown) { return application.bookingError(error); }
+export function deliverBookingEmails(db: TransactionalSqlDatabase, env: BookingEnv, send: typeof fetch = fetch, now = Date.now()) { return application.deliverBookingEmails(repository(db), env, send, now); }
+export { publicReservationSchema };
+export type { BookingEnv, BookingPaymentRow, PaymentAllocation };
+export { approveBookingRefund, bookingRefundsForFinance, processBookingRefund, requestBookingRefund } from "@erpx/pms-server/public/pms-booking-refunds";

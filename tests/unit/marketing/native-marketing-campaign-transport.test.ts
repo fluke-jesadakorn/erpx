@@ -6,7 +6,7 @@ import {
   nativeMarketingCampaignConfiguration,
   NativeMarketingCampaignError,
   type NativeMarketingCampaignPageContext,
-} from '../../../packages/feature-sales/src/public/native-marketing-campaign';
+} from '../../../modules/sales/ui/src/public/native-marketing-campaign';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44996',
@@ -175,7 +175,7 @@ describe('native Marketing campaign transport',()=>{
   const previous=process.env.ERPX_NATIVE_MARKETING_CAMPAIGN_CONFIG;
   delete process.env.ERPX_NATIVE_MARKETING_CAMPAIGN_CONFIG;
   expect(nativeMarketingCampaignAvailable()).toBe(false);
-  const {nativeMarketingCampaignReport}=await import('../../../packages/feature-sales/src/public/native-marketing-campaign-page');
+  const {nativeMarketingCampaignReport}=await import('../../../modules/sales/ui/src/public/native-marketing-campaign-page');
   await expect(nativeMarketingCampaignReport(actor as never)).resolves.toBeUndefined();
   if(previous!==undefined)process.env.ERPX_NATIVE_MARKETING_CAMPAIGN_CONFIG=previous;
  });
@@ -183,7 +183,7 @@ describe('native Marketing campaign transport',()=>{
  it('does not fall back when a configured native Marketing selector is malformed',async()=>{
   const previous=process.env.ERPX_NATIVE_MARKETING_CAMPAIGN_CONFIG;
   process.env.ERPX_NATIVE_MARKETING_CAMPAIGN_CONFIG='{not-json';
-  const {nativeMarketingCampaignReport}=await import('../../../packages/feature-sales/src/public/native-marketing-campaign-page');
+  const {nativeMarketingCampaignReport}=await import('../../../modules/sales/ui/src/public/native-marketing-campaign-page');
   await expect(nativeMarketingCampaignReport(actor as never)).rejects.toMatchObject({
     code:'NATIVE_MARKETING_CAMPAIGN_CONFIGURATION_INVALID',
   });
@@ -208,7 +208,7 @@ describe('native Marketing campaign transport',()=>{
  });
 
  it('maps transport failures to the retained page/route status policy',async()=>{
-  const {nativeMarketingCampaignFailure}=await import('../../../packages/feature-sales/src/public/native-marketing-campaign-page');
+  const {nativeMarketingCampaignFailure}=await import('../../../modules/sales/ui/src/public/native-marketing-campaign-page');
   expect(nativeMarketingCampaignFailure(new NativeMarketingCampaignError('NATIVE_MARKETING_CAMPAIGN_CONTEXT_CHANGED')))
     .toMatchObject({status:409,code:'WORK_CONTEXT_CHANGED'});
   expect(nativeMarketingCampaignFailure(new NativeMarketingCampaignError('NATIVE_MARKETING_CAMPAIGN_REQUEST_INVALID')))
@@ -230,7 +230,7 @@ describe('native Marketing command RETURNING-row transport',()=>{
    holdings:[{origin:'https://acme.example.com',holdingSlug:'acme',holdingId:'h001',companyId:'company'}],
    ...overrides,
  });
- const command=()=>import('../../../packages/feature-marketing/src/adapters/server/native-marketing-command');
+ const command=()=>import('../../../modules/marketing/ui/src/adapters/server/native-marketing-command');
  const reply=(rows:unknown,kind='marketing_stmt_1')=>new Response(JSON.stringify({data:{kind,rows},context:{companyId:'company'}}),{status:200,headers:{'content-type':'application/json'}});
  const previous=process.env.ERPX_NATIVE_MARKETING_CONFIG;
  let fetchSpy:ReturnType<typeof vi.fn>;

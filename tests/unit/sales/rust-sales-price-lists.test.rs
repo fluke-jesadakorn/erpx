@@ -5,14 +5,14 @@
 //! independent activation, receipt/audit/outbox sequencing and fail-closed
 //! readback. Raw PostgreSQL behavior is covered by the separate postgres target.
 #![allow(dead_code)]
-use erpx_server_sales::public::sales_price_lists::{
+use erpx_sales_server::public::sales_price_lists::{
     AuditEntry, OutboxEntry, PriceListActor, PriceListCommandReceipt, PriceListCommandRepository,
     PriceListDecision, PriceListDecisionAction, PriceListDocument, PriceListFuture, PriceListInput,
     PriceListItemInput, PriceListItemRow, PriceListProductSource, PriceListRow, PriceListStatus,
     PriceListUpdate, PriceListWritePlan, ReceiptEntry, create_price_list, decide_price_list,
     update_price_list,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, RecordId, TimestampMillis, UserId,
 };
 use std::collections::HashMap;

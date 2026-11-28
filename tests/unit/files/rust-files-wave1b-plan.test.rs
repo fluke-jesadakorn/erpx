@@ -5,19 +5,19 @@
 //! the receipt/audit/outbox rows with `jsonb_build_object` for execution in
 //! the caller's already-open unit, so the files command never opens a second
 //! transaction while the caller holds attachment row locks.
-use erpx_server_files::public::files_wave1b::{
+use erpx_files_server::public::files_wave1b::{
     FilesCommandInput, RD_FINANCE_REFUND_PROOF_SETS, RD_LEGAL_DOCUMENT_CLEAN_SOURCE,
     RD_OVERTIME_EVIDENCE_SETS, RD_PMS_ATTACHMENT_LINK_SET, RD_PMS_UPLOAD_FACT,
     RD_POS_IMAGE_SOURCE, RD_PROJECT_ATTACHMENT_TARGET, RD_SUPPORT_ATTACHMENT_TARGET,
     RD_FRONT_LOGO_PUBLICATION, RD_LEGAL_CORPUS_SOURCE_LINK, RD_PMS_BOOKING_PUBLICATIONS,
     RD_RECORDS_EVIDENCE_SETS, RD_WORKFLOW_APPROVAL_EVIDENCE, is_read, plan,
 };
-use erpx_server_files::public::files_wave1b_http::{
+use erpx_files_server::public::files_wave1b_http::{
     FilesCommandBackend, FilesCommandFuture, FilesCommandPlanFuture, FilesCommandRequest,
     FilesCommandTarget, files_command_router,
 };
-use erpx_server_runtime::public::http_support::{serve, serde_json};
-use erpx_server_shared::public::CompanyId;
+use erpx_platform_runtime_server::public::http_support::{serve, serde_json};
+use erpx_platform_shared_server::public::CompanyId;
 use std::sync::Arc;
 
 fn company() -> CompanyId {
@@ -893,8 +893,8 @@ struct Stub;
 impl FilesCommandBackend for Stub {
     fn execute<'a>(&'a self, _: FilesCommandRequest<'a>) -> FilesCommandFuture<'a> {
         Box::pin(async {
-            Err(erpx_server_shared::public::BusinessError::new(
-                erpx_server_shared::public::FailureKind::Unavailable,
+            Err(erpx_platform_shared_server::public::BusinessError::new(
+                erpx_platform_shared_server::public::FailureKind::Unavailable,
                 "FILES_COMMAND_UNAVAILABLE",
                 "The native Files command unit is unavailable.",
             ))
@@ -909,8 +909,8 @@ impl FilesCommandBackend for Stub {
                 .and_then(|value| value.to_str().ok())
                 .unwrap_or_default();
             let company = CompanyId::new(company).map_err(|_| {
-                erpx_server_shared::public::BusinessError::new(
-                    erpx_server_shared::public::FailureKind::InvalidInput,
+                erpx_platform_shared_server::public::BusinessError::new(
+                    erpx_platform_shared_server::public::FailureKind::InvalidInput,
                     "FILES_WAVE1B_REQUEST_INVALID",
                     "Review the Files command request.",
                 )

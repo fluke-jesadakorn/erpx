@@ -3,9 +3,9 @@ import { readFileSync } from 'node:fs';
 import {
   reservedWarehouseProductQtySql,
   singleCountLineMarkerSql,
-} from '../../../packages/server-inventory/src/adapters/read-tail-sql';
+} from '../../../modules/inventory/server/src/adapters/read-tail-sql';
 
-const src = (name: string) => readFileSync(new URL(`../../../packages/server-inventory/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFileSync(new URL(`../../../modules/inventory/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 describe('Inventory read-tail r11 byte-identical dedupe', () => {
   test('canonical literals own the exact shared text, read-only', () => {

@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 
-const srcRoot = resolve(__dirname, '../../../packages/server-workflow/src');
+const srcRoot = resolve(__dirname, '../../../modules/workflow/server/src');
 const src = (rel: string) => readFile(resolve(srcRoot, rel), 'utf8');
 
 /** Byte oracle captured from the retired TypeScript literal before the r39 cut. */
@@ -37,13 +37,13 @@ describe('workflow inventory audit-history read tail (r39 native read cutover)',
   it('plans countHistory through the native read with the exact company and record binds', async () => {
     const all = vi.fn(async () => [{ id: 'a1' }]);
     vi.resetModules();
-    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+    vi.doMock('../../../modules/workflow/server/src/adapters/native-workflow-read', () => ({
       nativeWorkflowReadAll: all,
       nativeWorkflowWrite: vi.fn(),
     }));
     try {
       const { inventoryCountSources } = await import(
-        '../../../packages/server-workflow/src/adapters/inventory-counts-sources'
+        '../../../modules/workflow/server/src/adapters/inventory-counts-sources'
       );
       const prepare = vi.fn();
       const db = { prepare } as never;
@@ -57,7 +57,7 @@ describe('workflow inventory audit-history read tail (r39 native read cutover)',
       );
       expect(prepare).not.toHaveBeenCalled();
     } finally {
-      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.doUnmock('../../../modules/workflow/server/src/adapters/native-workflow-read');
       vi.resetModules();
     }
   });
@@ -65,13 +65,13 @@ describe('workflow inventory audit-history read tail (r39 native read cutover)',
   it('plans transferHistory through the native read with the exact company and record binds', async () => {
     const all = vi.fn(async () => [{ id: 't1' }]);
     vi.resetModules();
-    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+    vi.doMock('../../../modules/workflow/server/src/adapters/native-workflow-read', () => ({
       nativeWorkflowReadAll: all,
       nativeWorkflowWrite: vi.fn(),
     }));
     try {
       const { inventoryTransferSources } = await import(
-        '../../../packages/server-workflow/src/adapters/inventory-transfers-sources'
+        '../../../modules/workflow/server/src/adapters/inventory-transfers-sources'
       );
       const prepare = vi.fn();
       const db = { prepare } as never;
@@ -85,7 +85,7 @@ describe('workflow inventory audit-history read tail (r39 native read cutover)',
       );
       expect(prepare).not.toHaveBeenCalled();
     } finally {
-      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.doUnmock('../../../modules/workflow/server/src/adapters/native-workflow-read');
       vi.resetModules();
     }
   });

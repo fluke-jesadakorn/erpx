@@ -5,7 +5,7 @@ const root = resolve(import.meta.dir, "../..");
 const arguments_ = process.argv.slice(2);
 if (arguments_.some(value => value !== "--check") || arguments_.length > 1) throw new Error("COMMERCIAL_SERVICE_CONTRACT_ARGUMENTS_INVALID");
 const cargo = process.env.ERPX_CARGO_BIN ?? "cargo";
-const command = [cargo, "run", "--quiet", "--locked", "--package", "erpx-service", "--example", "export-commercial-service-contracts", "--features", "contracts,field-service-http"];
+const command = [cargo, "run", "--quiet", "--locked", "--package", "erpx-platform-composition", "--example", "export-commercial-service-contracts", "--features", "contracts,field-service-http"];
 const generated = Bun.spawnSync(command, { cwd: root, stdout: "pipe", stderr: "pipe" });
 if (generated.exitCode !== 0) {
   process.stderr.write(generated.stderr);
@@ -18,7 +18,7 @@ if (openapi.exitCode !== 0) { process.stderr.write(openapi.stderr); throw new Er
 const specification = openapi.stdout.toString();
 const document: unknown = JSON.parse(specification);
 if (!document || typeof document !== "object" || !("openapi" in document) || !("paths" in document)) throw new Error("COMMERCIAL_SERVICE_OPENAPI_OUTPUT_INVALID");
-for (const [relative, content] of [["packages/contracts/src/commercial-service.generated.ts", source], ["docs/contracts/next/commercial-service.openapi.generated.json", specification]]) {
+for (const [relative, content] of [["platform/contracts/src/commercial-service.generated.ts", source], ["docs/contracts/next/commercial-service.openapi.generated.json", specification]]) {
   const destination = resolve(root, relative);
   if (arguments_.includes("--check")) {
     if (!existsSync(destination) || readFileSync(destination, "utf8") !== content) throw new Error(`COMMERCIAL_SERVICE_CONTRACTS_STALE:${relative}`);

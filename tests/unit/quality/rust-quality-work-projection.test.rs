@@ -1,16 +1,16 @@
 //! Native Quality work projection over workspace holds, with injected source
 //! and same-person facts. Parity fixtures mirror the retained `qualityWork`
 //! WorkItem payload so client fields cannot drift between the two paths.
-use erpx_server_quality::public::quality_read::{
+use erpx_quality_server::public::quality_read::{
     HoldStatus, QualityActor, QualityDetailCoreData, QualityFuture, QualityHold,
     QualityHoldProduct, QualityReadRepository, QualityWorkspaceData,
     quality_detail_core_from_source,
 };
-use erpx_server_quality::public::quality_work::{
+use erpx_quality_server::public::quality_work::{
     FnSourceAccess, MappedSourceAccess, QualitySourceAccess, SourceAccess, quality_work,
     quality_work_from_workspace, quality_work_with_same_person,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, RecordId, UserId};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, RecordId, UserId};
 use std::collections::BTreeMap;
 
 fn hold(status: HoldStatus, creator: &str) -> QualityHold {
@@ -223,7 +223,7 @@ impl QualityReadRepository for Repo {
         _company: &'a CompanyId,
         _branch: Option<&'a RecordId>,
         _id: &'a str,
-    ) -> QualityFuture<'a, Option<erpx_server_quality::public::quality_read::QualityDetailData>>
+    ) -> QualityFuture<'a, Option<erpx_quality_server::public::quality_read::QualityDetailData>>
     {
         Box::pin(async move { Ok(None) })
     }
@@ -297,7 +297,7 @@ fn failed_injected_source_access_propagates_as_a_business_error() {
             _hold_id: &str,
         ) -> Result<Option<QualitySourceAccess>, BusinessError> {
             Err(BusinessError::new(
-                erpx_server_shared::public::FailureKind::Unavailable,
+                erpx_platform_shared_server::public::FailureKind::Unavailable,
                 "QUALITY_SOURCE_UNAVAILABLE",
                 "Source facts unavailable.",
             ))

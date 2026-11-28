@@ -32,6 +32,6 @@ const options={env:{LANG:'C',TZ:'UTC',OMP_THREAD_LIMIT:'1',OMP_NUM_THREADS:'1'},
     if(!pages.length)pages=[{page:1,text}];cases.push({id,mediaType,hex:bytes.toString('hex'),sha256:sha(bytes),expected:{text,method,pages}});
   }finally{await fs.rm(root,{recursive:true,force:true});}}
   const toolReceipts=[];for(const name of ['pdftotext','pdfinfo','pdftoppm','tesseract'])toolReceipts.push({name,path:tools[name],sha256:sha(await fs.readFile(tools[name]))});
-  const receipt={schema:1,oracle:{node:process.version,tools,toolReceipts,language:{file:'eng.traineddata',sha256:sha(await fs.readFile(path.join(tools.tessdata,'eng.traineddata')))},providerSource:{path:'packages/server-legal/src/adapters/legal/document-provider.ts',sha256:sha(await fs.readFile('packages/server-legal/src/adapters/legal/document-provider.ts'))}},cases};
+  const receipt={schema:1,oracle:{node:process.version,tools,toolReceipts,language:{file:'eng.traineddata',sha256:sha(await fs.readFile(path.join(tools.tessdata,'eng.traineddata')))},providerSource:{path:'modules/legal/server/src/adapters/legal/document-provider.ts',sha256:sha(await fs.readFile('modules/legal/server/src/adapters/legal/document-provider.ts'))}},cases};
   await fs.writeFile('fixtures/legal/documents/native-conformance.v1.json',JSON.stringify(receipt,null,2)+'\n');console.log(`Captured ${cases.length} independent native provider cases (explicit English fixture profile)`);
 })().catch(error=>{console.error(error.message);process.exitCode=1;});

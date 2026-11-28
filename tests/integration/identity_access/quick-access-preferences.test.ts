@@ -3,9 +3,9 @@ import { applyMigrations, env } from "../../support/runtime-env";
 import {
   readQuickAccessPreferences,
   saveQuickAccessPreferences,
-} from "@erpx/server-work_projection/public/quick-access-preferences";
+} from "@erpx/work-projection-server/public/quick-access-preferences";
 
-vi.mock("@erpx/server-runtime/adapters/runtime/env", () => ({ getRuntime: () => env }));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime/env", () => ({ getRuntime: () => env }));
 
 beforeAll(() => applyMigrations(env.CONTROL_DB, env.CONTROL_TEST_MIGRATIONS));
 

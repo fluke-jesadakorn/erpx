@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { readFile, readdir } from 'node:fs/promises';
-import { agentSelectColsFromSql } from '../../../packages/server-agent/src/adapters/read-tail-r26-source-sql';
+import { agentSelectColsFromSql } from '../../../modules/agent/server/src/adapters/read-tail-r26-source-sql';
 
 const src = (name: string) =>
-  readFile(new URL(`../../../packages/server-agent/src/${name}`, import.meta.url), 'utf8');
+  readFile(new URL(`../../../modules/agent/server/src/${name}`, import.meta.url), 'utf8');
 
 async function agentSelectCount(dir: URL): Promise<number> {
   let total = 0;
@@ -343,7 +343,7 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
   });
 
   it('r18: records a strictly lower SELECT count than BEFORE=58', async () => {
-    expect(await agentSelectCount(new URL('../../../packages/server-agent/src/', import.meta.url))).toBeLessThan(58);
+    expect(await agentSelectCount(new URL('../../../modules/agent/server/src/', import.meta.url))).toBeLessThan(58);
   });
 
   it('r18: the translation guard, locks and r7-r17 families stay untouched', async () => {
@@ -382,7 +382,7 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
   });
 
   it('r22: records a strictly lower SELECT count than BEFORE=55', async () => {
-    expect(await agentSelectCount(new URL('../../../packages/server-agent/src/', import.meta.url))).toBeLessThan(55);
+    expect(await agentSelectCount(new URL('../../../modules/agent/server/src/', import.meta.url))).toBeLessThan(55);
   });
 
   it('r22: pool-member access, guards and FOR SHARE locks stay untouched', async () => {

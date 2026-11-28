@@ -5,9 +5,9 @@ import {
   pmsStayExistsHeadSql,
   PMS_CORRECTION_FACT_HEAD_SQL,
   PMS_ORDERED_RECORDS_TAIL_SQL,
-} from '../../../packages/server-pms/src/adapters/pms-read-tail-r42-sql';
+} from '../../../modules/pms/server/src/adapters/pms-read-tail-r42-sql';
 
-const dir = new URL('../../../packages/server-pms/src/', import.meta.url);
+const dir = new URL('../../../modules/pms/server/src/', import.meta.url);
 const src = (name: string) => readFile(new URL(name, dir), 'utf8');
 const SHARED = 'adapters/pms-read-tail-r42-sql.ts';
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');

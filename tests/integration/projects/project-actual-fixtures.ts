@@ -1,4 +1,4 @@
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
 
 /**
  * SQL fixtures for the retained Projects read obligations and executive

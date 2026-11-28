@@ -1,9 +1,9 @@
 import {writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
-import type {PostgresDatabase} from '@erpx/server-runtime/adapters/runtime/postgres';
-import type {FileStore} from '@erpx/server-runtime/public/runtime/types';
+import type {PostgresDatabase} from '@erpx/platform-runtime-server/adapters/runtime/postgres';
+import type {FileStore} from '@erpx/platform-runtime-server/public/runtime/types';
 import {seedExpenseCompany} from '../../expenses/company';
-import {createMarketingAsset,changeMarketing} from '@erpx/server-marketing/public/marketing';
+import {createMarketingAsset,changeMarketing} from '@erpx/marketing-server/public/marketing';
 
 /** One independently reviewed consent form; no creative/provider prerequisites. */
 export async function seedWorkspaceForms(input:{run:string;directory:string;db:PostgresDatabase;files:FileStore}){

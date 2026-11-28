@@ -1,0 +1,30 @@
+{
+  "name": "@erpx/marketing-ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/public-form-draft-boundary": "./src/components/public-form-draft-boundary.tsx",
+    "./components/public-marketing-form": "./src/components/public-marketing-form.tsx",
+    "./components/marketing-console": "./src/components/marketing-console.tsx",
+    "./lib/public-form-command": "./src/lib/public-form-command.ts",
+    "./public/native-marketing-lead": "./src/public/native-marketing-lead.ts",
+    "./adapters/server/native-marketing-wave2": "./src/adapters/server/native-marketing-wave2.ts",
+    "./adapters/server/native-marketing-command": "./src/adapters/server/native-marketing-command.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/collaboration-ui": "workspace:*",
+    "@erpx/crm-ui": "workspace:*",
+    "@erpx/platform-shared-ui": "workspace:*",
+    "@erpx/work-projection-ui": "workspace:*",
+    "@erpx/marketing-server": "workspace:*",
+    "@erpx/platform-ui": "workspace:*",
+    "@erpx/platform-workplace": "workspace:*",
+    "react": "19.3.1",
+    "@erpx/platform-contracts": "workspace:*"
+  }
+}

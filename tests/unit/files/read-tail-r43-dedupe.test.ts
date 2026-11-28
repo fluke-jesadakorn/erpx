@@ -6,14 +6,14 @@ import {
   ATTACHMENT_ID_AND_HEAD_SQL,
   FIELD_SET_UPLOAD_EXISTS_HEAD_SQL,
   FIELD_UPLOAD_ANCESTOR_EXISTS_SQL,
-} from '../../../packages/server-files/src/adapters/read-tail-r43-source-sql';
+} from '../../../modules/files/server/src/adapters/read-tail-r43-source-sql';
 
 const rootDir = resolve(__dirname, '../../..');
-const srcRoot = resolve(rootDir, 'packages/server-files/src');
+const srcRoot = resolve(rootDir, 'modules/files/server/src');
 const BASE = '337fd9466e26fda35934822c9ea216249a522850';
 const src = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
 const git = (...a: string[]) => execFileSync('git', a, { cwd: rootDir, encoding: 'utf8' });
-const before = (rel: string) => git('show', `${BASE}:packages/server-files/src/${rel}`);
+const before = (rel: string) => git('show', `${BASE}:modules/files/server/src/${rel}`);
 const count = (text: string, needle: string) => text.split(needle).length - 1;
 const norm = (text: string) => text.replace(/\s+/g, ' ').trim();
 
@@ -143,7 +143,7 @@ describe('Files read-tail r43 byte-oracle dedupe', () => {
     // (see the corresponding *-native-head suites), so their byte hashes
     // legitimately changed.
     for (const h of PRIOR_HELPERS) {
-      const p = `packages/server-files/src/adapters/${h}`;
+      const p = `modules/files/server/src/adapters/${h}`;
       expect(git('rev-parse', `${BASE}:${p}`).trim()).toBe(git('hash-object', p).trim());
     }
   });

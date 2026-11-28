@@ -3,19 +3,19 @@
   "sourceCommit": "a5ed8737a2f05eff1ee9841fda4a094b3926d732",
   "sources": [
     {
-      "path": "packages/server-platform_administration/src/adapters/release-predicate.ts",
+      "path": "modules/platform-administration/server/src/adapters/release-predicate.ts",
       "sha256": "484aeeef5305a8f8939a019162fe70533c3a64e9c1fc957588a319ee52911097"
     },
     {
-      "path": "packages/catalogue/src/production-scope.ts",
+      "path": "platform/catalogue/src/production-scope.ts",
       "sha256": "d67d9c7bdb16a59fa4119e27e1a6a170242beae4995eff6ae4258c77da21faf3"
     },
     {
-      "path": "packages/server-organization/src/adapters/platform-owner-projection-sources.ts",
+      "path": "modules/organization/server/src/adapters/platform-owner-projection-sources.ts",
       "sha256": "98870f1569c53cc411af421755fb82a5f892ffe6eb6701d32305f4de853c89a2"
     },
     {
-      "path": "packages/server-identity_access/src/adapters/platform-owner-projection-sources.ts",
+      "path": "modules/identity-access/server/src/adapters/platform-owner-projection-sources.ts",
       "sha256": "075851ef8dae8a896b1719d7d1781fadbdc848f7d42ebf4fb9ef621afbf83fb5"
     }
   ],

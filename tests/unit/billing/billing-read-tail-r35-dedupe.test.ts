@@ -1,19 +1,19 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { billingPointReadSql } from '../../../packages/server-billing/src/adapters/billing-read-tail-r29-sql';
-import { billingProjectionSql } from '../../../packages/server-billing/src/adapters/billing-read-tail-r35-sql';
-import { BILLING_INVOICE_BY_ID_SQL } from '../../../packages/server-billing/src/adapters/billing-read-tail-r15-sql';
-import { billingProviderCostsSql, billingUsageSnapshotSql } from '../../../packages/server-billing/src/adapters/billing-read-tail-r19-sql';
-import { billingUsageMeterSql, billingSeatUsageSql } from '../../../packages/server-billing/src/adapters/billing-read-tail-r20-sql';
-import { billingPendingInboxSql } from '../../../packages/server-billing/src/adapters/billing-read-tail-r23-sql';
-import { billingStoredLedgerSql } from '../../../packages/server-billing/src/adapters/billing-read-tail-r28-sql';
-import { billingTargetMonthSql } from '../../../packages/server-billing/src/adapters/billing-read-tail-r31-sql';
-import { BILLING_LEGACY_ENROLLMENT_OVERLAP_SQL, BILLING_MONTH_INVOICE_SQL, BILLING_ROLLOUT_ELIGIBILITY_SQL } from '../../../packages/server-billing/src/adapters/billing-read-tail-r16-sql';
-import { billingMetricCountSql } from '../../../packages/server-billing/src/adapters/billing-read-tail-r27-sql';
-import { billingAccountProjectionSql } from '../../../packages/server-billing/src/adapters/billing-read-tail-r30-sql';
+import { billingPointReadSql } from '../../../modules/billing/server/src/adapters/billing-read-tail-r29-sql';
+import { billingProjectionSql } from '../../../modules/billing/server/src/adapters/billing-read-tail-r35-sql';
+import { BILLING_INVOICE_BY_ID_SQL } from '../../../modules/billing/server/src/adapters/billing-read-tail-r15-sql';
+import { billingProviderCostsSql, billingUsageSnapshotSql } from '../../../modules/billing/server/src/adapters/billing-read-tail-r19-sql';
+import { billingUsageMeterSql, billingSeatUsageSql } from '../../../modules/billing/server/src/adapters/billing-read-tail-r20-sql';
+import { billingPendingInboxSql } from '../../../modules/billing/server/src/adapters/billing-read-tail-r23-sql';
+import { billingStoredLedgerSql } from '../../../modules/billing/server/src/adapters/billing-read-tail-r28-sql';
+import { billingTargetMonthSql } from '../../../modules/billing/server/src/adapters/billing-read-tail-r31-sql';
+import { BILLING_LEGACY_ENROLLMENT_OVERLAP_SQL, BILLING_MONTH_INVOICE_SQL, BILLING_ROLLOUT_ELIGIBILITY_SQL } from '../../../modules/billing/server/src/adapters/billing-read-tail-r16-sql';
+import { billingMetricCountSql } from '../../../modules/billing/server/src/adapters/billing-read-tail-r27-sql';
+import { billingAccountProjectionSql } from '../../../modules/billing/server/src/adapters/billing-read-tail-r30-sql';
 
-const srcRoot = new URL('../../../packages/server-billing/src/', import.meta.url);
+const srcRoot = new URL('../../../modules/billing/server/src/', import.meta.url);
 const src = (name: string) => readFile(new URL(`adapters/${name}`, srcRoot), 'utf8');
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 

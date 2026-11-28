@@ -9,8 +9,8 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_identity_access::public::SystemAuthenticationSecrets;
-use erpx_service::private_development_api::*;
+use erpx_identity_access_server::public::SystemAuthenticationSecrets;
+use erpx_platform_composition::private_development_api::*;
 use finance_facts::account;
 use fixture::cookie;
 async fn document(system: &account::System) -> serde_json::Value {
@@ -125,7 +125,7 @@ async fn signed_account_and_holding_time_preference_uses_one_control_row_and_rec
     account::with_system(|system| async move {
         let central = account::login(&system, "a@example.test", None).await;
         let issued = account::child(&system, &central, account::ACME).await;
-        let router = erpx_service::account_time_preference_http::browser_time_preference_router(
+        let router = erpx_platform_composition::account_time_preference_http::browser_time_preference_router(
             system.control.clone(),
             Arc::new(account::fixture::account::policy()),
             account::fixture::account::holding_registry(),
@@ -404,7 +404,7 @@ async fn opt_in_journal_post_enforces_current_workflow_and_replays_once() {
         prepared.create("private-post", false).await.unwrap();
         let system = &prepared.system;
         let db = &system.holdings[0];
-        let now = erpx_server_shared::public::Clock::now(system.scenario.clock.as_ref()).get();
+        let now = erpx_platform_shared_server::public::Clock::now(system.scenario.clock.as_ref()).get();
         sqlx::raw_sql("INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status)VALUES('*','journal_flow_reviewer','Journal workflow reviewer',false,1,'active');INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('*','journal_flow_reviewer',1,'[\"finance.read\",\"finance.write\",\"finance.approve\",\"module.finance.read\",\"workflow.finance_approver\"]','[]','[\"holding\"]','fixture',0);UPDATE assignments SET role='journal_flow_reviewer' WHERE id='finance-fixture-b';INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,status,created_by,created_at,updated_at)VALUES('person-reviewer','fixture-b','company','Reviewer','TH','active','fixture',0,0);INSERT INTO hr_engagements(id,person_id,company_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at)VALUES('reviewer-engagement','person-reviewer','company','employee','salaried','active','2020-01-01','Reviewer','THB','fixture',0,0)").execute(db.raw()).await.unwrap();
         let mut doc=fixture::document(&system.control,&system.holdings).await;
         doc["financeJournalReads"]=serde_json::json!([{ "holdingId":"h001", "companyId":"company" }]);
@@ -478,7 +478,7 @@ async fn manual_root_reversal_is_explicit_current_and_replays_without_flow_effec
         let db = &system.holdings[0];
         let maker = finance_facts::account::login(system, "a@example.test", None).await;
         let maker = finance_facts::account::child(system, &maker, finance_facts::account::ACME).await;
-        let now = erpx_server_shared::public::Clock::now(system.scenario.clock.as_ref()).get();
+        let now = erpx_platform_shared_server::public::Clock::now(system.scenario.clock.as_ref()).get();
         sqlx::query("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at)VALUES($1,'fixture-a','company','finance-fixture-a',3,7,$2,$3)")
             .bind(&maker.result.session_id).bind(now+3_600_000).bind(now).execute(db.raw()).await.unwrap();
         let mut doc = fixture::document(&system.control, &system.holdings).await;

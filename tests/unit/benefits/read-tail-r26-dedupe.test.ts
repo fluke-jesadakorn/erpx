@@ -3,9 +3,9 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 vi.mock('server-only', () => ({}));
-import { benefitSourceProbe } from '../../../packages/server-benefits/src/adapters/benefits-read-sql';
+import { benefitSourceProbe } from '../../../modules/benefits/server/src/adapters/benefits-read-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-benefits/src');
+const srcRoot = resolve(__dirname, '../../../modules/benefits/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const sha = (sql: string) => createHash('sha256').update(sql).digest('hex');
 

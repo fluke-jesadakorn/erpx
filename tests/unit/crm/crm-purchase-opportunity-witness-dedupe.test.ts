@@ -3,15 +3,15 @@ import { readFile } from 'node:fs/promises';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { crmCreatorLeadScopeSql } from '../../../packages/server-crm/src/adapters/read-tail-r24-sql';
-import { crmCurrentScopeAllowedSql } from '../../../packages/server-crm/src/adapters/read-tail-r30-sql';
-import { crmSelectOneSql } from '../../../packages/server-crm/src/adapters/read-tail-r42-sql';
-import { crmOwnedSourceRowSql } from '../../../packages/server-crm/src/adapters/read-tail-r34-sql';
-import { crmSalesOpportunitySql, crmSingleKeySourceSql } from '../../../packages/server-crm/src/adapters/read-tail-r37-sql';
-import { crmUnionAllSql } from '../../../packages/server-crm/src/adapters/read-tail-r44-sql';
+import { crmCreatorLeadScopeSql } from '../../../modules/crm/server/src/adapters/read-tail-r24-sql';
+import { crmCurrentScopeAllowedSql } from '../../../modules/crm/server/src/adapters/read-tail-r30-sql';
+import { crmSelectOneSql } from '../../../modules/crm/server/src/adapters/read-tail-r42-sql';
+import { crmOwnedSourceRowSql } from '../../../modules/crm/server/src/adapters/read-tail-r34-sql';
+import { crmSalesOpportunitySql, crmSingleKeySourceSql } from '../../../modules/crm/server/src/adapters/read-tail-r37-sql';
+import { crmUnionAllSql } from '../../../modules/crm/server/src/adapters/read-tail-r44-sql';
 
-const purchasesUrl = new URL('../../../packages/server-crm/src/adapters/purchases.ts', import.meta.url);
-const adapter = (name: string) => new URL(`../../../packages/server-crm/src/adapters/${name}`, import.meta.url);
+const purchasesUrl = new URL('../../../modules/crm/server/src/adapters/purchases.ts', import.meta.url);
+const adapter = (name: string) => new URL(`../../../modules/crm/server/src/adapters/${name}`, import.meta.url);
 
 describe('crm purchase opportunity witness read family', () => {
   it('keeps one rendered witness head shared by both purchase guards', async () => {
@@ -136,7 +136,7 @@ describe('crm purchase opportunity witness read family', () => {
     expect(serviceFacts).not.toContain('?::text IS NULL OR account.created_by=? OR EXISTS(SELECT 1 FROM crm_leads lead\n');
     expect(attachment.match(/\$\{crmAccountCreatedByScopeSql\}/g)).toHaveLength(1);
     expect(serviceFacts.match(/\$\{crmAccountCreatedByScopeSql\}/g)).toHaveLength(1);
-    const root = fileURLToPath(new URL('../../../packages/server-crm/src/', import.meta.url));
+    const root = fileURLToPath(new URL('../../../modules/crm/server/src/', import.meta.url));
     let total = 0;
     for (const rel of readdirSync(root, { recursive: true })) {
       if (!String(rel).endsWith('.ts')) continue;
@@ -146,7 +146,7 @@ describe('crm purchase opportunity witness read family', () => {
   });
 
   it('owns the r12 retained-customer finance guard once and stays below BEFORE=173', async () => {
-    const src = await readFile(new URL('../../../packages/server-crm/src/adapters/sales-package-obligations.ts', import.meta.url), 'utf8');
+    const src = await readFile(new URL('../../../modules/crm/server/src/adapters/sales-package-obligations.ts', import.meta.url), 'utf8');
     const line = src.split('\n').find(value => value.includes('const financeCustomerMissingSql=')) ?? '';
     const body = line.slice(line.indexOf('`') + 1, line.lastIndexOf('`'));
     const render = (company: string) => body.replace('${company}', company);
@@ -157,7 +157,7 @@ describe('crm purchase opportunity witness read family', () => {
     expect(src.match(/account\.finance_party_id IS NOT NULL AND NOT EXISTS/g)).toHaveLength(1);
     expect(src).toContain("OR(${financeCustomerMissingSql('l.company_id')})");
     expect(src).toContain(",${financeCustomerMissingSql('account.company_id')}");
-    const owner = fileURLToPath(new URL('../../../packages/server-crm/src/', import.meta.url));
+    const owner = fileURLToPath(new URL('../../../modules/crm/server/src/', import.meta.url));
     let total = 0;
     for (const rel of readdirSync(owner, { recursive: true })) {
       if (!String(rel).endsWith('.ts')) continue;
@@ -168,7 +168,7 @@ describe('crm purchase opportunity witness read family', () => {
 });
 
 describe('crm read-tail r14 parameterized families', () => {
-  const owner = fileURLToPath(new URL('../../../packages/server-crm/src/', import.meta.url));
+  const owner = fileURLToPath(new URL('../../../modules/crm/server/src/', import.meta.url));
   const src = (name: string) => readFileSync(resolve(owner, `adapters/${name}`), 'utf8');
   const bodyOf = (text: string, marker: string) => {
     const line = text.split('\n').find(value => value.includes(marker)) ?? '';
@@ -225,7 +225,7 @@ describe('crm read-tail r14 parameterized families', () => {
 });
 
 describe('crm read-tail r15 parameterized families', () => {
-  const owner = fileURLToPath(new URL('../../../packages/server-crm/src/', import.meta.url));
+  const owner = fileURLToPath(new URL('../../../modules/crm/server/src/', import.meta.url));
   const src = (name: string) => readFileSync(resolve(owner, `adapters/${name}`), 'utf8');
   const bodyOf = (text: string, marker: string) => {
     const line = text.split('\n').find(value => value.includes(marker)) ?? '';
@@ -273,7 +273,7 @@ describe('crm read-tail r15 parameterized families', () => {
 });
 
 describe('crm read-tail r16 parameterized families', () => {
-  const owner = fileURLToPath(new URL('../../../packages/server-crm/src/', import.meta.url));
+  const owner = fileURLToPath(new URL('../../../modules/crm/server/src/', import.meta.url));
   const purchases = readFileSync(resolve(owner, 'adapters/purchases.ts'), 'utf8');
   const totalSelects = () => {
     let total = 0;
@@ -304,7 +304,7 @@ describe('crm read-tail r16 parameterized families', () => {
 });
 
 describe('crm read-tail r18 parameterized families', () => {
-  const owner = fileURLToPath(new URL('../../../packages/server-crm/src/', import.meta.url));
+  const owner = fileURLToPath(new URL('../../../modules/crm/server/src/', import.meta.url));
   const record = readFileSync(resolve(owner, 'adapters/record-purchases.ts'), 'utf8');
   const totalSelects = () => {
     let total = 0;
@@ -348,7 +348,7 @@ describe('crm read-tail r18 parameterized families', () => {
 });
 
 describe('crm read-tail r19 parameterized projection families', () => {
-  const owner = fileURLToPath(new URL('../../../packages/server-crm/src/', import.meta.url));
+  const owner = fileURLToPath(new URL('../../../modules/crm/server/src/', import.meta.url));
   const src = (name: string) => readFileSync(resolve(owner, 'adapters', name), 'utf8');
   const totalSelects = () => {
     let total = 0;
@@ -399,7 +399,7 @@ describe('crm read-tail r19 parameterized projection families', () => {
 });
 
 describe('crm read-tail r20 parameterized history families', () => {
-  const owner = fileURLToPath(new URL('../../../packages/server-crm/src/', import.meta.url));
+  const owner = fileURLToPath(new URL('../../../modules/crm/server/src/', import.meta.url));
   const src = (name: string) => readFileSync(resolve(owner, 'adapters', name), 'utf8');
   const totalSelects = () => {
     let total = 0;
@@ -446,7 +446,7 @@ describe('crm read-tail r20 parameterized history families', () => {
 });
 
 describe('crm read-tail r21 parameterized branch option family', () => {
-  const owner = fileURLToPath(new URL('../../../packages/server-crm/src/', import.meta.url));
+  const owner = fileURLToPath(new URL('../../../modules/crm/server/src/', import.meta.url));
   const src = (name: string) => readFileSync(resolve(owner, 'adapters', name), 'utf8');
   const totalSelects = () => {
     let total = 0;
@@ -494,7 +494,7 @@ describe('crm read-tail r21 parameterized branch option family', () => {
 });
 
 describe('crm read-tail r22 assignment-scope EXISTS family', () => {
-  const owner = fileURLToPath(new URL('../../../packages/server-crm/src/', import.meta.url));
+  const owner = fileURLToPath(new URL('../../../modules/crm/server/src/', import.meta.url));
   const src = (name: string) => readFileSync(resolve(owner, 'adapters', name), 'utf8');
   const totalSelects = () => {
     let total = 0;
@@ -552,7 +552,7 @@ describe('crm read-tail r22 assignment-scope EXISTS family', () => {
 });
 
 describe('crm read-tail r23 reference-existence and account-scope families', () => {
-  const owner = fileURLToPath(new URL('../../../packages/server-crm/src/', import.meta.url));
+  const owner = fileURLToPath(new URL('../../../modules/crm/server/src/', import.meta.url));
   const src = (name: string) => readFileSync(resolve(owner, 'adapters', name), 'utf8');
   const totalSelects = () => {
     let total = 0;
@@ -591,7 +591,7 @@ describe('crm read-tail r23 reference-existence and account-scope families', () 
 });
 
 describe('crm read-tail r24 creator EXISTS lead-scope family', () => {
-  const owner = fileURLToPath(new URL('../../../packages/server-crm/src/', import.meta.url));
+  const owner = fileURLToPath(new URL('../../../modules/crm/server/src/', import.meta.url));
   const src = (name: string) => readFileSync(resolve(owner, 'adapters', name), 'utf8');
   const totalSelects = () => {
     let total = 0;

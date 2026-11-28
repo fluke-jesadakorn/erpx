@@ -1,6 +1,6 @@
 import 'server-only';
 import type {PoolClient} from 'pg';
-import type {IamActor} from '@erpx/server-identity_access/domain/iam-actor';
+import type {IamActor} from '@erpx/identity-access-server/domain/iam-actor';
 import type {DirectoryTransaction} from './directories';
 export function directoryTx(c: PoolClient, actor?: IamActor): DirectoryTransaction {
     const tx: DirectoryTransaction = { lockTrustConnection: async (facts) => {

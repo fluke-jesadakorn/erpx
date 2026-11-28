@@ -1,8 +1,8 @@
 //! Commerce-only lock fence; no purchase or Portal authority.
 #![allow(dead_code)]
 #[path = "../../support/rust-postgres.rs"] mod fixture;
-use erpx_server_commerce::public::portal_commerce_locks::lock_portal_commerce_sources;
-use erpx_server_runtime::public::postgres::{DatabasePool,MigrationTrack,load_migrations,migrate_database};
+use erpx_commerce_server::public::portal_commerce_locks::lock_portal_commerce_sources;
+use erpx_platform_runtime_server::public::postgres::{DatabasePool,MigrationTrack,load_migrations,migrate_database};
 use sqlx::Connection;
 async fn setup(pool: &DatabasePool) {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");

@@ -1,11 +1,11 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_identity_access::public::work_context::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_identity_access_server::public::work_context::*;
+use erpx_platform_runtime_server::public::postgres::{
     MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions, load_migrations,
     migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, Clock, CompanyId, HoldingId, RecordId, TimestampMillis, UserId,
 };
 struct FixedClock(i64);
@@ -31,7 +31,7 @@ fn request(now: i64) -> WorkContextRequest {
         mutation: true,
     }
 }
-async fn seed_selection(pool: &erpx_server_runtime::public::postgres::DatabasePool, now: i64) {
+async fn seed_selection(pool: &erpx_platform_runtime_server::public::postgres::DatabasePool, now: i64) {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
     let files = load_migrations(root, MigrationTrack::HoldingWrite)
         .await
@@ -70,7 +70,7 @@ async fn selected_grant_inspection_rechecks_database_lineage_role_and_rendered_r
 
 #[tokio::test]
 async fn retained_control_proof_fences_parent_switch_until_the_holding_snapshot_finishes() {
-    use erpx_server_identity_access::public::{
+    use erpx_identity_access_server::public::{
         AccountPolicy, DeviceProof, HoldingOrigin, SecretDigest,
     };
     use std::{sync::Arc, time::Duration};
@@ -87,7 +87,7 @@ async fn retained_control_proof_fences_parent_switch_until_the_holding_snapshot_
     fixture::with_database(2,move|holding|async move{
        seed_selection(&holding,now).await;
        let policy=AccountPolicy{account_origin:"https://account.example.test".into(),account_host:"account.example.test".into(),environment:"development".into(),require_email_verification:true,holdings:vec![HoldingOrigin{origin:"https://acme.example.test".into(),host:"acme.example.test".into(),audience:"holding:development:h001:acme.example.test".into()}],products:vec![]};
-       use erpx_server_identity_access::public::account_holding_bindings::{ConfiguredAccountHolding,ConfiguredHoldingRegistry};
+       use erpx_identity_access_server::public::account_holding_bindings::{ConfiguredAccountHolding,ConfiguredHoldingRegistry};
        let registry=Arc::new(ConfiguredHoldingRegistry::new(&policy,vec![ConfiguredAccountHolding{holding_id:HoldingId::new("h001").unwrap(),slug:"acme".into(),write_binding:"HOLDING_H001_DB".into(),read_binding:"HOLDING_H001_READ_DB".into(),files_binding:"HOLDING_H001_FILES".into()}]).unwrap());
        sqlx::query("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES('h001','acme','Synthetic','HOLDING_H001_DB','HOLDING_H001_READ_DB','HOLDING_H001_FILES','active')").execute(control.raw()).await.unwrap();
        let inspector=Arc::new(HoldingWorkContextInspector::new(control.clone(),holding.clone(),HoldingId::new("h001").unwrap(),policy,Arc::new(FixedClock(now)),registry).unwrap());

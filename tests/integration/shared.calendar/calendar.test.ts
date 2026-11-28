@@ -1,25 +1,25 @@
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import {mkdtemp,mkdir,readdir,cp,rm} from "node:fs/promises";
 import {resolve,join} from "node:path";
-import {migrateDatabase} from "@erpx/server-runtime/public/runtime/migrations";
+import {migrateDatabase} from "@erpx/platform-runtime-server/public/runtime/migrations";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
 import {
   calendarData,
   calendarHierarchy,
   calendarCommand,
-} from "@erpx/server-work_projection/public/calendar/index";
-import { publishedAnnouncements } from "@erpx/server-work_projection/public/calendar/announcements";
-import { rosterCommand, rosterData } from "@erpx/server-people_payroll/public/people-roster";
-import { localInterval } from "@erpx/server-work_projection/public/calendar/commands";
-import {drainCalendarReminders} from "@erpx/server-work_projection/public/calendar/reminders";
-import {calendarAvailability} from "@erpx/server-work_projection/public/calendar/availability";
-import { rosterMonday, addDays } from "@erpx/feature-people_payroll/lib/people-roster";
-import { packageGrantStore } from "@erpx/server-commercial/public/package-grants";
-import { calendarRosterPeoplePayrollFacts } from "@erpx/server-people_payroll/public/calendar-roster-facts";
-import { calendarQuerySchema, itemOnDate } from "@erpx/feature-work_projection/lib/calendar";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
+} from "@erpx/work-projection-server/public/calendar/index";
+import { publishedAnnouncements } from "@erpx/work-projection-server/public/calendar/announcements";
+import { rosterCommand, rosterData } from "@erpx/people-payroll-server/public/people-roster";
+import { localInterval } from "@erpx/work-projection-server/public/calendar/commands";
+import {drainCalendarReminders} from "@erpx/work-projection-server/public/calendar/reminders";
+import {calendarAvailability} from "@erpx/work-projection-server/public/calendar/availability";
+import { rosterMonday, addDays } from "@erpx/people-payroll-ui/lib/people-roster";
+import { packageGrantStore } from "@erpx/commercial-server/public/package-grants";
+import { calendarRosterPeoplePayrollFacts } from "@erpx/people-payroll-server/public/calendar-roster-facts";
+import { calendarQuerySchema, itemOnDate } from "@erpx/work-projection-ui/lib/calendar";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));
@@ -751,7 +751,7 @@ it("keeps unpurchased Roster rows and occupants out of Calendar while retaining 
 });
 
 async function workCalendarGrant(state:'active'|'draining'='active'){
- const {readCompanyPackageGrants}=await import('@erpx/server-commercial/public/package-grants'),old=(await readCompanyPackageGrants(db,f.company)).find(row=>row.packageId==='work');
+ const {readCompanyPackageGrants}=await import('@erpx/commercial-server/public/package-grants'),old=(await readCompanyPackageGrants(db,f.company)).find(row=>row.packageId==='work');
  return packageGrantStore(db,{authorize:async()=>({userId:'isolated-calendar-provider'}),obligations:async()=>{throw Error('CALENDAR_TEST_CANNOT_FABRICATE_ALL_WORK_CLOSURE');}}).apply({expectedVersion:old?.version??0,idempotencyKey:key(),grant:{companyId:f.company,packageId:'work',packageVersion:1,state,startsAt:0,endsAt:null,version:(old?.version??0)+1,reason:'Actual original Calendar owner fixture',evidence:'test:work-calendar-owner'}});
 }
 it('purchasedCalendar keeps manual records and commands on Work while actual existing settlement and exact replay remain available during draining',async()=>{

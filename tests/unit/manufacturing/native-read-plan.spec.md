@@ -9,9 +9,9 @@ A prior Manufacturing spec-register slice was rejected because it replaced live
 Planning/Records reads with a fail-closed 503 transport: the native read was not
 actually able to serve the caller, so a working read became a hard failure. This
 slice therefore begins with the callers, not the transport. The owner registry in
-`packages/server-manufacturing/src/public/native_command.rs` records the exact
+`modules/manufacturing/server/src/public/native_command.rs` records the exact
 projection/join and authority/scoping facts of each live read; the bind adapter
-in `packages/server-manufacturing/src/adapters/native_command_sql.rs` plans binds
+in `modules/manufacturing/server/src/adapters/native_command_sql.rs` plans binds
 on the caller's own transaction. **No route, selector, bridge or consumer is
 switched here and no live read returns a 503 marker.** The TypeScript reads stay
 authoritative until each caller passes its own cutover gate below.
@@ -106,7 +106,7 @@ SQL NULL and keeps the unscoped predicate intact.
 
 ## Boundaries and ownership
 
-- Lead owns `src/composition/**`, root Cargo manifests/lockfile, contracts, status
+- Lead owns `platform/composition/**`, root Cargo manifests/lockfile, contracts, status
   registers and the route mount; a worker must not switch a consumer or edit shared
   status to claim cutover.
 - Manufacturing owns only its read registry, bind adapter, feature transport and
@@ -114,7 +114,7 @@ SQL NULL and keeps the unscoped predicate intact.
   caller unit until the matching owner (Commerce/Finance/Planning/Inventory) exposes
   a native subquery.
 - This slice changed no Cargo test registration: runnable unit tests live as
-  `#[cfg(test)]` modules in the two new Rust files (`cargo test -p erpx-server-manufacturing --lib`).
+  `#[cfg(test)]` modules in the two new Rust files (`cargo test -p erpx-manufacturing-server --lib`).
   Registering a repo-level suite file for the same assertions needs a shared
-  `packages/server-manufacturing/Cargo.toml` `[[test]]` entry and belongs to lead
+  `modules/manufacturing/server/Cargo.toml` `[[test]]` entry and belongs to lead
   integration, outside this task's `allowedPaths`.

@@ -8,24 +8,24 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_commercial::public::purchases::current_package_catalogue;
-use erpx_server_finance::public::{
+use erpx_commercial_server::public::purchases::current_package_catalogue;
+use erpx_finance_server::public::{
     FinanceActor, JournalAuthority, JournalDraft, JournalError, supplier_bill::*,
 };
-use erpx_server_identity_access::public::work_context::{
+use erpx_identity_access_server::public::work_context::{
     ExpectedWorkSelection, HoldingWorkspaceRequest,
 };
-use erpx_server_identity_access::public::{
+use erpx_identity_access_server::public::{
     AuthenticationSecrets, DeviceProof, SecretPurpose, SystemAuthenticationSecrets,
 };
-use erpx_server_procurement::public::finance_supplier_bill_match::stage_procurement_supplier_bill_match_post;
-use erpx_server_runtime::public::postgres::{DatabasePool, PgTransactionError};
-use erpx_server_shared::public::{
+use erpx_procurement_server::public::finance_supplier_bill_match::stage_procurement_supplier_bill_match_post;
+use erpx_platform_runtime_server::public::postgres::{DatabasePool, PgTransactionError};
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, Clock, CommandKey, CompanyId, HoldingId, UserId,
 };
-use erpx_service::finance_journal_detail::*;
-use erpx_service::finance_journal_detail_http::*;
-use erpx_service::finance_journal_review::FinanceJournalEnvironment;
+use erpx_platform_composition::finance_journal_detail::*;
+use erpx_platform_composition::finance_journal_detail_http::*;
+use erpx_platform_composition::finance_journal_review::FinanceJournalEnvironment;
 use facts::{Prepared, account, setup};
 use std::sync::Arc;
 use tower::ServiceExt;
@@ -325,8 +325,8 @@ fn post_input() -> SupplierBillPostInput {
 fn command_actor(
     user: &str,
     assignment: &str,
-) -> erpx_server_finance::public::sales_invoice_create::SalesInvoiceCommandActor {
-    erpx_server_finance::public::sales_invoice_create::SalesInvoiceCommandActor {
+) -> erpx_finance_server::public::sales_invoice_create::SalesInvoiceCommandActor {
+    erpx_finance_server::public::sales_invoice_create::SalesInvoiceCommandActor {
         user_id: user.into(),
         assignment_id: assignment.into(),
         role: "custom_finance_review".into(),
@@ -371,7 +371,7 @@ async fn adapter_post(
         .execute(&mut *tx)
         .await
         .unwrap();
-    let result = erpx_server_finance::public::supplier_bill::post_supplier_bill(
+    let result = erpx_finance_server::public::supplier_bill::post_supplier_bill(
         &mut tx,
         &command_actor("fixture-b", "finance-fixture-b"),
         &journal_actor("fixture-b", "finance-fixture-b"),
@@ -708,7 +708,7 @@ async fn supplier_bill_create_edit_post_and_readback_retain_ap_evidence() {
                 "acme.example.test",
                 p.maker.clone(),
                 owned_maker(&p),
-                erpx_server_finance::public::finance_invoice_read::InvoicePageQuery {
+                erpx_finance_server::public::finance_invoice_read::InvoicePageQuery {
                     q: "BILL-2026".into(),
                     kind: "payable".into(),
                     status: String::new(),

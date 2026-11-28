@@ -6,12 +6,12 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_projects::public::project_wbs::{PgProjectWbsRead, ProjectReadActor, project_wbs};
-use erpx_server_runtime::public::postgres::{
+use erpx_projects_server::public::project_wbs::{PgProjectWbsRead, ProjectReadActor, project_wbs};
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, FailureKind, TimestampMillis};
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
 
@@ -322,7 +322,7 @@ async fn policy_and_selected_context_fail_closed_before_source_reads() {
 
 #[tokio::test]
 async fn project_graph_reads_captured_minutes_and_rejects_unsafe_raw_actual_fields() {
-    use erpx_server_projects::public::project_graph::PgProjectGraphRead;
+    use erpx_projects_server::public::project_graph::PgProjectGraphRead;
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
         let mut tx=pool.raw().begin().await.unwrap();
@@ -343,7 +343,7 @@ async fn project_graph_reads_captured_minutes_and_rejects_unsafe_raw_actual_fiel
 
 #[tokio::test]
 async fn graph_omits_deleted_and_foreign_reused_actual_source() {
-    use erpx_server_projects::public::project_graph::PgProjectGraphRead;
+    use erpx_projects_server::public::project_graph::PgProjectGraphRead;
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
         let mut tx=pool.raw().begin().await.unwrap();
@@ -362,7 +362,7 @@ async fn graph_omits_deleted_and_foreign_reused_actual_source() {
 
 #[tokio::test]
 async fn graph_cost_sources_do_not_reveal_foreign_company_journals() {
-    use erpx_server_projects::public::project_graph::PgProjectGraphRead;
+    use erpx_projects_server::public::project_graph::PgProjectGraphRead;
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
         let mut tx=pool.raw().begin().await.unwrap();

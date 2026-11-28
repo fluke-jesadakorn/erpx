@@ -2,11 +2,11 @@ import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { commerceSettlementLineSql } from '../../../packages/server-commerce/src/adapters/read-tail-r25-dedupe-sql';
+import { commerceSettlementLineSql } from '../../../modules/commerce/server/src/adapters/read-tail-r25-dedupe-sql';
 
 const root = resolve(import.meta.dirname ?? process.cwd(), '../../..');
-const adapters = resolve(root, 'packages/server-commerce/src/adapters');
-const src = resolve(root, 'packages/server-commerce/src');
+const adapters = resolve(root, 'modules/commerce/server/src/adapters');
+const src = resolve(root, 'modules/commerce/server/src');
 const read = (file: string) => readFileSync(resolve(adapters, file), 'utf8');
 const norm = (s: string) => s.replace(/\s+/g, ' ');
 const sha = (s: string) => createHash('sha256').update(s, 'utf8').digest('hex');

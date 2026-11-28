@@ -1,16 +1,16 @@
 //! Owner-local HTTP router tests for native duplicate-review and identity ingress.
-use erpx_server_customer_authority::public::duplicates_http::{
+use erpx_customer_authority_server::public::duplicates_http::{
     CustomerDuplicateHttpBackend, CustomerDuplicateHttpCommand, CustomerDuplicateHttpFuture,
     CustomerDuplicateHttpRequest, CustomerDuplicateHttpResponse, CustomerDuplicateHttpTarget,
     customer_duplicate_http_router,
 };
-use erpx_server_customer_authority::public::identity_http::{
+use erpx_customer_authority_server::public::identity_http::{
     CustomerIdentityHttpBackend, CustomerIdentityHttpCommand, CustomerIdentityHttpFuture,
     CustomerIdentityHttpRequest, CustomerIdentityHttpResponse, CustomerIdentityHttpTarget,
     customer_identity_http_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct DuplicateProbe {

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { expect, it, vi } from 'vitest';
 import { linkBrowserWorkspaceModules } from '../../../scripts/testing/browser-workspace-modules';
 import {seedWorkspaceProductPackages} from '../../../fixtures/shared/builders/workspace-product-packages';
-import type {PostgresDatabase} from '@erpx/server-runtime/adapters/runtime/postgres';
+import type {PostgresDatabase} from '@erpx/platform-runtime-server/adapters/runtime/postgres';
 import type {EngineeringMoneyPeopleBrowser} from '../../../fixtures/finance/builders/engineering-money-people-browser';
 
 it('refuses product visibility fixtures outside their declared disposable database and profile before SQL',async()=>{
@@ -21,14 +21,14 @@ it('refuses product visibility fixtures outside their declared disposable databa
 
 async function fixture(){
   const root=await realpath(await mkdtemp(join(tmpdir(),'erpx-workspace-modules-'))),template=join(root,'.runtime/browser/aaaaaaaaaaaa/app'),target=join(root,'.runtime/browser/bbbbbbbbbbbb/app');
-  await mkdir(join(template,'packages/ui'),{recursive:true});await mkdir(join(target,'packages'),{recursive:true});
+  await mkdir(join(template,'platform/ui'),{recursive:true});await mkdir(join(target,'packages'),{recursive:true});
   for(const app of [template,target])await writeFile(join(app,'package.json'),JSON.stringify({name:'erpx'}));
-  await writeFile(join(template,'packages/ui/package.json'),JSON.stringify({name:'@erpx/ui'}));
-  await writeFile(join(template,'packages/ui/component.tsx'),'template source');
-  await cp(join(template,'packages/ui'),join(target,'packages/ui'),{recursive:true});
+  await writeFile(join(template,'platform/ui/package.json'),JSON.stringify({name:'@erpx/platform-ui'}));
+  await writeFile(join(template,'platform/ui/component.tsx'),'template source');
+  await cp(join(template,'platform/ui'),join(target,'platform/ui'),{recursive:true});
   await mkdir(join(template,'node_modules/@erpx'),{recursive:true});await mkdir(join(template,'node_modules/react'));
   await writeFile(join(template,'node_modules/react/index.js'),'immutable third-party bytes');
-  await symlink(join(template,'packages/ui'),join(template,'node_modules/@erpx/ui'),'dir');
+  await symlink(join(template,'platform/ui'),join(template,'node_modules/@erpx/platform-ui'),'dir');
   for(const app of [template,target]){
     await mkdir(join(app,'apps/learn'),{recursive:true});await writeFile(join(app,'apps/learn/package.json'),JSON.stringify({name:'@erpx/app-learn'}));
   }
@@ -39,17 +39,17 @@ it('resolves cloned workspace imports inside the case while retaining shared thi
   const f=await fixture();try{
     await linkBrowserWorkspaceModules(f.template,f.target);
     expect(await realpath(join(f.target,'node_modules'))).toBe(join(f.target,'node_modules'));
-    expect(await realpath(join(f.target,'node_modules/@erpx/ui'))).toBe(join(f.target,'packages/ui'));
+    expect(await realpath(join(f.target,'node_modules/@erpx/platform-ui'))).toBe(join(f.target,'platform/ui'));
     expect(await realpath(join(f.target,'node_modules/@erpx/app-learn'))).toBe(join(f.target,'apps/learn'));
     expect(await realpath(join(f.target,'node_modules/react'))).toBe(join(f.template,'node_modules/react'));
-    await writeFile(join(f.target,'packages/ui/component.tsx'),'case HMR edit');
-    expect(await readFile(join(f.target,'node_modules/@erpx/ui/component.tsx'),'utf8')).toBe('case HMR edit');
-    expect(await readFile(join(f.template,'packages/ui/component.tsx'),'utf8')).toBe('template source');
+    await writeFile(join(f.target,'platform/ui/component.tsx'),'case HMR edit');
+    expect(await readFile(join(f.target,'node_modules/@erpx/platform-ui/component.tsx'),'utf8')).toBe('case HMR edit');
+    expect(await readFile(join(f.template,'platform/ui/component.tsx'),'utf8')).toBe('template source');
   }finally{await rm(f.root,{recursive:true,force:true});}
 });
 it('rejects a workspace alias escaping the owned template before creating case modules',async()=>{
   const f=await fixture();try{
-    await mkdir(join(f.root,'foreign'));await rm(join(f.template,'node_modules/@erpx/ui'));await symlink(join(f.root,'foreign'),join(f.template,'node_modules/@erpx/ui'),'dir');
+    await mkdir(join(f.root,'foreign'));await rm(join(f.template,'node_modules/@erpx/platform-ui'));await symlink(join(f.root,'foreign'),join(f.template,'node_modules/@erpx/platform-ui'),'dir');
     await expect(linkBrowserWorkspaceModules(f.template,f.target)).rejects.toThrow('EXACT_BROWSER_WORKSPACE_ALIAS_REQUIRED');
     expect(existsSync(join(f.target,'node_modules'))).toBe(false);
   }finally{await rm(f.root,{recursive:true,force:true});}
@@ -71,7 +71,7 @@ it('keeps Turbopack vendor modules inside each case root and rejects foreign com
   await linkBrowserWorkspaceModules(f.template,f.target,'turbopack');
   expect(await realpath(join(f.target,'node_modules/next'))).toBe(join(f.target,'node_modules',packagePath));
   expect(await realpath(join(f.target,'node_modules/react'))).toBe(join(f.target,'node_modules/react'));
-  expect(await realpath(join(f.target,'node_modules/@erpx/ui'))).toBe(join(f.target,'packages/ui'));
+  expect(await realpath(join(f.target,'node_modules/@erpx/platform-ui'))).toBe(join(f.target,'platform/ui'));
   await writeFile(join(f.target,'node_modules/react/index.js'),'case-local vendor bytes');
   expect(await readFile(join(f.template,'node_modules/react/index.js'),'utf8')).toBe('immutable third-party bytes');
   await mkdir(join(foreign.root,'foreign-next'));await symlink(join(foreign.root,'foreign-next'),join(foreign.template,'node_modules/next'),'dir');

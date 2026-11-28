@@ -2,11 +2,11 @@
 #[allow(dead_code, reason = "Shared Account and actual Workflow fixture")]
 #[path = "../../support/finance/maintenance-parts.rs"]
 mod settlement_facts;
-use erpx_server_commercial::public::purchases::PackageEnforcementMode;
-use erpx_server_maintenance::public::work_wire::normalize_maintenance_change;
-use erpx_server_runtime::public::postgres::PgTransactionError;
-use erpx_server_shared::public::{BusinessError, CommandKey, IdentifierSource, RecordId};
-use erpx_service::maintenance_transitions::{
+use erpx_commercial_server::public::purchases::PackageEnforcementMode;
+use erpx_maintenance_server::public::work_wire::normalize_maintenance_change;
+use erpx_platform_runtime_server::public::postgres::PgTransactionError;
+use erpx_platform_shared_server::public::{BusinessError, CommandKey, IdentifierSource, RecordId};
+use erpx_platform_composition::maintenance_transitions::{
     MaintenanceTransitionsSourcePreparation, execute_maintenance_transition,
 };
 
@@ -17,7 +17,7 @@ impl IdentifierSource for Ids {
         RecordId::new(format!("historical-close-event-{}", self.0)).unwrap()
     }
 }
-fn command(version: i64) -> erpx_server_maintenance::public::work_commands::MaintenanceWorkCommand {
+fn command(version: i64) -> erpx_maintenance_server::public::work_commands::MaintenanceWorkCommand {
     let body = serde_json::json!({"action":"complete","expectedVersion":version,"resultingCondition":"good","evidence":"Historical fixture close","reason":"Historical fixture close reason"});
     normalize_maintenance_change(&serde_json::to_vec(&body).unwrap())
         .unwrap()
@@ -59,7 +59,7 @@ async fn close(
         .await
 }
 async fn original_predicate(p: &settlement_facts::Parts) -> bool {
-    let original = include_str!("../../../packages/server-maintenance/src/adapters/work.ts");
+    let original = include_str!("../../../modules/maintenance/server/src/adapters/work.ts");
     let predicate = original
         .split("`NOT EXISTS(SELECT 1 FROM (")
         .nth(1)
@@ -82,13 +82,13 @@ async fn original_predicate(p: &settlement_facts::Parts) -> bool {
     }
     let inventory = projection(
         include_str!(
-            "../../../packages/server-inventory/src/adapters/final-root-owner-projection-sources.ts"
+            "../../../modules/inventory/server/src/adapters/final-root-owner-projection-sources.ts"
         ),
         "operational_inventory_consumptions",
     );
     let finance = projection(
         include_str!(
-            "../../../packages/server-finance/src/adapters/final-root-owner-projection-sources.ts"
+            "../../../modules/finance/server/src/adapters/final-root-owner-projection-sources.ts"
         ),
         "finance_journals",
     );

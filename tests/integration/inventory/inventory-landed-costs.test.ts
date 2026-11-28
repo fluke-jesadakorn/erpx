@@ -1,16 +1,16 @@
 import {afterEach,beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {createLandedCost,getLandedCost,landedCostWork,transitionLandedCost} from "@erpx/server-inventory/public/inventory-landed-costs";
+import {createLandedCost,getLandedCost,landedCostWork,transitionLandedCost} from "@erpx/inventory-server/public/inventory-landed-costs";
 
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 afterEach(()=>vi.unstubAllEnvs());
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();f.head.role='purchasing_manager';f.head.branchId=null;f.head.departmentId=null;f.head.assignmentId=await f.grant(f.head,'purchasing_manager');f.reviewer.role='finance_preparer';f.reviewer.branchId=null;f.reviewer.departmentId=null;f.reviewer.assignmentId=await f.grant(f.reviewer,'finance_preparer');f.manager.role='finance_approver';f.manager.branchId=null;f.manager.departmentId=null;f.manager.assignmentId=await f.grant(f.manager,'finance_approver');});
 
 // Landed-cost create, approve, reject, cancel and post are native
-// (`packages/server-inventory/src/public/landed_costs.rs` + composition). The
+// (`modules/inventory/server/src/public/landed_costs.rs` + composition). The
 // actual stock/lot valuation and immutable evidence oracles live in
 // `rust-stock-register-postgres.test.rs::transfer_landed_reorder_pg`; the
 // attachment/package composition assertions remain with their own owners.

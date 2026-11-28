@@ -1,7 +1,7 @@
 import {describe,it,expect,vi,beforeEach,afterEach} from 'vitest';
 vi.mock('server-only',()=>({}));
-import {commerceAttachmentStockSourceImage} from '../../../packages/server-inventory/src/adapters/commerce-attachment-sources';
-import {INVENTORY_RD_COMMERCE_ATTACHMENT_STOCK_IMAGE} from '../../../packages/server-inventory/src/adapters/native-inventory-read';
+import {commerceAttachmentStockSourceImage} from '../../../modules/inventory/server/src/adapters/commerce-attachment-sources';
+import {INVENTORY_RD_COMMERCE_ATTACHMENT_STOCK_IMAGE} from '../../../modules/inventory/server/src/adapters/native-inventory-read';
 
 describe('native Inventory commerce attachment stock image caller-unit read',()=>{
   const envKey='ERPX_NATIVE_INVENTORY_CONFIG';

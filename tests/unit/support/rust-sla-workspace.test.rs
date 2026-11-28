@@ -1,9 +1,9 @@
 //! Focused application-level test for the native Support SLA workspace read.
 //!
 //! Register with a `[[test]] name = "sla_workspace"` entry in
-//! `packages/server-support/Cargo.toml` (lead-owned path). The same behaviour is
+//! `modules/support/server/Cargo.toml` (lead-owned path). The same behaviour is
 //! covered by the inline `#[cfg(test)]` modules, which run with `--lib`.
-use erpx_server_support::public::sla_workspace::{
+use erpx_support_server::public::sla_workspace::{
     read_sla_workspace, SlaPolicyRow, SlaTicketRow, SlaWorkspaceFuture, SlaWorkspacePorts,
     SlaWorkspaceScope,
 };

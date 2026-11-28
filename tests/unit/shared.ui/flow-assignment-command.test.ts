@@ -1,5 +1,5 @@
 import {afterEach,expect,it,vi} from 'vitest';
-import {createFlowAssignmentCommands} from '../../../packages/workplace/src/lib/flow-assignment-command';
+import {createFlowAssignmentCommands} from '../../../platform/workplace/src/lib/flow-assignment-command';
 
 afterEach(()=>vi.unstubAllGlobals());
 const flow={kind:'stock_count',recordId:'count-a',recordVersion:4,version:3,steps:[],history:[],canManage:true,canAct:false};

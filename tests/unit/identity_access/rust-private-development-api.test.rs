@@ -1,4 +1,4 @@
-use erpx_service::private_development_api::DevelopmentApiConfiguration;
+use erpx_platform_composition::private_development_api::DevelopmentApiConfiguration;
 fn document() -> serde_json::Value {
     let database = |token: &str| serde_json::json!({"url":format!("postgres://erpx_test_admin:synthetic@127.0.0.1:5432/erpx_dev_rust_{token}"),"leaseToken":token});
     serde_json::json!({"version":1,"mode":"development","transport":"direct-loopback","listen":"127.0.0.1:43117","accountHost":"account.example.test","requireEmailVerification":true,"passwordWorkers":1,"maximumRequests":8,"requestTimeoutMs":5000,"control":database("00000000000000000000000000000000"),"holdings":[{"holdingId":"h001","slug":"acme","host":"acme.example.test","writeBinding":"HOLDING_H001_DB","readBinding":"HOLDING_H001_READ_DB","filesBinding":"HOLDING_H001_FILES","database":database("11111111111111111111111111111111")},{"holdingId":"h002","slug":"northstar","host":"northstar.example.test","writeBinding":"HOLDING_H002_DB","readBinding":"HOLDING_H002_READ_DB","filesBinding":"HOLDING_H002_FILES","database":database("22222222222222222222222222222222")}]})
@@ -459,10 +459,10 @@ fn production_configuration_mounts_finance_gated() {
 
 #[tokio::test]
 async fn production_assembly_rejects_a_development_configuration() {
-    use erpx_server_identity_access::public::{SystemAccountClock, SystemAuthenticationSecrets};
+    use erpx_identity_access_server::public::{SystemAccountClock, SystemAuthenticationSecrets};
     use std::sync::Arc;
     let configuration = DevelopmentApiConfiguration::parse(&document().to_string()).unwrap();
-    let result = erpx_service::private_development_api::assemble_production_api(
+    let result = erpx_platform_composition::private_development_api::assemble_production_api(
         configuration,
         Arc::new(SystemAccountClock),
         Arc::new(SystemAuthenticationSecrets),
@@ -476,9 +476,9 @@ async fn production_assembly_rejects_a_development_configuration() {
 
 #[test]
 fn manual_create_configuration_admits_production_gated() {
-    use erpx_server_commercial::public::purchases::current_package_catalogue;
-    use erpx_server_shared::public::{CompanyId, HoldingId};
-    use erpx_service::{
+    use erpx_commercial_server::public::purchases::current_package_catalogue;
+    use erpx_platform_shared_server::public::{CompanyId, HoldingId};
+    use erpx_platform_composition::{
         finance_journal_create::FinanceJournalCreateConfiguration,
         finance_journal_review::FinanceJournalEnvironment,
     };
@@ -495,9 +495,9 @@ fn manual_create_configuration_admits_production_gated() {
 
 #[test]
 fn service_reservation_read_never_admits_production() {
-    use erpx_server_commercial::public::purchases::current_package_catalogue;
-    use erpx_server_shared::public::{CompanyId, HoldingId};
-    use erpx_service::{
+    use erpx_commercial_server::public::purchases::current_package_catalogue;
+    use erpx_platform_shared_server::public::{CompanyId, HoldingId};
+    use erpx_platform_composition::{
         field_service_parts::FieldServicePartsEnvironment,
         field_service_reservation_read::FieldServiceReservationReadConfiguration,
     };

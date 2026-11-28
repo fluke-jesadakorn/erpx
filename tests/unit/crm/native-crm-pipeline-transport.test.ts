@@ -6,9 +6,9 @@ import {
   nativeCrmPipelineConfiguration,
   NativeCrmPipelineError,
   type NativeCrmPipelinePageContext,
-} from '../../../packages/feature-sales/src/public/native-crm-pipeline';
-import { nativeCrmPipeline } from '../../../packages/feature-sales/src/public/native-crm-pipeline-page';
-import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
+} from '../../../modules/sales/ui/src/public/native-crm-pipeline';
+import { nativeCrmPipeline } from '../../../modules/sales/ui/src/public/native-crm-pipeline-page';
+import type { WorkContext } from '@erpx/identity-access-server/public/authorization';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44995',
@@ -194,7 +194,7 @@ describe('native CRM pipeline transport',()=>{
   const previous=process.env.ERPX_NATIVE_CRM_PIPELINE_CONFIG;
   delete process.env.ERPX_NATIVE_CRM_PIPELINE_CONFIG;
   expect(nativeCrmPipelineAvailable()).toBe(false);
-  const {nativeCrmPipeline}=await import('../../../packages/feature-sales/src/public/native-crm-pipeline-page');
+  const {nativeCrmPipeline}=await import('../../../modules/sales/ui/src/public/native-crm-pipeline-page');
   await expect(nativeCrmPipeline(actor as never,{})).resolves.toBeUndefined();
   if(previous!==undefined)process.env.ERPX_NATIVE_CRM_PIPELINE_CONFIG=previous;
  });
@@ -202,7 +202,7 @@ describe('native CRM pipeline transport',()=>{
  it('does not fall back when a configured native CRM selector is malformed',async()=>{
   const previous=process.env.ERPX_NATIVE_CRM_PIPELINE_CONFIG;
   process.env.ERPX_NATIVE_CRM_PIPELINE_CONFIG='{not-json';
-  const {nativeCrmPipeline}=await import('../../../packages/feature-sales/src/public/native-crm-pipeline-page');
+  const {nativeCrmPipeline}=await import('../../../modules/sales/ui/src/public/native-crm-pipeline-page');
   await expect(nativeCrmPipeline(actor as never,{})).rejects.toMatchObject({
     code:'NATIVE_CRM_PIPELINE_CONFIGURATION_INVALID',
   });
@@ -228,7 +228,7 @@ describe('native CRM pipeline transport',()=>{
  });
 
  it('maps transport failures to the retained page/route status policy',async()=>{
-  const {nativeCrmPipelineFailure}=await import('../../../packages/feature-sales/src/public/native-crm-pipeline-page');
+  const {nativeCrmPipelineFailure}=await import('../../../modules/sales/ui/src/public/native-crm-pipeline-page');
   expect(nativeCrmPipelineFailure(new NativeCrmPipelineError('NATIVE_CRM_PIPELINE_CONTEXT_CHANGED')))
     .toMatchObject({status:409,code:'WORK_CONTEXT_CHANGED'});
   expect(nativeCrmPipelineFailure(new NativeCrmPipelineError('NATIVE_CRM_PIPELINE_REQUEST_INVALID')))

@@ -1,12 +1,12 @@
 //! Native Records drawer-detail read policy and orchestration negatives.
-use erpx_server_records::public::record_context::{
+use erpx_records_server::public::record_context::{
     BacklinkEdge, HistoryRow, LinkTarget, MentionRow, RecordContextActor, RecordContextFuture,
     RecordContextGuard, RecordContextRepository, RecordRow, ReferenceEdge, SuggestionRow,
 };
-use erpx_server_records::public::record_details::{
+use erpx_records_server::public::record_details::{
     PAGE_SIZE, RecordDetailsQuery, RecordDetailsRepository, record_details,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::collections::BTreeSet;
 
 #[derive(Default)]

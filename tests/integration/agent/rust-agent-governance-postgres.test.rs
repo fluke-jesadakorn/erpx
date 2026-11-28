@@ -4,17 +4,17 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_agent::public::governance::*;
-use erpx_server_agent::public::providers::{
+use erpx_agent_server::public::governance::*;
+use erpx_agent_server::public::providers::{
     AiActor, PgAiProvider, activate_ai_connection, ai_provider_overview, disable_ai_connection,
     save_ai_connection, select_ai_providers,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{AssignmentId, BusinessError, CompanyId, UserId};
-use erpx_server_workflow::public::commands::{
+use erpx_platform_shared_server::public::{AssignmentId, BusinessError, CompanyId, UserId};
+use erpx_workflow_server::public::commands::{
     CommandActor, CommandField, CommandJson, WorkAuthority,
 };
 use serde_json::{Value, json};

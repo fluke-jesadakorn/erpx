@@ -1,11 +1,11 @@
 //! Native Sales customer-notification settings/queue/retry rules.
-use erpx_server_sales::public::notification_commands::{
+use erpx_sales_server::public::notification_commands::{
     NotificationCommandRepository, NotificationFuture, NotificationPurpose, QueuePlan,
     RetryPlan, SettingsPlan, SettingsAdapter, QueueNotification, RetryNotification,
     UpdateSettings, NotificationActor, DeliveryFacts, NoticeSource, NotificationReceiptSnapshot,
     queue_notification, retry_notification, update_settings,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 use std::sync::{Arc, Mutex};
 
 const NOW: i64 = 1_800_000_000_000;

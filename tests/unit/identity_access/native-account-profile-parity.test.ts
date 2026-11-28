@@ -4,7 +4,7 @@ vi.mock("server-only", () => ({}));
 const fetchMock = vi.fn();
 vi.stubGlobal("fetch", fetchMock);
 
-import { nativeAccountProfile, parseAccountProfile } from "@erpx/server-identity_access/public/account-profile-native";
+import { nativeAccountProfile, parseAccountProfile } from "@erpx/identity-access-server/public/account-profile-native";
 
 const config = JSON.stringify({
   privateBaseUrl: "http://127.0.0.1:43111",

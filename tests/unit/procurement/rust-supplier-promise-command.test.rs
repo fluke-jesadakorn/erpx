@@ -1,12 +1,12 @@
 //! Native Procurement supplier promise command policy and validation tests.
-use erpx_server_procurement::public::supplier_promise_command::{
+use erpx_procurement_server::public::supplier_promise_command::{
     PreparedPromiseLine, PreparedSupplierPromise, PromiseOrderLineSource, PromiseOrderSource,
     PromiseSource, RecordSupplierPromiseCommand, SupplierPromiseAuthority,
     SupplierPromiseCommandActor, SupplierPromiseLineCommand, ValidatedSupplierPromise, fingerprint,
     idempotency_conflict, incomplete_receipt, invalid_receipt, line_id, not_found,
     prepare_supplier_promise, promise_id, source_changed, validate_readback,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, CommandKey, CompanyId, FailureKind, RecordId, TimestampMillis,
 };
 
@@ -251,7 +251,7 @@ fn validate_readback_checks_persisted_shape() {
     let prepared = prepare_supplier_promise(&actor, &validated, source).unwrap();
     let promise = promise_id(&CommandKey::new("command-key-2").unwrap());
     let readback =
-        erpx_server_procurement::public::supplier_promise_command::SupplierPromiseReadback {
+        erpx_procurement_server::public::supplier_promise_command::SupplierPromiseReadback {
             id: promise.clone(),
             order_id: "order".into(),
             order_version: 1,

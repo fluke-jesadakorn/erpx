@@ -7,18 +7,18 @@ import {
   CLEANUP_LINK_ROWS_HEAD_SQL,
   CLEANUP_BOUND_COMMAND_ID_HEAD_SQL,
   LEAVE_LEGACY_SOURCE_ID_HEAD_SQL,
-} from '../../../packages/server-files/src/adapters/read-tail-r47-source-sql';
+} from '../../../modules/files/server/src/adapters/read-tail-r47-source-sql';
 import {
   ATTACHMENT_EVENTS_WHERE_HEAD_SQL,
   ATTACHMENT_SETS_STAR_WHERE_HEAD_SQL,
-} from '../../../packages/server-files/src/adapters/read-tail-r45-source-sql';
+} from '../../../modules/files/server/src/adapters/read-tail-r45-source-sql';
 import {
   ORPHAN_PRESERVATION_EVENT_HEAD_SQL,
   SET_DRAFT_BOUND_COUNT_SQL,
-} from '../../../packages/server-files/src/adapters/read-tail-r46-source-sql';
+} from '../../../modules/files/server/src/adapters/read-tail-r46-source-sql';
 
 const rootDir = resolve(__dirname, '../../..');
-const srcRoot = resolve(rootDir, 'packages/server-files/src');
+const srcRoot = resolve(rootDir, 'modules/files/server/src');
 const HEAD = 'e313f4375f2100a8db74a4851395530db948f3ad';
 const HELPER = 'adapters/read-tail-r47-source-sql.ts';
 const SR = 'adapters/attachments/service-repository.ts';
@@ -26,7 +26,7 @@ const CLEANUP = 'adapters/social-upload-cleanup.ts';
 const LEAVE = 'adapters/leave-review-evidence-facts.ts';
 const src = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
 const git = (...a: string[]) => execFileSync('git', a, { cwd: rootDir, encoding: 'utf8' });
-const before = (rel: string) => git('show', `${HEAD}:packages/server-files/src/${rel}`);
+const before = (rel: string) => git('show', `${HEAD}:modules/files/server/src/${rel}`);
 const count = (text: string, needle: string) => text.split(needle).length - 1;
 
 /** Verbatim byte oracles: the exact 64/41/34/58-byte heads lifted by r47. */

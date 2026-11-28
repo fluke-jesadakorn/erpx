@@ -1,13 +1,13 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_organization::public::organization_access::OrganizationAccessActor;
-use erpx_server_organization::public::organization_nodes::OrganizationScopeKind;
-use erpx_server_organization::public::roster::{OrganizationRosterRead, PgOrganizationRoster};
-use erpx_server_runtime::public::postgres::{
+use erpx_organization_server::public::organization_access::OrganizationAccessActor;
+use erpx_organization_server::public::organization_nodes::OrganizationScopeKind;
+use erpx_organization_server::public::roster::{OrganizationRosterRead, PgOrganizationRoster};
+use erpx_platform_runtime_server::public::postgres::{
     load_migrations, migrate_database, MigrationTrack, PgTransactionError, PgUnitOfWork,
     TransactionOptions,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 
 fn actor(people: bool, organization: bool) -> OrganizationAccessActor {
     OrganizationAccessActor {
@@ -23,7 +23,7 @@ fn actor(people: bool, organization: bool) -> OrganizationAccessActor {
     }
 }
 
-async fn seed(pool: &erpx_server_runtime::public::postgres::DatabasePool) {
+async fn seed(pool: &erpx_platform_runtime_server::public::postgres::DatabasePool) {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
     let files = load_migrations(root, MigrationTrack::HoldingWrite)
         .await
@@ -65,7 +65,7 @@ async fn seed(pool: &erpx_server_runtime::public::postgres::DatabasePool) {
 }
 
 async fn run<T, F>(
-    pool: erpx_server_runtime::public::postgres::DatabasePool,
+    pool: erpx_platform_runtime_server::public::postgres::DatabasePool,
     f: F,
 ) -> Result<T, PgTransactionError<BusinessError>>
 where
@@ -85,7 +85,7 @@ where
 }
 
 async fn read(
-    pool: erpx_server_runtime::public::postgres::DatabasePool,
+    pool: erpx_platform_runtime_server::public::postgres::DatabasePool,
     actor: OrganizationAccessActor,
 ) -> Result<OrganizationRosterRead, PgTransactionError<BusinessError>> {
     run(pool, move |connection| {

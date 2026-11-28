@@ -1,6 +1,6 @@
 //! Portable Staff Work task rules. Database behaviour lives in the PostgreSQL
 //! companion test.
-use erpx_server_operations::public::staff_tasks::{
+use erpx_operations_server::public::staff_tasks::{
     ApprovalView, DecisionFact, DelegateTaskCommand, SaveTaskCommand, StaffTaskActor,
     TaskAccessFacts, TaskAction, TaskRow, TransitionTaskCommand, can_attach, can_configure,
     delegation_record_id, permitted_actions, plan_transition, require_scope,

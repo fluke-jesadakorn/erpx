@@ -1,8 +1,8 @@
 import {expect,it,vi} from 'vitest';
 import {createServer} from 'node:http';
 vi.mock('server-only',()=>({}));
-import {nativeFieldIntakeRequest,type NativeFieldIntakeTransportInput} from '../../../packages/native-sdk/src/field-service-attachment-intake';
-import {allowedPrivateLoopbackPort} from '../../../packages/native-sdk/src/loopback';
+import {nativeFieldIntakeRequest,type NativeFieldIntakeTransportInput} from '../../../platform/native-sdk/src/field-service-attachment-intake';
+import {allowedPrivateLoopbackPort} from '../../../platform/native-sdk/src/loopback';
 const set={id:'s',targetType:'field_service_visit',targetId:'v',componentKind:'record',componentRef:null,purposeKey:'site_photo',expectedTargetVersion:3,policyVersion:1,classification:'internal',requiredCount:0,maxFiles:10,state:'draft',createdAt:123,updatedAt:456,links:[{id:'l',sourceId:null,filename:'file',mediaType:'application/octet-stream',bytes:null,sourceState:null,linkState:'draft',caption:null,previewAvailable:false,createdAt:123,expiresAt:456,boundAt:null}]};
 const base={baseUrl:'http://127.0.0.1:43521',slug:'acme',headers:new Headers({'idempotency-key':'exact-key','x-erpx-context-revision':'8'}),timeoutMs:1000};
 it('forwards the original body, headers and raw query with typed complete responses',async()=>{

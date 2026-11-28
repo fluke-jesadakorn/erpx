@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { holdingBindingsSql } from '../../../packages/server-runtime/src/adapters/read-tail-sql';
+import { holdingBindingsSql } from '../../../platform/runtime/server/src/adapters/read-tail-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-runtime/src');
+const srcRoot = resolve(__dirname, '../../../platform/runtime/server/src');
 const adapterDir = resolve(srcRoot, 'adapters');
 const src = (name: string) => readFileSync(resolve(adapterDir, name), 'utf8');
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;

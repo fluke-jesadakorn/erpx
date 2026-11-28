@@ -3,21 +3,21 @@
 //! This file is the exact adapter the shared composition must provide: normal
 //! Account session proof, current Holding/Company scope, the serializable owner
 //! unit, Workflow receipt/audit/outbox retention and the Finance cost handoff.
-use erpx_server_assets::public::asset_http::{
+use erpx_assets_server::public::asset_http::{
     AssetCommandResponse, AssetDetailResponse, AssetHttpBackend, AssetHttpCommandRequest,
     AssetHttpFuture, AssetHttpReadReply, AssetHttpReadRequest, AssetRenderedContext,
     AssetWorkspaceResponse,
 };
-use erpx_server_assets::public::asset_http::{AssetHttpCommand, decode_asset_command};
-use erpx_server_assets::public::asset_register::{
+use erpx_assets_server::public::asset_http::{AssetHttpCommand, decode_asset_command};
+use erpx_assets_server::public::asset_register::{
     AcquisitionCostProvider, AssetActor, AssetChangeResult, AssetCurrencyCatalogue, AssetFuture,
     NoCommandLedger, PgAssetRegister, asset_detail, asset_workspace, change_asset,
     create_asset_in_unit, validate_registration_currency,
 };
-use erpx_server_assets::public::retirement_work::{
+use erpx_assets_server::public::retirement_work::{
     AssetRetirementWorkEffect, AssetRetirementWorkSource,
 };
-use erpx_server_identity_access::public::{
+use erpx_identity_access_server::public::{
     AccountPolicy, RequestAudience,
     account_inbound_http::{CapturedHoldingMutation, parse_inbound_account_request},
     command_metadata::project_command_iam,
@@ -27,11 +27,11 @@ use erpx_server_identity_access::public::{
     },
     work_context::{HoldingWorkspaceRequest, WorkScopeKind},
 };
-use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{
+use erpx_platform_runtime_server::public::postgres::{PgTransactionError, PgWorkFuture};
+use erpx_platform_shared_server::public::{
     BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId,
 };
-use erpx_server_workflow::public::commands::{
+use erpx_workflow_server::public::commands::{
     CommandActor, CommandEventScope, CommandField, CommandJson, WorkAuthority, command_fingerprint,
 };
 use serde::Serialize;
@@ -53,12 +53,12 @@ fn asset_create_error(error: AssetError) -> AssetError {
 struct FinanceCurrencyCatalogue;
 impl AssetCurrencyCatalogue for FinanceCurrencyCatalogue {
     fn contains(&self, currency: &str) -> Result<bool, BusinessError> {
-        erpx_server_finance::public::embedded_currency_rules()
+        erpx_finance_server::public::embedded_currency_rules()
             .map(|rules| rules.contains(currency))
             .map_err(|_| BusinessError::new(FailureKind::Unavailable, "CURRENCY_CATALOGUE_UNAVAILABLE", "The currency catalogue is unavailable."))
     }
     fn scale(&self, currency: &str, company_scale: Option<u32>) -> Result<Option<u32>, BusinessError> {
-        let rules = erpx_server_finance::public::embedded_currency_rules()
+        let rules = erpx_finance_server::public::embedded_currency_rules()
             .map_err(|_| BusinessError::new(FailureKind::Unavailable, "CURRENCY_CATALOGUE_UNAVAILABLE", "The currency catalogue is unavailable."))?;
         Ok(rules.scale(currency, company_scale.map(i64::from)).ok().map(u32::from))
     }
@@ -444,7 +444,7 @@ impl<C: Clock + Send + Sync + 'static> AssetHttpService<C> {
     async fn workspace(
         &self,
         host: &str,
-        proof: erpx_server_identity_access::public::DeviceProof,
+        proof: erpx_identity_access_server::public::DeviceProof,
         input: impl FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     ) -> Result<AssetWorkspaceResponse, AssetError> {
         let holding = self.configuration.holding.clone();
@@ -484,7 +484,7 @@ impl<C: Clock + Send + Sync + 'static> AssetHttpService<C> {
     async fn detail(
         &self,
         host: &str,
-        proof: erpx_server_identity_access::public::DeviceProof,
+        proof: erpx_identity_access_server::public::DeviceProof,
         input: impl FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
         id: &str,
     ) -> Result<AssetDetailResponse, AssetError> {
@@ -528,7 +528,7 @@ impl<C: Clock + Send + Sync + 'static> AssetHttpService<C> {
     async fn command_inner(
         &self,
         host: &str,
-        proof: erpx_server_identity_access::public::DeviceProof,
+        proof: erpx_identity_access_server::public::DeviceProof,
         input: impl FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
         raw: Value,
         key: CommandKey,

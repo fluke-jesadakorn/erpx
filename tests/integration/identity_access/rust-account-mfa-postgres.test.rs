@@ -4,8 +4,8 @@
 )]
 #[path = "../../support/rust-account-security.rs"]
 mod support;
-use erpx_server_identity_access::public::{account_security::*, *};
-use erpx_server_shared::public::Clock;
+use erpx_identity_access_server::public::{account_security::*, *};
+use erpx_platform_shared_server::public::Clock;
 use sqlx::{Connection, Row};
 use std::sync::Arc;
 
@@ -13,7 +13,7 @@ use std::sync::Arc;
 async fn an_older_serializable_snapshot_cannot_keep_mfa_fresh_after_a_concurrent_disable_or_rotation()
  {
     fixture::with_system(|system|async move{
-    use erpx_server_runtime::public::postgres::PgTransactionError;
+    use erpx_platform_runtime_server::public::postgres::PgTransactionError;
     let proof=fixture::login(&system,"a@example.test",None).await;let s=services(&system);verified(&system,&s,&proof).await;
     for disable in [true,false]{
         sqlx::query("UPDATE iam_mfa SET enabled=true WHERE user_id='fixture-a'").execute(system.control.raw()).await.unwrap();

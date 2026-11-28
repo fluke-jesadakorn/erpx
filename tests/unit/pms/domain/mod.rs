@@ -1,4 +1,4 @@
-#[path = "../../../../packages/server-pms/src/domain/room_board.rs"]
+#[path = "../../../../modules/pms/server/src/domain/room_board.rs"]
 pub mod room_board;
-#[path = "../../../../packages/server-pms/src/domain/stay_room.rs"]
+#[path = "../../../../modules/pms/server/src/domain/stay_room.rs"]
 pub mod stay_room;

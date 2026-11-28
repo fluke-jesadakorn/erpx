@@ -1,9 +1,9 @@
-use erpx_server_legal::public::{
+use erpx_legal_server::public::{
     InspectedTrustMaterial, LegalTrustActor, LegalTrustCommand, LegalTrustCommandPorts,
     LegalTrustInspector, LegalTrustReceipt, LegalTrustRecord, TrustMaterialKind,
     TrustMaterialState,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, RecordId, TimestampMillis,
     UserId,
 };

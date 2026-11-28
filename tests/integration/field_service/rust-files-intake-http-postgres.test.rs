@@ -6,8 +6,8 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_shared::public::{BusinessError, Clock, CompanyId, HoldingId};
-use erpx_service::{
+use erpx_platform_shared_server::public::{BusinessError, Clock, CompanyId, HoldingId};
+use erpx_platform_composition::{
     field_attachment_intake_http::{
         FieldIntakeMode, FieldIntakePolicy, FieldIntakeProviderReadiness,
         FieldIntakeProviderStatus, FieldIntakeTarget, field_intake_router,
@@ -63,7 +63,7 @@ async fn private_route_enforces_account_and_replay_readiness() {
   let now=p.review.system.scenario.clock.now().get();
   sqlx::query("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at) VALUES($1,'fixture-a','company','field-fixture-a',3,8,$2,$3)").bind(&child.result.session_id).bind(now+3_600_000).bind(now).execute(p.pool().raw()).await.unwrap();
   let provider=Arc::new(Provider{ready:AtomicBool::new(true),calls:AtomicUsize::new(0)});
-  let target=FieldIntakeTarget{host:"acme.example.test".into(),holding_slug:"acme".into(),holding:HoldingId::new("h001").unwrap(),company:CompanyId::new("company").unwrap().into(),companies:None,authorizer:p.review.authorizer.clone(),catalogue:Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap()),clock:p.review.system.scenario.clock.clone(),policy:FieldIntakePolicy{mode:FieldIntakeMode::Enabled,uploads_frozen:false},readiness:provider.clone()};
+  let target=FieldIntakeTarget{host:"acme.example.test".into(),holding_slug:"acme".into(),holding:HoldingId::new("h001").unwrap(),company:CompanyId::new("company").unwrap().into(),companies:None,authorizer:p.review.authorizer.clone(),catalogue:Arc::new(erpx_commercial_server::public::purchases::current_package_catalogue().unwrap()),clock:p.review.system.scenario.clock.clone(),policy:FieldIntakePolicy{mode:FieldIntakeMode::Enabled,uploads_frozen:false},readiness:provider.clone()};
   let router=field_intake_router(Arc::new(facts::account::fixture::account::policy()),facts::account::fixture::account::holding_registry(),Arc::new(FieldServiceReadScopeHeaders),vec![target]).unwrap();
   let cookie=format!("__Host-erpx-product={}",child.token.expose());
   let body=r#"{"targetType":"field_service_visit","targetId":"issue-order","componentKind":"record","purposeKey":"site_photo","expectedTargetVersion":3}"#;
@@ -86,7 +86,7 @@ async fn private_route_enforces_account_and_replay_readiness() {
   let blocked=tokio::time::timeout(std::time::Duration::from_secs(5),router.clone().oneshot(get_current())).await.unwrap().unwrap();assert_eq!(blocked.status(),StatusCode::INTERNAL_SERVER_ERROR);let blocked:serde_json::Value=serde_json::from_slice(&to_bytes(blocked.into_body(),65536).await.unwrap()).unwrap();assert_eq!(blocked["error"]["code"],"INTERNAL_ERROR");
   let unchanged:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM attachment_sets WHERE target_id='issue-order'),(SELECT count(*) FROM audit_events WHERE action='attachment.set.create'),(SELECT count(*) FROM outbox_events WHERE event_type='attachment.set.create')").fetch_one(db).await.unwrap();assert_eq!(unchanged,(0,0,0));writer.rollback().await.unwrap();
   let empty_after=router.clone().oneshot(get_current()).await.unwrap();assert_eq!(empty_after.status(),StatusCode::OK);let empty_after:serde_json::Value=serde_json::from_slice(&to_bytes(empty_after.into_body(),65536).await.unwrap()).unwrap();assert_eq!(empty_after["data"],serde_json::json!([]));
-  let first=router.clone().oneshot(post("private-create",body)).await.unwrap();assert_eq!(first.status(),StatusCode::CREATED);let data:serde_json::Value=serde_json::from_slice(&to_bytes(first.into_body(),65536).await.unwrap()).unwrap();let typed:erpx_service::field_attachment_intake_contracts::FieldIntakeCreateResponse=serde_json::from_value(data.clone()).unwrap();assert_eq!(serde_json::to_value(typed).unwrap(),data);assert!(data["data"]["id"].is_string());assert_eq!(provider.calls.load(Ordering::SeqCst),1);
+  let first=router.clone().oneshot(post("private-create",body)).await.unwrap();assert_eq!(first.status(),StatusCode::CREATED);let data:serde_json::Value=serde_json::from_slice(&to_bytes(first.into_body(),65536).await.unwrap()).unwrap();let typed:erpx_platform_composition::field_attachment_intake_contracts::FieldIntakeCreateResponse=serde_json::from_value(data.clone()).unwrap();assert_eq!(serde_json::to_value(typed).unwrap(),data);assert!(data["data"]["id"].is_string());assert_eq!(provider.calls.load(Ordering::SeqCst),1);
   let listed=router.clone().oneshot(get_current()).await.unwrap();assert_eq!(listed.status(),StatusCode::OK);let listed:serde_json::Value=serde_json::from_slice(&to_bytes(listed.into_body(),65536).await.unwrap()).unwrap();assert_eq!(listed["data"].as_array().unwrap().len(),1);assert_eq!(listed["data"][0]["id"],data["data"]["id"]);
   provider.ready.store(false,Ordering::SeqCst);
   assert_eq!(router.clone().oneshot(post("private-create",body)).await.unwrap().status(),StatusCode::CREATED);assert_eq!(provider.calls.load(Ordering::SeqCst),1);
@@ -118,13 +118,13 @@ async fn field_upload_http_preserves_selected_authority_and_short_units() {
   let now=p.review.system.scenario.clock.now().get();
   sqlx::query("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at) VALUES($1,'fixture-a','company','field-fixture-a',3,8,$2,$3)").bind(&child.result.session_id).bind(now+3_600_000).bind(now).execute(p.pool().raw()).await.unwrap();
   let provider=Arc::new(Provider{ready:AtomicBool::new(true),calls:AtomicUsize::new(0)});
-  let target=FieldIntakeTarget{host:"acme.example.test".into(),holding_slug:"acme".into(),holding:HoldingId::new("h001").unwrap(),company:erpx_service::service_company_ownership::ServiceCompanyOwnership::RegisteredHolding,companies:None,authorizer:p.review.authorizer.clone(),catalogue:Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap()),clock:p.review.system.scenario.clock.clone(),policy:FieldIntakePolicy{mode:FieldIntakeMode::Enabled,uploads_frozen:false},readiness:provider.clone()};
+  let target=FieldIntakeTarget{host:"acme.example.test".into(),holding_slug:"acme".into(),holding:HoldingId::new("h001").unwrap(),company:erpx_platform_composition::service_company_ownership::ServiceCompanyOwnership::RegisteredHolding,companies:None,authorizer:p.review.authorizer.clone(),catalogue:Arc::new(erpx_commercial_server::public::purchases::current_package_catalogue().unwrap()),clock:p.review.system.scenario.clock.clone(),policy:FieldIntakePolicy{mode:FieldIntakeMode::Enabled,uploads_frozen:false},readiness:provider.clone()};
   let root=tempfile::tempdir().unwrap();
   use std::os::unix::fs::PermissionsExt;
   std::fs::set_permissions(root.path(),std::fs::Permissions::from_mode(0o700)).unwrap();
-  let files=erpx_service::field_upload_http::FieldUploadTarget{intake:Arc::new(target.clone()),pool:p.pool().raw().clone(),writer:erpx_server_files::public::field_visit_upload::LocalFieldQuarantineWriter::open(root.path(),2).unwrap(),store:erpx_server_files::public::attachment_scan::LocalSanitizationStore::open(root.path(),2).unwrap()};
+  let files=erpx_platform_composition::field_upload_http::FieldUploadTarget{intake:Arc::new(target.clone()),pool:p.pool().raw().clone(),writer:erpx_files_server::public::field_visit_upload::LocalFieldQuarantineWriter::open(root.path(),2).unwrap(),store:erpx_files_server::public::attachment_scan::LocalSanitizationStore::open(root.path(),2).unwrap()};
   let policy=Arc::new(facts::account::fixture::account::policy());let registry=facts::account::fixture::account::holding_registry();
-  let router=field_intake_router(policy.clone(),registry.clone(),Arc::new(FieldServiceReadScopeHeaders),vec![target]).unwrap().merge(erpx_service::field_upload_http::field_upload_router(policy,registry,Arc::new(FieldServiceReadScopeHeaders),vec![files]).unwrap());
+  let router=field_intake_router(policy.clone(),registry.clone(),Arc::new(FieldServiceReadScopeHeaders),vec![target]).unwrap().merge(erpx_platform_composition::field_upload_http::field_upload_router(policy,registry,Arc::new(FieldServiceReadScopeHeaders),vec![files]).unwrap());
   let cookie=format!("__Host-erpx-product={}",child.token.expose());
   let req=|method:&str,path:&str,key:&str,body:Vec<u8>|Request::builder().method(method).uri(path).header("content-type",if method=="PUT"{"image/png"}else{"application/json"}).header("host","acme.example.test").header("cookie",&cookie).header("origin","https://acme.example.test").header("idempotency-key",key).header("x-erpx-context-company","company").header("x-erpx-context-assignment","field-fixture-a").header("x-erpx-context-assignment-version","3").header("x-erpx-context-revision","8").body(Body::from(body)).unwrap();
   for path in ["/api/v1/holdings/acme/field-service/attachment-sets/absent/files","/api/v1/holdings/acme/field-service/uploads/absent/content"] {

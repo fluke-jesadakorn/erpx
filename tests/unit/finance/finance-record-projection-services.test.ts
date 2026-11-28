@@ -1,9 +1,9 @@
 import {describe,expect,it,vi} from 'vitest';
-import {createFinanceRecordDetails,type FinanceRecordDetailPorts,type ForecastFacts} from "@erpx/server-finance/application/record-details";
-import {createFinanceExpansionRecords,type FinanceExpansionRecordPorts} from "@erpx/server-finance/application/expansion-records";
-import {isFinanceExtraKind,isFinanceExpansionKind,type FinanceRecordRow as Row} from "@erpx/server-finance/domain/record-kinds";
-import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import { createDocumentPostingPreview, type DocumentPostingPreviewPorts } from "@erpx/server-finance/application/document-posting-preview";
+import {createFinanceRecordDetails,type FinanceRecordDetailPorts,type ForecastFacts} from "@erpx/finance-server/application/record-details";
+import {createFinanceExpansionRecords,type FinanceExpansionRecordPorts} from "@erpx/finance-server/application/expansion-records";
+import {isFinanceExtraKind,isFinanceExpansionKind,type FinanceRecordRow as Row} from "@erpx/finance-server/domain/record-kinds";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
+import { createDocumentPostingPreview, type DocumentPostingPreviewPorts } from "@erpx/finance-server/application/document-posting-preview";
 const actor:WorkContext={userId:'reviewer',name:'Reviewer',email:'reviewer@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['finance'],assignments:[],workspaces:[]};
 function postingPreview(overrides: Partial<DocumentPostingPreviewPorts> = {}) {
  const ports: DocumentPostingPreviewPorts = {

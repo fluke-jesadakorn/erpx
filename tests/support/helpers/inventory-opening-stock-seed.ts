@@ -1,6 +1,6 @@
 import 'server-only';
-import {decimalToMinor} from '@erpx/feature-finance/lib/finance-money';
-import type {PostgresDatabase} from '@erpx/server-runtime/adapters/runtime/postgres';
+import {decimalToMinor} from '@erpx/finance-ui/lib/finance-money';
+import type {PostgresDatabase} from '@erpx/platform-runtime-server/adapters/runtime/postgres';
 
 /**
  * Seed-only declarative opening stock.

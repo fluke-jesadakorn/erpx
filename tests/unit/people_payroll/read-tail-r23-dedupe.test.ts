@@ -18,9 +18,9 @@ import {
   PP_RD23_POSTED_PAYROLL_RUN_GUARD,
   PP_RD23_IAM_REVIEWS_BY_ID_SQL,
   PP_RD23_PROJECT_WORKER_ENGAGEMENT_SQL,
-} from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r23-sources';
+} from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r23-sources';
 
-const src = (name: string) => readFileSync(new URL(`../../../packages/server-people_payroll/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFileSync(new URL(`../../../modules/people-payroll/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const quoted = (literal: string) => JSON.stringify(literal);
 
 const literals = [
@@ -116,7 +116,7 @@ describe('People Payroll read-tail r23 byte-identical / parameterized family ded
   });
 
   test('worktree read-only SELECT count is strictly lower than the recorded 1485 r22 baseline', () => {
-    const root = new URL('../../../packages/server-people_payroll/src/', import.meta.url);
+    const root = new URL('../../../modules/people-payroll/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {

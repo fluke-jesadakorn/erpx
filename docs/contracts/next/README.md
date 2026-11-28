@@ -18,6 +18,6 @@
 - [Sandbox billing pricing and feasibility](billing-pricing-hypothesis.md), [UCS lab boundary](ucs-lab.md)
 - [Route table](route-table.md) is the route reference; app-owned API entrypoints live under `apps/<id>/src/app/api/`, composed from owner route packages.
 
-Follow [CONTRACT_POLICY.md](../../../CONTRACT_POLICY.md): update the affected contract and compatibility checks. Add migrations only when storage changes; no unrelated policy/schema/traceability edits. Preserve command idempotency and authoritative Company scope. Do not reuse fields or routes with different meanings. Breaking changes require an ADR and cutover entry.
+Follow [CONTRACT_POLICY.md](../policy.md): update the affected contract and compatibility checks. Add migrations only when storage changes; no unrelated policy/schema/traceability edits. Preserve command idempotency and authoritative Company scope. Do not reuse fields or routes with different meanings. Breaking changes require an ADR and cutover entry.
 
 - [People evaluation: Skills, Performance & Compensation](people-evaluation.md) — annual evidence, scoped comparisons and reviewed compensation.

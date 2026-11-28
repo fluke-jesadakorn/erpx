@@ -1,4 +1,4 @@
-use erpx_server_files::public::attachment_scan::{
+use erpx_files_server::public::attachment_scan::{
     SCAN_CLEANUP_HEADROOM_MILLIS, SCAN_LEASE_MILLIS, legacy_purpose, next_scan_attempt,
     preview_object_key, remaining_compute_millis,
 };
@@ -154,7 +154,7 @@ fn remaining_budget_never_outlives_the_current_lease_cleanup_headroom() {
 
 #[test]
 fn field_visit_withdrawal_preserves_bound_owner_and_replay_order() {
-    use erpx_server_files::public::field_visit_link::{WithdrawalDecision, withdrawal_decision};
+    use erpx_files_server::public::field_visit_link::{WithdrawalDecision, withdrawal_decision};
     assert_eq!(
         withdrawal_decision("bound", "creator", None, None, "other", "reason")
             .unwrap_err()
@@ -196,7 +196,7 @@ fn field_visit_withdrawal_preserves_bound_owner_and_replay_order() {
 
 #[test]
 fn field_record_binding_requires_current_draft_and_available_sources() {
-    use erpx_server_files::public::field_visit_bind::{FieldBindLink, FieldBindSet, prepare};
+    use erpx_files_server::public::field_visit_bind::{FieldBindLink, FieldBindSet, prepare};
     let link = FieldBindLink {
         id: "link".into(),
         state: "draft".into(),
@@ -240,7 +240,7 @@ fn field_record_binding_requires_current_draft_and_available_sources() {
 
 #[test]
 fn generic_remove_command_normalizes_exactly_once_and_rejects_native_owner_targets() {
-    use erpx_server_files::public::attachment_command::{
+    use erpx_files_server::public::attachment_command::{
         has_native_owner_command, normalize_withdrawal_reason, valid_command_key,
         withdrawal_event_id,
     };

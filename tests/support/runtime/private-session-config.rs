@@ -1,5 +1,5 @@
-use erpx_server_identity_access::public::PresentedSecrets;
-use erpx_server_runtime::public::postgres::DatabasePool;
+use erpx_identity_access_server::public::PresentedSecrets;
+use erpx_platform_runtime_server::public::postgres::DatabasePool;
 use sqlx::{ConnectOptions, postgres::PgConnectOptions};
 use std::str::FromStr;
 pub async fn database(pool: &DatabasePool) -> serde_json::Value {

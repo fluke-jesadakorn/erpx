@@ -4,8 +4,8 @@ import { readFile, readdir } from 'node:fs/promises';
 vi.mock('server-only', () => ({}));
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-manage_erpx/src/adapters/${name}`, import.meta.url);
-const srcDir = new URL('../../../packages/server-manage_erpx/src/', import.meta.url);
+  new URL(`../../../modules/manage-erpx/server/src/adapters/${name}`, import.meta.url);
+const srcDir = new URL('../../../modules/manage-erpx/server/src/', import.meta.url);
 
 const OLD_ACTIVE_SLOT = "SELECT 1 FROM beta_slots WHERE holding_id=? AND state='active'";
 const OLD_ONBOARDING_SLOT =
@@ -56,10 +56,10 @@ const OLD_POSITIONAL_COUNT =
 describe('manage_erpx beta_members count SELECT-head family (r12)', () => {
   it('emits byte-identical SQL for both admitted dialect call shapes', async () => {
     const { betaMemberCountSql } = await import(
-      '../../../packages/server-manage_erpx/src/adapters/beta-member-count-sql'
+      '../../../modules/manage-erpx/server/src/adapters/beta-member-count-sql'
     );
     const { betaManagementPeopleSources } = await import(
-      '@erpx/server-people_payroll/public/beta-management-sources'
+      '@erpx/people-payroll-server/public/beta-management-sources'
     );
     const sources = betaManagementPeopleSources({} as never);
     expect(betaMemberCountSql(sources, 'bound')).toBe(OLD_BOUND_COUNT);
@@ -104,7 +104,7 @@ const OLD_BOOTSTRAP_BINDING = 'SELECT holding_id FROM beta_bootstrap WHERE singl
 describe('manage_erpx beta_bootstrap point-read parameterized family (r13)', () => {
   it('emits byte-identical SQL for both admitted projection call shapes', async () => {
     const { betaBootstrapPointSql } = await import(
-      '../../../packages/server-manage_erpx/src/adapters/beta-bootstrap-point-sql'
+      '../../../modules/manage-erpx/server/src/adapters/beta-bootstrap-point-sql'
     );
     expect(betaBootstrapPointSql('1', 'h', ' AND h.holding_id=?')).toBe(OLD_BOOTSTRAP_SCOPE);
     expect(betaBootstrapPointSql('holding_id')).toBe(OLD_BOOTSTRAP_BINDING);

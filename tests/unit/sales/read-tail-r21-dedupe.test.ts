@@ -6,7 +6,7 @@ import ts from 'typescript';
 
 vi.mock('server-only', () => ({ }));
 
-const srcRoot = resolve(__dirname, '../../../packages/server-sales/src');
+const srcRoot = resolve(__dirname, '../../../modules/sales/server/src');
 const helper = readFileSync(resolve(srcRoot, 'adapters/followup-customer-order-read.ts'), 'utf8');
 const customers = readFileSync(resolve(srcRoot, 'adapters/customers.ts'), 'utf8');
 

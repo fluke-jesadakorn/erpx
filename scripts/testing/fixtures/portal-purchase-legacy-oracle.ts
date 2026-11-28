@@ -1,11 +1,11 @@
 /** Temporary same-source oracle; remove under migrate.customer_360 after native-only parity. */
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
-import {PostgresDatabase} from '@erpx/server-runtime/adapters/runtime/postgres';
-import {readCompanyPurchaseFacts} from '@erpx/server-commercial/adapters/package-grants';
-import {purchasedCapability} from '@erpx/server-commercial/domain/packages';
-import {purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/adapters/purchase-command-boundary';
-import {capabilityRevisionSource} from '@erpx/server-commercial/domain/capability-decision';
+import {PostgresDatabase} from '@erpx/platform-runtime-server/adapters/runtime/postgres';
+import {readCompanyPurchaseFacts} from '@erpx/commercial-server/adapters/package-grants';
+import {purchasedCapability} from '@erpx/commercial-server/domain/packages';
+import {purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/commercial-server/adapters/purchase-command-boundary';
+import {capabilityRevisionSource} from '@erpx/commercial-server/domain/capability-decision';
 async function main() {
  const input=JSON.parse(readFileSync(0,'utf8')) as {database:string;token:string};
  if(process.version!=='v26.11.1'||!/^[0-9a-f]{32}$/.test(input.token)||input.database!==`erpx_dev_rust_${input.token}`)throw Error('EXACT_LEASE_REQUIRED');

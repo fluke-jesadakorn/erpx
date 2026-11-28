@@ -1,20 +1,20 @@
 vi.mock('server-only',()=>({}));
 const menuSources=vi.hoisted(()=>({products:vi.fn(),admin:vi.fn()}));
-vi.mock("@erpx/server-work_projection/public/product-launcher",()=>({productLaunchChoices:menuSources.products}));
-vi.mock("@erpx/server-work_projection/public/admin-launcher",()=>({adminLaunchChoices:menuSources.admin}));
-vi.mock("@erpx/server-identity_access/public/provider-entry",()=>({providerEntryOverview:async()=>null}));
-import {workspaceBase} from "@erpx/feature-work_projection/lib/workspace";
+vi.mock("@erpx/work-projection-server/public/product-launcher",()=>({productLaunchChoices:menuSources.products}));
+vi.mock("@erpx/work-projection-server/public/admin-launcher",()=>({adminLaunchChoices:menuSources.admin}));
+vi.mock("@erpx/identity-access-server/public/provider-entry",()=>({providerEntryOverview:async()=>null}));
+import {workspaceBase} from "@erpx/work-projection-ui/lib/workspace";
 import { expect, it, vi } from "vitest";
-import { buildWorkspaceHoldingChoice, type WorkspaceChoice } from "@erpx/feature-work_projection/lib/workspace-choice";
-import { createProductLauncher, productWorkspaceCandidates } from "@erpx/server-work_projection/application/product-launcher";
-import type { AccountAccessContext } from "@erpx/server-identity_access/public/authorization";
-import type { CompanyPackageGrant, CompanyPackageHistoryRight } from "@erpx/server-commercial/public/packages";
-import { builtInPermissions } from "@erpx/feature-identity_access/lib/permissions";
-import { productOfficeLanding, productDestinationAvailable } from "@erpx/server-work_projection/domain/product-landings";
-import { commercialPackages } from "@erpx/server-commercial/domain/packages";
-import {developmentModuleAdmissionDeferred} from '@erpx/contracts/development-module-admission';
-import {productIds} from '@erpx/contracts/product-registry';
-import {products} from '@erpx/server-commercial/public/rules/product-registry';
+import { buildWorkspaceHoldingChoice, type WorkspaceChoice } from "@erpx/work-projection-ui/lib/workspace-choice";
+import { createProductLauncher, productWorkspaceCandidates } from "@erpx/work-projection-server/application/product-launcher";
+import type { AccountAccessContext } from "@erpx/identity-access-server/public/authorization";
+import type { CompanyPackageGrant, CompanyPackageHistoryRight } from "@erpx/commercial-server/public/packages";
+import { builtInPermissions } from "@erpx/identity-access-ui/lib/permissions";
+import { productOfficeLanding, productDestinationAvailable } from "@erpx/work-projection-server/domain/product-landings";
+import { commercialPackages } from "@erpx/commercial-server/domain/packages";
+import {developmentModuleAdmissionDeferred} from '@erpx/platform-contracts/development-module-admission';
+import {productIds} from '@erpx/platform-contracts/product-registry';
+import {products} from '@erpx/commercial-server/public/rules/product-registry';
 
 it("opens the Apps Feed for a collaboration role without requiring Operations readiness", () => {
   const scope = { scopeKind: "holding" as const, beta: false, capabilities: ["work.today", "work.social"] };
@@ -35,7 +35,7 @@ const choices = (): WorkspaceChoice[] => [buildWorkspaceHoldingChoice("acme", "A
   { id: "d2", kind: "department", slug: "department-two", label: "Department Two", companyId: "c2", branchId: "b2", branchSlug: "branch-two" },
 ], true)!];
 it('preserves exact scope and branch labels in authorized Company administration choices', async () => {
- const {createAdminLauncher}=await import('@erpx/server-work_projection/application/admin-launcher');
+ const {createAdminLauncher}=await import('@erpx/work-projection-server/application/admin-launcher');
  const links=await createAdminLauncher({choices:async()=>choices(),available:async()=>true,origin:()=> 'https://admin-dev-erpx.jesadakorn.com',denied:()=>false})();
  expect(links.map(link=>link.scope)).toEqual(productWorkspaceCandidates(choices()).map(candidate=>candidate.scope));
  expect(links[3].branch).toBe('Branch Two');
@@ -242,15 +242,15 @@ it('keeps the Hotel minibar backoffice behind its existing add-on instead of tre
 });
 
 it('enumerates Company Admin foundation across all authorized Companies and inherited locations without purchases or role selection',async()=>{
- const {createAdminLauncher}=await import('@erpx/server-work_projection/application/admin-launcher'),available=vi.fn(async()=>true),links=await createAdminLauncher({choices:async()=>choices(),available,origin:()=> 'https://admin-dev-erpx.jesadakorn.com',denied:()=>false})();expect(links).toHaveLength(4);expect(links.map(link=>`${link.companyId}/${link.workspace}`)).toEqual(['c1/Company One','c1/Branch One','c1/Branch One / Department One','c2/Branch Two / Department Two']);expect(available).toHaveBeenCalledTimes(4);const entry=new URL(new URL(links[3].href).searchParams.get('next')!,'https://admin-dev-erpx.jesadakorn.com');expect(entry.pathname).toBe('/admin/launch');expect(entry.searchParams.get('companyId')).toBe('c2');expect(entry.searchParams.get('next')).toBe('/holdings/acme/branches/branch-two/departments/department-two/administration');expect(JSON.stringify(links)).not.toMatch(/assignment|permissions|module|purchase|session/);
+ const {createAdminLauncher}=await import('@erpx/work-projection-server/application/admin-launcher'),available=vi.fn(async()=>true),links=await createAdminLauncher({choices:async()=>choices(),available,origin:()=> 'https://admin-dev-erpx.jesadakorn.com',denied:()=>false})();expect(links).toHaveLength(4);expect(links.map(link=>`${link.companyId}/${link.workspace}`)).toEqual(['c1/Company One','c1/Branch One','c1/Branch One / Department One','c2/Branch Two / Department Two']);expect(available).toHaveBeenCalledTimes(4);const entry=new URL(new URL(links[3].href).searchParams.get('next')!,'https://admin-dev-erpx.jesadakorn.com');expect(entry.pathname).toBe('/admin/launch');expect(entry.searchParams.get('companyId')).toBe('c2');expect(entry.searchParams.get('next')).toBe('/holdings/acme/branches/branch-two/departments/department-two/administration');expect(JSON.stringify(links)).not.toMatch(/assignment|permissions|module|purchase|session/);
 });
 it('hides denied Company Admin and ERPX management scopes while surfacing unexpected source failures',async()=>{
- const {createAdminLauncher}=await import('@erpx/server-work_projection/application/admin-launcher'),erpx=buildWorkspaceHoldingChoice('erpx','ERPX',[{companyId:'provider-company',companyName:'ProviderCompany',scopeKind:'holding',scopeNodeId:null}],[],true)!,available=vi.fn(async input=>input.kind==='company');const ports={choices:async()=>[...choices(),erpx],available,origin:()=> 'https://admin-dev-erpx.jesadakorn.com',denied:(error:unknown)=>error instanceof Error&&error.message==='FORBIDDEN'};expect((await createAdminLauncher(ports)()).filter(link=>link.kind==='management')).toEqual([]);available.mockImplementation(async()=>{throw Error('FORBIDDEN');});expect(await createAdminLauncher(ports)()).toEqual([]);available.mockImplementation(async()=>{throw Error('SOURCE_FAILURE');});await expect(createAdminLauncher(ports)()).rejects.toThrow('SOURCE_FAILURE');
+ const {createAdminLauncher}=await import('@erpx/work-projection-server/application/admin-launcher'),erpx=buildWorkspaceHoldingChoice('erpx','ERPX',[{companyId:'provider-company',companyName:'ProviderCompany',scopeKind:'holding',scopeNodeId:null}],[],true)!,available=vi.fn(async input=>input.kind==='company');const ports={choices:async()=>[...choices(),erpx],available,origin:()=> 'https://admin-dev-erpx.jesadakorn.com',denied:(error:unknown)=>error instanceof Error&&error.message==='FORBIDDEN'};expect((await createAdminLauncher(ports)()).filter(link=>link.kind==='management')).toEqual([]);available.mockImplementation(async()=>{throw Error('FORBIDDEN');});expect(await createAdminLauncher(ports)()).toEqual([]);available.mockImplementation(async()=>{throw Error('SOURCE_FAILURE');});await expect(createAdminLauncher(ports)()).rejects.toThrow('SOURCE_FAILURE');
 });
 
 
 it('projects all authorized companies and exact admin scopes into the shared Office modal',async()=>{
- const {OfficeProductMenus}=await import('@erpx/workplace/components/office-product-menus');
+ const {OfficeProductMenus}=await import('@erpx/platform-workplace/components/office-product-menus');
  const scope={kind:'holding' as const,holdingSlug:'acme'},base='/holdings/acme';
  menuSources.products.mockResolvedValue([
   {holding:'Acme',company:'Current',companyId:'c1',workspace:'Current',scope,productId:'assets',href:'assets-current',purchasePurpose:'new-work'},
@@ -273,7 +273,7 @@ it('discovers only the owner-proven included Stock entry for an existing Invento
  const f=fixture();f.grants.mockImplementation(async access=>[grant(access.scope.companyId,'sales')]);f.moduleAccess.mockResolvedValue({modulesByAssignment:new Map([['role',['inventory']]]),presentationModulesByAssignment:new Map([['role',['inventory']]]),permissionsByAssignment:new Map([['role',['inventory.read','inventory.prepare']]]),beta:false});
  const entry=vi.fn(async()=>null as {capability:string;purchasePurpose:'history'}|null),ports={...f,initialPhysicalStockCountEntry:entry};expect(await createProductLauncher(ports)()).toEqual([]);
  entry.mockResolvedValue({capability:'inventory.stock-core',purchasePurpose:'history'});const links=await createProductLauncher(ports)();expect(links).toHaveLength(2);expect(links.every(link=>link.productId==='sales'&&link.scope.kind!=='department'&&link.purchasePurpose==='history'&&link.sourceRecord===true)).toBe(true);expect(JSON.stringify(links)).not.toMatch(/assignmentId|inventory\.read|source_proof|contextKey/);
- for(const link of links){const launch=new URL(new URL(link.href).searchParams.get('next')!,'https://sales-dev-erpx.jesadakorn.com');expect(launch.searchParams.get('next')).toBe(`${workspaceBase(link.scope)}/${(await import('@erpx/server-commercial/public/rules/product-registry')).product('sales')!.landing}`);}
+ for(const link of links){const launch=new URL(new URL(link.href).searchParams.get('next')!,'https://sales-dev-erpx.jesadakorn.com');expect(launch.searchParams.get('next')).toBe(`${workspaceBase(link.scope)}/${(await import('@erpx/commercial-server/public/rules/product-registry')).product('sales')!.landing}`);}
  entry.mockClear();f.moduleAccess.mockResolvedValue({modulesByAssignment:new Map([['role',['inventory']]]),presentationModulesByAssignment:new Map([['role',['inventory']]]),permissionsByAssignment:new Map([['role',['inventory.read']]]),beta:false});expect(await createProductLauncher(ports)()).toEqual([]);expect(entry).not.toHaveBeenCalled();
  f.moduleAccess.mockResolvedValue({modulesByAssignment:new Map([['role',['inventory']]]),presentationModulesByAssignment:new Map([['role',['inventory']]]),permissionsByAssignment:new Map([['role',['inventory.read','inventory.prepare']]]),beta:false});expect(await createProductLauncher({...ports,ready:async(_access,moduleId)=>moduleId!=='finance'})()).toEqual([]);
 });
@@ -446,7 +446,7 @@ const multiHolding = (): WorkspaceChoice[] => [...choices(), buildWorkspaceHoldi
 ], [], true)!];
 const holdingFixture = () => {
   const f = fixture();
-  return { ...f, choices: async () => multiHolding(), access: vi.fn(async (scope: import("@erpx/feature-work_projection/lib/workspace").HoldingWorkspaceScope, options: { companyId: string }) => ({
+  return { ...f, choices: async () => multiHolding(), access: vi.fn(async (scope: import("@erpx/work-projection-ui/lib/workspace").HoldingWorkspaceScope, options: { companyId: string }) => ({
     scope: { ...scope, holdingId: scope.holdingSlug === "northstar" ? "h002" : "h001", companyId: options.companyId,
       branchId: scope.kind !== "holding" ? "b1" : undefined, departmentId: scope.kind === "department" ? "d1" : undefined },
     assignments: [{ id: "role", role: "holding_owner", companyId: options.companyId, branchId: null, scopeKind: "holding", scopeNodeId: null, modules: ["finance", "pos"] }],
@@ -479,7 +479,7 @@ it('reuses one module readiness read per Holding, Company and module within a re
 });
 
 it('passes the active Holding to Office product choices only in Holding mode and retains unscoped global choices', async () => {
-  const { OfficeProductMenus } = await import('@erpx/workplace/components/office-product-menus');
+  const { OfficeProductMenus } = await import('@erpx/platform-workplace/components/office-product-menus');
   menuSources.products.mockResolvedValue([]);
   menuSources.admin.mockResolvedValue([{ holding: 'Acme', company: 'Admin', companyId: 'c9', workspace: 'Admin', scope: { kind: 'holding', holdingSlug: 'acme' }, kind: 'management', href: 'admin-management' }]);
   const before = Object.fromEntries(['ERPX_HOLDING_ROUTING', 'ERPX_ENVIRONMENT', 'ERPX_PRODUCT_ENVIRONMENT'].map(key => [key, process.env[key]]));

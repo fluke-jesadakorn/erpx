@@ -7,10 +7,10 @@ import {
   NO_APPROVED_PROFILE_GUARD_SQL,
   PERIOD_OPEN_END_DATE_GUARD_SQL,
   versionStatusGuard,
-} from '../../../packages/server-finance/src/adapters/finance-read-tail-r45-sql';
-import { OPEN_PERIOD_IDS_SQL } from '../../../packages/server-finance/src/adapters/finance-read-tail-r16-sql';
+} from '../../../modules/finance/server/src/adapters/finance-read-tail-r45-sql';
+import { OPEN_PERIOD_IDS_SQL } from '../../../modules/finance/server/src/adapters/finance-read-tail-r16-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-finance/src');
+const srcRoot = resolve(__dirname, '../../../modules/finance/server/src');
 const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const helper = read('finance-read-tail-r45-sql.ts');
 const count = (src: string, needle: string) => src.split(needle).length - 1;

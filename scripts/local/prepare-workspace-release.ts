@@ -4,7 +4,7 @@ import { constants, existsSync } from 'node:fs';
 import { cp, mkdir, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
-import { appDefinitions } from '@erpx/contracts/apps';
+import { appDefinitions } from '@erpx/platform-contracts/apps';
 import { pinnedNode } from './app-task';
 import { verifyAppArtifact } from './app-artifact-cache';
 import { runtimeSourceFingerprint } from './source-fingerprint';
@@ -77,7 +77,7 @@ if(verify){
  await mkdir(dirname(release),{recursive:true,mode:0o700});await mkdir(release,{mode:0o700});
  await mkdir(dirname(snapshot),{recursive:true,mode:0o700});await mkdir(snapshot,{mode:0o700});
  try{
-  for(const name of ['src','apps','packages','public','scripts','fixtures','tests','contracts','docs','ops','migrations','.github','node_modules','package.json','bun.lock','next.config.ts','next-env.d.ts','tsconfig.base.json','tsconfig.json','postcss.config.mjs','eslint.config.mjs','README.md','AGENTS.md','CONTEXT.md','CONTRACT_POLICY.md','Cargo.toml','Cargo.lock','rust-toolchain.toml','LICENSE','NOTICE','LICENSING.md','CONTRIBUTING.md','SECURITY.md','CODE_OF_CONDUCT.md','GOVERNANCE.md','.bun-version','.node-version','bunfig.toml','turbo.json','.gitignore'])if(existsSync(join(root,name)))await copyWorkspaceSnapshot(join(root,name),join(snapshot,name),path=>workspaceCopyInput(root,path));
+  for(const name of ['src','apps','modules','products','platform','public','scripts','fixtures','tests','contracts','docs','ops','migrations','.github','node_modules','package.json','bun.lock','next.config.ts','next-env.d.ts','tsconfig.base.json','tsconfig.json','postcss.config.mjs','eslint.config.mjs','README.md','AGENTS.md','CONTEXT.md','Cargo.toml','Cargo.lock','rust-toolchain.toml','LICENSE','NOTICE','CONTRIBUTING.md','.bun-version','.node-version','bunfig.toml','turbo.json','.gitignore'])if(existsSync(join(root,name)))await copyWorkspaceSnapshot(join(root,name),join(snapshot,name),path=>workspaceCopyInput(root,path));
   if(await runtimeSourceFingerprint(snapshot)!==sourceFingerprint||await runtimeSourceFingerprint(root)!==sourceFingerprint)throw new Error('RELEASE_SOURCE_CHANGED_DURING_SNAPSHOT');
   if(oasisDemo){
    // Regenerate derived Tailwind inputs in the frozen copy so removed routes
@@ -113,7 +113,7 @@ if(verify){
    // Cargo checks the same frozen checkout and shares its ignored cache across
    // application rebuilds. The final source and Git checks still gate packaging.
    const target=join(root,'.runtime/workspace-release-rust/oasis');
-   const native=Bun.spawn(['cargo','build','--release','--locked','--no-default-features','--features','private-development-api','-p','erpx-service','--bin','erpx-server'],{cwd:root,env:{...process.env,CARGO_TARGET_DIR:target},stdin:'ignore',stdout:'inherit',stderr:'inherit'});
+   const native=Bun.spawn(['cargo','build','--release','--locked','--no-default-features','--features','private-development-api','-p','erpx-platform-composition','--bin','erpx-server'],{cwd:root,env:{...process.env,CARGO_TARGET_DIR:target},stdin:'ignore',stdout:'inherit',stderr:'inherit'});
    if(await native.exited!==0)throw new Error('OASIS_NATIVE_RELEASE_BUILD_FAILED');
    await mkdir(join(release,'native'),{mode:0o700});
    await cp(join(target,'release/erpx-server'),join(release,'native/erpx-server'),{mode:constants.COPYFILE_FICLONE});

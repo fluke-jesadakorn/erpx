@@ -1,0 +1,1 @@
+export {attachmentPolicyRegistry,attachmentRetentionSnapshot,attachmentPolicy,authorizePosProductImageTarget,authorizeAttachmentTarget,assertAttachmentMedia} from "@erpx/files-server/adapters/attachments/policy";

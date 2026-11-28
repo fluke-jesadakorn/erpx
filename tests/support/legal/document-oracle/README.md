@@ -8,7 +8,7 @@ This is component evidence, not whole-owner readiness or a mounted production wo
 
 `native-conformance.v1.json` captures five B0 provider cases: text-layer PDF, PNG, JPEG, two-page scanned PDF and refusal of a 26-page scanned PDF. It binds the exact installed Poppler/Tesseract executables and English traineddata hash. The provider lane requires this explicit profile and fails on changed binaries. This English fixture profile does **not** prove Thai recognition. Production preserves explicit `eng+tha`; a missing Thai resource is a configuration failure, never a fallback to English. A future tool/language profile requires separate evidence without overwriting the frozen receipt.
 
-The factual 1,061-entry dingbat mapping is attributed to `dingbat-to-unicode` 1.0.2, Copyright 2021 Michael Williamson, BSD-2-Clause. The exact license is retained in `packages/server-legal/licenses/dingbat-to-unicode-BSD-2-Clause.txt`; its source SHA is in the generated Rust header and the pinned dev-only `generate_dingbats.mjs`. No npm runtime dependency is introduced by this table.
+The factual 1,061-entry dingbat mapping is attributed to `dingbat-to-unicode` 1.0.2, Copyright 2021 Michael Williamson, BSD-2-Clause. The exact license is retained in `modules/legal/server/licenses/dingbat-to-unicode-BSD-2-Clause.txt`; its source SHA is in the generated Rust header and the pinned dev-only `generate_dingbats.mjs`. No npm runtime dependency is introduced by this table.
 
 ## Worker resource and ownership contract
 

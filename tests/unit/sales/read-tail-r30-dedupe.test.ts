@@ -6,11 +6,11 @@ import ts from 'typescript';
 
 vi.mock('server-only', () => ({}));
 
-import { commercialOwnerProjectionSources } from '../../../packages/server-sales/src/adapters/commercial-owner-projection-sources';
-import { finalRootOwnerProjectionSources } from '../../../packages/server-sales/src/adapters/final-root-owner-projection-sources';
-import { tableRead } from '../../../packages/server-sales/src/adapters/followup-source-sql';
+import { commercialOwnerProjectionSources } from '../../../modules/sales/server/src/adapters/commercial-owner-projection-sources';
+import { finalRootOwnerProjectionSources } from '../../../modules/sales/server/src/adapters/final-root-owner-projection-sources';
+import { tableRead } from '../../../modules/sales/server/src/adapters/followup-source-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-sales/src');
+const srcRoot = resolve(__dirname, '../../../modules/sales/server/src');
 const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const commercial = read('commercial-owner-projection-sources.ts');
 const finalRoot = read('final-root-owner-projection-sources.ts');

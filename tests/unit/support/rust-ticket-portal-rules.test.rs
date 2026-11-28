@@ -1,5 +1,5 @@
 //! Pure customer ticket-portal rule checks. No database or TS writer is used.
-use erpx_server_support::public::ticket_portal::{
+use erpx_support_server::public::ticket_portal::{
     BindingStatus, DecisionAction, PortalActor, PortalBindingRow, PortalCustomer, PortalPlan,
     PortalResponse, PortalRights, PortalTicket, binding_view, parse_acknowledgement,
     parse_decision, parse_prepare, parse_response, plan_acknowledgement, plan_decision,
@@ -199,24 +199,24 @@ fn command_key_and_presentation_flags_fail_closed() {
 // Owner router construction and duplicate-target rejection. Handler behavior is
 // covered by the `#[cfg(test)]` modules inside the owner adapters.
 mod http_ingress_contract {
-    use erpx_server_shared::public::{BusinessError, FailureKind};
-    use erpx_server_support::public::service_teams::{ServiceTeamPreview, ServiceTeamResult};
-    use erpx_server_support::public::service_teams_http::{
+    use erpx_platform_shared_server::public::{BusinessError, FailureKind};
+    use erpx_support_server::public::service_teams::{ServiceTeamPreview, ServiceTeamResult};
+    use erpx_support_server::public::service_teams_http::{
         ServiceTeamHttpBackend, ServiceTeamHttpTarget, ServiceTeamListHttpRequest,
         ServiceTeamOptionsHttpRequest, ServiceTeamPreviewHttpRequest, ServiceTeamSaveHttpRequest,
         SupportHttpFuture, service_teams_http_router,
     };
-    use erpx_server_support::public::support_auxiliary::SupportSalesWorkspace;
-    use erpx_server_support::public::support_auxiliary_http::{
+    use erpx_support_server::public::support_auxiliary::SupportSalesWorkspace;
+    use erpx_support_server::public::support_auxiliary_http::{
         SupportAuxiliaryHttpBackend, SupportAuxiliaryHttpTarget, SupportAuxiliaryReadHttpRequest,
         SupportAuxiliarySourceReply, SupportAuxiliaryWorkspaceHttpRequest,
         support_auxiliary_http_router,
     };
-    use erpx_server_support::public::ticket_portal::{
+    use erpx_support_server::public::ticket_portal::{
         AcknowledgementResult, DecisionResult, PortalProjection, PortalWorkspace, PrepareResult,
         ResponseResult,
     };
-    use erpx_server_support::public::ticket_portal_http::{
+    use erpx_support_server::public::ticket_portal_http::{
         TicketPortalAcknowledgementHttpRequest, TicketPortalCustomerHttpRequest,
         TicketPortalDecisionHttpRequest, TicketPortalHttpBackend, TicketPortalHttpTarget,
         TicketPortalPrepareHttpRequest, TicketPortalResponseHttpRequest,

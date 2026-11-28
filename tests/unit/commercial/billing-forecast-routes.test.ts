@@ -6,23 +6,23 @@ const state = vi.hoisted(() => ({
   platformRole: "platform_admin",
   calls: 0,
 }));
-vi.mock("@erpx/server-identity_access/public/authorization", () => ({
+vi.mock("@erpx/identity-access-server/public/authorization", () => ({
   requestedHoldingScope: async () => ({ kind: state.scopeKind }),
   requireWorkContext: async () => ({
     role: state.role, scope: { kind: state.scopeKind }, holdingId: "h001",
   }),
   requireManageErpxContext: async () => ({ platform: { role: state.platformRole } }),
 }));
-vi.mock("@erpx/server-operations/public/staff-policy", () => ({ requireCompanyAuthority: async () => undefined }));
+vi.mock("@erpx/operations-server/public/staff-policy", () => ({ requireCompanyAuthority: async () => undefined }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers({ host: "acme.jesadakorn.com" }) }));
-vi.mock("@erpx/server-runtime/public/app-native-sources", () => ({
+vi.mock("@erpx/platform-runtime-server/public/app-native-sources", () => ({
   customerHoldingBindingExists: async () => true,
 }));
-vi.mock("../../../packages/server-runtime/src/public/runtime", () => ({
+vi.mock("../../../platform/runtime/server/src/public/runtime", () => ({
   holdingResources: async () => ({ write: {} }),
   runtimeEnv: async () => ({ CONTROL_DB: {} }),
 }));
-vi.mock("@erpx/server-billing/public/native-billing", () => ({
+vi.mock("@erpx/billing-server/public/native-billing", () => ({
   nativeBillingConfiguration: () => ({}),
   nativeBillingFailure: () => undefined,
   createNativeBillingClient: () => ({
@@ -35,8 +35,8 @@ vi.mock("@erpx/server-billing/public/native-billing", () => ({
   }),
 }));
 
-import { GET as holdingGet } from "@erpx/feature-admin/routes/api/v1/holdings/[holdingSlug]/billing/forecast/route";
-import { GET as platformGet } from "@erpx/feature-admin/routes/api/v1/platform/billing/forecast/route";
+import { GET as holdingGet } from "@erpx/product-admin-ui/routes/api/v1/holdings/[holdingSlug]/billing/forecast/route";
+import { GET as platformGet } from "@erpx/product-admin-ui/routes/api/v1/platform/billing/forecast/route";
 
 const holdingContext = { params: Promise.resolve({ holdingSlug: "acme" }) };
 beforeEach(() => {

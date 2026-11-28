@@ -7,23 +7,23 @@
   "revision": "a5ed8737a2f05eff1ee9841fda4a094b3926d732",
   "sources": [
     {
-      "path": "packages/server-field_service/src/domain/service.ts",
+      "path": "modules/field-service/server/src/domain/service.ts",
       "sha256": "9fc084338201fe2ee1f5864f49f8eb568f757f433154008c633755dd05636e28"
     },
     {
-      "path": "packages/server-field_service/src/application/service.ts",
+      "path": "modules/field-service/server/src/application/service.ts",
       "sha256": "95aa03b1a0662783476429056fb5f7c5e568b95747830f9a8ac934e7ba1429c7"
     },
     {
-      "path": "packages/server-field_service/src/domain/package-commands.ts",
+      "path": "modules/field-service/server/src/domain/package-commands.ts",
       "sha256": "0c403ef49059bb02a5f5c45630723e6500dcd2ba3b41e0b60de8b434e5d8b8b7"
     },
     {
-      "path": "packages/server-shared/src/domain/error.ts",
+      "path": "platform/shared/server/src/domain/error.ts",
       "sha256": "ff9c315f159f7adcff264d6637617b80760f758c7cb0b19e1896f85bb51b798c"
     },
     {
-      "path": "packages/server-shared/src/domain/consumption-lot.ts",
+      "path": "platform/shared/server/src/domain/consumption-lot.ts",
       "sha256": "dddcf06b3390953a58715a7c7888b888fa1069a9f82ae0cf675f8fc799aa543f"
     }
   ],

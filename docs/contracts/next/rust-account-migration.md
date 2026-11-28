@@ -4,7 +4,7 @@ This register describes the current Rust implementation, not acceptance of the c
 
 ## Implemented source and wire contracts
 
-The Account core is private to `packages/server-identity_access/src/domain` and `application`. Its ports contain no SQLx, Axum or runtime imports. The PostgreSQL, bounded password hashing and HTTP adapters implement those ports; the composition crate must assemble the public facade using an explicitly selected Control database. A successful sign-in alone does not authorize a Holding business request.
+The Account core is private to `modules/identity-access/server/src/domain` and `application`. Its ports contain no SQLx, Axum or runtime imports. The PostgreSQL, bounded password hashing and HTTP adapters implement those ports; the composition crate must assemble the public facade using an explicitly selected Control database. A successful sign-in alone does not authorize a Holding business request.
 
 | Surface | Native source | Current state |
 | --- | --- | --- |
@@ -35,7 +35,7 @@ Raw session, browser and reservation secrets use 32 random bytes and separate SH
 
 `0043_native_device_group_keys.sql` separates the stable native browser ID from the rotating purpose-separated cookie digest. The migration backfills only existing 64-character native digest IDs; signed UUID/BetterAuth groups are not upgraded. Once a key rotates, the previous digest is revoked and there is no direct browser-ID fallback or stored digest used as a raw cookie. Recovery retains the original parent rows, absolute expiry, authentication time, membership and current selection. The new cookie is freshly generated and is returned only after the non-retrying Control command and all required Holding child fences succeed. Every retired child is identified from the locked native binding; unrelated browser groups and their work survive.
 
-This is an explicit reviewed native security difference from the B0 signed-UUID implementation. The unchanged source witness is `a5ed8737a2f05eff1ee9841fda4a094b3926d732:packages/server-identity_access/src/adapters/device-account-store.ts` (Git blob `a91f8e6c59c0b85c5e5d25c10d136441dbc5b099`). B0 can re-sign a stored UUID and may merge independently proven memberships. Native recovery never reconstructs an opaque secret and never unions groups. A proven, currently selected active native parent chooses only its existing group; without that proof, saved cookies must identify exactly one group or discovery/recovery returns 409. Display rows still require their own independent live parent proof. A grouping key alone grants no identity.
+This is an explicit reviewed native security difference from the B0 signed-UUID implementation. The unchanged source witness is `a5ed8737a2f05eff1ee9841fda4a094b3926d732:modules/identity-access/server/src/adapters/device-account-store.ts` (Git blob `a91f8e6c59c0b85c5e5d25c10d136441dbc5b099`). B0 can re-sign a stored UUID and may merge independently proven memberships. Native recovery never reconstructs an opaque secret and never unions groups. A proven, currently selected active native parent chooses only its existing group; without that proof, saved cookies must identify exactly one group or discovery/recovery returns 409. Display rows still require their own independent live parent proof. A grouping key alone grants no identity.
 
 Device GET remains free of writes and `Set-Cookie`. When the grouping key is absent or revoked but a group is independently recoverable, it returns `initialized: false`, that group's current revision and only its proven display rows. This supplies a real compare-and-set value to the existing picker. POST initialization takes the strict generated `DeviceInitializeInput`; recovery requires the captured revision, while anonymous initialization may still submit `{}`. Pending sign-in nonces and stale revisions reject rotation. Successful recovery advances the original revision once and retires every old group child before acknowledgement; it never refreshes parent authentication or selects a different saved account. Lost `Set-Cookie` acknowledgements require another GET and a fresh revision before another fresh secret can be issued. The old secret is never replayed.
 
@@ -267,8 +267,8 @@ approval; startup never approves local configuration.
 
 The additive private Service router exposes only Holding-scoped POST source
 preview and independent approve-and-apply. Its [generated OpenAPI contract](directory-source-admin.openapi.generated.json)
-and `@erpx/contracts/directory-source-admin` types come from the Rust wire DTOs;
-`@erpx/contracts/directory-source-admin-client` provides an explicitly injected,
+and `@erpx/platform-contracts/directory-source-admin` types come from the Rust wire DTOs;
+`@erpx/platform-contracts/directory-source-admin-client` provides an explicitly injected,
 framework-neutral transport. The router requires the exact registered Host/slug
 and Origin, opaque Holding child cookies, the complete original rendered
 Company/revision/assignment/version CAS, current IAM and that child's fresh MFA.

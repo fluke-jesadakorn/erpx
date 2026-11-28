@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { ownerColumnProjection } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r25-sources';
-import { bindingCommerceOrderSource, unionFactRow } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r34-sources';
+import { ownerColumnProjection } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-tail-r25-sources';
+import { bindingCommerceOrderSource, unionFactRow } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-tail-r34-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-customer_authority/src');
+const srcRoot = resolve(__dirname, '../../../modules/customer-authority/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 // Exact r25/r34 projection/source heads are byte-identical parameterizations of

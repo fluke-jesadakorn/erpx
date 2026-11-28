@@ -1,0 +1,95 @@
+import "server-only";
+import { nativeClearCommandAssertions } from '@erpx/collaboration-server/adapters/native-command-assertions';
+import {createHash} from 'node:crypto';
+import type { SqlDatabase, TransactionalSqlDatabase } from "@erpx/platform-runtime-server/public/runtime/types";
+import type { PostgresDatabase } from "@erpx/platform-runtime-server/public/runtime/postgres";
+import { ApiError } from "@erpx/platform-runtime-server/public/http";
+import { hash } from "@erpx/legal-server/public/legal/service";
+import { projectCustomerPortalAccess, lockCustomerPortalBinding, customerPortalIdentityExists, prepareCustomerPortalEvidenceChange } from "@erpx/customer-authority-server/public/portal-access";
+import { prepareAttachmentBinding } from "@erpx/files-server/public/attachments/service";
+import { notifyCustomerPortalStaff } from "@erpx/collaboration-server/adapters/native-customer-portal-notification";
+import { customerPortalWorkContext } from "@erpx/customer-360-server/domain/portal";
+import { auditCustomerPortalCommand, enqueueCustomerPortalCommand, clearCustomerPortalAssertions } from "@erpx/workflow-server/public/customer-portal-events";
+import { createCustomerPortalApplication, type PortalRepository } from "@erpx/customer-360-server/application/portal";
+import type { CustomerPortalSessionActor, PortalActionRow } from "@erpx/customer-360-server/domain/portal";
+import { customerPortalAttachmentSession, customerPortalSharedFiles } from "@erpx/customer-360-server/adapters/portal-attachments";
+import {withCustomerPortalRequestProjection} from '@erpx/customer-authority-server/public/portal-projection-unit';
+import {portalSupportInstalled} from '@erpx/customer-authority-server/public/portal-support-sources';
+import {customerPortalOwnedUnit} from '@erpx/customer-authority-server/public/portal-purchases';
+import {commercePackageEnforcementMode,checkPurchasedCapability,readPurchasedAccesses,purchaseCommandBoundary} from '@erpx/commercial-server/public/purchase-command-boundary';
+import { scheduledFeaturePredicate } from "@erpx/pms-server/public/feature-availability";
+import {flushFinanceDeferredEffects} from '@erpx/finance-server/public/finance-transactions';
+import { customerPortalActions } from '@erpx/collaboration-server/adapters/native-customer-portal-actions';
+import { RD_COMPANY_SCOPE_PORTAL_RELEASE, RD_PORTAL_ACTION_BY_BINDING, RD_PORTAL_ACTION_BY_KEY, nativeC360ReadStatement } from './native-customer-360-read';
+
+function portalRepository(db: SqlDatabase,owned=false,assertRequestAuthority?:()=>Promise<void>): PortalRepository {
+  const action = (kind: string, values: string[]) => nativeC360ReadStatement(kind, values).then(statement => db.prepare(statement.sql).bind(...statement.values).first<PortalActionRow>());
+  return {
+    transaction: async callback => {
+      if(owned)return callback(portalRepository(db,true));
+      const execute=async(transaction:SqlDatabase)=>{
+        await assertRequestAuthority?.();
+        const result=await callback(portalRepository(transaction,true));
+        if(assertRequestAuthority){await flushFinanceDeferredEffects(transaction);await assertRequestAuthority();}
+        return result;
+      };
+      if(await commercePackageEnforcementMode()!=='disabled')return customerPortalOwnedUnit(db,execute);
+      const transactional = db as Partial<TransactionalSqlDatabase>;
+      if (!transactional.transaction) throw new ApiError(503, "CUSTOMER_PORTAL_TRANSACTION_REQUIRED", "Customer actions require a transaction.");
+      return transactional.transaction(execute);
+    },
+    projection:async(actor,now,readId)=>{
+      const rows=await projectCustomerPortalAccess(db,actor,now,readId),mode=await commercePackageEnforcementMode(),companies=[...new Set(rows.map(row=>String(row.portal_purchase_company_id)))],purchases=new Map(await Promise.all(companies.map(async company=>[company,(await readPurchasedAccesses(db,mode,company,['sales.portal']))['sales.portal']] as const))),identityRevision=createHash('sha256').update(JSON.stringify([actor.userId,actor.email.toLowerCase()])).digest('hex');
+      return rows.map(row=>{const {portal_purchase_company_id,...safe}=row,access=purchases.get(String(portal_purchase_company_id));return {...safe,...(mode!=='disabled'&&access?{purchase:{settleExisting:access.settleExisting,history:access.history,revision:access.revision,identityRevision}}: {})};});
+    },
+    sharedFiles: (actor, ids) => customerPortalSharedFiles(db, actor, ids),
+    replay: key => action(RD_PORTAL_ACTION_BY_KEY, [key]),
+    existing: (id, actionName) => action(RD_PORTAL_ACTION_BY_BINDING, [id, actionName]),
+    binding: (id, email) => lockCustomerPortalBinding(db, id, email),
+    identity: (id, actor) => customerPortalIdentityExists(db, id, actor),
+    authorize:async(actor,binding,purpose)=>{
+      const mode=await commercePackageEnforcementMode();if(mode==='disabled')return async()=>{};
+      const scope={companyId:binding.company_id,capability:'sales.portal',purpose},key=`customer-portal-purchase:${crypto.randomUUID()}`,boundary=purchaseCommandBoundary(db,mode,key,scope)!;
+      const release=async()=>{const scope=await nativeC360ReadStatement(RD_COMPANY_SCOPE_PORTAL_RELEASE,[]);if(!await db.prepare(`SELECT ${scheduledFeaturePredicate('portal_release.company_id','customer_authority')} allowed FROM ${scope.sql}`).bind(binding.company_id).first<boolean>('allowed'))throw new ApiError(403,'FEATURE_COMING_SOON','Customer access is not released for this Company.');};
+      await release();
+      await checkPurchasedCapability(db,mode,scope);await db.batch(boundary.before);
+      return async()=>{
+        await flushFinanceDeferredEffects(db);
+        const current=await lockCustomerPortalBinding(db,binding.binding_id,actor.email.toLowerCase());
+        if(!current||current.company_id!==binding.company_id||current.order_id!==binding.order_id||current.customer_id!==binding.customer_id||current.email!==binding.email||current.order_version!==binding.order_version||current.state!==binding.state||current.status!=='approved'||Number(current.expires_at)<=Date.now()||!await customerPortalIdentityExists(db,binding.binding_id,actor))throw new ApiError(403,'CUSTOMER_PORTAL_BINDING_UNAVAILABLE','The original customer binding or document changed before commit.');
+        await release();
+        const observed=await db.batch([...boundary.after,await nativeClearCommandAssertions(db, binding.company_id, key)]);boundary.observe?.(observed);
+      };
+    },
+    evidence: async (command, actor) => {
+      const { input, binding, key, id, now } = command;
+      const prepared = await prepareAttachmentBinding(db, actor, { attachmentSetIds: input.attachmentSetIds, bindingContract: { targetType: "customer_access_binding", bindingType: "customer_portal_support_request", contexts: [{ purposeKey: "customer_support_evidence", componentKind: "action", componentRef: "request_support" }] }, targetId: binding.binding_id, expectedTargetVersion: Number(binding.binding_version), commandId: key, bindingId: id });
+      return { manifest: prepared.manifest, commit: async () => { await db.batch([...prepared.guards, ...(await prepareCustomerPortalEvidenceChange(db, { now, bindingId: binding.binding_id, companyId: binding.company_id, version: Number(binding.binding_version), actorId: actor.userId, key })), ...prepared.steps, await clearCustomerPortalAssertions(db, key, binding.company_id)]); } };
+    },
+    record: async (command, evidence) => {
+      const { id, input, binding, actor, key, requestHash, now } = command;
+      await customerPortalActions(db).record({ id, companyId: binding.company_id, bindingId: binding.binding_id, orderId: binding.order_id, customerId: binding.customer_id, userId: actor.userId, action: input.action, note: input.note, sourceVersion: Number(binding.order_version), requestKey: key, requestHash, now });
+      if (evidence) await evidence.commit();
+    },
+    notify: (command, message) => notifyCustomerPortalStaff(
+      db,
+      customerPortalWorkContext(command.actor as Required<CustomerPortalSessionActor>, {
+        id: command.binding.binding_id,
+        company_id: command.binding.company_id,
+        branch_id: null,
+        department_id: null,
+        version: Number(command.binding.binding_version),
+      }),
+      { id: command.id, message, now: command.now, orderId: command.binding.order_id, companyId: command.binding.company_id },
+    ),
+    audit: (command, eventId) => auditCustomerPortalCommand(db, command, eventId),
+    outbox: (command, eventId, manifest) => enqueueCustomerPortalCommand(db, command, eventId, manifest),
+    uniqueConflict: error => (error as { code?: string })?.code === "23505",
+  };
+}
+function portalApplication(db: SqlDatabase,assertRequestAuthority?:()=>Promise<void>) { return createCustomerPortalApplication({ repository: portalRepository(db,false,assertRequestAuthority), clock: { now: () => Date.now() }, identifiers: { next: () => crypto.randomUUID() }, hash, error: (status, code, message) => new ApiError(status, code, message) }); }
+export const customerPortalContext = customerPortalAttachmentSession;
+export async function customerPortalProjection(db: SqlDatabase, actor: { userId: string; email: string }) { return customerPortalOwnedUnit(db,tx=>portalApplication(tx).customerPortalProjection(actor)); }
+export function customerPortalRequestProjection(db:SqlDatabase,actor:CustomerPortalSessionActor,assertCurrent:()=>Promise<void>){return withCustomerPortalRequestProjection(db,actor,async database=>portalApplication(database).customerPortalProjection(actor),assertCurrent);}
+export async function customerPortalList(slug: string) { const { write, actor } = await customerPortalContext(slug); return customerPortalProjection(write, actor); }
+export function customerPortalCommand(db: PostgresDatabase, actor: CustomerPortalSessionActor, raw: unknown, key: string,assertRequestAuthority?:()=>Promise<void>) { return portalApplication(db,assertRequestAuthority).customerPortalCommand(actor, raw, key); }

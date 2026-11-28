@@ -9,9 +9,9 @@ import {
   denialAggregateClause,
   staffLevelNumberSource,
   snapshotProjection,
-} from '../../../packages/server-organization/src/adapters/organization-column-alias-families';
+} from '../../../modules/organization/server/src/adapters/organization-column-alias-families';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+const srcRoot = resolve(__dirname, '../../../modules/organization/server/src');
 const adapters = resolve(srcRoot, 'adapters');
 const read = (name: string) => readFileSync(resolve(adapters, name), 'utf8');
 const helper = read('organization-column-alias-families.ts');

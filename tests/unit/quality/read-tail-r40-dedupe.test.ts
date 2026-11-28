@@ -3,12 +3,12 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 vi.mock('server-only', () => ({}));
-import { evidenceHead } from '../../../packages/server-quality/src/adapters/inspection-evidence-source-sql';
-import { qualitySourceArmHead } from '../../../packages/server-quality/src/adapters/quality-source-arm-head';
-import { qualityReturnAnchorSql } from '../../../packages/server-quality/src/adapters/quality-return-anchor-sql';
-import { qualityObligationFactArm } from '../../../packages/server-quality/src/adapters/quality-obligation-fact-arm-sql';
+import { evidenceHead } from '../../../modules/quality/server/src/adapters/inspection-evidence-source-sql';
+import { qualitySourceArmHead } from '../../../modules/quality/server/src/adapters/quality-source-arm-head';
+import { qualityReturnAnchorSql } from '../../../modules/quality/server/src/adapters/quality-return-anchor-sql';
+import { qualityObligationFactArm } from '../../../modules/quality/server/src/adapters/quality-obligation-fact-arm-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-quality/src');
+const srcRoot = resolve(__dirname, '../../../modules/quality/server/src');
 const read = (path: string) => readFileSync(resolve(srcRoot, path), 'utf8');
 const sha = (sql: string) => createHash('sha256').update(sql).digest('hex');
 const writer = /INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i;

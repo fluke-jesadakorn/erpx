@@ -1,19 +1,19 @@
 export const postgresFixtureSlots=["CONTROL_DB","CONTROL_READ_DB","H001_DB","H001_READ_DB","H002_DB","H002_READ_DB","H003_DB","H003_READ_DB"] as const;
-import { canonicalGuestAccount, legacyGuestAccount, parseGuestAccountJson } from "@erpx/feature-identity_access/lib/guest-account-compat";
+import { canonicalGuestAccount, legacyGuestAccount, parseGuestAccountJson } from "@erpx/identity-access-ui/lib/guest-account-compat";
 import { expect, it, vi } from "vitest";
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import sharp from "sharp";
 import { env } from "../../support/runtime-env";
-import { migrateDatabase } from "@erpx/server-runtime/adapters/runtime/migrations";
+import { migrateDatabase } from "@erpx/platform-runtime-server/adapters/runtime/migrations";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import { backfillSpecializedAttachments, reconcileAttachmentStorage } from "@erpx/server-files/public/attachments/migration";
-import { scanAttachmentNow } from "@erpx/server-files/public/attachments/service";
-import { defaultConfig } from "@erpx/server-pms/public/rules/pms";
-import {snapshotMoneyCarry} from '@erpx/server-finance/public/company-money';
+import { backfillSpecializedAttachments, reconcileAttachmentStorage } from "@erpx/files-server/public/attachments/migration";
+import { scanAttachmentNow } from "@erpx/files-server/public/attachments/service";
+import { defaultConfig } from "@erpx/pms-server/public/rules/pms";
+import {snapshotMoneyCarry} from '@erpx/finance-server/public/company-money';
 
-vi.mock("@erpx/server-files/public/attachments/scanner", () => ({
+vi.mock("@erpx/files-server/public/attachments/scanner", () => ({
   attachmentScannerReadiness: async () => ({ enabled: true, ready: true, engine: "Upgrade interface fixture", definitionUpdatedAt: Date.now(), error: null }),
   scanAttachmentBytes: async () => ({ clean: true, signature: null, engine: "Upgrade interface fixture", definitionUpdatedAt: Date.now() }),
 }));

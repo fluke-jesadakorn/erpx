@@ -20,7 +20,7 @@ const reply = (value: unknown, status = 200) =>
   new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json" } });
 
 const { createLane39EcomClient } = await import(
-  "../../../packages/server-ecommerce/src/adapters/native-lane-39/client"
+  "../../../modules/ecommerce/server/src/adapters/native-lane-39/client"
 );
 
 describe("native lane 39 workspace row transport", () => {
@@ -78,7 +78,7 @@ describe("native lane 39 workspace row transport", () => {
 });
 
 describe("workspace row Rust/TS parity", () => {
-  const srcRoot = resolve(__dirname, "../../../packages/server-ecommerce/src");
+  const srcRoot = resolve(__dirname, "../../../modules/ecommerce/server/src");
   const rust = readFileSync(resolve(srcRoot, "adapters/native_lane_39/workspace_rows.rs"), "utf8");
   const consumer = readFileSync(resolve(srcRoot, "adapters/ecommerce.ts"), "utf8");
 

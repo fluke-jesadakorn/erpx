@@ -19,24 +19,24 @@ import {
   PEOPLE_PAYROLL_RD_PAYROLL_ITEM_SOURCE_ROWS,
   PEOPLE_PAYROLL_RD_EVALUATION_ENGAGEMENT_TIMEZONE,
   PEOPLE_PAYROLL_RD_EVALUATION_PAY_BASIS_ROW,
-} from '../../../packages/server-people_payroll/src/adapters/native-people-payroll-read';
-import { leaveLegacyEmployeeFacts } from '../../../packages/server-people_payroll/src/adapters/operations-leave-legacy-facts';
-import { expensePaymentDraftExpenseId, documentPageExpensePaymentSource } from '../../../packages/server-people_payroll/src/adapters/document-page-payment-source';
-import { expensePaymentCommandFlowTarget } from '../../../packages/server-people_payroll/src/adapters/expense-command-policy';
-import { attachmentMigrationpeoplepayroll } from '../../../packages/server-people_payroll/src/adapters/attachment-migration-facts';
-import { createFlowRoutingSourceRepository } from '../../../packages/server-people_payroll/src/adapters/workflow-flow-routing-facts';
-import { RecordDetailsPeoplePayrollOwnedFacts } from '../../../packages/server-people_payroll/src/adapters/records-record-details-owned-facts';
+} from '../../../modules/people-payroll/server/src/adapters/native-people-payroll-read';
+import { leaveLegacyEmployeeFacts } from '../../../modules/people-payroll/server/src/adapters/operations-leave-legacy-facts';
+import { expensePaymentDraftExpenseId, documentPageExpensePaymentSource } from '../../../modules/people-payroll/server/src/adapters/document-page-payment-source';
+import { expensePaymentCommandFlowTarget } from '../../../modules/people-payroll/server/src/adapters/expense-command-policy';
+import { attachmentMigrationpeoplepayroll } from '../../../modules/people-payroll/server/src/adapters/attachment-migration-facts';
+import { createFlowRoutingSourceRepository } from '../../../modules/people-payroll/server/src/adapters/workflow-flow-routing-facts';
+import { RecordDetailsPeoplePayrollOwnedFacts } from '../../../modules/people-payroll/server/src/adapters/records-record-details-owned-facts';
 import {
   organizationRosterExitEngagementIds,
   organizationMonthlyPayGroups,
-} from '../../../packages/server-people_payroll/src/adapters/organization-roster-facts';
-import { workReportPeoplePayrollFacts } from '../../../packages/server-people_payroll/src/adapters/work-report-facts';
-import { finalPayCancellationSchemaAvailable } from '../../../packages/server-people_payroll/src/adapters/final-pay-cancellation-sources';
-import { payrollOtherSchemaAvailable } from '../../../packages/server-people_payroll/src/adapters/payroll-other-remittance-sources';
-import { workUiStaffFacts } from '../../../packages/server-people_payroll/src/adapters/work-ui-staff-facts';
-import { projectWorkerPersonUser } from '../../../packages/server-people_payroll/src/adapters/project-worker-startup-state';
-import { payrollItemSourceRows } from '../../../packages/server-people_payroll/src/adapters/payroll-item-source-read';
-import { evaluationEngagementTimezone, evaluationPayBasisRow } from '../../../packages/server-people_payroll/src/adapters/people-evaluation-native-read';
+} from '../../../modules/people-payroll/server/src/adapters/organization-roster-facts';
+import { workReportPeoplePayrollFacts } from '../../../modules/people-payroll/server/src/adapters/work-report-facts';
+import { finalPayCancellationSchemaAvailable } from '../../../modules/people-payroll/server/src/adapters/final-pay-cancellation-sources';
+import { payrollOtherSchemaAvailable } from '../../../modules/people-payroll/server/src/adapters/payroll-other-remittance-sources';
+import { workUiStaffFacts } from '../../../modules/people-payroll/server/src/adapters/work-ui-staff-facts';
+import { projectWorkerPersonUser } from '../../../modules/people-payroll/server/src/adapters/project-worker-startup-state';
+import { payrollItemSourceRows } from '../../../modules/people-payroll/server/src/adapters/payroll-item-source-read';
+import { evaluationEngagementTimezone, evaluationPayBasisRow } from '../../../modules/people-payroll/server/src/adapters/people-evaluation-native-read';
 
 const envKey = 'ERPX_NATIVE_PEOPLE_PAYROLL_CONFIG';
 const original = process.env[envKey];

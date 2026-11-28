@@ -3,22 +3,22 @@ import { resolve } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
-vi.mock('@erpx/server-identity_access/public/record-source-authority', () => ({
+vi.mock('@erpx/identity-access-server/public/record-source-authority', () => ({
     currentAssignmentReadScope: () => ({ where: 'SCOPE_WHERE', args: ['branch', 'department'] }),
 }));
-vi.mock('@erpx/server-commercial/public/purchase-command-boundary', () => ({
+vi.mock('@erpx/commercial-server/public/purchase-command-boundary', () => ({
     checkPurchasedCapability: async () => true,
     purchaseCommandFailure: () => null,
 }));
-vi.mock('@erpx/server-pms/public/feature-availability', () => ({
+vi.mock('@erpx/pms-server/public/feature-availability', () => ({
     scheduledFeaturePredicate: (column: string, feature: string) => `FEATURE(${column},${feature})`,
 }));
 
-import { actorScopeCteSql } from '../../../packages/server-support/src/adapters/actor-scope-read-sql';
-import { workforceActorScopeCurrent } from '../../../packages/server-support/src/adapters/workforce-actor-scope-read';
-import { ticketPortalCapability } from '../../../packages/server-support/src/adapters/ticket-portal-unit';
+import { actorScopeCteSql } from '../../../modules/support/server/src/adapters/actor-scope-read-sql';
+import { workforceActorScopeCurrent } from '../../../modules/support/server/src/adapters/workforce-actor-scope-read';
+import { ticketPortalCapability } from '../../../modules/support/server/src/adapters/ticket-portal-unit';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-support/src');
+const srcRoot = resolve(__dirname, '../../../modules/support/server/src');
 const src = (p: string) => readFileSync(resolve(srcRoot, p), 'utf8');
 const shared = src('adapters/actor-scope-read-sql.ts');
 const portal = src('adapters/ticket-portal-unit.ts');
@@ -43,7 +43,7 @@ function capture() {
                 async first() { return true; },
             };
         },
-    } as unknown as import('@erpx/server-runtime/public/runtime/types').SqlDatabase;
+    } as unknown as import('@erpx/platform-runtime-server/public/runtime/types').SqlDatabase;
     return { db, calls };
 }
 

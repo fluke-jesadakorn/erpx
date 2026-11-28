@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 vi.mock('server-only', () => ({}));
-import { NATIVE_OWNER_WRITE_NOOP_SQL } from '../../../packages/server-manage_erpx/src/adapters/native-owner-write';
+import { NATIVE_OWNER_WRITE_NOOP_SQL } from '../../../modules/manage-erpx/server/src/adapters/native-owner-write';
 
-const src = new URL('../../../packages/server-manage_erpx/src/', import.meta.url);
+const src = new URL('../../../modules/manage-erpx/server/src/', import.meta.url);
 const source = (relative: string) => readFileSync(new URL(relative, src), 'utf8');
 const callers = [
   'adapters/attachments-finance-facts.ts',

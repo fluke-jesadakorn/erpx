@@ -1,17 +1,17 @@
 import {describe,it,expect,vi,afterEach} from 'vitest';
 vi.mock('server-only',()=>({}));
 vi.mock('next/headers',()=>({headers:async()=>new Headers()}));
-import {createNativeProjectGraphReader} from '../../../packages/server-projects/src/adapters/native-project-graph';
+import {createNativeProjectGraphReader} from '../../../modules/projects/server/src/adapters/native-project-graph';
 import {
   createNativeProjectsClient,
   nativeProjectsAvailable,
   nativeProjectsConfiguration,
   NativeProjectsError,
   type NativeProjectsPageContext,
-} from '../../../packages/feature-projects/src/public/native-project-wbs';
-import { nativeProjectsFailure } from '../../../packages/feature-projects/src/public/native-project-wbs-page';
-import { createNativeProjectAttachmentClient } from '../../../packages/feature-projects/src/public/native-project-attachment';
-import { createNativeProjectStructureClient, nativeProjectStructureCommand } from '../../../packages/feature-projects/src/public/native-project-structure';
+} from '../../../modules/projects/ui/src/public/native-project-wbs';
+import { nativeProjectsFailure } from '../../../modules/projects/ui/src/public/native-project-wbs-page';
+import { createNativeProjectAttachmentClient } from '../../../modules/projects/ui/src/public/native-project-attachment';
+import { createNativeProjectStructureClient, nativeProjectStructureCommand } from '../../../modules/projects/ui/src/public/native-project-structure';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44992',

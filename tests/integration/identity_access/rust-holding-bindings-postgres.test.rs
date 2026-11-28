@@ -5,11 +5,11 @@
 #[path = "../../support/rust-account-queued-authority.rs"]
 mod account_queue;
 use account_queue::account;
-use erpx_server_identity_access::public::{
+use erpx_identity_access_server::public::{
     account_holding_bindings::*, account_sessions::verify_session_in_transaction, account_sso::*, *,
 };
-use erpx_server_runtime::public::postgres::{DatabasePool, PgRequestLease, PgTransactionError};
-use erpx_server_shared::public::{BusinessError, Clock, HoldingId};
+use erpx_platform_runtime_server::public::postgres::{DatabasePool, PgRequestLease, PgTransactionError};
+use erpx_platform_shared_server::public::{BusinessError, Clock, HoldingId};
 use sqlx::Connection;
 use std::{sync::Arc, time::Duration};
 fn audience() -> RequestAudience {
@@ -227,11 +227,11 @@ async fn actual_authorized_holding_unit_retains_binding_until_commit_and_next_un
 }
 #[tokio::test]
 async fn deferred_transport_selection_never_runs_before_actual_session_authentication() {
-    use erpx_server_identity_access::public::{
+    use erpx_identity_access_server::public::{
         account_inbound_http::CapturedHoldingMutation,
         effective_authority::HoldingWorkSourcePreparation,
     };
-    use erpx_server_runtime::public::postgres::PgWorkFuture;
+    use erpx_platform_runtime_server::public::postgres::PgWorkFuture;
     #[derive(Clone)]
     struct NoAdditionalOwnerSources;
     impl HoldingWorkSourcePreparation for NoAdditionalOwnerSources {

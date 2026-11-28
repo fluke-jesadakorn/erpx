@@ -5,7 +5,7 @@ import {mkdir,readFile,writeFile} from "node:fs/promises";
 import {resolve} from "node:path";
 
 const sourceCommit="a5ed8737a2f05eff1ee9841fda4a094b3926d732";
-const paths=["packages/server-workflow/src/application/commands.ts","packages/server-workflow/src/domain/commands.ts","packages/server-workflow/src/adapters/commands.ts","packages/feature-identity_access/src/lib/guest-account-compat.ts","packages/server-shared/src/index.ts","packages/server-shared/src/domain/error.ts"];
+const paths=["modules/workflow/server/src/application/commands.ts","modules/workflow/server/src/domain/commands.ts","modules/workflow/server/src/adapters/commands.ts","modules/identity-access/ui/src/lib/guest-account-compat.ts","platform/shared/server/src/index.ts","platform/shared/server/src/domain/error.ts"];
 const sources=[];
 for(const path of paths){const bytes=await readFile(path);if(!bytes.equals(execFileSync("git",["show",`${sourceCommit}:${path}`])))throw new Error(`WORKFLOW_ORACLE_SOURCE_CHANGED:${path}`);sources.push({path,sha256:createHash("sha256").update(bytes).digest("hex")});}
 const node=process.env.ERPX_NODE_BIN??"node";

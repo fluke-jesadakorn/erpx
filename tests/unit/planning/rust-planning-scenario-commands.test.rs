@@ -1,6 +1,6 @@
 //! Native Planning scenario command decisions and application policy.
-use erpx_server_planning::public::planning::PlanningActor;
-use erpx_server_planning::public::scenario::{
+use erpx_planning_server::public::planning::PlanningActor;
+use erpx_planning_server::public::scenario::{
     CalculatePlan, CalculateRequest, CancelPlan, CapacityCalendarDay, CapacityFuture,
     CapacityOperation, CapacityReservationPlan, ComparisonRow, DemandSourceRow, IncomingRow,
     PlanningCapacityRepository, PlanningScenarioCommandRepository, ReceiptSnapshot,
@@ -8,7 +8,7 @@ use erpx_server_planning::public::scenario::{
     SpecificationSource, StockRow, WarehouseSource, calculate_scenario, cancel_scenario,
     parse_quantity_milli, review_recommendation,
 };
-use erpx_server_shared::public::{BusinessError, CommandKey, CompanyId, RecordId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey, CompanyId, RecordId, TimestampMillis};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::future::Future;
@@ -208,7 +208,7 @@ impl PlanningScenarioCommandRepository for FakeScenario {
         &'a mut self,
         _: &'a PlanningActor,
         _: &'a str,
-        _: &'a erpx_server_planning::public::planning::PlanningContext,
+        _: &'a erpx_planning_server::public::planning::PlanningContext,
     ) -> Fut<'a, ()> {
         self.calls.borrow_mut().push("guard");
         Box::pin(async { Ok(()) })
@@ -511,7 +511,7 @@ async fn cancellation_requires_owner_or_reviewer_and_an_unreleased_current_versi
         }),
         ..FakeScenario::default()
     };
-    let request: erpx_server_planning::public::scenario::CancelRequest =
+    let request: erpx_planning_server::public::scenario::CancelRequest =
         serde_json::from_value(serde_json::json!({
             "action": "cancel",
             "expectedVersion": 1,

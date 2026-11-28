@@ -1,0 +1,1 @@
+export {lockManufacturingInventoryPackageObligationSources,manufacturingInventoryPackageObligations} from "@erpx/inventory-server/adapters/manufacturing-package-obligations";

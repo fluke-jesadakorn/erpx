@@ -1,21 +1,21 @@
 import {describe,expect,test,vi} from 'vitest';
-import {createWorkflowCommandGuards,type WorkflowAssertionPort} from '@erpx/server-identity_access/public/workflow-command-authority';
-import type {SqlDatabase,SqlStatement} from '@erpx/server-runtime/public/runtime/types';
-import {createCommandApplication,type CommandPorts,type CommandRepository} from "@erpx/server-workflow/application/commands";
-import {createCommandPolicyApplication,type CommandPolicyPorts} from "@erpx/server-workflow/application/command-policies";
-import {createJobProjectorApplication,type JobProjectorPorts} from "@erpx/server-workflow/application/job-projector";
-import {createFlowAccessApplication} from "@erpx/server-workflow/application/flow-access";
-import {createFlowWorkApplication,type FlowWorkPorts} from "@erpx/server-workflow/application/flow-work";
-import {createFlowRoutingApplication,type FlowRoutingPorts,type FlowRoutingRepository} from "@erpx/server-workflow/application/flow-routing";
-import {createRoutingAttentionApplication,type RoutingAttentionPorts} from "@erpx/server-workflow/application/routing-attention";
-import {flowCommandTarget,flowRoleAllowed} from "@erpx/server-workflow/domain/flow-routing";
-import {eventWork,type EventMessage} from "@erpx/server-workflow/domain/job-projector";
-import {BusinessRuleError} from "@erpx/server-shared/index";
-import {createApprovalAdministrationApplication,type ApprovalAdministrationPorts,type ApprovalAdministrationRecord} from "@erpx/server-workflow/application/approval-administration";
-import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import type {CommandActor} from "@erpx/server-workflow/domain/commands";
-import type {FlowView,FlowStep} from "@erpx/feature-shared/lib/flow";
-import type {WorkItem} from "@erpx/feature-work_projection/lib/work-item";
+import {createWorkflowCommandGuards,type WorkflowAssertionPort} from '@erpx/identity-access-server/public/workflow-command-authority';
+import type {SqlDatabase,SqlStatement} from '@erpx/platform-runtime-server/public/runtime/types';
+import {createCommandApplication,type CommandPorts,type CommandRepository} from "@erpx/workflow-server/application/commands";
+import {createCommandPolicyApplication,type CommandPolicyPorts} from "@erpx/workflow-server/application/command-policies";
+import {createJobProjectorApplication,type JobProjectorPorts} from "@erpx/workflow-server/application/job-projector";
+import {createFlowAccessApplication} from "@erpx/workflow-server/application/flow-access";
+import {createFlowWorkApplication,type FlowWorkPorts} from "@erpx/workflow-server/application/flow-work";
+import {createFlowRoutingApplication,type FlowRoutingPorts,type FlowRoutingRepository} from "@erpx/workflow-server/application/flow-routing";
+import {createRoutingAttentionApplication,type RoutingAttentionPorts} from "@erpx/workflow-server/application/routing-attention";
+import {flowCommandTarget,flowRoleAllowed} from "@erpx/workflow-server/domain/flow-routing";
+import {eventWork,type EventMessage} from "@erpx/workflow-server/domain/job-projector";
+import {BusinessRuleError} from "@erpx/platform-shared-server/index";
+import {createApprovalAdministrationApplication,type ApprovalAdministrationPorts,type ApprovalAdministrationRecord} from "@erpx/workflow-server/application/approval-administration";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
+import type {CommandActor} from "@erpx/workflow-server/domain/commands";
+import type {FlowView,FlowStep} from "@erpx/platform-shared-ui/lib/flow";
+import type {WorkItem} from "@erpx/work-projection-ui/lib/work-item";
 const actor:WorkContext={userId:'owner',name:'Owner',email:'owner@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['operations'],assignments:[],workspaces:[]};
 describe('Workflow authority assertion composition',()=>{
  const db={prepare:()=>({bind:()=>({}) as SqlStatement})} as unknown as SqlDatabase;
@@ -120,7 +120,7 @@ describe('Owner access and work projections',()=>{
 });
 
 test('native Field Work reconciliation keeps other owners and restricts stale Field actions to actual source evidence',async()=>{
- const {reconcileFieldServiceWork}=await import('@erpx/server-workflow/application/flow-work');
+ const {reconcileFieldServiceWork}=await import('@erpx/workflow-server/application/flow-work');
  const field={id:'a',type:'field_service' as const,title:'Visit',detail:'Site',href:'/field-service/a',status:'in_visit',updatedAt:1,queue:'todo' as const,canAct:true,relationships:['assigned' as const,'team' as const]};
  const other={...field,id:'other',type:'support_ticket' as const};
  const result=reconcileFieldServiceWork([field,{...field,id:'hidden'},other],{data:[{id:'a',canAct:false},{id:'hidden',canAct:true}],workflowSourceIds:['a']});

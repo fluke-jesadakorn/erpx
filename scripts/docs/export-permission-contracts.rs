@@ -1,5 +1,5 @@
 fn main() {
-    let catalog = erpx_server_identity_access::public::permission_catalog::permission_catalog()
+    let catalog = erpx_identity_access_server::public::permission_catalog::permission_catalog()
         .expect("validated canonical permission catalog");
     println!(
         "{}",

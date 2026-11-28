@@ -2,17 +2,17 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import { workforceActorScopeSql } from '../../../packages/server-identity_access/src/adapters/read-tail-family-r31';
-import { revokedSessionProbeSql } from '../../../packages/server-identity_access/src/adapters/iam-probe-sql';
+import { workforceActorScopeSql } from '../../../modules/identity-access/server/src/adapters/read-tail-family-r31';
+import { revokedSessionProbeSql } from '../../../modules/identity-access/server/src/adapters/iam-probe-sql';
 import {
   privateFileDenialAuthoritySourceLocks,
   privateFileDenialAuthorityWitness,
   setPrivateFileDenialWitnessForTest,
-} from '../../../packages/server-identity_access/src/adapters/native-private-file-denial-authority';
-import type { WorkContext } from '../../../packages/server-identity_access/src/public/authorization';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+} from '../../../modules/identity-access/server/src/adapters/native-private-file-denial-authority';
+import type { WorkContext } from '../../../modules/identity-access/server/src/public/authorization';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-identity_access/src');
+const srcRoot = resolve(__dirname, '../../../modules/identity-access/server/src');
 const read = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
 const hash = (rel: string) => createHash('sha256').update(read(rel)).digest('hex');
 const calls = (rel: string, name: string) => (read(rel).match(new RegExp(`\\b${name}\\b`, 'g')) ?? []).length;

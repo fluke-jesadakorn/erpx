@@ -3,15 +3,15 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_customer_authority::public::portal_session::{
+use erpx_customer_authority_server::public::portal_session::{
     PgPortalEnrollment, PortalCustomerProof, PortalCustomerRequest, PortalEnrollmentSource,
     PortalSessionEvidence,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     load_migrations, migrate_database, DatabasePool, MigrationTrack, PgTransactionError,
     PgUnitOfWork, TransactionOptions,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 
 const NOW: i64 = 1_800_000_000_000;
 

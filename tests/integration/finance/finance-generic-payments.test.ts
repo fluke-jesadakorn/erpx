@@ -1,26 +1,26 @@
-import {getRecord,listRecords,recordsPage,recordContext,searchReferences} from "@erpx/server-records/public/records";
-import {findModule} from "@erpx/catalogue/module-registry";
-import {requireFlowAccess} from "@erpx/server-workflow/public/flow-access";
-import {enrichFlowWork} from "@erpx/server-workflow/public/flow-work";
-import {invoiceRecordWorkspace} from "@erpx/server-finance/public/record-presentation";
-import {publishInboxEvent,inboxPage,inboxSummary,sendNotice} from "@erpx/server-collaboration/public/inbox";
-import {listStaffNotifications,notificationsPage,visibleNotifications} from "@erpx/server-collaboration/public/staff-notifications";
-import type {WorkItem} from "@erpx/feature-work_projection/lib/work-item";
-import { financePurchaseControls } from "@erpx/server-finance/public/purchases";
-import { financeWorkbench, paymentRecordsWorkspace, paymentObligationsWorkspace, financeSetupWorkspace } from "@erpx/server-finance/public/finance-workspace";
-import { ledgerWorkspace, journalDetail, workJournalRows } from "@erpx/server-finance/public/ledger";
+import {getRecord,listRecords,recordsPage,recordContext,searchReferences} from "@erpx/records-server/public/records";
+import {findModule} from "@erpx/platform-catalogue/module-registry";
+import {requireFlowAccess} from "@erpx/workflow-server/public/flow-access";
+import {enrichFlowWork} from "@erpx/workflow-server/public/flow-work";
+import {invoiceRecordWorkspace} from "@erpx/finance-server/public/record-presentation";
+import {publishInboxEvent,inboxPage,inboxSummary,sendNotice} from "@erpx/collaboration-server/public/inbox";
+import {listStaffNotifications,notificationsPage,visibleNotifications} from "@erpx/collaboration-server/public/staff-notifications";
+import type {WorkItem} from "@erpx/work-projection-ui/lib/work-item";
+import { financePurchaseControls } from "@erpx/finance-server/public/purchases";
+import { financeWorkbench, paymentRecordsWorkspace, paymentObligationsWorkspace, financeSetupWorkspace } from "@erpx/finance-server/public/finance-workspace";
+import { ledgerWorkspace, journalDetail, workJournalRows } from "@erpx/finance-server/public/ledger";
 import { beforeAll,beforeEach,afterEach,describe,expect,it,vi } from "vitest";
 import { applyMigrations,env,type TestMigration } from "../../support/runtime-env";
 import { expenseDb as db,expenseFixture,key } from "../../support/helpers/expense-fixture";
-import {approvePayment,bankWorkspace,calculateCloseReconciliations,confirmPayment,createInvoice,createParty,createPayment,importBankStatement,invoicesPage,postInvoice,releasePayment,reversePayment,workInvoiceRows,financeChartListNative,listAccounts,getPayment} from '@erpx/server-finance/public/finance';
+import {approvePayment,bankWorkspace,calculateCloseReconciliations,confirmPayment,createInvoice,createParty,createPayment,importBankStatement,invoicesPage,postInvoice,releasePayment,reversePayment,workInvoiceRows,financeChartListNative,listAccounts,getPayment} from '@erpx/finance-server/public/finance';
 import {seedFinanceJournal} from '../../support/helpers/finance-journal-seed';
-import {getInvoice} from '@erpx/server-finance/public/finance-invoice-read';
-import { packageGrantStore,readCompanyPackageGrants } from "@erpx/server-commercial/public/package-grants";
-import {confirmManualRate} from '@erpx/server-finance/public/company-money';
-import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
+import {getInvoice} from '@erpx/finance-server/public/finance-invoice-read';
+import { packageGrantStore,readCompanyPackageGrants } from "@erpx/commercial-server/public/package-grants";
+import {confirmManualRate} from '@erpx/finance-server/public/company-money';
+import {assignFlowPrimary,resolveFlow} from '@erpx/workflow-server/public/flow-routing';
 
 vi.mock("server-only",()=>({}));
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 

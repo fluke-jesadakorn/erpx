@@ -13,14 +13,14 @@ mod facts;
 mod fixture;
 
 use auth::*;
-use erpx_server_identity_access::public::effective_authority::{
+use erpx_identity_access_server::public::effective_authority::{
     HoldingWorkSourcePreparation, WorkAuthorizationRequest,
 };
-use erpx_server_identity_access::public::work_context::HoldingWorkspaceRequest;
-use erpx_server_runtime::public::postgres::{DatabasePool, PgWorkFuture};
-use erpx_server_shared::public::{BusinessError, Clock};
-use erpx_server_work_projection::public::work_card_availability::WorkQueue;
-use erpx_server_work_projection::public::work_snapshot_read::read_native_work_snapshot;
+use erpx_identity_access_server::public::work_context::HoldingWorkspaceRequest;
+use erpx_platform_runtime_server::public::postgres::{DatabasePool, PgWorkFuture};
+use erpx_platform_shared_server::public::{BusinessError, Clock};
+use erpx_work_projection_server::public::work_card_availability::WorkQueue;
+use erpx_work_projection_server::public::work_snapshot_read::read_native_work_snapshot;
 use sqlx::PgConnection;
 
 #[derive(Clone, Copy)]

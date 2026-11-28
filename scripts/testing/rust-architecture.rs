@@ -320,7 +320,7 @@ fn json_argument_effect(tokens: &str) -> Option<String> {
     }
     if let Some(index) = cleaned.find("erpx_server_") {
         let rest = &cleaned[index..];
-        if !rest.starts_with("erpx_server_shared") {
+        if !rest.starts_with("erpx_platform_shared_server") {
             return Some("erpx_server".to_owned());
         }
     }
@@ -402,7 +402,7 @@ impl BoundaryVisitor {
                     .insert(format!("inward-layer-violation:{}", path.join("::")));
             }
         }
-        if first.starts_with("erpx_server_") && first != "erpx_server_shared" {
+        if first.starts_with("erpx_server_") && first != "erpx_platform_shared_server" {
             self.issues.insert(format!(
                 "portable-cross-owner-contract-required:{}",
                 path.join("::")

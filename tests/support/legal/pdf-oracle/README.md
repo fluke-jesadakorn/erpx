@@ -28,8 +28,8 @@ python3 -m venv .scratch/dev/rust-pdf-oracle
 .scratch/dev/rust-pdf-oracle/bin/python tests/support/legal/pdf-oracle/generate.py fixtures/legal/pdf-signatures/conformance.v1.json
 .scratch/dev/rust-pdf-oracle/bin/python tests/support/legal/pdf-oracle/generate_policy.py fixtures/legal/pdf-signatures/conformance-policy.v1.json
 .scratch/dev/rust-pdf-oracle/bin/python tests/support/legal/pdf-oracle/generate_crl_scope.py fixtures/legal/pdf-signatures/conformance-crl-scope.v1.json
-cargo test -p erpx-server-legal --features pdf-verifier --test pdf_validation --locked
-cargo test -p erpx-server-legal --features pdf-verifier --test pdf_process --locked
+cargo test -p erpx-legal-server --features pdf-verifier --test pdf_validation --locked
+cargo test -p erpx-legal-server --features pdf-verifier --test pdf_process --locked
 ```
 
 Regeneration intentionally changes synthetic keys, nonces and document bytes. Review changes to expected results independently; do not overwrite a failing expectation to match Rust. Routine tests read the committed corpus and need no Python, database, network or current-clock access.
@@ -39,7 +39,7 @@ The R2 `conformance-crl-guards.v1.json` and forbidden-only seed receipt are reta
 The operations/conformance CLI is:
 
 ```sh
-cargo run -p erpx-server-legal --features pdf-verifier --bin erpx-validate-pdf --locked -- input.pdf prepared-trust-directory 2026-10-27T06:00:00Z
+cargo run -p erpx-legal-server --features pdf-verifier --bin erpx-validate-pdf --locked -- input.pdf prepared-trust-directory 2026-10-27T06:00:00Z
 ```
 
 The trust directory contains only approved `roots/*.pem`, `intermediates/*.pem`, `revocation/*.crl` and `revocation/*.ocsp`. It never loads system/browser trust roots or fetches certificate/document URLs. The CLI is for controlled conformance/operations. Untrusted runtime work must use the bounded adapter described below; the standalone macOS CLI does not enforce a resident-memory ceiling itself.

@@ -177,7 +177,7 @@
     {
       "lane": "L01",
       "path": "/api/v1/holdings/{holdingSlug}/finance/sales/{...path}",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/sales/[[...path]]/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/sales/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -259,7 +259,7 @@
         "apps/finance/src/app/api/v1/holdings/[holdingSlug]/finance/sales/[[...path]]/route.ts"
       ],
       "blockers": [
-        "Catch-all subpaths GET /finance/sales (root) and GET /finance/sales/defaults are TS-only: salesWorkspace/salesDefaultsWorkspace have no native branch and still execute SELECT in packages/server-finance/src/adapters/sales.ts.",
+        "Catch-all subpaths GET /finance/sales (root) and GET /finance/sales/defaults are TS-only: salesWorkspace/salesDefaultsWorkspace have no native branch and still execute SELECT in modules/finance/server/src/adapters/sales.ts.",
         "R3: TS sales adapters still prepare/execute SQL on finance_accounts, finance_invoices, finance_payments, finance_customer_receipts and finance_sales_defaults; native helpers are only preferred branches with TS fallback on every POST and on receipts/export.",
         "nativeServiceCustomerReceiptReadback is gated on ERPX_NATIVE_FINANCE_SERVICE_PAYMENT_CONFIG and returns undefined to the TS customerReceiptDetail/customerReceiptExport path when unconfigured.",
         "POST branches keep TS writers (createSalesInvoiceDraft, prepareSalesDefaults, decideSalesDefaults, issueCustomerReceipt) plus TS Idempotency-Key and Zod validation; native-only fail-closed behavior is not established.",
@@ -277,7 +277,7 @@
       ],
       "deletionPlan": [
         "Add native owner routes with SQL and payload parity for GET /finance/sales and GET /finance/sales/defaults workspaces.",
-        "Switch every GET/POST branch to native-only (503 when unconfigured) and delete the TS sales adapters and @erpx/server-finance/public/sales barrel exports.",
+        "Switch every GET/POST branch to native-only (503 when unconfigured) and delete the TS sales adapters and @erpx/finance-server/public/sales barrel exports.",
         "Add tests asserting the Next catch-all returns 404 while each native owner route returns the payload.",
         "Delete the three app re-export files (apps/compat, apps/sales, apps/finance), then delete this handler file."
       ],
@@ -287,7 +287,7 @@
     {
       "lane": "L01",
       "path": "/api/v1/holdings/{holdingSlug}/finance/{...path}",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -386,7 +386,7 @@
       "blockers": [
         "Catch-all with 100+ subpaths; many branches are TS-only (e.g. GET expense-setup, group-editions, instruments, asset-policies, book-adjustments, business-contracts, company-tools, bank-match-groups, collection-cases, cash-forecast, book-mappings, planning, assets, ai, tax-identities, withholding, thai-documents, tax-register, period cost allocations and all late POST command branches).",
         "R3: inline TypeScript SQL at route.ts:416 projectCostDb.prepare('SELECT project_id FROM staff_project_cost_allocations ...') plus financeEntrypointQueries(write).allPeriods() at route.ts:483.",
-        "Dozens of directly imported @erpx/server-finance/* adapters still prepare/execute SQL and hold business calculations; the native helpers are preferred branches with TS fallback on most paths.",
+        "Dozens of directly imported @erpx/finance-server/* adapters still prepare/execute SQL and hold business calculations; the native helpers are preferred branches with TS fallback on most paths.",
         "R2 native-exec remains: finance/command-plan Rust route only returns a planned statement that native-finance-read.ts binds/executes in TypeScript; this is explicitly not a deletion-ready native path.",
         "Some subpaths need provider/semantic proof (CSV/HTML export streams with SHA-256 headers, finance-ai queue with holdingResources+runtimeEnv, ERPX_*_CONFIG-gated native branches), and there is no test proving the Next catch-all is gone while all native subpaths return payloads."
       ],
@@ -412,7 +412,7 @@
     {
       "lane": "L01",
       "path": "/api/v1/holdings/{holdingSlug}/finance",
-      "handler": "packages/feature-finance/src/routes/api/v1/holdings/[holdingSlug]/finance/route.ts",
+      "handler": "modules/finance/ui/src/routes/api/v1/holdings/[holdingSlug]/finance/route.ts",
       "methods": [
         "GET"
       ],
@@ -472,7 +472,7 @@
     {
       "lane": "L02",
       "path": "/api/v1/holdings/{holdingSlug}/people/access/{...path}",
-      "handler": "packages/feature-people/src/routes/api/v1/holdings/[holdingSlug]/people/access/[[...path]]/route.ts",
+      "handler": "products/people/ui/src/routes/api/v1/holdings/[holdingSlug]/people/access/[[...path]]/route.ts",
       "methods": [
         "GET"
       ],
@@ -519,7 +519,7 @@
     {
       "lane": "L02",
       "path": "/api/v1/holdings/{holdingSlug}/people/roster",
-      "handler": "packages/feature-people/src/routes/api/v1/holdings/[holdingSlug]/people/roster/route.ts",
+      "handler": "products/people/ui/src/routes/api/v1/holdings/[holdingSlug]/people/roster/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -549,7 +549,7 @@
     {
       "lane": "L02",
       "path": "/api/v1/holdings/{holdingSlug}/people/explorer-detail",
-      "handler": "packages/feature-people/src/routes/api/v1/holdings/[holdingSlug]/people/explorer-detail/route.ts",
+      "handler": "products/people/ui/src/routes/api/v1/holdings/[holdingSlug]/people/explorer-detail/route.ts",
       "methods": [
         "GET"
       ],
@@ -578,7 +578,7 @@
     {
       "lane": "L02",
       "path": "/api/v1/holdings/{holdingSlug}/people/hr-settings",
-      "handler": "packages/feature-people/src/routes/api/v1/holdings/[holdingSlug]/people/hr-settings/route.ts",
+      "handler": "products/people/ui/src/routes/api/v1/holdings/[holdingSlug]/people/hr-settings/route.ts",
       "methods": [
         "GET"
       ],
@@ -607,7 +607,7 @@
     {
       "lane": "L02",
       "path": "/api/v1/holdings/{holdingSlug}/people/evaluation/{...path}",
-      "handler": "packages/feature-people/src/routes/api/v1/holdings/[holdingSlug]/people/evaluation/[[...path]]/route.ts",
+      "handler": "products/people/ui/src/routes/api/v1/holdings/[holdingSlug]/people/evaluation/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -646,7 +646,7 @@
     {
       "lane": "L02",
       "path": "/api/v1/holdings/{holdingSlug}/people/relationships/{...path}",
-      "handler": "packages/feature-people/src/routes/api/v1/holdings/[holdingSlug]/people/relationships/[[...path]]/route.ts",
+      "handler": "products/people/ui/src/routes/api/v1/holdings/[holdingSlug]/people/relationships/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -692,7 +692,7 @@
     {
       "lane": "L02",
       "path": "/api/v1/holdings/{holdingSlug}/benefits",
-      "handler": "packages/feature-people/src/routes/api/v1/holdings/[holdingSlug]/benefits/route.ts",
+      "handler": "products/people/ui/src/routes/api/v1/holdings/[holdingSlug]/benefits/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -758,7 +758,7 @@
     {
       "lane": "L02",
       "path": "/api/v1/holdings/{holdingSlug}/leave/admin",
-      "handler": "packages/feature-people/src/routes/api/v1/holdings/[holdingSlug]/leave/admin/route.ts",
+      "handler": "products/people/ui/src/routes/api/v1/holdings/[holdingSlug]/leave/admin/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -788,7 +788,7 @@
     {
       "lane": "L02",
       "path": "/api/v1/holdings/{holdingSlug}/talent",
-      "handler": "packages/feature-recruit/src/routes/api/v1/holdings/[holdingSlug]/talent/route.ts",
+      "handler": "products/recruit/ui/src/routes/api/v1/holdings/[holdingSlug]/talent/route.ts",
       "methods": [
         "POST"
       ],
@@ -878,7 +878,7 @@
     {
       "lane": "L02",
       "path": "/api/v1/holdings/{holdingSlug}/people-public-directory",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/people-public-directory/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/people-public-directory/route.ts",
       "methods": [
         "GET"
       ],
@@ -929,7 +929,7 @@
     {
       "lane": "L02",
       "path": "/api/v1/holdings/{holdingSlug}/expenses/{...path}",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/expenses/[[...path]]/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/expenses/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -960,7 +960,7 @@
     {
       "lane": "L02",
       "path": "/api/v1/holdings/{holdingSlug}/expenses/preview",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/expenses/preview/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/expenses/preview/route.ts",
       "methods": [
         "POST"
       ],
@@ -990,7 +990,7 @@
     {
       "lane": "L02",
       "path": "/api/v1/holdings/{holdingSlug}/self-service/summary",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/self-service/summary/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/self-service/summary/route.ts",
       "methods": [
         "GET"
       ],
@@ -1032,7 +1032,7 @@
     {
       "lane": "L02",
       "path": "/api/v1/holdings/{holdingSlug}/leave-requests",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/leave-requests/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/leave-requests/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -1063,7 +1063,7 @@
     {
       "lane": "L02",
       "path": "/api/v1/holdings/{holdingSlug}/leave-requests/preview",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/leave-requests/preview/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/leave-requests/preview/route.ts",
       "methods": [
         "POST"
       ],
@@ -1093,7 +1093,7 @@
     {
       "lane": "L02",
       "path": "/api/v1/holdings/{holdingSlug}/leave-requests/{id}/transition",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/leave-requests/[id]/transition/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/leave-requests/[id]/transition/route.ts",
       "methods": [
         "POST"
       ],
@@ -1123,7 +1123,7 @@
     {
       "lane": "L02",
       "path": "/api/v1/holdings/{holdingSlug}/leave-requests/{id}/cancellation-review",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/leave-requests/[id]/cancellation-review/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/leave-requests/[id]/cancellation-review/route.ts",
       "methods": [
         "POST"
       ],
@@ -1153,7 +1153,7 @@
     {
       "lane": "L02",
       "path": "/api/v1/holdings/{holdingSlug}/leave-requests/{id}/approve",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/leave-requests/[id]/approve/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/leave-requests/[id]/approve/route.ts",
       "methods": [
         "POST"
       ],
@@ -1183,7 +1183,7 @@
     {
       "lane": "L02",
       "path": "/api/v1/holdings/{holdingSlug}/leave-requests/{id}",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/leave-requests/[id]/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/leave-requests/[id]/route.ts",
       "methods": [
         "GET",
         "PATCH"
@@ -1214,7 +1214,7 @@
     {
       "lane": "L02",
       "path": "/api/v1/holdings/{holdingSlug}/people/{...path}",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -1246,7 +1246,7 @@
     {
       "lane": "L02",
       "path": "/api/v1/holdings/{holdingSlug}/people/hire-handoffs/{id}/pay-groups",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/people/hire-handoffs/[id]/pay-groups/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/people/hire-handoffs/[id]/pay-groups/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -1277,7 +1277,7 @@
     {
       "lane": "L02",
       "path": "/api/v1/holdings/{holdingSlug}/leave/calendar",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/leave/calendar/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/leave/calendar/route.ts",
       "methods": [
         "GET"
       ],
@@ -1307,7 +1307,7 @@
     {
       "lane": "L02",
       "path": "/api/v1/holdings/{holdingSlug}/leave/summary",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/leave/summary/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/leave/summary/route.ts",
       "methods": [
         "GET"
       ],
@@ -1337,7 +1337,7 @@
     {
       "lane": "L02",
       "path": "/api/v1/holdings/{holdingSlug}/learning",
-      "handler": "packages/feature-learn/src/routes/api/v1/holdings/[holdingSlug]/learning/route.ts",
+      "handler": "products/learn/ui/src/routes/api/v1/holdings/[holdingSlug]/learning/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -1393,7 +1393,7 @@
     {
       "lane": "L02",
       "path": "/api/v1/holdings/{holdingSlug}/people/learning-worker-startup/{...path}",
-      "handler": "packages/feature-learn/src/routes/api/v1/holdings/[holdingSlug]/people/learning-worker-startup/[[...path]]/route.ts",
+      "handler": "products/learn/ui/src/routes/api/v1/holdings/[holdingSlug]/people/learning-worker-startup/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -1423,7 +1423,7 @@
     {
       "lane": "L03",
       "path": "/api/v1/holdings/{holdingSlug}/supplier-promises/{id}",
-      "handler": "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/supplier-promises/[id]/route.ts",
+      "handler": "products/supply/ui/src/routes/api/v1/holdings/[holdingSlug]/supplier-promises/[id]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -1472,7 +1472,7 @@
     {
       "lane": "L03",
       "path": "/api/v1/holdings/{holdingSlug}/supplier-bills",
-      "handler": "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/supplier-bills/route.ts",
+      "handler": "products/supply/ui/src/routes/api/v1/holdings/[holdingSlug]/supplier-bills/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -1512,7 +1512,7 @@
     {
       "lane": "L03",
       "path": "/api/v1/holdings/{holdingSlug}/supplier-bills/{id}",
-      "handler": "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/supplier-bills/[id]/route.ts",
+      "handler": "products/supply/ui/src/routes/api/v1/holdings/[holdingSlug]/supplier-bills/[id]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -1543,7 +1543,7 @@
         "apps/supply/src/app/api/v1/holdings/[holdingSlug]/supplier-bills/[id]/route.ts"
       ],
       "blockers": [
-        "supplier_bill_detail_router is defined but not mounted by src/composition (no composition reference found)",
+        "supplier_bill_detail_router is defined but not mounted by platform/composition (no composition reference found)",
         "Rust POST path /supplier-bills/{match_id}/decision differs from the Next /supplier-bills/{id} POST path",
         "GET still calls TS supplierBillDetail SQL",
         "No gateway entry and no route-gone/native-payload test"
@@ -1560,7 +1560,7 @@
     {
       "lane": "L03",
       "path": "/api/v1/holdings/{holdingSlug}/supplier-bills/policy",
-      "handler": "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/supplier-bills/policy/route.ts",
+      "handler": "products/supply/ui/src/routes/api/v1/holdings/[holdingSlug]/supplier-bills/policy/route.ts",
       "methods": [
         "POST"
       ],
@@ -1606,7 +1606,7 @@
     {
       "lane": "L03",
       "path": "/api/v1/holdings/{holdingSlug}/stock-transit/{...path}",
-      "handler": "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/stock-transit/[[...path]]/route.ts",
+      "handler": "products/supply/ui/src/routes/api/v1/holdings/[holdingSlug]/stock-transit/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -1645,7 +1645,7 @@
     {
       "lane": "L03",
       "path": "/api/v1/holdings/{holdingSlug}/procurement-rfqs",
-      "handler": "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/procurement-rfqs/route.ts",
+      "handler": "products/supply/ui/src/routes/api/v1/holdings/[holdingSlug]/procurement-rfqs/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -1674,7 +1674,7 @@
     {
       "lane": "L03",
       "path": "/api/v1/holdings/{holdingSlug}/procurement-rfqs/{id}",
-      "handler": "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/procurement-rfqs/[id]/route.ts",
+      "handler": "products/supply/ui/src/routes/api/v1/holdings/[holdingSlug]/procurement-rfqs/[id]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -1703,7 +1703,7 @@
     {
       "lane": "L03",
       "path": "/api/v1/holdings/{holdingSlug}/stock-transfers/{...path}",
-      "handler": "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/stock-transfers/[[...path]]/route.ts",
+      "handler": "products/supply/ui/src/routes/api/v1/holdings/[holdingSlug]/stock-transfers/[[...path]]/route.ts",
       "methods": [
         "POST"
       ],
@@ -1757,7 +1757,7 @@
     {
       "lane": "L03",
       "path": "/api/v1/holdings/{holdingSlug}/landed-costs/{...path}",
-      "handler": "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/landed-costs/[[...path]]/route.ts",
+      "handler": "products/supply/ui/src/routes/api/v1/holdings/[holdingSlug]/landed-costs/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -1812,7 +1812,7 @@
     {
       "lane": "L03",
       "path": "/api/v1/holdings/{holdingSlug}/commerce/{...path}",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -1879,7 +1879,7 @@
     {
       "lane": "L03",
       "path": "/api/v1/holdings/{holdingSlug}/pms",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/pms/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/pms/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -1936,7 +1936,7 @@
     {
       "lane": "L03",
       "path": "/api/v1/holdings/{holdingSlug}/stock-counts/{...path}",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/stock-counts/[[...path]]/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/stock-counts/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -1993,7 +1993,7 @@
     {
       "lane": "L03",
       "path": "/api/v1/front/{holdingSlug}/{companySlug}/{app}/{...path}",
-      "handler": "packages/workplace/src/routes/api/v1/front/[holdingSlug]/[companySlug]/[app]/[[...path]]/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/front/[holdingSlug]/[companySlug]/[app]/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST",
@@ -2026,7 +2026,7 @@
     {
       "lane": "L03",
       "path": "/api/v1/holdings/{holdingSlug}/production/initial-physical-stock/{...path}",
-      "handler": "packages/feature-manufacturing/src/routes/api/v1/holdings/[holdingSlug]/production/initial-physical-stock/[[...path]]/route.ts",
+      "handler": "modules/manufacturing/ui/src/routes/api/v1/holdings/[holdingSlug]/production/initial-physical-stock/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -2067,7 +2067,7 @@
     {
       "lane": "L03",
       "path": "/api/v1/holdings/{holdingSlug}/production/posting-setup/{...path}",
-      "handler": "packages/feature-manufacturing/src/routes/api/v1/holdings/[holdingSlug]/production/posting-setup/[...path]/route.ts",
+      "handler": "modules/manufacturing/ui/src/routes/api/v1/holdings/[holdingSlug]/production/posting-setup/[...path]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -2115,7 +2115,7 @@
     {
       "lane": "L03",
       "path": "/api/v1/holdings/{holdingSlug}/production/posting-setup",
-      "handler": "packages/feature-manufacturing/src/routes/api/v1/holdings/[holdingSlug]/production/posting-setup/route.ts",
+      "handler": "modules/manufacturing/ui/src/routes/api/v1/holdings/[holdingSlug]/production/posting-setup/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -2144,7 +2144,7 @@
     {
       "lane": "L03",
       "path": "/api/v1/holdings/{holdingSlug}/production",
-      "handler": "packages/feature-manufacturing/src/routes/api/v1/holdings/[holdingSlug]/production/route.ts",
+      "handler": "modules/manufacturing/ui/src/routes/api/v1/holdings/[holdingSlug]/production/route.ts",
       "methods": [
         "POST"
       ],
@@ -2206,7 +2206,7 @@
     {
       "lane": "L04",
       "path": "/api/v1/holdings/{holdingSlug}/records/search",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/search/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/search/route.ts",
       "methods": [
         "GET"
       ],
@@ -2260,7 +2260,7 @@
     {
       "lane": "L04",
       "path": "/api/v1/holdings/{holdingSlug}/attachment-sets/{setId}/sanitization-attestation",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/sanitization-attestation/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/sanitization-attestation/route.ts",
       "methods": [
         "POST"
       ],
@@ -2305,7 +2305,7 @@
     {
       "lane": "L04",
       "path": "/api/v1/holdings/{holdingSlug}/attachment-sets/{setId}/uploads/{uploadId}/content",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/uploads/[uploadId]/content/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/uploads/[uploadId]/content/route.ts",
       "methods": [
         "PUT"
       ],
@@ -2351,7 +2351,7 @@
     {
       "lane": "L04",
       "path": "/api/v1/holdings/{holdingSlug}/attachment-sets/{setId}/links",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/links/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/links/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -2407,7 +2407,7 @@
     {
       "lane": "L04",
       "path": "/api/v1/holdings/{holdingSlug}/attachment-sets/{setId}/files",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/files/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/files/route.ts",
       "methods": [
         "POST"
       ],
@@ -2489,7 +2489,7 @@
     {
       "lane": "L04",
       "path": "/api/v1/holdings/{holdingSlug}/attachment-sets/{setId}/bind",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/bind/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/bind/route.ts",
       "methods": [
         "POST"
       ],
@@ -2562,7 +2562,7 @@
     {
       "lane": "L04",
       "path": "/api/v1/holdings/{holdingSlug}/attachment-sets",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -2653,7 +2653,7 @@
     {
       "lane": "L04",
       "path": "/api/v1/holdings/{holdingSlug}/uploads",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/uploads/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/uploads/route.ts",
       "methods": [
         "POST"
       ],
@@ -2727,7 +2727,7 @@
     {
       "lane": "L04",
       "path": "/api/v1/holdings/{holdingSlug}/uploads/{id}/content",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/uploads/[id]/content/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/uploads/[id]/content/route.ts",
       "methods": [
         "PUT"
       ],
@@ -2802,7 +2802,7 @@
     {
       "lane": "L04",
       "path": "/api/v1/holdings/{holdingSlug}/attachments/{id}/derivatives",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachments/[id]/derivatives/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachments/[id]/derivatives/route.ts",
       "methods": [
         "POST"
       ],
@@ -2848,7 +2848,7 @@
     {
       "lane": "L04",
       "path": "/api/v1/holdings/{holdingSlug}/attachments/{id}/content",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachments/[id]/content/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachments/[id]/content/route.ts",
       "methods": [
         "GET"
       ],
@@ -2903,7 +2903,7 @@
     {
       "lane": "L04",
       "path": "/api/v1/holdings/{holdingSlug}/attachment-links/{linkId}/content",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/content/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/content/route.ts",
       "methods": [
         "GET"
       ],
@@ -2984,7 +2984,7 @@
     {
       "lane": "L04",
       "path": "/api/v1/holdings/{holdingSlug}/attachment-links/{linkId}/status",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/status/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/status/route.ts",
       "methods": [
         "GET"
       ],
@@ -3064,7 +3064,7 @@
     {
       "lane": "L04",
       "path": "/api/v1/holdings/{holdingSlug}/attachment-links/{linkId}/withdraw",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/withdraw/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/withdraw/route.ts",
       "methods": [
         "POST"
       ],
@@ -3137,7 +3137,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/platform/page-layouts/{pageKey}",
-      "handler": "packages/feature-admin/src/routes/api/v1/platform/page-layouts/[pageKey]/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/platform/page-layouts/[pageKey]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -3176,7 +3176,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/platform/assignments/active",
-      "handler": "packages/feature-admin/src/routes/api/v1/platform/assignments/active/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/platform/assignments/active/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -3224,7 +3224,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/platform/context",
-      "handler": "packages/feature-admin/src/routes/api/v1/platform/context/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/platform/context/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -3252,7 +3252,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/platform/operations/provision",
-      "handler": "packages/feature-admin/src/routes/api/v1/platform/operations/provision/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/platform/operations/provision/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -3299,7 +3299,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/platform/operations/migrate",
-      "handler": "packages/feature-admin/src/routes/api/v1/platform/operations/migrate/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/platform/operations/migrate/route.ts",
       "methods": [
         "POST"
       ],
@@ -3336,7 +3336,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/platform/operations",
-      "handler": "packages/feature-admin/src/routes/api/v1/platform/operations/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/platform/operations/route.ts",
       "methods": [
         "GET"
       ],
@@ -3372,7 +3372,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/platform/operations/recover",
-      "handler": "packages/feature-admin/src/routes/api/v1/platform/operations/recover/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/platform/operations/recover/route.ts",
       "methods": [
         "POST"
       ],
@@ -3408,7 +3408,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/platform/commercial/{...path}",
-      "handler": "packages/feature-admin/src/routes/api/v1/platform/commercial/[[...path]]/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/platform/commercial/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -3478,7 +3478,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/platform/iam/{...path}",
-      "handler": "packages/feature-admin/src/routes/api/v1/platform/iam/[[...path]]/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/platform/iam/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -3547,7 +3547,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/platform/billing/forecast",
-      "handler": "packages/feature-admin/src/routes/api/v1/platform/billing/forecast/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/platform/billing/forecast/route.ts",
       "methods": [
         "GET"
       ],
@@ -3585,7 +3585,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/platform/billing/ai-gateway",
-      "handler": "packages/feature-admin/src/routes/api/v1/platform/billing/ai-gateway/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/platform/billing/ai-gateway/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -3631,7 +3631,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/platform/billing/{...path}",
-      "handler": "packages/feature-admin/src/routes/api/v1/platform/billing/[[...path]]/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/platform/billing/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -3677,7 +3677,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/platform/billing/target",
-      "handler": "packages/feature-admin/src/routes/api/v1/platform/billing/target/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/platform/billing/target/route.ts",
       "methods": [
         "GET"
       ],
@@ -3703,7 +3703,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/platform/billing/usage",
-      "handler": "packages/feature-admin/src/routes/api/v1/platform/billing/usage/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/platform/billing/usage/route.ts",
       "methods": [
         "GET"
       ],
@@ -3738,7 +3738,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/platform/executive",
-      "handler": "packages/feature-admin/src/routes/api/v1/platform/executive/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/platform/executive/route.ts",
       "methods": [
         "GET"
       ],
@@ -3774,7 +3774,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/holdings/{holdingSlug}/beta/{...path}",
-      "handler": "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/beta/[[...path]]/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/beta/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -3810,7 +3810,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/holdings/{holdingSlug}/branding/{...path}",
-      "handler": "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/branding/[[...path]]/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/branding/[[...path]]/route.ts",
       "methods": [
         "GET",
         "PATCH"
@@ -3857,7 +3857,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/holdings/{holdingSlug}/technology/{...path}",
-      "handler": "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/technology/[[...path]]/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/technology/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -3911,7 +3911,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/holdings/{holdingSlug}/feature-catalogue",
-      "handler": "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/feature-catalogue/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/feature-catalogue/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -3938,7 +3938,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/holdings/{holdingSlug}/brand",
-      "handler": "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/brand/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/brand/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -3985,7 +3985,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/holdings/{holdingSlug}/agents",
-      "handler": "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/agents/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/agents/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -4031,7 +4031,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/holdings/{holdingSlug}/usage",
-      "handler": "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/usage/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/usage/route.ts",
       "methods": [
         "GET"
       ],
@@ -4057,7 +4057,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/holdings/{holdingSlug}/authority/{...path}",
-      "handler": "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/authority/[[...path]]/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/authority/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -4084,7 +4084,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/holdings/{holdingSlug}/authority/flows/preview",
-      "handler": "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/authority/flows/preview/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/authority/flows/preview/route.ts",
       "methods": [
         "POST"
       ],
@@ -4110,7 +4110,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/holdings/{holdingSlug}/ai-providers/{...path}",
-      "handler": "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/ai-providers/[[...path]]/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/ai-providers/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -4157,7 +4157,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/holdings/{holdingSlug}/billing/forecast",
-      "handler": "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/billing/forecast/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/billing/forecast/route.ts",
       "methods": [
         "GET"
       ],
@@ -4193,7 +4193,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/holdings/{holdingSlug}/billing/{...path}",
-      "handler": "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/billing/[[...path]]/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/billing/[[...path]]/route.ts",
       "methods": [
         "POST"
       ],
@@ -4237,7 +4237,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/holdings/{holdingSlug}/billing/target",
-      "handler": "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/billing/target/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/billing/target/route.ts",
       "methods": [
         "GET"
       ],
@@ -4272,7 +4272,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/holdings/{holdingSlug}/business-readiness/releases/{...path}",
-      "handler": "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/business-readiness/releases/[[...path]]/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/business-readiness/releases/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -4308,7 +4308,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/holdings/{holdingSlug}/business-readiness",
-      "handler": "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/business-readiness/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/business-readiness/route.ts",
       "methods": [
         "GET"
       ],
@@ -4343,7 +4343,7 @@
     {
       "lane": "L05",
       "path": "/api/v1/stripe/webhook",
-      "handler": "packages/feature-admin/src/routes/api/v1/stripe/webhook/route.ts",
+      "handler": "products/admin/ui/src/routes/api/v1/stripe/webhook/route.ts",
       "methods": [
         "POST"
       ],
@@ -4370,7 +4370,7 @@
     {
       "lane": "L06",
       "path": "/api/v1/holdings/{holdingSlug}/beta/{...path}",
-      "handler": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/beta/[[...path]]/route.ts",
+      "handler": "products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/beta/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -4426,7 +4426,7 @@
     {
       "lane": "L06",
       "path": "/api/v1/holdings/{holdingSlug}/collaboration",
-      "handler": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/collaboration/route.ts",
+      "handler": "products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/collaboration/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -4467,7 +4467,7 @@
     {
       "lane": "L06",
       "path": "/api/v1/holdings/{holdingSlug}/posts/{id}/reaction",
-      "handler": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/reaction/route.ts",
+      "handler": "products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/reaction/route.ts",
       "methods": [
         "PUT"
       ],
@@ -4505,7 +4505,7 @@
     {
       "lane": "L06",
       "path": "/api/v1/holdings/{holdingSlug}/posts/{id}/follow",
-      "handler": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/follow/route.ts",
+      "handler": "products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/follow/route.ts",
       "methods": [
         "PUT"
       ],
@@ -4543,7 +4543,7 @@
     {
       "lane": "L06",
       "path": "/api/v1/holdings/{holdingSlug}/posts/{id}/ai-drafts",
-      "handler": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/ai-drafts/route.ts",
+      "handler": "products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/ai-drafts/route.ts",
       "methods": [
         "POST"
       ],
@@ -4571,7 +4571,7 @@
     {
       "lane": "L06",
       "path": "/api/v1/holdings/{holdingSlug}/posts/{id}",
-      "handler": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/route.ts",
+      "handler": "products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -4619,7 +4619,7 @@
     {
       "lane": "L06",
       "path": "/api/v1/holdings/{holdingSlug}/posts/{id}/task",
-      "handler": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/task/route.ts",
+      "handler": "products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/task/route.ts",
       "methods": [
         "POST"
       ],
@@ -4647,7 +4647,7 @@
     {
       "lane": "L06",
       "path": "/api/v1/holdings/{holdingSlug}/posts/{id}/task-source",
-      "handler": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/task-source/route.ts",
+      "handler": "products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/task-source/route.ts",
       "methods": [
         "GET"
       ],
@@ -4675,7 +4675,7 @@
     {
       "lane": "L06",
       "path": "/api/v1/holdings/{holdingSlug}/posts/{id}/revisions",
-      "handler": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/revisions/route.ts",
+      "handler": "products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/revisions/route.ts",
       "methods": [
         "GET"
       ],
@@ -4713,7 +4713,7 @@
     {
       "lane": "L06",
       "path": "/api/v1/holdings/{holdingSlug}/inbox/{...path}",
-      "handler": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/inbox/[[...path]]/route.ts",
+      "handler": "products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/inbox/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -4777,7 +4777,7 @@
     {
       "lane": "L06",
       "path": "/api/v1/holdings/{holdingSlug}/handover",
-      "handler": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/handover/route.ts",
+      "handler": "products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/handover/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -4816,7 +4816,7 @@
     {
       "lane": "L06",
       "path": "/api/v1/holdings/{holdingSlug}/handover/{postId}/acknowledgement",
-      "handler": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/handover/[postId]/acknowledgement/route.ts",
+      "handler": "products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/handover/[postId]/acknowledgement/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -4845,7 +4845,7 @@
     {
       "lane": "L06",
       "path": "/api/v1/holdings/{holdingSlug}/operations",
-      "handler": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/operations/route.ts",
+      "handler": "products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/operations/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -4893,7 +4893,7 @@
     {
       "lane": "L06",
       "path": "/api/v1/holdings/{holdingSlug}/handbook/{...path}",
-      "handler": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/handbook/[[...path]]/route.ts",
+      "handler": "products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/handbook/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -4959,7 +4959,7 @@
     {
       "lane": "L06",
       "path": "/api/v1/holdings/{holdingSlug}/stories",
-      "handler": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/stories/route.ts",
+      "handler": "products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/stories/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -4998,7 +4998,7 @@
     {
       "lane": "L06",
       "path": "/api/v1/holdings/{holdingSlug}/stories/{id}/archive",
-      "handler": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/stories/[id]/archive/route.ts",
+      "handler": "products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/stories/[id]/archive/route.ts",
       "methods": [
         "POST"
       ],
@@ -5035,7 +5035,7 @@
     {
       "lane": "L06",
       "path": "/api/v1/holdings/{holdingSlug}/staff/{...path}",
-      "handler": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/staff/[[...path]]/route.ts",
+      "handler": "products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/staff/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -5075,7 +5075,7 @@
     {
       "lane": "L06",
       "path": "/api/v1/holdings/{holdingSlug}/approvals/{...path}",
-      "handler": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/approvals/[[...path]]/route.ts",
+      "handler": "products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/approvals/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -5122,7 +5122,7 @@
     {
       "lane": "L06",
       "path": "/api/v1/holdings/{holdingSlug}/messaging/{...path}",
-      "handler": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/messaging/[[...path]]/route.ts",
+      "handler": "products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/messaging/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST",
@@ -5180,7 +5180,7 @@
     {
       "lane": "L06",
       "path": "/api/v1/holdings/{holdingSlug}/daily-plan",
-      "handler": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/daily-plan/route.ts",
+      "handler": "products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/daily-plan/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -5209,7 +5209,7 @@
     {
       "lane": "L06",
       "path": "/api/v1/holdings/{holdingSlug}/executive/{...path}",
-      "handler": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/executive/[[...path]]/route.ts",
+      "handler": "products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/executive/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -5249,7 +5249,7 @@
     {
       "lane": "L06",
       "path": "/api/v1/holdings/{holdingSlug}/executive/connections",
-      "handler": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/executive/connections/route.ts",
+      "handler": "products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/executive/connections/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -5288,7 +5288,7 @@
     {
       "lane": "L06",
       "path": "/api/mcp/executive",
-      "handler": "packages/feature-apps/src/routes/api/mcp/executive/route.ts",
+      "handler": "products/apps/ui/src/routes/api/mcp/executive/route.ts",
       "methods": [
         "GET",
         "POST",
@@ -5329,7 +5329,7 @@
     {
       "lane": "L07",
       "path": "/api/v1/holdings/{holdingSlug}/customers",
-      "handler": "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customers/route.ts",
+      "handler": "modules/sales/ui/src/routes/api/v1/holdings/[holdingSlug]/customers/route.ts",
       "methods": [
         "GET"
       ],
@@ -5375,7 +5375,7 @@
     {
       "lane": "L07",
       "path": "/api/v1/holdings/{holdingSlug}/customer-followups",
-      "handler": "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customer-followups/route.ts",
+      "handler": "modules/sales/ui/src/routes/api/v1/holdings/[holdingSlug]/customer-followups/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -5414,7 +5414,7 @@
       "deletionPlan": [
         "Add a Rust owner GET workspace route that executes the followup workspace SQL and returns the full payload.",
         "Switch the GET handler and any SSR consumers to that route, add gateway entries, then delete the shared handler and both app re-exports.",
-        "Delete the dead packages/server-sales/src/adapters/followups.ts read branch once no consumer remains."
+        "Delete the dead modules/sales/server/src/adapters/followups.ts read branch once no consumer remains."
       ],
       "estimatedEffort": "large",
       "status": "present"
@@ -5422,7 +5422,7 @@
     {
       "lane": "L07",
       "path": "/api/v1/holdings/{holdingSlug}/ecommerce",
-      "handler": "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/ecommerce/route.ts",
+      "handler": "modules/sales/ui/src/routes/api/v1/holdings/[holdingSlug]/ecommerce/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -5478,7 +5478,7 @@
     {
       "lane": "L07",
       "path": "/api/v1/holdings/{holdingSlug}/crm",
-      "handler": "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/crm/route.ts",
+      "handler": "modules/sales/ui/src/routes/api/v1/holdings/[holdingSlug]/crm/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -5553,7 +5553,7 @@
     {
       "lane": "L07",
       "path": "/api/v1/holdings/{holdingSlug}/crm/activities",
-      "handler": "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/crm/activities/route.ts",
+      "handler": "modules/sales/ui/src/routes/api/v1/holdings/[holdingSlug]/crm/activities/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -5612,7 +5612,7 @@
     {
       "lane": "L07",
       "path": "/api/v1/holdings/{holdingSlug}/customer-duplicates",
-      "handler": "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customer-duplicates/route.ts",
+      "handler": "modules/sales/ui/src/routes/api/v1/holdings/[holdingSlug]/customer-duplicates/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -5651,7 +5651,7 @@
     {
       "lane": "L07",
       "path": "/api/v1/holdings/{holdingSlug}/customer-notes",
-      "handler": "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customer-notes/route.ts",
+      "handler": "modules/sales/ui/src/routes/api/v1/holdings/[holdingSlug]/customer-notes/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -5690,7 +5690,7 @@
     {
       "lane": "L07",
       "path": "/api/v1/holdings/{holdingSlug}/customer-identity",
-      "handler": "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customer-identity/route.ts",
+      "handler": "modules/sales/ui/src/routes/api/v1/holdings/[holdingSlug]/customer-identity/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -5729,7 +5729,7 @@
     {
       "lane": "L07",
       "path": "/api/v1/holdings/{holdingSlug}/marketing",
-      "handler": "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/marketing/route.ts",
+      "handler": "modules/sales/ui/src/routes/api/v1/holdings/[holdingSlug]/marketing/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -5809,7 +5809,7 @@
     {
       "lane": "L07",
       "path": "/api/v1/holdings/{holdingSlug}/customer-access",
-      "handler": "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customer-access/route.ts",
+      "handler": "modules/sales/ui/src/routes/api/v1/holdings/[holdingSlug]/customer-access/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -5892,7 +5892,7 @@
     {
       "lane": "L07",
       "path": "/api/v1/holdings/{holdingSlug}/reports/crm-marketing",
-      "handler": "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/reports/crm-marketing/route.ts",
+      "handler": "modules/sales/ui/src/routes/api/v1/holdings/[holdingSlug]/reports/crm-marketing/route.ts",
       "methods": [
         "GET"
       ],
@@ -5933,7 +5933,7 @@
     {
       "lane": "L08",
       "path": "/api/v1/holdings/{holdingSlug}/field-service/collaboration",
-      "handler": "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/collaboration/route.ts",
+      "handler": "products/service/ui/src/routes/api/v1/holdings/[holdingSlug]/field-service/collaboration/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -5977,7 +5977,7 @@
     {
       "lane": "L08",
       "path": "/api/v1/holdings/{holdingSlug}/field-service/customer-preparation/{...path}",
-      "handler": "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/customer-preparation/[[...path]]/route.ts",
+      "handler": "products/service/ui/src/routes/api/v1/holdings/[holdingSlug]/field-service/customer-preparation/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -6032,7 +6032,7 @@
     {
       "lane": "L08",
       "path": "/api/v1/holdings/{holdingSlug}/field-service/initial-physical-stock/{...path}",
-      "handler": "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/initial-physical-stock/[[...path]]/route.ts",
+      "handler": "products/service/ui/src/routes/api/v1/holdings/[holdingSlug]/field-service/initial-physical-stock/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -6103,7 +6103,7 @@
     {
       "lane": "L08",
       "path": "/api/v1/holdings/{holdingSlug}/field-service/operations",
-      "handler": "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/operations/route.ts",
+      "handler": "products/service/ui/src/routes/api/v1/holdings/[holdingSlug]/field-service/operations/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -6146,7 +6146,7 @@
     {
       "lane": "L08",
       "path": "/api/v1/holdings/{holdingSlug}/field-service/parts-setup/{...path}",
-      "handler": "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/parts-setup/[[...path]]/route.ts",
+      "handler": "products/service/ui/src/routes/api/v1/holdings/[holdingSlug]/field-service/parts-setup/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -6232,7 +6232,7 @@
     {
       "lane": "L08",
       "path": "/api/v1/holdings/{holdingSlug}/field-service",
-      "handler": "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/route.ts",
+      "handler": "products/service/ui/src/routes/api/v1/holdings/[holdingSlug]/field-service/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -6357,7 +6357,7 @@
     {
       "lane": "L08",
       "path": "/api/v1/holdings/{holdingSlug}/support/sessions",
-      "handler": "packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/sessions/route.ts",
+      "handler": "modules/support/ui/src/routes/api/v1/holdings/[holdingSlug]/support/sessions/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -6409,7 +6409,7 @@
     {
       "lane": "L08",
       "path": "/api/v1/holdings/{holdingSlug}/support",
-      "handler": "packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/route.ts",
+      "handler": "modules/support/ui/src/routes/api/v1/holdings/[holdingSlug]/support/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -6469,7 +6469,7 @@
     {
       "lane": "L08",
       "path": "/api/v1/holdings/{holdingSlug}/support/ticket-portal/{...path}",
-      "handler": "packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/ticket-portal/[[...path]]/route.ts",
+      "handler": "modules/support/ui/src/routes/api/v1/holdings/[holdingSlug]/support/ticket-portal/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -6538,7 +6538,7 @@
     {
       "lane": "L08",
       "path": "/api/v1/holdings/{holdingSlug}/support/sla",
-      "handler": "packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/sla/route.ts",
+      "handler": "modules/support/ui/src/routes/api/v1/holdings/[holdingSlug]/support/sla/route.ts",
       "methods": [
         "POST"
       ],
@@ -6589,7 +6589,7 @@
     {
       "lane": "L08",
       "path": "/api/v1/holdings/{holdingSlug}/support/incidents",
-      "handler": "packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/incidents/route.ts",
+      "handler": "modules/support/ui/src/routes/api/v1/holdings/[holdingSlug]/support/incidents/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -6641,7 +6641,7 @@
     {
       "lane": "L08",
       "path": "/api/v1/holdings/{holdingSlug}/service-teams/{...path}",
-      "handler": "packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/service-teams/[[...path]]/route.ts",
+      "handler": "modules/support/ui/src/routes/api/v1/holdings/[holdingSlug]/service-teams/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -6694,7 +6694,7 @@
     {
       "lane": "L08",
       "path": "/api/v1/holdings/{holdingSlug}/service-teams/preview",
-      "handler": "packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/service-teams/preview/route.ts",
+      "handler": "modules/support/ui/src/routes/api/v1/holdings/[holdingSlug]/service-teams/preview/route.ts",
       "methods": [
         "POST"
       ],
@@ -6736,7 +6736,7 @@
     {
       "lane": "L09",
       "path": "/api/legal-portal/{holdingSlug}/{...path}",
-      "handler": "packages/feature-legal-portal/src/routes/api/legal-portal/[holdingSlug]/[[...path]]/route.ts",
+      "handler": "products/legal-portal/ui/src/routes/api/legal-portal/[holdingSlug]/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -6751,7 +6751,7 @@
       ],
       "blockers": [
         "No Rust route matches /api/legal-portal/{holding_slug}/{...path}; rg for legal-portal in *.rs finds only native-legal-portal-binding/writes source helpers, not a mounted HTTP route.",
-        "Catch-all: GET list/detail/download and POST upload/command are served by TypeScript SQL in packages/server-legal/src/adapters/legal/portal.ts; not one subpath is native.",
+        "Catch-all: GET list/detail/download and POST upload/command are served by TypeScript SQL in modules/legal/server/src/adapters/legal/portal.ts; not one subpath is native.",
         "R5 semantics remain in TS: legalPortalUploadRequest buffers up to 10 MiB, uses sessionFromRequest/withCurrentPrivateSessionRead and file staging/scan, and throws ORIGIN_FORBIDDEN/IDEMPOTENCY-Key errors.",
         "No gateway entry exists for an /api/legal-portal/* native route.",
         "Integration tests assert the current TS portal session/authority behavior and would need native equivalents before deletion."
@@ -6770,7 +6770,7 @@
     {
       "lane": "L09",
       "path": "/api/legal-portal/{holdingSlug}/quick-access",
-      "handler": "packages/feature-legal-portal/src/routes/api/legal-portal/[holdingSlug]/quick-access/route.ts",
+      "handler": "products/legal-portal/ui/src/routes/api/legal-portal/[holdingSlug]/quick-access/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -6803,7 +6803,7 @@
     {
       "lane": "L09",
       "path": "/api/v1/holdings/{holdingSlug}/legal/{...path}",
-      "handler": "packages/feature-legal/src/routes/api/v1/holdings/[holdingSlug]/legal/[[...path]]/route.ts",
+      "handler": "modules/legal/ui/src/routes/api/v1/holdings/[holdingSlug]/legal/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -6955,7 +6955,7 @@
       ],
       "blockers": [
         "Catch-all cannot be deleted: Rust mounts only specific native slices (legal_http.rs records/detail/export/commands, legal_http_auxiliary.rs GET, trust/retention/wave3 commands, rule-impact, processing-status, native-lane-26); no Rust route replaces every subpath and method.",
-        "packages/server-legal/src/adapters/legal_http_auxiliary.rs:354-362 UNPORTED_READS explicitly lists people, runtime-health, release-acceptance, features, export, evidence and hold-preview as still unported GET reads.",
+        "modules/legal/server/src/adapters/legal_http_auxiliary.rs:354-362 UNPORTED_READS explicitly lists people, runtime-health, release-acceptance, features, export, evidence and hold-preview as still unported GET reads.",
         "All POST subpaths other than the narrow native command selector remain TS SQL (upload, executed.import/inspect through attachment staging, release-acceptance review/revoke, law/knowledge/approval/trust/retention/governance/features/AI/signing/import/revision commands).",
         "Native delegation is gated by ERPX_NATIVE_LEGAL_RECORDS_CONFIG and a fixed COMMANDS set; when unset, TS legalData/detail/legalCommand execute SQL and are the live fallback.",
         "Gateway entries exist only for the native slices; the whole catch-all has no single native replacement, and tests assert TS route behavior for unported subpaths."
@@ -6982,7 +6982,7 @@
     {
       "lane": "L10",
       "path": "/api/public/booking/{holdingSlug}/{action}",
-      "handler": "packages/feature-booking/src/routes/api/public/booking/[holdingSlug]/[action]/route.ts",
+      "handler": "products/booking/ui/src/routes/api/public/booking/[holdingSlug]/[action]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -7015,7 +7015,7 @@
     {
       "lane": "L10",
       "path": "/api/v1/holdings/{holdingSlug}/pos/initial-physical-stock/{...path}",
-      "handler": "packages/feature-pos/src/routes/api/v1/holdings/[holdingSlug]/pos/initial-physical-stock/[[...path]]/route.ts",
+      "handler": "modules/pos/ui/src/routes/api/v1/holdings/[holdingSlug]/pos/initial-physical-stock/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -7047,7 +7047,7 @@
       ],
       "blockers": [
         "Catch-all: GET selection/detail and {id}/flow have no Rust GET route; only POST save/transition are native",
-        "TS seed and flow-assign still execute owner/commerce/finance SQL in packages/server-inventory/src/adapters/pos-initial-physical-stock-count.ts",
+        "TS seed and flow-assign still execute owner/commerce/finance SQL in modules/inventory/server/src/adapters/pos-initial-physical-stock-count.ts",
         "No gateway entry and no retirement test for this catch-all"
       ],
       "gatewayEntries": [
@@ -7064,7 +7064,7 @@
     {
       "lane": "L10",
       "path": "/api/v1/holdings/{holdingSlug}/pos/{...path}",
-      "handler": "packages/feature-pos/src/routes/api/v1/holdings/[holdingSlug]/pos/[...path]/route.ts",
+      "handler": "modules/pos/ui/src/routes/api/v1/holdings/[holdingSlug]/pos/[...path]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -7146,7 +7146,7 @@
     {
       "lane": "L10",
       "path": "/api/v1/holdings/{holdingSlug}/pos",
-      "handler": "packages/feature-pos/src/routes/api/v1/holdings/[holdingSlug]/pos/route.ts",
+      "handler": "modules/pos/ui/src/routes/api/v1/holdings/[holdingSlug]/pos/route.ts",
       "methods": [
         "GET"
       ],
@@ -7185,7 +7185,7 @@
     {
       "lane": "L10",
       "path": "/api/v1/holdings/{holdingSlug}/pos/startup/{...path}",
-      "handler": "packages/feature-pos/src/routes/api/v1/holdings/[holdingSlug]/pos/startup/[...path]/route.ts",
+      "handler": "modules/pos/ui/src/routes/api/v1/holdings/[holdingSlug]/pos/startup/[...path]/route.ts",
       "methods": [
         "POST"
       ],
@@ -7213,7 +7213,7 @@
     {
       "lane": "L10",
       "path": "/api/v1/holdings/{holdingSlug}/pos/startup",
-      "handler": "packages/feature-pos/src/routes/api/v1/holdings/[holdingSlug]/pos/startup/route.ts",
+      "handler": "modules/pos/ui/src/routes/api/v1/holdings/[holdingSlug]/pos/startup/route.ts",
       "methods": [
         "GET"
       ],
@@ -7240,7 +7240,7 @@
     {
       "lane": "L10",
       "path": "/api/pos/stripe/webhook",
-      "handler": "packages/feature-pos/src/routes/api/pos/stripe/webhook/route.ts",
+      "handler": "modules/pos/ui/src/routes/api/pos/stripe/webhook/route.ts",
       "methods": [
         "POST"
       ],
@@ -7269,7 +7269,7 @@
     {
       "lane": "L10",
       "path": "/api/v1/holdings/{holdingSlug}/pms/stripe-payments",
-      "handler": "packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/stripe-payments/route.ts",
+      "handler": "modules/pms/ui/src/routes/api/v1/holdings/[holdingSlug]/pms/stripe-payments/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -7308,7 +7308,7 @@
     {
       "lane": "L10",
       "path": "/api/v1/holdings/{holdingSlug}/pms/imports",
-      "handler": "packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/imports/route.ts",
+      "handler": "modules/pms/ui/src/routes/api/v1/holdings/[holdingSlug]/pms/imports/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -7347,7 +7347,7 @@
     {
       "lane": "L10",
       "path": "/api/v1/holdings/{holdingSlug}/pms/booking-changes",
-      "handler": "packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/booking-changes/route.ts",
+      "handler": "modules/pms/ui/src/routes/api/v1/holdings/[holdingSlug]/pms/booking-changes/route.ts",
       "methods": [
         "POST"
       ],
@@ -7374,7 +7374,7 @@
     {
       "lane": "L10",
       "path": "/api/v1/holdings/{holdingSlug}/pms/{action}",
-      "handler": "packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/[action]/route.ts",
+      "handler": "modules/pms/ui/src/routes/api/v1/holdings/[holdingSlug]/pms/[action]/route.ts",
       "methods": [
         "POST"
       ],
@@ -7401,7 +7401,7 @@
     {
       "lane": "L10",
       "path": "/api/v1/holdings/{holdingSlug}/pms/stripe-refunds",
-      "handler": "packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/stripe-refunds/route.ts",
+      "handler": "modules/pms/ui/src/routes/api/v1/holdings/[holdingSlug]/pms/stripe-refunds/route.ts",
       "methods": [
         "POST"
       ],
@@ -7428,7 +7428,7 @@
     {
       "lane": "L10",
       "path": "/api/v1/holdings/{holdingSlug}/pms/booking-refunds",
-      "handler": "packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/booking-refunds/route.ts",
+      "handler": "modules/pms/ui/src/routes/api/v1/holdings/[holdingSlug]/pms/booking-refunds/route.ts",
       "methods": [
         "POST"
       ],
@@ -7474,7 +7474,7 @@
     {
       "lane": "L10",
       "path": "/api/v1/holdings/{holdingSlug}/pms/reports",
-      "handler": "packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/reports/route.ts",
+      "handler": "modules/pms/ui/src/routes/api/v1/holdings/[holdingSlug]/pms/reports/route.ts",
       "methods": [
         "GET"
       ],
@@ -7522,7 +7522,7 @@
     {
       "lane": "L11",
       "path": "/api/v1/holdings/{holdingSlug}/maintenance/plans",
-      "handler": "packages/feature-assets/src/routes/api/v1/holdings/[holdingSlug]/maintenance/plans/route.ts",
+      "handler": "modules/assets/ui/src/routes/api/v1/holdings/[holdingSlug]/maintenance/plans/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -7567,7 +7567,7 @@
     {
       "lane": "L11",
       "path": "/api/v1/holdings/{holdingSlug}/maintenance",
-      "handler": "packages/feature-assets/src/routes/api/v1/holdings/[holdingSlug]/maintenance/route.ts",
+      "handler": "modules/assets/ui/src/routes/api/v1/holdings/[holdingSlug]/maintenance/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -7612,7 +7612,7 @@
     {
       "lane": "L11",
       "path": "/api/v1/holdings/{holdingSlug}/assets",
-      "handler": "packages/feature-assets/src/routes/api/v1/holdings/[holdingSlug]/assets/route.ts",
+      "handler": "modules/assets/ui/src/routes/api/v1/holdings/[holdingSlug]/assets/route.ts",
       "methods": [
         "POST"
       ],
@@ -7655,7 +7655,7 @@
     {
       "lane": "L11",
       "path": "/api/v1/holdings/{holdingSlug}/assets/financial-assets/{...path}",
-      "handler": "packages/feature-assets/src/routes/api/v1/holdings/[holdingSlug]/assets/financial-assets/[...path]/route.ts",
+      "handler": "modules/assets/ui/src/routes/api/v1/holdings/[holdingSlug]/assets/financial-assets/[...path]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -7687,7 +7687,7 @@
     {
       "lane": "L11",
       "path": "/api/v1/holdings/{holdingSlug}/assets/financial-assets",
-      "handler": "packages/feature-assets/src/routes/api/v1/holdings/[holdingSlug]/assets/financial-assets/route.ts",
+      "handler": "modules/assets/ui/src/routes/api/v1/holdings/[holdingSlug]/assets/financial-assets/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -7718,7 +7718,7 @@
     {
       "lane": "L11",
       "path": "/api/v1/holdings/{holdingSlug}/projects/{...path}",
-      "handler": "packages/feature-projects/src/routes/api/v1/holdings/[holdingSlug]/projects/[[...path]]/route.ts",
+      "handler": "modules/projects/ui/src/routes/api/v1/holdings/[holdingSlug]/projects/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -7783,7 +7783,7 @@
     {
       "lane": "L11",
       "path": "/api/v1/holdings/{holdingSlug}/projects/{id}/structure",
-      "handler": "packages/feature-projects/src/routes/api/v1/holdings/[holdingSlug]/projects/[id]/structure/route.ts",
+      "handler": "modules/projects/ui/src/routes/api/v1/holdings/[holdingSlug]/projects/[id]/structure/route.ts",
       "methods": [
         "POST"
       ],
@@ -7825,7 +7825,7 @@
     {
       "lane": "L11",
       "path": "/api/v1/holdings/{holdingSlug}/people/project-worker-startup/{...path}",
-      "handler": "packages/feature-projects/src/routes/api/v1/holdings/[holdingSlug]/people/project-worker-startup/[[...path]]/route.ts",
+      "handler": "modules/projects/ui/src/routes/api/v1/holdings/[holdingSlug]/people/project-worker-startup/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -7857,7 +7857,7 @@
     {
       "lane": "L12",
       "path": "/api/public/marketing/{holdingSlug}/{formId}",
-      "handler": "packages/feature-forms/src/routes/api/public/marketing/[holdingSlug]/[formId]/route.ts",
+      "handler": "products/forms/ui/src/routes/api/public/marketing/[holdingSlug]/[formId]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -7897,7 +7897,7 @@
     {
       "lane": "L12",
       "path": "/api/v1/join",
-      "handler": "packages/feature-account/src/routes/api/v1/join/route.ts",
+      "handler": "products/account/ui/src/routes/api/v1/join/route.ts",
       "methods": [
         "POST"
       ],
@@ -7926,7 +7926,7 @@
     {
       "lane": "L12",
       "path": "/api/v1/account-invitations",
-      "handler": "packages/feature-account/src/routes/api/v1/account-invitations/route.ts",
+      "handler": "products/account/ui/src/routes/api/v1/account-invitations/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -7966,7 +7966,7 @@
     {
       "lane": "L12",
       "path": "/api/v1/account/security",
-      "handler": "packages/feature-account/src/routes/api/v1/account/security/route.ts",
+      "handler": "products/account/ui/src/routes/api/v1/account/security/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -8006,7 +8006,7 @@
     {
       "lane": "L12",
       "path": "/api/v1/account/device-accounts/{...action}",
-      "handler": "packages/feature-account/src/routes/api/v1/account/device-accounts/[[...action]]/route.ts",
+      "handler": "products/account/ui/src/routes/api/v1/account/device-accounts/[[...action]]/route.ts",
       "methods": [
         "DELETE",
         "GET",
@@ -8081,7 +8081,7 @@
     {
       "lane": "L12",
       "path": "/api/v1/account/quick-access/{area}",
-      "handler": "packages/feature-account/src/routes/api/v1/account/quick-access/[area]/route.ts",
+      "handler": "products/account/ui/src/routes/api/v1/account/quick-access/[area]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -8111,7 +8111,7 @@
     {
       "lane": "L12",
       "path": "/api/v1/account/iam/{...path}",
-      "handler": "packages/feature-account/src/routes/api/v1/account/iam/[[...path]]/route.ts",
+      "handler": "products/account/ui/src/routes/api/v1/account/iam/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -8182,7 +8182,7 @@
     {
       "lane": "L12",
       "path": "/api/v1/account/profile",
-      "handler": "packages/feature-account/src/routes/api/v1/account/profile/route.ts",
+      "handler": "products/account/ui/src/routes/api/v1/account/profile/route.ts",
       "methods": [
         "GET",
         "PATCH"
@@ -8221,7 +8221,7 @@
     {
       "lane": "L12",
       "path": "/api/legal-portal/enroll",
-      "handler": "packages/feature-account/src/routes/api/legal-portal/enroll/route.ts",
+      "handler": "products/account/ui/src/routes/api/legal-portal/enroll/route.ts",
       "methods": [
         "POST"
       ],
@@ -8259,7 +8259,7 @@
     {
       "lane": "L12",
       "path": "/api/customer-portal/enroll",
-      "handler": "packages/feature-portal/src/routes/api/customer-portal/enroll/route.ts",
+      "handler": "products/portal/ui/src/routes/api/customer-portal/enroll/route.ts",
       "methods": [
         "POST"
       ],
@@ -8313,7 +8313,7 @@
     {
       "lane": "L12",
       "path": "/api/customer-portal/{holdingSlug}/tickets/{bindingId}/files/{linkId}/content",
-      "handler": "packages/feature-portal/src/routes/api/customer-portal/[holdingSlug]/tickets/[bindingId]/files/[linkId]/content/route.ts",
+      "handler": "products/portal/ui/src/routes/api/customer-portal/[holdingSlug]/tickets/[bindingId]/files/[linkId]/content/route.ts",
       "methods": [
         "GET"
       ],
@@ -8342,7 +8342,7 @@
     {
       "lane": "L12",
       "path": "/api/customer-portal/{holdingSlug}/tickets/{bindingId}/acknowledgements",
-      "handler": "packages/feature-portal/src/routes/api/customer-portal/[holdingSlug]/tickets/[bindingId]/acknowledgements/route.ts",
+      "handler": "products/portal/ui/src/routes/api/customer-portal/[holdingSlug]/tickets/[bindingId]/acknowledgements/route.ts",
       "methods": [
         "POST"
       ],
@@ -8380,7 +8380,7 @@
     {
       "lane": "L12",
       "path": "/api/customer-portal/{holdingSlug}/quick-access",
-      "handler": "packages/feature-portal/src/routes/api/customer-portal/[holdingSlug]/quick-access/route.ts",
+      "handler": "products/portal/ui/src/routes/api/customer-portal/[holdingSlug]/quick-access/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -8410,7 +8410,7 @@
     {
       "lane": "L12",
       "path": "/api/customer-portal/{holdingSlug}",
-      "handler": "packages/feature-portal/src/routes/api/customer-portal/[holdingSlug]/route.ts",
+      "handler": "products/portal/ui/src/routes/api/customer-portal/[holdingSlug]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -8450,7 +8450,7 @@
     {
       "lane": "L12",
       "path": "/api/customer-portal/{holdingSlug}/attachments/{...path}",
-      "handler": "packages/feature-portal/src/routes/api/customer-portal/[holdingSlug]/attachments/[[...path]]/route.ts",
+      "handler": "products/portal/ui/src/routes/api/customer-portal/[holdingSlug]/attachments/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST",
@@ -8543,7 +8543,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches POST /api/v1/account/role-selection; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -8619,7 +8619,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches GET /api/v1/account/switcher-context; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -8695,7 +8695,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches POST /api/v1/account/role-selection; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -8771,7 +8771,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches GET /api/v1/account/switcher-context; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -8847,7 +8847,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches POST /api/v1/account/role-selection; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -8923,7 +8923,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches GET /api/v1/account/switcher-context; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -8999,7 +8999,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches POST /api/v1/account/role-selection; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -9075,7 +9075,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches GET /api/v1/account/switcher-context; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -9151,7 +9151,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches POST /api/v1/account/role-selection; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -9227,7 +9227,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches GET /api/v1/account/switcher-context; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -9303,7 +9303,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches POST /api/v1/account/role-selection; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -9379,7 +9379,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches GET /api/v1/account/switcher-context; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -9455,7 +9455,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches POST /api/v1/account/role-selection; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -9531,7 +9531,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches GET /api/v1/account/switcher-context; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -9607,7 +9607,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches POST /api/v1/account/role-selection; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -9683,7 +9683,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches GET /api/v1/account/switcher-context; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -9759,7 +9759,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches POST /api/v1/account/role-selection; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -9835,7 +9835,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches GET /api/v1/account/switcher-context; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -9911,7 +9911,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches POST /api/v1/account/role-selection; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -9987,7 +9987,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches GET /api/v1/account/switcher-context; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -10063,7 +10063,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches POST /api/v1/account/role-selection; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -10139,7 +10139,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches GET /api/v1/account/switcher-context; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -10215,7 +10215,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches POST /api/v1/account/role-selection; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -10291,7 +10291,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches GET /api/v1/account/switcher-context; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -10367,7 +10367,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches POST /api/v1/account/role-selection; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -10443,7 +10443,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches GET /api/v1/account/switcher-context; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -10519,7 +10519,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches POST /api/v1/account/role-selection; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -10595,7 +10595,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches GET /api/v1/account/switcher-context; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -10671,7 +10671,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches POST /api/v1/account/role-selection; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -10747,7 +10747,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches GET /api/v1/account/switcher-context; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -10823,7 +10823,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches POST /api/v1/account/role-selection; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -10899,7 +10899,7 @@
       "consumers": [],
       "blockers": [
         "No Rust HTTP route matches GET /api/v1/account/switcher-context; grep of .route(...) in *.rs under src/ and packages/server-*/src finds only private Holding work-roles, identity control-read-plan and owner-write routes at different paths.",
-        "Business calculation remains in TypeScript: packages/server-work_projection/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
+        "Business calculation remains in TypeScript: modules/work-projection/server/src/adapters/account-switcher.ts:53-108 (inspect, roles, workspaces, frontParts) plus host/origin/CAS/idempotency validation; this is not R1 or R4 transport.",
         "Directly imported server adapters still execute owner SQL in TypeScript (admin-workspace.ts:42, authorization.ts:94, iam-store.ts:93-111, workspace-choices.ts:17-36, product-company.ts:7, package-grants.ts:35, feature-availability.ts:36).",
         "R2-native-exec is present but not native delivery: provider-context-store.ts:21 binds Rust-planned SQL from control_read_plan.rs and lines 27-29/67-72 execute LOCK TABLE and owner write statements on a TS-owned transaction.",
         "R5 semantics need special proof: sessionFromRequest/currentSession cookies, exact-host admission, origin + Idempotency-Key + CAS revision, provider-context lease order and private/no-store headers have no native parity test.",
@@ -10922,7 +10922,7 @@
     {
       "lane": "L14",
       "path": "/api/v1/holdings/{holdingSlug}/page-layouts/{pageKey}",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/page-layouts/[pageKey]/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/page-layouts/[pageKey]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -10980,7 +10980,7 @@
     {
       "lane": "L14",
       "path": "/api/v1/holdings/{holdingSlug}/assignments/active",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/assignments/active/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/assignments/active/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -11049,7 +11049,7 @@
     {
       "lane": "L14",
       "path": "/api/v1/holdings/{holdingSlug}/record-details",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/record-details/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/record-details/route.ts",
       "methods": [
         "GET"
       ],
@@ -11112,7 +11112,7 @@
     {
       "lane": "L14",
       "path": "/api/v1/holdings/{holdingSlug}/overtime-requests/{...path}",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/overtime-requests/[[...path]]/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/overtime-requests/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -11148,7 +11148,7 @@
     {
       "lane": "L14",
       "path": "/api/v1/holdings/{holdingSlug}/iam/{...path}",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/iam/[[...path]]/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/iam/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -11210,7 +11210,7 @@
     {
       "lane": "L14",
       "path": "/api/v1/holdings/{holdingSlug}/work/intake",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/work/intake/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/work/intake/route.ts",
       "methods": [
         "GET"
       ],
@@ -11255,7 +11255,7 @@
     {
       "lane": "L14",
       "path": "/api/v1/holdings/{holdingSlug}/work/review",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/work/review/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/work/review/route.ts",
       "methods": [
         "GET"
       ],
@@ -11300,7 +11300,7 @@
     {
       "lane": "L14",
       "path": "/api/v1/holdings/{holdingSlug}/work/summary",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/work/summary/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/work/summary/route.ts",
       "methods": [
         "GET"
       ],
@@ -11354,7 +11354,7 @@
     {
       "lane": "L14",
       "path": "/api/v1/holdings/{holdingSlug}/work/reports",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/work/reports/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/work/reports/route.ts",
       "methods": [
         "GET"
       ],
@@ -11408,7 +11408,7 @@
     {
       "lane": "L14",
       "path": "/api/v1/holdings/{holdingSlug}/money/{...path}",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/money/[[...path]]/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/money/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -11478,7 +11478,7 @@
     {
       "lane": "L14",
       "path": "/api/v1/holdings/{holdingSlug}/profiles/me",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/profiles/me/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/profiles/me/route.ts",
       "methods": [
         "PATCH"
       ],
@@ -11534,7 +11534,7 @@
     {
       "lane": "L14",
       "path": "/api/v1/holdings/{holdingSlug}/profiles/me/media/{kind}",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/profiles/me/media/[kind]/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/profiles/me/media/[kind]/route.ts",
       "methods": [
         "DELETE",
         "POST"
@@ -11584,7 +11584,7 @@
     {
       "lane": "L14",
       "path": "/api/v1/holdings/{holdingSlug}/profiles/{userId}",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/profiles/[userId]/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/profiles/[userId]/route.ts",
       "methods": [
         "GET"
       ],
@@ -11631,7 +11631,7 @@
     {
       "lane": "L14",
       "path": "/api/v1/holdings/{holdingSlug}/profiles/{userId}/media/{kind}",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/profiles/[userId]/media/[kind]/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/profiles/[userId]/media/[kind]/route.ts",
       "methods": [
         "GET"
       ],
@@ -11678,7 +11678,7 @@
     {
       "lane": "L14",
       "path": "/api/v1/holdings/{holdingSlug}/hospitality-tax-documents",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/hospitality-tax-documents/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/hospitality-tax-documents/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -11714,7 +11714,7 @@
     {
       "lane": "L14",
       "path": "/api/v1/holdings/{holdingSlug}/routing-attention",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/routing-attention/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/routing-attention/route.ts",
       "methods": [
         "GET"
       ],
@@ -11749,7 +11749,7 @@
     {
       "lane": "L14",
       "path": "/api/v1/holdings/{holdingSlug}/companies/active",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/companies/active/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/companies/active/route.ts",
       "methods": [
         "POST"
       ],
@@ -11812,7 +11812,7 @@
     {
       "lane": "L14",
       "path": "/api/v1/me/page-layouts/{pageKey}",
-      "handler": "packages/workplace/src/routes/api/v1/me/page-layouts/[pageKey]/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/me/page-layouts/[pageKey]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -11859,7 +11859,7 @@
     {
       "lane": "L14",
       "path": "/api/v1/front-access/quick-access",
-      "handler": "packages/workplace/src/routes/api/v1/front-access/quick-access/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/front-access/quick-access/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -11897,7 +11897,7 @@
     {
       "lane": "L15",
       "path": "/api/v1/account/preferences",
-      "handler": "packages/workplace/src/routes/api/v1/account/preferences/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/account/preferences/route.ts",
       "methods": [
         "GET",
         "PATCH"
@@ -11967,7 +11967,7 @@
     {
       "lane": "L15",
       "path": "/api/v1/account/work-context",
-      "handler": "packages/workplace/src/routes/api/v1/account/work-context/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/account/work-context/route.ts",
       "methods": [
         "GET"
       ],
@@ -12014,7 +12014,7 @@
     {
       "lane": "L15",
       "path": "/api/v1/onboarding",
-      "handler": "packages/workplace/src/routes/api/v1/onboarding/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/onboarding/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -12061,7 +12061,7 @@
     {
       "lane": "L15",
       "path": "/api/health",
-      "handler": "packages/workplace/src/routes/api/health/route.ts",
+      "handler": "platform/workplace/src/routes/api/health/route.ts",
       "methods": [
         "GET"
       ],
@@ -12120,7 +12120,7 @@
     {
       "lane": "L15",
       "path": "/api/auth/{...all}",
-      "handler": "packages/workplace/src/routes/api/auth/[...all]/route.ts",
+      "handler": "platform/workplace/src/routes/api/auth/[...all]/route.ts",
       "methods": [],
       "class": "R5-provider",
       "catchAll": true,
@@ -12186,7 +12186,7 @@
     {
       "lane": "L15",
       "path": "/api/ready",
-      "handler": "packages/workplace/src/routes/api/ready/route.ts",
+      "handler": "platform/workplace/src/routes/api/ready/route.ts",
       "methods": [
         "GET"
       ],
@@ -12245,7 +12245,7 @@
     {
       "lane": "L15",
       "path": "/api/public/holdings/{holdingSlug}/media-publications/{publicationId}/content",
-      "handler": "packages/workplace/src/routes/api/public/holdings/[holdingSlug]/media-publications/[publicationId]/content/route.ts",
+      "handler": "platform/workplace/src/routes/api/public/holdings/[holdingSlug]/media-publications/[publicationId]/content/route.ts",
       "methods": [
         "GET"
       ],
@@ -12276,7 +12276,7 @@
     {
       "lane": "L16",
       "path": "/api/v1/holdings/{holdingSlug}/assistant/intake",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/assistant/intake/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/assistant/intake/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -12340,7 +12340,7 @@
     {
       "lane": "L16",
       "path": "/api/v1/holdings/{holdingSlug}/assistant",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/assistant/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/assistant/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -12404,7 +12404,7 @@
     {
       "lane": "L16",
       "path": "/api/v1/holdings/{holdingSlug}/hospitality/setup",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/hospitality/setup/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/hospitality/setup/route.ts",
       "methods": [
         "GET"
       ],
@@ -12445,7 +12445,7 @@
     {
       "lane": "L16",
       "path": "/api/v1/holdings/{holdingSlug}/calendar/{...path}",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/calendar/[...path]/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/calendar/[...path]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -12505,7 +12505,7 @@
     {
       "lane": "L16",
       "path": "/api/v1/holdings/{holdingSlug}/calendar",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/calendar/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/calendar/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -12557,7 +12557,7 @@
     {
       "lane": "L16",
       "path": "/api/v1/holdings/{holdingSlug}/media-publications/order",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/media-publications/order/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/media-publications/order/route.ts",
       "methods": [
         "POST"
       ],
@@ -12590,7 +12590,7 @@
         "apps/assets/src/app/api/v1/holdings/[holdingSlug]/media-publications/order/route.ts"
       ],
       "blockers": [
-        "R5 media-publication content path: public bytes are still served by packages/workplace/src/routes/api/public/holdings/[holdingSlug]/media-publications/[publicationId]/content/route.ts; no Rust HTTP route serves publication bytes.",
+        "R5 media-publication content path: public bytes are still served by platform/workplace/src/routes/api/public/holdings/[holdingSlug]/media-publications/[publicationId]/content/route.ts; no Rust HTTP route serves publication bytes.",
         "No exact Rust route for /media-publications/order; branding.rs only constructs a public URL string.",
         "TS unit still resolves/executes owner effects and SQL (nativeWrite fragments, db.batch, advisory locks).",
         "15 app re-exports, live attachment-client caller, no gateway entry or parity test."
@@ -12607,7 +12607,7 @@
     {
       "lane": "L16",
       "path": "/api/v1/holdings/{holdingSlug}/media-publications",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/media-publications/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/media-publications/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -12657,7 +12657,7 @@
     {
       "lane": "L16",
       "path": "/api/v1/holdings/{holdingSlug}/media-publications/{publicationId}/revoke",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/media-publications/[publicationId]/revoke/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/media-publications/[publicationId]/revoke/route.ts",
       "methods": [
         "POST"
       ],
@@ -12699,7 +12699,7 @@
     {
       "lane": "L16",
       "path": "/api/v1/holdings/{holdingSlug}/media-publications/{publicationId}/approve",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/media-publications/[publicationId]/approve/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/media-publications/[publicationId]/approve/route.ts",
       "methods": [
         "POST"
       ],
@@ -12741,7 +12741,7 @@
     {
       "lane": "L16",
       "path": "/api/v1/holdings/{holdingSlug}/staff-tasks/{...path}",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/staff-tasks/[[...path]]/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/staff-tasks/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -12824,7 +12824,7 @@
     {
       "lane": "L16",
       "path": "/api/v1/holdings/{holdingSlug}/requests/{...path}",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/requests/[[...path]]/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/requests/[[...path]]/route.ts",
       "methods": [
         "GET",
         "POST"
@@ -12885,7 +12885,7 @@
     {
       "lane": "L16",
       "path": "/api/v1/holdings/{holdingSlug}/requests/preview",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/requests/preview/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/requests/preview/route.ts",
       "methods": [
         "POST"
       ],
@@ -12936,7 +12936,7 @@
     {
       "lane": "L16",
       "path": "/api/v1/holdings/{holdingSlug}/push",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/push/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/push/route.ts",
       "methods": [
         "DELETE",
         "GET",
@@ -13001,7 +13001,7 @@
     {
       "lane": "L16",
       "path": "/api/v1/holdings/{holdingSlug}/push/session",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/push/session/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/push/session/route.ts",
       "methods": [
         "DELETE"
       ],
@@ -13044,7 +13044,7 @@
     {
       "lane": "L16",
       "path": "/api/v1/holdings/{holdingSlug}/flows/{kind}/{id}",
-      "handler": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/flows/[kind]/[id]/route.ts",
+      "handler": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/flows/[kind]/[id]/route.ts",
       "methods": [
         "GET",
         "POST"

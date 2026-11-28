@@ -2,14 +2,14 @@ import { readFile, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-vi.mock('../../../packages/server-pms/src/adapters/metric-purchases', () => ({
+vi.mock('../../../modules/pms/server/src/adapters/metric-purchases', () => ({
   requirePmsMetricPurchase: vi.fn(async () => {}),
   pmsMetricHistoryAccess: vi.fn(),
 }));
-import { readExecutiveMetricProjection } from '../../../packages/server-pms/src/adapters/executive-metric-projections';
-import { pmsExecutiveMetricLabelHeadSql } from '../../../packages/server-pms/src/adapters/pms-read-tail-r51-sql';
+import { readExecutiveMetricProjection } from '../../../modules/pms/server/src/adapters/executive-metric-projections';
+import { pmsExecutiveMetricLabelHeadSql } from '../../../modules/pms/server/src/adapters/pms-read-tail-r51-sql';
 
-const dir = new URL('../../../packages/server-pms/src/', import.meta.url);
+const dir = new URL('../../../modules/pms/server/src/', import.meta.url);
 const src = (name: string) => readFile(new URL(name, dir), 'utf8');
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 

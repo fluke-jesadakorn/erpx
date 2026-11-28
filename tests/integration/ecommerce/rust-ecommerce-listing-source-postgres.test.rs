@@ -4,14 +4,14 @@
 //! the Company functional currency joined to the Finance chart base. They prove
 //! Company isolation, fail-closed reads and exact oracle parity, not a Next or
 //! browser journey.
-use erpx_server_commerce::public::ecommerce_listing_source::{
+use erpx_commerce_server::public::ecommerce_listing_source::{
     EcommerceListingCurrency, active_product, functional_currency,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabaseConfig, DatabasePool, MigrationTrack, PoolLimits, connect_pool, load_migrations,
     migrate_database,
 };
-use erpx_server_shared::public::CompanyId;
+use erpx_platform_shared_server::public::CompanyId;
 use sqlx::{AssertSqlSafe, Connection, PgConnection, postgres::PgConnectOptions};
 use std::{str::FromStr, sync::atomic::AtomicU64, time::Duration};
 

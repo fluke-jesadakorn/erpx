@@ -1,8 +1,8 @@
 import {afterEach,beforeAll,beforeEach,expect,it,vi} from "vitest";
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {benefitWorkItems} from "@erpx/server-benefits/domain/benefits";
-import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
+import {benefitWorkItems} from "@erpx/benefits-server/domain/benefits";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
 
 type Fixture=Awaited<ReturnType<typeof expenseFixture>>;
 let f:Fixture;

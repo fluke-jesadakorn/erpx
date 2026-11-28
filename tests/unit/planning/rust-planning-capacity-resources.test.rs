@@ -1,15 +1,15 @@
 //! Native Planning capacity, resource and calendar decisions.
-use erpx_server_planning::public::planning::PlanningActor;
-use erpx_server_planning::public::resources::{
+use erpx_planning_server::public::planning::PlanningActor;
+use erpx_planning_server::public::resources::{
     CalendarPlan, CalendarRequest, CalendarRow, PlanningResourceCommandRepository, ResourcePlan,
     ResourceRequest, ResourceRow, save_calendar, save_resource,
 };
-use erpx_server_planning::public::scenario::{
+use erpx_planning_server::public::scenario::{
     CapacityCalendarDay, CapacityFuture, CapacityInput, CapacityOperation,
     PlanningCapacityRepository, ReceiptSnapshot, calculate_capacity, capacity_unavailable,
     consolidate_allocations, default_capacity, next_capacity_date, weekday,
 };
-use erpx_server_shared::public::{BusinessError, CommandKey, CompanyId, RecordId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey, CompanyId, RecordId, TimestampMillis};
 use std::cell::RefCell;
 use std::future::Future;
 use std::pin::Pin;
@@ -108,7 +108,7 @@ fn date_helpers_match_javascript_utc_semantics() {
     assert_eq!(default_capacity("2026-10-03", &[1, 2, 3, 4, 5], 480), 0);
     assert_eq!(default_capacity("2026-10-05", &[1, 2, 3, 4, 5], 480), 480);
     let consolidated = consolidate_allocations(vec![
-        erpx_server_planning::public::planning::PlanningContextAllocation {
+        erpx_planning_server::public::planning::PlanningContextAllocation {
             resource_id: "machine".into(),
             work_date: "2026-10-02".into(),
             minutes: 20,
@@ -116,7 +116,7 @@ fn date_helpers_match_javascript_utc_semantics() {
             calendar_version: 0,
             available_minutes: 120,
         },
-        erpx_server_planning::public::planning::PlanningContextAllocation {
+        erpx_planning_server::public::planning::PlanningContextAllocation {
             resource_id: "machine".into(),
             work_date: "2026-10-02".into(),
             minutes: 30,

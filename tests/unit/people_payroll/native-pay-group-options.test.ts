@@ -9,7 +9,7 @@ import {
   SQL_ORACLE_SHA256,
   type Lane9Actor,
   type Transport,
-} from "../../../packages/server-people_payroll/src/adapters/native-pay-group-options";
+} from "../../../modules/people-payroll/server/src/adapters/native-pay-group-options";
 
 const ENV = "ERPX_NATIVE_PEOPLE_PAYROLL_LANE9_CONFIG";
 const ORIGINAL = process.env[ENV];
@@ -124,7 +124,7 @@ describe("native active pay-group options transport", () => {
 
   it("the transport source carries no SQL literal", () => {
     const source = readFileSync(
-      resolve(__dirname, "../../../packages/server-people_payroll/src/adapters/native-pay-group-options.ts"),
+      resolve(__dirname, "../../../modules/people-payroll/server/src/adapters/native-pay-group-options.ts"),
       "utf8",
     );
     expect(source).not.toMatch(/\bSELECT\b|hr_pay_groups|status='active'/i);

@@ -2,7 +2,7 @@
 //! read port (`G4 / migrate.runtime.control-plane-read-port`).
 //!
 //! For every read family the retained TypeScript statement (copied verbatim
-//! from `packages/server-runtime/src/adapters/runtime/{postgres,migrations}.ts`)
+//! from `platform/runtime/server/src/adapters/runtime/{postgres,migrations}.ts`)
 //! and the owner's native port run against the same leased PostgreSQL database.
 //! SQL text and projected results must agree, and native lock/unlock wrappers
 //! must be mutually visible with the retained TypeScript statements. Nothing
@@ -12,7 +12,7 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_runtime::public::postgres::control_plane as port;
+use erpx_platform_runtime_server::public::postgres::control_plane as port;
 use sqlx::AssertSqlSafe;
 
 // Verbatim retained TypeScript statements. `postgres.ts` converts `?` to `$n`;
@@ -32,9 +32,9 @@ const LIVE_PAIR_LOCK: &str = "SELECT pg_advisory_lock(hashtext($1),hashtext($2))
 const LIVE_PAIR_UNLOCK: &str = "SELECT pg_advisory_unlock(hashtext($1),hashtext($2)) released";
 
 const MIGRATIONS_TS: &str =
-    include_str!("../../../packages/server-runtime/src/adapters/runtime/migrations.ts");
+    include_str!("../../../platform/runtime/server/src/adapters/runtime/migrations.ts");
 const POSTGRES_TS: &str =
-    include_str!("../../../packages/server-runtime/src/adapters/runtime/postgres.ts");
+    include_str!("../../../platform/runtime/server/src/adapters/runtime/postgres.ts");
 
 /// The port constants must remain verbatim in the retained TypeScript
 /// authority. This check needs no database and catches SQL drift immediately.

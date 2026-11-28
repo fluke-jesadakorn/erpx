@@ -13,7 +13,7 @@
 //! functions reconstruct the retained TypeScript strings verbatim and the
 //! parity tests assert byte equality, then execute the native statements on a
 //! seeded database so an invalid SQL shape cannot pass as "ported".
-use erpx_server_pos::public::day_control_reads as mounted;
+use erpx_pos_server::public::day_control_reads as mounted;
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row, postgres::PgConnectOptions};
 use std::str::FromStr;
 
@@ -420,23 +420,23 @@ where
         let owned = admin_options.clone().database(&name);
         let mut connection = PgConnection::connect_with(&owned).await.unwrap();
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
-        let files = erpx_server_runtime::public::postgres::load_migrations(
+        let files = erpx_platform_runtime_server::public::postgres::load_migrations(
             root,
-            erpx_server_runtime::public::postgres::MigrationTrack::HoldingWrite,
+            erpx_platform_runtime_server::public::postgres::MigrationTrack::HoldingWrite,
         )
         .await
         .unwrap();
-        erpx_server_runtime::public::postgres::migrate_database(
-            &erpx_server_runtime::public::postgres::connect_pool(
-                &erpx_server_runtime::public::postgres::DatabaseConfig::from_options(owned).unwrap(),
-                erpx_server_runtime::public::postgres::PoolLimits {
+        erpx_platform_runtime_server::public::postgres::migrate_database(
+            &erpx_platform_runtime_server::public::postgres::connect_pool(
+                &erpx_platform_runtime_server::public::postgres::DatabaseConfig::from_options(owned).unwrap(),
+                erpx_platform_runtime_server::public::postgres::PoolLimits {
                     max_connections: 2,
                     acquire_timeout: std::time::Duration::from_secs(5),
                 },
             )
             .await
             .unwrap(),
-            erpx_server_runtime::public::postgres::MigrationTrack::HoldingWrite,
+            erpx_platform_runtime_server::public::postgres::MigrationTrack::HoldingWrite,
             &files,
         )
         .await

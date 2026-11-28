@@ -2,19 +2,19 @@ import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
-import { platformOwnerProjectionSources as people_payrollPlatformSources } from '@erpx/server-people_payroll/public/platform-owner-projection-sources';
-import { authoritySeatExistsSql } from '../../../packages/server-organization/src/adapters/organization-read-tail-sources-r57';
-import { personEngagementJoin } from '../../../packages/server-organization/src/adapters/organization-read-tail-sources-r55';
+import { platformOwnerProjectionSources as people_payrollPlatformSources } from '@erpx/people-payroll-server/public/platform-owner-projection-sources';
+import { authoritySeatExistsSql } from '../../../modules/organization/server/src/adapters/organization-read-tail-sources-r57';
+import { personEngagementJoin } from '../../../modules/organization/server/src/adapters/organization-read-tail-sources-r55';
 
-vi.mock('@erpx/server-workflow/public/command-assertions', () => ({
+vi.mock('@erpx/workflow-server/public/command-assertions', () => ({
   assertion: (db: unknown, commandId: string, step: string, query: string, args: unknown[]) => ({
     commandId, step, query, args,
   }),
 }));
 
-import { createApprovalsSourceRepository } from '../../../packages/server-organization/src/adapters/workflow-approvals-facts';
+import { createApprovalsSourceRepository } from '../../../modules/organization/server/src/adapters/workflow-approvals-facts';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+const srcRoot = resolve(__dirname, '../../../modules/organization/server/src');
 const adapters = resolve(srcRoot, 'adapters');
 const read = (name: string) => readFileSync(resolve(adapters, name), 'utf8');
 const count = (src: string, needle: string) => src.split(needle).length - 1;

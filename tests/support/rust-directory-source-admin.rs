@@ -6,12 +6,12 @@ pub mod ldap;
 #[allow(dead_code, reason = "shared actual Account and MFA fixture")]
 #[path = "rust-account-security.rs"]
 pub mod security;
-use erpx_server_identity_access::public::{
+use erpx_identity_access_server::public::{
     account_security::*, directory::*, effective_authority::HoldingWorkAuthorizer, work_context::*,
     *,
 };
-use erpx_server_shared::public::{AssignmentId, Clock, CommandKey, CompanyId, HoldingId, RecordId};
-use erpx_service::directory_source_administration::*;
+use erpx_platform_shared_server::public::{AssignmentId, Clock, CommandKey, CompanyId, HoldingId, RecordId};
+use erpx_platform_composition::directory_source_administration::*;
 pub use security::fixture as account;
 use std::{collections::BTreeMap, sync::Arc};
 pub const HOST: &str = "acme.example.test";

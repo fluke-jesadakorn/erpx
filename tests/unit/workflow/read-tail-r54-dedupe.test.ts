@@ -3,11 +3,11 @@ import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { fragments } from '../../../packages/server-workflow/src/adapters/read-fragments';
-import { nativeApprovalPlanningPorts } from '../../../packages/server-workflow/src/adapters/approval-planning';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import { fragments } from '../../../modules/workflow/server/src/adapters/read-fragments';
+import { nativeApprovalPlanningPorts } from '../../../modules/workflow/server/src/adapters/approval-planning';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-workflow/src');
+const srcRoot = resolve(__dirname, '../../../modules/workflow/server/src');
 const src = (rel: string) => readFile(resolve(srcRoot, rel), 'utf8');
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 type Oracle = readonly [digest: string, length: number, binds: number];

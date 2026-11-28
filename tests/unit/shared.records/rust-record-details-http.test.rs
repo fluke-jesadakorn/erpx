@@ -1,11 +1,11 @@
 //! Actual owner-local HTTP router tests for the native Records drawer-detail read.
-use erpx_server_records::public::record_details_http::{
+use erpx_records_server::public::record_details_http::{
     RecordsDetailsHttpBackend, RecordsDetailsHttpCommand, RecordsDetailsHttpFuture,
     RecordsDetailsHttpRequest, RecordsDetailsHttpResponse, RecordsDetailsHttpTarget,
     records_details_http_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Probe {

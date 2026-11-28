@@ -3,7 +3,7 @@ import { afterEach, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 const { nativeRequest } = vi.hoisted(() => ({ nativeRequest: vi.fn() }));
-vi.mock("@erpx/server-runtime/public/native-http", () => ({ nativeRequest }));
+vi.mock("@erpx/platform-runtime-server/public/native-http", () => ({ nativeRequest }));
 
 import {
   nativeIdentityIds,
@@ -15,11 +15,11 @@ import {
   nativeLane11Configured,
   setNativeLane11ForTest,
   type NativeLane11Actor,
-} from "../../../packages/server-identity_access/src/adapters/native-lane-11/client";
+} from "../../../modules/identity-access/server/src/adapters/native-lane-11/client";
 import {
   currentPersonPrincipals,
   personIdentityIds,
-} from "../../../packages/server-identity_access/src/adapters/iam-person";
+} from "../../../modules/identity-access/server/src/adapters/iam-person";
 
 const holding = (holdingId: string, holdingSlug: string, host: string) => ({
   origin: `https://${host}`,

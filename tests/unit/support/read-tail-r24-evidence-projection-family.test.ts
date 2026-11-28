@@ -3,18 +3,18 @@ import { resolve } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
-vi.mock('@erpx/server-support/adapters/command-runtime', () => ({
+vi.mock('@erpx/support-server/adapters/command-runtime', () => ({
     nativeSupportRuntime: () => ({ purchase: async () => ({ history: true }), requirePurchase: async () => ({ history: true }) }),
 }));
-vi.mock('@erpx/server-support/adapters/ticket-source-read-policy', () => ({
+vi.mock('@erpx/support-server/adapters/ticket-source-read-policy', () => ({
     supportTicketSourceReadPredicate: async () => ({ sql: 'SOURCE_PREDICATE', bindings: ['src'] }),
 }));
 
-import { executiveMainEvidenceSources } from '../../../packages/server-support/src/adapters/executive-main-evidence-sources';
-import { supportTicketReadPredicate } from '../../../packages/server-support/src/adapters/support-ticket-read';
-import { supportIncidentReadPredicate } from '../../../packages/server-support/src/adapters/support-incident-read';
+import { executiveMainEvidenceSources } from '../../../modules/support/server/src/adapters/executive-main-evidence-sources';
+import { supportTicketReadPredicate } from '../../../modules/support/server/src/adapters/support-ticket-read';
+import { supportIncidentReadPredicate } from '../../../modules/support/server/src/adapters/support-incident-read';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-support/src');
+const srcRoot = resolve(__dirname, '../../../modules/support/server/src');
 const src = (p: string) => readFileSync(resolve(srcRoot, p), 'utf8');
 const evidence = src('adapters/executive-main-evidence-sources.ts');
 const actor = {
@@ -54,7 +54,7 @@ function capture() {
                 async first() { return null; },
             };
         },
-    } as unknown as import('@erpx/server-runtime/public/runtime/types').SqlDatabase;
+    } as unknown as import('@erpx/platform-runtime-server/public/runtime/types').SqlDatabase;
     return { db, calls, sources: executiveMainEvidenceSources(db) };
 }
 const input = (metric: 'active-support-incidents' | 'open-support-tickets' | 'overdue-support-sla') =>

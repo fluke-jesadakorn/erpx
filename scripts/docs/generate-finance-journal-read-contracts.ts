@@ -5,7 +5,7 @@ const root = resolve(import.meta.dir, "../..");
 const arguments_ = process.argv.slice(2);
 if (arguments_.some(value => value !== "--check") || arguments_.length > 1) throw new Error("FINANCE_JOURNAL_READ_CONTRACT_ARGUMENTS_INVALID");
 const cargo = process.env.ERPX_CARGO_BIN ?? "cargo";
-const command = [cargo, "run", "--quiet", "--locked", "--package", "erpx-service", "--example", "export-finance-journal-read-contracts", "--features", "contracts"];
+const command = [cargo, "run", "--quiet", "--locked", "--package", "erpx-platform-composition", "--example", "export-finance-journal-read-contracts", "--features", "contracts"];
 const generated = Bun.spawnSync(command, { cwd: root, stdout: "pipe", stderr: "pipe" });
 if (generated.exitCode !== 0) {
   process.stderr.write(generated.stderr);
@@ -18,7 +18,7 @@ if (openapi.exitCode !== 0) { process.stderr.write(openapi.stderr); throw new Er
 const specification = openapi.stdout.toString();
 const document: unknown = JSON.parse(specification);
 if (!document || typeof document !== "object" || !("openapi" in document) || !("paths" in document)) throw new Error("FINANCE_JOURNAL_READ_OPENAPI_OUTPUT_INVALID");
-for (const [relative, content] of [["packages/contracts/src/finance-journal-read.generated.ts", source], ["docs/contracts/next/finance-journal-read.openapi.generated.json", specification]]) {
+for (const [relative, content] of [["platform/contracts/src/finance-journal-read.generated.ts", source], ["docs/contracts/next/finance-journal-read.openapi.generated.json", specification]]) {
   const destination = resolve(root, relative);
   if (arguments_.includes("--check")) {
     if (!existsSync(destination) || readFileSync(destination, "utf8") !== content) throw new Error(`FINANCE_JOURNAL_READ_CONTRACTS_STALE:${relative}`);

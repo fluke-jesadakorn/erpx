@@ -1,4 +1,4 @@
-use erpx_server_identity_access::public::effective_authority::{
+use erpx_identity_access_server::public::effective_authority::{
     AuthorizedWorkContext, QueuedWorkBinding, effective_authority_permissions,
 };
 #[test]
@@ -27,7 +27,7 @@ fn serialized_queue_history_requires_every_native_witness_and_is_not_an_authoriz
     assert!(QueuedWorkBinding::parse(&forged.to_string()).is_err());
     assert!(QueuedWorkBinding::parse(&" ".repeat(16385)).is_err());
 }
-use erpx_server_identity_access::public::work_admission::*;
+use erpx_identity_access_server::public::work_admission::*;
 use serde::Deserialize;
 #[test]
 fn sealed_context_cannot_be_deserialized_or_cloned_and_hr_role_is_not_an_appointment() {
@@ -137,7 +137,7 @@ fn catalogs_and_non_route_destinations_fail_closed() {
 
 #[test]
 fn route_permission_alternatives_preserve_exact_and_empty_denial() {
-    use erpx_server_identity_access::public::effective_authority::WorkPermissionRequirement;
+    use erpx_identity_access_server::public::effective_authority::WorkPermissionRequirement;
     use std::collections::BTreeSet;
     let support = BTreeSet::from(["support.read".to_string()]);
     let records = BTreeSet::from(["records.read".to_string()]);

@@ -4,7 +4,7 @@ import {resolve} from 'node:path';
 
 vi.mock('server-only',()=>({}));
 
-const srcRoot=resolve(__dirname,'../../../packages/server-assets/src');
+const srcRoot=resolve(__dirname,'../../../modules/assets/server/src');
 const src=(p:string)=>readFileSync(resolve(srcRoot,p),'utf8');
 const ownerSelectCount=()=>{
  let selects=0;
@@ -21,7 +21,7 @@ const ownerSelectCount=()=>{
 
 describe('Assets read-tail r35 scope-tuple universal head family',()=>{
  it('renders the work-scope tuple byte-identically from the one universal head',async()=>{
-  const {assetScopeTupleSql,assetSelectProjectionSql}=await import('../../../packages/server-assets/src/adapters/asset-scope-tuple');
+  const {assetScopeTupleSql,assetSelectProjectionSql}=await import('../../../modules/assets/server/src/adapters/asset-scope-tuple');
   // Pre-r35 tuple literals, rebuilt verbatim; no projection, alias or bind changes.
   const tuple=(alias:string)=>`(SELECT ?::text company_id,?::text branch_id,?::text department_id) ${alias}`;
   for(const alias of ['asset_file_scope','workforce_actor_scope','asset_record_source']){
@@ -35,8 +35,8 @@ describe('Assets read-tail r35 scope-tuple universal head family',()=>{
  });
 
  it('keeps every real scope-tuple call site byte-identical with unchanged binds',async()=>{
-  const {assetScopeTupleSql,assetProjectionFromSql,assetCurrentScopeProbeSql}=await import('../../../packages/server-assets/src/adapters/asset-scope-tuple');
-  const {assignmentReadSql}=await import('@erpx/server-identity_access/public/record-source-authority');
+  const {assetScopeTupleSql,assetProjectionFromSql,assetCurrentScopeProbeSql}=await import('../../../modules/assets/server/src/adapters/asset-scope-tuple');
+  const {assignmentReadSql}=await import('@erpx/identity-access-server/public/record-source-authority');
   const tuple=(alias:string)=>`(SELECT ?::text company_id,?::text branch_id,?::text department_id) ${alias}`;
   // Attachment authority assertion: the FROM fragment still carries the same tuple.
   const authorityFrom=` ${assetScopeTupleSql('asset_file_scope')}`;

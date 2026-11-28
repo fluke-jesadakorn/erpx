@@ -7,8 +7,8 @@ const { calls } = vi.hoisted(() => ({
 }));
 
 vi.mock('server-only', () => ({}));
-vi.mock('@erpx/server-support/adapters/native-support-read', async (importOriginal) => {
-    const original = await importOriginal<typeof import('../../../packages/server-support/src/adapters/native-support-read')>();
+vi.mock('@erpx/support-server/adapters/native-support-read', async (importOriginal) => {
+    const original = await importOriginal<typeof import('../../../modules/support/server/src/adapters/native-support-read')>();
     return {
         ...original,
         nativeSupportReadAll: async (kind: string, values: readonly unknown[]) => {
@@ -18,14 +18,14 @@ vi.mock('@erpx/server-support/adapters/native-support-read', async (importOrigin
     };
 });
 
-import { serviceMember, companyMember } from '../../../packages/server-support/src/adapters/service-access';
+import { serviceMember, companyMember } from '../../../modules/support/server/src/adapters/service-access';
 import {
     SUPPORT_RD_SERVICE_MEMBER,
     SUPPORT_RD_COMPANY_MEMBER,
-} from '../../../packages/server-support/src/adapters/native-support-read';
-import { finalRootOwnerProjectionSources } from '@erpx/server-identity_access/public/final-root-owner-projection-sources';
+} from '../../../modules/support/server/src/adapters/native-support-read';
+import { finalRootOwnerProjectionSources } from '@erpx/identity-access-server/public/final-root-owner-projection-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-support/src');
+const srcRoot = resolve(__dirname, '../../../modules/support/server/src');
 const src = (p: string) => readFileSync(resolve(srcRoot, p), 'utf8');
 const access = src('adapters/service-access.ts');
 const registry = src('adapters/native_support_read_sql.rs');

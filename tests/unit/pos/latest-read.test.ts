@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { createLatestRead } from "@erpx/feature-shared/lib/latest-read";
-import {createPosSeedReadGate,isLivePosTab,posReadKey} from "@erpx/feature-pos/lib/pos-read-identity";
+import { createLatestRead } from "@erpx/platform-shared-ui/lib/latest-read";
+import {createPosSeedReadGate,isLivePosTab,posReadKey} from "@erpx/pos-ui/lib/pos-read-identity";
 
 describe("POS background reads", () => {
   it("reuses the server read, including repeated mount effects, but reloads changed or revisited filters",()=>{

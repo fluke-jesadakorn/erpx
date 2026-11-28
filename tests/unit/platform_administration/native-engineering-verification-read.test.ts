@@ -10,9 +10,9 @@ import {
   nativeEngineeringActiveRead,
   nativeEngineeringReplyGuard,
   nativeEngineeringReadAvailable,
-} from '../../../packages/server-platform_administration/src/adapters/native-engineering-verification-read/client';
+} from '../../../modules/platform-administration/server/src/adapters/native-engineering-verification-read/client';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-platform_administration/src');
+const srcRoot = resolve(__dirname, '../../../modules/platform-administration/server/src');
 const source = (relative: string) => readFileSync(resolve(srcRoot, relative), 'utf8');
 const validRaw = JSON.stringify({
   privateBaseUrl: 'http://127.0.0.1:4099',

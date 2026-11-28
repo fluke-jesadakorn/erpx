@@ -1,13 +1,13 @@
 //! Native Agent evidence HTTP transport facts over a real loopback listener.
-use erpx_server_platform_administration::public::agent_evidence_http::{
+use erpx_platform_administration_server::public::agent_evidence_http::{
     AgentEvidenceHttpBackend, AgentEvidenceHttpFuture, AgentEvidenceHttpQuery,
     AgentEvidenceHttpReadRequest, AgentEvidenceHttpResponse, AgentEvidenceHttpTarget,
     agent_evidence_http_router,
 };
-use erpx_server_runtime::public::http_support::{
+use erpx_platform_runtime_server::public::http_support::{
     Router, serde_json::Value, serde_json::json, serve,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},

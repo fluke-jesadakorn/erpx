@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { appDefinitions } from "@erpx/contracts/apps";
+import { appDefinitions } from "@erpx/platform-contracts/apps";
 
 const legacyMarker = "/* ERPX: cyclic React development debug metadata */";
 const marker = "/* ERPX: bounded cyclic React development debug metadata */";

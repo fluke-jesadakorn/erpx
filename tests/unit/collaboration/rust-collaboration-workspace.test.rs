@@ -1,15 +1,15 @@
 //! Pure legacy Collaboration workspace facts: visible-source resolution, the
 //! additive presentation hook and the retained source list. Database scope
 //! filtering lives in the PostgreSQL companion test.
-use erpx_server_collaboration::public::collaboration_work::{
+use erpx_collaboration_server::public::collaboration_work::{
     CollaborationSourcePort, SourcePresentation, WORKSPACE_SOURCE_TYPES, hidden_source,
     resolve_source,
 };
-use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
-use erpx_server_shared::public::record_source_contract::{
+use erpx_platform_runtime_server::public::postgres::{PersistenceError, PgTransactionError};
+use erpx_platform_shared_server::public::record_source_contract::{
     SourceKind, SourceRecord, SourceReference,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 
 fn record(kind: SourceKind, id: &str, company: &str, title: &str) -> SourceRecord {
     SourceRecord {

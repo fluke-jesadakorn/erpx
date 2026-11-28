@@ -3,11 +3,11 @@ import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { operationsAliasSelectAll } from '../../../packages/server-operations/src/adapters/operations-alias-select-all';
-import { OPERATIONS_VIEWER_CLOCK_SQL } from '../../../packages/server-operations/src/adapters/workforce-actor-scope-source';
+import { operationsAliasSelectAll } from '../../../modules/operations/server/src/adapters/operations-alias-select-all';
+import { OPERATIONS_VIEWER_CLOCK_SQL } from '../../../modules/operations/server/src/adapters/workforce-actor-scope-source';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-operations/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-operations/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/operations/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/operations/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const sha = (sql: string) => createHash('sha256').update(sql).digest('hex');
 const binds = (sql: string) => (sql.match(/\?/g) ?? []).length;
 
@@ -59,7 +59,7 @@ describe('operations read-tail r59 alias-qualified select-all head retirement', 
   it('retires the getTemplate detail statement and its public export', async () => {
     const [routines, publicEntry] = await Promise.all([
       src('routines.ts'),
-      readFile(new URL('../../../packages/server-operations/src/public/routines.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/operations/server/src/public/routines.ts', import.meta.url), 'utf8'),
     ]);
     expect(routines).not.toContain('getTemplate');
     expect(routines).not.toContain('readGetTemplateRow');

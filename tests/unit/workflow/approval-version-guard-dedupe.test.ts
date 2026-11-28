@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { nativeApprovalPlanningPorts } from '../../../packages/server-workflow/src/adapters/approval-planning';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import { nativeApprovalPlanningPorts } from '../../../modules/workflow/server/src/adapters/approval-planning';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
 
 // guard31 builds a native assertion descriptor synchronously; no DB execution occurs.
 const db = { batch: () => { throw new Error('unexpected batch'); } } as unknown as SqlDatabase;
@@ -57,8 +57,8 @@ describe('approval record/version guard dedupe (r28)', () => {
   it('shares one byte-identical EXISTS head literal (r50 folds it into closed-projection-sources)', async () => {
     const { readFile } = await import('node:fs/promises');
     const [src, shared] = await Promise.all([
-      readFile(new URL('../../../packages/server-workflow/src/adapters/approval-planning.ts', import.meta.url), 'utf8'),
-      readFile(new URL('../../../packages/server-workflow/src/adapters/closed-projection-sources.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/workflow/server/src/adapters/approval-planning.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/workflow/server/src/adapters/closed-projection-sources.ts', import.meta.url), 'utf8'),
     ]);
     expect(src.match(/EXISTS\(SELECT 1 FROM \$\{table\} WHERE /g) ?? []).toHaveLength(0);
     expect(shared.match(/EXISTS\(SELECT 1 FROM \$\{table\} WHERE /g) ?? []).toHaveLength(1);

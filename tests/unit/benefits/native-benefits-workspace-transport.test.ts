@@ -1,8 +1,8 @@
 import {describe,it,expect,vi} from 'vitest';
 vi.mock('server-only',()=>({}));
-vi.mock('@erpx/server-manage_erpx/public/public-origin',()=>({requestPublicOrigin:()=>'https://acme.example.com'}));
-vi.mock('@erpx/feature-work_projection/lib/destination-links',()=>({canonicalDestinationLinks:(value:unknown)=>value}));
-vi.mock('@erpx/server-identity_access/public/authorization',()=>({requireWorkContext:async()=>({
+vi.mock('@erpx/manage-erpx-server/public/public-origin',()=>({requestPublicOrigin:()=>'https://acme.example.com'}));
+vi.mock('@erpx/work-projection-ui/lib/destination-links',()=>({canonicalDestinationLinks:(value:unknown)=>value}));
+vi.mock('@erpx/identity-access-server/public/authorization',()=>({requireWorkContext:async()=>({
   userId:'user',holdingId:'h001',holdingSlug:'acme',companyId:'company',branchId:null,departmentId:null,
   assignmentId:'assignment',role:'owner',modules:['benefits'],iam:{permissions:['records.read','records.write']},
 })}));
@@ -12,7 +12,7 @@ import {
   nativeBenefitsConfiguration,
   NativeBenefitsError,
   type NativeBenefitsPageContext,
-} from '../../../packages/feature-benefits/src/public/native-benefits-workspace';
+} from '../../../modules/benefits/ui/src/public/native-benefits-workspace';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44997',
@@ -292,7 +292,7 @@ describe('native Benefits workspace transport',()=>{
   const previous=process.env.ERPX_NATIVE_BENEFITS_CONFIG;
   delete process.env.ERPX_NATIVE_BENEFITS_CONFIG;
   expect(nativeBenefitsAvailable()).toBe(false);
-  const {nativeBenefitsWorkspace,nativeBenefitCommand,nativeBenefitDetail}=await import('../../../packages/feature-benefits/src/public/native-benefits-workspace-page');
+  const {nativeBenefitsWorkspace,nativeBenefitCommand,nativeBenefitDetail}=await import('../../../modules/benefits/ui/src/public/native-benefits-workspace-page');
   for(const call of [
    nativeBenefitsWorkspace(actor as never),
    nativeBenefitCommand(actor as never,{entity:'plan'},'command-key-1',incoming()),
@@ -304,7 +304,7 @@ describe('native Benefits workspace transport',()=>{
  it('does not fall back when a configured native Benefits selector is malformed',async()=>{
   const previous=process.env.ERPX_NATIVE_BENEFITS_CONFIG;
   process.env.ERPX_NATIVE_BENEFITS_CONFIG='{not-json';
-  const {nativeBenefitsWorkspace,nativeBenefitCommand,nativeBenefitDetail}=await import('../../../packages/feature-benefits/src/public/native-benefits-workspace-page');
+  const {nativeBenefitsWorkspace,nativeBenefitCommand,nativeBenefitDetail}=await import('../../../modules/benefits/ui/src/public/native-benefits-workspace-page');
   await expect(nativeBenefitsWorkspace(actor as never)).rejects.toMatchObject({
     status:503,code:'NATIVE_BENEFITS_UNAVAILABLE',
   });
@@ -342,7 +342,7 @@ describe('native Benefits workspace transport',()=>{
  });
 
  it('maps transport failures to the retained page/route status policy',async()=>{
-  const {nativeBenefitsFailure}=await import('../../../packages/feature-benefits/src/public/native-benefits-workspace-page');
+  const {nativeBenefitsFailure}=await import('../../../modules/benefits/ui/src/public/native-benefits-workspace-page');
   expect(nativeBenefitsFailure(new NativeBenefitsError('NATIVE_BENEFITS_CONTEXT_CHANGED')))
     .toMatchObject({status:409,code:'WORK_CONTEXT_CHANGED'});
   expect(nativeBenefitsFailure(new NativeBenefitsError('NATIVE_BENEFITS_REQUEST_INVALID')))

@@ -3,9 +3,9 @@ import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 
-const adapters = new URL('../../../packages/server-maintenance/src/adapters/', import.meta.url);
+const adapters = new URL('../../../modules/maintenance/server/src/adapters/', import.meta.url);
 const src = (name: string) => readFile(new URL(name, adapters), 'utf8');
-const srcRoot = resolve(__dirname, '../../../packages/server-maintenance/src');
+const srcRoot = resolve(__dirname, '../../../modules/maintenance/server/src');
 
 /** Pre-r28 byte oracles: the three facts UNION rows rendered by the retired
  * `SELECT ${kind},${columns} FROM ${from}` inline head. */
@@ -20,10 +20,10 @@ const occurrenceColumns = "occurrence.id,occurrence.plan_version,'ambiguous-sour
 
 describe('maintenance read-tail r28 fact-row delegation', () => {
   it('renders all three facts UNION rows byte-identically through settlementRefSource', async () => {
-    const { factRow, maintenancePackageSettlementSources } = await import('../../../packages/server-maintenance/src/adapters/package-obligations');
-    const { settlementRefSource } = await import('../../../packages/server-maintenance/src/adapters/asset-settlement-refs');
-    const { projectionLookup } = await import('../../../packages/server-maintenance/src/adapters/projection-lookup');
-    const { assetPackageSettlementSources: as } = await import('../../../packages/server-assets/src/public/package-obligations');
+    const { factRow, maintenancePackageSettlementSources } = await import('../../../modules/maintenance/server/src/adapters/package-obligations');
+    const { settlementRefSource } = await import('../../../modules/maintenance/server/src/adapters/asset-settlement-refs');
+    const { projectionLookup } = await import('../../../modules/maintenance/server/src/adapters/projection-lookup');
+    const { assetPackageSettlementSources: as } = await import('../../../modules/assets/server/src/public/package-obligations');
     const { work } = maintenancePackageSettlementSources;
     const occurrenceFrom = `maintenance_preventive_occurrences occurrence JOIN plans plan ON plan.id=occurrence.plan_id LEFT JOIN (${work}) generated ON generated.id=occurrence.work_order_id AND generated.company_id=plan.company_id WHERE generated.id IS NULL OR generated.asset_id<>plan.asset_id OR occurrence.plan_version>plan.version OR NOT generated.source_valid OR occurrence.source_asset_version>${projectionLookup("version", as.assets, "actual", "actual.id=plan.asset_id AND actual.company_id=plan.company_id")}`;
     const occurrenceRow = `SELECT ${occurrenceKind},${occurrenceColumns} FROM ${occurrenceFrom}`;

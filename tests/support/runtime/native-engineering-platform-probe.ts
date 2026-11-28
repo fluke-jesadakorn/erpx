@@ -7,9 +7,9 @@ const run=process.env.ERPX_FENCE_RUN,token=process.env.ERPX_FENCE_TOKEN;
 if(!run||!/^[a-f0-9]{12}$/.test(run)||!token||!/^[a-f0-9]{32}$/.test(token))throw Error('OWNED_PLATFORM_PROBE_REQUIRED');
 const directory=`/tmp/.runtime/browser/${run}`,source='a'.repeat(64),name=`erpx_dev_rust_${token}`,lease=`erpx-rust-test:${token}`;
 Object.assign(process.env,{NODE_ENV:'production',ERPX_ENVIRONMENT:'local',PORT:'3104',ERPX_BROWSER_SIMULATION_PORT:'3104',ERPX_ENGINEERING_VERIFICATION_RUN:run,ERPX_DATA_DIR:directory,ERPX_DATABASE_MANIFEST:directory+'/databases.json',ERPX_PUBLIC_ORIGIN:'http://127.0.0.1:3104',BETTER_AUTH_SECRET:'isolated-test-secret-at-least-thirty-two-characters'});
-const {getRuntime,closeRuntime}=await import('@erpx/server-runtime/adapters/runtime/env');
-const {engineeringVerificationContext,enrollEngineeringVerification,isolatedEngineeringVerification}=await import('@erpx/server-platform_administration/public/engineering-verification');
-const {PostgresDatabase}=await import('@erpx/server-runtime/adapters/runtime/postgres');
+const {getRuntime,closeRuntime}=await import('@erpx/platform-runtime-server/adapters/runtime/env');
+const {engineeringVerificationContext,enrollEngineeringVerification,isolatedEngineeringVerification}=await import('@erpx/platform-administration-server/public/engineering-verification');
+const {PostgresDatabase}=await import('@erpx/platform-runtime-server/adapters/runtime/postgres');
 const roster=JSON.parse(await readFile(directory+'/native-engineering-leases.json','utf8'));
 const db=getRuntime().H001_DB as InstanceType<typeof PostgresDatabase>,writer=new Pool({connectionString:`postgresql://erpx_test_admin:synthetic@127.0.0.1:5432/${name}`,max:1});
 try{

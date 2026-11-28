@@ -1,19 +1,19 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_commercial::public::canonical_purchase_write::inspect_canonical_purchase_write_boundary;
-use erpx_server_commercial::public::purchase_after::{
+use erpx_commercial_server::public::canonical_purchase_write::inspect_canonical_purchase_write_boundary;
+use erpx_commercial_server::public::purchase_after::{
     inspect_purchase_after, write_purchase_shadow_checked_observation,
 };
-use erpx_server_commercial::public::purchase_command_boundary::*;
-use erpx_server_commercial::public::purchases::{
+use erpx_commercial_server::public::purchase_command_boundary::*;
+use erpx_commercial_server::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, CompanyPurchaseReadPort, PackageEnforcementMode,
     PgCompanyPurchaseReader, current_package_catalogue, lock_purchase_write_sources,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, HoldingId};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, FailureKind, HoldingId};
 use sqlx::PgConnection;
 
 type Error = PgTransactionError<BusinessError>;

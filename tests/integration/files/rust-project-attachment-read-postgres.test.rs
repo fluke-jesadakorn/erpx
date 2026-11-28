@@ -4,18 +4,18 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_files::public::canonical_original::OriginalByteStore;
-use erpx_server_files::public::project_attachment::{
+use erpx_files_server::public::canonical_original::OriginalByteStore;
+use erpx_files_server::public::project_attachment::{
     ProjectAttachmentContentVariant, project_attachment_content,
     project_attachment_content_by_link, project_attachment_link_status,
     project_attachment_link_status_by_link, project_attachment_links,
     project_attachment_links_by_set, project_attachment_sets,
 };
-use erpx_server_projects::public::project_attachment::ProjectAttachmentActor;
-use erpx_server_runtime::public::postgres::{
+use erpx_projects_server::public::project_attachment::ProjectAttachmentActor;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, FailureKind, TimestampMillis};
 use std::future::Future;
 
 const NOW: i64 = 1_800_000_000_000;

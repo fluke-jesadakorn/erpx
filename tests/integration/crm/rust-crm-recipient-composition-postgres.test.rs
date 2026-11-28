@@ -5,14 +5,14 @@ mod projection_fixture;
 
 #[tokio::test]
 async fn crm_sales_recipient_join_matches_real_ts_predicate_for_owner_sources() {
-    use erpx_server_crm::public::activity_source::{lock_crm_activity_sources, inspect_crm_activity_recipient_source, CrmActivitySourceKind, CrmActivitySourceRequest};
-    use erpx_server_identity_access::public::{permission_catalog_lock::lock_permission_catalog_sources, sales_recipient::{lock_sales_recipient_sources,inspect_sales_assignment_join,inspect_sales_iam_boundary}};
-    use erpx_server_people_payroll::public::{workforce_reference::inspect_sales_workforce_join, identity_facts::inspect_people_sales_authority_boundary};
-    use erpx_server_organization::public::inspect_organization_sales_authority_boundary;
-    use erpx_server_manage_erpx::public::inspect_beta_policy_authority_boundary;
-    use erpx_server_runtime::public::postgres::{load_migrations,migrate_database,MigrationTrack};
-    use erpx_server_shared::public::CompanyId;
-    use erpx_service::crm_recipient_eligibility::inspect_crm_sales_recipient_eligibility;
+    use erpx_crm_server::public::activity_source::{lock_crm_activity_sources, inspect_crm_activity_recipient_source, CrmActivitySourceKind, CrmActivitySourceRequest};
+    use erpx_identity_access_server::public::{permission_catalog_lock::lock_permission_catalog_sources, sales_recipient::{lock_sales_recipient_sources,inspect_sales_assignment_join,inspect_sales_iam_boundary}};
+    use erpx_people_payroll_server::public::{workforce_reference::inspect_sales_workforce_join, identity_facts::inspect_people_sales_authority_boundary};
+    use erpx_organization_server::public::inspect_organization_sales_authority_boundary;
+    use erpx_manage_erpx_server::public::inspect_beta_policy_authority_boundary;
+    use erpx_platform_runtime_server::public::postgres::{load_migrations,migrate_database,MigrationTrack};
+    use erpx_platform_shared_server::public::CompanyId;
+    use erpx_platform_composition::crm_recipient_eligibility::inspect_crm_sales_recipient_eligibility;
     projection_fixture::with_database(2,|pool|async move {
         let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
         let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();
@@ -20,7 +20,7 @@ async fn crm_sales_recipient_join_matches_real_ts_predicate_for_owner_sources() 
         sqlx::raw_sql("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status,hierarchy_revision) VALUES ('company','company','company','Company',NULL,'company',NULL,'active',1),('branch','branch','branch','Branch','company','company',NULL,'active',1),('department','department','department','Department','branch','company','branch','active',1),('foreign','company','foreign','Foreign',NULL,'foreign',NULL,'active',1); INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status) VALUES('*','sales_recipient_test','Sales recipient',false,1,'active'); INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','sales_recipient_test',1,'[\"commerce.read\",\"commerce.sales\"]','[]','[\"holding\",\"branch\",\"department\"]','fixture',0); INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind) VALUES('recipient-grant','lead-owner','sales_recipient_test','[]','company',0,9007199254740991,1,'holding'); INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,created_by,created_at,updated_at) VALUES('recipient-person','lead-owner','company','Sales','TH','fixture',0,0); INSERT INTO hr_engagements(id,person_id,company_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at) VALUES('recipient-engagement','recipient-person','company','employee','salaried','active','2000-01-01','Sales','THB','fixture',0,0); INSERT INTO crm_leads(id,company_id,branch_id,department_id,title,contact_name,contact_detail,source,brief,owner_id,due_date,status,version,created_by,created_at,updated_at) VALUES('recipient-lead','company','branch','department','Lead','Contact','Detail','Staff','Brief','lead-owner','2026-12-01','open',1,'maker',1,1); INSERT INTO crm_lead_activities(id,company_id,lead_id,activity_type,subject,details,owner_id,due_date,created_by,created_at,updated_at) VALUES('recipient-activity','company','recipient-lead','call','Call','Discuss','activity-owner','2026-12-01','maker',1,1)").execute(pool.raw()).await.unwrap();
         let oracle=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
             .current_dir(concat!(env!("CARGO_MANIFEST_DIR"),"/../.."))
-            .args(["--conditions=react-server","-e","import {salesRecipientEligibility} from './packages/server-sales/src/adapters/recipient.ts'; process.stdout.write(salesRecipientEligibility('l','l.owner_id'))"])
+            .args(["--conditions=react-server","-e","import {salesRecipientEligibility} from './modules/sales/server/src/adapters/recipient.ts'; process.stdout.write(salesRecipientEligibility('l','l.owner_id'))"])
             .output().unwrap();
         assert!(oracle.status.success()); let predicate=String::from_utf8(oracle.stdout).unwrap();
         let mut tx=pool.raw().begin().await.unwrap();
@@ -38,7 +38,7 @@ async fn crm_sales_recipient_join_matches_real_ts_predicate_for_owner_sources() 
         let organization=inspect_organization_sales_authority_boundary(&mut tx).await.unwrap();
         let management=inspect_beta_policy_authority_boundary(&mut tx).await.unwrap();
         let oracle_sql=format!("SELECT ({predicate}) eligible FROM public.crm_lead_activities x JOIN public.crm_leads l ON l.id=x.lead_id AND l.company_id=x.company_id WHERE x.id=$1 AND x.company_id=$2 AND ($3::text IS NULL OR l.branch_id=$3) AND ($4::text IS NULL OR l.department_id=$4)");
-        async fn legacy(tx:&mut sqlx::PgConnection,crm:&erpx_server_crm::public::activity_source::CurrentCrmActivityRecipientSource,sql:&str)->bool {
+        async fn legacy(tx:&mut sqlx::PgConnection,crm:&erpx_crm_server::public::activity_source::CurrentCrmActivityRecipientSource,sql:&str)->bool {
             let row=crm.bind_source(sqlx::query(sqlx::AssertSqlSafe(sql))).fetch_one(tx).await.unwrap();
             sqlx::Row::try_get::<bool,_>(&row,"eligible").unwrap()
         }
@@ -59,10 +59,10 @@ async fn crm_sales_recipient_join_matches_real_ts_predicate_for_owner_sources() 
 
 #[tokio::test]
 async fn staged_reassign_binds_collaboration_notice_to_real_crm_witness() {
-    use erpx_server_crm::public::{activities_native::{ActivityActor,ActivityChangeInput,PgCrmActivityCommands,RetainedCrmActivityReassign},activity_source::lock_crm_activity_sources};
-    use erpx_server_collaboration::public::crm_activity_notification::{CrmActivityNotificationFacts,PgCrmActivityNotificationSource,lock_crm_activity_notifications,prepare_crm_activity_notification};
-    use erpx_server_runtime::public::postgres::{load_migrations,migrate_database,MigrationTrack,PgTransactionError};
-    use erpx_server_shared::public::BusinessError;
+    use erpx_crm_server::public::{activities_native::{ActivityActor,ActivityChangeInput,PgCrmActivityCommands,RetainedCrmActivityReassign},activity_source::lock_crm_activity_sources};
+    use erpx_collaboration_server::public::crm_activity_notification::{CrmActivityNotificationFacts,PgCrmActivityNotificationSource,lock_crm_activity_notifications,prepare_crm_activity_notification};
+    use erpx_platform_runtime_server::public::postgres::{load_migrations,migrate_database,MigrationTrack,PgTransactionError};
+    use erpx_platform_shared_server::public::BusinessError;
     use sqlx::PgConnection;
     type Error=PgTransactionError<BusinessError>;
     // This is test-local composition of the two public owner ports. The
@@ -95,7 +95,7 @@ async fn staged_reassign_binds_collaboration_notice_to_real_crm_witness() {
 
 #[test]
 fn crm_reassign_raw_wire_matches_actual_json_parse_and_ts_schema() {
-    use erpx_service::crm_reassign_wire::parse_crm_reassign_wire;
+    use erpx_platform_composition::crm_reassign_wire::parse_crm_reassign_wire;
     // Exercise JSON.parse itself, including duplicate keys and isolated UTF-16;
     // compare logical receipt identity rather than lossy PostgreSQL storage.
     let cases=[
@@ -113,13 +113,13 @@ fn crm_reassign_raw_wire_matches_actual_json_parse_and_ts_schema() {
         r#"{"id":"a","action":"reassign","expectedVersion":1,"ownerId":"owner","dueDate":"2026-12-05","reason":"valid""#,
     ];
     let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const m=await import(process.argv[1]);const cases=JSON.parse(process.argv[2]);const units=s=>Array.from({length:s.length},(_,i)=>s.charCodeAt(i));function unsafe(s){for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);if(c===0)return true;if(c>=0xd800&&c<=0xdbff){if(i+1>=s.length||s.charCodeAt(i+1)<0xdc00||s.charCodeAt(i+1)>0xdfff)return true;i++}else if(c>=0xdc00&&c<=0xdfff)return true}return false}process.stdout.write(JSON.stringify(cases.map(raw=>{try{const obj=JSON.parse(raw);if(!obj||typeof obj!=='object'||typeof obj.id!=='string')return null;const parsed=m.crmActivityChangeSchema.safeParse(obj);if(!parsed.success||parsed.data.action!=='reassign')return null;return {target:units(obj.id),input:JSON.stringify(parsed.data),unsafe:unsafe(obj.id)||unsafe(parsed.data.ownerId)}}catch{return null}})));"#;
-    let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");let module=root.join("packages/server-crm/src/domain/activities.ts");let out=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(root).args(["--conditions=react-server","-e",script]).arg(module).arg(serde_json::to_string(&cases).unwrap()).output().unwrap();assert!(out.status.success(),"actual TS schema oracle unavailable");let expected:Vec<serde_json::Value>=serde_json::from_slice(&out.stdout).unwrap();
+    let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");let module=root.join("modules/crm/server/src/domain/activities.ts");let out=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(root).args(["--conditions=react-server","-e",script]).arg(module).arg(serde_json::to_string(&cases).unwrap()).output().unwrap();assert!(out.status.success(),"actual TS schema oracle unavailable");let expected:Vec<serde_json::Value>=serde_json::from_slice(&out.stdout).unwrap();
     for (index,raw) in cases.iter().enumerate(){let actual=parse_crm_reassign_wire(raw.as_bytes()).ok().map(|wire|serde_json::json!({"target":wire.target_utf16,"input":wire.input.as_str(),"unsafe":wire.unsafe_lookup})).unwrap_or(serde_json::Value::Null);assert_eq!(actual,expected[index],"raw case {index}");}
 }
 
 #[test]
 fn crm_reassign_raw_wire_known_size_and_depth_mismatches_are_visible() {
-    use erpx_service::crm_reassign_wire::parse_crm_reassign_wire;
+    use erpx_platform_composition::crm_reassign_wire::parse_crm_reassign_wire;
     use std::io::Write;
     use std::process::Stdio;
     // The retained Next route uses Request.json() and Zod strips unknown keys.
@@ -129,7 +129,7 @@ fn crm_reassign_raw_wire_known_size_and_depth_mismatches_are_visible() {
     let small=r#"{"id":"activity","action":"reassign","expectedVersion":1,"ownerId":"owner","dueDate":"2026-12-05","reason":"Review"}"#.to_owned();
     let cases=vec![small,large,depth];
     let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const m=await import(process.argv[1]);const cases=JSON.parse(await Bun.stdin.text());const out=[];for(const body of cases){try{const raw=await new Request('https://acme.example.test',{method:'POST',body}).json();const p=m.crmActivityChangeSchema.safeParse(raw);out.push(p.success&&p.data.action==='reassign'&&typeof raw.id==='string')}catch{out.push(false)}}process.stdout.write(JSON.stringify(out));"#;
-    let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");let module=root.join("packages/server-crm/src/domain/activities.ts");
+    let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");let module=root.join("modules/crm/server/src/domain/activities.ts");
     let mut child=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(root).args(["--conditions=react-server","-e",script]).arg(module).stdin(Stdio::piped()).stdout(Stdio::piped()).spawn().unwrap();child.stdin.take().unwrap().write_all(serde_json::to_string(&cases).unwrap().as_bytes()).unwrap();let result=child.wait_with_output().unwrap();assert!(result.status.success(),"actual Request.json/CRM schema oracle unavailable");let accepted:Vec<bool>=serde_json::from_slice(&result.stdout).unwrap();assert_eq!(accepted,vec![true,true,true]);
     assert!(parse_crm_reassign_wire(cases[0].as_bytes()).is_ok());
     assert!(parse_crm_reassign_wire(cases[1].as_bytes()).is_err(),"CommandJson 2 MiB bound currently rejects this TS-accepted body");
@@ -138,7 +138,7 @@ fn crm_reassign_raw_wire_known_size_and_depth_mismatches_are_visible() {
 
 #[test]
 fn crm_reassign_node_request_json_bom_and_invalid_utf8_match() {
-    use erpx_service::crm_reassign_wire::parse_crm_reassign_wire;
+    use erpx_platform_composition::crm_reassign_wire::parse_crm_reassign_wire;
     let base=br#"{"id":"activity","action":"reassign","expectedVersion":1,"ownerId":"owner","dueDate":"2026-12-05","reason":"Review"}"#.to_vec();
     let mut bom=vec![0xef,0xbb,0xbf];bom.extend_from_slice(&base);
     let mut malformed=base.clone();let at=malformed.windows(6).position(|w|w==b"Review").unwrap()+2;malformed.insert(at,0xff);
@@ -154,7 +154,7 @@ fn crm_reassign_node_request_json_bom_and_invalid_utf8_match() {
     let broken_escape=insert_at(&escape,b"\\ud800",3,&[0xff]);
     let cases=vec![base,bom,malformed,truncated,bad_continuation,overlong,bad_id,bad_owner,double_bom,escape,broken_escape,triple_bom];
     let script=r#"if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');const m=await import(process.argv[1]);const cases=JSON.parse(process.argv[2]);const unsafe=s=>{for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);if(c===0)return true;if(c>=0xd800&&c<=0xdbff){if(i+1>=s.length||s.charCodeAt(i+1)<0xdc00||s.charCodeAt(i+1)>0xdfff)return true;i++}else if(c>=0xdc00&&c<=0xdfff)return true}return false};const out=[];for(const bytes of cases){try{const obj=await new Request('https://acme.example.test',{method:'POST',body:Uint8Array.from(bytes)}).json();const parsed=m.crmActivityChangeSchema.safeParse(obj);if(typeof obj.id!=='string'||!parsed.success||parsed.data.action!=='reassign'){out.push(null);continue}out.push({target:Array.from({length:obj.id.length},(_,i)=>obj.id.charCodeAt(i)),input:JSON.stringify(parsed.data),unsafe:unsafe(obj.id)||unsafe(parsed.data.ownerId)})}catch{out.push(null)}}process.stdout.write(JSON.stringify(out));"#;
-    let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");let module=root.join("packages/server-crm/src/domain/activities.ts");
+    let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");let module=root.join("modules/crm/server/src/domain/activities.ts");
     let out=std::process::Command::new(std::env::var("ERPX_NODE_BIN").expect("pinned Node required")).current_dir(root).args(["--conditions=react-server","--input-type=module","-e",script]).arg(module).arg(serde_json::to_string(&cases).unwrap()).output().unwrap();
     assert!(out.status.success(),"Node Request.json and actual TS schema oracle: {}",String::from_utf8_lossy(&out.stderr));
     let expected:Vec<serde_json::Value>=serde_json::from_slice(&out.stdout).unwrap();

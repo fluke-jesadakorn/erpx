@@ -1,11 +1,11 @@
 //! Native Messaging sequencing with a caller-owned unit. PostgreSQL rooms,
 //! messages, read state and Company isolation live in the integration target.
-use erpx_server_collaboration::public::messaging_native::{
+use erpx_collaboration_server::public::messaging_native::{
     Access, Change, HistoryCursor, MAX_BODY, MessageSnapshot, MessagingActor, MessagingUnit,
     OwnerPlan, Receipt, RoomKind, RoomSnapshot, execute, message_body, members, plan_receipt,
     room_not_found,
 };
-use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey, FailureKind};
 use std::collections::{BTreeMap, BTreeSet};
 
 struct Unit {

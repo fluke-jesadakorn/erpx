@@ -1,5 +1,5 @@
-use erpx_server_organization::public::*;
-use erpx_server_shared::public::{CompanyId, HoldingId, RecordId};
+use erpx_organization_server::public::*;
+use erpx_platform_shared_server::public::{CompanyId, HoldingId, RecordId};
 fn node(id: &str, kind: NodeKind, parent: Option<&str>, branch: Option<&str>) -> OrganizationNode {
     OrganizationNode {
         id: RecordId::new(id).unwrap(),
@@ -104,7 +104,7 @@ struct Facts {
     holding: HoldingId,
 }
 impl OrganizationReadPort for Facts {
-    type Error = erpx_server_shared::public::BusinessError;
+    type Error = erpx_platform_shared_server::public::BusinessError;
     fn holding_id(&self) -> &HoldingId {
         &self.holding
     }

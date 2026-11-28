@@ -6,9 +6,9 @@ import {
   existsRowProbe,
   learningModuleGrantProbe,
   moduleGrantAssignmentProbe,
-} from '../../../packages/server-learning/src/adapters/learning-read-sql';
+} from '../../../modules/learning/server/src/adapters/learning-read-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-learning/src');
+const srcRoot = resolve(__dirname, '../../../modules/learning/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
 const sha = (text: string) => createHash('sha256').update(text).digest('hex');

@@ -1,8 +1,8 @@
-use erpx_server_organization::public::organization_nodes::{
+use erpx_organization_server::public::organization_nodes::{
     OrganizationActor, OrganizationCommandActor, OrganizationScopeKind,
 };
-use erpx_server_organization::public::position_moves::*;
-use erpx_server_shared::public::{
+use erpx_organization_server::public::position_moves::*;
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CompanyId, FailureKind, HoldingId, RecordId, UserId,
 };
 use serde_json::json;

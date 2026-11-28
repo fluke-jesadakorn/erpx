@@ -1,6 +1,6 @@
 //! Pure native service-team schema/local-rule checks against the TypeScript
 //! definitions. The actual TS oracle remains in the crate domain module.
-use erpx_server_support::public::service_teams::{
+use erpx_support_server::public::service_teams::{
     RecordScope, ServiceTeamActor, in_service_workspace, normalize_service_team,
     validate_local_team_rules,
 };

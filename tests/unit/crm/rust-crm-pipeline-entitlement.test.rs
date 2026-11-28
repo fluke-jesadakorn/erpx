@@ -2,13 +2,13 @@
 //! The permissive composition stub is not a silent bypass: an entitlement
 //! without the current Commercial revision fails closed before any owner row
 //! is read.
-use erpx_server_crm::public::pipeline::{
+use erpx_crm_server::public::pipeline::{
     CRM_PIPELINE_ENTITLEMENT_UNPROVEN, CrmForecastSourceRow, CrmPipelineActor,
     CrmPipelineCustomerDirectory, CrmPipelineEntitlement, CrmPipelineEntitlementPort,
     CrmPipelineFuture, CrmPipelinePeopleDirectory, CrmPipelineQuery, CrmPipelineRepository,
     CrmPipelineRow, crm_pipeline,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, FailureKind, TimestampMillis};
 use std::collections::BTreeMap;
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
@@ -40,7 +40,7 @@ impl CrmPipelineRepository for Repo {
         _: Option<&'a str>,
         _: &'a str,
         _: Option<&'a str>,
-        _: Option<&'a erpx_server_crm::public::pipeline::CrmPipelineCursor>,
+        _: Option<&'a erpx_crm_server::public::pipeline::CrmPipelineCursor>,
         _: usize,
     ) -> CrmPipelineFuture<'a, Vec<CrmPipelineRow>, Self::Error> {
         self.page_calls += 1;

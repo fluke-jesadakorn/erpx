@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { benefitSubqueryNotExists } from '../../../packages/server-benefits/src/adapters/benefits-read-sql';
+import { benefitSubqueryNotExists } from '../../../modules/benefits/server/src/adapters/benefits-read-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-benefits/src');
+const srcRoot = resolve(__dirname, '../../../modules/benefits/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 // Pre-dedupe literals, copied byte-for-byte from HEAD, used only as the oracle.

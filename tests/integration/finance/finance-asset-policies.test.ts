@@ -1,6 +1,6 @@
 import {afterEach} from "vitest";
 import {reviewedFinanceGrant} from "../../support/helpers/finance-purchase-fixture";
-import { financeExpansionRecord } from "@erpx/server-finance/public/finance-expansion-records";
+import { financeExpansionRecord } from "@erpx/finance-server/public/finance-expansion-records";
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import {
@@ -18,28 +18,28 @@ import {
   prepareAssetDisposal,
   decideAssetDisposal,
   assetOptions,
-} from "@erpx/server-finance/public/finance-assets";
+} from "@erpx/finance-server/public/finance-assets";
 import {
   prepareAssetPolicy,
   decideAssetPolicy,
   prepareAssetPolicyRun,
   decideAssetPolicyRun,
   reverseAssetPolicyRun,
-} from "@erpx/server-finance/public/finance-asset-policies";
+} from "@erpx/finance-server/public/finance-asset-policies";
 import {
   prepareBookRule,
   decideBookRule,
   bookRuleSchema,
   createFinanceDimension,
-} from "@erpx/server-finance/public/finance-books";
-import { setFinanceCompanyTool } from "@erpx/server-finance/public/finance-company-tools";
+} from "@erpx/finance-server/public/finance-books";
+import { setFinanceCompanyTool } from "@erpx/finance-server/public/finance-company-tools";
 import {
   scheduleFinanceDraft,
   drainFinanceDueDrafts,
-} from "@erpx/server-finance/public/finance-due-drafts";
-import {trialBalance} from '@erpx/server-finance/public/finance';
-import { financeExpansionClosePending } from "@erpx/server-finance/public/native-expansion-close";
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
+} from "@erpx/finance-server/public/finance-due-drafts";
+import {trialBalance} from '@erpx/finance-server/public/finance';
+import { financeExpansionClosePending } from "@erpx/finance-server/public/native-expansion-close";
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));

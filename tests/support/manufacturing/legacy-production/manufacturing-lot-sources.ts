@@ -1,5 +1,5 @@
-import {inventoryQualityHoldReadSource} from '@erpx/server-quality/public/inventory-hold-read-source';
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";export function manufacturingLotSources(db:SqlDatabase){return {async materialLot(lotId:string,companyId:string,productId:string,warehouseId:string){return db.prepare(`SELECT l.*,b.quantity_milli,b.value_minor,b.version balance_version,
+import {inventoryQualityHoldReadSource} from '@erpx/quality-server/public/inventory-hold-read-source';
+import type {SqlDatabase} from '@erpx/platform-runtime-server/public/runtime/types';import type {Row} from '@erpx/commerce-server/public/commerce';import {assertion} from "@erpx/workflow-server/public/command-assertions";export function manufacturingLotSources(db:SqlDatabase){return {async materialLot(lotId:string,companyId:string,productId:string,warehouseId:string){return db.prepare(`SELECT l.*,b.quantity_milli,b.value_minor,b.version balance_version,
       EXISTS(SELECT 1 ${inventoryQualityHoldReadSource()} WHERE h.warehouse_id=b.warehouse_id AND h.lot_id=l.id AND h.status NOT IN ('released','cancelled','disposed')) held
       FROM inventory_lots l JOIN inventory_lot_balances b ON b.lot_id=l.id WHERE l.id=? AND l.company_id=? AND l.product_id=? AND b.warehouse_id=?`)
       .bind(lotId, companyId, productId, warehouseId).first<Row>();},

@@ -1,5 +1,5 @@
-use erpx_server_files::public::malware_scanner::{ClamAvConfig, ClamAvScanner, MalwareVerdict};
-use erpx_server_shared::public::{Clock, TimestampMillis};
+use erpx_files_server::public::malware_scanner::{ClamAvConfig, ClamAvScanner, MalwareVerdict};
+use erpx_platform_shared_server::public::{Clock, TimestampMillis};
 use std::{
     path::PathBuf,
     time::{Duration, SystemTime, UNIX_EPOCH},

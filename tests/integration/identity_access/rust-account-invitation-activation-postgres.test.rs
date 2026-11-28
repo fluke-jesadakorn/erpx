@@ -10,9 +10,9 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_identity_access::public::*;
-use erpx_server_runtime::public::postgres::DatabasePool;
-use erpx_server_shared::public::HoldingId;
+use erpx_identity_access_server::public::*;
+use erpx_platform_runtime_server::public::postgres::DatabasePool;
+use erpx_platform_shared_server::public::HoldingId;
 use std::{collections::BTreeMap, sync::Arc};
 use tower::ServiceExt;
 

@@ -1,10 +1,10 @@
 //! Owner-local HTTP adapter tests for the native Inbox read ingress.
-use erpx_server_collaboration::public::inbox_http::{
+use erpx_collaboration_server::public::inbox_http::{
     InboxCategoryCounts, InboxHttpBackend, InboxHttpFuture, InboxHttpReadReply,
     InboxHttpReadRequest, InboxHttpState, InboxHttpTarget, InboxItemData, InboxPageData,
     InboxQuery, InboxReadKind, InboxSummaryData, read_notice, read_notifications, read_summary,
 };
-use erpx_server_runtime::public::http_support::{
+use erpx_platform_runtime_server::public::http_support::{
     Path, Query, Request, Response, State, StatusCode,
     body::{Body, to_bytes},
     header,

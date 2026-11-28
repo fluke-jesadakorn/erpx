@@ -1,5 +1,5 @@
-use erpx_server_records::public::business_evidence::*;
-use erpx_server_shared::public::BusinessError;
+use erpx_records_server::public::business_evidence::*;
+use erpx_platform_shared_server::public::BusinessError;
 
 fn context(purpose: &str, kind: &str) -> EvidenceContext {
     EvidenceContext {

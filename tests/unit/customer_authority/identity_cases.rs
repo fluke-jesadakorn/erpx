@@ -1,13 +1,13 @@
 //! Native Customer Authority customer identity-change policy tests.
-use erpx_server_customer_authority::public::access::{AccessActor, AccessReceipt, ReceiptSnapshot};
-use erpx_server_customer_authority::public::identity::{
+use erpx_customer_authority_server::public::access::{AccessActor, AccessReceipt, ReceiptSnapshot};
+use erpx_customer_authority_server::public::identity::{
     ChangePlan, CustomerAddress, CustomerIdentity, CustomerSnapshot, IdentityChange,
     IdentityChangeRow, IdentityCommandRepository, IdentityCustomer, IdentityEventRow,
     IdentityReadRepository, IdentityRequest, NotificationConsent, RequestPlan,
     change_customer_identity, identity_detail, identity_workspace,
     request_customer_identity_change,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, UserId,
 };
 use serde_json::Value;
@@ -23,7 +23,7 @@ fn actor_with(user: &str, permissions: &[&str]) -> AccessActor {
         company_id: CompanyId::new("company").unwrap(),
         branch_id: None,
         department_id: None,
-        assignment_id: erpx_server_shared::public::AssignmentId::new(format!(
+        assignment_id: erpx_platform_shared_server::public::AssignmentId::new(format!(
             "assignment-{user}"
         ))
         .unwrap(),
@@ -179,35 +179,35 @@ impl Fake {
 
 impl IdentityCommandRepository for Fake {
     type Error = BusinessError;
-    fn digest<'a>(&'a mut self, _value: &'a str) -> erpx_server_customer_authority::public::identity::IdentityFuture<'a, String, Self::Error> {
+    fn digest<'a>(&'a mut self, _value: &'a str) -> erpx_customer_authority_server::public::identity::IdentityFuture<'a, String, Self::Error> {
         Box::pin(async move { Ok("a".repeat(64)) })
     }
-    fn receipt<'a>(&'a mut self, _key: &'a str) -> erpx_server_customer_authority::public::identity::IdentityFuture<'a, Option<ReceiptSnapshot>, Self::Error> {
+    fn receipt<'a>(&'a mut self, _key: &'a str) -> erpx_customer_authority_server::public::identity::IdentityFuture<'a, Option<ReceiptSnapshot>, Self::Error> {
         let receipt = self.receipt.clone();
         Box::pin(async move { Ok(receipt) })
     }
-    fn source_customer<'a>(&'a mut self, _company: &'a str, _customer: &'a str) -> erpx_server_customer_authority::public::identity::IdentityFuture<'a, Option<CustomerSnapshot>, Self::Error> {
+    fn source_customer<'a>(&'a mut self, _company: &'a str, _customer: &'a str) -> erpx_customer_authority_server::public::identity::IdentityFuture<'a, Option<CustomerSnapshot>, Self::Error> {
         let snapshot = self.snapshot.clone();
         Box::pin(async move { Ok(snapshot) })
     }
-    fn customer_version<'a>(&'a mut self, _company: &'a str, _customer: &'a str) -> erpx_server_customer_authority::public::identity::IdentityFuture<'a, Option<i64>, Self::Error> {
+    fn customer_version<'a>(&'a mut self, _company: &'a str, _customer: &'a str) -> erpx_customer_authority_server::public::identity::IdentityFuture<'a, Option<i64>, Self::Error> {
         let version = self.version;
         Box::pin(async move { Ok(version) })
     }
-    fn change_for_update<'a>(&'a mut self, _actor: &'a AccessActor, _id: &'a str) -> erpx_server_customer_authority::public::identity::IdentityFuture<'a, Option<IdentityChangeRow>, Self::Error> {
+    fn change_for_update<'a>(&'a mut self, _actor: &'a AccessActor, _id: &'a str) -> erpx_customer_authority_server::public::identity::IdentityFuture<'a, Option<IdentityChangeRow>, Self::Error> {
         let row = self.change.clone();
         Box::pin(async move { Ok(row) })
     }
-    fn reviewer_eligible<'a>(&'a mut self, _actor: &'a AccessActor, _id: &'a str) -> erpx_server_customer_authority::public::identity::IdentityFuture<'a, bool, Self::Error> {
+    fn reviewer_eligible<'a>(&'a mut self, _actor: &'a AccessActor, _id: &'a str) -> erpx_customer_authority_server::public::identity::IdentityFuture<'a, bool, Self::Error> {
         let eligible = self.eligible;
         Box::pin(async move { Ok(eligible) })
     }
-    fn commit_request<'a>(&'a mut self, _actor: &'a AccessActor, key: &'a str, plan: &'a RequestPlan, _hash: &'a str) -> erpx_server_customer_authority::public::identity::IdentityFuture<'a, Value, Self::Error> {
+    fn commit_request<'a>(&'a mut self, _actor: &'a AccessActor, key: &'a str, plan: &'a RequestPlan, _hash: &'a str) -> erpx_customer_authority_server::public::identity::IdentityFuture<'a, Value, Self::Error> {
         self.requests.lock().unwrap().push(key.to_owned());
         let result = serde_json::json!({"id": plan.id, "status": "pending", "version": 1});
         Box::pin(async move { Ok(result) })
     }
-    fn commit_change<'a>(&'a mut self, _actor: &'a AccessActor, key: &'a str, plan: &'a ChangePlan, _hash: &'a str) -> erpx_server_customer_authority::public::identity::IdentityFuture<'a, Value, Self::Error> {
+    fn commit_change<'a>(&'a mut self, _actor: &'a AccessActor, key: &'a str, plan: &'a ChangePlan, _hash: &'a str) -> erpx_customer_authority_server::public::identity::IdentityFuture<'a, Value, Self::Error> {
         self.changes.lock().unwrap().push(key.to_owned());
         let result = serde_json::json!({
             "id": plan.id,
@@ -220,11 +220,11 @@ impl IdentityCommandRepository for Fake {
 
 impl IdentityReadRepository for Fake {
     type Error = BusinessError;
-    fn workspace<'a>(&'a mut self, _actor: &'a AccessActor) -> erpx_server_customer_authority::public::identity::IdentityFuture<'a, Vec<IdentityChangeRow>, Self::Error> {
+    fn workspace<'a>(&'a mut self, _actor: &'a AccessActor) -> erpx_customer_authority_server::public::identity::IdentityFuture<'a, Vec<IdentityChangeRow>, Self::Error> {
         let rows = self.workspace.clone();
         Box::pin(async move { Ok(rows) })
     }
-    fn customers<'a>(&'a mut self, _actor: &'a AccessActor) -> erpx_server_customer_authority::public::identity::IdentityFuture<'a, Vec<IdentityCustomer>, Self::Error> {
+    fn customers<'a>(&'a mut self, _actor: &'a AccessActor) -> erpx_customer_authority_server::public::identity::IdentityFuture<'a, Vec<IdentityCustomer>, Self::Error> {
         let customers = vec![IdentityCustomer {
             id: "customer-1".into(),
             name: "Old customer name".into(),
@@ -236,7 +236,7 @@ impl IdentityReadRepository for Fake {
         }];
         Box::pin(async move { Ok(customers) })
     }
-    fn history<'a>(&'a mut self, _id: &'a str) -> erpx_server_customer_authority::public::identity::IdentityFuture<'a, Vec<IdentityEventRow>, Self::Error> {
+    fn history<'a>(&'a mut self, _id: &'a str) -> erpx_customer_authority_server::public::identity::IdentityFuture<'a, Vec<IdentityEventRow>, Self::Error> {
         let events = self.events.clone();
         Box::pin(async move { Ok(events) })
     }

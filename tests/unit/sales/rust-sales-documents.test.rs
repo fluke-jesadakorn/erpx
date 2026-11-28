@@ -1,9 +1,9 @@
 //! Native Sales document list policy and row validation tests.
-use erpx_server_sales::public::sales_documents::{
+use erpx_sales_server::public::sales_documents::{
     SalesDocumentCursor, SalesDocumentKind, SalesDocumentReadActor, SalesDocumentReadFuture,
     SalesDocumentReadRepository, SalesDocumentRow, sales_documents,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, CompanyId, FailureKind, RecordId, TimestampMillis,
 };
 use std::sync::{Arc, Mutex};

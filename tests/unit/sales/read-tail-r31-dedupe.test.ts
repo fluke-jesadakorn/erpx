@@ -5,12 +5,12 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { byKey } from '../../../packages/server-sales/src/adapters/by-key';
-import { followupCustomerOrderRead } from '../../../packages/server-sales/src/adapters/followup-customer-order-read';
-import { followupCustomerOrderTailRead } from '../../../packages/server-sales/src/adapters/followup-customer-order-tail-read';
-import { pointRead } from '../../../packages/server-sales/src/adapters/point-read';
+import { byKey } from '../../../modules/sales/server/src/adapters/by-key';
+import { followupCustomerOrderRead } from '../../../modules/sales/server/src/adapters/followup-customer-order-read';
+import { followupCustomerOrderTailRead } from '../../../modules/sales/server/src/adapters/followup-customer-order-tail-read';
+import { pointRead } from '../../../modules/sales/server/src/adapters/point-read';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-sales/src');
+const srcRoot = resolve(__dirname, '../../../modules/sales/server/src');
 const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const orderRead = read('followup-customer-order-read.ts');
 const tailRead = read('followup-customer-order-tail-read.ts');

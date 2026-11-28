@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { crmJsonbAggregateSql } from '../../../packages/server-crm/src/adapters/read-tail-r49-sql';
+import { crmJsonbAggregateSql } from '../../../modules/crm/server/src/adapters/read-tail-r49-sql';
 
-const owner = resolve(__dirname, '../../../packages/server-crm/src');
+const owner = resolve(__dirname, '../../../modules/crm/server/src');
 const attachment = () => readFileSync(resolve(owner, 'adapters/attachment-read.ts'), 'utf8');
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
 const r49 = () => readFileSync(resolve(owner, 'adapters/read-tail-r49-sql.ts'), 'utf8');

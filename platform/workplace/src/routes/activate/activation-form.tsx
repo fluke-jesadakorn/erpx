@@ -1,0 +1,69 @@
+"use client";
+import { InlineNotice } from "@erpx/platform-ui/components/foundation";
+
+import { Button, Field, TextInput } from "@erpx/platform-ui/components/foundation";
+
+import { authClient } from "@erpx/identity-access-ui/lib/auth-client";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { FormLayout } from "@erpx/platform-ui/components/foundation";
+export function ActivationForm({ token, existingAccount = false }: { token: string; existingAccount?: boolean }) {
+  const router = useRouter();
+  const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
+  return (
+    <FormLayout
+      className="ui-form-grid"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const f = new FormData(e.currentTarget);
+        if (!existingAccount && f.get("password") !== f.get("confirm")) {
+          setError("Passwords must match.");
+          return;
+        }
+        setPending(true);
+        setError("");
+        try {
+          const result = await authClient.invitations.accept({ token, password: String(f.get("password") ?? "") });
+          if (result.error || !result.data?.data.activated) throw new Error(result.error?.message ?? "Activation failed.");
+          router.replace("/login");
+        } catch (e) {
+          setError(e instanceof Error ? e.message : "Activation failed.");
+        } finally {
+          setPending(false);
+        }
+      }}
+    >
+      <Field appearance="standard">
+        {existingAccount ? "Existing account password" : "Password"}
+        <TextInput appearance="standard"
+          name="password"
+          type="password"
+          minLength={existingAccount ? 1 : 12}
+          maxLength={128}
+          autoComplete={existingAccount ? "current-password" : "new-password"}
+          required
+        />
+      </Field>
+      {!existingAccount && <Field appearance="standard">
+        Confirm password
+        <TextInput appearance="standard"
+          name="confirm"
+          type="password"
+          minLength={12}
+          maxLength={128}
+          autoComplete="new-password"
+          required
+        />
+      </Field>}
+      <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={pending}>
+        Activate account
+      </Button>
+      {error && (
+        <InlineNotice tone="danger" className="error" role="alert">
+          {error}
+        </InlineNotice>
+      )}
+    </FormLayout>
+  );
+}

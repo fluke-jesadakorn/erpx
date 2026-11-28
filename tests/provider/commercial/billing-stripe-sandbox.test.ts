@@ -3,10 +3,10 @@ import { env, applyMigrations } from "../../support/runtime-env";
 import {
   billingCommand,
   type BillingInput,
-} from "@erpx/server-billing/public/billing";
-import { drainBilling } from "@erpx/server-billing/public/billing-jobs";
-import type { InvoiceLine } from "@erpx/feature-billing/lib/billing";
-import { billingStripe, testObject } from "@erpx/server-billing/public/billing-stripe";
+} from "@erpx/billing-server/public/billing";
+import { drainBilling } from "@erpx/billing-server/public/billing-jobs";
+import type { InvoiceLine } from "@erpx/billing-ui/lib/billing";
+import { billingStripe, testObject } from "@erpx/billing-server/public/billing-stripe";
 const enabled =
   process.env.ERPX_TEST_STRIPE_SANDBOX === "1" &&
   process.env.STRIPE_SECRET_KEY?.startsWith("sk_test_");

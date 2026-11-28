@@ -4,12 +4,12 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, OutboxJob, OutboxJobHandler, PgTransactionError, WorkerFuture,
     WorkerOutcome, WorkerSupervisor, WorkerTarget, claim, complete, fail, load_migrations,
     migrate_database, renew, requeue_dead_letter, requeue_dead_letter_with_audit, worker_failure,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 use sqlx::PgPool;
 use std::{
     sync::{Arc, Mutex},
@@ -135,7 +135,7 @@ async fn retries_with_bounded_backoff_and_dead_letters_the_sixth_attempt() {
         );
         let unicode = "😀".repeat(40);
         assert_eq!(
-            erpx_server_runtime::public::postgres::truncate_error_code(&unicode),
+            erpx_platform_runtime_server::public::postgres::truncate_error_code(&unicode),
             "😀".repeat(32)
         );
     })

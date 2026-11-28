@@ -9,7 +9,7 @@
         {
           "name": "erpx-server-assets::public",
           "version": "0.1.0",
-          "source": "packages/server-assets/src/public/mod.rs"
+          "source": "modules/assets/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -33,12 +33,12 @@
         {
           "name": "erpx-server-collaboration::public",
           "version": "0.1.0",
-          "source": "packages/server-collaboration/src/public/mod.rs"
+          "source": "modules/collaboration/server/src/public/mod.rs"
         },
         {
           "name": "erpx-server-collaboration::public::field_outbox",
           "version": "0.1.0",
-          "source": "packages/server-collaboration/src/public/field_outbox.rs"
+          "source": "modules/collaboration/server/src/public/field_outbox.rs"
         }
       ],
       "requires": [
@@ -62,7 +62,7 @@
         {
           "name": "erpx-server-commerce::public",
           "version": "0.1.0",
-          "source": "packages/server-commerce/src/public/mod.rs"
+          "source": "modules/commerce/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -90,12 +90,12 @@
         {
           "name": "erpx-server-commercial::public",
           "version": "0.1.0",
-          "source": "packages/server-commercial/src/public/mod.rs"
+          "source": "modules/commercial/server/src/public/mod.rs"
         },
         {
           "name": "erpx-server-commercial::public::purchases",
           "version": "0.1.0",
-          "source": "packages/server-commercial/src/public/purchases.rs"
+          "source": "modules/commercial/server/src/public/purchases.rs"
         }
       ],
       "requires": [
@@ -119,22 +119,22 @@
         {
           "name": "erpx-server-field-service::public",
           "version": "0.1.0",
-          "source": "packages/server-field_service/src/public/mod.rs"
+          "source": "modules/field-service/server/src/public/mod.rs"
         },
         {
           "name": "erpx-server-field-service::public::reservation_read",
           "version": "0.1.0",
-          "source": "packages/server-field_service/src/public/reservation_read.rs"
+          "source": "modules/field-service/server/src/public/reservation_read.rs"
         },
         {
           "name": "erpx-server-field-service::public::field_outbox",
           "version": "0.1.0",
-          "source": "packages/server-field_service/src/public/field_outbox.rs"
+          "source": "modules/field-service/server/src/public/field_outbox.rs"
         },
         {
           "name": "erpx-server-field-service::public::executive",
           "version": "0.1.0",
-          "source": "packages/server-field_service/src/public/executive.rs"
+          "source": "modules/field-service/server/src/public/executive.rs"
         }
       ],
       "requires": [
@@ -170,7 +170,7 @@
         {
           "name": "erpx-server-files::public",
           "version": "0.1.0",
-          "source": "packages/server-files/src/public/mod.rs"
+          "source": "modules/files/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -206,7 +206,7 @@
         {
           "name": "erpx-server-finance::public",
           "version": "0.1.0",
-          "source": "packages/server-finance/src/public/mod.rs"
+          "source": "modules/finance/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -238,7 +238,7 @@
         {
           "name": "erpx-server-identity-access::public",
           "version": "0.1.0",
-          "source": "packages/server-identity_access/src/public/mod.rs"
+          "source": "modules/identity-access/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -274,7 +274,7 @@
         {
           "name": "erpx-server-inventory::public",
           "version": "0.1.0",
-          "source": "packages/server-inventory/src/public/mod.rs"
+          "source": "modules/inventory/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -306,7 +306,7 @@
         {
           "name": "erpx-server-legal::public",
           "version": "0.1.0",
-          "source": "packages/server-legal/src/public/mod.rs"
+          "source": "modules/legal/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -334,7 +334,7 @@
         {
           "name": "erpx-server-maintenance::public",
           "version": "0.1.0",
-          "source": "packages/server-maintenance/src/public/mod.rs"
+          "source": "modules/maintenance/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -370,7 +370,7 @@
         {
           "name": "erpx-server-manage-erpx::public",
           "version": "0.1.0",
-          "source": "packages/server-manage_erpx/src/public/mod.rs"
+          "source": "modules/manage-erpx/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -394,7 +394,7 @@
         {
           "name": "erpx-server-organization::public",
           "version": "0.1.0",
-          "source": "packages/server-organization/src/public/mod.rs"
+          "source": "modules/organization/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -422,7 +422,7 @@
         {
           "name": "erpx-server-people-payroll::public",
           "version": "0.1.0",
-          "source": "packages/server-people_payroll/src/public/mod.rs"
+          "source": "modules/people-payroll/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -446,7 +446,7 @@
         {
           "name": "erpx-server-platform-administration::public",
           "version": "0.1.0",
-          "source": "packages/server-platform_administration/src/public/mod.rs"
+          "source": "modules/platform-administration/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -478,7 +478,7 @@
         {
           "name": "erpx-server-pms::public",
           "version": "0.1.0",
-          "source": "packages/server-pms/src/public/mod.rs"
+          "source": "modules/pms/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -506,7 +506,7 @@
         {
           "name": "erpx-server-quality::public",
           "version": "0.1.0",
-          "source": "packages/server-quality/src/public/mod.rs"
+          "source": "modules/quality/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -534,7 +534,7 @@
         {
           "name": "erpx-server-runtime::public",
           "version": "0.1.0",
-          "source": "packages/server-runtime/src/public/mod.rs"
+          "source": "platform/runtime/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -554,7 +554,7 @@
         {
           "name": "erpx-server-shared::public",
           "version": "0.1.0",
-          "source": "packages/server-shared/src/public/mod.rs"
+          "source": "platform/shared/server/src/public/mod.rs"
         }
       ],
       "requires": [],
@@ -569,7 +569,7 @@
         {
           "name": "erpx-server-records::public",
           "version": "0.1.0",
-          "source": "packages/server-records/src/public/mod.rs"
+          "source": "modules/records/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -593,7 +593,7 @@
         {
           "name": "erpx-server-support::public",
           "version": "0.1.0",
-          "source": "packages/server-support/src/public/mod.rs"
+          "source": "modules/support/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -617,17 +617,17 @@
         {
           "name": "erpx-server-workflow::public",
           "version": "0.1.0",
-          "source": "packages/server-workflow/src/public/mod.rs"
+          "source": "modules/workflow/server/src/public/mod.rs"
         },
         {
           "name": "erpx-server-workflow::public::commands",
           "version": "0.1.0",
-          "source": "packages/server-workflow/src/public/commands.rs"
+          "source": "modules/workflow/server/src/public/commands.rs"
         },
         {
           "name": "erpx-server-workflow::public::field_outbox",
           "version": "0.1.0",
-          "source": "packages/server-workflow/src/public/field_outbox.rs"
+          "source": "modules/workflow/server/src/public/field_outbox.rs"
         }
       ],
       "requires": [
@@ -651,7 +651,7 @@
         {
           "name": "erpx.example.http",
           "version": "1.0.0",
-          "source": "src/composition/src/module_example.rs"
+          "source": "platform/composition/src/module_example.rs"
         }
       ],
       "requires": [
@@ -668,7 +668,7 @@
         {
           "name": "erpx.example.observed",
           "version": "1.0.0",
-          "source": "src/composition/src/module_example.rs"
+          "source": "platform/composition/src/module_example.rs"
         }
       ],
       "requiresEvents": []
@@ -681,7 +681,7 @@
         {
           "name": "erpx-server-work-projection::public",
           "version": "0.1.0",
-          "source": "packages/server-work_projection/src/public/mod.rs"
+          "source": "modules/work-projection/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -1037,12 +1037,12 @@
         {
           "name": "erpx-server-operations::public",
           "version": "0.1.0",
-          "source": "packages/server-operations/src/public/mod.rs"
+          "source": "modules/operations/server/src/public/mod.rs"
         },
         {
           "name": "erpx-server-operations::public::field_outbox",
           "version": "0.1.0",
-          "source": "packages/server-operations/src/public/field_outbox.rs"
+          "source": "modules/operations/server/src/public/field_outbox.rs"
         }
       ],
       "requires": [
@@ -1066,7 +1066,7 @@
         {
           "name": "erpx-server-pos::public",
           "version": "0.1.0",
-          "source": "packages/server-pos/src/public/mod.rs"
+          "source": "modules/pos/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -1090,12 +1090,12 @@
         {
           "name": "erpx-server-brand::public",
           "version": "0.1.0",
-          "source": "packages/server-brand/src/public/mod.rs"
+          "source": "modules/brand/server/src/public/mod.rs"
         },
         {
           "name": "erpx-server-brand::public::identity",
           "version": "0.1.0",
-          "source": "packages/server-brand/src/public/identity.rs"
+          "source": "modules/brand/server/src/public/identity.rs"
         }
       ],
       "requires": [
@@ -1123,7 +1123,7 @@
         {
           "name": "erpx-server-benefits::public",
           "version": "0.1.0",
-          "source": "packages/server-benefits/src/public/mod.rs"
+          "source": "modules/benefits/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -1147,7 +1147,7 @@
         {
           "name": "erpx-server-billing::public",
           "version": "0.1.0",
-          "source": "packages/server-billing/src/public/mod.rs"
+          "source": "modules/billing/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -1171,7 +1171,7 @@
         {
           "name": "erpx-server-crm::public",
           "version": "0.1.0",
-          "source": "packages/server-crm/src/public/mod.rs"
+          "source": "modules/crm/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -1195,7 +1195,7 @@
         {
           "name": "erpx-server-customer-360::public",
           "version": "0.1.0",
-          "source": "packages/server-customer_360/src/public/mod.rs"
+          "source": "modules/customer-360/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -1219,7 +1219,7 @@
         {
           "name": "erpx-server-customer-authority::public",
           "version": "0.1.0",
-          "source": "packages/server-customer_authority/src/public/mod.rs"
+          "source": "modules/customer-authority/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -1243,7 +1243,7 @@
         {
           "name": "erpx-server-ecommerce::public",
           "version": "0.1.0",
-          "source": "packages/server-ecommerce/src/public/mod.rs"
+          "source": "modules/ecommerce/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -1267,7 +1267,7 @@
         {
           "name": "erpx-server-learning::public",
           "version": "0.1.0",
-          "source": "packages/server-learning/src/public/mod.rs"
+          "source": "modules/learning/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -1291,7 +1291,7 @@
         {
           "name": "erpx-server-manufacturing::public",
           "version": "0.1.0",
-          "source": "packages/server-manufacturing/src/public/mod.rs"
+          "source": "modules/manufacturing/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -1315,7 +1315,7 @@
         {
           "name": "erpx-server-marketing::public",
           "version": "0.1.0",
-          "source": "packages/server-marketing/src/public/mod.rs"
+          "source": "modules/marketing/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -1339,7 +1339,7 @@
         {
           "name": "erpx-server-procurement::public",
           "version": "0.1.0",
-          "source": "packages/server-procurement/src/public/mod.rs"
+          "source": "modules/procurement/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -1363,7 +1363,7 @@
         {
           "name": "erpx-server-projects::public",
           "version": "0.1.0",
-          "source": "packages/server-projects/src/public/mod.rs"
+          "source": "modules/projects/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -1387,7 +1387,7 @@
         {
           "name": "erpx-server-sales::public",
           "version": "0.1.0",
-          "source": "packages/server-sales/src/public/mod.rs"
+          "source": "modules/sales/server/src/public/mod.rs"
         }
       ],
       "requires": [
@@ -1419,7 +1419,7 @@
         {
           "name": "erpx-server-talent::public",
           "version": "0.1.0",
-          "source": "packages/server-talent/src/public/mod.rs"
+          "source": "modules/talent/server/src/public/mod.rs"
         }
       ],
       "requires": [

@@ -5,11 +5,11 @@
 #![allow(dead_code)]
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_pms::public::home_metrics::{
+use erpx_pms_server::public::home_metrics::{
     PgPmsHotelMetricsRead, PmsHotelMetricsFacts, PmsMetricPropertyRow, PmsMetricRecordRow,
     pms_hotel_metrics, project_hotel_metrics,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
 use serde_json::json;

@@ -1,6 +1,6 @@
 {
   "sourceCommit": "a5ed8737a2f05eff1ee9841fda4a094b3926d732",
-  "path": "packages/server-identity_access/src/application/iam-grants.ts",
+  "path": "modules/identity-access/server/src/application/iam-grants.ts",
   "sourceSha256": "e67e927601db34c06302083b7802cdd5777a80708bc5afdf53d6b1e1fbe4165c",
   "node": "v26.11.1",
   "now": 1800000000000,

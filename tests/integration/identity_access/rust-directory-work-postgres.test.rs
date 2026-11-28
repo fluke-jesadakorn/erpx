@@ -1,7 +1,7 @@
 #[allow(dead_code, reason = "shared real session and loopback scenarios")]
 #[path = "../../support/rust-directory-work.rs"]
 mod fixture;
-use erpx_server_shared::public::Clock;
+use erpx_platform_shared_server::public::Clock;
 use fixture::{account, ldap};
 use std::{sync::Arc, time::Duration};
 use tokio::time::timeout;
@@ -17,7 +17,7 @@ async fn stale_request_completes_real_observation_before_fresh_normal_work_autho
         use std::sync::atomic::{AtomicUsize,Ordering};
         let parses=Arc::new(AtomicUsize::new(0));let effects=Arc::new(AtomicUsize::new(0));
         let input=prepared.authority.selection.clone();let count=parses.clone();let action_count=effects.clone();
-        let denied=prepared.work.execute_with_sources_deferred("acme.example.test",erpx_server_identity_access::public::DeviceProof::default(),move||{count.fetch_add(1,Ordering::SeqCst);Ok(input)},prepared.authority.access.clone(),fixture::EffectSources,move|_,_|{let count=action_count.clone();Box::pin(async move{count.fetch_add(1,Ordering::SeqCst);Err::<String,_>(erpx_server_shared::public::BusinessError::new(erpx_server_shared::public::FailureKind::Forbidden,"UNEXPECTED_EFFECT","A denied request reached its effect.").into())})}).await;
+        let denied=prepared.work.execute_with_sources_deferred("acme.example.test",erpx_identity_access_server::public::DeviceProof::default(),move||{count.fetch_add(1,Ordering::SeqCst);Ok(input)},prepared.authority.access.clone(),fixture::EffectSources,move|_,_|{let count=action_count.clone();Box::pin(async move{count.fetch_add(1,Ordering::SeqCst);Err::<String,_>(erpx_platform_shared_server::public::BusinessError::new(erpx_platform_shared_server::public::FailureKind::Forbidden,"UNEXPECTED_EFFECT","A denied request reached its effect.").into())})}).await;
         assert!(denied.is_err());assert_eq!(parses.load(Ordering::SeqCst),0);assert_eq!(effects.load(Ordering::SeqCst),0);assert_eq!(prepared.server.stats.lock().unwrap().connections,0);
         let input=prepared.authority.selection.clone();let count=parses.clone();
         let result=prepared.work.execute_with_sources_deferred("acme.example.test",prepared.authority.proof.clone(),move||{count.fetch_add(1,Ordering::SeqCst);Ok(input)},prepared.authority.access.clone(),fixture::EffectSources,|c,context|Box::pin(async move{sqlx::query("INSERT INTO synthetic_directory_work_effects(id) VALUES('actual-authorized-effect')").execute(c).await?;Ok(context.user_id().as_str().to_owned())})).await;
@@ -66,7 +66,7 @@ async fn revoked_session_precedes_malformed_optional_directory_configuration_and
  let prepared=fixture::prepare(system,ldap::Scenario::Complete,false,true).await;let pool=&prepared.authority.system.holdings[0];
  sqlx::query("INSERT INTO iam_revoked_sessions(session_id,company_id,user_id,revoked_at) VALUES($1,'company','fixture-a',$2)").bind(&prepared.authority.child_id).bind(prepared.authority.system.scenario.clock.now().get()).execute(pool.raw()).await.unwrap();
  sqlx::query("UPDATE iam_connections SET config='{\"mode\":\"ldaps\",\"secretProfile\":false}' WHERE id=$1").bind(ldap::CONNECTION).execute(pool.raw()).await.unwrap();
- assert!(matches!(fixture::execute(&prepared).await,Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) if error.code=="SESSION_REVOKED"));assert_eq!(fixture::effects(&prepared).await,0);assert_eq!(prepared.server.stats.lock().unwrap().connections,0);prepared.server.finish().await;
+ assert!(matches!(fixture::execute(&prepared).await,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) if error.code=="SESSION_REVOKED"));assert_eq!(fixture::effects(&prepared).await,0);assert_eq!(prepared.server.stats.lock().unwrap().connections,0);prepared.server.finish().await;
 }).await;
 }
 #[tokio::test]
@@ -200,9 +200,9 @@ async fn selected_ingress_keeps_real_directory_refresh_and_returns_local_error_b
         let local=prepared.work.execute_with_selected_transport_ingress_deferred(
             "acme.example.test",prepared.authority.proof.clone(),move||Ok(selection),
             (prepared.authority.access.clone(),fixture::EffectSources),
-            erpx_server_identity_access::public::effective_authority::SelectedTransportCallbacks::<_, (), &'static str, _>::new::<()>(  |_|Box::pin(async {tokio::task::yield_now().await;Err::<(),_>("async-wire")}),
+            erpx_identity_access_server::public::effective_authority::SelectedTransportCallbacks::<_, (), &'static str, _>::new::<()>(  |_|Box::pin(async {tokio::task::yield_now().await;Err::<(),_>("async-wire")}),
             |_,error|Err(error),
-            |_,_,_|Box::pin(async {Ok::<_,erpx_server_runtime::public::postgres::PgTransactionError<erpx_server_shared::public::BusinessError>>(Ok::<_,&'static str>(()))})
+            |_,_,_|Box::pin(async {Ok::<_,erpx_platform_runtime_server::public::postgres::PgTransactionError<erpx_platform_shared_server::public::BusinessError>>(Ok::<_,&'static str>(()))})
         )).await.unwrap();
         assert_eq!(local,Err("async-wire"));assert_eq!(fixture::effects(&prepared).await,1);
         assert_eq!(prepared.server.stats.lock().unwrap().service_binds,1);prepared.server.finish().await;

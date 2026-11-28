@@ -5,21 +5,21 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_files::public::project_attachment::{
+use erpx_files_server::public::project_attachment::{
     bind_project_attachment_with_current_facts, project_attachment_bound_manifest,
     project_attachment_link_ids, project_attachment_set_facts,
 };
-use erpx_server_projects::public::project_attachment::{
+use erpx_projects_server::public::project_attachment::{
     PROJECT_ATTACHMENT_BIND_OPERATION, PgProjectAttachmentCommandReceipts, ProjectAttachmentActor,
     ProjectAttachmentBindingCommand, ProjectAttachmentBoundLink,
     ProjectAttachmentCommandRepository, ProjectAttachmentReceiptPlan,
     project_attachment_authority_json, project_attachment_command_receipt,
     project_attachment_fingerprint, replay_project_attachment_binding,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, TimestampMillis};
 
 const NOW: i64 = 1_800_000_000_000;
 const KEY: &str = "project-attachment-bind-0001";

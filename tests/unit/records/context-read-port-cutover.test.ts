@@ -5,14 +5,14 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { projectionColumnHeadSql } from '../../../packages/server-records/src/adapters/read-tail-r32-sql';
+import { projectionColumnHeadSql } from '../../../modules/records/server/src/adapters/read-tail-r32-sql';
 
 const root = resolve(__dirname, '../../..');
 const read = (p: string) => readFileSync(resolve(root, p), 'utf8');
 const sha = (s: string) => createHash('sha256').update(s, 'utf8').digest('hex');
-const records = read('packages/server-records/src/adapters/records.ts');
-const nativeClient = read('packages/server-records/src/public/native-record-context.ts');
-const rustPort = read('packages/server-records/src/adapters/record_context.rs');
+const records = read('modules/records/server/src/adapters/records.ts');
+const nativeClient = read('modules/records/server/src/public/native-record-context.ts');
+const rustPort = read('modules/records/server/src/adapters/record_context.rs');
 const rustReadPath = rustPort.split('#[cfg(test)]')[0] ?? rustPort;
 
 describe('Records record_context native read port cutover', () => {
@@ -58,7 +58,7 @@ describe('Records record_context native read port cutover', () => {
         else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
       }
     };
-    walk(resolve(root, 'packages/server-records/src'));
+    walk(resolve(root, 'modules/records/server/src'));
     expect(total).toBe(6);
     expect(total).toBeLessThan(13);
   });

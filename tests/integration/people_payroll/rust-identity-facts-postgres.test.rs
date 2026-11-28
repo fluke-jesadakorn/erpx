@@ -1,14 +1,14 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_people_payroll::public::identity_facts::{
+use erpx_people_payroll_server::public::identity_facts::{
     PgPeopleAuthorityReader, lock_people_authority_sources,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, RecordId, UserId};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, RecordId, UserId};
 use std::{sync::Arc, time::Duration};
 
 async fn setup(pool: &DatabasePool) {
@@ -146,7 +146,7 @@ async fn source_snapshot_observes_a_writer_committed_before_lock_acquisition() {
 
 #[tokio::test]
 async fn sales_workforce_join_matches_current_owner_projection_and_unit() {
-    use erpx_server_people_payroll::public::workforce_reference::{inspect_sales_workforce_join,lock_people_authority_sources};
+    use erpx_people_payroll_server::public::workforce_reference::{inspect_sales_workforce_join,lock_people_authority_sources};
     fixture::with_database(2,|pool|async move {
         setup(&pool).await;
         let mut tx=pool.raw().begin().await.unwrap();
@@ -169,7 +169,7 @@ async fn sales_workforce_join_matches_current_owner_projection_and_unit() {
         join.require_current(&mut tx).await.unwrap();
         let oracle=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
             .current_dir(concat!(env!("CARGO_MANIFEST_DIR"),"/../.."))
-            .args(["--conditions=react-server","-e","import {commercialOwnerProjectionSources as s} from './packages/server-people_payroll/src/adapters/commercial-owner-projection-sources.ts'; process.stdout.write(JSON.stringify([s.hr_people,s.hr_engagements]))"])
+            .args(["--conditions=react-server","-e","import {commercialOwnerProjectionSources as s} from './modules/people-payroll/server/src/adapters/commercial-owner-projection-sources.ts'; process.stdout.write(JSON.stringify([s.hr_people,s.hr_engagements]))"])
             .output().unwrap();
         assert!(oracle.status.success());
         let legacy:Vec<String>=serde_json::from_slice(&oracle.stdout).unwrap();
@@ -187,8 +187,8 @@ async fn sales_workforce_join_matches_current_owner_projection_and_unit() {
 
 #[tokio::test]
 async fn operational_workforce_reference_preserves_utc_dates_and_company_subject_scope() {
-    use erpx_server_people_payroll::public::workforce_reference::inspect_workforce_reference;
-    use erpx_server_shared::public::TimestampMillis;
+    use erpx_people_payroll_server::public::workforce_reference::inspect_workforce_reference;
+    use erpx_platform_shared_server::public::TimestampMillis;
     fixture::with_database(2,|pool|async move {
         setup(&pool).await;
         sqlx::query("UPDATE hr_engagements SET start_date='2026-10-27',end_date='2026-10-27' WHERE id='engagement'").execute(pool.raw()).await.unwrap();
@@ -209,8 +209,8 @@ async fn operational_workforce_reference_preserves_utc_dates_and_company_subject
 #[tokio::test]
 async fn operational_workforce_reference_rechecks_eligibility_without_retaining_profile_or_placement()
  {
-    use erpx_server_people_payroll::public::workforce_reference::inspect_workforce_reference;
-    use erpx_server_shared::public::TimestampMillis;
+    use erpx_people_payroll_server::public::workforce_reference::inspect_workforce_reference;
+    use erpx_platform_shared_server::public::TimestampMillis;
     fixture::with_database(2,|pool|async move{
         setup(&pool).await;
         let now:i64=sqlx::query_scalar("SELECT (extract(epoch FROM TIMESTAMPTZ '2026-10-27 12:00:00+00')*1000)::bigint").fetch_one(pool.raw()).await.unwrap();
@@ -234,8 +234,8 @@ async fn operational_workforce_reference_rechecks_eligibility_without_retaining_
 #[tokio::test]
 async fn operational_workforce_reference_cannot_cross_a_transaction_or_use_an_untracked_connection()
 {
-    use erpx_server_people_payroll::public::workforce_reference::inspect_workforce_reference;
-    use erpx_server_shared::public::TimestampMillis;
+    use erpx_people_payroll_server::public::workforce_reference::inspect_workforce_reference;
+    use erpx_platform_shared_server::public::TimestampMillis;
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
         let company = CompanyId::new("company").unwrap();
@@ -271,8 +271,8 @@ async fn operational_workforce_reference_cannot_cross_a_transaction_or_use_an_un
 }
 #[tokio::test]
 async fn operational_workforce_reference_preserves_real_old_snapshot_tuple_serialization_failure() {
-    use erpx_server_people_payroll::public::workforce_reference::inspect_workforce_reference;
-    use erpx_server_shared::public::TimestampMillis;
+    use erpx_people_payroll_server::public::workforce_reference::inspect_workforce_reference;
+    use erpx_platform_shared_server::public::TimestampMillis;
     fixture::with_database(2,|pool|async move{
         setup(&pool).await;
         let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
@@ -286,7 +286,7 @@ async fn operational_workforce_reference_preserves_real_old_snapshot_tuple_seria
 
 #[tokio::test]
 async fn learning_person_witness_is_scoped_transaction_bound_and_rechecks_only_person_predicate() {
-    use erpx_server_people_payroll::public::learning_person::{inspect_learning_person, lock_learning_person_source};
+    use erpx_people_payroll_server::public::learning_person::{inspect_learning_person, lock_learning_person_source};
     fixture::with_database(3, |pool| async move {
         setup(&pool).await;
         let mut c = pool.raw().acquire().await.unwrap();
@@ -324,7 +324,7 @@ async fn learning_person_witness_is_scoped_transaction_bound_and_rechecks_only_p
 
 #[tokio::test]
 async fn learning_person_source_lock_waits_in_both_orders_and_reads_committed_change() {
-    use erpx_server_people_payroll::public::learning_person::{inspect_learning_person, lock_learning_person_source};
+    use erpx_people_payroll_server::public::learning_person::{inspect_learning_person, lock_learning_person_source};
     use sqlx::Connection;
     fixture::with_database(4, |pool| async move {
         setup(&pool).await;
@@ -379,7 +379,7 @@ async fn learning_person_source_lock_waits_in_both_orders_and_reads_committed_ch
 
 #[tokio::test]
 async fn benefit_person_retains_unordered_selection_and_full_people_source() {
-    use erpx_server_people_payroll::public::benefit_person::{inspect_benefit_person, lock_benefit_people_sources};
+    use erpx_people_payroll_server::public::benefit_person::{inspect_benefit_person, lock_benefit_people_sources};
     fixture::with_database(3, |pool| async move {
         setup(&pool).await;
         sqlx::query("INSERT INTO hr_engagements(id,person_id,company_id,branch_id,department_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at) VALUES('engagement-two','person','company','second-branch','second-department','employee','salaried','active','2200-01-01','Other','THB','user',0,0)").execute(pool.raw()).await.unwrap();
@@ -418,7 +418,7 @@ async fn benefit_person_retains_unordered_selection_and_full_people_source() {
 
 #[tokio::test]
 async fn benefit_person_prelock_waits_for_engagement_writer_and_reads_committed_change() {
-    use erpx_server_people_payroll::public::benefit_person::{inspect_benefit_person, lock_benefit_people_sources};
+    use erpx_people_payroll_server::public::benefit_person::{inspect_benefit_person, lock_benefit_people_sources};
     use sqlx::Connection;
     fixture::with_database(4, |pool| async move {
         setup(&pool).await;
@@ -446,7 +446,7 @@ async fn benefit_person_prelock_waits_for_engagement_writer_and_reads_committed_
 
 #[tokio::test]
 async fn learning_person_preparation_rejects_untransactional_and_non_serializable_calls() {
-    use erpx_server_people_payroll::public::learning_person::{inspect_learning_person, lock_learning_person_source};
+    use erpx_people_payroll_server::public::learning_person::{inspect_learning_person, lock_learning_person_source};
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
         let mut raw = pool.raw().acquire().await.unwrap();
@@ -463,7 +463,7 @@ async fn learning_person_preparation_rejects_untransactional_and_non_serializabl
 
 #[tokio::test]
 async fn learning_person_negative_witness_detects_a_new_matching_person() {
-    use erpx_server_people_payroll::public::learning_person::{inspect_learning_person, lock_learning_person_source};
+    use erpx_people_payroll_server::public::learning_person::{inspect_learning_person, lock_learning_person_source};
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
         let mut tx = pool.raw().begin().await.unwrap();
@@ -478,7 +478,7 @@ async fn learning_person_negative_witness_detects_a_new_matching_person() {
         sqlx::query("INSERT INTO hr_people(id,user_id,company_id,legal_name,email,phone,country_code,created_by,created_at,updated_at) VALUES('person-two','user-two','company','Fixture Two',NULL,NULL,'TH','user',0,0)").execute(&mut *tx).await.unwrap();
         foreign.require_current(&mut tx).await.unwrap();
         let error = current.require_current(&mut tx).await.unwrap_err();
-        assert!(matches!(error, PgTransactionError::Business(ref e) if e.kind == erpx_server_shared::public::FailureKind::Conflict && e.code == "PEOPLE_LEARNING_PERSON_CHANGED"));
+        assert!(matches!(error, PgTransactionError::Business(ref e) if e.kind == erpx_platform_shared_server::public::FailureKind::Conflict && e.code == "PEOPLE_LEARNING_PERSON_CHANGED"));
         tx.rollback().await.unwrap();
         assert_eq!(sqlx::query_scalar::<_, i64>("SELECT count(*) FROM hr_people WHERE id='person-two'").fetch_one(pool.raw()).await.unwrap(), 0);
     }).await;
@@ -486,7 +486,7 @@ async fn learning_person_negative_witness_detects_a_new_matching_person() {
 
 #[tokio::test]
 async fn benefit_person_preparation_rejects_untransactional_and_non_serializable_calls() {
-    use erpx_server_people_payroll::public::benefit_person::{inspect_benefit_person, lock_benefit_people_sources};
+    use erpx_people_payroll_server::public::benefit_person::{inspect_benefit_person, lock_benefit_people_sources};
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
         let mut raw = pool.raw().acquire().await.unwrap();
@@ -503,7 +503,7 @@ async fn benefit_person_preparation_rejects_untransactional_and_non_serializable
 
 #[tokio::test]
 async fn benefit_person_negative_witness_detects_a_new_employee() {
-    use erpx_server_people_payroll::public::benefit_person::{inspect_benefit_person, lock_benefit_people_sources};
+    use erpx_people_payroll_server::public::benefit_person::{inspect_benefit_person, lock_benefit_people_sources};
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
         let mut tx = pool.raw().begin().await.unwrap();
@@ -515,7 +515,7 @@ async fn benefit_person_negative_witness_detects_a_new_employee() {
         sqlx::query("INSERT INTO hr_people(id,user_id,company_id,legal_name,email,phone,country_code,created_by,created_at,updated_at) VALUES('person-two','missing-user','company','Fixture Two',NULL,NULL,'TH','user',0,0)").execute(&mut *tx).await.unwrap();
         sqlx::query("INSERT INTO hr_engagements(id,person_id,company_id,branch_id,department_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at) VALUES('engagement-new','person-two','company','witness-branch','witness-department','employee','salaried','active','2026-02-01','Fixture','THB','user',0,0)").execute(&mut *tx).await.unwrap();
         let error = current.require_current(&mut tx).await.unwrap_err();
-        assert!(matches!(error, PgTransactionError::Business(ref e) if e.kind == erpx_server_shared::public::FailureKind::Conflict && e.code == "PEOPLE_BENEFIT_PERSON_CHANGED"));
+        assert!(matches!(error, PgTransactionError::Business(ref e) if e.kind == erpx_platform_shared_server::public::FailureKind::Conflict && e.code == "PEOPLE_BENEFIT_PERSON_CHANGED"));
         tx.rollback().await.unwrap();
         assert_eq!(sqlx::query_scalar::<_, i64>("SELECT count(*) FROM hr_people WHERE id='person-two'").fetch_one(pool.raw()).await.unwrap(), 0);
         assert_eq!(sqlx::query_scalar::<_, i64>("SELECT count(*) FROM hr_engagements WHERE id='engagement-new'").fetch_one(pool.raw()).await.unwrap(), 0);
@@ -524,7 +524,7 @@ async fn benefit_person_negative_witness_detects_a_new_employee() {
 
 #[tokio::test]
 async fn benefit_person_require_current_detects_engagement_suspension_and_merge() {
-    use erpx_server_people_payroll::public::benefit_person::{inspect_benefit_person, lock_benefit_people_sources};
+    use erpx_people_payroll_server::public::benefit_person::{inspect_benefit_person, lock_benefit_people_sources};
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
         let mut tx = pool.raw().begin().await.unwrap();
@@ -537,13 +537,13 @@ async fn benefit_person_require_current_detects_engagement_suspension_and_merge(
         // Suspending the selected engagement changes the retained source image.
         sqlx::query("UPDATE hr_engagements SET status='suspended' WHERE id='engagement'").execute(&mut *tx).await.unwrap();
         let error = current.require_current(&mut tx).await.unwrap_err();
-        assert!(matches!(error, PgTransactionError::Business(ref e) if e.kind == erpx_server_shared::public::FailureKind::Conflict && e.code == "PEOPLE_BENEFIT_PERSON_CHANGED"));
+        assert!(matches!(error, PgTransactionError::Business(ref e) if e.kind == erpx_platform_shared_server::public::FailureKind::Conflict && e.code == "PEOPLE_BENEFIT_PERSON_CHANGED"));
         sqlx::query("UPDATE hr_engagements SET status='active' WHERE id='engagement'").execute(&mut *tx).await.unwrap();
         current.require_current(&mut tx).await.unwrap();
         // Merging the person changes the retained source image even in the same transaction.
         sqlx::query("UPDATE hr_people SET merged_into_id='foreign-person' WHERE id='person'").execute(&mut *tx).await.unwrap();
         let error = current.require_current(&mut tx).await.unwrap_err();
-        assert!(matches!(error, PgTransactionError::Business(ref e) if e.kind == erpx_server_shared::public::FailureKind::Conflict && e.code == "PEOPLE_BENEFIT_PERSON_CHANGED"));
+        assert!(matches!(error, PgTransactionError::Business(ref e) if e.kind == erpx_platform_shared_server::public::FailureKind::Conflict && e.code == "PEOPLE_BENEFIT_PERSON_CHANGED"));
         sqlx::query("UPDATE hr_people SET merged_into_id=NULL WHERE id='person'").execute(&mut *tx).await.unwrap();
         current.require_current(&mut tx).await.unwrap();
         tx.rollback().await.unwrap();
@@ -552,7 +552,7 @@ async fn benefit_person_require_current_detects_engagement_suspension_and_merge(
 
 #[tokio::test]
 async fn service_people_source_retains_people_and_engagement_locks() {
-    use erpx_server_people_payroll::public::field_service_workspace::*;
+    use erpx_people_payroll_server::public::field_service_workspace::*;
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
         let company=CompanyId::new("company").unwrap();let ids=vec!["user".to_owned()];
@@ -571,7 +571,7 @@ async fn service_people_source_retains_people_and_engagement_locks() {
 
 #[tokio::test]
 async fn people_authority_held_locks_cover_all_nine_sources() {
-    use erpx_server_people_payroll::public::identity_facts::require_people_authority_sources_held;
+    use erpx_people_payroll_server::public::identity_facts::require_people_authority_sources_held;
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
         let mut outside=pool.raw().acquire().await.unwrap();assert!(require_people_authority_sources_held(&mut outside).await.is_err());drop(outside);
@@ -588,7 +588,7 @@ async fn people_authority_held_locks_cover_all_nine_sources() {
 
 #[tokio::test]
 async fn people_sales_authority_boundary_checks_canonical_sources_and_unit() {
-    use erpx_server_people_payroll::public::identity_facts::inspect_people_sales_authority_boundary;
+    use erpx_people_payroll_server::public::identity_facts::inspect_people_sales_authority_boundary;
     fixture::with_database(2,|pool|async move {
         setup(&pool).await;
         let mut tx=pool.raw().begin().await.unwrap();

@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { jsonbRowsSql } from '../../../packages/server-files/src/adapters/social-upload-cleanup-rows-sql';
+import { jsonbRowsSql } from '../../../modules/files/server/src/adapters/social-upload-cleanup-rows-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-files/src');
+const srcRoot = resolve(__dirname, '../../../modules/files/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 const readOnly = (sql: string) => {

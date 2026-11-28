@@ -2,7 +2,7 @@
  * Native-seeding oracle for retained CRM lead qualification, quotation and PMS win reads.
  *
  * The TypeScript `qualify` and `win-pms` writers were retired with the native
- * CRM lead command (`packages/server-crm/src/adapters/leads_native.rs` + the
+ * CRM lead command (`modules/crm/server/src/adapters/leads_native.rs` + the
  * composition `CrmLeadCommand` effects). This helper is test-only. It writes
  * the same `crm_leads`, `crm_opportunities` and immutable `crm_case_events`
  * rows as the native owner adapter so the retained CRM detail, Work, forecast
@@ -17,8 +17,8 @@
  * covered by the Rust owner and composition tests. Do not import this module
  * outside tests.
  */
-import type {SqlDatabase,TransactionalSqlDatabase} from "@erpx/server-runtime/public/runtime/types";
-import {salesRecipientEligibility} from "@erpx/server-sales/public/sales-recipient";
+import type {SqlDatabase,TransactionalSqlDatabase} from "@erpx/platform-runtime-server/public/runtime/types";
+import {salesRecipientEligibility} from "@erpx/sales-server/public/sales-recipient";
 
 /** Seed the native link-quote after-image for retained CRM consumers. */
 export async function linkNativeQuote(

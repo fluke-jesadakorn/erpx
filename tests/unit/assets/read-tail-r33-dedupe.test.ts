@@ -4,7 +4,7 @@ import {resolve} from 'node:path';
 
 vi.mock('server-only',()=>({}));
 
-const srcRoot=resolve(__dirname,'../../../packages/server-assets/src');
+const srcRoot=resolve(__dirname,'../../../modules/assets/server/src');
 const src=(p:string)=>readFileSync(resolve(srcRoot,p),'utf8');
 const ownerSelectCount=()=>{
  let selects=0;
@@ -21,8 +21,8 @@ const ownerSelectCount=()=>{
 
 describe('Assets read-tail r33 projection-from head family',()=>{
  it('renders the physical lineage aggregate byte-identically from the one projection-from head',async()=>{
-  const {assetPhysicalAggSql}=await import('../../../packages/server-assets/src/adapters/financial-workflow-sources');
-  const {assetProjectionFromSql}=await import('../../../packages/server-assets/src/adapters/asset-scope-tuple');
+  const {assetPhysicalAggSql}=await import('../../../modules/assets/server/src/adapters/financial-workflow-sources');
+  const {assetProjectionFromSql}=await import('../../../modules/assets/server/src/adapters/asset-scope-tuple');
   // The pre-r33 literal, rebuilt verbatim; the a/e/l/w aliases and the purchase
   // owner's link alias must all render byte-identically after delegation.
   const before=(alias:string,from:string)=>`(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${from})`;
@@ -48,11 +48,11 @@ describe('Assets read-tail r33 projection-from head family',()=>{
  });
 
  it('renders the package settlement assets source byte-identically for the cross-owner maintenance consumer',async()=>{
-  const {assetPackageSettlementSources}=await import('../../../packages/server-assets/src/adapters/package-obligations');
-  const {assetProjectionFromSql}=await import('../../../packages/server-assets/src/adapters/asset-scope-tuple');
-  const {assetSourceProbeSql}=await import('../../../packages/server-assets/src/adapters/record-purchases');
-  const {talentSettlementPlacements}=await import('@erpx/server-organization/public/talent-settlement-sources');
-  const {projectionLookup}=await import('../../../packages/server-maintenance/src/adapters/projection-lookup');
+  const {assetPackageSettlementSources}=await import('../../../modules/assets/server/src/adapters/package-obligations');
+  const {assetProjectionFromSql}=await import('../../../modules/assets/server/src/adapters/asset-scope-tuple');
+  const {assetSourceProbeSql}=await import('../../../modules/assets/server/src/adapters/record-purchases');
+  const {talentSettlementPlacements}=await import('@erpx/organization-server/public/talent-settlement-sources');
+  const {projectionLookup}=await import('../../../modules/maintenance/server/src/adapters/projection-lookup');
   const exists=(from:string,where:string)=>`EXISTS(${assetSourceProbeSql(from,where)})`;
   const sourceExists=(source:string,alias:string,where:string)=>exists(`(${source}) ${alias}`,where);
   const placements=talentSettlementPlacements;
@@ -77,10 +77,10 @@ describe('Assets read-tail r33 projection-from head family',()=>{
  });
 
  it('renders the metric source segment byte-identically with unchanged binds',async()=>{
-  const {assetProjectionFromSql}=await import('../../../packages/server-assets/src/adapters/asset-scope-tuple');
-  const {nativeAssetsClockScalar}=await import('../../../packages/server-assets/src/adapters/native-assets-read');
-  const {assignmentReadSql}=await import('@erpx/server-identity_access/public/record-source-authority');
-  const {purchasedCapabilityPredicate}=await import('@erpx/server-commercial/public/purchased-capability-sql');
+  const {assetProjectionFromSql}=await import('../../../modules/assets/server/src/adapters/asset-scope-tuple');
+  const {nativeAssetsClockScalar}=await import('../../../modules/assets/server/src/adapters/native-assets-read');
+  const {assignmentReadSql}=await import('@erpx/identity-access-server/public/record-source-authority');
+  const {purchasedCapabilityPredicate}=await import('@erpx/commercial-server/public/purchased-capability-sql');
   const key='ERPX_NATIVE_ASSETS_READ_CONFIG',original=process.env[key];
   const clockSql='SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms';
   process.env[key]=JSON.stringify({privateBaseUrl:'http://127.0.0.1:44996',timeoutMs:1000,holdings:[{origin:'https://acme.example.com',holdingSlug:'acme'}]});

@@ -1,11 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
+import type { WorkContext } from '@erpx/identity-access-server/public/authorization';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { ApiError } from '@erpx/server-runtime/public/http';
+import { ApiError } from '@erpx/platform-runtime-server/public/http';
 
 const root = resolve(__dirname, '../../..');
 const read = (path: string) => readFileSync(resolve(root, path), 'utf8');
@@ -108,7 +108,7 @@ afterEach(() => {
 
 describe('native Records search owner execution and payload parity', () => {
   it('executes real owner SQL in the Rust adapter, parameterised and finite', () => {
-    const sql = code('packages/server-records/src/adapters/record_search.rs');
+    const sql = code('modules/records/server/src/adapters/record_search.rs');
     for (const needle of [
       'SELECT module_id,id,title,status,version FROM workspace_records',
       'archived_at IS NULL',
@@ -130,7 +130,7 @@ describe('native Records search owner execution and payload parity', () => {
   });
 
   it('pins the exact legacy wire fields and envelope', () => {
-    const domain = code('packages/server-records/src/domain/record_search.rs');
+    const domain = code('modules/records/server/src/domain/record_search.rs');
     for (const field of ['kind', 'module_id', 'id', 'title', 'status', 'version'])
       expect(domain).toContain(`"${field}"`);
     expect(domain).toContain('"target_id"');
@@ -142,12 +142,12 @@ describe('native Records search owner execution and payload parity', () => {
   });
 
   it('resolves the session-backed search through one exact axum route and owner ports', () => {
-    const http = read('packages/server-records/src/adapters/record_search_http.rs');
+    const http = read('modules/records/server/src/adapters/record_search_http.rs');
     expect(http).toContain('/api/v1/holdings/{holding_slug}/records/native-search');
     expect(http).toContain('router_for_holdings');
     expect(http).toContain('Vec<(SearchTarget, Arc<dyn RecordSearchBackend>)>');
     expect(http).toContain('backend.search(&host, &headers, &query)');
-    expect(read('packages/server-records/src/public/record_search_http.rs')).toContain(
+    expect(read('modules/records/server/src/public/record_search_http.rs')).toContain(
       'RecordSearchBackend, router_for_holdings, validate_targets',
     );
     for (const [file, needle] of [
@@ -156,19 +156,19 @@ describe('native Records search owner execution and payload parity', () => {
       ['adapters/mod.rs', 'pub(crate) mod record_search_http;'],
       ['public/mod.rs', 'pub mod record_search_http;'],
     ] as const) {
-      expect(read(`packages/server-records/src/${file}`)).toContain(needle);
+      expect(read(`modules/records/server/src/${file}`)).toContain(needle);
     }
   });
 
   it('mounts the session-backed owner router in the private API', () => {
-    const mount = read('src/composition/src/private_development_api.rs');
+    const mount = read('platform/composition/src/private_development_api.rs');
     expect(mount).toContain('record_search::SearchTarget');
     expect(mount).toContain('record_search_http::RecordSearchBackend');
     expect(mount).toContain('RecordsSearchBackend::new');
     expect(mount).toContain('record_search_http::router_for_holdings');
     expect(mount).toContain('PRIVATE_API_RECORDS_SEARCH_INVALID');
     expect(mount).not.toContain('include_str!');
-    const backend = read('src/composition/src/records_search.rs');
+    const backend = read('platform/composition/src/records_search.rs');
     expect(backend).toContain('parse_inbound_account_request');
     expect(backend).toContain('CapturedHoldingMutation::capture');
     expect(backend).toContain('x-erpx-workspace-branch');
@@ -180,8 +180,8 @@ describe('native Records search owner execution and payload parity', () => {
 describe('native Records search transport', () => {
   it('forwards the session cookie and expected selection, never caller identity claims', async () => {
     const { nativeRecordSearch } = await vi.importActual<
-      typeof import('../../../packages/server-records/src/public/native-record-search')
-    >('../../../packages/server-records/src/public/native-record-search');
+      typeof import('../../../modules/records/server/src/public/native-record-search')
+    >('../../../modules/records/server/src/public/native-record-search');
     const reply = await nativeRecordSearch(actor, '@user/Alice', incomingHeaders(), async (url, headers) => {
       seen.push({ url, init: { method: 'GET', headers } });
       return new Response(JSON.stringify({ data }), { status: 200, headers: { 'content-type': 'application/json' } });
@@ -207,8 +207,8 @@ describe('native Records search transport', () => {
 
   it('carries canonical department scope slugs only from the actor', async () => {
     const { nativeRecordSearch } = await vi.importActual<
-      typeof import('../../../packages/server-records/src/public/native-record-search')
-    >('../../../packages/server-records/src/public/native-record-search');
+      typeof import('../../../modules/records/server/src/public/native-record-search')
+    >('../../../modules/records/server/src/public/native-record-search');
     await nativeRecordSearch(departmentActor, 'desk', incomingHeaders(), async (_url, headers) => {
       seen.push({ url: new URL(config.privateBaseUrl), init: { method: 'GET', headers } });
       return new Response(JSON.stringify({ data }), { status: 200, headers: { 'content-type': 'application/json' } });
@@ -222,8 +222,8 @@ describe('native Records search transport', () => {
 
   it('rejects a missing session or selection before any transport call', async () => {
     const { nativeRecordSearch } = await vi.importActual<
-      typeof import('../../../packages/server-records/src/public/native-record-search')
-    >('../../../packages/server-records/src/public/native-record-search');
+      typeof import('../../../modules/records/server/src/public/native-record-search')
+    >('../../../modules/records/server/src/public/native-record-search');
     const send = vi.fn(async () => new Response(JSON.stringify({ data }), {
       status: 200,
       headers: { 'content-type': 'application/json' },
@@ -240,8 +240,8 @@ describe('native Records search transport', () => {
 
   it('fails closed without a native transport or with a rejected request', async () => {
     const { nativeRecordSearch } = await vi.importActual<
-      typeof import('../../../packages/server-records/src/public/native-record-search')
-    >('../../../packages/server-records/src/public/native-record-search');
+      typeof import('../../../modules/records/server/src/public/native-record-search')
+    >('../../../modules/records/server/src/public/native-record-search');
     delete process.env.ERPX_NATIVE_RECORDS_CONFIG;
     await expect(nativeRecordSearch(actor, 'desk', incomingHeaders())).rejects.toMatchObject({
       code: 'NATIVE_RECORDS_SEARCH_UNAVAILABLE',

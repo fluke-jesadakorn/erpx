@@ -1,6 +1,6 @@
 //! Native Benefits command policy and port tests. These are owner unit facts;
 //! PostgreSQL and HTTP are proven by the sibling integration targets.
-use erpx_server_benefits::public::command::{
+use erpx_benefits_server::public::command::{
     BenefitCommandPorts, BenefitCommandResult, BenefitEvidenceRequest, BenefitLearningRequest,
     BenefitPlanInput, BenefitRecordKind, BenefitRecordState, BenefitWindowInput,
     BenefitsCommandActor, BenefitsEvidencePort, BenefitsLearningPort, ChangeBenefit,
@@ -9,12 +9,12 @@ use erpx_server_benefits::public::command::{
     create_election_with_ports, create_plan, create_window, execute_benefits_command,
     parse_money_minor,
 };
-use erpx_server_benefits::public::command::{BenefitsCommandFuture, BenefitsCommandRepository};
-use erpx_server_benefits::public::workspace::{
+use erpx_benefits_server::public::command::{BenefitsCommandFuture, BenefitsCommandRepository};
+use erpx_benefits_server::public::workspace::{
     BenefitPlanRow, BenefitWindowRow, BenefitsEntitlement, BenefitsEntitlementPort, BenefitsFuture,
     BenefitsPeoplePort, BenefitsWorker,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, CommandKey, CompanyId, FailureKind, TimestampMillis,
 };
 use serde_json::{Value, json};
@@ -683,7 +683,7 @@ async fn change_for_test(
     people: &mut People,
     packages: &mut Packages,
 ) -> Result<BenefitCommandResult, BusinessError> {
-    erpx_server_benefits::public::command::change(
+    erpx_benefits_server::public::command::change(
         actor, kind, id, input, key, repo, people, packages, NOW,
     )
     .await

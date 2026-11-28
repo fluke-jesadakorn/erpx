@@ -3,15 +3,15 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_benefits::public::command::{
+use erpx_benefits_server::public::command::{
     BenefitEvidenceRequest, BenefitRecordKind, BenefitsEvidencePort, benefit_evidence_binding_type,
     benefit_evidence_policy,
 };
-use erpx_server_files::public::benefit_evidence::PgBenefitsEvidence;
-use erpx_server_runtime::public::postgres::{
+use erpx_files_server::public::benefit_evidence::PgBenefitsEvidence;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{CompanyId, FailureKind, TimestampMillis};
+use erpx_platform_shared_server::public::{CompanyId, FailureKind, TimestampMillis};
 use sqlx::PgConnection;
 
 const NOW: i64 = 1_800_000_000_000;

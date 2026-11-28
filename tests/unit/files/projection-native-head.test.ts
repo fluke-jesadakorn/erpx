@@ -2,12 +2,12 @@ import { describe, expect, test } from 'vitest';
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { DISTINCT_SET_ROW_HEAD_SQL } from '../../../packages/server-files/src/adapters/read-tail-r50-source-sql';
-import { EVENT_ID_PROJECTION_HEAD_SQL } from '../../../packages/server-files/src/adapters/read-tail-r52-source-sql';
-import { SOURCE_STATE_HEAD_SQL } from '../../../packages/server-files/src/adapters/read-tail-r53-source-sql';
+import { DISTINCT_SET_ROW_HEAD_SQL } from '../../../modules/files/server/src/adapters/read-tail-r50-source-sql';
+import { EVENT_ID_PROJECTION_HEAD_SQL } from '../../../modules/files/server/src/adapters/read-tail-r52-source-sql';
+import { SOURCE_STATE_HEAD_SQL } from '../../../modules/files/server/src/adapters/read-tail-r53-source-sql';
 
 const rootDir = resolve(__dirname, '../../..');
-const srcRoot = resolve(rootDir, 'packages/server-files/src');
+const srcRoot = resolve(rootDir, 'modules/files/server/src');
 const src = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
 const sha = (text: string) => createHash('sha256').update(text).digest('hex');
 

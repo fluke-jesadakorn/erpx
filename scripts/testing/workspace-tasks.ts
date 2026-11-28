@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { appDefinitions, type AppDefinition } from '@erpx/contracts/apps';
+import { appDefinitions, type AppDefinition } from '@erpx/platform-contracts/apps';
 import { dependencyClosure, loadWorkspaceGraph, workspaceInputFile, type WorkspaceGraph } from './workspace-graph';
 import { repositoryRoot } from './catalogue';
 

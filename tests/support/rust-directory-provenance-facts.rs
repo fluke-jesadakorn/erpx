@@ -1,7 +1,7 @@
 //! Explicit synthetic durable facts for IAM-only tests. These values do not
 //! claim an actual LDAP/profile match; provider workflow tests use the native
 //! source change adapter instead. Never imported by production code.
-use erpx_server_runtime::public::postgres::DatabasePool;
+use erpx_platform_runtime_server::public::postgres::DatabasePool;
 async fn require_disposable(pool: &DatabasePool) {
     let name: String = sqlx::query_scalar("SELECT current_database()")
         .fetch_one(pool.raw())

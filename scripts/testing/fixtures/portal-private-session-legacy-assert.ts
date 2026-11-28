@@ -1,7 +1,7 @@
 /** Temporary differential oracle. Only a verified, owned Rust test lease may be read. */
 import {readFileSync} from 'node:fs';
-import {PostgresDatabase,transactionDatabase} from '@erpx/server-runtime/public/runtime/postgres';
-import {assertAccountPreferenceSession} from '@erpx/server-identity_access/adapters/account-preference-session';
+import {PostgresDatabase,transactionDatabase} from '@erpx/platform-runtime-server/public/runtime/postgres';
+import {assertAccountPreferenceSession} from '@erpx/identity-access-server/adapters/account-preference-session';
 
 let stage="input";
 async function main() {

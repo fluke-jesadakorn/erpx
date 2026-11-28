@@ -1,2 +1,0 @@
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import {readNativeQualityScope} from './native-quality-scope';import {RD_LEGACY_ATTACHMENT_SCOPE} from './native-quality-read';
-export function legacyAttachmentScopequality(db:SqlDatabase,kind:string,id:string){if(kind!=="quality_hold")return Promise.resolve(null);return readNativeQualityScope(RD_LEGACY_ATTACHMENT_SCOPE,[id],db);}

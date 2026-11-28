@@ -10,7 +10,7 @@ import {
   MARKETING_RD_COMMAND_RECEIPT_PRIOR,
   MARKETING_RD_FORM_LOCK,
   MARKETING_RD_FORM_LOCK_VERSIONED,
-} from '../../../packages/server-marketing/src/adapters/native-marketing-read';
+} from '../../../modules/marketing/server/src/adapters/native-marketing-read';
 
 const CONFIG_KEY = 'ERPX_NATIVE_MARKETING_READ_CONFIG';
 const FALLBACK_KEY = 'ERPX_NATIVE_MARKETING_CONFIG';

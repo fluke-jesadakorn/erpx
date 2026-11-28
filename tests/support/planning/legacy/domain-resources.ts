@@ -1,4 +1,4 @@
-// FIXTURE-ONLY ORACLE: copied from the retired packages/server-planning writer so the
+// FIXTURE-ONLY ORACLE: copied from the retired modules/planning/server writer so the
 // PostgreSQL integration suite retains its exact pre-cutover SQL semantics.
 // Production code must never import this module. See tests/support/planning/index.ts.
 import {z} from 'zod';export const resourceSchema = z.object({

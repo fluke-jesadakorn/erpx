@@ -2,18 +2,18 @@
 mod facts;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_finance::public::journal_review::*;
-use erpx_server_runtime::public::postgres::{PgUnitOfWork, TransactionOptions};
-use erpx_server_shared::public::{BusinessError, CompanyId};
+use erpx_finance_server::public::journal_review::*;
+use erpx_platform_runtime_server::public::postgres::{PgUnitOfWork, TransactionOptions};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId};
 use facts::*;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 #[tokio::test]
 async fn field_history_finance_candidates_follow_selected_payment_and_journal_roots() {
-    use erpx_server_finance::public::attachment_target_source::*;
-    use erpx_server_finance::public::field_history_candidates::*;
-    use erpx_server_finance::public::field_history_money_lines::*;
+    use erpx_finance_server::public::attachment_target_source::*;
+    use erpx_finance_server::public::field_history_candidates::*;
+    use erpx_finance_server::public::field_history_money_lines::*;
     fixture::with_database(3, |pool| async move {
         review::setup(&pool,false).await;
         // Deliberately ordinary staged rows test Finance candidate enumeration,
@@ -67,7 +67,7 @@ async fn field_history_finance_candidates_follow_selected_payment_and_journal_ro
 
 #[tokio::test]
 async fn assets_purchase_finance_source_retains_full_row_and_scoped_absence() {
-    use erpx_server_finance::public::asset_purchase_source::{lock_asset_purchase_finance_source,observe_asset_purchase_finance_source};
+    use erpx_finance_server::public::asset_purchase_source::{lock_asset_purchase_finance_source,observe_asset_purchase_finance_source};
     use sqlx::Connection;
     fixture::with_database(3, |pool| async move {
         review::setup(&pool, false).await;
@@ -339,8 +339,8 @@ async fn committed_source_withdrawal_while_utility_fence_waits_is_seen_before_fi
 
 #[tokio::test]
 async fn global_raw_field_journal_marker_is_same_unit_and_retains_absence() {
-    use erpx_server_finance::public::raw_field_journal_marker::*;
-    use erpx_server_finance::public::field_attachment_routing::{inspect_global_field_journal_finance_source,lock_field_attachment_finance_routing};
+    use erpx_finance_server::public::raw_field_journal_marker::*;
+    use erpx_finance_server::public::field_attachment_routing::{inspect_global_field_journal_finance_source,lock_field_attachment_finance_routing};
     fixture::with_database(2, |pool| async move {
         review::setup(&pool, false).await;
         let id=format!("field-journal-{}", "x".repeat(220));
@@ -382,7 +382,7 @@ async fn global_raw_field_journal_marker_is_same_unit_and_retains_absence() {
 
 #[tokio::test]
 async fn global_payment_allocation_marker_retains_presence_and_absence() {
-    use erpx_server_finance::public::raw_field_payment_allocation_marker::*;
+    use erpx_finance_server::public::raw_field_payment_allocation_marker::*;
     fixture::with_database(2, |pool| async move {
         review::setup(&pool, false).await;
         let payment=format!("payment-{}","x".repeat(220));
@@ -410,7 +410,7 @@ async fn global_payment_allocation_marker_retains_presence_and_absence() {
 
 #[tokio::test]
 async fn payment_marker_fences_each_source_and_releases_on_conflict() {
-    use erpx_server_finance::public::raw_field_payment_allocation_marker::*;
+    use erpx_finance_server::public::raw_field_payment_allocation_marker::*;
     use sqlx::Acquire;
     fixture::with_database(2, |pool| async move {
         review::setup(&pool, false).await;
@@ -419,7 +419,7 @@ async fn payment_marker_fences_each_source_and_releases_on_conflict() {
         let mut blocker=blocker_conn.begin().await.unwrap();sqlx::query("LOCK TABLE finance_allocations IN ACCESS EXCLUSIVE MODE").execute(&mut *blocker).await.unwrap();
         let mut reader=reader_conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *reader).await.unwrap();
         let result=tokio::time::timeout(std::time::Duration::from_secs(5),lock_raw_field_payment_allocation_sources(&mut reader)).await.unwrap();
-        assert!(matches!(result,Err(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));
+        assert!(matches!(result,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));
         // PostgreSQL releases the preceding statement's locks on abort; do
         // not treat an already-failed unit as a lock-order observation.
         let invoice_held:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND relation='finance_invoices'::regclass AND mode='ShareLock' AND granted)").bind(reader_pid).fetch_one(&mut *blocker).await.unwrap();assert!(!invoice_held);
@@ -427,7 +427,7 @@ async fn payment_marker_fences_each_source_and_releases_on_conflict() {
         let mut invoice_blocker=blocker_conn.begin().await.unwrap();sqlx::query("LOCK TABLE finance_invoices IN ACCESS EXCLUSIVE MODE").execute(&mut *invoice_blocker).await.unwrap();
         let mut reader=reader_conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *reader).await.unwrap();
         let result=tokio::time::timeout(std::time::Duration::from_secs(5),lock_raw_field_payment_allocation_sources(&mut reader)).await.unwrap();
-        assert!(matches!(result,Err(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));
+        assert!(matches!(result,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));
         reader.rollback().await.unwrap();invoice_blocker.rollback().await.unwrap();drop(reader_conn);drop(blocker_conn);
         let mut fresh=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *fresh).await.unwrap();lock_raw_field_payment_allocation_sources(&mut fresh).await.unwrap();fresh.rollback().await.unwrap();
     }).await;
@@ -435,7 +435,7 @@ async fn payment_marker_fences_each_source_and_releases_on_conflict() {
 
 #[tokio::test]
 async fn global_raw_field_invoice_marker_retains_presence_and_absence() {
-    use erpx_server_finance::public::raw_field_invoice_marker::*;
+    use erpx_finance_server::public::raw_field_invoice_marker::*;
     fixture::with_database(2, |pool| async move {
         review::setup(&pool, false).await;
         let id=format!("invoice-{}","x".repeat(220));
@@ -454,7 +454,7 @@ async fn global_raw_field_invoice_marker_retains_presence_and_absence() {
 
 #[tokio::test]
 async fn finance_attachment_target_uses_actual_company_and_record_version() {
-    use erpx_server_finance::public::attachment_target_source::*;
+    use erpx_finance_server::public::attachment_target_source::*;
     fixture::with_database(2, |pool| async move {
         review::setup(&pool, false).await;
         let company=CompanyId::new("company").unwrap();let foreign=CompanyId::new("foreign").unwrap();
@@ -491,13 +491,13 @@ async fn finance_attachment_target_uses_actual_company_and_record_version() {
         // Release before every assertion; timeout aborts and joins the writer.
         let release=tokio::time::timeout(std::time::Duration::from_secs(5),absence_unit.rollback()).await;let finished=tokio::time::timeout(std::time::Duration::from_secs(10),&mut inserting).await;if finished.is_err(){inserting.abort();let _=inserting.await;}release.expect("reader rollback timed out").expect("reader rollback failed");let writer_pid=blocked.expect("writer failed to wait").expect("writer observation failed");assert_ne!(writer_pid,reader_pid);finished.expect("writer timed out").expect("writer task failed").expect("writer insert failed");
         let mut fresh=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *fresh).await.unwrap();lock_canonical_finance_attachment_targets(&mut fresh).await.unwrap();assert!(payment_absent.require_current(&mut fresh).await.is_err());let payment_now=observe_canonical_finance_attachment_target(&mut fresh,FinanceAttachmentTargetKind::Payment,&company,"target-absent-payment").await.unwrap();assert_eq!(payment_now.version(),Some(1));payment_now.require_current(&mut fresh).await.unwrap();fresh.rollback().await.unwrap();
-        let mut writer=pool.raw().begin().await.unwrap();sqlx::query("UPDATE public.finance_payments SET version=version+1 WHERE id='target-payment'").execute(&mut *writer).await.unwrap();let mut blocked=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *blocked).await.unwrap();let conflict=lock_canonical_finance_attachment_targets(&mut blocked).await;assert!(matches!(conflict,Err(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));blocked.rollback().await.unwrap();writer.rollback().await.unwrap();
+        let mut writer=pool.raw().begin().await.unwrap();sqlx::query("UPDATE public.finance_payments SET version=version+1 WHERE id='target-payment'").execute(&mut *writer).await.unwrap();let mut blocked=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *blocked).await.unwrap();let conflict=lock_canonical_finance_attachment_targets(&mut blocked).await;assert!(matches!(conflict,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));blocked.rollback().await.unwrap();writer.rollback().await.unwrap();
     }).await;
 }
 
 #[tokio::test]
 async fn service_customer_sources_retain_finance_party_lock_across_the_unit() {
-    use erpx_server_finance::public::field_service_workspace::*;
+    use erpx_finance_server::public::field_service_workspace::*;
     fixture::with_database(2, |pool| async move {
         review::setup(&pool, false).await;
         sqlx::query("INSERT INTO finance_parties(id,company_id,kind,code,name,currency,created_at,updated_at) VALUES('service-lock-customer','company','customer','SERVICE-LOCK','Synthetic customer','THB',0,0)").execute(pool.raw()).await.unwrap();
@@ -530,10 +530,10 @@ async fn service_customer_sources_retain_finance_party_lock_across_the_unit() {
 
 #[tokio::test]
 async fn payment_receipt_candidates_join_actual_field_invoice_and_revalidate() {
-    use erpx_server_finance::public::raw_field_invoice_marker::{inspect_payment_receipt_field_origin,lock_raw_field_invoice_marker_sources};
-    use erpx_server_finance::public::raw_field_payment_allocation_marker::{inspect_field_payment_origin,lock_raw_field_payment_allocation_sources};
-    use erpx_server_workflow::public::record_origin::{inspect_payment_origin_candidates,lock_payment_origin_candidate_sources};
-    use erpx_server_finance::public::field_attachment_routing::{inspect_global_field_payment_finance_sources,lock_field_attachment_finance_routing};
+    use erpx_finance_server::public::raw_field_invoice_marker::{inspect_payment_receipt_field_origin,lock_raw_field_invoice_marker_sources};
+    use erpx_finance_server::public::raw_field_payment_allocation_marker::{inspect_field_payment_origin,lock_raw_field_payment_allocation_sources};
+    use erpx_workflow_server::public::record_origin::{inspect_payment_origin_candidates,lock_payment_origin_candidate_sources};
+    use erpx_finance_server::public::field_attachment_routing::{inspect_global_field_payment_finance_sources,lock_field_attachment_finance_routing};
     fixture::with_database(2, |pool| async move {
         review::setup(&pool,false).await;
         let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
@@ -599,7 +599,7 @@ async fn payment_receipt_candidates_join_actual_field_invoice_and_revalidate() {
         sqlx::query("INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at) VALUES('receipt-writer','finance.payment.create','fixture','synthetic','writer-payment','{}',0)").execute(&mut *writer).await.unwrap();
         let held:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND relation='command_receipts'::regclass AND granted AND mode='RowExclusiveLock')").bind(writer_pid).fetch_one(pool.raw()).await.unwrap();assert!(held);
         let mut contender=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *contender).await.unwrap();
-        let conflict=lock_payment_origin_candidate_sources(&mut contender).await;assert!(matches!(conflict,Err(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));contender.rollback().await.unwrap();writer.rollback().await.unwrap();
+        let conflict=lock_payment_origin_candidate_sources(&mut contender).await;assert!(matches!(conflict,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));contender.rollback().await.unwrap();writer.rollback().await.unwrap();
         let mut malformed=pool.raw().begin().await.unwrap();
         let bad=sqlx::query("INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at) VALUES('receipt-malformed','finance.payment.create','fixture','synthetic','bad-payment','{invalid',0)").execute(&mut *malformed).await.unwrap_err();assert_eq!(bad.as_database_error().and_then(|e|e.code()).as_deref(),Some("22P02"));malformed.rollback().await.unwrap();
     }).await;
@@ -607,7 +607,7 @@ async fn payment_receipt_candidates_join_actual_field_invoice_and_revalidate() {
 
 #[tokio::test]
 async fn raw_field_invoice_fence_returns_retryable_conflict_with_actual_writer() {
-    use erpx_server_finance::public::raw_field_invoice_marker::lock_raw_field_invoice_marker_sources;
+    use erpx_finance_server::public::raw_field_invoice_marker::lock_raw_field_invoice_marker_sources;
     use sqlx::Acquire;
     fixture::with_database(2, |pool| async move {
         review::setup(&pool,false).await;
@@ -619,14 +619,14 @@ async fn raw_field_invoice_fence_returns_retryable_conflict_with_actual_writer()
         let held:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND relation='finance_invoices'::regclass AND mode='RowExclusiveLock' AND granted)").bind(writer_pid).fetch_one(&mut *writer).await.unwrap();assert!(held);
         let mut reader=reader_conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *reader).await.unwrap();
         let result=tokio::time::timeout(std::time::Duration::from_secs(5),lock_raw_field_invoice_marker_sources(&mut reader)).await.unwrap();
-        assert!(matches!(result,Err(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));reader.rollback().await.unwrap();writer.rollback().await.unwrap();drop(reader_conn);drop(writer_conn);
+        assert!(matches!(result,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));reader.rollback().await.unwrap();writer.rollback().await.unwrap();drop(reader_conn);drop(writer_conn);
         let mut fresh=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *fresh).await.unwrap();lock_raw_field_invoice_marker_sources(&mut fresh).await.unwrap();fresh.rollback().await.unwrap();
     }).await;
 }
 
 #[tokio::test]
 async fn finance_history_journal_roots_match_book_projection_and_revalidate() {
-    use erpx_server_finance::public::attachment_target_source::*;
+    use erpx_finance_server::public::attachment_target_source::*;
     fixture::with_database(2, |pool| async move {
         review::setup(&pool, false).await;
         // Staged rows exercise Finance's historical root query, not an owner
@@ -686,14 +686,14 @@ async fn finance_history_journal_roots_match_book_projection_and_revalidate() {
         let mut fresh=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *fresh).await.unwrap();lock_canonical_finance_attachment_targets(&mut fresh).await.unwrap();lock_canonical_finance_history_book_roots(&mut fresh).await.unwrap();assert!(roots.require_current(&mut fresh).await.is_err());fresh.rollback().await.unwrap();
         let mut saved=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *saved).await.unwrap();lock_canonical_finance_attachment_targets(&mut saved).await.unwrap();sqlx::query("SAVEPOINT history_book_lock").execute(&mut *saved).await.unwrap();lock_canonical_finance_history_book_roots(&mut saved).await.unwrap();let saved_target=observe_canonical_finance_attachment_target(&mut saved,FinanceAttachmentTargetKind::Journal,&company,"root-secondary").await.unwrap();let saved_roots=inspect_canonical_finance_history_journal_roots(&mut saved,&saved_target).await.unwrap();sqlx::query("ROLLBACK TO SAVEPOINT history_book_lock").execute(&mut *saved).await.unwrap();assert!(saved_roots.require_current(&mut saved).await.is_err());saved.rollback().await.unwrap();
         let mut writer=pool.raw().begin().await.unwrap();sqlx::query("INSERT INTO public.finance_book_postings(primary_journal_id,secondary_journal_id,rule_id,company_id,source_version,created_at) VALUES('root-primary','root-secondary','root-rule','company',1,0)").execute(&mut *writer).await.unwrap();
-        let mut blocked=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *blocked).await.unwrap();lock_canonical_finance_attachment_targets(&mut blocked).await.unwrap();let conflict=lock_canonical_finance_history_book_roots(&mut blocked).await;assert!(matches!(conflict,Err(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));blocked.rollback().await.unwrap();writer.rollback().await.unwrap();
+        let mut blocked=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *blocked).await.unwrap();lock_canonical_finance_attachment_targets(&mut blocked).await.unwrap();let conflict=lock_canonical_finance_history_book_roots(&mut blocked).await;assert!(matches!(conflict,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));blocked.rollback().await.unwrap();writer.rollback().await.unwrap();
     }).await;
 }
 
 #[tokio::test]
 async fn initial_history_marker_roots_match_actual_legacy_book_company_rule() {
-    use erpx_server_finance::public::attachment_target_source::*;
-    use erpx_server_finance::public::initial_history_marker_roots::*;
+    use erpx_finance_server::public::attachment_target_source::*;
+    use erpx_finance_server::public::initial_history_marker_roots::*;
     use sqlx::Acquire;
     fixture::with_database(2,|pool|async move {
         review::setup(&pool,false).await;
@@ -725,13 +725,13 @@ async fn initial_history_marker_roots_match_actual_legacy_book_company_rule() {
         sqlx::query("SAVEPOINT initial_marker_book_change").execute(&mut *tx).await.unwrap();sqlx::query("INSERT INTO public.finance_book_postings(primary_journal_id,secondary_journal_id,rule_id,company_id,source_version,created_at) VALUES('initial-late-primary','initial-late-secondary','initial-rule','company',1,0)").execute(&mut *tx).await.unwrap();assert!(late.require_current(&mut tx).await.is_err());let next=inspect_finance_initial_marker_roots(&mut tx,&late_target).await.unwrap();let expected:Vec<String>=sqlx::query_scalar(sqlx::AssertSqlSafe(oracle.as_str())).bind("initial-late-secondary").bind("company").fetch_all(&mut *tx).await.unwrap();assert_eq!(next.roots(),expected.as_slice());sqlx::query("ROLLBACK TO SAVEPOINT initial_marker_book_change").execute(&mut *tx).await.unwrap();late.require_current(&mut tx).await.unwrap();
         tx.rollback().await.unwrap();sqlx::query("DROP TABLE pg_temp.finance_book_postings").execute(&mut *conn).await.unwrap();let mut other=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();lock_canonical_finance_attachment_targets(&mut other).await.unwrap();lock_canonical_finance_history_book_roots(&mut other).await.unwrap();assert!(initial_a.require_current(&mut other).await.is_err());other.rollback().await.unwrap();
         let mut saved=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *saved).await.unwrap();lock_canonical_finance_attachment_targets(&mut saved).await.unwrap();sqlx::query("SAVEPOINT initial_book_lock").execute(&mut *saved).await.unwrap();lock_canonical_finance_history_book_roots(&mut saved).await.unwrap();let saved_target=observe_canonical_finance_attachment_target(&mut saved,FinanceAttachmentTargetKind::Journal,&company,"initial-book-company-secondary").await.unwrap();let saved_roots=inspect_finance_initial_marker_roots(&mut saved,&saved_target).await.unwrap();sqlx::query("ROLLBACK TO SAVEPOINT initial_book_lock").execute(&mut *saved).await.unwrap();assert!(saved_roots.require_current(&mut saved).await.is_err());saved.rollback().await.unwrap();
-        let mut writer=pool.raw().begin().await.unwrap();sqlx::query("LOCK TABLE public.finance_book_postings IN ROW EXCLUSIVE MODE").execute(&mut *writer).await.unwrap();let mut blocked=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *blocked).await.unwrap();lock_canonical_finance_attachment_targets(&mut blocked).await.unwrap();let conflict=lock_canonical_finance_history_book_roots(&mut blocked).await;assert!(matches!(conflict,Err(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));blocked.rollback().await.unwrap();writer.rollback().await.unwrap();
+        let mut writer=pool.raw().begin().await.unwrap();sqlx::query("LOCK TABLE public.finance_book_postings IN ROW EXCLUSIVE MODE").execute(&mut *writer).await.unwrap();let mut blocked=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *blocked).await.unwrap();lock_canonical_finance_attachment_targets(&mut blocked).await.unwrap();let conflict=lock_canonical_finance_history_book_roots(&mut blocked).await;assert!(matches!(conflict,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));blocked.rollback().await.unwrap();writer.rollback().await.unwrap();
     }).await;
 }
 
 #[tokio::test]
 async fn asset_finance_join_source_matches_actual_asset_ts_left_join() {
-    use erpx_server_finance::public::asset_purchase_source::{inspect_asset_purchase_finance_join,lock_asset_purchase_finance_source};
+    use erpx_finance_server::public::asset_purchase_source::{inspect_asset_purchase_finance_join,lock_asset_purchase_finance_source};
     fixture::with_database(2,|pool|async move {
         review::setup(&pool,false).await;
         let script=r#"import fs from 'node:fs';if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const s=fs.readFileSync(process.argv[1],'utf8');const scope=s.match(/const scope=\"([^\"]+)\";/);const image=s.match(/if\(target\.kind===\"asset\"\)return `([^`]+)`;/);if(!scope||!image)throw Error('ASSET_SOURCE_MISSING');let n=0;const sql=new Function('file','scope','return `'+image[1]+'`')(false,scope[1]).replace(/\?/g,()=>'$'+(++n));process.stdout.write(JSON.stringify(sql));"#;
@@ -789,7 +789,7 @@ const FIELD_HISTORY_COMPOSED_JOINS:&str=r#", owned_field_invoice AS (
 const FIELD_HISTORY_PAYMENT_TAIL:&str=" SELECT EXISTS(SELECT 1 FROM owned_field_payment)";
 const FIELD_HISTORY_PARTS_TAIL:&str=" SELECT EXISTS(SELECT 1 FROM owned_field_parts)";
 const FIELD_HISTORY_JOURNAL_TAIL:&str=" SELECT EXISTS(SELECT company_id,id FROM owned_field_parts UNION SELECT i.company_id,r.id FROM owned_field_invoice i JOIN finance_history_roots r ON r.company_id=i.company_id AND r.id=i.journal_id UNION SELECT company_id,id FROM owned_field_payment)";
-fn field_finance_phase_sql(c:&erpx_server_finance::public::field_history_candidates::CurrentFieldHistoryFinanceCandidates<'_>,m:&erpx_server_finance::public::field_history_money_lines::CurrentFieldHistoryMoneyLines<'_,'_>,tail:&str)->String{
+fn field_finance_phase_sql(c:&erpx_finance_server::public::field_history_candidates::CurrentFieldHistoryFinanceCandidates<'_>,m:&erpx_finance_server::public::field_history_money_lines::CurrentFieldHistoryMoneyLines<'_,'_>,tail:&str)->String{
     format!("{}, {}, {}, {}, {}{}{}",c.cte(),FIELD_HISTORY_WORKFLOW_CTE,m.cte_sql(),FIELD_HISTORY_INVENTORY_CTE,FIELD_HISTORY_FIELD_CTE,FIELD_HISTORY_COMPOSED_JOINS,tail)
 }
 async fn field_finance_composed_bool(c:&mut sqlx::PgConnection,sql:&str,id:&str,company:&str,kind:&str)->bool{
@@ -806,10 +806,10 @@ async fn field_finance_ts_bool(c:&mut sqlx::PgConnection,sql:&str,company:&str,i
 /// purchase, a committed Field command or the unmounted composition mount.
 #[tokio::test]
 async fn field_finance_history_phases_match_imported_typescript_sources_and_money_pointers() {
-    use erpx_server_finance::public::attachment_target_source::*;
-    use erpx_server_finance::public::field_history_candidates::*;
-    use erpx_server_finance::public::field_history_money_lines::*;
-    use erpx_server_workflow::public::record_origin::lock_field_history_receipt_join_sources;
+    use erpx_finance_server::public::attachment_target_source::*;
+    use erpx_finance_server::public::field_history_candidates::*;
+    use erpx_finance_server::public::field_history_money_lines::*;
+    use erpx_workflow_server::public::record_origin::lock_field_history_receipt_join_sources;
     use sqlx::Acquire;
     fixture::with_database(2,|pool|async move{
         review::setup(&pool,false).await;
@@ -1006,14 +1006,14 @@ INSERT INTO operational_inventory_consumptions(id,company_id,branch_id,source_ki
         let mut reader=reader_conn.begin().await.unwrap();
         sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *reader).await.unwrap();
         let conflict=lock_field_history_finance_candidate_sources(&mut reader).await;
-        assert!(matches!(conflict,Err(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));
+        assert!(matches!(conflict,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));
         reader.rollback().await.unwrap();writer.rollback().await.unwrap();
         let mut writer=writer_conn.begin().await.unwrap();
         sqlx::query("LOCK TABLE public.money_transaction_snapshots IN ROW EXCLUSIVE MODE").execute(&mut *writer).await.unwrap();
         let mut reader=reader_conn.begin().await.unwrap();
         sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *reader).await.unwrap();
         let conflict=lock_field_history_money_line_sources(&mut reader).await;
-        assert!(matches!(conflict,Err(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));
+        assert!(matches!(conflict,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));
         reader.rollback().await.unwrap();writer.rollback().await.unwrap();
     }).await;
 }

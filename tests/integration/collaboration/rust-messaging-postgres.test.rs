@@ -2,12 +2,12 @@
 //! receipt/audit/outbox harness. Membership below is a synthetic composition port.
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_collaboration::public::messaging_native::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_collaboration_server::public::messaging_native::*;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CommandKey, CompanyId, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey, CompanyId, FailureKind};
 use serde_json::Value;
 use sqlx::{PgConnection, Row};
 
@@ -16,7 +16,7 @@ type Error = PgTransactionError<BusinessError>;
 
 #[tokio::test]
 async fn messaging_people_identity_sources_match_assignment_and_control_facts() {
-    use erpx_server_identity_access::public::messaging_people::{active_assignment_users, control_account_names};
+    use erpx_identity_access_server::public::messaging_people::{active_assignment_users, control_account_names};
     fixture::with_database(2, |pool| async move {
         let mut c = pool.raw().acquire().await.unwrap();
         sqlx::raw_sql("CREATE TEMP TABLE assignments(company_id text,user_id text,revoked_at bigint,valid_from bigint,valid_until bigint); CREATE TEMP TABLE \"user\"(id text,name text,email text); INSERT INTO assignments VALUES ('c','u1',NULL,10,21),('c','u1',NULL,0,30),('c','u2',NULL,10,20),('c','u3',10,0,30),('other','u4',NULL,0,30),('c','missing',NULL,0,30),('c','orphan',NULL,0,30); INSERT INTO \"user\" VALUES ('u1','Zulu','z@example.test'),('missing','Alpha','a@example.test'),('u4','Other','o@example.test');")

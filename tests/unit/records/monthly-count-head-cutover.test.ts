@@ -5,12 +5,12 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { requestAiUsageMonthlyCountSql } from '../../../packages/server-records/src/adapters/ai-usage-projection';
+import { requestAiUsageMonthlyCountSql } from '../../../modules/records/server/src/adapters/ai-usage-projection';
 
 const root = resolve(__dirname, '../../..');
 const read = (p: string) => readFileSync(resolve(root, p), 'utf8');
 const sha = (s: string) => createHash('sha256').update(s, 'utf8').digest('hex');
-const ai = read('packages/server-records/src/adapters/ai-usage-projection.ts');
+const ai = read('modules/records/server/src/adapters/ai-usage-projection.ts');
 
 describe('Records request_ai_usage monthly count head cutover', () => {
   test('the parameterized count renders byte-identically after the r32 delegation', () => {
@@ -26,8 +26,8 @@ describe('Records request_ai_usage monthly count head cutover', () => {
     expect(ai).not.toMatch(/SELECT /);
     expect(ai).toContain("projectionColumnHeadSql(\n  'count(*)::int count',");
     expect(ai).toContain("' WHERE company_id=? AND month=?',");
-    const beta = read('packages/server-records/src/adapters/beta-management-sources.ts');
-    const agent = read('packages/server-records/src/adapters/agent-ai-usage-projection.ts');
+    const beta = read('modules/records/server/src/adapters/beta-management-sources.ts');
+    const agent = read('modules/records/server/src/adapters/agent-ai-usage-projection.ts');
     expect(beta).toContain('requestAiUsageMonthlyCountSql');
     expect(agent).toContain('requestAiUsageMonthlyCountSql');
     expect(beta).not.toMatch(/SELECT /);
@@ -43,7 +43,7 @@ describe('Records request_ai_usage monthly count head cutover', () => {
         else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
       }
     };
-    walk(resolve(root, 'packages/server-records/src'));
+    walk(resolve(root, 'modules/records/server/src'));
     expect(total).toBe(6);
     expect(total).toBeLessThan(10);
   });

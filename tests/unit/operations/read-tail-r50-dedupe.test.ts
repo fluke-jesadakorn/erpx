@@ -7,14 +7,14 @@ import {
   operationsChildJsonByBoundId,
   OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,
   OPERATIONS_TASK_SCHEDULE_SOURCE_SQL,
-} from '../../../packages/server-operations/src/adapters/task-delegation-source';
+} from '../../../modules/operations/server/src/adapters/task-delegation-source';
 import {
   operationsTableExists,
   operationsOwnerVersionExists,
-} from '../../../packages/server-operations/src/adapters/identity-policy-version-guard';
+} from '../../../modules/operations/server/src/adapters/identity-policy-version-guard';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-operations/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-operations/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/operations/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/operations/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 describe('operations read-tail r50 closed-head retirement', () => {
   it('child-JSON helper pair renders every retired literal byte-identically', () => {

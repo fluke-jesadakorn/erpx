@@ -5,9 +5,9 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { nativeTalentReadFirst } from '../../../packages/server-talent/src/adapters/native-talent-read';
+import { nativeTalentReadFirst } from '../../../modules/talent/server/src/adapters/native-talent-read';
 
-const adapters = resolve(__dirname, '../../../packages/server-talent/src/adapters');
+const adapters = resolve(__dirname, '../../../modules/talent/server/src/adapters');
 const src = (name: string) => readFileSync(resolve(adapters, name), 'utf8');
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 
@@ -131,7 +131,7 @@ describe('Talent read-tail r44 candidate privacy workspace native read', () => {
         else if (e.name.endsWith('.ts')) files.push(p);
       }
     };
-    walk(resolve(__dirname, '../../../packages/server-talent/src'));
+    walk(resolve(__dirname, '../../../modules/talent/server/src'));
     const contents = files.map((f) => readFileSync(f, 'utf8'));
     const matchCount = (re: RegExp) => contents.reduce((n, text) => n + (text.match(re) ?? []).length, 0);
     const splitCount = contents.reduce((n, text) => n + text.split('SELECT ').length - 1, 0);

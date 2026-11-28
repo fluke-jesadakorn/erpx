@@ -6,16 +6,16 @@
 )]
 #[path = "../../support/field_service/parts.rs"]
 mod facts;
-use erpx_server_files::public::field_visit_intake::{
+use erpx_files_server::public::field_visit_intake::{
     FieldIntakeAuthority, FieldIntakeAvailability, FieldIntakeScope, FieldSetDisposition,
     FieldSetListRequest, FieldSetRequest, create_field_set, list_field_sets, prepare_field_intake,
     prepare_field_set_creation,
 };
-use erpx_server_identity_access::public::effective_authority::{
+use erpx_identity_access_server::public::effective_authority::{
     AuthorizedWorkContext, WorkAuthorizationRequest,
 };
-use erpx_server_runtime::public::postgres::PgWorkFuture;
-use erpx_server_shared::public::{BusinessError, Clock};
+use erpx_platform_runtime_server::public::postgres::PgWorkFuture;
+use erpx_platform_shared_server::public::{BusinessError, Clock};
 use sqlx::PgConnection;
 
 struct Authority;
@@ -71,7 +71,7 @@ async fn native_set_replays_and_reuses_with_persisted_alias() {
             let count: i64 = sqlx::query_scalar("SELECT count(*) FROM attachment_sets WHERE target_id='issue-order'").fetch_one(&mut *c).await?;
             assert_eq!(count, 0);
             sqlx::query("INSERT INTO attachment_sets(id,company_id,branch_id,target_type,target_id,component_kind,component_ref,purpose_key,expected_target_version,policy_version,classification,audience_json,created_by,created_at,updated_at) VALUES('planned-drift','company','branch','field_service_visit','issue-order','record','room','site_photo',3,1,'internal','{}','fixture-a',1,1)").execute(&mut *c).await?;
-            assert!(matches!(plan.apply(c, &read, Some(&write), now).await, Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e)) if e.code == "SERVICE_ATTACHMENT_CHANGED"));
+            assert!(matches!(plan.apply(c, &read, Some(&write), now).await, Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e)) if e.code == "SERVICE_ATTACHMENT_CHANGED"));
             sqlx::query("DELETE FROM attachment_sets WHERE id='planned-drift'").execute(&mut *c).await?;
             input.purpose_key = "technician_report".into();
             assert!(plan.apply(c, &read, Some(&write), actor.expires_at()).await.is_err());
@@ -131,7 +131,7 @@ async fn late_set_mutation_rolls_back_creation_and_receipt() {
             create_field_set(c, &read, Some(&write), &input, "late-change", &ready, now).await?;
             Ok(())
         })).await;
-        assert!(matches!(&result, Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e)) if e.code == "SERVICE_ATTACHMENT_CHANGED"), "{result:?}");
+        assert!(matches!(&result, Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e)) if e.code == "SERVICE_ATTACHMENT_CHANGED"), "{result:?}");
         let counts: (i64, i64) = sqlx::query_as("SELECT (SELECT count(*) FROM attachment_sets WHERE target_id='issue-order'),(SELECT count(*) FROM attachment_events WHERE action='set.created')").fetch_one(p.pool().raw()).await.unwrap();
         assert_eq!(counts, (0, 0));
     }).await;
@@ -153,7 +153,7 @@ async fn late_created_event_identity_mutation_rolls_back() {
             create_field_set(c, &read, Some(&write), &input, "late-change", &ready, now).await?;
             Ok(())
         })).await;
-        assert!(matches!(&result, Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e)) if e.code == "SERVICE_ATTACHMENT_CHANGED"), "{result:?}");
+        assert!(matches!(&result, Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e)) if e.code == "SERVICE_ATTACHMENT_CHANGED"), "{result:?}");
         let counts: (i64, i64) = sqlx::query_as("SELECT (SELECT count(*) FROM attachment_sets WHERE target_id='issue-order'),(SELECT count(*) FROM attachment_events WHERE action='set.created')").fetch_one(p.pool().raw()).await.unwrap();
         assert_eq!(counts, (0, 0));
     }).await;
@@ -204,7 +204,7 @@ async fn alias_receipt_tampering_and_read_drift_roll_back() {
             let ready = FieldIntakeAvailability { uploads_frozen: false, scanner_ready: true, preview_ready: true };
             create_field_set(c, &read, Some(&write), &input, "tampered-alias", &ready, now).await?; Ok(())
         })).await;
-        assert!(matches!(&result, Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e)) if e.code == "SERVICE_ATTACHMENT_CHANGED"), "{result:?}");
+        assert!(matches!(&result, Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e)) if e.code == "SERVICE_ATTACHMENT_CHANGED"), "{result:?}");
         let count: i64 = sqlx::query_scalar("SELECT count(*) FROM attachment_events WHERE action='set.reused'").fetch_one(p.pool().raw()).await.unwrap();
         assert_eq!(count, 0);
         let result = p.review.authorizer.execute_with_sources("acme.example.test", p.review.maker.clone(), p.selection.clone(), WorkAuthorizationRequest { permission: "records.read".into(), module: Some("field_service".into()), destination: "field-service".into(), api: true }, p.review.configuration.clone(), move |c, actor| Box::pin(async move {
@@ -212,7 +212,7 @@ async fn alias_receipt_tampering_and_read_drift_roll_back() {
             let read = prepare_field_intake(c, &a, actor, "issue-order", false, now).await?;
             list_field_sets(c, &read, &FieldSetListRequest { target_type: "field_service_visit".into(), target_id: "issue-order".into(), purpose_key: None, component_kind: None, expected_target_version: None }, false, now).await?; Ok(())
         })).await;
-        assert!(matches!(&result, Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e)) if e.code == "SERVICE_ATTACHMENT_CHANGED"), "{result:?}");
+        assert!(matches!(&result, Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e)) if e.code == "SERVICE_ATTACHMENT_CHANGED"), "{result:?}");
         let classification: String = sqlx::query_scalar("SELECT classification FROM attachment_sets WHERE id='seed-set'").fetch_one(p.pool().raw()).await.unwrap();
         assert_eq!(classification, "internal");
     }).await;
@@ -233,14 +233,14 @@ async fn oversized_history_is_rejected_before_list_or_alias_creation() {
             let read = prepare_field_intake(c, &a, actor, "issue-order", false, now).await?;
             let write = prepare_field_intake(c, &b, actor, "issue-order", true, now).await?;
             let list = list_field_sets(c, &read, &FieldSetListRequest { target_type: "field_service_visit".into(), target_id: "issue-order".into(), purpose_key: None, component_kind: None, expected_target_version: None }, false, now).await;
-            assert!(matches!(list, Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e)) if e.code == "ATTACHMENT_READ_LIMIT"));
+            assert!(matches!(list, Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e)) if e.code == "ATTACHMENT_READ_LIMIT"));
             let input = FieldSetRequest { target_type: "field_service_visit".into(), target_id: "issue-order".into(), component_kind: "record".into(), component_ref: None, purpose_key: "site_photo".into(), expected_target_version: 3 };
             let ready = FieldIntakeAvailability { uploads_frozen: false, scanner_ready: true, preview_ready: true };
             let replay = create_field_set(c, &read, None, &input, "oversized-replay", &ready, now).await;
-            assert!(matches!(replay, Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e)) if e.code == "ATTACHMENT_READ_LIMIT"));
+            assert!(matches!(replay, Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e)) if e.code == "ATTACHMENT_READ_LIMIT"));
             create_field_set(c, &read, Some(&write), &input, "oversized-alias", &ready, now).await?; Ok(())
         })).await;
-        assert!(matches!(result, Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e)) if e.code == "ATTACHMENT_READ_LIMIT"));
+        assert!(matches!(result, Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e)) if e.code == "ATTACHMENT_READ_LIMIT"));
         let count: i64 = sqlx::query_scalar("SELECT count(*) FROM attachment_events WHERE action='set.reused'").fetch_one(p.pool().raw()).await.unwrap();
         assert_eq!(count, 1);
     }).await;
@@ -315,7 +315,7 @@ async fn insertion_during_empty_list_revalidation_rolls_back() {
                 },
             )
             .await;
-        assert!(matches!(&result, Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e)) if e.code == "SERVICE_ATTACHMENT_CHANGED"), "{result:?}");
+        assert!(matches!(&result, Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e)) if e.code == "SERVICE_ATTACHMENT_CHANGED"), "{result:?}");
         let count: i64 =
             sqlx::query_scalar("SELECT count(*) FROM attachment_sets WHERE id='inserted-set'")
                 .fetch_one(p.pool().raw())
@@ -328,8 +328,8 @@ async fn insertion_during_empty_list_revalidation_rolls_back() {
 
 #[tokio::test]
 async fn field_record_source_requires_public_locks_and_retains_the_unit() {
-    use erpx_server_field_service::public::source_record::{lock_source_record, read_source_record};
-    use erpx_server_shared::public::CompanyId;
+    use erpx_field_service_server::public::source_record::{lock_source_record, read_source_record};
+    use erpx_platform_shared_server::public::CompanyId;
     use sqlx::Connection;
     facts::account::with_system(|system| async move {
         let p = facts::setup_workspace(system).await;

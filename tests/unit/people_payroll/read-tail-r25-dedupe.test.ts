@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
-import { ppRd25ByIdCompany } from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r25-sources';
+import { ppRd25ByIdCompany } from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r25-sources';
 
-const src = (name: string) => readFileSync(new URL(`../../../packages/server-people_payroll/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFileSync(new URL(`../../../modules/people-payroll/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const quoted = (literal: string) => JSON.stringify(literal);
 
 const table = 'hr_payroll_runs';
@@ -45,7 +45,7 @@ describe('People Payroll read-tail r25 parameterized family dedupe', () => {
   });
 
   test('worktree SELECT count is strictly lower than the recorded 1459 r24 baseline', () => {
-    const root = new URL('../../../packages/server-people_payroll/src/', import.meta.url);
+    const root = new URL('../../../modules/people-payroll/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {

@@ -6,7 +6,7 @@
 pub mod account;
 #[path = "private-session-config.rs"]
 mod config;
-pub fn cookie(proof: &erpx_server_identity_access::public::PresentedSecrets) -> String {
+pub fn cookie(proof: &erpx_identity_access_server::public::PresentedSecrets) -> String {
     config::cookie(proof)
 }
 #[allow(
@@ -14,7 +14,7 @@ pub fn cookie(proof: &erpx_server_identity_access::public::PresentedSecrets) -> 
     reason = "direct database lease helper is used by sibling fixtures"
 )]
 pub async fn database(
-    pool: &erpx_server_runtime::public::postgres::DatabasePool,
+    pool: &erpx_platform_runtime_server::public::postgres::DatabasePool,
 ) -> serde_json::Value {
     config::database(pool).await
 }

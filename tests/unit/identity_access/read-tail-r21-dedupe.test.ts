@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { userAttributeByIdExtendedSql } from '../../../packages/server-identity_access/src/adapters/identity-user-projection-family-r21';
+import { userAttributeByIdExtendedSql } from '../../../modules/identity-access/server/src/adapters/identity-user-projection-family-r21';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-identity_access/src');
+const srcRoot = resolve(__dirname, '../../../modules/identity-access/server/src');
 const read = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
 const family21Src = read('adapters/identity-user-projection-family-r21.ts');
 const family18Src = read('adapters/identity-user-projection-family-r18.ts');

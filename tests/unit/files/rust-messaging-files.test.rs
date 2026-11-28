@@ -1,5 +1,5 @@
 //! Files-side Messaging quarantine, scan and variant policy. No database.
-use erpx_server_files::public::messaging_files::{
+use erpx_files_server::public::messaging_files::{
     MAX_MESSAGING_FILE_BYTES, MessagingFileVariant, valid_messaging_attachment_source,
 };
 

@@ -1,9 +1,9 @@
 //! Focused application-level test for the native Support ticket/incident event
 //! history reads. Register with a `[[test]] name = "support_event_history"`
-//! entry in `packages/server-support/Cargo.toml` (lead-owned path). The same
+//! entry in `modules/support/server/Cargo.toml` (lead-owned path). The same
 //! behaviour is covered by the inline `#[cfg(test)]` modules, which run with
 //! `--lib`.
-use erpx_server_support::public::support_event_history::{
+use erpx_support_server::public::support_event_history::{
     read_incident_history, read_ticket_history, IncidentEventRow, SupportEventHistoryFuture,
     SupportEventHistoryPorts, SupportEventHistoryScope, TicketEventRow,
 };

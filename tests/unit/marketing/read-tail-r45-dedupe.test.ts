@@ -2,13 +2,13 @@ import { describe, it, expect } from 'vitest';
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import ts from 'typescript';
-import { marketingCompanyListSql } from '../../../packages/server-marketing/src/adapters/marketing-company-list-sql';
-import { marketingLocalPointReadSql } from '../../../packages/server-marketing/src/adapters/marketing-local-point-read-sql';
-import { marketingPlainSourceSql } from '../../../packages/server-marketing/src/adapters/marketing-plain-source-sql';
-import { marketingReadTailSql } from '../../../packages/server-marketing/src/adapters/read-tail-sql';
+import { marketingCompanyListSql } from '../../../modules/marketing/server/src/adapters/marketing-company-list-sql';
+import { marketingLocalPointReadSql } from '../../../modules/marketing/server/src/adapters/marketing-local-point-read-sql';
+import { marketingPlainSourceSql } from '../../../modules/marketing/server/src/adapters/marketing-plain-source-sql';
+import { marketingReadTailSql } from '../../../modules/marketing/server/src/adapters/read-tail-sql';
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-marketing/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/marketing/server/src/adapters/${name}`, import.meta.url);
 const src = (name: string) => readFile(adapter(name), 'utf8');
 
 // Oracles frozen from base 777ce3b0e9078a1ead7e4a027857f43854be29fe (HEAD at
@@ -39,7 +39,7 @@ async function ownerSelectTokens(): Promise<number> {
       else if (entry.name.endsWith('.ts')) total += selectTokens(await readFile(path, 'utf8'));
     }
   };
-  await walk(resolve('packages/server-marketing/src'));
+  await walk(resolve('modules/marketing/server/src'));
   return total;
 }
 

@@ -1,0 +1,8 @@
+import { hospitalityOwnerProjectionSources as billingProjectionSources } from "@erpx/billing-server/public/hospitality-owner-projection-sources";
+import type {PoolClient,Pool} from 'pg';
+import { holdingBindingsSql } from './read-tail-sql';
+export function billingHoldingFacts(db:Pick<PoolClient|Pool,'query'>){return {
+ holdingExists:(id:string)=>db.query(holdingBindingsSql('1',' WHERE holding_id=$1'),[id]),
+ holdingSlug:(id:string)=>db.query<{slug:string}>(holdingBindingsSql('slug',' WHERE holding_id=$1'),[id]),
+ platformAccounts:()=>db.query<Record<string,unknown>>(holdingBindingsSql('h.holding_id,h.slug,h.display_name,a.version,a.payment_mode', ` h LEFT JOIN (${billingProjectionSources.billing_accounts}) a ON a.holding_id=h.holding_id WHERE h.holding_id <> 'h003' ORDER BY h.display_name`)),
+}}

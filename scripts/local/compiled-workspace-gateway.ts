@@ -1,9 +1,9 @@
 import { createServer, request, type IncomingMessage, type ServerResponse } from 'node:http';
 import { PassThrough, type Duplex } from 'node:stream';
 import { hasPortListener } from './port-listeners';
-import { appIds } from '@erpx/contracts/apps';
-import { holdingUiUrl, oasisDemoAccountHost, oasisDemoHolding, parseHoldingRoute } from '@erpx/contracts/holding-hosts';
-import { holdingHostForHost } from '@erpx/feature-runtime/lib/holding-hosts';
+import { appIds } from '@erpx/platform-contracts/apps';
+import { holdingUiUrl, oasisDemoAccountHost, oasisDemoHolding, parseHoldingRoute } from '@erpx/platform-contracts/holding-hosts';
+import { holdingHostForHost } from '@erpx/platform-runtime-ui/lib/holding-hosts';
 import { nativeApiError, proxyNativeApi, renderedSelectionHeaders, stripInternalHeaders, workspacePreferencePreconditions } from './native-api-proxy';
 import { holdingNativeCutoverPath, isHoldingQualityPath, normalizeHoldingNativePath, oasisDemoNativeRoute, respondToHoldingQualityMethod, respondToShellPreferenceMethod, shellPreferenceRoute, type HoldingNativeWorkspace } from './native-cutover-routes';
 

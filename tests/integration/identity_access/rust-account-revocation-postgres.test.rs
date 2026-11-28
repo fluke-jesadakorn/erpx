@@ -1,6 +1,6 @@
 #[path = "../../support/rust-account-revocation.rs"]
 mod support;
-use erpx_server_identity_access::public::{account_revocation::*, *};
+use erpx_identity_access_server::public::{account_revocation::*, *};
 use std::{collections::BTreeMap, sync::Arc};
 
 #[tokio::test]
@@ -401,12 +401,12 @@ fixture::account::holding_registry(),
 #[tokio::test]
 async fn current_native_account_unit_blocks_switch_then_rejects_its_retired_child_before_consumers()
 {
-    use erpx_server_identity_access::public::{
+    use erpx_identity_access_server::public::{
         effective_authority::HoldingWorkSourcePreparation,
         work_context::HoldingWorkContextInspector,
     };
-    use erpx_server_runtime::public::postgres::PgWorkFuture;
-    use erpx_server_shared::public::{BusinessError, HoldingId};
+    use erpx_platform_runtime_server::public::postgres::PgWorkFuture;
+    use erpx_platform_shared_server::public::{BusinessError, HoldingId};
     #[derive(Clone)]
     struct AccountReadSources;
     impl HoldingWorkSourcePreparation for AccountReadSources {

@@ -6,8 +6,8 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_collaboration::public::staff_facts::unread_home_count;
-use erpx_server_runtime::public::postgres::{
+use erpx_collaboration_server::public::staff_facts::unread_home_count;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
 

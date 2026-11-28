@@ -7,8 +7,8 @@ import {
   nativePlanningConfiguration,
   NativePlanningError,
   type NativePlanningPageContext,
-} from '../../../packages/feature-manufacturing/src/public/native-planning-workspace';
-import { nativePlanningFailure } from '../../../packages/feature-manufacturing/src/public/native-planning-workspace-page';
+} from '../../../modules/manufacturing/ui/src/public/native-planning-workspace';
+import { nativePlanningFailure } from '../../../modules/manufacturing/ui/src/public/native-planning-workspace-page';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44993',

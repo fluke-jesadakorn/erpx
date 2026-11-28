@@ -1,8 +1,8 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { PMS_NEEDS_RECEIPT_RECOVERY_SQL, pmsRefundPaymentJoinHeadSql } from '../../../packages/server-pms/src/adapters/pms-read-tail-r34-sql';
+import { PMS_NEEDS_RECEIPT_RECOVERY_SQL, pmsRefundPaymentJoinHeadSql } from '../../../modules/pms/server/src/adapters/pms-read-tail-r34-sql';
 
-const dir = new URL('../../../packages/server-pms/src/', import.meta.url);
+const dir = new URL('../../../modules/pms/server/src/', import.meta.url);
 const src = (name: string) => readFile(new URL(name, dir), 'utf8');
 const SHARED = 'adapters/pms-read-tail-r34-sql.ts';
 

@@ -1,10 +1,10 @@
 //! Actual owner-local HTTP router tests for native Projects create/edit.
-use erpx_server_projects::public::project_save_http::{
+use erpx_projects_server::public::project_save_http::{
     ProjectSaveHttpBackend, ProjectSaveHttpFuture, ProjectSaveHttpRequest,
     ProjectSaveHttpResponse, ProjectSaveHttpTarget, project_save_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Noop;

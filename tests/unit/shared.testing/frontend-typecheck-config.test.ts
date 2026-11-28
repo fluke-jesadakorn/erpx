@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { appDefinition, appDefinitions } from '@erpx/contracts/apps';
+import { appDefinition, appDefinitions } from '@erpx/platform-contracts/apps';
 import { repositoryRoot, type Suite } from '../../../scripts/testing/catalogue';
 import { createWorkspaceGraph, selectCandidateSuites } from '../../../scripts/testing/workspace-graph';
 import { workspaceTaskDefinition } from '../../../scripts/testing/workspace-tasks';

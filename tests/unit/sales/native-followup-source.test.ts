@@ -5,15 +5,15 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { crmCommerceOrderSources } from '@erpx/server-commerce/public/crm-purchase-sources';
-import { crmFinanceCustomerSources } from '@erpx/server-finance/public/crm-purchase-sources';
+import { crmCommerceOrderSources } from '@erpx/commerce-server/public/crm-purchase-sources';
+import { crmFinanceCustomerSources } from '@erpx/finance-server/public/crm-purchase-sources';
 const followupMetricPrefix='SELECT followup.*,actual.branch_id,actual.department_id,actual.kind order_kind';
 import {
   SALES_RD_FOLLOWUP_SOURCE_FOLLOWUP,
   SALES_RD_FOLLOWUP_SOURCE_ORDER,
-} from '../../../packages/server-sales/src/adapters/native-sales-read';
+} from '../../../modules/sales/server/src/adapters/native-sales-read';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-sales/src');
+const srcRoot = resolve(__dirname, '../../../modules/sales/server/src');
 const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const registry = read('native_sales_read_sql.rs');
 const purchases = read('followup-purchases.ts');

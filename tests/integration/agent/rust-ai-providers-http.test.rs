@@ -1,12 +1,12 @@
 //! Actual owner-local AI provider HTTP router tests. These prove the retained
 //! path/idempotency/origin contract only; current authority, credential sealing,
 //! provider transport and evidence stay behind the backend.
-use erpx_server_agent::public::providers::{
+use erpx_agent_server::public::providers::{
     AiProviderHttpBackend, AiProviderHttpCommandRequest, AiProviderHttpFuture,
     AiProviderHttpReadRequest, AiProviderHttpTarget, ai_provider_http_router,
 };
-use erpx_server_runtime::public::http_support::serve;
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::serve;
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Noop;

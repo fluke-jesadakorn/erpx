@@ -1,5 +1,5 @@
-use erpx_server_commercial::public::purchases::*;
-use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, TimestampMillis};
+use erpx_commercial_server::public::purchases::*;
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, FailureKind, TimestampMillis};
 use std::sync::{Arc, Mutex};
 
 fn company() -> CompanyId {
@@ -399,7 +399,7 @@ async fn actual_router_retains_targets_query_and_error_mapping() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = tokio::spawn(async move {
-        let _ = erpx_server_runtime::public::http_support::serve(listener, router).await;
+        let _ = erpx_platform_runtime_server::public::http_support::serve(listener, router).await;
     });
     let get = |host: &str, path: &str| {
         format!("GET {path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n")

@@ -1,7 +1,7 @@
 /** Temporary source-bound differential oracle; never connect outside an owned Rust test lease. */
 import {readFileSync} from 'node:fs';
-import {PostgresDatabase} from '@erpx/server-runtime/adapters/runtime/postgres';
-import {readListPage} from '@erpx/server-work_projection/public/list-page';
+import {PostgresDatabase} from '@erpx/platform-runtime-server/adapters/runtime/postgres';
+import {readListPage} from '@erpx/work-projection-server/public/list-page';
 
 async function main() {
 const input = JSON.parse(readFileSync(0, 'utf8')) as {database: string; token: string; company: string; cursor?: string};
@@ -13,7 +13,7 @@ const db = new PostgresDatabase({connectionString: admin.href, max: 1});
 try {
   const identity = await db.prepare("SELECT current_database()::text database,current_user::text role,pg_get_userbyid(d.datdba)::text owner,shobj_description(d.oid,'pg_database') lease,r.rolsuper,r.rolcreaterole FROM pg_database d JOIN pg_roles r ON r.rolname=current_user WHERE d.datname=current_database()").first<{database:string;role:string;owner:string;lease:string;rolsuper:boolean;rolcreaterole:boolean}>();
   if (!identity || identity.database !== input.database || identity.role !== 'erpx_test_admin' || identity.owner !== 'erpx_test_admin' || identity.lease !== `erpx-rust-test:${input.token}` || identity.rolsuper || identity.rolcreaterole) throw Error('EXACT_LEASE_REQUIRED');
-  const source = readFileSync('packages/server-people_payroll/src/adapters/people-payroll.ts','utf8');
+  const source = readFileSync('modules/people-payroll/server/src/adapters/people-payroll.ts','utf8');
   const match = source.match(/pagedRuns:\(companyId,cursor\)=>readListPage<[^\n]+?\{sql:"([^"]+)",args:\[companyId\],cursor,descending:true,scope:\[companyId,'payroll'\]\}/);
   if (!match) throw Error('PAYROLL_HISTORY_SOURCE_CHANGED');
   try {

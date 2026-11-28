@@ -1,10 +1,10 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
-const util = new URL('../../../packages/server-talent/src/adapters/talent-read-tail-r36-sources.ts', import.meta.url);
-const purchases = new URL('../../../packages/server-talent/src/adapters/purchases.ts', import.meta.url);
-const records = new URL('../../../packages/server-talent/src/adapters/record-purchases.ts', import.meta.url);
-const srcDir = new URL('../../../packages/server-talent/src/', import.meta.url);
+const util = new URL('../../../modules/talent/server/src/adapters/talent-read-tail-r36-sources.ts', import.meta.url);
+const purchases = new URL('../../../modules/talent/server/src/adapters/purchases.ts', import.meta.url);
+const records = new URL('../../../modules/talent/server/src/adapters/record-purchases.ts', import.meta.url);
+const srcDir = new URL('../../../modules/talent/server/src/', import.meta.url);
 
 // Exact pre-dedupe emitted SQL (r35 baseline, BEFORE=45). Only the row source
 // and predicate are parameterized; the shared `SELECT 1 FROM ... WHERE ...`

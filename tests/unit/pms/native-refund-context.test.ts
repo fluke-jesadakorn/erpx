@@ -3,7 +3,7 @@ vi.mock('server-only', () => ({}));
 import {
   refundRequestContext,
   REFUND_CONTEXT_CONFIG_KEY,
-} from '../../../packages/server-pms/src/adapters/native-refund-context';
+} from '../../../modules/pms/server/src/adapters/native-refund-context';
 
 const config = (overrides: Record<string, unknown> = {}) =>
   JSON.stringify({

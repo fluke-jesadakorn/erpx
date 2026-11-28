@@ -6,22 +6,22 @@ import {
   expenseFixture,
   key,
 } from "../../support/helpers/expense-fixture";
-import {employeeRequestSchema,saveEmployeeRequest} from '@erpx/server-records/public/employee-requests';
-import {getEmployeeRequest} from '@erpx/server-records/public/employee-requests-read';
+import {employeeRequestSchema,saveEmployeeRequest} from '@erpx/records-server/public/employee-requests';
+import {getEmployeeRequest} from '@erpx/records-server/public/employee-requests-read';
 import {
   queueRequestAi,
   runRequestAi,
   requestAiStatus,
   drainRequestAi,
-} from "@erpx/server-records/public/request-ai";
+} from "@erpx/records-server/public/request-ai";
 import {
   aiSnapshotGuard,
   aiUsageStatement,
   type AiProviderSnapshot,
   resolveAiProvider,
-} from "@erpx/server-agent/public/ai-providers";
+} from "@erpx/agent-server/public/ai-providers";
 import { seedAiProvider, seedAiSelection } from "../agent/ai-provider-seed";
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));

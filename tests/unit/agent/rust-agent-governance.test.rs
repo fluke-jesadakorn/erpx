@@ -1,8 +1,8 @@
 //! Retained Agent governance values and command decisions: strict inputs,
 //! source coverage, lifecycle/CAS rules, independent review and replay.
-use erpx_server_agent::public::governance::*;
-use erpx_server_shared::public::{AssignmentId, BusinessError, CompanyId, FailureKind, UserId};
-use erpx_server_workflow::public::commands::{
+use erpx_agent_server::public::governance::*;
+use erpx_platform_shared_server::public::{AssignmentId, BusinessError, CompanyId, FailureKind, UserId};
+use erpx_workflow_server::public::commands::{
     CommandActor, CommandField, CommandJson, WorkAuthority,
 };
 use serde_json::{Value, json};

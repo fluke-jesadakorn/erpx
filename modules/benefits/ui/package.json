@@ -1,0 +1,35 @@
+{
+  "name": "@erpx/benefits-ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/benefits-console": "./src/components/benefits-console.tsx",
+    "./components/benefit-editor": "./src/components/benefit-editor.tsx",
+    "./components/benefit-command-feedback": "./src/components/benefit-command-feedback.tsx",
+    "./components/benefit-draft-boundary": "./src/components/benefit-draft-boundary.tsx",
+    "./components/use-benefit-command": "./src/components/use-benefit-command.ts",
+    "./lib/presentation": "./src/lib/presentation.ts",
+    "./lib/command": "./src/lib/command.ts",
+    "./public/native-benefits-workspace": "./src/public/native-benefits-workspace.ts",
+    "./public/native-benefits-workspace-page": "./src/public/native-benefits-workspace-page.ts",
+    "./adapters/server/next-native-benefits-workspace": "./src/adapters/server/next-native-benefits-workspace.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/files-ui": "workspace:*",
+    "@erpx/procurement-ui": "workspace:*",
+    "@erpx/records-ui": "workspace:*",
+    "@erpx/platform-shared-ui": "workspace:*",
+    "@erpx/work-projection-ui": "workspace:*",
+    "@erpx/benefits-server": "workspace:*",
+    "@erpx/identity-access-server": "workspace:*",
+    "@erpx/platform-runtime-server": "workspace:*",
+    "@erpx/platform-ui": "workspace:*",
+    "next": "16.4.3",
+    "react": "19.3.1"
+  }
+}

@@ -5,11 +5,11 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_commerce::public::order::CommerceOrderActor;
-use erpx_server_commerce::public::receipt::{
+use erpx_commerce_server::public::order::CommerceOrderActor;
+use erpx_commerce_server::public::receipt::{
     CommerceReceipt, GoodsValuation, GoodsValuationRequest,
 };
-use erpx_server_commerce::public::sales_delivery::{
+use erpx_commerce_server::public::sales_delivery::{
     CommerceSalesDeliveryGoods, CommerceSalesDeliveryStock, PgCommerceSalesDelivery,
     PreparedSalesDelivery, SalesDeliveryAllocationCommand, SalesDeliveryCommand,
     SalesDeliveryDisposition, SalesDeliveryJournalRequest, SalesDeliveryLineCommand,
@@ -17,21 +17,21 @@ use erpx_server_commerce::public::sales_delivery::{
     SalesDeliveryStockApplied, SalesDeliveryStockAppliedAllocation, SalesDeliveryStockAppliedLine,
     SalesDeliveryStockRequest, deliver_sales_order,
 };
-use erpx_server_finance::public::FinanceActor;
-use erpx_server_finance::public::commerce_goods_journal::{
+use erpx_finance_server::public::FinanceActor;
+use erpx_finance_server::public::commerce_goods_journal::{
     CommerceGoodsJournalPosting, CommerceGoodsKind, CommerceGoodsValuation,
     CommerceGoodsValuationRequest, post_commerce_goods_journal, resolve_commerce_goods_valuation,
 };
-use erpx_server_inventory::public::stock_issue::{
+use erpx_inventory_server::public::stock_issue::{
     StockIssueAllocationInput, StockIssueAppliedReceipt, StockIssueInput, StockIssueLineInput,
     StockIssuePlan, StockIssueSource, apply_stock_issue, lock_stock_issue_sources,
     prepare_stock_issue, read_stock_issue_source, validate_stock_issue_plan,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, PgWorkFuture,
     TransactionOptions, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, RecordId,
     TimestampMillis, UserId,
 };
@@ -203,7 +203,7 @@ impl CommerceSalesDeliveryStock for TestStock {
         Box::pin(async move {
             validate_stock_issue_plan(plan)?;
             if applied.fulfillment_id.is_empty() || applied.replayed {
-                return Err(erpx_server_shared::public::BusinessError::new(
+                return Err(erpx_platform_shared_server::public::BusinessError::new(
                     FailureKind::Conflict,
                     "STOCK_DELIVERY_EVIDENCE_INVALID",
                     "The Inventory delivery evidence is unavailable.",
@@ -220,7 +220,7 @@ impl CommerceSalesDeliveryStock for TestStock {
                 .fetch_optional(&mut *c)
                 .await?;
                 if row != Some((-line.quantity_milli, -line.value_minor)) {
-                    return Err(erpx_server_shared::public::BusinessError::new(
+                    return Err(erpx_platform_shared_server::public::BusinessError::new(
                         FailureKind::Conflict,
                         "STOCK_DELIVERY_EVIDENCE_INVALID",
                         "The Inventory delivery evidence changed.",

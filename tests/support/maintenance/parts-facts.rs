@@ -1,7 +1,7 @@
 //! Synthetic actual migrated Maintenance facts; these seeds are not actor or purchase grants.
-use erpx_server_identity_access::public::effective_authority::WorkAuthorizationRequest;
-use erpx_server_runtime::public::postgres::DatabasePool;
-use erpx_server_shared::public::{RecordId, TimestampMillis};
+use erpx_identity_access_server::public::effective_authority::WorkAuthorizationRequest;
+use erpx_platform_runtime_server::public::postgres::DatabasePool;
+use erpx_platform_shared_server::public::{RecordId, TimestampMillis};
 const NOW: i64 = 1_800_000_000_000;
 pub async fn seed_work(pool: &DatabasePool) {
     sqlx::raw_sql("INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,created_by,created_at,updated_at)VALUES('worker','user','company','PRIVATE_WORKER','TH','fixture',0,0);INSERT INTO hr_engagements(id,person_id,company_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at)VALUES('engagement','worker','company','employee','salaried','active','2026-01-01','PRIVATE_JOB','THB','fixture',0,0);INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy)VALUES('company','user','local:user','worker','active','local');INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('*','custom_native_authority',2,'[\"records.write\",\"records.review\",\"module.maintenance.read\"]','[]','[\"holding\",\"branch\",\"department\"]','fixture',0);UPDATE iam_roles SET published_revision=2 WHERE id='custom_native_authority';UPDATE assignments SET modules_json='[\"maintenance\"]'WHERE id='grant';INSERT INTO operational_assets(id,company_id,branch_id,code,name,category,currency,created_by,created_at,updated_at)VALUES('asset','company','branch','SYNTHETIC','PRIVATE_ASSET','synthetic','THB','fixture',0,0);INSERT INTO maintenance_work_orders(id,company_id,branch_id,asset_id,title,priority,status,owner_id,created_by,created_at,updated_at)VALUES('work','company','branch','asset',repeat('PRIVATE_TITLE',200000),'normal','in_progress','user','user',0,0)").execute(pool.raw()).await.unwrap();
@@ -20,14 +20,14 @@ pub fn work_id() -> RecordId {
     RecordId::new("work").unwrap()
 }
 
-pub fn issue_command() -> erpx_server_maintenance::public::work_commands::MaintenanceWorkCommand {
-    erpx_server_maintenance::public::work_wire::normalize_maintenance_change(br#"{"action":"issue-part","expectedVersion":1,"reason":"Synthetic issue evidence","warehouseId":"warehouse","productId":"product","quantityMilli":1000,"entryDate":"2026-01-10","allocations":[]}"#)
-        .unwrap().into_command(erpx_server_shared::public::CommandKey::new("synthetic-work-effects").unwrap(),work_id())
+pub fn issue_command() -> erpx_maintenance_server::public::work_commands::MaintenanceWorkCommand {
+    erpx_maintenance_server::public::work_wire::normalize_maintenance_change(br#"{"action":"issue-part","expectedVersion":1,"reason":"Synthetic issue evidence","warehouseId":"warehouse","productId":"product","quantityMilli":1000,"entryDate":"2026-01-10","allocations":[]}"#)
+        .unwrap().into_command(erpx_platform_shared_server::public::CommandKey::new("synthetic-work-effects").unwrap(),work_id())
 }
 
 pub struct PartsWriteClock(pub std::sync::atomic::AtomicI64);
 
-impl erpx_server_shared::public::Clock for PartsWriteClock {
+impl erpx_platform_shared_server::public::Clock for PartsWriteClock {
     fn now(&self) -> TimestampMillis {
         TimestampMillis::new(self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst))
     }
@@ -35,7 +35,7 @@ impl erpx_server_shared::public::Clock for PartsWriteClock {
 
 pub struct PartsGuardClock;
 
-impl erpx_server_shared::public::Clock for PartsGuardClock {
+impl erpx_platform_shared_server::public::Clock for PartsGuardClock {
     fn now(&self) -> TimestampMillis {
         TimestampMillis::new(NOW)
     }

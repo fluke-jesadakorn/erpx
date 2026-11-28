@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { appDefinition } from "@erpx/contracts/apps";
-import { holdingAwareProxy } from "@erpx/workplace/proxy";
-import {holdingRoutingEnabled,holdingHostForHost,accountDevelopmentOrigin} from '@erpx/feature-runtime/lib/holding-hosts';
+import { appDefinition } from "@erpx/platform-contracts/apps";
+import { holdingAwareProxy } from "@erpx/platform-workplace/proxy";
+import {holdingRoutingEnabled,holdingHostForHost,accountDevelopmentOrigin} from '@erpx/platform-runtime-ui/lib/holding-hosts';
 
 /** Routing ownership cannot grant authentication or broaden an owner API. */
 export function appProxy(id: string, registeredAppsPages: readonly string[] = []) {

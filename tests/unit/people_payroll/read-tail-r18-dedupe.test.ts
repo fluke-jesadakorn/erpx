@@ -5,9 +5,9 @@ import {
   PP_RD18_HR_ENGAGEMENTS_E_JOIN_SQL,
   PP_RD18_HR_ENGAGEMENTS_E_FROM_SQL,
   PP_RD18_HR_PEOPLE_PROJ_SQL,
-} from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r18-sources';
+} from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r18-sources';
 
-const src = (name: string) => readFileSync(new URL(`../../../packages/server-people_payroll/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFileSync(new URL(`../../../modules/people-payroll/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const quoted = (literal: string) => '"' + literal.replace(/"/g, '\\"') + '"';
 const ALL = [PP_RD18_HR_PEOPLE_FROM_SQL, PP_RD18_HR_ENGAGEMENTS_E_JOIN_SQL, PP_RD18_HR_ENGAGEMENTS_E_FROM_SQL, PP_RD18_HR_PEOPLE_PROJ_SQL];
 

@@ -1,4 +1,4 @@
-use erpx_service::legal_worker_bootstrap::DevelopmentLegalWorkerConfiguration;
+use erpx_platform_composition::legal_worker_bootstrap::DevelopmentLegalWorkerConfiguration;
 fn document() -> serde_json::Value {
     let mut doc = serde_json::json!({"mode":"development","commercialMode":"enforced","holdingId":"h001","companyId":"company","databaseUrl":"postgres://erpx_test_admin:private@127.0.0.1:5432/erpx_dev_rust_00000000000000000000000000000000","leaseToken":"00000000000000000000000000000000","filesRoot":"/owned/files","temporaryRoot":"/owned/temp","documentBinary":"/owned/document","tools":{"pdftotext":"/owned/pdftotext","pdfinfo":"/owned/pdfinfo","pdftoppm":"/owned/pdftoppm","tesseract":"/owned/tesseract","tessdata":"/owned/tessdata","languages":"eng+tha"}});
     doc["controlDatabaseUrl"]="postgres://erpx_test_admin:private@127.0.0.1:5432/erpx_dev_rust_11111111111111111111111111111111".into();
@@ -84,7 +84,7 @@ fn compiled_cli_refuses_a_protected_database_without_probing_tools_or_echoing_cr
 
 #[test]
 fn runtime_schedule_keeps_the_interval_and_bounds_failure_backoff() {
-    use erpx_service::legal_runtime_worker::LegalWorkerSchedule;
+    use erpx_platform_composition::legal_runtime_worker::LegalWorkerSchedule;
     assert!(LegalWorkerSchedule::start(0, 999).is_err());
     assert!(LegalWorkerSchedule::start(0, 300_001).is_err());
     let mut schedule = LegalWorkerSchedule::start(1_000, 5_000).unwrap();

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 
 const src = (name: string) =>
-  new URL(`../../../packages/server-work_projection/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/work-projection/server/src/adapters/${name}`, import.meta.url);
 
 const scopeArm =
   'EXISTS(SELECT 1 FROM calendar_attendees ap WHERE ap.appointment_id=x.id AND ap.user_id=?)';
@@ -20,7 +20,7 @@ describe('work_projection read-tail r16 dedupe', () => {
 
   it('emits the original byte-identical scope arm for every interpolated caller', async () => {
     const { attendeeScopeExistsSql } = await import(
-      '../../../packages/server-work_projection/src/adapters/read-tail-sql.ts'
+      '../../../modules/work-projection/server/src/adapters/read-tail-sql.ts'
     );
     expect(attendeeScopeExistsSql).toBe(scopeArm);
   });

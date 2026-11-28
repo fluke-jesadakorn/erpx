@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-support/src');
+const srcRoot = resolve(__dirname, '../../../modules/support/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const totalSelects = () => {
   let total = 0;

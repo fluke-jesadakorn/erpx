@@ -3,17 +3,17 @@
 //! cost attachment/release, the durable provider handoff row, replay, audit,
 //! rollback and committed readback. They do not prove a Next/browser journey,
 //! composition mounting, Stripe issue/settlement or the jobs executor.
-use erpx_server_billing::public::cost::CommandReceipt;
-use erpx_server_billing::public::invoice::{
+use erpx_billing_server::public::cost::CommandReceipt;
+use erpx_billing_server::public::invoice::{
     BillingInvoiceCommand, CreateInvoice, FinalizeInvoice, UpdateInvoice, VoidInvoice,
     invoice_command,
 };
-use erpx_server_billing::public::workspace::BillingActor;
-use erpx_server_runtime::public::postgres::{
+use erpx_billing_server::public::workspace::BillingActor;
+use erpx_platform_runtime_server::public::postgres::{
     DatabaseConfig, DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, PoolLimits,
     TransactionOptions, connect_pool, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, HoldingId, RecordId, TimestampMillis, UserId,
 };
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row, postgres::PgConnectOptions};

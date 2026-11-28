@@ -3,9 +3,9 @@ import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import {
   ppRd57PeopleIdGuard,
   ppRd57CompRevisionByEngagementSql,
-} from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r57-sources';
+} from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r57-sources';
 
-const src = (name: string) => readFileSync(new URL(`../../../packages/server-people_payroll/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFileSync(new URL(`../../../modules/people-payroll/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const flat = (text: string) => text.replace(/\s+/g, ' ');
 const uses = (name: string, symbol: string) => (src(name).match(new RegExp(symbol + '\\(', 'g')) ?? []).length;
 const readOnly = (literal: string) => {
@@ -139,7 +139,7 @@ describe('People Payroll read-tail r57 dedupe', () => {
   });
 
   test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 1202 (before 1206)', () => {
-    const root = new URL('../../../packages/server-people_payroll/src/', import.meta.url);
+    const root = new URL('../../../modules/people-payroll/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {

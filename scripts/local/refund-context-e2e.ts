@@ -38,8 +38,8 @@ async function cleanup(code: number) {
 }
 process.on('SIGINT', () => void cleanup(130));
 
-const { migrateDatabase } = await import('@erpx/server-runtime/public/runtime/migrations');
-const { PostgresDatabase } = await import('@erpx/server-runtime/adapters/runtime/postgres');
+const { migrateDatabase } = await import('@erpx/platform-runtime-server/public/runtime/migrations');
+const { PostgresDatabase } = await import('@erpx/platform-runtime-server/adapters/runtime/postgres');
 
 await admin.connect();
 await admin.query(`CREATE DATABASE "${CONTROL_DB}" TEMPLATE template0`);

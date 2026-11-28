@@ -13,10 +13,10 @@ mod auth;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 use auth::*;
-use erpx_server_maintenance::public::{MaintenanceTransition, work_source::*};
-use erpx_server_runtime::public::postgres::PgTransactionError;
-use erpx_server_shared::public::{BusinessError, RecordId, TimestampMillis};
-use erpx_service::maintenance_parts::{
+use erpx_maintenance_server::public::{MaintenanceTransition, work_source::*};
+use erpx_platform_runtime_server::public::postgres::PgTransactionError;
+use erpx_platform_shared_server::public::{BusinessError, RecordId, TimestampMillis};
+use erpx_platform_composition::maintenance_parts::{
     MaintenancePartsSourcePreparation, PgMaintenancePartsSource, prepare_issue_part_inventory,
 };
 fn error<T>(result: Result<T, PgTransactionError<BusinessError>>, code: &str) {
@@ -190,9 +190,9 @@ async fn work_after_image_refuses_immediate_and_deferred_unintended_title_rewrit
 #[tokio::test]
 async fn actual_maintenance_inventory_finance_purchase_composition_keeps_draft_and_original_write_clocks()
  {
-    use erpx_server_commercial::public::purchases::PackageEnforcementMode;
-    use erpx_server_finance::public::parts_draft::prepare_owned_parts_draft;
-    use erpx_server_shared::public::Clock;
+    use erpx_commercial_server::public::purchases::PackageEnforcementMode;
+    use erpx_finance_server::public::parts_draft::prepare_owned_parts_draft;
+    use erpx_platform_shared_server::public::Clock;
     fixture::with_database(2,|control|async move {fixture::with_database(2,move |holding|async move {
         let(authorizer,_)=setup(&control,&holding).await;source(&holding).await;parts_fixture(&holding).await;
         let receipt=authorizer.execute_with_sources("acme.example.test",proof(),input(),maintenance(),MaintenancePartsSourcePreparation,|c,current|Box::pin(async move {
@@ -237,7 +237,7 @@ async fn actual_maintenance_inventory_finance_purchase_composition_keeps_draft_a
         let committed:(i64,i64,i64,i64,String,String)=sqlx::query_as("SELECT s.quantity_milli,s.value_minor,s.version,w.version,j.status,j.source_type FROM commerce_stock s CROSS JOIN maintenance_work_orders w CROSS JOIN finance_journals j WHERE w.id='work'").fetch_one(holding.raw()).await.unwrap();
         assert_eq!(committed,(4000,800,2,2,"draft".into(),"maintenance_parts".into()));
         let receipt=std::sync::Arc::new(receipt);
-        let detached=erpx_server_runtime::public::postgres::PgUnitOfWork::new(holding.clone()).run::<(),BusinessError,_>(erpx_server_runtime::public::postgres::TransactionOptions::default(),move |c| {
+        let detached=erpx_platform_runtime_server::public::postgres::PgUnitOfWork::new(holding.clone()).run::<(),BusinessError,_>(erpx_platform_runtime_server::public::postgres::TransactionOptions::default(),move |c| {
             let receipt=receipt.clone();Box::pin(async move {receipt.require_current(c).await})
         }).await;
         error(detached,"PARTS_DRAFT_SOURCE_CHANGED");
@@ -249,16 +249,16 @@ async fn actual_maintenance_inventory_finance_purchase_composition_keeps_draft_a
 #[tokio::test]
 async fn maximum_safe_requested_version_does_not_move_stock_or_quote_denial_before_original_late_cas()
  {
-    use erpx_server_commercial::public::purchases::PackageEnforcementMode;
-    use erpx_server_finance::public::parts_draft::prepare_owned_parts_draft;
-    use erpx_server_shared::public::{Clock, CommandKey};
+    use erpx_commercial_server::public::purchases::PackageEnforcementMode;
+    use erpx_finance_server::public::parts_draft::prepare_owned_parts_draft;
+    use erpx_platform_shared_server::public::{Clock, CommandKey};
     for kind in ["stock", "quote", "version"] {
         fixture::with_database(2,move |control|async move {fixture::with_database(2,move |holding|async move {
             let(authorizer,_)=setup(&control,&holding).await;source(&holding).await;parts::seed_parts_with_rate(&holding,kind!="quote").await;
             let result=authorizer.execute_with_sources("acme.example.test",proof(),input(),maintenance(),MaintenancePartsSourcePreparation,move |c,current|Box::pin(async move {
                 let source=read_current_maintenance_work(c,current,&id(),TimestampMillis::new(NOW)).await?.unwrap();
                 let raw=format!(r#"{{"action":"issue-part","expectedVersion":9007199254740991,"reason":"Maximum safe original input","warehouseId":"warehouse","productId":"{}","quantityMilli":1000,"entryDate":"2026-01-10","allocations":[]}}"#,if kind=="stock"{"missing-product"}else{"product"});
-                let command=erpx_server_maintenance::public::work_wire::normalize_maintenance_change(raw.as_bytes()).unwrap().into_command(CommandKey::new("synthetic-max-version")?,id());
+                let command=erpx_maintenance_server::public::work_wire::normalize_maintenance_change(raw.as_bytes()).unwrap().into_command(CommandKey::new("synthetic-max-version")?,id());
                 let write_clock=PartsWriteClock(std::sync::atomic::AtomicI64::new(NOW));let guard_clock=PartsGuardClock;let at=write_clock.now();
                 let inventory=prepare_issue_part_inventory(c, &source,&command,&write_clock,&guard_clock).await?;
                 let work=source.retain_issue_part_effects(c,&command,at,guard_clock.now()).await?.into_plan();
@@ -277,12 +277,12 @@ async fn maximum_safe_requested_version_does_not_move_stock_or_quote_denial_befo
 fn simple_command(
     action: &str,
     version: i64,
-) -> erpx_server_maintenance::public::work_commands::MaintenanceWorkCommand {
+) -> erpx_maintenance_server::public::work_commands::MaintenanceWorkCommand {
     let bytes=serde_json::to_vec(&serde_json::json!({"action":action,"expectedVersion":version,"reason":"Synthetic transition evidence"})).unwrap();
-    erpx_server_maintenance::public::work_wire::normalize_maintenance_change(&bytes)
+    erpx_maintenance_server::public::work_wire::normalize_maintenance_change(&bytes)
         .unwrap()
         .into_command(
-            erpx_server_shared::public::CommandKey::new(format!("synthetic-{action}-effects"))
+            erpx_platform_shared_server::public::CommandKey::new(format!("synthetic-{action}-effects"))
                 .unwrap(),
             id(),
         )
@@ -366,7 +366,7 @@ async fn start_cannot_substitute_another_command_physical_receipt_or_skip_it() {
                                         .await?;
                                     let mut change = plan.physical_change().unwrap().clone();
                                     change.command_key =
-                                        erpx_server_shared::public::CommandKey::new(
+                                        erpx_platform_shared_server::public::CommandKey::new(
                                             "different-command-start",
                                         )?;
                                     let physical = source

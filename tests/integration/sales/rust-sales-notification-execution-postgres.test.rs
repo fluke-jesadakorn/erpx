@@ -7,15 +7,15 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_commercial::public::purchases::PackageEnforcementMode;
-use erpx_server_runtime::public::postgres::{
+use erpx_commercial_server::public::purchases::PackageEnforcementMode;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_sales::public::sales_notification_execution::{
+use erpx_sales_server::public::sales_notification_execution::{
     DispatchOutcome, DispatchPlan, EmailDispatchPort, ExecutionFuture, OutboundEmail,
     PgNotificationExecution, deliver_notification, drain_notifications, not_configured,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 use sqlx::Row;
 use std::sync::{Arc, Mutex};
 

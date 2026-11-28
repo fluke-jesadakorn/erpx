@@ -1,11 +1,11 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_legal::public::record_policy::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_legal_server::public::record_policy::*;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, HoldingId, RecordId, UserId};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, HoldingId, RecordId, UserId};
 use sqlx::PgConnection;
 use std::sync::{
     Arc,

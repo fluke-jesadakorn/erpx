@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
-import { createUsagePeriodApplication } from "@erpx/server-commercial/application/usage";
-import { platformUsageItems, type UsageItem } from "@erpx/server-commercial/domain/usage";
-import { agentSourceAllowed } from "@erpx/server-agent/domain/source-policy";
+import { createUsagePeriodApplication } from "@erpx/commercial-server/application/usage";
+import { platformUsageItems, type UsageItem } from "@erpx/commercial-server/domain/usage";
+import { agentSourceAllowed } from "@erpx/agent-server/domain/source-policy";
 
 describe("owner time and Agent source policies", () => {
   test("uses the injected clock and Bangkok month boundary", () => {
@@ -26,8 +26,8 @@ describe("owner time and Agent source policies", () => {
     expect(agentSourceAllowed("/other", ["/"])).toBe(true);
   });
 });
-import { createBenefitsApplication, type BenefitsPorts } from "@erpx/server-benefits/application/benefits";
-import type { BenefitRow } from "@erpx/server-benefits/domain/benefits";
+import { createBenefitsApplication, type BenefitsPorts } from "@erpx/benefits-server/application/benefits";
+import type { BenefitRow } from "@erpx/benefits-server/domain/benefits";
 
 function benefitsFixture(overrides: Partial<BenefitsPorts> = {}) {
  const calls:string[]=[];

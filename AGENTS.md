@@ -84,7 +84,7 @@ Development browser login credentials are stored locally in ignored `.scratch/de
 > Map: `docs/TOC.md` (single hub).
 
 - `apps/<id>/src/app/` owns each Next app's routes/layouts/config/generated types and output. Never import another app's implementation. `apps/compat/` retains non-product compatibility source; the retired development Console cannot route business requests to it, and product apps must not use it as a backend. Apps keeps the stable `apps` app/CLI identity in `apps/launcher/`.
-- `packages/` contains explicit contract, UI, feature and server-owner subpaths; business owner code remains in `packages/server-<owner>/src/{domain,application,adapters,public}`. Keep client/server boundaries and assemble typed owner ports in the Rust `src/composition/` service crate. Runtime infrastructure stays in `server-runtime` without importing business owners. The TypeScript jobs runtime remains in `packages/server-runtime/src/adapters/runtime/jobs.ts` until its Rust replacement passes migration gates; `public/` holds shared static assets.
+- Business owners live in modules/<owner>/ with ui/ and server/ workspaces. Product-specific page assembly lives in products/<product>/ui/. Shared contracts, UI, runtime, and the Rust composition root live in platform/. Keep business logic in the owning server workspace and bind typed owner ports in platform/composition/.
 - `bun run dev` runs the host gateway on3100 and opens apps on demand; `bun run dev -- --app=finance` prewarms one. Only3200–3299 may be used by owned app processes. Development verification and smoke receipts are never acceptance. Full acceptance is deferred during this migration and is an intentional clean-candidate production preparation command only; never invoke it from daily CI, merge hooks or schedules.
 - Browser workspace aliases always resolve into the owned case. Turbopack vendor dependencies must also resolve within that case root; clone them rather than broadening the root to another case. Webpack may share the immutable vendor installation. Retain declared app startup logs before disposable-case cleanup, with private permissions and no auth/config-file collection.
 - `migrations/postgres/` active schema tracks; `ops/macos/` native deployment; remaining Wrangler/D1 fixtures serve the historical E2E adapter. Removed Workers/OpenNext tooling is recoverable through `README.md#recovery`.
@@ -93,10 +93,12 @@ Development browser login credentials are stored locally in ignored `.scratch/de
 
 ## File placement
 
+- Write temporary logs, test output, and working files to an ignored per-task directory under `.scratch/dev/`.
+
 - Executable tests belong in `tests/<lane>/<suite-owner>/`; use the catalogue lane and owner, not filename guesses. Helpers/setup live in `tests/support/`, registers in `tests/catalogue/`, and runner/typecheck configs in `tests/config/`.
 - Test/engineering tools live in `scripts/testing/`, benchmarks in `scripts/performance/`, seeds in `scripts/seed/`, documentation tooling in `scripts/docs/`, assets tooling in `scripts/assets/`, and runtime operations in `scripts/local/`.
-- Fixture data and factories live in `fixtures/<owner>/`. Components and lib helpers use owner workspaces; primitives live in `packages/ui`, shells in `packages/workplace`/`packages/front`, and owner feature UI in `packages/feature-<owner>`.
-- Server implementation belongs to `packages/server-<owner>/src/{domain,application,adapters}`. Consumers use named `public/` package exports. Do not add legacy forwarding paths; `src/server/runtime/env.ts` is retained only for the unchanged staging bootstrap.
+- Fixture data and factories live in fixtures/<owner>/. Reusable UI primitives live in platform/ui/. Shells live in platform/workplace/ and platform/front/.
+- Server owners use domain, application, adapters, and public source directories. Consumers use named public exports. The TypeScript jobs runtime lives in platform/runtime/server/src/adapters/runtime/jobs.ts until its Rust replacement passes migration gates.
 - Keep dated evidence and checksum-protected files unchanged. Update active registers and regenerate derived inventories after moving files.
 - Run `bun run structure:check` alongside catalogue, architecture, documentation and normal verification checks.
 

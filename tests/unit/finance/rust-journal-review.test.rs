@@ -1,5 +1,5 @@
-use erpx_server_finance::public::{FinanceActor, JournalError, journal_review::*};
-use erpx_server_shared::public::{
+use erpx_finance_server::public::{FinanceActor, JournalError, journal_review::*};
+use erpx_platform_shared_server::public::{
     AssignmentId, CommandKey, CompanyId, FailureKind, HoldingId, RecordId, TimestampMillis, UserId,
 };
 use num_bigint::BigInt;

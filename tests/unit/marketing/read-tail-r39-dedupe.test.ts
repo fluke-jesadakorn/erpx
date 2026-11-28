@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { marketingAnalyticsRowsSql } from '../../../packages/server-marketing/src/adapters/analytics-null-scope-rows';
-import { marketingAnalyticsCampaignSql } from '../../../packages/server-marketing/src/adapters/analytics-campaign-source-sql';
-import { marketingAnalyticsCostRows } from '../../../packages/server-marketing/src/adapters/analytics-cost-rows';
+import { marketingAnalyticsRowsSql } from '../../../modules/marketing/server/src/adapters/analytics-null-scope-rows';
+import { marketingAnalyticsCampaignSql } from '../../../modules/marketing/server/src/adapters/analytics-campaign-source-sql';
+import { marketingAnalyticsCostRows } from '../../../modules/marketing/server/src/adapters/analytics-cost-rows';
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-marketing/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/marketing/server/src/adapters/${name}`, import.meta.url);
 const src = (name: string) => readFile(adapter(name), 'utf8');
-const srcRoot = resolve('packages/server-marketing/src');
+const srcRoot = resolve('modules/marketing/server/src');
 
 // Byte oracles captured from the three original readers before dedupe.
 const enforced =

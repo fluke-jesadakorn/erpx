@@ -1,8 +1,8 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { billingProviderCostsSql, billingUsageSnapshotSql } from '../../../packages/server-billing/src/adapters/billing-read-tail-r19-sql';
+import { billingProviderCostsSql, billingUsageSnapshotSql } from '../../../modules/billing/server/src/adapters/billing-read-tail-r19-sql';
 
-const src = (name: string) => readFile(new URL(`../../../packages/server-billing/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFile(new URL(`../../../modules/billing/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 async function tsFiles(directory: URL): Promise<string[]> {
   const found: string[] = [];
@@ -47,7 +47,7 @@ describe('billing read-tail r19 parameterized family dedupe', () => {
   });
 
   it('lowers the billing owner SELECT KPI strictly below the r18 after=74 baseline', async () => {
-    const files = await tsFiles(new URL('../../../packages/server-billing/src/', import.meta.url));
+    const files = await tsFiles(new URL('../../../modules/billing/server/src/', import.meta.url));
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThan(74);

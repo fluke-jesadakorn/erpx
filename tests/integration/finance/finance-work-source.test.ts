@@ -1,21 +1,21 @@
-import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
+import type {WorkContext} from '@erpx/identity-access-server/public/authorization';
 import {withNativeFieldFixture} from '../../support/files/field-files-native-parity';
 import {seedExpenseCompany} from '../../../fixtures/expenses/company';
-import type {PostgresDatabase} from '@erpx/server-runtime/adapters/runtime/postgres';
-import {holdingResources,runtimeEnv} from '@erpx/server-runtime/public/runtime';
+import type {PostgresDatabase} from '@erpx/platform-runtime-server/adapters/runtime/postgres';
+import {holdingResources,runtimeEnv} from '@erpx/platform-runtime-server/public/runtime';
 import {beforeAll,expect,it,vi} from "vitest";
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {createInvoice,createParty,invoiceSchema} from '@erpx/server-finance/public/finance';
-import {readWorkSnapshot} from "@erpx/server-work_projection/public/work-items";
+import {createInvoice,createParty,invoiceSchema} from '@erpx/finance-server/public/finance';
+import {readWorkSnapshot} from "@erpx/work-projection-server/public/work-items";
 vi.mock("server-only",()=>({}));
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:vi.fn(async()=>({write:env.H001_DB,read:env.H001_DB,files:env.H001_FILES})),runtimeEnv:vi.fn(async()=>({}))}));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:vi.fn(async()=>({write:env.H001_DB,read:env.H001_DB,files:env.H001_FILES})),runtimeEnv:vi.fn(async()=>({}))}));
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 it("keeps authorized Finance work when a page actor cannot access other source apps",async()=>{const f=await expenseFixture(),party=await createParty(f.reviewer,{kind:"supplier",code:key(),name:"Queue source supplier",currency:"THB",paymentTermsDays:30,creditLimit:"0"},key()),invoice=await createInvoice(f.reviewer,invoiceSchema.parse({partyId:party.id,kind:"payable",invoiceNumber:key(),invoiceDate:"2026-09-10",dueDate:"2026-10-10",currency:"THB",subtotal:"100",tax:"0",debitAccountId:f.accounts.expense,creditAccountId:f.accounts.payable}),key());const snapshot=await readWorkSnapshot({...f.reviewer,pageRequest:true});expect(snapshot.unavailableSources).not.toContain("Commercial and financial workflows");expect(snapshot.items.some(item=>item.type==="invoice"&&item.id===invoice.id)).toBe(true);expect(snapshot.items.filter(item=>item.type==="order")).toEqual([]);});
 
 it("keeps batched workflow candidates identical to individual reads for every role and scope", async () => {
-  const { workflowStaffRoleUsers } = await import("@erpx/server-identity_access/public/workflow-role-facts");
-  const { withPolicyReadSnapshot } = await import("@erpx/server-identity_access/public/iam-read-snapshot");
+  const { workflowStaffRoleUsers } = await import("@erpx/identity-access-server/public/workflow-role-facts");
+  const { withPolicyReadSnapshot } = await import("@erpx/identity-access-server/public/iam-read-snapshot");
   const f = await expenseFixture();
   const scopes = [
     { company_id: f.company, branch_id: null, department_id: null },
@@ -32,8 +32,8 @@ it("keeps batched workflow candidates identical to individual reads for every ro
 });
 
 it("keeps all commercial work and approval ownership identical to the authorized detail reader", async () => {
-  const { otherFlowWork } = await import("@erpx/server-workflow/public/flow-work");
-  const { withPolicyReadSnapshot } = await import("@erpx/server-identity_access/public/iam-read-snapshot");
+  const { otherFlowWork } = await import("@erpx/workflow-server/public/flow-work");
+  const { withPolicyReadSnapshot } = await import("@erpx/identity-access-server/public/iam-read-snapshot");
   const f = await expenseFixture();
   const party = await createParty(f.reviewer,{kind:"supplier",code:key(),name:"Batch work supplier",currency:"THB",paymentTermsDays:30,creditLimit:"0"},key());
   for (let index=0;index<8;index++) await createInvoice(f.reviewer,invoiceSchema.parse({partyId:party.id,kind:"payable",invoiceNumber:key(),invoiceDate:"2026-09-10",dueDate:"2026-10-10",currency:"THB",subtotal:"100",tax:"0",debitAccountId:f.accounts.expense,creditAccountId:f.accounts.payable}),key());
@@ -72,13 +72,13 @@ it('discovers native Field invoice and secondary journal through Service-only Fi
   const invoice=String(await db.prepare("SELECT id FROM finance_invoices WHERE company_id=? AND source_type='field_service' AND source_id=?").bind(f.company,order).first('id'));
   const post=await native.requestAs<{journalId:string}>('finance','POST',`/api/v1/holdings/acme/finance/invoices/${invoice}/post`,{periodId:f.period,entryDate:new Date().toISOString().slice(0,10),expectedVersion:1},key());expect(post.status,JSON.stringify(post.json)).toBe(200);
   const secondary=String(await db.prepare('SELECT secondary_journal_id FROM finance_book_postings WHERE primary_journal_id=?').bind(post.json.data.journalId).first('secondary_journal_id'));expect(secondary).not.toBe('null');
-  const {financeProductDocumentEntry}=await import('@erpx/server-finance/public/document-purchases');
+  const {financeProductDocumentEntry}=await import('@erpx/finance-server/public/document-purchases');
   const actor=f.manager,assignmentId=native.assignmentFor('finance'),version=Number(await db.prepare('SELECT version FROM assignments WHERE id=?').bind(assignmentId).first('version'));
   const scope={companyId:f.company,branchId:null,departmentId:null,userId:actor.userId,assignmentId,assignmentVersion:version,role:'native_field_finance'};
   for(const target of [{kind:'invoice' as const,id:invoice},{kind:'journal' as const,id:post.json.data.journalId},{kind:'journal' as const,id:secondary}])expect(await financeProductDocumentEntry(db,scope,target)).toEqual({capability:'finance.service-invoice',purchasePurpose:'history'});
   expect(await financeProductDocumentEntry(db,scope,{kind:'journal',id:`book-fabricated-${secondary}`})).toBeNull();
   expect(await financeProductDocumentEntry(db,{...scope,companyId:'foreign'},{kind:'journal',id:secondary})).toBeNull();
-  const {readCompanyPackageGrants}=await import('@erpx/server-commercial/public/package-grants');expect((await readCompanyPackageGrants(db,f.company)).map(g=>g.packageId)).toEqual(['service']);
+  const {readCompanyPackageGrants}=await import('@erpx/commercial-server/public/package-grants');expect((await readCompanyPackageGrants(db,f.company)).map(g=>g.packageId)).toEqual(['service']);
   // A retained pre-draft-snapshot billing shape is explicit historical fixture
   // data. New request/visit and the consuming invoice post remain Rust-only;
   // no legacy command runner or production writer is restored.
@@ -111,7 +111,7 @@ it('discovers native Field invoice and secondary journal through Service-only Fi
   // Retained generic payment/source consumers must see documents produced by
   // Rust's actual three-person receipt and bank-confirmation pipeline.
   const createInput={partyId:customer,kind:'receipt',paymentNumber:key(),paymentDate:date,currency:'THB',amount:'1500',bankAccount:f.accounts.cash,settlementInvoiceId:invoice},createKey=key(),payments='/api/v1/holdings/acme/finance/payments';
-  const legacyFinance=await import('@erpx/server-finance/public/finance'),{loadIamAuthority:loadLegacyIam}=await import('@erpx/server-identity_access/public/iam-store');
+  const legacyFinance=await import('@erpx/finance-server/public/finance'),{loadIamAuthority:loadLegacyIam}=await import('@erpx/identity-access-server/public/iam-store');
   const legacyMaker={...f.reviewer,assignmentId:native.assignmentFor('cash-maker'),role:'native_field_cash_preparer',modules:['finance'],branchId:null,departmentId:null,iam:await loadLegacyIam(db,f.company,f.reviewer.userId,'native_field_cash_preparer')};
   // Remaining generic Finance consumers may reject non-Field requests; the
   // actual Field parent must always hit its terminal fence, in every old mode.
@@ -147,8 +147,8 @@ it('discovers native Field invoice and secondary journal through Service-only Fi
   expect(await db.prepare('SELECT sum(l.debit_minor)::text debit,sum(l.credit_minor)::text credit FROM finance_journal_lines l JOIN finance_payments p ON p.journal_id=l.journal_id WHERE p.id=?').bind(payment).first()).toEqual({debit:'150000',credit:'150000'});
   expect((await readCompanyPackageGrants(db,f.company)).find(g=>g.packageId==='service')?.state).toBe('draining');expect((await native.requestAs('finance','POST',`${payments}/${payment}/approve`,decision,approvalKey)).json).toEqual(approved.json);
   expect(await financeProductDocumentEntry(db,scope,{kind:'payment',id:payment})).toEqual({capability:'finance.service-invoice',purchasePurpose:'history'});
-  const {financeDocumentPresentationAccess,financeSourceDocumentBackdrop}=await import('@erpx/server-finance/public/record-presentation');const {loadIamAuthority}=await import('@erpx/server-identity_access/public/iam-store');const actorForPresentation={...f.manager,assignmentId:scope.assignmentId,role:scope.role,branchId:null,departmentId:null,modules:['finance'],iam:await loadIamAuthority(db,f.company,f.manager.userId,scope.role)};
-  const {bankWorkspace}=await import('@erpx/server-finance/public/finance');vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','enforced');await expect(bankWorkspace(actorForPresentation,{})).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
+  const {financeDocumentPresentationAccess,financeSourceDocumentBackdrop}=await import('@erpx/finance-server/public/record-presentation');const {loadIamAuthority}=await import('@erpx/identity-access-server/public/iam-store');const actorForPresentation={...f.manager,assignmentId:scope.assignmentId,role:scope.role,branchId:null,departmentId:null,modules:['finance'],iam:await loadIamAuthority(db,f.company,f.manager.userId,scope.role)};
+  const {bankWorkspace}=await import('@erpx/finance-server/public/finance');vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','enforced');await expect(bankWorkspace(actorForPresentation,{})).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
   for(const mode of ['disabled','shadow','enforced']as const){vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT',mode);expect(await financeDocumentPresentationAccess(actorForPresentation,'invoice',invoice,{strictProduct:true})).toEqual({sourceOnly:true,historyOnly:true});expect(await financeSourceDocumentBackdrop(actorForPresentation,'invoice',invoice,{strictProduct:true})).toMatchObject({kind:'invoice',id:invoice,status:'paid'});}
   expect(await financeProductDocumentEntry(db,{...scope,assignmentVersion:scope.assignmentVersion+1},{kind:'invoice',id:invoice})).toBeNull();
   await db.prepare('UPDATE attachments SET legal_hold=1 WHERE id=?').bind(uploaded.json.data.sourceId).run();const bytes=await native.requestAs('treasury','GET',`/api/v1/holdings/acme/finance/payment-files/attachment-links/${reserved.json.data.attachmentLinkId}/content?variant=original`);expect(bytes.status,JSON.stringify(bytes.json)).toBe(200);expect(bytes.raw).toEqual(proofBytes);
@@ -157,7 +157,7 @@ it('discovers native Field invoice and secondary journal through Service-only Fi
  },async db=>{
   vi.mocked(holdingResources).mockResolvedValue({write:db,read:db,files:env.H001_FILES});
   const f=await seedExpenseCompany(db,env.H001_FILES);
-  const {saveMaster}=await import('@erpx/server-commerce/public/commerce');const customer=String((await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'Native Field Finance source'},key())).id);
+  const {saveMaster}=await import('@erpx/commerce-server/public/commerce');const customer=String((await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'Native Field Finance source'},key())).id);
   await db.exec(`INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('*','custom_field_parts',2,'["records.read","records.write","records.review","module.field_service.read"]','[]','["holding","branch","department"]','synthetic-finance-consumer',0);UPDATE iam_roles SET published_revision=2 WHERE company_id='*' AND id='custom_field_parts';INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status)VALUES('*','native_field_finance','Native Field Finance consumer',false,1,'active');INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('*','native_field_finance',1,'["finance.read","finance.write","finance.approve","module.finance.read","workflow.finance_approver"]','[]','["holding"]','synthetic-finance-consumer',0);INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status)VALUES('*','native_field_treasury','Native controlled Field Treasury',false,1,'active');INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('*','native_field_treasury',1,'["finance.read","finance.write","finance.pay","module.finance.read"]','[]','["holding"]','synthetic-finance-consumer',0);INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status)VALUES('*','native_field_cash_preparer','Original independent receipt preparer',false,1,'active');INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('*','native_field_cash_preparer',1,'["finance.read","finance.write","module.finance.read"]','[]','["holding"]','synthetic-finance-consumer',0)`);
   const actors=[];for(const [label,actor,role,modules]of [['owner',f.owner,'custom_field_parts',['field_service']],['reviewer',f.tie,'custom_field_parts',['field_service']],['finance',f.manager,'native_field_finance',['finance']],['cash-maker',f.reviewer,'native_field_cash_preparer',['finance']],['treasury',f.payer,'native_field_treasury',['finance']]]as const){const assignmentId=await f.grant(actor,role);await db.prepare('UPDATE assignments SET modules_json=? WHERE id=?').bind(JSON.stringify(modules),assignmentId).run();const version=Number(await db.prepare('SELECT version FROM assignments WHERE id=?').bind(assignmentId).first('version'));actors.push({label,userId:actor.userId,assignmentId,assignmentVersion:version,role,modules:[...modules],branchId:null,departmentId:null});}
   await db.prepare("UPDATE finance_accounts SET is_control=1,control_kind='bank' WHERE id=? AND company_id=?").bind(f.accounts.cash,f.company).run();
@@ -181,10 +181,10 @@ it('keeps native Field Finance history behind actual purchases and Company isola
  let owned:PostgresDatabase|undefined;
  try{await withNativeFieldFixture(async native=>{
   if(!owned)throw new Error('HISTORICAL_FINANCE_LEASE_REQUIRED');await native.advanceClock();const db=owned,invoice='field-invoice-historical-handoff',user='historical-finance',assignment='historical-finance-assignment',role='historical_finance';
-  const {loadIamAuthority}=await import('@erpx/server-identity_access/public/iam-store');
+  const {loadIamAuthority}=await import('@erpx/identity-access-server/public/iam-store');
   const actor:WorkContext={userId:user,name:'Historical Finance reviewer',email:'historical-finance@example.test',companyId:'company',assignmentId:assignment,role,branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'acme',holdingName:'Acme',assignmentScope:'holding',inherited:false,modules:['finance'],assignments:[],workspaces:[],scope:{kind:'holding',holdingId:'h001',holdingSlug:'acme',holdingName:'Acme',companyId:'company'},iam:await loadIamAuthority(db,'company',user,role)};
   const scope={companyId:'company',branchId:null,departmentId:null,userId:user,assignmentId:assignment,assignmentVersion:1,role};
-  const {financeProductDocumentEntry}=await import('@erpx/server-finance/public/document-purchases'),{financeDocumentPresentationAccess,financeSourceDocumentBackdrop}=await import('@erpx/server-finance/public/record-presentation'),{readCompanyPackageGrants}=await import('@erpx/server-commercial/public/package-grants');
+  const {financeProductDocumentEntry}=await import('@erpx/finance-server/public/document-purchases'),{financeDocumentPresentationAccess,financeSourceDocumentBackdrop}=await import('@erpx/finance-server/public/record-presentation'),{readCompanyPackageGrants}=await import('@erpx/commercial-server/public/package-grants');
   vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','disabled');
   expect(await readCompanyPackageGrants(db,'company')).toEqual([]);expect(await financeProductDocumentEntry(db,scope,{kind:'invoice',id:invoice})).toBeNull();expect(await financeDocumentPresentationAccess(actor,'invoice',invoice)).toEqual({sourceOnly:false,historyOnly:false});await expect(financeDocumentPresentationAccess(actor,'invoice',invoice,{strictProduct:true})).rejects.toMatchObject({code:'FINANCE_RECORD_NOT_FOUND'});
   const path=`/api/v1/holdings/acme/finance/invoices/${invoice}`;const denied=await native.requestAs('finance','GET',`${path}/workspace`);expect(denied.status,JSON.stringify(denied.json)).toBe(403);expect(denied.json.error.code).toBe('PACKAGE_REQUIRED');

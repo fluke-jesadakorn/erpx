@@ -1,14 +1,14 @@
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
-import { HomeDay } from "@erpx/feature-work_projection/components/home/home-day";
-import { HandoverLauncher, PlanLauncher } from "@erpx/feature-work_projection/components/home/tool-launchers";
-import { DeferredRegion } from "@erpx/feature-work_projection/components/home/deferred-region";
+import { HomeDay } from "@erpx/work-projection-ui/components/home/home-day";
+import { HandoverLauncher, PlanLauncher } from "@erpx/work-projection-ui/components/home/tool-launchers";
+import { DeferredRegion } from "@erpx/work-projection-ui/components/home/deferred-region";
 vi.stubGlobal("React", React);
 const imports = vi.hoisted(() => ({ day: vi.fn(), handover: vi.fn(), plan: vi.fn() }));
-vi.mock("@erpx/feature-people_payroll/components/self-service/home", () => { imports.day(); return { MyDayCard: () => "Eager day" }; });
-vi.mock("@erpx/feature-work_projection/components/today/handover-composer", () => { imports.handover(); return { HandoverComposer: () => "Eager handover" }; });
-vi.mock("@erpx/feature-work_projection/components/today/daily-plan", () => { imports.plan(); return { DailyPlan: () => "Eager plan" }; });
+vi.mock("@erpx/people-payroll-ui/components/self-service/home", () => { imports.day(); return { MyDayCard: () => "Eager day" }; });
+vi.mock("@erpx/work-projection-ui/components/today/handover-composer", () => { imports.handover(); return { HandoverComposer: () => "Eager handover" }; });
+vi.mock("@erpx/work-projection-ui/components/today/daily-plan", () => { imports.plan(); return { DailyPlan: () => "Eager plan" }; });
 it("server renders launchers and reserved space without invoking lazy imports or reading secondary data", () => {
   const secondary = vi.fn(() => React.createElement("p", null, "Eager milestones"));
   const Region = DeferredRegion as React.ComponentType<Omit<React.ComponentProps<typeof DeferredRegion>, "children">>;
@@ -23,6 +23,6 @@ it("server renders launchers and reserved space without invoking lazy imports or
   for (const imported of Object.values(imports)) expect(imported).not.toHaveBeenCalled();
 });
 it('renders the exact included conversation shell with Apps recovery and no Work discovery or queue chrome',async()=>{
- const {SocialHomeShell}=await import('@erpx/feature-collaboration/components/social-home-shell');vi.stubEnv('ERPX_PRODUCT_ROUTING','enabled');vi.stubEnv('ERPX_PRODUCT_SSO','enabled');vi.stubEnv('ERPX_PRODUCT_ENVIRONMENT','development');vi.stubEnv('ERPX_ENVIRONMENT','local');
+ const {SocialHomeShell}=await import('@erpx/collaboration-ui/components/social-home-shell');vi.stubEnv('ERPX_PRODUCT_ROUTING','enabled');vi.stubEnv('ERPX_PRODUCT_SSO','enabled');vi.stubEnv('ERPX_PRODUCT_ENVIRONMENT','development');vi.stubEnv('ERPX_ENVIRONMENT','local');
  try{const props:React.ComponentProps<typeof SocialHomeShell>={base:'/holdings/acme',name:'Actual colleague',single:true,sourceOnly:true,calendarEnabled:true,canRequestLegal:false,contextKey:'opaque-context',children:React.createElement('p',null,'Actual included post')};const html=renderToStaticMarkup(React.createElement(SocialHomeShell,props));expect(html).toContain('Actual included post');expect(html).toContain('Included conversation');expect(html).toContain('Back to Feed');expect(html).toContain('https://apps-dev-erpx.jesadakorn.com/sso/start');expect(html).not.toContain('Back to Today');expect(html).not.toContain('Needs you');expect(html).not.toContain('Draft handover');expect(html).not.toContain('/calendar');expect(html).not.toContain('opaque-context');}finally{vi.unstubAllEnvs();}
 });

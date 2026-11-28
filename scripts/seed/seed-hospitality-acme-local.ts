@@ -3,18 +3,18 @@ import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { dirname, resolve, join } from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
 import { hashPassword } from 'better-auth/crypto';
-import { assertHospitalityDevelopmentTarget } from "@erpx/feature-shared/lib/hospitality-seed-target";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { businessRoles } from "@erpx/feature-identity_access/lib/business-roles";
-import { records, record, plusDays } from "@erpx/server-pms/public/rules/pms-model";
+import { assertHospitalityDevelopmentTarget } from "@erpx/platform-shared-ui/lib/hospitality-seed-target";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import { businessRoles } from "@erpx/identity-access-ui/lib/business-roles";
+import { records, record, plusDays } from "@erpx/pms-server/public/rules/pms-model";
 import { mock } from 'bun:test';
 // CLI has no page renderer. Fail closed if a domain command attempts navigation.
 mock.module('next/navigation',()=>({forbidden:()=>{throw new Error('CLI_PAGE_FORBIDDEN');},redirect:()=>{throw new Error('CLI_REDIRECT_FORBIDDEN');}}));
-import { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
-const { pmsCommand, loadPms, drainPms }=await import("../../packages/server-pms/src/public/pms");
-const {posCommand}=await import("@erpx/server-pos/public/pos-core");
-const {one}=await import("@erpx/server-runtime/public/runtime/sql");
-const { saveMaster }=await import("@erpx/server-commerce/public/commerce");
+import { PostgresDatabase } from "@erpx/platform-runtime-server/adapters/runtime/postgres";
+const { pmsCommand, loadPms, drainPms }=await import("../../modules/pms/server/src/public/pms");
+const {posCommand}=await import("@erpx/pos-server/public/pos-core");
+const {one}=await import("@erpx/platform-runtime-server/public/runtime/sql");
+const { saveMaster }=await import("@erpx/commerce-server/public/commerce");
 const { seedOpeningStock }=await import("../../tests/support/helpers/inventory-opening-stock-seed");
 
 const manifestPath=process.env.ERPX_DATABASE_MANIFEST;
@@ -26,7 +26,7 @@ const jobsPath=join(dirname(manifestPath),'databases-jobs.json');
 const jobsManifest=JSON.parse(await readFile(jobsPath,'utf8'));
 assertHospitalityDevelopmentTarget(jobsManifest,process.env.ERPX_ENVIRONMENT??process.env.NODE_ENV);
 process.env.ERPX_DATABASE_MANIFEST=jobsPath;process.env.ERPX_PROCESS_ROLE='jobs';
-const {getRuntime,closeRuntime}=await import("@erpx/server-runtime/adapters/runtime/env");
+const {getRuntime,closeRuntime}=await import("@erpx/platform-runtime-server/adapters/runtime/env");
 const env=getRuntime(),db=new PostgresDatabase({connectionString:jobsManifest.databases.H001_DB,max:2}),control=env.CONTROL_DB;
 
 const namespace='acme-hospitality-v1',directory=resolve('.scratch/dev/hospitality-acme');

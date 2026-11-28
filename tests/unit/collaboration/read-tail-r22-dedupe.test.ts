@@ -1,9 +1,9 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { socialPostPublishReceipt } from '../../../packages/server-collaboration/src/adapters/read-tail-sql';
+import { socialPostPublishReceipt } from '../../../modules/collaboration/server/src/adapters/read-tail-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-collaboration/src');
+const srcRoot = resolve(__dirname, '../../../modules/collaboration/server/src');
 const adapters = resolve(srcRoot, 'adapters');
 const shared = readFileSync(resolve(adapters, 'read-tail-sql.ts'), 'utf8');
 const obligations = readFileSync(resolve(adapters, 'work-package-obligations.ts'), 'utf8');

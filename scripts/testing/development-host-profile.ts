@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, realpathSync, lstatSync } from 'node:fs';
 import { join } from 'node:path';
-import { appDefinition } from '@erpx/contracts/apps';
+import { appDefinition } from '@erpx/platform-contracts/apps';
 
 
 export function workspaceBrowserApps(raw: string | undefined) {

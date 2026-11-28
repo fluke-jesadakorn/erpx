@@ -1,9 +1,9 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { billingPointReadSql } from '../../../packages/server-billing/src/adapters/billing-read-tail-r29-sql';
+import { billingPointReadSql } from '../../../modules/billing/server/src/adapters/billing-read-tail-r29-sql';
 
-const srcRoot = new URL('../../../packages/server-billing/src/', import.meta.url);
+const srcRoot = new URL('../../../modules/billing/server/src/', import.meta.url);
 const src = (name: string) => readFile(new URL(`adapters/${name}`, srcRoot), 'utf8');
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 

@@ -1,5 +1,5 @@
 //! Owner-local HTTP router tests for native Projects attachment reads.
-use erpx_server_projects::public::project_attachment_read_http::{
+use erpx_projects_server::public::project_attachment_read_http::{
     ProjectAttachmentContentHttpResponse, ProjectAttachmentReadContentByLinkHttpRequest,
     ProjectAttachmentReadContentHttpRequest, ProjectAttachmentReadHttpBackend,
     ProjectAttachmentReadHttpFuture, ProjectAttachmentReadHttpResponse,
@@ -8,8 +8,8 @@ use erpx_server_projects::public::project_attachment_read_http::{
     ProjectAttachmentReadStatusByLinkHttpRequest, ProjectAttachmentReadStatusHttpRequest,
     project_attachment_read_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 #[derive(Default)]

@@ -1,11 +1,11 @@
 //! Actual owner-local HTTP router tests for native Sales confirmed cancellation.
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_sales::public::sales_order_cancellation_http::{
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_sales_server::public::sales_order_cancellation_http::{
     SalesOrderCancellationHttpBackend, SalesOrderCancellationHttpFuture,
     SalesOrderCancellationHttpRequest, SalesOrderCancellationHttpResponse,
     SalesOrderCancellationHttpTarget, sales_order_cancellation_router,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Noop;

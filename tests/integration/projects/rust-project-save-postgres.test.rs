@@ -6,15 +6,15 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_projects::public::project_save::{
+use erpx_projects_server::public::project_save::{
     PgProjectSaveCommands, ProjectSavePurchase, SaveProjectActor, SaveProjectCommand,
     save_project,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, TimestampMillis};
 use std::collections::BTreeSet;
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
@@ -28,7 +28,7 @@ fn business(error: PgTransactionError<BusinessError>) -> BusinessError {
 
 fn actor(user: &str, company: &str) -> SaveProjectActor {
     SaveProjectActor {
-        command: erpx_server_projects::public::project_commands::ProjectCommandActor {
+        command: erpx_projects_server::public::project_commands::ProjectCommandActor {
             user_id: user.into(),
             company_id: CompanyId::new(company).unwrap(),
             branch_id: None,

@@ -3,15 +3,15 @@ import {createHash} from "node:crypto";
 import {execFileSync} from "node:child_process";
 import {mkdir,readFile,writeFile} from "node:fs/promises";
 import {resolve} from "node:path";
-import {commercialPackages,type CompanyPackageGrant,type CompanyPackageHistoryRight} from "../../../packages/server-commercial/src/domain/packages";
+import {commercialPackages,type CompanyPackageGrant,type CompanyPackageHistoryRight} from "../../../modules/commercial/server/src/domain/packages";
 
-const sourceCommit="a5ed8737a2f05eff1ee9841fda4a094b3926d732",sourcePaths=["packages/server-commercial/src/domain/packages.ts","packages/contracts/src/product-registry.ts"];
+const sourceCommit="a5ed8737a2f05eff1ee9841fda4a094b3926d732",sourcePaths=["modules/commercial/server/src/domain/packages.ts","platform/contracts/src/product-registry.ts"];
 const sources=[];
 for(const path of sourcePaths){const bytes=await readFile(path);if(!bytes.equals(execFileSync("git",["show",`${sourceCommit}:${path}`])))throw new Error("COMMERCIAL_ORACLE_SOURCE_CHANGED");sources.push({path,sha256:createHash("sha256").update(bytes).digest("hex")});}
-const commandPaths=["packages/server-commercial/src/application/package-grants.ts","packages/server-commercial/src/domain/package-dependencies.ts"];
+const commandPaths=["modules/commercial/server/src/application/package-grants.ts","modules/commercial/server/src/domain/package-dependencies.ts"];
 const commandSources=[...sources];
 for(const path of commandPaths){const bytes=await readFile(path);if(!bytes.equals(execFileSync("git",["show",`${sourceCommit}:${path}`])))throw new Error("COMMERCIAL_COMMAND_ORACLE_SOURCE_CHANGED");commandSources.push({path,sha256:createHash("sha256").update(bytes).digest("hex")});}
-const batchPaths=["packages/server-commercial/src/application/package-grant-batches.ts","packages/server-commercial/src/adapters/package-grants.ts"];
+const batchPaths=["modules/commercial/server/src/application/package-grant-batches.ts","modules/commercial/server/src/adapters/package-grants.ts"];
 const batchSources=[...commandSources];
 for(const path of batchPaths){const bytes=await readFile(path);if(!bytes.equals(execFileSync("git",["show",`${sourceCommit}:${path}`])))throw new Error("COMMERCIAL_BATCH_ORACLE_SOURCE_CHANGED");batchSources.push({path,sha256:createHash("sha256").update(bytes).digest("hex")});}
 const revisionSource=(await readFile(batchPaths[1]!,"utf8")).slice((await readFile(batchPaths[1]!,"utf8")).indexOf("export function packageGrantRevision("));

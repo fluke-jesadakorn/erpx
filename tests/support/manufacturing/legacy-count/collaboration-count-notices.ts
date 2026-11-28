@@ -4,13 +4,13 @@
  * These two notices were never wired into a live production caller; the only
  * remaining consumer is the isolated legacy-count integration harness. They are
  * kept here as SQL seeding so the legacy assertions can run without a
- * production TS writer in packages/server-collaboration/src.
+ * production TS writer in modules/collaboration/server/src.
  *
  * Tracked for removal by `retire.collaboration.residual-writers`: delete once
  * the legacy-count harness is retired or seeds these through native ports.
  */
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
-import { inventoryNotificationAudience } from '@erpx/server-identity_access/public/inventory-authority-projections';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
+import { inventoryNotificationAudience } from '@erpx/identity-access-server/public/inventory-authority-projections';
 
 export function inventoryCountSources(db: SqlDatabase) {
   return {

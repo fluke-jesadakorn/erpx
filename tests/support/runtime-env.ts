@@ -2,10 +2,10 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, rm, writeFile, readdir, readFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { Pool } from 'pg';
-import { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
-import { LocalFileStore } from "@erpx/server-runtime/adapters/runtime/filesystem";
-import { migrateDatabase, refreshMigrationCoverage } from "@erpx/server-runtime/public/runtime/migrations";
-import type { SqlDatabase } from "@erpx/server-runtime/adapters/runtime/types";
+import { PostgresDatabase } from "@erpx/platform-runtime-server/adapters/runtime/postgres";
+import { LocalFileStore } from "@erpx/platform-runtime-server/adapters/runtime/filesystem";
+import { migrateDatabase, refreshMigrationCoverage } from "@erpx/platform-runtime-server/public/runtime/migrations";
+import type { SqlDatabase } from "@erpx/platform-runtime-server/adapters/runtime/types";
 import { assertSuiteDatabaseIdentity, createSuiteDatabases, cleanupSuiteDatabases, databaseTracks, type DatabaseSlot, type NativeFixturePlan } from './postgres-templates';
 import { startNativeAccountSsoProxy, stopNativeAccountSsoProxy } from './native-account-sso';
 

@@ -1,28 +1,28 @@
 import {routeDependencies,routeClosureIds} from "../../../scripts/ui/inventory.mjs";
 import { createElement, createRef, type ComponentProps } from "react";
 import type NextLink from "next/link";
-import type { Dialog } from "@erpx/ui/components/dialog";
-import { ProductNavigationBoundary } from "@erpx/workplace/components/product-navigation-boundary";
-import { CalendarDraftBoundary } from "@erpx/feature-work_projection/components/calendar/calendar-draft-boundary";
+import type { Dialog } from "@erpx/platform-ui/components/dialog";
+import { ProductNavigationBoundary } from "@erpx/platform-workplace/components/product-navigation-boundary";
+import { CalendarDraftBoundary } from "@erpx/work-projection-ui/components/calendar/calendar-draft-boundary";
 import { renderToStaticMarkup } from "react-dom/server";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { afterEach, expect, it, vi } from "vitest";
-import WorkspaceLink from "@erpx/workplace/components/workspace-link";
-import { ProductLinkEnvironment, ProductWorkLinks } from "@erpx/workplace/components/product-link-context";
-import { DestinationIndexView } from "@erpx/workplace/components/destination-index-view";
-import { TopicDirectory } from "@erpx/workplace/components/topic-navigation";
+import WorkspaceLink from "@erpx/platform-workplace/components/workspace-link";
+import { ProductLinkEnvironment, ProductWorkLinks } from "@erpx/platform-workplace/components/product-link-context";
+import { DestinationIndexView } from "@erpx/platform-workplace/components/destination-index-view";
+import { TopicDirectory } from "@erpx/platform-workplace/components/topic-navigation";
 import { scopeFor } from "../../../scripts/ui/standard-scope.mjs";
-import { Table } from "@erpx/ui/components/table";
-import { ListFilters } from "@erpx/ui/components/list-filters";
-import { SetupChecklist } from "@erpx/ui/components/setup-checklist";
-import { UiNavigationProvider } from "@erpx/ui/components/navigation-context";
-import { RecordLink, RecordScopeProvider } from "@erpx/feature-records/public/client";
-import { registerUnsavedChanges } from "@erpx/ui/lib/unsaved-changes";
-import { hasUnsavedWork } from "@erpx/feature-work_projection/lib/context-switch";
-import RecordError from "../../../packages/workplace/src/routes/holdings/[holdingSlug]/@record/error";
+import { Table } from "@erpx/platform-ui/components/table";
+import { ListFilters } from "@erpx/platform-ui/components/list-filters";
+import { SetupChecklist } from "@erpx/platform-ui/components/setup-checklist";
+import { UiNavigationProvider } from "@erpx/platform-ui/components/navigation-context";
+import { RecordLink, RecordScopeProvider } from "@erpx/records-ui/public/client";
+import { registerUnsavedChanges } from "@erpx/platform-ui/lib/unsaved-changes";
+import { hasUnsavedWork } from "@erpx/work-projection-ui/lib/context-switch";
+import RecordError from "../../../platform/workplace/src/routes/holdings/[holdingSlug]/@record/error";
 
 const roots: string[] = [];
 it("uses the Next retry callback to recover the Record drawer after a transient server error", () => {
@@ -44,8 +44,8 @@ vi.mock("next/navigation", () => ({
   usePathname: () => observedNavigation.pathname,
   useSearchParams: () => new URLSearchParams("tag=one&tag=two"),
 }));
-vi.mock("@erpx/ui/components/dialog", async importOriginal => {
-  const actual = await importOriginal<typeof import("@erpx/ui/components/dialog")>();
+vi.mock("@erpx/platform-ui/components/dialog", async importOriginal => {
+  const actual = await importOriginal<typeof import("@erpx/platform-ui/components/dialog")>();
   const { createElement } = await import("react");
   return { ...actual, Dialog: function ObservedDialog(props: ComponentProps<typeof actual.Dialog>) {
     observedNavigation.dialogs.push(props);
@@ -203,24 +203,24 @@ it("preserves the owner-filtered empty state without manufacturing a visible des
 
 it("keeps extracted hospitality presenters in their original boundary and requires adapters for other ordinary descendants", () => {
   for (const owner of ["pms/[[...section]]", "pms/import", "pos", "hospitality/setup"])
-    expect(scopeFor(`packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/${owner}/screen.tsx`)).toBe("deferred-pms-pos");
-  expect(scopeFor("packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/finance/screen.tsx")).toBe("standardize");
-  expect(scopeFor("packages/workplace/src/components/workspace-link.tsx")).toBe("shared-adapter");
-  expect(scopeFor("packages/workplace/src/components/destination-index-view.tsx")).toBe("shared-adapter");
+    expect(scopeFor(`platform/workplace/src/routes/holdings/[holdingSlug]/_presenters/${owner}/screen.tsx`)).toBe("deferred-pms-pos");
+  expect(scopeFor("platform/workplace/src/routes/holdings/[holdingSlug]/_presenters/finance/screen.tsx")).toBe("standardize");
+  expect(scopeFor("platform/workplace/src/components/workspace-link.tsx")).toBe("shared-adapter");
+  expect(scopeFor("platform/workplace/src/components/destination-index-view.tsx")).toBe("shared-adapter");
 
   const root = mkdtempSync(join(tmpdir(), "erpx-boundary-adapters-")); roots.push(root);
-  for (const directory of ["scripts/ui", "docs/ux-ui", "packages/feature-pms/src/components", "packages/workplace/src/components", "packages/feature-ordinary/src/components", "node_modules"])
+  for (const directory of ["scripts/ui", "docs/ux-ui", "modules/pms/ui/src/components", "platform/workplace/src/components", "packages/feature-ordinary/src/components", "node_modules"])
     mkdirSync(join(root, directory), { recursive: true });
   for (const file of ["coverage.mjs", "route-topology.mjs", "standard-scope.mjs", "shared-consumers.json", "inventory.mjs"])
     copyFileSync(resolve("scripts/ui", file), join(root, "scripts/ui", file));
   symlinkSync(resolve("node_modules/typescript"), join(root, "node_modules/typescript"), "dir");
-  writeFileSync(join(root, "packages/feature-pms/src/components/owner.tsx"), 'import Link from "@erpx/workplace/components/workspace-link"; export const Owner=()=> <Link/>;');
-  writeFileSync(join(root, "packages/workplace/src/components/workspace-link.tsx"), 'import {Panel} from "@erpx/feature-ordinary/components/panel"; export default function Link(){return <Panel/>;}');
+  writeFileSync(join(root, "modules/pms/ui/src/components/owner.tsx"), 'import Link from "@erpx/platform-workplace/components/workspace-link"; export const Owner=()=> <Link/>;');
+  writeFileSync(join(root, "platform/workplace/src/components/workspace-link.tsx"), 'import {Panel} from "@erpx/feature-ordinary/components/panel"; export default function Link(){return <Panel/>;}');
   writeFileSync(join(root, "packages/feature-ordinary/src/components/panel.tsx"), 'export const Panel=()=> <section/>;');
   const result = spawnSync(process.execPath, [join(root, "scripts/ui/coverage.mjs")], { cwd: root, encoding: "utf8" });
   expect(result.status, result.stdout + result.stderr).toBe(0);
   const manifest = JSON.parse(readFileSync(join(root, "docs/ux-ui/standard-coverage.json"), "utf8"));
-  expect(manifest.boundaryConsumers).toEqual([{ owner: "packages/feature-pms/src/components/owner.tsx", component: "packages/feature-ordinary/src/components/panel.tsx",
+  expect(manifest.boundaryConsumers).toEqual([{ owner: "modules/pms/ui/src/components/owner.tsx", component: "packages/feature-ordinary/src/components/panel.tsx",
     reason: "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary." }]);
 });
 
@@ -280,7 +280,7 @@ it("keeps specialized Calendar server content and the original legacy confirmati
 });
 
 it('the actual canonical POS parent selects the standard index without replacing its native scoped reader or link values',async()=>{
- const {createRequire}=await import('node:module'),require=createRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),source=readFileSync(resolve("packages/feature-pos/src/routes/holdings/[holdingSlug]/pos/page.tsx"),'utf8'),compiled=ts.transpileModule(source,{compilerOptions:{esModuleInterop: false, jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,loaded={exports:{} as Record<string,unknown>},nativeLinks=[{label:'Register settings',href:'/holdings/acme/pos/settings?register=original#readiness'},{label:'Receipts',href:'/holdings/acme/pos/history?q=Original&status=paid'}],native=vi.fn(async(props:{appearance:'standard'|'legacy';holdingSlug:string;path:string})=>createElement(DestinationIndexView,{appearance:props.appearance,title:'POS',links:nativeLinks}));
+ const {createRequire}=await import('node:module'),require=createRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),source=readFileSync(resolve("modules/pos/ui/src/routes/holdings/[holdingSlug]/pos/page.tsx"),'utf8'),compiled=ts.transpileModule(source,{compilerOptions:{esModuleInterop: false, jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,loaded={exports:{} as Record<string,unknown>},nativeLinks=[{label:'Register settings',href:'/holdings/acme/pos/settings?register=original#readiness'},{label:'Receipts',href:'/holdings/acme/pos/history?q=Original&status=paid'}],native=vi.fn(async(props:{appearance:'standard'|'legacy';holdingSlug:string;path:string})=>createElement(DestinationIndexView,{appearance:props.appearance,title:'POS',links:nativeLinks}));
  new Function('require','module','exports',compiled)((name:string):unknown=>{if(name==='react/jsx-runtime')return require(name);if(name.endsWith('/destination-index'))return {DestinationIndex:native};throw Error('Unexpected actual POS parent import '+name);},loaded,loaded.exports);
  const searchParams=Promise.resolve({property:'hotel-1',tag:['one','two'],returnTo:'/retained?query=exact#fragment'}),Page=loaded.exports.default as(props:{params:Promise<{holdingSlug:string}>;searchParams:Promise<Record<string,string|string[]|undefined>>})=>Promise<import('react').ReactElement<{appearance:'standard'|'legacy';holdingSlug:string;path:string;openWork:boolean;searchParams:typeof searchParams}>>,tree=await Page({params:Promise.resolve({holdingSlug:'acme'}),searchParams});expect(tree.type).toBe(native);expect(tree.props).toEqual({appearance:'standard',holdingSlug:'acme',path:'pos',openWork:true,searchParams});expect(tree.props.searchParams).toBe(searchParams);expect(native).not.toHaveBeenCalled();const html=renderToStaticMarkup(await native(tree.props));expect(native).toHaveBeenCalledExactlyOnceWith(tree.props);expect(html).toContain('data-appearance="standard"');expect(html).toContain('aria-label="Search topics"');expect(html).toContain('href="/holdings/acme/pos/settings?register=original#readiness"');expect(html).toContain('href="/holdings/acme/pos/history?q=Original&amp;status=paid"');
 });
@@ -315,16 +315,16 @@ it("maps all actual named-slot sources to Next public paths without collapsing t
     identities.add(source);
   }
   expect(identities.size).toBe(slots.length);
-  expect(appPageContext("packages/feature-finance/src/routes/holdings/[holdingSlug]/@record/finance/documents/expenses/[id]/page.tsx")).toEqual({
+  expect(appPageContext("modules/finance/ui/src/routes/holdings/[holdingSlug]/@record/finance/documents/expenses/[id]/page.tsx")).toEqual({
     route: "/holdings/[holdingSlug]/finance/documents/expenses/[id]",
-    routeContext: { kind: "parallel-slot", slots: [{ name: "record", source: "packages/feature-finance/src/routes/holdings/[holdingSlug]/@record",
-      parentSource: "packages/feature-finance/src/routes/holdings/[holdingSlug]", parentRoute: "/holdings/[holdingSlug]" }] },
+    routeContext: { kind: "parallel-slot", slots: [{ name: "record", source: "modules/finance/ui/src/routes/holdings/[holdingSlug]/@record",
+      parentSource: "modules/finance/ui/src/routes/holdings/[holdingSlug]", parentRoute: "/holdings/[holdingSlug]" }] },
   });
 });
 
 it("keeps nested slot and route-group ownership explicit and does not expose private implementation pages", async () => {
   const { appPageContext } = await import("../../../scripts/ui/route-topology.mjs");
-  expect(appPageContext("packages/workplace/src/routes/page.tsx")).toEqual({ route: "/", routeContext: { kind: "children", slots: [] } });
+  expect(appPageContext("platform/workplace/src/routes/page.tsx")).toEqual({ route: "/", routeContext: { kind: "children", slots: [] } });
   expect(appPageContext("src/app/(workspace)/dashboard/@team/(members)/@detail/[id]/page.tsx")).toEqual({
     route: "/dashboard/[id]", routeContext: { kind: "parallel-slot", slots: [
       { name: "team", source: "src/app/(workspace)/dashboard/@team", parentSource: "src/app/(workspace)/dashboard", parentRoute: "/dashboard" },
@@ -452,7 +452,7 @@ it("does not require the actual chart editor on Finance profile through erased F
   const moves=JSON.parse(readFileSync(resolve("scripts/architecture/workspace-relocations.json"),"utf8")).moves as {from:string;to:string}[];
   const current=(source:string)=>{const moved=moves.find(move=>move.from===source);if(!moved)throw new Error("Actual route relocation missing");return moved.to;};
   const base="src/app/holdings/[holdingSlug]/finance/setup",profile=current(`${base}/profile/page.tsx`),chart=current(`${base}/chart/page.tsx`),
-    target="packages/feature-finance/src/components/finance-chart-controls.tsx",controls="packages/feature-finance/src/components/accounting-profile-controls.tsx";
+    target="modules/finance/ui/src/components/finance-chart-controls.tsx",controls="modules/finance/ui/src/components/accounting-profile-controls.tsx";
   const files=[profile,current(`${base}/profile/_screen.tsx`),chart,current(`${base}/chart/_screen.tsx`),target,controls];
   const fixture = runtimeImportCoverageFixture(Object.fromEntries(files.map(source => [source, readFileSync(resolve(source), "utf8")])));
   const before = fixture.generate(), profileCase = before.routes.find(route => route.source === profile), chartCase = before.routes.find(route => route.source === chart);
@@ -536,11 +536,11 @@ it("uses installed TypeScript erasure for explicit type edges in both TSX and TS
 });
 
 it("resolves the actual public runtime.ts owner ahead of a same-name directory in both TSX and TS caller graphs", () => {
-  const publicOwner = "packages/server-runtime/src/public/runtime.ts", adapter = "packages/server-runtime/src/adapters/runtime.ts",
-    publicChild = "packages/server-runtime/src/public/runtime/env.ts", adapterChild = "packages/server-runtime/src/adapters/runtime/env.ts";
+  const publicOwner = "platform/runtime/server/src/public/runtime.ts", adapter = "platform/runtime/server/src/adapters/runtime.ts",
+    publicChild = "platform/runtime/server/src/public/runtime/env.ts", adapterChild = "platform/runtime/server/src/adapters/runtime/env.ts";
   const sources = [publicOwner, adapter, publicChild, adapterChild];
   const fixture: Record<string, string> = Object.fromEntries(sources.map(source => [source, readFileSync(resolve(source), "utf8")]));
-  const originalImport = 'import { runtimeEnv } from "@erpx/server-runtime/public/runtime";';
+  const originalImport = 'import { runtimeEnv } from "@erpx/platform-runtime-server/public/runtime";';
   fixture["src/app/runtime-direct/page.tsx"] = `${originalImport} export default function Page(){return typeof runtimeEnv;}`;
   fixture["src/app/runtime-relay/page.tsx"] = 'import { selected } from "./reader"; export default function Page(){return typeof selected;}';
   fixture["src/app/runtime-relay/reader.ts"] = `${originalImport} export const selected = runtimeEnv;`;
@@ -552,8 +552,8 @@ it("resolves the actual public runtime.ts owner ahead of a same-name directory i
     const closure = expandedRouteClosure(manifest, route);
     expect(closure).toContain(publicOwner); expect(closure).toContain(adapter); expect(closure).toContain(adapterChild);
     expect(closure).not.toContain(publicChild);
-    expect(closure).not.toContain("packages/server-runtime/src/public/runtime");
-    expect(closure).not.toContain("packages/server-runtime/src/adapters/runtime");
+    expect(closure).not.toContain("platform/runtime/server/src/public/runtime");
+    expect(closure).not.toContain("platform/runtime/server/src/adapters/runtime");
   }
 });
 

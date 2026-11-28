@@ -9,19 +9,19 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_people_payroll::public::leave::{
+use erpx_people_payroll_server::public::leave::{
     LeaveApprovalInstance, LeaveApprovalPort, LeaveApprovalView, LeaveCommandFuture,
     LeaveDecisionFact, LeaveEvidenceBindRequest, LeaveEvidenceManifest, LeaveEvidencePort,
     LeaveEvidenceRequirement, LeaveRequestRow, LeaveRoute, LeaveRoutePort, LeaveStaffFacts,
     LeaveStaffPort, NoLeaveApprovalPort, PgLeaveCommand, create_leave, decide_leave,
     decide_leave_cancellation, run_leave_accruals, save_or_submit_leave, transition_leave,
 };
-use erpx_server_people_payroll::public::workforce::WorkforceCommandActor;
-use erpx_server_runtime::public::postgres::{
+use erpx_people_payroll_server::public::workforce::WorkforceCommandActor;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, CommandKey, CompanyId, HoldingId, TimestampMillis,
 };
 use serde_json::{Value, json};
@@ -907,7 +907,7 @@ async fn read_row_returns_none_for_another_company() {
             .run::<_, BusinessError, _>(TransactionOptions::default(), |connection| {
                 Box::pin(async move {
                     let mut reader =
-                        erpx_server_people_payroll::public::leave::PgLeaveReader::new(connection);
+                        erpx_people_payroll_server::public::leave::PgLeaveReader::new(connection);
                     Ok(reader
                         .leave_row(
                             &CompanyId::new("foreign").unwrap(),

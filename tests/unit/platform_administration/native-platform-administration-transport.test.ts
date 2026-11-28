@@ -12,7 +12,7 @@ vi.mock('next/headers', () => ({
       origin: 'https://erpx-internal.example.test',
     }),
 }));
-vi.mock('@erpx/server-identity_access/public/authorization', () => ({
+vi.mock('@erpx/identity-access-server/public/authorization', () => ({
   requireManageErpxContext: async () => ({
     work: {
       userId: 'operator', holdingId: 'h003', holdingSlug: 'erpx', companyId: 'erpx',
@@ -26,10 +26,10 @@ vi.mock('@erpx/server-identity_access/public/authorization', () => ({
     },
   }),
 }));
-vi.mock('@erpx/server-runtime/public/app-native-sources', () => ({
+vi.mock('@erpx/platform-runtime-server/public/app-native-sources', () => ({
   customerHoldingBindingExists: vi.fn(async () => true),
 }));
-vi.mock('@erpx/server-billing/public/native-billing', () => ({
+vi.mock('@erpx/billing-server/public/native-billing', () => ({
   nativeBillingConfiguration: (raw: string) => JSON.parse(raw),
   nativeBillingFailure: () => undefined,
   createNativeBillingClient: () => ({
@@ -48,10 +48,10 @@ import {
   nativePlatformAdminFailure,
   NativePlatformAdminError,
   type NativePlatformAdminActor,
-} from '../../../packages/feature-platform_administration/src/adapters/server/native-platform-administration';
-import { platformAdminActor, nativePlatformAdminAvailable, nativePlatformMigrate, nativePlatformOperationsForPresentation, nativePlatformExecutiveForPresentation, nativePlatformExecutiveSourcesForPresentation } from '../../../packages/feature-platform_administration/src/lib/native-platform-administration';
-import { GET as forecastGet } from '@erpx/feature-admin/routes/api/v1/platform/billing/forecast/route';
-import { canonicalDestinationLinks } from '@erpx/feature-work_projection/lib/destination-links';
+} from '../../../modules/platform-administration/ui/src/adapters/server/native-platform-administration';
+import { platformAdminActor, nativePlatformAdminAvailable, nativePlatformMigrate, nativePlatformOperationsForPresentation, nativePlatformExecutiveForPresentation, nativePlatformExecutiveSourcesForPresentation } from '../../../modules/platform-administration/ui/src/lib/native-platform-administration';
+import { GET as forecastGet } from '@erpx/product-admin-ui/routes/api/v1/platform/billing/forecast/route';
+import { canonicalDestinationLinks } from '@erpx/work-projection-ui/lib/destination-links';
 import { nativeApiPath } from '../../../scripts/local/native-api-proxy';
 import { loadNativeApiPaths } from '../../../scripts/local/native-api-paths';
 
@@ -716,10 +716,10 @@ describe('native Platform Executive transport through the canonical owner helper
  *  same owner payloads through the native gateway. */
 describe('native platform billing forecast GET route parity', () => {
   const source = (path: string) =>
-    readFileSync(new URL(`../../../packages/feature-admin/src/routes/api/v1/platform/${path}`, import.meta.url), 'utf8');
+    readFileSync(new URL(`../../../products/admin/ui/src/routes/api/v1/platform/${path}`, import.meta.url), 'utf8');
 
   it('returns the exact native billing forecast payload without a TypeScript binding read', async () => {
-    const { customerHoldingBindingExists } = await import('@erpx/server-runtime/public/app-native-sources');
+    const { customerHoldingBindingExists } = await import('@erpx/platform-runtime-server/public/app-native-sources');
     vi.mocked(customerHoldingBindingExists).mockClear();
     const previous = process.env.ERPX_NATIVE_BILLING_CONFIG;
     try {
@@ -779,13 +779,13 @@ describe('native Admin API route retirement', () => {
   ]);
   const gatewayEntries = [...platformEntries, ...holdingEntries];
   const retiredFiles = [
-    'packages/feature-admin/src/routes/api/v1/platform/operations/route.ts',
-    'packages/feature-admin/src/routes/api/v1/platform/operations/migrate/route.ts',
-    'packages/feature-admin/src/routes/api/v1/platform/operations/recover/route.ts',
-    'packages/feature-admin/src/routes/api/v1/platform/billing/ai-gateway/route.ts',
-    'packages/feature-admin/src/routes/api/v1/platform/executive/route.ts',
-    'packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/brand/route.ts',
-    'packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/ai-providers/[[...path]]/route.ts',
+    'products/admin/ui/src/routes/api/v1/platform/operations/route.ts',
+    'products/admin/ui/src/routes/api/v1/platform/operations/migrate/route.ts',
+    'products/admin/ui/src/routes/api/v1/platform/operations/recover/route.ts',
+    'products/admin/ui/src/routes/api/v1/platform/billing/ai-gateway/route.ts',
+    'products/admin/ui/src/routes/api/v1/platform/executive/route.ts',
+    'products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/brand/route.ts',
+    'products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/ai-providers/[[...path]]/route.ts',
   ];
   const appReexports = [
     'apps/admin/src/app/api/v1/platform/operations/route.ts',
@@ -808,9 +808,9 @@ describe('native Admin API route retirement', () => {
     expect(retiredFiles).toHaveLength(7);
     for (const file of [...retiredFiles, ...appReexports])
       expect(existsSync(new URL(`../../../${file}`, import.meta.url)), file).toBe(false);
-    expect(existsSync(new URL('../../../packages/feature-admin/src/routes/api/v1/platform/operations/provision/route.ts', import.meta.url))).toBe(true);
-    expect(existsSync(new URL('../../../packages/feature-admin/src/routes/api/v1/platform/billing/forecast/route.ts', import.meta.url))).toBe(true);
-    expect(existsSync(new URL('../../../packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/billing/forecast/route.ts', import.meta.url))).toBe(true);
+    expect(existsSync(new URL('../../../products/admin/ui/src/routes/api/v1/platform/operations/provision/route.ts', import.meta.url))).toBe(true);
+    expect(existsSync(new URL('../../../products/admin/ui/src/routes/api/v1/platform/billing/forecast/route.ts', import.meta.url))).toBe(true);
+    expect(existsSync(new URL('../../../products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/billing/forecast/route.ts', import.meta.url))).toBe(true);
   });
 
   it('routes every retired path and method to the native owner by exact gateway entry', () => {

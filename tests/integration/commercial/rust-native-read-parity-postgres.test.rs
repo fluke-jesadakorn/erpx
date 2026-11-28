@@ -13,20 +13,20 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_commercial::public::native_read as plans;
-use erpx_server_commercial::public::{bind, ReadScope};
+use erpx_commercial_server::public::native_read as plans;
+use erpx_commercial_server::public::{bind, ReadScope};
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row};
 
 /// Retained TypeScript authority, read at compile time for source parity.
-const TS_PG: &str = include_str!("../../../packages/server-commercial/src/adapters/package-grants.ts");
+const TS_PG: &str = include_str!("../../../modules/commercial/server/src/adapters/package-grants.ts");
 const TS_TAIL: &str =
-    include_str!("../../../packages/server-commercial/src/adapters/commercial-read-tail-r1-sources.ts");
+    include_str!("../../../modules/commercial/server/src/adapters/commercial-read-tail-r1-sources.ts");
 const TS_PB: &str =
-    include_str!("../../../packages/server-commercial/src/adapters/purchase-command-boundary.ts");
+    include_str!("../../../modules/commercial/server/src/adapters/purchase-command-boundary.ts");
 const TS_CAP: &str =
-    include_str!("../../../packages/server-commercial/src/adapters/purchased-capability-sql.ts");
-const TS_PROJ: &str = include_str!("../../../packages/server-commercial/src/adapters/projection.ts");
-const TS_SEATS: &str = include_str!("../../../packages/server-commercial/src/adapters/seats.ts");
+    include_str!("../../../modules/commercial/server/src/adapters/purchased-capability-sql.ts");
+const TS_PROJ: &str = include_str!("../../../modules/commercial/server/src/adapters/projection.ts");
+const TS_SEATS: &str = include_str!("../../../modules/commercial/server/src/adapters/seats.ts");
 
 /// Compare SQL after collapsing all whitespace runs, so TypeScript template
 /// newlines and indentation do not change token identity.

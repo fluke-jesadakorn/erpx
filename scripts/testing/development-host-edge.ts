@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { chmod, lstat, mkdtemp, readFile, realpath, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { hasPortListener } from '../local/port-listeners';
-import { appDefinition } from '@erpx/contracts/apps';
+import { appDefinition } from '@erpx/platform-contracts/apps';
 import { workspaceBrowserApps } from './development-host-profile';
 
 export type DevelopmentHostEdgeInput = { root: string; run: string; sourceFingerprint: string; entryApp: string };

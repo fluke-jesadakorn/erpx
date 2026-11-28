@@ -1,0 +1,1 @@
+export {assetAttachmentPurchaseScope,authorizeAssetAttachmentPurchase,assetAttachmentSourceReadLocks,assetAttachmentCommandBoundary,assetAttachmentFailure,type AssetAttachmentPurchase} from "@erpx/assets-server/adapters/attachment-purchases";

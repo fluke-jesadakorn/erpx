@@ -1,6 +1,6 @@
 import {reviewedFinanceGrant} from "../../support/helpers/finance-purchase-fixture";
 import { seedLocalFinanceJournal } from "../../../fixtures/shared/builders/local-seed-journals";
-import type {FinanceRow} from '@erpx/server-finance/public/finance';
+import type {FinanceRow} from '@erpx/finance-server/public/finance';
 import {afterEach,beforeAll,beforeEach,describe,expect,it,vi} from "vitest";
 import {createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
@@ -8,14 +8,14 @@ import {mkdir,writeFile} from "node:fs/promises";
 import {join} from "node:path";
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {createAccount,createPeriod,createParty,createInvoice,invoiceSchema,partySchema,postInvoice,calculateCloseReconciliations,postJournalBatch,statements,trialBalance} from '@erpx/server-finance/public/finance';
+import {createAccount,createPeriod,createParty,createInvoice,invoiceSchema,partySchema,postInvoice,calculateCloseReconciliations,postJournalBatch,statements,trialBalance} from '@erpx/finance-server/public/finance';
 import {seedFinanceJournal} from '../../support/helpers/finance-journal-seed';
-import {prepareAccountingProfile,decideAccountingProfile} from "@erpx/server-finance/public/accounting-profiles";
-import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
-import {decideStatementPackage,decideYearClosing,prepareStatementPackage,prepareYearClosing,reportingWorkspace,statementPackageDetail,statementPackageExport,statementSourceAccounts} from "@erpx/server-finance/public/finance-reporting";
-import {confirmManualRate} from '@erpx/server-finance/public/company-money';
+import {prepareAccountingProfile,decideAccountingProfile} from "@erpx/finance-server/public/accounting-profiles";
+import {assignFlowPrimary,resolveFlow} from '@erpx/workflow-server/public/flow-routing';
+import {decideStatementPackage,decideYearClosing,prepareStatementPackage,prepareYearClosing,reportingWorkspace,statementPackageDetail,statementPackageExport,statementSourceAccounts} from "@erpx/finance-server/public/finance-reporting";
+import {confirmManualRate} from '@erpx/finance-server/public/company-money';
 
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 afterEach(()=>vi.unstubAllEnvs());
 let f:Awaited<ReturnType<typeof expenseFixture>>,capital:string,retained:string,receivable:string,payable:string;
 const notes={basis:"Prepared on the accrual basis under the approved Company TFRS for NPAEs policy.",policies:"Historical cost, moving-average inventory, straight-line depreciation and current income tax follow approved policy evidence.",going_concern:"Directors reviewed liquidity and expect operations to continue; no material uncertainty is identified in this synthetic Company.",judgments:"Management reviewed recoverability, useful lives and the estimates relevant to these synthetic transactions.",disclosures:"Synthetic Company has no material contingent liabilities or contractual commitments and no adjusting subsequent events."};

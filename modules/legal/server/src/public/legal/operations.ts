@@ -1,0 +1,1 @@
+export {importPreview,importCommit,exportRegister,savedViews,saveView,applyTemplate,convertRequest,evidenceBundle,holdPreview,applyAiDraft,prepareCounselPurchase,startRevision} from "@erpx/legal-server/adapters/legal/operations";

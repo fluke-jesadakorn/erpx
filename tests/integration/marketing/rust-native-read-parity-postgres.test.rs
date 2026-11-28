@@ -10,43 +10,43 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_marketing::public::native_read::{self as plans, BindField};
-use erpx_server_marketing::public::{bind, ReadScope};
+use erpx_marketing_server::public::native_read::{self as plans, BindField};
+use erpx_marketing_server::public::{bind, ReadScope};
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row};
 
 /// Retained TypeScript authority, read at compile time for source parity.
 const TS_LOCAL: &str =
-    include_str!("../../../packages/server-marketing/src/adapters/marketing-local-point-read-sql.ts");
+    include_str!("../../../modules/marketing/server/src/adapters/marketing-local-point-read-sql.ts");
 const TS_TAIL: &str =
-    include_str!("../../../packages/server-marketing/src/adapters/read-tail-sql.ts");
+    include_str!("../../../modules/marketing/server/src/adapters/read-tail-sql.ts");
 const TS_LIST: &str =
-    include_str!("../../../packages/server-marketing/src/adapters/marketing-company-list-sql.ts");
+    include_str!("../../../modules/marketing/server/src/adapters/marketing-company-list-sql.ts");
 const TS_OWNER: &str =
-    include_str!("../../../packages/server-marketing/src/adapters/owner-point-read-sql.ts");
+    include_str!("../../../modules/marketing/server/src/adapters/owner-point-read-sql.ts");
 const TS_ACTIVE: &str =
-    include_str!("../../../packages/server-marketing/src/adapters/form-asset-read-head.ts");
+    include_str!("../../../modules/marketing/server/src/adapters/form-asset-read-head.ts");
 const TS_CONTENT: &str =
-    include_str!("../../../packages/server-marketing/src/adapters/public-form-content-source.ts");
+    include_str!("../../../modules/marketing/server/src/adapters/public-form-content-source.ts");
 const TS_HEAD: &str =
-    include_str!("../../../packages/server-marketing/src/adapters/form-asset-read-head.ts");
+    include_str!("../../../modules/marketing/server/src/adapters/form-asset-read-head.ts");
 const TS_MARKETING: &str =
-    include_str!("../../../packages/server-marketing/src/adapters/marketing.ts");
+    include_str!("../../../modules/marketing/server/src/adapters/marketing.ts");
 const TS_CAMPAIGN: &str =
-    include_str!("../../../packages/server-marketing/src/adapters/campaigns.ts");
+    include_str!("../../../modules/marketing/server/src/adapters/campaigns.ts");
 const TS_SUBMISSION: &str =
-    include_str!("../../../packages/server-marketing/src/adapters/public-submission.ts");
+    include_str!("../../../modules/marketing/server/src/adapters/public-submission.ts");
 const TS_FORM: &str =
-    include_str!("../../../packages/server-marketing/src/adapters/public-form.ts");
+    include_str!("../../../modules/marketing/server/src/adapters/public-form.ts");
 const TS_PURCHASE: &str =
-    include_str!("../../../packages/server-marketing/src/adapters/marketing-purchase-rows-sql.ts");
+    include_str!("../../../modules/marketing/server/src/adapters/marketing-purchase-rows-sql.ts");
 const TS_PURCHASE_COMMAND: &str =
-    include_str!("../../../packages/server-marketing/src/adapters/purchases.ts");
+    include_str!("../../../modules/marketing/server/src/adapters/purchases.ts");
 const TS_PUBLIC_FORM: &str =
-    include_str!("../../../packages/server-marketing/src/adapters/public-form.ts");
+    include_str!("../../../modules/marketing/server/src/adapters/public-form.ts");
 const TS_CRM_SOURCES: &str =
-    include_str!("../../../packages/server-marketing/src/adapters/crm-purchase-sources.ts");
+    include_str!("../../../modules/marketing/server/src/adapters/crm-purchase-sources.ts");
 const TS_PACKAGE: &str =
-    include_str!("../../../packages/server-marketing/src/adapters/package-obligations.ts");
+    include_str!("../../../modules/marketing/server/src/adapters/package-obligations.ts");
 
 // Live statement literals emitted by the retained TypeScript helpers.
 const LIVE_ASSET_POINT: &str = "SELECT * FROM marketing_assets WHERE id=? AND company_id=?";

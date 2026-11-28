@@ -8,7 +8,7 @@ import {
   NativeWorkflowEvidenceError,
   type NativeWorkflowEvidenceActor,
   type NativeWorkflowEvidenceConfiguration,
-} from '../../../packages/server-workflow/src/public/native-workflow-evidence';
+} from '../../../modules/workflow/server/src/public/native-workflow-evidence';
 
 const config = (overrides: Record<string, unknown> = {}) =>
   JSON.stringify({
@@ -304,12 +304,12 @@ describe('workflow Work UI staff read tail (native read plan)', () => {
     const all = vi.fn(async () => rows);
     const first = vi.fn(async () => beta);
     vi.resetModules();
-    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+    vi.doMock('../../../modules/workflow/server/src/adapters/native-workflow-read', () => ({
       nativeWorkflowReadAll: all,
       nativeWorkflowReadFirst: first,
     }));
     try {
-      const { workUiStaffFacts } = await import('../../../packages/server-workflow/src/adapters/work-ui-staff-facts');
+      const { workUiStaffFacts } = await import('../../../modules/workflow/server/src/adapters/work-ui-staff-facts');
       const prepare = vi.fn();
       const db = { prepare } as never;
       const facts = workUiStaffFacts(db);
@@ -319,7 +319,7 @@ describe('workflow Work UI staff read tail (native read plan)', () => {
       expect(first).toHaveBeenCalledWith('wf_native_work_ui_beta_approval', ['approval', 'company'], 'company', db);
       expect(prepare).not.toHaveBeenCalled();
     } finally {
-      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.doUnmock('../../../modules/workflow/server/src/adapters/native-workflow-read');
       vi.resetModules();
     }
   });
@@ -328,7 +328,7 @@ describe('workflow Work UI staff read tail (native read plan)', () => {
 describe('workflow spending settings history read tail (native read plan)', () => {
   it('carries no retired owner SQL in the switched adapter', async () => {
     const source = await readFile(
-      new URL('../../../packages/server-workflow/src/adapters/flow-settings-facts.ts', import.meta.url),
+      new URL('../../../modules/workflow/server/src/adapters/flow-settings-facts.ts', import.meta.url),
       'utf8',
     );
     expect(source).not.toContain('SELECT');
@@ -340,12 +340,12 @@ describe('workflow spending settings history read tail (native read plan)', () =
     const rows = [{ title: 'Company spending rules', version: 2, actor: 'actor', at: 100, kind: 'Spending rules revision' }];
     const all = vi.fn(async () => rows);
     vi.resetModules();
-    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+    vi.doMock('../../../modules/workflow/server/src/adapters/native-workflow-read', () => ({
       nativeWorkflowReadAll: all,
     }));
     try {
       const { spendingSettingsHistory } = await import(
-        '../../../packages/server-workflow/src/adapters/flow-settings-facts'
+        '../../../modules/workflow/server/src/adapters/flow-settings-facts'
       );
       const prepare = vi.fn();
       const db = { prepare } as never;
@@ -358,7 +358,7 @@ describe('workflow spending settings history read tail (native read plan)', () =
       );
       expect(prepare).not.toHaveBeenCalled();
     } finally {
-      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.doUnmock('../../../modules/workflow/server/src/adapters/native-workflow-read');
       vi.resetModules();
     }
   });
@@ -367,7 +367,7 @@ describe('workflow spending settings history read tail (native read plan)', () =
 describe('workflow staff task alert approvers read tail (native read plan)', () => {
   it('carries no retired owner SQL in the switched adapter', async () => {
     const source = await readFile(
-      new URL('../../../packages/server-workflow/src/adapters/operations-staff-task-alerts-facts.ts', import.meta.url),
+      new URL('../../../modules/workflow/server/src/adapters/operations-staff-task-alerts-facts.ts', import.meta.url),
       'utf8',
     );
     expect(source).not.toContain('SELECT');
@@ -379,12 +379,12 @@ describe('workflow staff task alert approvers read tail (native read plan)', () 
     const rows = [{ approver_user_id: 'approver' }];
     const all = vi.fn(async () => rows);
     vi.resetModules();
-    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+    vi.doMock('../../../modules/workflow/server/src/adapters/native-workflow-read', () => ({
       nativeWorkflowReadAll: all,
     }));
     try {
       const { StaffTaskAlertsWorkflowFacts } = await import(
-        '../../../packages/server-workflow/src/adapters/operations-staff-task-alerts-facts'
+        '../../../modules/workflow/server/src/adapters/operations-staff-task-alerts-facts'
       );
       const prepare = vi.fn();
       const db = { prepare } as never;
@@ -398,7 +398,7 @@ describe('workflow staff task alert approvers read tail (native read plan)', () 
       );
       expect(prepare).not.toHaveBeenCalled();
     } finally {
-      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.doUnmock('../../../modules/workflow/server/src/adapters/native-workflow-read');
       vi.resetModules();
     }
   });
@@ -407,7 +407,7 @@ describe('workflow staff task alert approvers read tail (native read plan)', () 
 describe('workflow department approval queue read tail (native read plan)', () => {
   it('carries no retired owner SQL for the switched read', async () => {
     const source = await readFile(
-      new URL('../../../packages/server-workflow/src/adapters/department-override-facts.ts', import.meta.url),
+      new URL('../../../modules/workflow/server/src/adapters/department-override-facts.ts', import.meta.url),
       'utf8',
     );
     expect(source).not.toContain('SELECT i.record_type kind,i.record_id id,i.updated_at');
@@ -418,12 +418,12 @@ describe('workflow department approval queue read tail (native read plan)', () =
     const rows = [{ kind: 'expense', id: 'request-1', updated_at: 100 }];
     const all = vi.fn(async () => rows);
     vi.resetModules();
-    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+    vi.doMock('../../../modules/workflow/server/src/adapters/native-workflow-read', () => ({
       nativeWorkflowReadAll: all,
     }));
     try {
       const { departmentOverridePendingApprovals } = await import(
-        '../../../packages/server-workflow/src/adapters/department-override-facts'
+        '../../../modules/workflow/server/src/adapters/department-override-facts'
       );
       const prepare = vi.fn();
       const db = { prepare } as never;
@@ -436,7 +436,7 @@ describe('workflow department approval queue read tail (native read plan)', () =
       );
       expect(prepare).not.toHaveBeenCalled();
     } finally {
-      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.doUnmock('../../../modules/workflow/server/src/adapters/native-workflow-read');
       vi.resetModules();
     }
   });
@@ -445,7 +445,7 @@ describe('workflow department approval queue read tail (native read plan)', () =
 describe('workflow work report facts read tail (native read plan)', () => {
   it('carries no retired owner SQL for the switched reads', async () => {
     const source = await readFile(
-      new URL('../../../packages/server-workflow/src/adapters/work-report-facts.ts', import.meta.url),
+      new URL('../../../modules/workflow/server/src/adapters/work-report-facts.ts', import.meta.url),
       'utf8',
     );
     expect(source).not.toContain('JOIN approval_decisions d ON d.instance_id=i.id');
@@ -459,12 +459,12 @@ describe('workflow work report facts read tail (native read plan)', () => {
       kind === 'wf_native_work_report_decisions' ? decisions : routes,
     );
     vi.resetModules();
-    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+    vi.doMock('../../../modules/workflow/server/src/adapters/native-workflow-read', () => ({
       nativeWorkflowReadAll: all,
     }));
     try {
       const { workReportWorkflowFacts } = await import(
-        '../../../packages/server-workflow/src/adapters/work-report-facts'
+        '../../../modules/workflow/server/src/adapters/work-report-facts'
       );
       const prepare = vi.fn();
       const db = { prepare } as never;
@@ -487,7 +487,7 @@ describe('workflow work report facts read tail (native read plan)', () => {
       );
       expect(prepare).not.toHaveBeenCalled();
     } finally {
-      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.doUnmock('../../../modules/workflow/server/src/adapters/native-workflow-read');
       vi.resetModules();
     }
   });
@@ -497,7 +497,7 @@ describe('workflow approval administration queue read tail (native read plan)', 
   it('carries no retired owner SQL for the switched read', async () => {
     const source = await readFile(
       new URL(
-        '../../../packages/server-workflow/src/adapters/approval-administration.ts',
+        '../../../modules/workflow/server/src/adapters/approval-administration.ts',
         import.meta.url,
       ),
       'utf8',
@@ -509,24 +509,24 @@ describe('workflow approval administration queue read tail (native read plan)', 
   it('plans the queue read through the mounted native read with no local SQL', async () => {
     const all = vi.fn(async () => [] as { record_type: string; record_id: string }[]);
     vi.resetModules();
-    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+    vi.doMock('../../../modules/workflow/server/src/adapters/native-workflow-read', () => ({
       nativeWorkflowReadAll: all,
     }));
     // Force the non-evidence fallback branch that owns this read, without
     // requiring the native evidence client configuration or other bundle imports.
-    vi.doMock('@erpx/server-workflow/public/native-workflow-evidence', () => ({
+    vi.doMock('@erpx/workflow-server/public/native-workflow-evidence', () => ({
       nativeWorkflowEvidenceAvailable: () => false,
       nativeWorkflowEvidenceConfiguration: () => ({}),
       nativeWorkflowEvidenceFailure: () => null,
       createNativeWorkflowEvidenceClient: () => ({}),
     }));
-    vi.doMock('@erpx/server-operations/public/staff-settings', () => ({
+    vi.doMock('@erpx/operations-server/public/staff-settings', () => ({
       staffSettings: async () => ({ levels: [], people: [], departments: [], canManage: true }),
     }));
     vi.doMock('next/headers', () => ({ headers: async () => new Headers() }));
     try {
       const { approvalAdministrationData } = await import(
-        '../../../packages/server-workflow/src/adapters/approval-administration'
+        '../../../modules/workflow/server/src/adapters/approval-administration'
       );
       const prepare = vi.fn();
       const db = { prepare } as never;
@@ -553,9 +553,9 @@ describe('workflow approval administration queue read tail (native read plan)', 
       );
       expect(prepare).not.toHaveBeenCalled();
     } finally {
-      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
-      vi.doUnmock('@erpx/server-workflow/public/native-workflow-evidence');
-      vi.doUnmock('@erpx/server-operations/public/staff-settings');
+      vi.doUnmock('../../../modules/workflow/server/src/adapters/native-workflow-read');
+      vi.doUnmock('@erpx/workflow-server/public/native-workflow-evidence');
+      vi.doUnmock('@erpx/operations-server/public/staff-settings');
       vi.doUnmock('next/headers');
       vi.resetModules();
     }
@@ -566,7 +566,7 @@ describe('workflow legal decision history read tail (native read plan)', () => {
   it('carries no retired owner SQL for the switched read', async () => {
     const source = await readFile(
       new URL(
-        '../../../packages/server-workflow/src/adapters/legal-approval-facts.ts',
+        '../../../modules/workflow/server/src/adapters/legal-approval-facts.ts',
         import.meta.url,
       ),
       'utf8',
@@ -580,12 +580,12 @@ describe('workflow legal decision history read tail (native read plan)', () => {
     const rows = [{ id: 'decision-1', action: 'approve', actor_user_id: 'actor' }];
     const all = vi.fn(async () => rows);
     vi.resetModules();
-    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+    vi.doMock('../../../modules/workflow/server/src/adapters/native-workflow-read', () => ({
       nativeWorkflowReadAll: all,
     }));
     try {
       const { legalApprovalFacts } = await import(
-        '../../../packages/server-workflow/src/adapters/legal-approval-facts'
+        '../../../modules/workflow/server/src/adapters/legal-approval-facts'
       );
       const prepare = vi.fn();
       const db = { prepare } as never;
@@ -599,7 +599,7 @@ describe('workflow legal decision history read tail (native read plan)', () => {
       );
       expect(prepare).not.toHaveBeenCalled();
     } finally {
-      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.doUnmock('../../../modules/workflow/server/src/adapters/native-workflow-read');
       vi.resetModules();
     }
   });
@@ -609,7 +609,7 @@ describe('workflow flow planning definitions instance read tail (native read pla
   it('carries no retired owner SQL for the switched read', async () => {
     const source = await readFile(
       new URL(
-        '../../../packages/server-workflow/src/adapters/flow-planning-ports.ts',
+        '../../../modules/workflow/server/src/adapters/flow-planning-ports.ts',
         import.meta.url,
       ),
       'utf8',
@@ -622,12 +622,12 @@ describe('workflow flow planning definitions instance read tail (native read pla
     const row = { id: 'instance-1', record_type: 'expense' };
     const first = vi.fn(async () => row);
     vi.resetModules();
-    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+    vi.doMock('../../../modules/workflow/server/src/adapters/native-workflow-read', () => ({
       nativeWorkflowReadFirst: first,
     }));
     try {
       const { nativeFlowPlanningPorts } = await import(
-        '../../../packages/server-workflow/src/adapters/flow-planning-ports'
+        '../../../modules/workflow/server/src/adapters/flow-planning-ports'
       );
       const prepare = vi.fn();
       const db = { prepare } as never;
@@ -642,7 +642,7 @@ describe('workflow flow planning definitions instance read tail (native read pla
       );
       expect(prepare).not.toHaveBeenCalled();
     } finally {
-      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.doUnmock('../../../modules/workflow/server/src/adapters/native-workflow-read');
       vi.resetModules();
     }
   });
@@ -652,7 +652,7 @@ describe('workflow finance sales completion receipt read tail (native read plan)
   it('carries no retired owner SQL for the switched read', async () => {
     const source = await readFile(
       new URL(
-        '../../../packages/server-workflow/src/adapters/finance-command-receipts.ts',
+        '../../../modules/workflow/server/src/adapters/finance-command-receipts.ts',
         import.meta.url,
       ),
       'utf8',
@@ -665,12 +665,12 @@ describe('workflow finance sales completion receipt read tail (native read plan)
     const row = { result_json: '{"status":"posted"}' };
     const first = vi.fn(async () => row);
     vi.resetModules();
-    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+    vi.doMock('../../../modules/workflow/server/src/adapters/native-workflow-read', () => ({
       nativeWorkflowReadFirst: first,
     }));
     try {
       const { financeCommandReceipts } = await import(
-        '../../../packages/server-workflow/src/adapters/finance-command-receipts'
+        '../../../modules/workflow/server/src/adapters/finance-command-receipts'
       );
       const prepare = vi.fn();
       const db = { prepare } as never;
@@ -683,7 +683,7 @@ describe('workflow finance sales completion receipt read tail (native read plan)
       );
       expect(prepare).not.toHaveBeenCalled();
     } finally {
-      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.doUnmock('../../../modules/workflow/server/src/adapters/native-workflow-read');
       vi.resetModules();
     }
   });
@@ -693,7 +693,7 @@ describe('workflow finance AI source revision read tail (native read plan)', () 
   it('carries no retired owner read SQL in the switched adapter', async () => {
     const source = await readFile(
       new URL(
-        '../../../packages/server-workflow/src/adapters/finance-ai-revision-sources.ts',
+        '../../../modules/workflow/server/src/adapters/finance-ai-revision-sources.ts',
         import.meta.url,
       ),
       'utf8',
@@ -705,12 +705,12 @@ describe('workflow finance AI source revision read tail (native read plan)', () 
   it('plans the source revision read through the mounted native read with no local SQL', async () => {
     const first = vi.fn(async () => ({ revision: 7 }));
     vi.resetModules();
-    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+    vi.doMock('../../../modules/workflow/server/src/adapters/native-workflow-read', () => ({
       nativeWorkflowReadFirst: first,
     }));
     try {
       const { financeSourceRevision } = await import(
-        '../../../packages/server-workflow/src/adapters/finance-ai-revision-sources'
+        '../../../modules/workflow/server/src/adapters/finance-ai-revision-sources'
       );
       const prepare = vi.fn();
       const db = { prepare } as never;
@@ -723,7 +723,7 @@ describe('workflow finance AI source revision read tail (native read plan)', () 
       );
       expect(prepare).not.toHaveBeenCalled();
     } finally {
-      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.doUnmock('../../../modules/workflow/server/src/adapters/native-workflow-read');
       vi.resetModules();
     }
   });
@@ -733,7 +733,7 @@ describe('workflow project worker command evidence image read tail (native read 
   it('retains the cross-owner assertion fragment but carries no retired owner read SQL', async () => {
     const source = await readFile(
       new URL(
-        '../../../packages/server-workflow/src/adapters/project-worker-startup-evidence.ts',
+        '../../../modules/workflow/server/src/adapters/project-worker-startup-evidence.ts',
         import.meta.url,
       ),
       'utf8',
@@ -747,12 +747,12 @@ describe('workflow project worker command evidence image read tail (native read 
   it('plans the evidence image read through the mounted native read with no local SQL', async () => {
     const first = vi.fn(async () => ({ image: 'image-1' }));
     vi.resetModules();
-    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+    vi.doMock('../../../modules/workflow/server/src/adapters/native-workflow-read', () => ({
       nativeWorkflowReadFirst: first,
     }));
     try {
       const { projectWorkerCommandEvidenceImage } = await import(
-        '../../../packages/server-workflow/src/adapters/project-worker-startup-evidence'
+        '../../../modules/workflow/server/src/adapters/project-worker-startup-evidence'
       );
       const prepare = vi.fn();
       const db = { prepare } as never;
@@ -765,7 +765,7 @@ describe('workflow project worker command evidence image read tail (native read 
       );
       expect(prepare).not.toHaveBeenCalled();
     } finally {
-      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.doUnmock('../../../modules/workflow/server/src/adapters/native-workflow-read');
       vi.resetModules();
     }
   });
@@ -774,7 +774,7 @@ describe('workflow project worker command evidence image read tail (native read 
 describe('workflow canonical replay receipt read tail (native read plan)', () => {
   it('carries no retired owner SQL for the switched read', async () => {
     const source = await readFile(
-      new URL('../../../packages/server-workflow/src/adapters/commands.ts', import.meta.url),
+      new URL('../../../modules/workflow/server/src/adapters/commands.ts', import.meta.url),
       'utf8',
     );
     expect(source).not.toContain('SELECT request_hash,result_json,operation,actor_id,record_id,authority_json FROM command_receipts');
@@ -790,46 +790,46 @@ describe('workflow canonical replay receipt read tail (native read plan)', () =>
     const first = vi.fn(async () => row);
     let repository: { receipt: (id: string) => Promise<unknown> } | undefined;
     vi.resetModules();
-    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+    vi.doMock('../../../modules/workflow/server/src/adapters/native-workflow-read', () => ({
       nativeWorkflowReadFirst: first,
     }));
-    vi.doMock('@erpx/server-workflow/application/commands', () => ({
+    vi.doMock('@erpx/workflow-server/application/commands', () => ({
       createCommandApplication: (ports: { repository: typeof repository }) => {
         repository = ports.repository;
         return { replayCommand: async () => null, executeCommand: async () => null };
       },
     }));
-    vi.doMock('@erpx/server-collaboration/adapters/native-command-assertions', () => ({
+    vi.doMock('@erpx/collaboration-server/adapters/native-command-assertions', () => ({
       nativeClearCommandAssertions: async () => ({}),
     }));
-    vi.doMock('@erpx/server-runtime/public/http', () => ({
+    vi.doMock('@erpx/platform-runtime-server/public/http', () => ({
       ApiError: class ApiError extends Error {},
     }));
-    vi.doMock('@erpx/server-identity_access/public/iam-store', () => ({
+    vi.doMock('@erpx/identity-access-server/public/iam-store', () => ({
       iamMutationGuards: () => [],
     }));
-    vi.doMock('@erpx/server-identity_access/public/workflow-command-authority', () => ({
+    vi.doMock('@erpx/identity-access-server/public/workflow-command-authority', () => ({
       createWorkflowCommandGuards: () => ({
         workflowWorkContextGuards: () => [], workflowAssignmentGuard: () => ({}),
       }),
       workflowActiveContext: async () => null,
       workflowActiveGrant: async () => true,
     }));
-    vi.doMock('@erpx/server-workflow/public/command-assertions', () => ({ assertion: {} }));
-    vi.doMock('@erpx/server-workflow/public/command-policies', () => ({
+    vi.doMock('@erpx/workflow-server/public/command-assertions', () => ({ assertion: {} }));
+    vi.doMock('@erpx/workflow-server/public/command-policies', () => ({
       prepareOwnerCommandStatements: async () => [],
     }));
-    vi.doMock('@erpx/server-shared/index', () => ({
+    vi.doMock('@erpx/platform-shared-server/index', () => ({
       BusinessRuleError: class BusinessRuleError extends Error {},
     }));
-    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-wave3', () => ({
+    vi.doMock('../../../modules/workflow/server/src/adapters/native-workflow-wave3', () => ({
       workflowWave3Statement: () => ({}),
     }));
-    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-write', () => ({
+    vi.doMock('../../../modules/workflow/server/src/adapters/native-workflow-write', () => ({
       resolveNativeEffects: async () => ({ statements: [] }),
     }));
     try {
-      const { replayCommand } = await import('../../../packages/server-workflow/src/adapters/commands');
+      const { replayCommand } = await import('../../../modules/workflow/server/src/adapters/commands');
       const prepare = vi.fn();
       const db = { prepare } as never;
       await replayCommand(db, { companyId: 'company' } as never, 'command-1', 'op', 'record', {});
@@ -844,17 +844,17 @@ describe('workflow canonical replay receipt read tail (native read plan)', () =>
       expect(prepare).not.toHaveBeenCalled();
     } finally {
       for (const specifier of [
-        '../../../packages/server-workflow/src/adapters/native-workflow-read',
-        '@erpx/server-workflow/application/commands',
-        '@erpx/server-collaboration/adapters/native-command-assertions',
-        '@erpx/server-runtime/public/http',
-        '@erpx/server-identity_access/public/iam-store',
-        '@erpx/server-identity_access/public/workflow-command-authority',
-        '@erpx/server-workflow/public/command-assertions',
-        '@erpx/server-workflow/public/command-policies',
-        '@erpx/server-shared/index',
-        '../../../packages/server-workflow/src/adapters/native-workflow-wave3',
-        '../../../packages/server-workflow/src/adapters/native-workflow-write',
+        '../../../modules/workflow/server/src/adapters/native-workflow-read',
+        '@erpx/workflow-server/application/commands',
+        '@erpx/collaboration-server/adapters/native-command-assertions',
+        '@erpx/platform-runtime-server/public/http',
+        '@erpx/identity-access-server/public/iam-store',
+        '@erpx/identity-access-server/public/workflow-command-authority',
+        '@erpx/workflow-server/public/command-assertions',
+        '@erpx/workflow-server/public/command-policies',
+        '@erpx/platform-shared-server/index',
+        '../../../modules/workflow/server/src/adapters/native-workflow-wave3',
+        '../../../modules/workflow/server/src/adapters/native-workflow-write',
       ]) {
         vi.doUnmock(specifier as string);
       }
@@ -868,13 +868,13 @@ describe('workflow export receipt result_json dedupe (r32)', () => {
     const [financeSource, sharedSource] = await Promise.all([
       readFile(
         new URL(
-          '../../../packages/server-workflow/src/adapters/finance-command-receipts.ts',
+          '../../../modules/workflow/server/src/adapters/finance-command-receipts.ts',
           import.meta.url,
         ),
         'utf8',
       ),
       readFile(
-        new URL('../../../packages/server-workflow/src/adapters/receipt-sql.ts', import.meta.url),
+        new URL('../../../modules/workflow/server/src/adapters/receipt-sql.ts', import.meta.url),
         'utf8',
       ),
     ]);
@@ -887,21 +887,21 @@ describe('workflow export receipt result_json dedupe (r32)', () => {
   it('leaves no orphan adapter/barrel or dangling export entry', async () => {
     const { access } = await import('node:fs/promises');
     for (const relative of [
-      '../../../packages/server-workflow/src/adapters/supplier-export-receipt.ts',
-      '../../../packages/server-workflow/src/public/supplier-export-receipt.ts',
+      '../../../modules/workflow/server/src/adapters/supplier-export-receipt.ts',
+      '../../../modules/workflow/server/src/public/supplier-export-receipt.ts',
     ]) {
       await expect(access(new URL(relative, import.meta.url))).rejects.toThrow();
     }
-    const manifest = await readFile(new URL('../../../packages/server-workflow/package.json', import.meta.url), 'utf8');
+    const manifest = await readFile(new URL('../../../modules/workflow/server/package.json', import.meta.url), 'utf8');
     expect(manifest).not.toContain('supplier-export-receipt');
   });
 
   it('binds command id and operation and returns result_json for the refund reader', async () => {
     const { exportReceiptResultSql } = await import(
-      '../../../packages/server-workflow/src/adapters/receipt-sql'
+      '../../../modules/workflow/server/src/adapters/receipt-sql'
     );
     const { financeCommandReceipts } = await import(
-      '../../../packages/server-workflow/src/adapters/finance-command-receipts'
+      '../../../modules/workflow/server/src/adapters/finance-command-receipts'
     );
     const row = { result_json: '{"exported":true}' };
     const fakeDb = () => {
@@ -921,7 +921,7 @@ describe('workflow export receipt result_json dedupe (r32)', () => {
 describe('workflow flow-routes read tail (r41 native read plan)', () => {
   it('carries no retired owner SQL for the switched reads', async () => {
     const source = await readFile(
-      new URL('../../../packages/server-workflow/src/adapters/flow-planning-ports.ts', import.meta.url),
+      new URL('../../../modules/workflow/server/src/adapters/flow-planning-ports.ts', import.meta.url),
       'utf8',
     );
     expect(source).not.toContain('flowRoutesByCompanySql');
@@ -933,13 +933,13 @@ describe('workflow flow-routes read tail (r41 native read plan)', () => {
     const rows = [{ kind: 'expense', record_id: 'record-1' }];
     const all = vi.fn(async () => rows);
     vi.resetModules();
-    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+    vi.doMock('../../../modules/workflow/server/src/adapters/native-workflow-read', () => ({
       nativeWorkflowReadAll: all,
       nativeWorkflowReadFirst: vi.fn(),
     }));
     try {
       const { nativeFlowPlanningPorts } = await import(
-        '../../../packages/server-workflow/src/adapters/flow-planning-ports'
+        '../../../modules/workflow/server/src/adapters/flow-planning-ports'
       );
       const prepare = vi.fn();
       const db = { prepare } as never;
@@ -960,7 +960,7 @@ describe('workflow flow-routes read tail (r41 native read plan)', () => {
       );
       expect(prepare).not.toHaveBeenCalled();
     } finally {
-      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.doUnmock('../../../modules/workflow/server/src/adapters/native-workflow-read');
       vi.resetModules();
     }
   });
@@ -968,18 +968,18 @@ describe('workflow flow-routes read tail (r41 native read plan)', () => {
   it('keeps the by-id read first-row parity when the native plan returns no rows', async () => {
     const all = vi.fn(async () => [] as unknown[]);
     vi.resetModules();
-    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+    vi.doMock('../../../modules/workflow/server/src/adapters/native-workflow-read', () => ({
       nativeWorkflowReadAll: all,
       nativeWorkflowReadFirst: vi.fn(),
     }));
     try {
       const { nativeFlowPlanningPorts } = await import(
-        '../../../packages/server-workflow/src/adapters/flow-planning-ports'
+        '../../../modules/workflow/server/src/adapters/flow-planning-ports'
       );
       const db = { prepare: vi.fn() } as never;
       expect(await nativeFlowPlanningPorts(db).repository.readReadFlowRoute('company', 'leave', 'rec-2')).toBeNull();
     } finally {
-      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.doUnmock('../../../modules/workflow/server/src/adapters/native-workflow-read');
       vi.resetModules();
     }
   });
@@ -988,7 +988,7 @@ describe('workflow flow-routes read tail (r41 native read plan)', () => {
 describe('workflow flow-defaults/steps read tail (r42 native read plan)', () => {
   it('carries no retired owner SQL for the switched reads and keeps the r32 revision span', async () => {
     const source = await readFile(
-      new URL('../../../packages/server-workflow/src/adapters/flow-planning-ports.ts', import.meta.url),
+      new URL('../../../modules/workflow/server/src/adapters/flow-planning-ports.ts', import.meta.url),
       'utf8',
     );
     expect(source).not.toContain('SELECT * FROM flow_defaults WHERE company_id=?');
@@ -1005,13 +1005,13 @@ describe('workflow flow-defaults/steps read tail (r42 native read plan)', () => 
     const all = vi.fn(async () => rows);
     const first = vi.fn(async () => ({ revision: 7 }));
     vi.resetModules();
-    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+    vi.doMock('../../../modules/workflow/server/src/adapters/native-workflow-read', () => ({
       nativeWorkflowReadAll: all,
       nativeWorkflowReadFirst: first,
     }));
     try {
       const { nativeFlowPlanningPorts } = await import(
-        '../../../packages/server-workflow/src/adapters/flow-planning-ports'
+        '../../../modules/workflow/server/src/adapters/flow-planning-ports'
       );
       const prepare = vi.fn();
       const db = { prepare } as never;
@@ -1029,7 +1029,7 @@ describe('workflow flow-defaults/steps read tail (r42 native read plan)', () => 
       );
       expect(prepare).not.toHaveBeenCalled();
     } finally {
-      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.doUnmock('../../../modules/workflow/server/src/adapters/native-workflow-read');
       vi.resetModules();
     }
   });
@@ -1038,13 +1038,13 @@ describe('workflow flow-defaults/steps read tail (r42 native read plan)', () => 
     const first = vi.fn(async (): Promise<{ steps_json: string } | null> => ({ steps_json: '{}' }));
     const all = vi.fn();
     vi.resetModules();
-    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+    vi.doMock('../../../modules/workflow/server/src/adapters/native-workflow-read', () => ({
       nativeWorkflowReadAll: all,
       nativeWorkflowReadFirst: first,
     }));
     try {
       const { nativeFlowPlanningPorts } = await import(
-        '../../../packages/server-workflow/src/adapters/flow-planning-ports'
+        '../../../modules/workflow/server/src/adapters/flow-planning-ports'
       );
       const prepare = vi.fn();
       const db = { prepare } as never;
@@ -1060,7 +1060,7 @@ describe('workflow flow-defaults/steps read tail (r42 native read plan)', () => 
       expect(await repo.readAssignFlowPrimaryExisting('company', 'leave', 'record-2')).toBeNull();
       expect(prepare).not.toHaveBeenCalled();
     } finally {
-      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.doUnmock('../../../modules/workflow/server/src/adapters/native-workflow-read');
       vi.resetModules();
     }
   });

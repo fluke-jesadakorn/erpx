@@ -1,11 +1,11 @@
 //! Owner-local HTTP router tests for the native Projects attachment bind.
-use erpx_server_projects::public::project_attachment_http::{
+use erpx_projects_server::public::project_attachment_http::{
     ProjectAttachmentBindHttpBackend, ProjectAttachmentBindHttpRequest,
     ProjectAttachmentHttpFuture, ProjectAttachmentHttpResponse, ProjectAttachmentHttpTarget,
     project_attachment_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Noop;

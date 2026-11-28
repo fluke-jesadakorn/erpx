@@ -1,10 +1,10 @@
 //! Actual owner-local HTTP router tests for the native Learning owner.
-use erpx_server_learning::public::learning_http::{
+use erpx_learning_server::public::learning_http::{
     LearningHttpBackend, LearningHttpCommand, LearningHttpFuture, LearningHttpRequest,
     LearningHttpResponse, LearningHttpTarget, learning_http_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Noop;

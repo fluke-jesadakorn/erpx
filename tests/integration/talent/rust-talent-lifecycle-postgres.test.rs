@@ -5,22 +5,22 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, HoldingId, RecordId, UserId,
 };
-use erpx_server_talent::public::candidate::{
+use erpx_talent_server::public::candidate::{
     CandidateRequest, PgTalentCandidates, PrivacyAction, PrivacyRequest, TalentActor,
     candidate_privacy_workspace, change_candidate_privacy, create_candidate,
 };
-use erpx_server_talent::public::offer::{
+use erpx_talent_server::public::offer::{
     OfferAction, OfferChange, OfferMoneyRequest, OfferMoneySnapshot, OfferRequest,
     PgOfferMoneySnapshotCapture, PgTalentOffers, change_offer, create_offer, hire_handoff_source,
 };
-use erpx_server_talent::public::talent_application::{
+use erpx_talent_server::public::talent_application::{
     ApplicationAction, ApplicationChange, ApplicationRequest, PgTalentApplications, ProposalAction,
     ProposalChange, ProposalRequest, Recommendation, change_application, change_proposal,
     create_application, create_proposal,

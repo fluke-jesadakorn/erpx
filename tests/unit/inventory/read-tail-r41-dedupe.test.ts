@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { packageClockSql } from '@erpx/server-commercial/public/purchased-capability-sql';
-import { clockCteSql } from '../../../packages/server-inventory/src/adapters/read-tail-sql';
+import { packageClockSql } from '@erpx/commercial-server/public/purchased-capability-sql';
+import { clockCteSql } from '../../../modules/inventory/server/src/adapters/read-tail-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-inventory/src');
+const srcRoot = resolve(__dirname, '../../../modules/inventory/server/src');
 const adapterDir = resolve(srcRoot, 'adapters');
 const src = (name: string) => readFileSync(resolve(adapterDir, name), 'utf8');
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;

@@ -3,11 +3,11 @@
 //! A bounded in-memory transport stands in for the installed connector; every
 //! production HTTP request would use the approved HTTPS transport.
 #![allow(dead_code)]
-use erpx_server_identity_access::public::position_gpo::{
+use erpx_identity_access_server::public::position_gpo::{
     ConnectionRow, ConnectorReply, ConnectorRequest, ConnectorTransport, GpoAction, Inventory,
     InventoryObject, PositionGpoConnector, PositionGpoDirectory,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 use serde_json::{Value, json};
 use std::future::Future;
 use std::pin::Pin;

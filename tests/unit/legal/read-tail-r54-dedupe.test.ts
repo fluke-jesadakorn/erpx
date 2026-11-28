@@ -5,13 +5,13 @@ vi.mock('server-only', () => ({}));
 import {
   legalItemKeyHeadSql,
   legalOrderedKeyHeadSql,
-} from '../../../packages/server-legal/src/adapters/legal-read-tail-r54-sources';
-import { legalPointByKeySql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r36-sources';
-import { legalPointByIdAndKeySql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r34-sources';
-import { legalStatePointSql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r33-sources';
+} from '../../../modules/legal/server/src/adapters/legal-read-tail-r54-sources';
+import { legalPointByKeySql } from '../../../modules/legal/server/src/adapters/legal-read-tail-r36-sources';
+import { legalPointByIdAndKeySql } from '../../../modules/legal/server/src/adapters/legal-read-tail-r34-sources';
+import { legalStatePointSql } from '../../../modules/legal/server/src/adapters/legal-read-tail-r33-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-legal/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-legal/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/legal/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/legal/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 /** Independent pre-r54 byte oracles captured from the removed inline holders. */
 const nextDocumentVersionSql = 'SELECT coalesce(max(version),0)+1 n FROM legal_documents WHERE item_id=?';

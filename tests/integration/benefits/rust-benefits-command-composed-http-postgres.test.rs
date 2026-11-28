@@ -7,17 +7,17 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_benefits::public::command_http::{
+use erpx_benefits_server::public::command_http::{
     BenefitsCommandHttpTarget, benefits_command_http_router,
 };
-use erpx_server_benefits::public::workspace_http::{
+use erpx_benefits_server::public::workspace_http::{
     BenefitsWorkspaceHttpTarget, benefits_workspace_http_router,
 };
-use erpx_server_shared::public::Clock;
-use erpx_service::benefits::{
+use erpx_platform_shared_server::public::Clock;
+use erpx_platform_composition::benefits::{
     BenefitsBackend, BenefitsConfiguration, BenefitsService,
 };
-use erpx_service::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
+use erpx_platform_composition::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
 use std::sync::Arc;
 use tower::ServiceExt;
 
@@ -95,8 +95,8 @@ fn router(p: &review::Prepared) -> axum::Router {
     let service = BenefitsService::new(
         p.authorizer.clone(),
         BenefitsConfiguration::new(
-            erpx_server_shared::public::HoldingId::new("h001").unwrap(),
-            erpx_server_shared::public::CompanyId::new("company").unwrap(),
+            erpx_platform_shared_server::public::HoldingId::new("h001").unwrap(),
+            erpx_platform_shared_server::public::CompanyId::new("company").unwrap(),
         ),
         p.system.scenario.clock.clone(),
     );

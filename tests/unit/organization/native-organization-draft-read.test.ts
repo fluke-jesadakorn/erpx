@@ -7,8 +7,8 @@ import {
   createNativeOrganizationClient,
   NativeOrganizationError,
   type NativeOrganizationPageContext,
-} from '../../../packages/feature-organization/src/adapters/server/native-organization';
-import { nativeOrganizationDraftRead } from '@erpx/feature-organization/lib/native-organization';
+} from '../../../modules/organization/ui/src/adapters/server/native-organization';
+import { nativeOrganizationDraftRead } from '@erpx/organization-ui/lib/native-organization';
 
 const actor: NativeOrganizationPageContext = {
   userId: 'user-1',
@@ -172,7 +172,7 @@ describe('nativeOrganizationDraftRead route contract', () => {
 
 const routeSource = readFileSync(
   new URL(
-    '../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts',
+    '../../../platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts',
     import.meta.url,
   ),
   'utf8',
@@ -193,7 +193,7 @@ describe('organization/drafts catch-all cutover', () => {
     expect(branch).not.toContain('getOrganizationDraft');
     expect(branch).not.toMatch(/\bSELECT\b|\bINSERT\b|\bUPDATE\b|\bDELETE\b/);
     const nativeImport = lines.find((line) =>
-      line.includes('@erpx/feature-organization/lib/native-organization'),
+      line.includes('@erpx/organization-ui/lib/native-organization'),
     );
     expect(nativeImport).toContain('nativeOrganizationDraftRead');
   });
@@ -206,7 +206,7 @@ describe('organization/drafts catch-all cutover', () => {
     expect(post).toContain('organizationDraftApi(');
     const exported = readFileSync(
       new URL(
-        '../../../packages/server-organization/src/public/organization-drafts.ts',
+        '../../../modules/organization/server/src/public/organization-drafts.ts',
         import.meta.url,
       ),
       'utf8',

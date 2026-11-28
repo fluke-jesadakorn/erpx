@@ -3,7 +3,7 @@ import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const manifestPath='contracts/modules/ui-modules.json';
-const sourcePath='packages/feature-runtime/src/modules/example/page.tsx';
+const sourcePath='platform/runtime/ui/src/modules/example/page.tsx';
 /** Build-time registration is deliberately finite; this does not discover runtime plugins. */
 export async function uiModuleSelection(root:string,app:string,selection:string|undefined) {
   if (selection !== undefined && selection !== '' && selection !== 'erpx-example') throw Error('UNKNOWN_UI_MODULE_SELECTION');
@@ -22,5 +22,5 @@ export async function composeUiModules(root:string,snapshot:string,enabled:boole
   const destination=join(snapshot,'apps/launcher/src/app/applications/example-module');
   await mkdir(destination,{recursive:false});
   await cp(join(root,sourcePath),join(destination,'implementation.tsx'),{errorOnExist:true,force:false});
-  await writeFile(join(destination,'page.tsx'),"import {currentSession} from '@erpx/server-identity_access/public/authorization';\nimport ExampleModulePage from './implementation';\nexport const dynamic = 'force-dynamic';\nexport default async function Page() { await currentSession(); return ExampleModulePage(); }\n",{flag:'wx'});
+  await writeFile(join(destination,'page.tsx'),"import {currentSession} from '@erpx/identity-access-server/public/authorization';\nimport ExampleModulePage from './implementation';\nexport const dynamic = 'force-dynamic';\nexport default async function Page() { await currentSession(); return ExampleModulePage(); }\n",{flag:'wx'});
 }

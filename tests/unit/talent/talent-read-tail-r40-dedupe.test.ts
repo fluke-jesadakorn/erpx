@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import ts from 'typescript';
 
-const adapters = resolve(__dirname, '../../../packages/server-talent/src/adapters');
+const adapters = resolve(__dirname, '../../../modules/talent/server/src/adapters');
 const src = (name: string) => readFileSync(resolve(adapters, name), 'utf8');
 const compile = (decl: string) => ts.transpileModule(decl, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText;
 const head = compile(src('talent-read-tail-r37-sources.ts').match(/export const selectProjection = [\s\S]*?;\n/)![0].replace('export const', 'const '));
@@ -94,7 +94,7 @@ describe('Talent read-tail r40 straggler projection-head family', () => {
         else if (e.name.endsWith('.ts')) files.push(p);
       }
     };
-    walk(resolve(__dirname, '../../../packages/server-talent/src'));
+    walk(resolve(__dirname, '../../../modules/talent/server/src'));
     let count = 0;
     for (const f of files) count += (readFileSync(f, 'utf8').match(/\bSELECT\b/g) ?? []).length;
     expect(count).toBe(10);

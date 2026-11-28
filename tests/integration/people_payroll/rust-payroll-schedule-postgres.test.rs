@@ -8,14 +8,14 @@
 //! oracle codes, and a caller-transaction rollback stages nothing.
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_people_payroll::public::payroll_schedule::{
+use erpx_people_payroll_server::public::payroll_schedule::{
     PayrollScheduleCommandActor, PayrollScheduleResult, get_payroll_schedule, save_payroll_schedule,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey, FailureKind};
 
 async fn seed(pool: &DatabasePool) {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
@@ -274,7 +274,7 @@ async fn read_of_a_missing_group_keeps_the_oracle_denial() {
     fixture::with_database(2, |pool| async move {
         seed(&pool).await;
         let missing: Result<
-            erpx_server_people_payroll::public::payroll_schedule::PayrollScheduleView,
+            erpx_people_payroll_server::public::payroll_schedule::PayrollScheduleView,
             _,
         > = PgUnitOfWork::new(pool.clone())
             .run(TransactionOptions::default(), move |connection| {

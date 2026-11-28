@@ -2,10 +2,10 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_people_payroll::public::workflow_projection_source::{
+use erpx_people_payroll_server::public::workflow_projection_source::{
     PeopleProjectionKind, PeopleProjectionSource, people_projection_source,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
 use sqlx::Connection;
@@ -119,15 +119,15 @@ async fn people_projection_sources_copy_the_retained_owner_scope_and_state() {
 
 #[tokio::test]
 async fn workflow_people_member_names_match_legacy_without_synthetic_caps() {
-    use erpx_server_people_payroll::public::service_count_flow_people::{lock_journal_flow_people_sources, read_service_count_member_names};
-    use erpx_server_shared::public::CompanyId;
+    use erpx_people_payroll_server::public::service_count_flow_people::{lock_journal_flow_people_sources, read_service_count_member_names};
+    use erpx_platform_shared_server::public::CompanyId;
     fixture::with_database(2, |pool| async move {
         migrate(&pool).await;
         sqlx::query("INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,status,created_by,created_at,updated_at) SELECT 'person-'||n,CASE WHEN n=1 THEN repeat('é',101) ELSE 'user-'||n END,'company',repeat('x',4200)||'ไทย🙂'||n,'TH','active','fixture',0,0 FROM generate_series(1,501) n")
             .execute(pool.raw()).await.unwrap();
         let script = r#"
 if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');
-const {createFlowRoutingSourceRepository}=await import('./packages/server-people_payroll/src/adapters/workflow-flow-routing-facts.ts');
+const {createFlowRoutingSourceRepository}=await import('./modules/people-payroll/server/src/adapters/workflow-flow-routing-facts.ts');
 let sql=[];const db={prepare(q){sql.push(q);return{bind(){return{first(){return null}}}}}};
 const repo=createFlowRoutingSourceRepository(db);repo.readPrepareFlowCommandPerson('company','user');repo.readAssignFlowPrimaryAdministrator('company','user');
 if(sql.length!==2||sql[0]!==sql[1])throw Error('PEOPLE_FLOW_SOURCE_CHANGED');process.stdout.write(sql[0]);
@@ -159,8 +159,8 @@ if(sql.length!==2||sql[0]!==sql[1])throw Error('PEOPLE_FLOW_SOURCE_CHANGED');pro
 
 #[tokio::test]
 async fn stock_count_people_engagements_retain_exact_same_unit_source() {
-    use erpx_server_people_payroll::public::service_count_flow_people::{inspect_stock_count_flow_people,lock_journal_flow_people_sources};
-    use erpx_server_shared::public::CompanyId;
+    use erpx_people_payroll_server::public::service_count_flow_people::{inspect_stock_count_flow_people,lock_journal_flow_people_sources};
+    use erpx_platform_shared_server::public::CompanyId;
     fixture::with_database(2,|pool|async move {
         migrate(&pool).await;
         sqlx::raw_sql("INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,status,created_by,created_at,updated_at) VALUES('p1','person-one','company',repeat('x',4000)||'ไทย','TH','active','fixture',0,0),('p2','without-assignment','company','Second','TH','active','fixture',0,0),('p3','inactive','company','Inactive','TH','inactive','fixture',0,0),('foreign','foreign-user','other','Foreign','TH','active','fixture',0,0);
@@ -169,7 +169,7 @@ async fn stock_count_people_engagements_retain_exact_same_unit_source() {
             INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind) VALUES('a1','person-one','holding_owner','[]','company',0,8000000000000000,1,'holding')")
             .execute(pool.raw()).await.unwrap();
         sqlx::query("UPDATE hr_engagements SET version=9007199254740992 WHERE id='e2'").execute(pool.raw()).await.unwrap();
-        let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const {activeStaffSelect}=await import('./packages/server-operations/src/adapters/staff-policy.ts');process.stdout.write(activeStaffSelect);"#;
+        let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const {activeStaffSelect}=await import('./modules/operations/server/src/adapters/staff-policy.ts');process.stdout.write(activeStaffSelect);"#;
         let out=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")).args(["--conditions=react-server","-e",script]).output().unwrap();
         assert!(out.status.success(),"actual TS staff source: {}",String::from_utf8_lossy(&out.stderr));
         let sql=String::from_utf8(out.stdout).unwrap().replacen('?',"$1",1).replacen('?',"$2",1).replacen('?',"$3",1);
@@ -182,7 +182,7 @@ async fn stock_count_people_engagements_retain_exact_same_unit_source() {
         let rows:Vec<_>=source.rows().iter().map(|r|(r.user_id.as_str(),r.engagement_id.as_str())).collect();
         assert_eq!(rows,vec![("person-one","e1"),("person-one","e2"),("without-assignment","e3")]);
         assert!(source.rows()[0].name.len()>3000);
-        let projection_script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const {finalRootOwnerProjectionSources:s}=await import('./packages/server-people_payroll/src/adapters/final-root-owner-projection-sources.ts');process.stdout.write(JSON.stringify({people:s.hr_people,engagements:s.hr_engagements}));"#;
+        let projection_script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const {finalRootOwnerProjectionSources:s}=await import('./modules/people-payroll/server/src/adapters/final-root-owner-projection-sources.ts');process.stdout.write(JSON.stringify({people:s.hr_people,engagements:s.hr_engagements}));"#;
         let projection_out=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")).args(["--conditions=react-server","-e",projection_script]).output().unwrap();
         assert!(projection_out.status.success(),"actual TS People projections unavailable");
         let ts_projection:serde_json::Value=serde_json::from_slice(&projection_out.stdout).unwrap();

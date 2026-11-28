@@ -1,13 +1,13 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { holdingHosts } from '@erpx/contracts/holding-hosts';
+import { holdingHosts } from '@erpx/platform-contracts/holding-hosts';
 import { describe, expect, it } from 'vitest';
 import { expandNativeApiPaths, loadNativeApiPaths } from '../../../scripts/local/native-api-paths';
 import { nativeApiPath, nativeApiRewrite } from '../../../scripts/local/native-api-proxy';
 
 const root = resolve(__dirname, '../../..');
 const directory =
-  'packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records';
+  'platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/records';
 const read = (path: string) => readFileSync(resolve(root, path), 'utf8');
 
 const registryPaths = [
@@ -23,7 +23,7 @@ const registryPaths = [
 describe('search route is retired native transport', () => {
   it('has no Next route; the native owner serves the rewritten path', () => {
     expect(existsSync(resolve(root, directory, 'search/route.ts'))).toBe(false);
-    const http = read('packages/server-records/src/adapters/record_search_http.rs');
+    const http = read('modules/records/server/src/adapters/record_search_http.rs');
     expect(http).toContain('/api/v1/holdings/{holding_slug}/records/native-search');
     expect(http).toContain('backend.search(&host, &headers, &query)');
   });
@@ -31,7 +31,7 @@ describe('search route is retired native transport', () => {
 
 describe('axum mount and method-surface parity for the seven delegated families', () => {
   const axumRouter = () => {
-    const source = read('packages/server-records/src/adapters/record_registry_http.rs');
+    const source = read('modules/records/server/src/adapters/record_registry_http.rs');
     const start = source.indexOf('pub fn records_registry_http_router');
     const end = source.indexOf('with_state(Arc::new(RecordsRegistryHttpState', start);
     return source.slice(start, end).replace(/\s+/g, ' ').replace(/\s+\./g, '.');
@@ -53,13 +53,13 @@ describe('axum mount and method-surface parity for the seven delegated families'
   });
 
   it('keeps HEAD derived by the native Records context route', () => {
-    const context = read('packages/server-records/src/adapters/record_context_http.rs');
+    const context = read('modules/records/server/src/adapters/record_context_http.rs');
     expect(context).toContain('get(read_context)');
     expect(context).not.toContain('.head(');
   });
 
   it('retired route files and package exports cannot resolve', () => {
-    const exports = JSON.parse(read('packages/workplace/package.json')).exports as Record<string, string>;
+    const exports = JSON.parse(read('platform/workplace/package.json')).exports as Record<string, string>;
     for (const path of registryPaths) {
       expect(existsSync(resolve(root, directory, path + '.ts')), path).toBe(false);
       expect(existsSync(resolve(root, 'apps/compat/src/app/api/v1/holdings/[holdingSlug]/records', path + '.ts')), path).toBe(false);
@@ -126,7 +126,7 @@ describe('exact literal module selector preserves /records/search', () => {
   });
 
   it('does not rely on the Rust module validator to reserve search literals', () => {
-    const context = read('packages/server-records/src/domain/record_context.rs');
+    const context = read('modules/records/server/src/domain/record_context.rs');
     const body = context.slice(
       context.indexOf('pub(crate) fn valid_module'),
       context.indexOf('pub(crate) fn valid_id'),
@@ -161,10 +161,10 @@ describe('Records/PMS/Stock Next route retirement and checked-in gateway entries
     for (const file of retired)
       expect(existsSync(resolve(root, file)), file).toBe(false);
     for (const file of [
-      'packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/reports/route.ts',
-      'packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/stock-transfers/[[...path]]/route.ts',
+      'modules/pms/ui/src/routes/api/v1/holdings/[holdingSlug]/pms/reports/route.ts',
+      'products/supply/ui/src/routes/api/v1/holdings/[holdingSlug]/stock-transfers/[[...path]]/route.ts',
     ]) expect(existsSync(resolve(root, file)), file).toBe(false);
-    expect(existsSync(resolve(root, 'packages/server-records/src/adapters/record_search_http.rs'))).toBe(true);
+    expect(existsSync(resolve(root, 'modules/records/server/src/adapters/record_search_http.rs'))).toBe(true);
   });
 
   it('matches every registered Holding to the native search, report and transfer prefixes', () => {
@@ -191,31 +191,31 @@ describe('Records/PMS/Stock Next route retirement and checked-in gateway entries
   });
 
   it('pins owner SQL in each native handler and the {data} envelope in the browsers', () => {
-    const records = read('packages/server-records/src/adapters/record_search.rs');
+    const records = read('modules/records/server/src/adapters/record_search.rs');
     expect(records).toContain('sqlx::query(AssertSqlSafe(');
     expect(records).toContain('.fetch_all(&mut *connection)');
     expect(records).toContain('SELECT module_id,id,title,status,version FROM workspace_records');
-    const recordsHttp = read('packages/server-records/src/adapters/record_search_http.rs');
+    const recordsHttp = read('modules/records/server/src/adapters/record_search_http.rs');
     expect(recordsHttp).toContain('/api/v1/holdings/{holding_slug}/records/native-search');
     expect(recordsHttp).toContain('backend.search(&host, &headers, &query)');
-    const pms = read('packages/server-pms/src/adapters/report_http.rs');
+    const pms = read('modules/pms/server/src/adapters/report_http.rs');
     expect(pms).toContain('/api/v1/holdings/{holding_slug}/pms/reports/{report}');
     expect(pms).toContain('PmsReportKind::parse(view)');
     expect(pms).toContain('use sqlx::{PgConnection, Row, postgres::PgRow};');
     expect(pms).toContain('.fetch_all(&mut *c)');
     expect(pms).toContain('.fetch_one(&mut *c)');
-    const transfersHttp = read('src/composition/src/inventory_owner_commands_http.rs');
+    const transfersHttp = read('platform/composition/src/inventory_owner_commands_http.rs');
     for (const path of [
       '/api/v1/holdings/{holding_slug}/stock-transfers',
       '/api/v1/holdings/{holding_slug}/stock-transfers/{id}',
       '/api/v1/holdings/{holding_slug}/stock-transfers/{id}/{action}',
     ]) expect(transfersHttp).toContain(path);
     expect(transfersHttp).toContain('post(post_transfer_transition::<C>)');
-    const transfers = read('packages/server-inventory/src/adapters/transfers.rs');
+    const transfers = read('modules/inventory/server/src/adapters/transfers.rs');
     expect(transfers).toContain('UPDATE inventory_transfers SET');
     expect(transfers).toContain('INSERT INTO inventory_transfers(');
     expect(transfers).toContain('.execute(&mut *c)');
-    expect(read('packages/feature-pms/src/components/range-reports.tsx')).toContain('return json.data;');
-    expect(read('packages/feature-inventory/src/components/use-transfer-command.ts')).toContain('result.data');
+    expect(read('modules/pms/ui/src/components/range-reports.tsx')).toContain('return json.data;');
+    expect(read('modules/inventory/ui/src/components/use-transfer-command.ts')).toContain('result.data');
   });
 });

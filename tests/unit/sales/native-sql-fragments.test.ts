@@ -9,9 +9,9 @@ import {
   SALES_RD_CLOCK_NOW_MS,
   SALES_RD_FOLLOWUP_EVIDENCE_PREFIX,
   SALES_RD_FOLLOWUP_METRIC_PREFIX,
-} from '../../../packages/server-sales/src/adapters/native-sales-read';
+} from '../../../modules/sales/server/src/adapters/native-sales-read';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-sales/src');
+const srcRoot = resolve(__dirname, '../../../modules/sales/server/src');
 const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const registry = read('native_sales_read_sql.rs');
 const shared = read('followup-source-sql.ts');

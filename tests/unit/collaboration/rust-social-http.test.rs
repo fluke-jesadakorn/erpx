@@ -1,10 +1,10 @@
 //! Owner-local HTTP adapter tests for native Social ingress. The exact owner
 //! dispatch is exercised without opening a socket; mounting the router into
 //! composition remains a lead integration step.
-use erpx_server_collaboration::public::social::{
+use erpx_collaboration_server::public::social::{
     CommentPageRow, FeedComment, FeedPost, Receipt, RevisionRow,
 };
-use erpx_server_collaboration::public::social_http::{
+use erpx_collaboration_server::public::social_http::{
     CommentsQuery, FeedQuery, SocialCommentsData, SocialFeedData, SocialHttpBackend,
     SocialHttpCommandRequest, SocialHttpCommentsRequest, SocialHttpFuture, SocialHttpReadReply,
     SocialHttpReadRequest, SocialHttpRevisionsRequest, SocialHttpState, SocialHttpTarget,
@@ -12,12 +12,12 @@ use erpx_server_collaboration::public::social_http::{
     comment_action, create_comment_upload, create_edit_upload, create_post, create_story, read_feed,
     read_post_comments, read_post_revisions, read_thread, set_reaction,
 };
-use erpx_server_runtime::public::http_support::{
+use erpx_platform_runtime_server::public::http_support::{
     Path, Query, Request, Response, State, StatusCode,
     body::{Body, to_bytes},
     header,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use serde_json::{Value, json};
 use std::sync::{Arc, Mutex};
 
@@ -139,7 +139,7 @@ impl SocialHttpBackend for Probe {
             }];
             Ok(SocialCommentsData::new(
                 items,
-                Some(erpx_server_collaboration::public::social::FeedCursor {
+                Some(erpx_collaboration_server::public::social::FeedCursor {
                     at: 11,
                     id: "comment-1".into(),
                 }),

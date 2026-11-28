@@ -1,13 +1,13 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { bindingsExists, selectOneProbe } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-sql';
-import { accessEventEvidenceProbe } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r27-sources';
-import { existenceProbe } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r30-sources';
-import { factExistenceWitness } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r32-sources';
-import { commandAuditProbe, supportAbsent } from '../../../packages/server-customer_authority/src/adapters/package-obligation-sql';
+import { bindingsExists, selectOneProbe } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-sql';
+import { accessEventEvidenceProbe } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-tail-r27-sources';
+import { existenceProbe } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-tail-r30-sources';
+import { factExistenceWitness } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-tail-r32-sources';
+import { commandAuditProbe, supportAbsent } from '../../../modules/customer-authority/server/src/adapters/package-obligation-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-customer_authority/src');
+const srcRoot = resolve(__dirname, '../../../modules/customer-authority/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 // Exact pre-dedupe call-site text copied verbatim from HEAD (r38 baseline, BEFORE=39).

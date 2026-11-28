@@ -1,0 +1,695 @@
+import {decodePmsRecord,type PmsStoredRecord} from "@erpx/pms-server/domain/stored-record";
+import { PMS_WRITE_CONTEXT_SQL } from "./pms-read-tail-r17-sql";
+import { PMS_STRIPE_REFUND_COLUMNS_SQL } from "./pms-read-tail-r22-sql";
+import { PMS_RECORDS_PROJECTION_PREFIX_SQL } from "./pms-read-tail-r24-sql";
+import { PMS_IDS_JSONB_MEMBER_SQL } from "./pms-read-tail-r26-sql";
+import { pmsBookingPaymentIdProbeSql } from "./pms-read-tail-r29-sql";
+import { pmsRefundPaymentJoinHeadSql } from "./pms-read-tail-r34-sql";
+import { PMS_PROPERTY_POINT_HEAD_SQL } from "./pms-read-tail-r36-sql";
+import { pmsBookingEmailPendingSql } from "./pms-read-tail-r43-sql";
+import { PMS_GUEST_ACCOUNT_PROJECTION_HEAD_SQL } from "./pms-read-tail-r55-sql";
+import { roomChargeReversalWork } from "@erpx/pos-server/public/room-charge-reversal-queue";
+import { withPmsPurchasedCommand } from "@erpx/pms-server/adapters/purchase-boundary";
+import { readPurchasedAccesses, pmsPackageEnforcementMode, type PurchasedAccess } from "@erpx/commercial-server/public/purchase-command-boundary";
+import { hasPermission } from "@erpx/identity-access-ui/lib/permissions";
+import { lastAuditOwnerProjectionSources as financeLastAuditProjectionSources } from "@erpx/finance-server/public/last-audit-owner-projection-sources";
+import { hospitalityOwnerProjectionSources as inventoryProjectionSources } from "@erpx/inventory-server/public/hospitality-owner-projection-sources";
+import { hospitalityOwnerProjectionSources as marketingProjectionSources } from "@erpx/marketing-server/public/hospitality-owner-projection-sources";
+import "server-only";
+import { preparePmsAccounting } from "@erpx/finance-server/public/hospitality-accounting";
+import { createHash, randomUUID } from "node:crypto";
+import { z } from "zod";
+import { type Effects } from "@erpx/pms-ui/lib/pms-engine";
+import { type Snapshot } from "@erpx/pms-server/public/rules/pms";
+import { roomChargeSchema } from "@erpx/pms-ui/lib/pms-room-charge";
+import { assertProductionModuleEnabled } from "@erpx/pms-server/public/feature-availability";
+import { hospitalityDayControls } from "@erpx/pms-server/public/hospitality-day-controls";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import { executeCommand, replayCommand } from "@erpx/workflow-server/public/commands";
+import { requirePermission } from "@erpx/identity-access-server/public/iam-permissions";
+import {prepareJournal} from '@erpx/finance-server/public/journal-planning';
+import { prepareAttachmentBinding } from "@erpx/files-server/public/attachments/service";
+import { ApiError } from "@erpx/platform-runtime-server/public/http";
+import {snapshotMoney,snapshotMoneyBatch,snapshotMoneyCarry,snapshotMoneyReversal} from '@erpx/finance-server/public/company-money';
+import { holdingResources } from "../../../../../platform/runtime/server/src/public/runtime";
+import { readPmsInventoryCommand, readAllPmsRecords, readPmsCalendar, readPmsDashboard, readPmsDetail, readPmsSetupFacts, readPmsOperationsList, readPmsConfiguration, readPmsChoices } from "@erpx/pms-server/public/pms/read-repository";
+import { type PmsReadSelection } from "@erpx/pms-ui/lib/pms-read-selection";
+import { isTransactionalSqlDatabase, type SqlDatabase, type TransactionalSqlDatabase } from "@erpx/platform-runtime-server/public/runtime/types";
+import type { SqlStatement } from "@erpx/platform-runtime-server/public/runtime/types";
+import type { Kind } from "@erpx/pms-server/domain/pms-model";
+import { createPmsApplication, type PmsUnit, type PropertyRow, type TransferRequestRow, type ChargeCorrectionRow } from "@erpx/pms-server/application/pms";
+import type { LaneActor } from "./native-lane-20/client";
+import { pmsOperationalWork } from "@erpx/pms-server/public/pms/home";
+const query = async <T>(db: SqlDatabase, sql: string, ...values: unknown[]) => (await db
+    .prepare(sql)
+    .bind(...values)
+    .all<T>()).results;
+const run = async (db: SqlDatabase, sql: string, ...values: unknown[]) => db
+    .prepare(sql)
+    .bind(...values)
+    .run();
+import { pmsIdentityAccessFacts } from "@erpx/identity-access-server/public/pms-command-facts";
+import { pmsOrganizationFacts } from "@erpx/organization-server/public/pms-command-facts";
+import { pmsFinanceFacts } from "@erpx/finance-server/public/pms-command-facts";
+import { pmsCommerceFacts } from "@erpx/commerce-server/public/pms-command-facts";
+import { pmsPosFacts } from "@erpx/pos-server/public/pms-command-facts";
+import { pmsWorkflowFacts } from "@erpx/workflow-server/public/pms-command-facts";
+import { pmsFilesFacts } from "@erpx/files-server/public/pms-command-facts";
+import { nativePmsOwnerWrite } from "@erpx/pms-ui/public/native-pms";
+import { nativePmsReadAll, nativePmsReadFirst, PMS_RD_POSTING_CHARGE, PMS_RD_POSTING_BY_RECORD, PMS_RD_CHARGE_CORRECTION_PENDING, PMS_RD_GUEST_COMMAND_RECORD, PMS_RD_STAY_COMMAND, PMS_RD_CASHIER_COMMAND, PMS_RD_POS_COMMAND, PMS_RD_NIGHT_COMMAND, PMS_RD_HOUSEKEEPING_COMMAND, PMS_RD_TRANSFER_REQUESTS, PMS_RD_GUEST_DOCUMENTS, PMS_RD_BOOKING_ALLOCATION_EXISTS, PMS_RD_PENDING_JOBS, PMS_RD_GUEST_ACCOUNT_SUMS, PMS_RD_CHARGE_CORRECTIONS, PMS_RD_CHARGE_CORRECTIONS_FRONT } from "./native-pms-read";
+function unit(db: SqlDatabase, companyId = '', actor: LaneActor = {}): PmsUnit<SqlStatement> {
+        const write = (kind: string, values: unknown[]): any => nativePmsOwnerWrite(companyId, kind, values);
+    const identity_access = pmsIdentityAccessFacts(db);
+    const organization = pmsOrganizationFacts(db);
+    const finance = pmsFinanceFacts(db, actor);
+    const commerce = pmsCommerceFacts(db);
+    const pos = pmsPosFacts(db);
+    const workflow = pmsWorkflowFacts(db);
+    const files = pmsFilesFacts(db);
+    return {
+        readPmsProperties: (facts: {
+            id: string;
+            companyId: string;
+            lock: boolean;
+        }) => db.prepare(facts.lock
+            ? `WITH command_context AS MATERIALIZED (SELECT set_config('erpx.pms_write','on',true),set_config('erpx.pms_property',?::text,true))
+               SELECT p.* FROM pms_properties p CROSS JOIN command_context
+               WHERE p.id=? AND p.company_id=? FOR UPDATE OF p`
+            : `${PMS_PROPERTY_POINT_HEAD_SQL} WHERE id=? AND company_id=?`)
+            .bind(...(facts.lock ? [facts.id,facts.id,facts.companyId] : [facts.id,facts.companyId])).first<PropertyRow>(),
+        readPmsProperties2: (facts: {
+            companyId: string;
+            fact1: readonly string[];
+            actor: WorkContext;
+        }) => query<PropertyRow>(db, `${PMS_PROPERTY_POINT_HEAD_SQL} WHERE company_id=?${facts.actor.branchId ? " AND branch_id=?" : ""} ORDER BY name`, facts.companyId, ...facts.fact1),
+        readAssignments: facts => identity_access.readAssignments(facts),
+        readOrganizationNodes: facts => organization.readOrganizationNodes(facts),
+        readFinanceAccounts: facts => finance.readFinanceAccounts(facts),
+        readFinanceCharts: facts => finance.readFinanceCharts(facts),
+        readFinanceParties: facts => finance.readFinanceParties(facts),
+        readCommerceProducts: facts => commerce.readCommerceProducts(facts),
+        readCommerceWarehouses: facts => commerce.readCommerceWarehouses(facts),
+        readPmsDocuments: (facts: {
+            id: string;
+            fact1: string | null;
+            fact2: string | null;
+        }) => query<{
+            id: string;
+            guest_account_id: string;
+            kind: string;
+            created_at: number;
+        }>(db, `${PMS_GUEST_ACCOUNT_PROJECTION_HEAD_SQL}kind,created_at FROM pms_documents WHERE property_id=? AND (?::jsonb IS NULL OR guest_account_id IN ${PMS_IDS_JSONB_MEMBER_SQL}) ORDER BY created_at DESC,id LIMIT 200`, facts.id, facts.fact1, facts.fact2),
+        readFinanceJournalLines: facts => finance.readFinanceJournalLines(facts),
+        readReceiptAllocationCredits: async facts => {
+            const postings=await query<{entryId:string;date:string;journalId:string}>(db,`
+              WITH entries AS MATERIALIZED (SELECT * FROM jsonb_to_recordset(?::jsonb) AS x(id text,date text))
+              SELECT e.id "entryId",e.date,p.journal_id "journalId" FROM entries e
+              JOIN pms_postings p ON p.property_id=? AND p.source_key=e.id||':credit-balance'
+                AND p.record_id=e.id AND p.business_date=e.date`,JSON.stringify(facts.entries),facts.propertyId);
+            if(!postings.length)return [];
+            return (await finance.readReceiptAllocationCredits({...facts,postings}))
+                .map(row=>({entryId:row.entryId,amount:Number(row.amount)}));
+        },
+        readPmsRecords: (facts: {
+            id: string;
+        }) => nativePmsReadFirst<{
+            due: number;
+            advance: number;
+            deposit: number;
+        }>(PMS_RD_GUEST_ACCOUNT_SUMS, [facts.id], db),
+        readPmsTransferRequests: (facts: {
+            companyId: string;
+            id: string;
+        }) => nativePmsReadAll<TransferRequestRow>(PMS_RD_TRANSFER_REQUESTS, [facts.companyId, facts.id], db).then(result=>result.results),
+        readPmsChargeCorrections: (facts: {
+            companyId: string;
+            id: string;
+            fact2: readonly string[];
+            frontMode: boolean;
+        }) => nativePmsReadAll<{
+            id: string;
+            entry_id: string;
+            guest_account_id: string;
+            status: string;
+            version: number;
+            reason: string;
+            requested_by: string;
+            reviewed_by: string | null;
+            review_reason: string | null;
+            reversal_entry_id: string | null;
+            created_at: number;
+            entry_kind: string;
+            entry_description: string;
+            entry_total: number;
+        }>(facts.frontMode ? PMS_RD_CHARGE_CORRECTIONS_FRONT : PMS_RD_CHARGE_CORRECTIONS, [facts.companyId, facts.id, ...facts.fact2], db).then(result => result.results),
+        readPmsBookingEmails: (facts: {
+            id: string;
+        }) => query<{
+            id: string;
+            reservation_id: string;
+            state: string;
+            attempts: number;
+            last_error: string | null;
+        }>(db, `${pmsBookingEmailPendingSql('full')}`, facts.id),
+        readPosConnections: facts => pos.readPosConnections(facts),
+        readPmsStripeRefunds: propertyId => query(db,`${PMS_STRIPE_REFUND_COLUMNS_SQL} WHERE property_id=? AND refund_state IS NOT NULL ORDER BY updated_at DESC LIMIT 100`,propertyId),
+        readPmsStripePayments: (facts: {
+            id: string;
+        }) => query<{
+            id: string;
+            guest_account_id: string;
+            state: string;
+            kind: string;
+            amount_minor: number;
+            refund_state: string | null;
+            payer_email: string | null;
+        }>(db, `${PMS_GUEST_ACCOUNT_PROJECTION_HEAD_SQL}state,kind,amount_minor,refund_state,payer_email FROM pms_stripe_payments WHERE property_id=? ORDER BY created_at DESC LIMIT 100`, facts.id),
+        readPmsRecords2: (facts: {
+            companyId: string;
+            propertyId: string;
+        }) => query<{
+            id: string;
+            property_id: string;
+            amount_minor: number;
+            status: string;
+            refund_state: string;
+            created_at: number;
+            last_error: string | null;
+            needs_receipt_recovery: boolean;
+        }>(db, `${pmsRefundPaymentJoinHeadSql('detailReceipt')} WHERE p.company_id=? AND p.property_id=? ORDER BY r.created_at DESC LIMIT 100`, facts.companyId,facts.propertyId),
+        readFinanceBankTransactions: facts => finance.readFinanceBankTransactions(facts),
+        readPosConnections2: facts => pos.readPosConnections2(facts),
+        readFinanceCharts2: facts => finance.readFinanceCharts2(facts),
+        readFinanceAccounts2: facts => finance.readFinanceAccounts2(facts),
+        readFinanceAccounts3: facts => finance.readFinanceAccounts3(facts),
+        readFinanceAccounts4: facts => finance.readFinanceAccounts4(facts),
+        readFinancePeriods: facts => finance.readFinancePeriods(facts),
+        insertPmsPostings: (facts: {
+            id: `${string}-${string}-${string}-${string}-${string}`;
+            id2: string;
+            source: string;
+            recordId: string;
+            id3: string;
+            date: string;
+        }) => write('pms_w074', [facts.id, facts.id2, facts.source, facts.recordId, facts.id3, facts.date]),
+        deleteCommandAssertions: facts => workflow.deleteCommandAssertions(facts),
+        readCommerceWarehouses2: facts => commerce.readCommerceWarehouses2(facts),
+        readCommerceStock: facts => commerce.readCommerceStock(facts),
+        readInventoryLedger: (facts: {
+            warehouseId: string;
+            productId: string;
+            date: string;
+        }) => db.prepare(`SELECT 1 FROM (${inventoryProjectionSources.inventory_ledger}) inventory_ledger WHERE warehouse_id=? AND product_id=? AND movement_date>? LIMIT 1`).bind(facts.warehouseId, facts.productId, facts.date).first(),
+        updateCommerceStock: facts => commerce.updateCommerceStock(facts),
+        insertPmsStockMoves: (facts: {
+            id: string;
+            id2: string;
+            warehouseId: string;
+            productId: string;
+            fact4: number;
+            fact5: number;
+            date: string;
+            fact7: number;
+            description: string;
+        }) => write('pms_w075', [facts.id, facts.id2, facts.warehouseId, facts.productId, facts.fact4, facts.fact5, facts.date, facts.fact7, facts.description]),
+        insertPmsSources: (facts: {
+            id: string;
+            key: string;
+            id2: string;
+        }) => write('pms_w076', [facts.id, facts.key, facts.id2]),
+        insertFinanceParties: facts => finance.insertFinanceParties(facts),
+        readPmsPostings: (facts: {
+            id: string;
+            id2: string;
+            id3: string;
+        }) => nativePmsReadFirst<{ journal_id: string }>(PMS_RD_POSTING_CHARGE, [facts.id, facts.id2, facts.id3], db),
+        insertFinanceInvoices: facts => finance.insertFinanceInvoices(facts),
+        readPmsPostings2: (facts: {
+            id: string;
+            entryId: string | undefined;
+        }) => nativePmsReadFirst<{ journal_id: string }>(PMS_RD_POSTING_BY_RECORD, [facts.id, facts.entryId], db),
+        insertFinancePayments: facts => finance.insertFinancePayments(facts),
+        insertPmsDocuments: (facts: {
+            id: string;
+            id2: string;
+            id3: string;
+            kind: "refund" | "receipt" | "invoice" | "credit_note";
+            financeId: string | null;
+            fact5: string;
+            now: number;
+        }) => write('pms_w077', [facts.id, facts.id2, facts.id3, facts.kind, facts.financeId, facts.fact5, facts.now]),
+        readPmsImportBalances: (facts: {
+            id: string;
+            guestAccountId: string;
+        }) => db.prepare(`SELECT b.finance_invoice_id id,b.amount_minor total FROM pms_import_balances b
+    JOIN pms_records r ON r.id=b.entry_id AND r.property_id=b.property_id
+    WHERE b.property_id=? AND r.data_json::jsonb->>'guestAccountId'=? AND b.pocket='due' AND b.finance_invoice_id IS NOT NULL ORDER BY b.source_key`).bind(facts.id, facts.guestAccountId).all<{
+            id: string;
+            total: number;
+        }>(),
+        readPmsDocuments2: (facts: {
+            id: string;
+            guestAccountId: string;
+        }) => nativePmsReadAll<{
+            id: string;
+            snapshot_json: string;
+        }>(PMS_RD_GUEST_DOCUMENTS, [facts.id, facts.guestAccountId], db).then(result=>result.results),
+        deleteFinanceAllocations: facts => finance.deleteFinanceAllocations(facts),
+        updateFinanceInvoices: facts => finance.updateFinanceInvoices(facts),
+        insertFinanceAllocations: facts => finance.insertFinanceAllocations(facts),
+        readAssignments2: facts => identity_access.readAssignments2(facts),
+        readFinanceParties2: facts => finance.readFinanceParties2(facts),
+        readCommerceProducts2: facts => commerce.readCommerceProducts2(facts),
+        readContext: () => db.prepare(PMS_WRITE_CONTEXT_SQL).bind().first(),
+        readOrganizationNodes2: facts => organization.readOrganizationNodes2(facts),
+        insertPmsProperties: (facts: {
+            target: string;
+            companyId: string;
+            branchId: string;
+            name: string;
+            businessDate: string;
+            fact5: string;
+            userId: string;
+            fact7: number;
+        }) => write('pms_w078', [facts.target, facts.companyId, facts.branchId, facts.name, facts.businessDate, facts.fact5, facts.userId, facts.fact7]),
+        readPmsChargeCorrections2: (facts: {
+            id: string;
+        }) => nativePmsReadFirst(PMS_RD_CHARGE_CORRECTION_PENDING, [facts.id], db),
+        insertPmsChargeCorrections: (facts: {
+            id: string;
+            companyId: string;
+            id2: string;
+            id3: string;
+            guestAccountId: string;
+            reason: string;
+            userId: string;
+            now: number;
+            now2: number;
+        }) => write('pms_w079', [facts.id, facts.companyId, facts.id2, facts.id3, facts.guestAccountId, facts.reason, facts.userId, facts.now, facts.now2]),
+        insertPmsChargeCorrectionEvents: (facts: {
+            fact0: string;
+            id: string;
+            companyId: string;
+            id2: string;
+            id3: string;
+            userId: string;
+            reason: string;
+            now: number;
+        }) => write('pms_w080', [facts.fact0, facts.id, facts.companyId, facts.id2, facts.id3, facts.userId, facts.reason, facts.now]),
+        updatePmsProperties: (facts: {
+            nextVersion: number;
+            now: number;
+            id: string;
+            companyId: string;
+            version: number;
+        }) => write('pms_w081', [facts.nextVersion, facts.now, facts.id, facts.companyId, facts.version]),
+        readPmsChargeCorrections3: (facts: {
+            id: string;
+            companyId: string;
+            id2: string;
+        }) => db.prepare("SELECT * FROM pms_charge_corrections WHERE id=? AND company_id=? AND property_id=? FOR UPDATE").bind(facts.id, facts.companyId, facts.id2).first<ChargeCorrectionRow>(),
+        updatePmsChargeCorrections: (facts: {
+            status: string;
+            correctionVersion: number;
+            userId: string;
+            reason: string;
+            reversalEntryId: string | null;
+            now: number;
+            now2: number;
+            id: string;
+            companyId: string;
+            id2: string;
+            expectedVersion: number;
+        }) => write('pms_w082', [facts.status, facts.correctionVersion, facts.userId, facts.reason, facts.reversalEntryId, facts.now, facts.now2, facts.id, facts.companyId, facts.id2, facts.expectedVersion]),
+        insertPmsChargeCorrectionEvents2: (facts: {
+            fact0: string;
+            id: string;
+            companyId: string;
+            id2: string;
+            entry_id: string;
+            status: string;
+            userId: string;
+            correctionVersion: number;
+            reason: string;
+            reversalEntryId: string | null;
+            now: number;
+        }) => write('pms_w083', [facts.fact0, facts.id, facts.companyId, facts.id2, facts.entry_id, facts.status, facts.userId, facts.correctionVersion, facts.reason, facts.reversalEntryId, facts.now]),
+        updatePmsProperties2: (facts: {
+            propertyVersionAfter: number;
+            now: number;
+            id: string;
+            companyId: string;
+            propertyVersion: number;
+        }) => write('pms_w084', [facts.propertyVersionAfter, facts.now, facts.id, facts.companyId, facts.propertyVersion]),
+        readAttachmentSets: facts => files.readAttachmentSets(facts),
+        insertPmsTransferRequests: (facts: {
+            id: `${string}-${string}-${string}-${string}-${string}`;
+            companyId: string;
+            id2: string;
+            guestAccountId: string;
+            shiftId: string;
+            kind: "deposit" | "receipt";
+            businessDate: string;
+            currency: string;
+            amount: number;
+            reference: string;
+            userId: string;
+            now: number;
+            now2: number;
+        }) => write('pms_w085', [facts.id, facts.companyId, facts.id2, facts.guestAccountId, facts.shiftId, facts.kind, facts.businessDate, facts.currency, facts.amount, facts.reference, facts.userId, facts.now, facts.now2]),
+        readPmsTransferRequests2: (facts: {
+            id: string;
+            companyId: string;
+            id2: string;
+        }) => db.prepare('SELECT * FROM pms_transfer_requests WHERE id=? AND company_id=? AND property_id=? FOR UPDATE').bind(facts.id, facts.companyId, facts.id2).first<TransferRequestRow>(),
+        updatePmsTransferRequests: (facts: {
+            userId: string;
+            fact1: number;
+            id: string;
+            version: number;
+        }) => write('pms_w086', [facts.userId, facts.fact1, facts.id, facts.version]),
+        readCompanyFxRates: (facts: {
+            companyId: string;
+            requestedCurrency: string;
+        }) => db.prepare(`SELECT id FROM (${financeLastAuditProjectionSources.company_fx_rates}) company_fx_rates WHERE company_id=? AND currency=? ORDER BY effective_date DESC,confirmed_at DESC LIMIT 1`).bind(facts.companyId, facts.requestedCurrency).first(),
+        readMarketingCampaigns: (facts: {
+            companyId: string;
+            fact1: string;
+        }) => db.prepare(`SELECT 1 FROM (${marketingProjectionSources.marketing_campaigns}) marketing_campaigns WHERE company_id=? AND code=?`).bind(facts.companyId, facts.fact1).first(),
+        readPmsTransferRequests3: (facts: {
+            id: string;
+            companyId: string;
+            id2: string;
+        }) => db.prepare('SELECT * FROM pms_transfer_requests WHERE id=? AND company_id=? AND property_id=? FOR UPDATE').bind(facts.id, facts.companyId, facts.id2).first<TransferRequestRow>(),
+        updateFinanceBankTransactions: facts => finance.updateFinanceBankTransactions(facts),
+        readPmsBookingPayments: (facts: {
+            id: string;
+        }) => db.prepare(pmsBookingPaymentIdProbeSql('property_id', 'payment_pending')).bind(facts.id).first(),
+        readPmsBookingAllocations: (facts: {
+            id: string;
+            toGuestAccountId: string;
+        }) => nativePmsReadFirst<{ id: string }>(PMS_RD_BOOKING_ALLOCATION_EXISTS, [facts.id, facts.toGuestAccountId], db),
+        readPmsBookingPayments2: (facts: {
+            reservationId: string;
+        }) => db.prepare(pmsBookingPaymentIdProbeSql('reservation_id', 'payment_pending')).bind(facts.reservationId).first(),
+        readPmsBookingPayments3: (facts: {
+            reservationId: string;
+        }) => db.prepare(pmsBookingPaymentIdProbeSql('reservation_id', 'confirmed')).bind(facts.reservationId).first(),
+        readAttachmentPublications: facts => files.readAttachmentPublications(facts),
+        readPosConnections3: facts => pos.readPosConnections3(facts),
+        updatePmsBookingEmails: (facts: {
+            fact0: number;
+            emailId: string;
+            id: string;
+        }) => write('pms_w087', [facts.fact0, facts.emailId, facts.id]),
+        updatePmsDocuments: (facts: {
+            toGuestAccountId: string;
+            id: string;
+            id2: string;
+        }) => write('pms_w088', [facts.toGuestAccountId, facts.id, facts.id2]),
+        updatePmsTransferRequests2: (facts: {
+            userId: string;
+            matchedBankId: string;
+            id: string;
+            id2: string;
+            fact4: number;
+            id3: string;
+        }) => write('pms_w089', [facts.userId, facts.matchedBankId, facts.id, facts.id2, facts.fact4, facts.id3]),
+        updateFinanceBankTransactions2: facts => finance.updateFinanceBankTransactions2(facts),
+        updatePmsProperties3: (facts: {
+            name: string;
+            businessDate: string;
+            state: "setup" | "open" | "closing";
+            fact3: string;
+            version: number;
+            fact5: number;
+            id: string;
+        }) => write('pms_w090', [facts.name, facts.businessDate, facts.state, facts.fact3, facts.version, facts.fact5, facts.id]),
+        insertPmsJobs: (facts: {
+            nightJob: string;
+            id: string;
+            businessDate: string;
+            fact3: string;
+            fact4: number;
+        }) => write('pms_w091', [facts.nightJob, facts.id, facts.businessDate, facts.fact3, facts.fact4]),
+        updatePmsJobs: (facts: {
+            fact0: "pending" | "completed";
+            fact1: number;
+            id: string;
+        }) => write('pms_w092', [facts.fact0, facts.fact1, facts.id]),
+        readPmsJobs: (facts: {
+            fact0: string | null;
+            fact1: string | null;
+            fact2: string | null;
+            fact3: string | null;
+        }) => nativePmsReadAll<{
+            id: string;
+            property_id: string;
+            actor_json: string;
+        }>(PMS_RD_PENDING_JOBS, [facts.fact0, facts.fact1, facts.fact2, facts.fact3], db).then(result=>result.results),
+        readPmsProperties3: (facts: {
+            property_id: string;
+        }) => db.prepare("SELECT id FROM pms_properties WHERE id=? FOR UPDATE").bind(facts.property_id).first(),
+        updatePmsJobs2: (facts: {
+            code: string;
+            fact1: number;
+            id: string;
+        }) => write('pms_w093', [facts.code, facts.fact1, facts.id]),
+        updatePmsRecords: (facts: {
+            code: string;
+            fact1: number;
+            id: string;
+        }) => write('pms_w094', [facts.code, facts.fact1, facts.id]),
+        readContext2: () => db.prepare(PMS_WRITE_CONTEXT_SQL).bind().first(),
+        updatePmsProperties4: (facts: {
+            version: number;
+            fact1: number;
+            id: string;
+        }) => write('pms_w095', [facts.version, facts.fact1, facts.id]),
+        readContext3: () => db.prepare(PMS_WRITE_CONTEXT_SQL).bind().first(),
+        updatePmsProperties5: (facts: {
+            version: number;
+            fact1: number;
+            id: string;
+        }) => write('pms_w096', [facts.version, facts.fact1, facts.id]),
+        insertPmsRecordsBatch: (facts: Array<{
+            id: string;
+            id2: string;
+            kind: Kind;
+            fact3: string;
+            version: number;
+            updatedAt: number;
+        }>) => write('pms_w097', [JSON.stringify(facts)]),
+        readMoneyTransactionSnapshots: (facts: {
+            companyId: string;
+            fact1: string;
+            date: string;
+            fact3: string;
+        }) => db.prepare(`SELECT source_id FROM (${financeLastAuditProjectionSources.money_transaction_snapshots}) money_transaction_snapshots WHERE company_id=? AND source_type='pms_stay_price'
+        AND source_id LIKE ? AND amount_kind=? AND amount_units=?`).bind(facts.companyId, facts.fact1, facts.date, facts.fact3).all<{
+            source_id: string;
+        }>(),
+        readPmsDashboard: (arg0: string, arg1: string) => readPmsDashboard(db, actor.holdingId ? actor : { companyId }, arg0, arg1),
+        readPmsOperationsList: (arg0: string, arg1: string, arg2: {
+            view: "list";
+            section: "inventory" | "reservations" | "front-desk" | "rooms" | "housekeeping" | "guest-accounts" | "cashier" | "guests" | "night-audit";
+            page: number;
+            q: string;
+        building?: string;
+        floor?: string;
+        typeId?: string;
+            status: "" | "arrivals" | "departures" | "reserved" | "in_house" | "cancelled" | "no_show" | "completed" | "checked_out" | "payment_pending" | "confirmed" | "open" | "closed" | "reviewed" | "dirty" | "clean" | "inspected" | "running" | "blocked";
+            from?: string | undefined;
+            to?: string | undefined;
+            selectedId?: string | undefined;
+        }) => readPmsOperationsList(db, arg0, arg1, arg2),
+        readPmsCalendar: (arg0: string, arg1: string, arg2: string) => readPmsCalendar(db, arg0, arg1, arg2),
+        readPmsDetail: (arg0: string, arg1: string) => readPmsDetail(db, arg0, arg1),
+        readPmsConfiguration: (arg0: string) => readPmsConfiguration(db, arg0),
+        readAllPmsRecords: (arg0: string) => readAllPmsRecords(db, arg0),
+        readPmsInventoryCommand: (propertyId: string) => readPmsInventoryCommand(db,propertyId),
+        readPmsReservationCommand:(propertyId:string,guestId:string,source:string,externalRef:string)=>db.prepare(`
+          ${PMS_RECORDS_PROJECTION_PREFIX_SQL} WHERE property_id=? AND kind IN ('room_type','room','rate','block','item','credit')
+          UNION ALL ${PMS_RECORDS_PROJECTION_PREFIX_SQL} WHERE property_id=? AND kind='stay' AND data_json::jsonb->>'state' IN ('reserved','in_house')
+          UNION ALL ${PMS_RECORDS_PROJECTION_PREFIX_SQL} WHERE property_id=? AND kind='guest' AND id=?
+          UNION ALL ${PMS_RECORDS_PROJECTION_PREFIX_SQL} WHERE property_id=? AND kind='reservation' AND ?<>'' AND data_json::jsonb->>'source'=? AND data_json::jsonb->>'externalRef'=?
+          ORDER BY id`).bind(propertyId,propertyId,propertyId,guestId,propertyId,externalRef,source,externalRef).all<PmsStoredRecord>().then(rows=>rows.results.map(decodePmsRecord)),
+        readPmsHousekeepingCommand:(propertyId:string,targetId:string,targetKind:'task'|'room')=>nativePmsReadAll<PmsStoredRecord>(PMS_RD_HOUSEKEEPING_COMMAND, [propertyId,targetKind,targetId,propertyId], db)
+            .then(rows=>rows.results.map(decodePmsRecord)),
+        readPmsStayCommand: (propertyId, targetId, targetKind, guestId, guestAccountId, roomId) => nativePmsReadAll<PmsStoredRecord>(PMS_RD_STAY_COMMAND, [propertyId, targetId, targetKind, guestId, guestAccountId, roomId], db)
+            .then(rows => rows.results.map(decodePmsRecord)),
+        readPmsCashierCommand: (propertyId, targetId, targetKind, shiftId, userId) => nativePmsReadAll<PmsStoredRecord>(PMS_RD_CASHIER_COMMAND, [propertyId, targetId, targetKind, shiftId, userId], db)
+            .then(rows => rows.results.map(decodePmsRecord)),
+        readPmsPosCommand: (propertyId, stayId, sourceKey) => nativePmsReadAll<PmsStoredRecord>(PMS_RD_POS_COMMAND, [propertyId, stayId, sourceKey], db)
+            .then(rows => rows.results.map(decodePmsRecord)),
+        readPmsNightCommand: (propertyId, businessDate, targetId) => nativePmsReadAll<PmsStoredRecord>(PMS_RD_NIGHT_COMMAND, [propertyId, businessDate, targetId], db)
+            .then(rows => rows.results.map(decodePmsRecord)),
+        readPmsGuestCommandRecord: (propertyId: string, guestId: string) => nativePmsReadAll<PmsStoredRecord>(PMS_RD_GUEST_COMMAND_RECORD, [propertyId, guestId], db).then(rows => rows.results.map(decodePmsRecord)),
+        readPmsChoices: (id,selection) => readPmsChoices(db,id,selection),
+        readPmsSetupFacts: (arg0: string) => readPmsSetupFacts(db, actor.holdingId ? actor : { companyId }, arg0),
+        hospitalityDayControls: (arg0: string, arg1: string, arg2: string, arg3: string) => hospitalityDayControls(db, arg0, arg1, arg2, arg3),
+        prepareJournal: (arg0: WorkContext, arg1: {
+            chartId: string;
+            periodId: string;
+            entryDate: string;
+            currency: string;
+            sourceType: string;
+            sourceId: string;
+            memo: string;
+            isOpening: false;
+            lines: {
+                accountId: string;
+                debit: string;
+                credit: string;
+                dimensions: {
+                    branchId: string;
+                    propertyId: string;
+                    recordId: string;
+                };
+                description: string;
+            }[];
+        }, arg2: `${string}-${string}-${string}-${string}-${string}`, arg3: "posted") => prepareJournal(db, arg0, arg1, arg2, arg3),
+        assertProductionModuleEnabled: (arg0: string, arg1: "pms") => assertProductionModuleEnabled(db, arg0, arg1),
+        prepareAttachmentBinding: (arg0: WorkContext, arg1: {
+            attachmentSetIds: string[];
+            bindingContract: {
+                targetType: string;
+                bindingType: string;
+                contexts: {
+                    purposeKey: string;
+                    componentKind: "action";
+                    componentRef: string;
+                }[];
+            };
+            targetId: string;
+            expectedTargetVersion: number;
+            commandId: string;
+            bindingId: string;
+        }) => prepareAttachmentBinding(db, arg0, arg1),
+        preparePmsAccounting: (arg0: WorkContext, arg1: Snapshot, arg2: unknown) => preparePmsAccounting(db, arg0, arg1, arg2),
+        captureMoneySnapshots: async (actor, inputs) => {
+            const prepared = await snapshotMoneyBatch(db, actor, inputs);
+            if (prepared.statements.length) await db.batch(prepared.statements);
+        },
+        snapshotMoney: (arg0: WorkContext | {
+            companyId: string;
+        }, arg1: {
+            sourceType: string;
+            sourceId: string;
+            amountKind: string;
+            transactionDate: string;
+            currency: string;
+            currencyScale: number;
+            amountUnits: string;
+        } | {
+            sourceType: string;
+            sourceId: string;
+            amountKind: string;
+            amountUnits: string;
+            transactionDate: string;
+            currency: string;
+            currencyScale: number;
+        }) => snapshotMoney(db, arg0, arg1),
+        pmsOperationalWork: (arg0: WorkContext) => pmsOperationalWork(db, arg0),
+        snapshotMoneyReversal: (arg0: {
+            companyId: string;
+        }, arg1: {
+            amountKind: string;
+            amountUnits: string;
+            original: {
+                sourceType: string;
+                sourceId: string;
+                amountKind: string;
+            };
+            sourceType: string;
+            sourceId: string;
+            transactionDate: string;
+        } | {
+            amountUnits: string;
+            original: {
+                sourceType: string;
+                sourceId: string;
+                amountKind: string;
+            };
+            sourceType: string;
+            sourceId: string;
+            amountKind: string;
+            transactionDate: string;
+        }) => snapshotMoneyReversal(db, arg0, arg1),
+        snapshotMoneyCarry: (arg0: {
+            companyId: string;
+        }, arg1: {
+            amountUnits: string;
+            allocationOffsetUnits: string;
+            original: {
+                sourceType: string;
+                sourceId: string;
+                amountKind: string;
+            };
+            sourceType: string;
+            sourceId: string;
+            amountKind: string;
+            transactionDate: string;
+        } | {
+            amountUnits: string;
+            original: {
+                sourceType: string;
+                sourceId: string;
+                amountKind: string;
+            };
+            sourceType: string;
+            sourceId: string;
+            amountKind: string;
+            transactionDate: string;
+        } | {
+            amountKind: string;
+            amountUnits: string;
+            original: {
+                sourceType: string;
+                sourceId: string;
+                amountKind: string;
+            };
+            sourceType: string;
+            sourceId: string;
+            transactionDate: string;
+        }) => snapshotMoneyCarry(db, arg0, arg1), transactional: isTransactionalSqlDatabase(db), transaction: (work,propertyLockId,command) => { if (!isTransactionalSqlDatabase(db))
+            throw new Error("POSTGRES_REQUIRED"); const options=propertyLockId?{sessionLock:{namespace:'erpx:pms:property',key:propertyLockId},preferIndexedReads:true,pipelineBatches:true}:undefined;
+            return command ? withPmsPurchasedCommand(db,command,tx=>work(unit(tx, companyId, actor)),options) : db.transaction(tx => work(unit(tx, companyId, actor)),options); }, batch: steps => db.batch(steps), replay: (...args) => replayCommand(db, ...args), execute: (...args) => executeCommand(db, ...args)
+    };
+}
+const application = createPmsApplication<SqlStatement>({ forActor: async (actor) => unit((await holdingResources(actor.holdingId)).write, actor.companyId, actor), clock: { now: () => Date.now() }, uuid: randomUUID, hash: value => createHash("sha256").update(value).digest("hex"), require: requirePermission, error: (status, code, message,details) => new ApiError(status, code, message,details), isBusinessError: (error): error is ApiError => error instanceof ApiError, environment: key => process.env[key] });
+export const pmsPermissions = application.pmsPermissions;
+/** Private owner bridge for other locked PMS command snapshots. */
+export function hydratePmsReceiptAllocationCredits(db:SqlDatabase,s:Snapshot){return application.hydrateReceiptAllocationCredits(unit(db, s.property.companyId),s);}
+export function loadPms(db: SqlDatabase, actor: WorkContext, id: string, lock = false, selection?: PmsReadSelection) { return application.loadPms(unit(db, actor.companyId, actor), actor, id, lock, selection); }
+export async function pmsWorkspace(actor: WorkContext, propertyId?: string, includeDayControls = false, frontMode = false, selection?: PmsReadSelection) {
+    requirePermission(actor, "pms.read");
+    const mode = await pmsPackageEnforcementMode(), purchases = mode === "disabled" ? undefined
+      : await readPurchasedAccesses(async () => (await holdingResources(actor.holdingId)).write, mode, actor.companyId,
+        ["pms.reservations", "pms.front-desk", "pms.rooms", "pms.housekeeping", "pms.guest-accounts", "pms.night-audit", "pms.minibar", "pms.linen", "inventory.stock-core", "finance.hotel-posting"]);
+    if (purchases && !purchases["pms.front-desk"].history) throw new ApiError(403, "PACKAGE_REQUIRED", "This package does not permit the requested Hotel workspace.");
+    const data: Awaited<ReturnType<typeof application.pmsWorkspace>> & { purchases?: Record<string, PurchasedAccess> } = await application.pmsWorkspace(actor, propertyId, includeDayControls, frontMode, selection);
+    if (purchases) data.purchases = purchases;
+    return data;
+}
+export function effects(db: SqlDatabase, actor: WorkContext, s: Snapshot, e: Effects) { return application.effects(unit(db, actor.companyId, actor), actor, s, e); }
+export function pmsCommand(db: TransactionalSqlDatabase, actor: WorkContext, raw: unknown, key: string, worker = false) { return application.pmsCommand(unit(db, actor.companyId, actor), actor, raw, key, worker); }
+export function drainPms(db: TransactionalSqlDatabase, propertyId?: string, jobId?: string) { return application.drainPms(unit(db, ''), propertyId, jobId); }
+export async function pmsWork(actor: WorkContext): Promise<import("@erpx/work-projection-ui/lib/work-item").WorkItem[]> {
+    if (!(hasPermission(actor, "pms.read") || hasPermission(actor, "finance.read") && hasPermission(actor, "pms.reports")) || actor.departmentId || actor.beta) return [];
+    const mode = await pmsPackageEnforcementMode(), access = mode === "disabled" ? undefined
+      : (await readPurchasedAccesses(async () => (await holdingResources(actor.holdingId)).write, mode, actor.companyId, ["pms.front-desk"]))["pms.front-desk"];
+    if (access && !access.history) return [];
+    const rows = [...await application.pmsWork(actor), ...await roomChargeReversalWork(actor, "pms")];
+    return access && !access.settleExisting ? rows.map(row => ({ ...row, canAct: false, queue: "waiting" })) : rows;
+}
+export function applyPosRoomCharge(tx: SqlDatabase, actor: WorkContext, raw: z.infer<typeof roomChargeSchema>, expectedPropertyVersion: number) { return application.applyPosRoomCharge(unit(tx, actor.companyId, actor), actor, raw, expectedPropertyVersion); }
+export function reversePosRoomCharge(tx: SqlDatabase, actor: WorkContext, input: {
+    propertyId: string;
+    sourceKey: string;
+    expectedPropertyVersion: number;
+    reason: string;
+    total: number;
+}) { return application.reversePosRoomCharge(unit(tx, actor.companyId, actor), actor, input); }
+export function persistPmsRecords(tx: SqlDatabase, s: Snapshot, original: Map<string, string>) { return application.persistPmsRecords(unit(tx, s.property.companyId), s, original); }
+export type PmsWorkspace = Awaited<ReturnType<typeof pmsWorkspace>>;

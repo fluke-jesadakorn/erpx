@@ -1,17 +1,17 @@
-use erpx_server_identity_access::public::account_contracts::*;
-use erpx_server_identity_access::public::account_device_http::DeviceAccountsResponse;
-use erpx_server_identity_access::public::account_security_http::*;
+use erpx_identity_access_server::public::account_contracts::*;
+use erpx_identity_access_server::public::account_device_http::DeviceAccountsResponse;
+use erpx_identity_access_server::public::account_security_http::*;
 use ts_rs::{Config, TS};
 
 fn main() {
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
     if arguments == ["--openapi"] {
-        let mut document = erpx_server_identity_access::public::account_openapi();
-        document.merge(erpx_server_identity_access::public::credentials_openapi());
-        document.merge(erpx_server_identity_access::public::account_sso::sso_openapi());
-        document.merge(erpx_server_identity_access::public::invitation_openapi());
+        let mut document = erpx_identity_access_server::public::account_openapi();
+        document.merge(erpx_identity_access_server::public::credentials_openapi());
+        document.merge(erpx_identity_access_server::public::account_sso::sso_openapi());
+        document.merge(erpx_identity_access_server::public::invitation_openapi());
         document.merge(security_openapi());
-        document.merge(erpx_server_identity_access::public::directory::directory_openapi());
+        document.merge(erpx_identity_access_server::public::directory::directory_openapi());
         document.info.title = "ERPX native Account authentication".into();
         document.info.description=Some("Native Account authentication, credential lifecycle, TOTP and personal session security. Unmounted during migration; runtime/provider assembly and live delivery acceptance, invitation administration/existing-account linking, Directory and complete owner authorization remain pending. This document is not runtime or release acceptance.".into());
         println!(

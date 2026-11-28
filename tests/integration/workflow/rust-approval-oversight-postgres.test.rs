@@ -1,12 +1,12 @@
 //! Real migrated Holding PostgreSQL for the Workflow approval oversight read.
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{AssignmentId, BusinessError, CompanyId, HoldingId, UserId};
-use erpx_server_workflow::public::approval_oversight::{
+use erpx_platform_shared_server::public::{AssignmentId, BusinessError, CompanyId, HoldingId, UserId};
+use erpx_workflow_server::public::approval_oversight::{
     ApprovalEvidenceQuery, ApprovalOversightActor, PgApprovalOversight, approval_evidence,
     approval_queue,
 };

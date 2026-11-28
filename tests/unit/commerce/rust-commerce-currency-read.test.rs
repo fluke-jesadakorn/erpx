@@ -1,12 +1,12 @@
 //! Native Commerce currency read: parity and fail-closed coverage for the
 //! owner-local successor of `adapters/records-request-page-owned-facts.ts`.
 
-use erpx_server_commerce::public::records_request_page_source::{
+use erpx_commerce_server::public::records_request_page_source::{
     CommerceCurrencyFacts, CommerceCurrencyRead, CommerceCurrencyReadFuture,
     CommerceCurrencyReadTarget, commerce_currency_read_router,
     commerce_currency_read_router_for_targets,
 };
-use erpx_server_runtime::public::http_support::serve;
+use erpx_platform_runtime_server::public::http_support::serve;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 

@@ -2,8 +2,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
-import { qualitySourceArmHead } from '../../../packages/server-quality/src/adapters/quality-source-arm-head';
-import { RD_HOLD_EXISTS, RD_SPEC_EXISTS } from '../../../packages/server-quality/src/adapters/native-quality-read';
+import { qualitySourceArmHead } from '../../../modules/quality/server/src/adapters/quality-source-arm-head';
+import { RD_HOLD_EXISTS, RD_SPEC_EXISTS } from '../../../modules/quality/server/src/adapters/native-quality-read';
 
 const source = (path: string) => resolve(process.cwd(), path);
 const read = (path: string) => readFileSync(source(path), 'utf8');
@@ -33,7 +33,7 @@ describe('quality record source id-exists family retirement (r30)', () => {
   it('the two unaliased probes are closed one-bind native kinds', () => {
     expect(RD_HOLD_EXISTS).toBe('quality_rd_hold_exists');
     expect(RD_SPEC_EXISTS).toBe('quality_rd_spec_exists');
-    const plans = read('packages/server-quality/src/adapters/native_quality_read_sql.rs');
+    const plans = read('modules/quality/server/src/adapters/native_quality_read_sql.rs');
     expect(plans).toContain(`"${pre[3]}"`);
     expect(plans).toContain(`"${pre[4]}"`);
     expect(plans).toContain('pub const RD_HOLD_EXISTS: &str = "quality_rd_hold_exists";');
@@ -41,7 +41,7 @@ describe('quality record source id-exists family retirement (r30)', () => {
   });
 
   it('the adapter drops the deleted helper but keeps three arm heads and two native reads', () => {
-    const adapter = read('packages/server-quality/src/adapters/record-purchases.ts');
+    const adapter = read('modules/quality/server/src/adapters/record-purchases.ts');
     expect(adapter).not.toContain('quality-record-source-sql');
     expect(adapter).not.toContain('qualitySourceIdExistsSql');
     expect(adapter.match(/qualitySourceArmHead\(/g)).toHaveLength(6);
@@ -53,17 +53,17 @@ describe('quality record source id-exists family retirement (r30)', () => {
   });
 
   it('prior read families, locks and the read-only head stay independent', () => {
-    const head = read('packages/server-quality/src/adapters/quality-source-arm-head.ts');
+    const head = read('modules/quality/server/src/adapters/quality-source-arm-head.ts');
     expect(head).toContain('evidenceHead(columns, ` FROM ${source}`, predicate)');
     expect(head.match(/SELECT /g) ?? []).toHaveLength(0);
     expect(head).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
-    const adapter = read('packages/server-quality/src/adapters/record-purchases.ts');
+    const adapter = read('modules/quality/server/src/adapters/record-purchases.ts');
     expect(adapter).toContain('qualityClockCte("quality_source_clock")');
     expect(adapter).toContain('qualityAlertHoldId');
-    expect(read('packages/server-quality/src/adapters/purchase-sources.ts')).toContain('qualityPurchaseSourceReadLocks');
+    expect(read('modules/quality/server/src/adapters/purchase-sources.ts')).toContain('qualityPurchaseSourceReadLocks');
     for (const name of ['quality-child-agg-sql', 'quality-receipt-guard-sql']) {
-      expect(read(`packages/server-quality/src/adapters/${name}.ts`).match(/SELECT /g) ?? []).toHaveLength(0);
-      expect(read('packages/server-quality/src/adapters/quality-source-rows-sql.ts').match(/SELECT /g) ?? []).toHaveLength(0); // r37 fold
+      expect(read(`modules/quality/server/src/adapters/${name}.ts`).match(/SELECT /g) ?? []).toHaveLength(0);
+      expect(read('modules/quality/server/src/adapters/quality-source-rows-sql.ts').match(/SELECT /g) ?? []).toHaveLength(0); // r37 fold
     }
   });
 });

@@ -12,11 +12,11 @@ import {
   legalLawSourceCheckUnchangedSql,
   legalCounselConflictClearedSql,
   legalCounselApprovedFeesSql,
-} from '../../../packages/server-legal/src/adapters/legal-read-tail-r56-sources';
+} from '../../../modules/legal/server/src/adapters/legal-read-tail-r56-sources';
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
-const srcRoot = resolve(__dirname, '../../../packages/server-legal/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-legal/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/legal/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/legal/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 /** Independent byte + SHA oracles captured from the inline holders at HEAD
  * (BEFORE=153) before they were routed through the closed r56 heads. The

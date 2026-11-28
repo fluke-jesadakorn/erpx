@@ -8,12 +8,12 @@ import {
 import {
   getWorkCapabilities,
   hasCoveredTeam,
-} from "@erpx/server-work_projection/public/work-capabilities";
-import {serviceTeamSchema} from '@erpx/server-support/public/service-teams';
+} from "@erpx/work-projection-server/public/work-capabilities";
+import {serviceTeamSchema} from '@erpx/support-server/public/service-teams';
 import {seedServiceTeam} from '../../support/helpers/service-team-seed';
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
 
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));

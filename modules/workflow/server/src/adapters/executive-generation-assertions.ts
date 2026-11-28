@@ -1,0 +1,2 @@
+import type {SqlDatabase} from '@erpx/platform-runtime-server/public/runtime/types';import { nativeClearCommandAssertions } from '@erpx/collaboration-server/adapters/native-command-assertions';
+export function clearExecutiveGenerationAssertion(database:SqlDatabase,key:string,companyId:string){return nativeClearCommandAssertions(database,companyId,key);}

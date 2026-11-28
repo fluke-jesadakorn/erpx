@@ -1,7 +1,7 @@
-import { getRuntime, closeRuntime } from "@erpx/server-runtime/adapters/runtime/env";
-import { resourceSlots, registeredResources } from "@erpx/feature-runtime/lib/holding-registry";
-import { inspectMigrations } from "@erpx/server-runtime/adapters/runtime/migrations";
-import { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
+import { getRuntime, closeRuntime } from "@erpx/platform-runtime-server/adapters/runtime/env";
+import { resourceSlots, registeredResources } from "@erpx/platform-runtime-ui/lib/holding-registry";
+import { inspectMigrations } from "@erpx/platform-runtime-server/adapters/runtime/migrations";
+import { PostgresDatabase } from "@erpx/platform-runtime-server/adapters/runtime/postgres";
 
 const env = getRuntime();
 try {

@@ -12,7 +12,7 @@ import {
   nativeCommerceInvoiceConfigured,
   nativeCommerceInvoiceSalesLines,
   nativeCommerceInvoiceTarget,
-} from '../../../packages/server-commerce/src/adapters/native-lane-13/client';
+} from '../../../modules/commerce/server/src/adapters/native-lane-13/client';
 
 const host = 'acme.example.test';
 const origin = `https://${host}`;
@@ -142,7 +142,7 @@ describe('native Commerce entrypoint read contract', () => {
 
   it('retired executable TypeScript SQL; retained only the shared projection constants', () => {
     const source = readFileSync(
-      new URL('../../../packages/server-commerce/src/adapters/entrypoint-facts.ts', import.meta.url),
+      new URL('../../../modules/commerce/server/src/adapters/entrypoint-facts.ts', import.meta.url),
       'utf8',
     );
     expect((source.match(/SELECT /g) ?? []).length).toBe(3);
@@ -309,7 +309,7 @@ describe('native Commerce invoice/delivery contract (multi-holding)', () => {
 
   it('deleted the executable TypeScript SQL for both retired invoice reads', () => {
     const adapters = (file: string) =>
-      new URL(`../../../packages/server-commerce/src/adapters/${file}`, import.meta.url);
+      new URL(`../../../modules/commerce/server/src/adapters/${file}`, import.meta.url);
     const target = readFileSync(adapters('invoice-command-policy.ts'), 'utf8');
     expect((target.match(/SELECT /g) ?? []).length).toBe(0);
     expect(target).toContain('nativeCommerceInvoiceTarget');

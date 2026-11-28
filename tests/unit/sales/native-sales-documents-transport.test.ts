@@ -1,15 +1,15 @@
 import {describe,it,expect,vi} from 'vitest';
 vi.mock('server-only',()=>({}));
 const orderFacts = vi.hoisted(() => vi.fn());
-vi.mock('@erpx/server-commerce/public/entrypoint-facts', () => ({
+vi.mock('@erpx/commerce-server/public/entrypoint-facts', () => ({
   commerceEntrypointFacts: () => ({ orderFacts }),
 }));
-vi.mock('@erpx/server-runtime/public/runtime', () => ({
+vi.mock('@erpx/platform-runtime-server/public/runtime', () => ({
   holdingResources: async () => ({ write: {} }),
 }));
-import { nativeCommerceOrderTransition } from '../../../packages/feature-sales/src/public/native-commerce-orders-page';
-import { crmAcknowledgement, createCRMCommandFetch } from '../../../packages/feature-crm/src/lib/command-fetch';
-import { crmCommandTransport } from '../../../packages/feature-crm/src/lib/oasis-command-transport';
+import { nativeCommerceOrderTransition } from '../../../modules/sales/ui/src/public/native-commerce-orders-page';
+import { crmAcknowledgement, createCRMCommandFetch } from '../../../modules/crm/ui/src/lib/command-fetch';
+import { crmCommandTransport } from '../../../modules/crm/ui/src/lib/oasis-command-transport';
 import {
   createNativeSalesDocumentsClient,
   createNativeSalesCancellationClient,
@@ -21,7 +21,7 @@ import {
   nativeSalesOrderCancellationConfiguration,
   NativeSalesDocumentsError,
   type NativeSalesDocumentsPageContext,
-} from '../../../packages/feature-sales/src/public/native-sales-documents';
+} from '../../../modules/sales/ui/src/public/native-sales-documents';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44994',
@@ -248,7 +248,7 @@ describe('native Sales document transport',()=>{
  });
 
  it('maps transport failures to the retained page/route status policy',async()=>{
-  const {nativeSalesDocumentsFailure}=await import('../../../packages/feature-sales/src/public/native-sales-documents-page');
+  const {nativeSalesDocumentsFailure}=await import('../../../modules/sales/ui/src/public/native-sales-documents-page');
   expect(nativeSalesDocumentsFailure(new NativeSalesDocumentsError('NATIVE_SALES_DOCUMENTS_CONTEXT_CHANGED')))
     .toMatchObject({status:409,code:'WORK_CONTEXT_CHANGED'});
   expect(nativeSalesDocumentsFailure(new NativeSalesDocumentsError('NATIVE_SALES_DOCUMENTS_REQUEST_INVALID')))

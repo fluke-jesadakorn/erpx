@@ -5,15 +5,15 @@
   "description": "Retained B0 staff_notifications row images for native Maintenance notification derivation. The TypeScript writer is retired: sql/parameters below are historical B0 statement text produced by that deleted module and are no longer executable from a retained source.",
   "sources": [
     {
-      "path": "packages/server-maintenance/src/adapters/collaboration-notification-snapshot-sources.ts",
+      "path": "modules/maintenance/server/src/adapters/collaboration-notification-snapshot-sources.ts",
       "sha256": "a55503467a1a39e2679e7270a0ffbe96f6b1a351cfe5e130c1867bb2333d0ea1"
     }
   ],
   "retiredSources": [
     {
-      "path": "packages/server-collaboration/src/adapters/maintenance-notifications.ts",
+      "path": "modules/collaboration/server/src/adapters/maintenance-notifications.ts",
       "sha256": "ed8ee0a2b1907489fa68e7f4e50595e3fa67869ad594e1380617d692ef654978",
-      "replacedBy": "packages/server-collaboration/src/adapters/maintenance_notifications.rs",
+      "replacedBy": "modules/collaboration/server/src/adapters/maintenance_notifications.rs",
       "removalTaskId": "retire-ts-maintenance-notification-writer",
       "removalCondition": "native prepare_maintenance_notification/RetainedMaintenanceNotification images own the staff_notifications insert and Inbox images (met)"
     }

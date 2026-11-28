@@ -1,6 +1,6 @@
 #![allow(dead_code, reason="Path anchors generate OpenAPI metadata; runtime handlers live in composition")]
-use erpx_service::field_service_reservation_read::FieldServiceRenderedContext;
-use erpx_service::service_initial_physical_stock_contracts::*;
+use erpx_platform_composition::field_service_reservation_read::FieldServiceRenderedContext;
+use erpx_platform_composition::service_initial_physical_stock_contracts::*;
 use ts_rs::{Config, TS};
 #[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/field-service/initial-physical-stock",params(("holding_slug"=String,Path), ("warehouseId"=Option<String>,Query), ("productId"=Option<String>,Query), ("countDate"=Option<String>,Query)),responses((status=200,body=ServiceInitialCountReadResponse,description="Current authorized Service Count workspace")))]
 fn workspace() {}

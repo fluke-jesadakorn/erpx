@@ -2,9 +2,9 @@ import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { workScopeSourceCte } from '../../../packages/server-collaboration/src/adapters/read-tail-sql';
+import { workScopeSourceCte } from '../../../modules/collaboration/server/src/adapters/read-tail-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-collaboration/src');
+const srcRoot = resolve(__dirname, '../../../modules/collaboration/server/src');
 const adapters = resolve(srcRoot, 'adapters');
 const src = (f: string) => readFileSync(resolve(adapters, f), 'utf8');
 const sha = (value: string) => createHash('sha256').update(value).digest('hex');

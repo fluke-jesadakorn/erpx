@@ -3,7 +3,7 @@
 #[path = "rust-account-revocation.rs"]
 pub mod account;
 use account::{ACME, NORTHSTAR, System};
-use erpx_server_identity_access::public::{
+use erpx_identity_access_server::public::{
     AccountAuthentication, AuthenticationSecrets, DeviceProof, PresentedSecrets, RequestAudience,
     SecretPurpose, SystemAuthenticationSecrets,
     effective_authority::{
@@ -11,7 +11,7 @@ use erpx_server_identity_access::public::{
     },
     work_context::{ExpectedWorkSelection, HoldingWorkspaceRequest},
 };
-use erpx_server_shared::public::{AssignmentId, BusinessError, Clock, CompanyId, HoldingId};
+use erpx_platform_shared_server::public::{AssignmentId, BusinessError, Clock, CompanyId, HoldingId};
 use std::sync::Arc;
 
 pub struct PreparedAccountQueuedAuthority {

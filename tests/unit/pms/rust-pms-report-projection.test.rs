@@ -1,15 +1,15 @@
 //! Native PMS dashboard/report read domain and application facts. No database,
 //! HTTP, browser or receipt acceptance is inferred here.
 mod domain {
-    #[path = "../../../../packages/server-pms/src/domain/night_audit.rs"]
+    #[path = "../../../../modules/pms/server/src/domain/night_audit.rs"]
     pub mod night_audit;
-    #[path = "../../../../packages/server-pms/src/domain/report_projection.rs"]
+    #[path = "../../../../modules/pms/server/src/domain/report_projection.rs"]
     pub mod report_projection;
-    #[path = "../../../../packages/server-pms/src/domain/room_board.rs"]
+    #[path = "../../../../modules/pms/server/src/domain/room_board.rs"]
     pub mod room_board;
 }
 mod application {
-    #[path = "../../../../packages/server-pms/src/application/report_projection.rs"]
+    #[path = "../../../../modules/pms/server/src/application/report_projection.rs"]
     pub mod report_projection;
 }
 
@@ -182,7 +182,7 @@ impl Fixture {
     }
 }
 
-type Error = erpx_server_shared::public::BusinessError;
+type Error = erpx_platform_shared_server::public::BusinessError;
 
 impl PmsReportRepository for Fixture {
     type Error = Error;

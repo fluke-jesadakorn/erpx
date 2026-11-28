@@ -2,11 +2,11 @@ import { describe, expect, test } from 'vitest';
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { finalRootOwnerProjectionSources as commerce } from '@erpx/server-commerce/public/final-root-owner-projection-sources';
-import { selectProjection } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r40-sources';
-import { portalBindingOrderCore } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r44-sources';
+import { finalRootOwnerProjectionSources as commerce } from '@erpx/commerce-server/public/final-root-owner-projection-sources';
+import { selectProjection } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-tail-r40-sources';
+import { portalBindingOrderCore } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-tail-r44-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-customer_authority/src');
+const srcRoot = resolve(__dirname, '../../../modules/customer-authority/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const publicSrc = (name: string) => readFileSync(resolve(srcRoot, 'public', name), 'utf8');
 const sha = (sql: string) => createHash('sha256').update(sql).digest('hex');

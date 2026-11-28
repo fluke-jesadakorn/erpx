@@ -10,15 +10,15 @@
  * delete once the browser simulation seeds notifications through the native
  * Customer Authority / Collaboration inbox owner directly.
  */
-import {collaborationNotificationSnapshotSources as customerauthoritySnapshotSources} from '@erpx/server-customer_authority/public/collaboration-notification-snapshot-sources';
-import {collaborationNotificationSnapshotSources as identityaccessSnapshotSources} from '@erpx/server-identity_access/public/collaboration-notification-snapshot-sources';
+import {collaborationNotificationSnapshotSources as customerauthoritySnapshotSources} from '@erpx/customer-authority-server/public/collaboration-notification-snapshot-sources';
+import {collaborationNotificationSnapshotSources as identityaccessSnapshotSources} from '@erpx/identity-access-server/public/collaboration-notification-snapshot-sources';
 const customerauthoritySources=customerauthoritySnapshotSources();
 const identityaccessSources=identityaccessSnapshotSources();
 // Native-owned Commerce projection (retired TS source): fixed commerce_orders join.
 const commerceOrdersJoin = 'JOIN (SELECT "id", "company_id", "branch_id", "department_id", "kind", "number", "party_id", "warehouse_id", "currency", "order_date", "due_date", "note", "state", "subtotal_minor", "tax_minor", "source_id", "version", "created_by", "approved_by", "created_at", "updated_at", "price_list_id", "price_list_version", "discount_reason", "discount_approval_required", "discount_approved_by", "discount_approved_at" FROM commerce_orders) o';
 import "server-only";
-import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
-import {salesRecipientEligibility} from "@erpx/server-sales/public/sales-recipient";
+import type {SqlDatabase} from "@erpx/platform-runtime-server/public/runtime/types";
+import {salesRecipientEligibility} from "@erpx/sales-server/public/sales-recipient";
 const eligible=salesRecipientEligibility().replaceAll('c.owner_id','m.user_id');
 const reviewers=`m.company_id=o.company_id AND m.user_id<>b.created_by AND iam_assignment_active(m.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(m.role,m.company_id,'commerce.approve') AND (m.scope_kind='holding' OR (m.scope_kind='branch' AND m.scope_node_id=o.branch_id) OR (m.scope_kind='department' AND m.scope_node_id=o.department_id)) AND ${eligible}`;
 

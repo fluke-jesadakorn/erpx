@@ -1,10 +1,10 @@
 //! Portable Identity Access assignment policy, workspace and withdrawal tests.
-use erpx_server_identity_access::public::assignment::{
+use erpx_identity_access_server::public::assignment::{
     AssignmentActor, AssignmentFuture, AssignmentGuardFacts, AssignmentReceipt,
     AssignmentRepository, AssignmentRevocation, AssignmentRoleRow, AssignmentRow, ReceiptSnapshot,
     RevocationPlan, assignment_workspace, revoke_assignment,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, HoldingId, RecordId, UserId,
 };
 use serde_json::{Value, json};
@@ -164,7 +164,7 @@ impl AssignmentRepository for Fake {
     ) -> AssignmentFuture<'a, Value, Self::Error> {
         Box::pin(async move {
             if self.fail_commit {
-                return Err(erpx_server_identity_access::public::assignment::readback_invalid());
+                return Err(erpx_identity_access_server::public::assignment::readback_invalid());
             }
             self.commits.push(plan.clone());
             Ok(AssignmentReceipt::revoked(plan.id.clone(), plan.assignment_version).to_wire())

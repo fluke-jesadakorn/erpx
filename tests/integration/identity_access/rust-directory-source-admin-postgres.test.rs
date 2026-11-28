@@ -4,12 +4,12 @@
 )]
 #[path = "../../support/rust-directory-source-admin.rs"]
 mod fixture;
-use erpx_server_identity_access::public::effective_authority::WorkAuthorizationRequest;
-use erpx_server_identity_access::public::{directory::*, *};
-use erpx_server_runtime::public::postgres::PgTransactionError;
-use erpx_server_shared::public::BusinessError;
-use erpx_server_shared::public::{Clock, CommandKey, RecordId};
-use erpx_service::directory_source_administration::*;
+use erpx_identity_access_server::public::effective_authority::WorkAuthorizationRequest;
+use erpx_identity_access_server::public::{directory::*, *};
+use erpx_platform_runtime_server::public::postgres::PgTransactionError;
+use erpx_platform_shared_server::public::BusinessError;
+use erpx_platform_shared_server::public::{Clock, CommandKey, RecordId};
+use erpx_platform_composition::directory_source_administration::*;
 use fixture::*;
 use std::{sync::Arc, time::Duration};
 fn denied<T>(result: Result<T, PgTransactionError<BusinessError>>, code: &str) {
@@ -31,7 +31,7 @@ async fn proposed(p: &Prepared, key: &str) -> DirectorySourceReviewResult {
         .unwrap()
 }
 async fn waiting(
-    pool: &erpx_server_runtime::public::postgres::DatabasePool,
+    pool: &erpx_platform_runtime_server::public::postgres::DatabasePool,
     table: &str,
     advisory: bool,
 ) {
@@ -443,7 +443,7 @@ async fn replay_cannot_replace_the_original_review_connection_with_another_curre
 
 #[test]
 fn source_review_reasons_match_the_unchanged_pinned_node_zod_schema() {
-    use erpx_server_identity_access::public::directory::normalize_directory_source_reason;
+    use erpx_identity_access_server::public::directory::normalize_directory_source_reason;
     let fixture: serde_json::Value = serde_json::from_str(include_str!(
         "../../../fixtures/identity_access/directory/source-review-reasons.v1.json"
     ))

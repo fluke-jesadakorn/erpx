@@ -4,19 +4,19 @@
 //! exact Host/Holding/origin/Idempotency-Key/body policy.
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_organization::public::organization_nodes::{
+use erpx_organization_server::public::organization_nodes::{
     OrganizationAuthority, OrganizationCommand, OrganizationCommandActor,
 };
-use erpx_server_organization::public::organization_setup::*;
-use erpx_server_organization::public::organization_setup_http::*;
-use erpx_server_runtime::public::http_support::{
+use erpx_organization_server::public::organization_setup::*;
+use erpx_organization_server::public::organization_setup_http::*;
+use erpx_platform_runtime_server::public::http_support::{
     HeaderMap, HeaderValue, Response, StatusCode, body::to_bytes, header, serde_json,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, Clock, CompanyId, FailureKind, HoldingId, TimestampMillis, UserId,
 };
 use serde_json::{Value, json};

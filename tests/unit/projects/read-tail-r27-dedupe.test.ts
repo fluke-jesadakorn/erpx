@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { projectMemberExistsSql } from '../../../packages/server-projects/src/adapters/read-tail-r27';
+import { projectMemberExistsSql } from '../../../modules/projects/server/src/adapters/read-tail-r27';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-projects/src');
+const srcRoot = resolve(__dirname, '../../../modules/projects/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 // Verbatim pre-dedupe guards from HEAD before the r27 edit. These are

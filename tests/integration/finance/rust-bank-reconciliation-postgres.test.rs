@@ -3,9 +3,9 @@
 #![allow(dead_code)]
 #[path = "../../support/finance/review-composition.rs"]
 mod review;
-use erpx_server_finance::public::bank_reconciliation::*;
-use erpx_server_finance::public::FinanceActor;
-use erpx_server_shared::public::{AssignmentId, Clock, CompanyId, HoldingId, UserId};
+use erpx_finance_server::public::bank_reconciliation::*;
+use erpx_finance_server::public::FinanceActor;
+use erpx_platform_shared_server::public::{AssignmentId, Clock, CompanyId, HoldingId, UserId};
 
 fn actor(user: &str, company: &str) -> FinanceActor {
     FinanceActor {
@@ -175,7 +175,7 @@ async fn import_rejects_unbalanced_duplicate_and_foreign_scope() {
                 .await
                 .unwrap();
             match prepare_bank_import(&mut tx, &maker, "bank-invalid", &input, clock.as_ref()).await {
-                Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+                Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                     assert_eq!(error.code, code)
                 }
                 Err(other) => panic!("expected {code}, got {other:?}"),
@@ -190,7 +190,7 @@ async fn import_rejects_unbalanced_duplicate_and_foreign_scope() {
             .unwrap();
         let foreign = actor("fixture-a", "foreign");
         match prepare_bank_import(&mut tx, &foreign, "bank-foreign", &import("foreign"), clock.as_ref()).await {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                 assert_eq!(error.code, "BANK_ACCOUNT_INVALID")
             }
             Err(other) => panic!("expected BANK_ACCOUNT_INVALID, got {other:?}"),

@@ -10,19 +10,19 @@
  * retained Maintenance/Finance read oracles keep real source rows. It is not
  * production code and must never run in a request path.
  */
-import {inventoryQualityHoldReadSource} from '@erpx/server-quality/public/inventory-hold-read-source';
-import {inventoryReadProjection as inventorycommerceProjection} from '@erpx/server-commerce/public/inventory-read-projections';
+import {inventoryQualityHoldReadSource} from '@erpx/quality-server/public/inventory-hold-read-source';
+import {inventoryReadProjection as inventorycommerceProjection} from '@erpx/commerce-server/public/inventory-read-projections';
 import 'server-only';
 
-import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
-import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {ApiError} from "@erpx/server-runtime/public/http";
-import {prepareJournal} from '@erpx/server-finance/public/journal-planning';
-import {snapshotMoney} from '@erpx/server-finance/public/company-money';
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
+import type {SqlDatabase,SqlStatement} from "@erpx/platform-runtime-server/public/runtime/types";
+import {assertion} from "@erpx/workflow-server/public/command-assertions";
+import {ApiError} from "@erpx/platform-runtime-server/public/http";
+import {prepareJournal} from '@erpx/finance-server/public/journal-planning';
+import {snapshotMoney} from '@erpx/finance-server/public/company-money';
 
-import {BusinessRuleError} from '@erpx/server-shared/index';import {createInventoryConsumptionApplication,type InventoryConsumptionRepository} from '@erpx/server-inventory/application/consumption';import type {ConsumptionInput} from '@erpx/server-inventory/domain/consumption-input';import {inventoryConsumptionSources as commerceSources} from '@erpx/server-commerce/public/inventory-consumption-sources';import {inventoryConsumptionSources as financeSources} from '@erpx/server-finance/public/inventory-consumption-sources';
-export {consumptionLotSchema} from '@erpx/server-inventory/domain/consumption';
+import {BusinessRuleError} from '@erpx/platform-shared-server/index';import {createInventoryConsumptionApplication,type InventoryConsumptionRepository} from '@erpx/inventory-server/application/consumption';import type {ConsumptionInput} from '@erpx/inventory-server/domain/consumption-input';import {inventoryConsumptionSources as commerceSources} from '@erpx/commerce-server/public/inventory-consumption-sources';import {inventoryConsumptionSources as financeSources} from '@erpx/finance-server/public/inventory-consumption-sources';
+export {consumptionLotSchema} from '@erpx/inventory-server/domain/consumption';
 async function inward<T>(action:()=>Promise<T>){try{return await action();}catch(error){if(error instanceof ApiError)throw new BusinessRuleError(error.status,error.code,error.message);throw error;}}
 async function exposed<T>(action:()=>Promise<T>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 function application(db:SqlDatabase){const repository:InventoryConsumptionRepository<SqlStatement>={async availableLots(companyId:string,branchId:string){return (await db.prepare(`SELECT b.lot_id,b.warehouse_id,l.product_id,l.lot_code,l.serial_number,b.quantity_milli,b.version,l.expiry_date

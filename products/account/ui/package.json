@@ -1,0 +1,50 @@
+{
+  "name": "@erpx/product-account-ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./routes/legal-portal/continue/route": "./src/routes/legal-portal/continue/route.ts",
+    "./routes/join/page": "./src/routes/join/page.tsx",
+    "./routes/security/page": "./src/routes/security/page.tsx",
+    "./routes/signup/page": "./src/routes/signup/page.tsx",
+    "./routes/my-access/page": "./src/routes/my-access/page.tsx",
+    "./routes/verify-email/page": "./src/routes/verify-email/page.tsx",
+    "./routes/forgot-password/page": "./src/routes/forgot-password/page.tsx",
+    "./routes/api/v1/join/route": "./src/routes/api/v1/join/route.ts",
+    "./routes/api/v1/account-invitations/route": "./src/routes/api/v1/account-invitations/route.ts",
+    "./routes/api/v1/account/security/route": "./src/routes/api/v1/account/security/route.ts",
+    "./routes/api/v1/account/device-accounts/[[...action]]/route": "./src/routes/api/v1/account/device-accounts/[[...action]]/route.ts",
+    "./routes/api/v1/account/quick-access/[area]/route": "./src/routes/api/v1/account/quick-access/[area]/route.ts",
+    "./routes/api/v1/account/iam/[[...path]]/route": "./src/routes/api/v1/account/iam/[[...path]]/route.ts",
+    "./routes/api/v1/account/profile/route": "./src/routes/api/v1/account/profile/route.ts",
+    "./routes/api/legal-portal/enroll/route": "./src/routes/api/legal-portal/enroll/route.ts",
+    "./routes/reset-password/page": "./src/routes/reset-password/page.tsx",
+    "./routes/activate/page": "./src/routes/activate/page.tsx",
+    "./routes/account/launch/route": "./src/routes/account/launch/route.ts",
+    "./routes/my-profile/page": "./src/routes/my-profile/page.tsx"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/collaboration-ui": "workspace:*",
+    "@erpx/identity-access-ui": "workspace:*",
+    "@erpx/people-payroll-ui": "workspace:*",
+    "@erpx/platform-runtime-ui": "workspace:*",
+    "@erpx/platform-shared-ui": "workspace:*",
+    "@erpx/work-projection-ui": "workspace:*",
+    "@erpx/identity-access-server": "workspace:*",
+    "@erpx/legal-server": "workspace:*",
+    "@erpx/manage-erpx-server": "workspace:*",
+    "@erpx/organization-server": "workspace:*",
+    "@erpx/platform-runtime-server": "workspace:*",
+    "@erpx/support-server": "workspace:*",
+    "@erpx/work-projection-server": "workspace:*",
+    "@erpx/platform-ui": "workspace:*",
+    "@erpx/platform-workplace": "workspace:*",
+    "next": "16.4.3",
+    "zod": "4.6.7"
+  }
+}

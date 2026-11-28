@@ -2,12 +2,12 @@ import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { crmCreatorLeadScopeSql } from '../../../packages/server-crm/src/adapters/read-tail-r24-sql';
-import { crmLeadEligibleOwnerSql, crmLeadOwnerGuardSql, crmWorkLeadOwnerProbeSql } from '../../../packages/server-crm/src/adapters/read-tail-r29-sql';
-import { crmSelectOneSql } from '../../../packages/server-crm/src/adapters/read-tail-r42-sql';
-import { crmLeadSelectSql } from '../../../packages/server-crm/src/adapters/read-tail-r51-sql';
+import { crmCreatorLeadScopeSql } from '../../../modules/crm/server/src/adapters/read-tail-r24-sql';
+import { crmLeadEligibleOwnerSql, crmLeadOwnerGuardSql, crmWorkLeadOwnerProbeSql } from '../../../modules/crm/server/src/adapters/read-tail-r29-sql';
+import { crmSelectOneSql } from '../../../modules/crm/server/src/adapters/read-tail-r42-sql';
+import { crmLeadSelectSql } from '../../../modules/crm/server/src/adapters/read-tail-r51-sql';
 
-const owner = resolve(__dirname, '../../../packages/server-crm/src');
+const owner = resolve(__dirname, '../../../modules/crm/server/src');
 const src = (name: string) => readFileSync(resolve(owner, 'adapters', name), 'utf8');
 const sha = (value: string) => createHash('sha256').update(value).digest('hex');
 const totalSelects = () => {
@@ -125,8 +125,8 @@ describe('crm read-tail r51 byte-identical lead-select head', () => {
     expect(a).toContain('await lockQueuedCommandAuthority(database);');
     const p = src('purchases.ts');
     expect(p).toContain('SELECT 1 FROM command_receipts WHERE command_id=?');
-    expect(p).toContain('@erpx/server-pms/public/crm-purchase-sources');
-    expect(src('marketing-package-obligations.ts')).toContain('@erpx/server-marketing/public/package-obligations');
+    expect(p).toContain('@erpx/pms-server/public/crm-purchase-sources');
+    expect(src('marketing-package-obligations.ts')).toContain('@erpx/marketing-server/public/package-obligations');
     expect(src('native-crm-read.ts')).toContain('export async function nativeCrmReadAll<T>');
     expect(src('native-crm-command.ts')).toContain('export async function nativeCrmExecute(');
   });

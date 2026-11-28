@@ -1,6 +1,6 @@
 //! Original B0 pure data/control-flow oracle. Synthetic ports cannot establish
 //! current worker/source/reservation authority or successful database effects.
-use erpx_server_field_service::public::parts::*;
+use erpx_field_service_server::public::parts::*;
 use serde_json::Value;
 fn oracle() -> Value {
     serde_json::from_str(include_str!(concat!(
@@ -104,10 +104,10 @@ fn original_parts_purchase_classification_is_closed_and_does_not_grant_finance_w
 
 #[test]
 fn original_new_command_preparation_keeps_reservation_quote_and_late_version_order() {
-    use erpx_server_shared::public::{
+    use erpx_platform_shared_server::public::{
         BusinessError, CommandKey, FailureKind, RecordId, TimestampMillis,
     };
-    use erpx_server_workflow::public::commands::CommandJson;
+    use erpx_workflow_server::public::commands::CommandJson;
     use std::{
         future::Future,
         sync::Mutex,
@@ -279,7 +279,7 @@ fn original_new_command_preparation_keeps_reservation_quote_and_late_version_ord
 
 #[test]
 fn boundary_preserves_original_utf16_and_ordered_semantic_event_details() {
-    use erpx_server_shared::public::{CommandKey, RecordId};
+    use erpx_platform_shared_server::public::{CommandKey, RecordId};
     let reserve=normalize_field_service_parts(r#"{"action":"reserve-part","expectedVersion":1,"warehouseId":"\ud800","productId":"ไทย","quantityMilli":1000,"expiresAt":1800000000101,"reason":"Reserve"}"#.as_bytes()).unwrap().into_command(CommandKey::new("boundary-reserve").unwrap(),RecordId::new("order").unwrap());
     let receipt = field_service_parts_receipt_json(reserve.receipt_input()).unwrap();
     assert_eq!(
@@ -330,7 +330,7 @@ fn boundary_preserves_original_utf16_and_ordered_semantic_event_details() {
 }
 
 mod tests {
-    use erpx_server_field_service::public::work::*;
+    use erpx_field_service_server::public::work::*;
     use serde_json::json;
     #[test]
     fn retained_application_work_assertions_keep_read_only_and_revoked_actors_waiting() {
@@ -411,7 +411,7 @@ mod tests {
 
 #[test]
 fn retained_application_billing_uses_inclusive_warranty_floor_and_original_rate() {
-    use erpx_server_field_service::public::visit::visit_billing_price;
+    use erpx_field_service_server::public::visit::visit_billing_price;
     assert_eq!(visit_billing_price(10001,3333,Some("2026-10-06"),"2026-10-06"),(6667,3333,true));
     assert_eq!(visit_billing_price(10001,3333,Some("2026-10-05"),"2026-10-06"),(10001,3333,false));
     assert_eq!(visit_billing_price(10001,3333,None,"2026-10-06"),(10001,3333,false));
@@ -419,7 +419,7 @@ fn retained_application_billing_uses_inclusive_warranty_floor_and_original_rate(
 
 #[test]
 fn service_settlement_keeps_terminal_receipts_and_billing_lineage_authoritative() {
-    use erpx_server_field_service::public::package_settlement::*;
+    use erpx_field_service_server::public::package_settlement::*;
     for state in ["retired", "rejected"] {
         for source_valid in [false, true] {
             for terminal_event in [false, true] {
@@ -442,7 +442,7 @@ fn service_settlement_keeps_terminal_receipts_and_billing_lineage_authoritative(
 
 #[test]
 fn a_discharged_spare_does_not_force_unrelated_base_work_to_close() {
-    use erpx_server_field_service::public::package_settlement::*;
+    use erpx_field_service_server::public::package_settlement::*;
     for source_valid in [false,true] {
         for outstanding_reservation in [false,true] {
             let fact=visit_settlement_fact(ServiceSettlementPackage::PartsAssets,VisitSettlementFacts{id:"visit",version:5,state:"in_visit",source_valid,asset:false,agreement_asset:false,reservation:true,consumption:true,outstanding_reservation,terminal_event:false,billing_lineage:false}).unwrap();
@@ -455,7 +455,7 @@ fn a_discharged_spare_does_not_force_unrelated_base_work_to_close() {
 
 #[test]
 fn every_visit_action_has_one_retained_operation_status_and_legal_state_set() {
-    use erpx_server_field_service::public::visit::VisitAction;
+    use erpx_field_service_server::public::visit::VisitAction;
     let matrix = [
         (VisitAction::Schedule, "field.order.schedule", "scheduled", ["open", "scheduled"].as_slice()),
         (VisitAction::Dispatch, "field.order.dispatch", "dispatched", ["scheduled"].as_slice()),
@@ -482,7 +482,7 @@ fn every_visit_action_has_one_retained_operation_status_and_legal_state_set() {
 
 #[test]
 fn billing_release_requires_the_selected_eligible_reviewer_path() {
-    use erpx_server_field_service::public::visit::{VisitAction, VisitAuthorityFacts, require_visit_authority};
+    use erpx_field_service_server::public::visit::{VisitAction, VisitAuthorityFacts, require_visit_authority};
     let mut facts = VisitAuthorityFacts {
         technician_user_id: "tech",
         actor_user_id: "tech",
@@ -512,8 +512,8 @@ fn billing_release_requires_the_selected_eligible_reviewer_path() {
 
 #[test]
 fn field_outbox_projection_covers_every_retained_field_operation() {
-    use erpx_server_field_service::public::field_outbox::{ELIGIBLE, QUARANTINE};
-    use erpx_server_field_service::public::visit::VisitAction;
+    use erpx_field_service_server::public::field_outbox::{ELIGIBLE, QUARANTINE};
+    use erpx_field_service_server::public::visit::VisitAction;
     for action in [
         VisitAction::Schedule,
         VisitAction::Dispatch,
@@ -550,13 +550,13 @@ fn field_outbox_projection_covers_every_retained_field_operation() {
 #[test]
 fn field_work_empty_asset_reference_matches_original_typescript_truthiness() {
     use serde_json::json;
-    use erpx_server_field_service::public::work::{field_service_work_items,WorkRights};
+    use erpx_field_service_server::public::work::{field_service_work_items,WorkRights};
     // Invoke the actual retired TS function from the immutable native Files
     // cutover parent; no substitute predicate or hand-authored oracle.
     let script=r#"
 if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');
 const {execFileSync}=await import('node:child_process');
-const source=execFileSync('git',['show','e4be8bddb^:packages/server-field_service/src/domain/service.ts'],{encoding:'utf8'});
+const source=execFileSync('git',['show','e4be8bddb^:modules/field-service/server/src/domain/service.ts'],{encoding:'utf8'});
 const found=source.match(/export function fieldServiceWorkItems\([\s\S]*?\n\}/);if(!found)throw Error('ORIGINAL_FIELD_WORK_SOURCE_MISSING');
 const js=new Bun.Transpiler({loader:'ts'}).transformSync(found[0].replace(/^export /,''));
 const work=Function(js+'\nreturn fieldServiceWorkItems;')();
@@ -582,12 +582,12 @@ const out=[];for(const [asset,required] of [['',0],[null,0],['actual-asset',0],[
 
 #[test]
 fn field_detail_visit_file_policy_matches_original_typescript() {
-    use erpx_server_field_service::public::detail::can_edit_visit_files;
+    use erpx_field_service_server::public::detail::can_edit_visit_files;
     // Extract the actual historical expression, including its JS truthiness.
     let script = r#"
 if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');
 const {execFileSync}=await import('node:child_process');
-const source=execFileSync('git',['show','e4be8bddb^:packages/server-field_service/src/adapters/service.ts'],{encoding:'utf8'});
+const source=execFileSync('git',['show','e4be8bddb^:modules/field-service/server/src/adapters/service.ts'],{encoding:'utf8'});
 const found=source.match(/canEditVisitFiles:(.*),\s*\n/);if(!found)throw Error('ORIGINAL_FIELD_DETAIL_SOURCE_MISSING');
 const predicate=Function('a','order','visitAccess','partsAccess','hasPermission','return ('+found[1]+');');
 const cases=[];

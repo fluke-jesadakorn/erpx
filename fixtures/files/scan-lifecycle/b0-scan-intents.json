@@ -1,11 +1,11 @@
 {
   "baseline": "a5ed8737a2f05eff1ee9841fda4a094b3926d732",
   "source": {
-    "path": "packages/server-files/src/application/attachments/service.ts",
+    "path": "modules/files/server/src/application/attachments/service.ts",
     "sha256": "f96d38f7b3ad9b852890e07607bdabeff0bd30d7d7d32bcebbe7ac76d5de3da1"
   },
   "legacySource": {
-    "path": "packages/server-files/src/domain/attachments/legacy-policy.ts",
+    "path": "modules/files/server/src/domain/attachments/legacy-policy.ts",
     "sha256": "5b62afc7ed709aa3c75a9991cee291b335fc6f500192f41f0f380d077c7a7926"
   },
   "oracle": {

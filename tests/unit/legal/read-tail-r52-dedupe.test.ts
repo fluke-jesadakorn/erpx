@@ -2,22 +2,22 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { legalDestructionGuardSql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r52-sources';
-import { legalPointByKeySql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r36-sources';
-import { legalItemOrderedSql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r35-sources';
-import { legalPointByIdSql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r32-sources';
-import { legalByIdAndCompanySql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r28-sources';
+import { legalDestructionGuardSql } from '../../../modules/legal/server/src/adapters/legal-read-tail-r52-sources';
+import { legalPointByKeySql } from '../../../modules/legal/server/src/adapters/legal-read-tail-r36-sources';
+import { legalItemOrderedSql } from '../../../modules/legal/server/src/adapters/legal-read-tail-r35-sources';
+import { legalPointByIdSql } from '../../../modules/legal/server/src/adapters/legal-read-tail-r32-sources';
+import { legalByIdAndCompanySql } from '../../../modules/legal/server/src/adapters/legal-read-tail-r28-sources';
 import {
   legalDocumentByIdSql,
   legalDestructionActiveSql,
-} from '../../../packages/server-legal/src/adapters/legal-read-tail-r9-sources';
+} from '../../../modules/legal/server/src/adapters/legal-read-tail-r9-sources';
 import {
   legalRetentionPolicySelectSql,
   legalEventsByItemSql,
-} from '../../../packages/server-legal/src/adapters/legal-read-tail-r18-sources';
+} from '../../../modules/legal/server/src/adapters/legal-read-tail-r18-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-legal/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-legal/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/legal/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/legal/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 /** Independent pre-r52 oracles: the exact inline SQL captured before delegation. */
 const accessesSql = 'SELECT * FROM legal_access_events WHERE item_id=? ORDER BY created_at,id LIMIT 10001';

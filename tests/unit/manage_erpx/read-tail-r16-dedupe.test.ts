@@ -1,17 +1,17 @@
 import { describe, it, expect, vi } from 'vitest';
 import { readFile, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { betaPolicyLimitSql } from '../../../packages/server-manage_erpx/src/adapters/beta-policy-limit-sql';
-import { betaPolicyStorageBytesSql } from '../../../packages/server-manage_erpx/src/adapters/attachments-service-facts';
-import { recordsAiMonthlyLimitSql } from '../../../packages/server-manage_erpx/src/adapters/records-ai-limit-projection';
-import { documentPageStorageLimitSql } from '../../../packages/server-manage_erpx/src/adapters/document-page-storage-limit';
-import { betaPolicyPointSql } from '../../../packages/server-manage_erpx/src/adapters/beta-policy-point-sql';
+import { betaPolicyLimitSql } from '../../../modules/manage-erpx/server/src/adapters/beta-policy-limit-sql';
+import { betaPolicyStorageBytesSql } from '../../../modules/manage-erpx/server/src/adapters/attachments-service-facts';
+import { recordsAiMonthlyLimitSql } from '../../../modules/manage-erpx/server/src/adapters/records-ai-limit-projection';
+import { documentPageStorageLimitSql } from '../../../modules/manage-erpx/server/src/adapters/document-page-storage-limit';
+import { betaPolicyPointSql } from '../../../modules/manage-erpx/server/src/adapters/beta-policy-point-sql';
 
 vi.mock('server-only', () => ({}));
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-manage_erpx/src/adapters/${name}`, import.meta.url);
-const srcDir = new URL('../../../packages/server-manage_erpx/src/', import.meta.url);
+  new URL(`../../../modules/manage-erpx/server/src/adapters/${name}`, import.meta.url);
+const srcDir = new URL('../../../modules/manage-erpx/server/src/', import.meta.url);
 const sha256 = (s: string) => createHash('sha256').update(s, 'utf8').digest('hex');
 
 async function tsSources(dir: URL): Promise<string[]> {

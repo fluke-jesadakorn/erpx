@@ -1,13 +1,13 @@
 //! Files-owned Learning evidence policy mapping. No database or bytes involved.
-use erpx_server_files::public::learning_evidence::{
+use erpx_files_server::public::learning_evidence::{
     LEARNING_EVIDENCE_POLICY_VERSION, learning_business_request,
 };
-use erpx_server_learning::public::learning::{
+use erpx_learning_server::public::learning::{
     ASSIGNMENT_EVIDENCE_BINDING_TYPE, ASSIGNMENT_EVIDENCE_COMPONENT_KIND,
     ASSIGNMENT_EVIDENCE_PURPOSE, ASSIGNMENT_EVIDENCE_TARGET_TYPE, LearningEvidenceRequest,
     assignment_evidence_request,
 };
-use erpx_server_shared::public::FailureKind;
+use erpx_platform_shared_server::public::FailureKind;
 
 fn evidence_request(component_ref: &str) -> LearningEvidenceRequest {
     LearningEvidenceRequest {
@@ -87,8 +87,8 @@ fn empty_sets_and_missing_binding_identity_use_the_learning_validation_error() {
 
 #[test]
 fn the_learning_domain_builder_produces_the_same_context() {
-    let input = erpx_server_learning::public::learning::ValidatedAssignmentChange {
-        action: erpx_server_learning::public::learning::AssignmentAction::Complete,
+    let input = erpx_learning_server::public::learning::ValidatedAssignmentChange {
+        action: erpx_learning_server::public::learning::AssignmentAction::Complete,
         expected_version: 2,
         reason: "Course completed".into(),
         attendance: None,

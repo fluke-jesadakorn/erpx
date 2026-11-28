@@ -1,3 +1,4 @@
+import { ownerWorkspaceDirectories } from "../local/workspace-paths";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -85,7 +86,7 @@ function routeFor(file: string, source: string, standalone: boolean): Route {
 }
 
 function inventory() {
-  const packageFiles = walk(join(root, "packages"), []).filter((file) => file.includes("/src/routes/"));
+  const packageFiles = ownerWorkspaceDirectories.flatMap(directory => walk(join(root, directory), [])).filter((file) => file.includes("/src/routes/"));
   const appFiles = walk(join(root, "apps"), []).filter((file) => file.includes("/src/app/api/"));
   const consumers = new Map<string, string[]>();
   for (const file of appFiles) {
@@ -133,7 +134,7 @@ function inventory() {
 
 function counts() {
   const app = walk(join(root, "apps"), []).filter((file) => file.includes("/src/app/api/")).length;
-  const handlers = walk(join(root, "packages"), []).filter((file) => file.includes("/src/routes/api/")).length;
+  const handlers = ownerWorkspaceDirectories.flatMap(directory => walk(join(root, directory), [])).filter((file) => file.includes("/src/routes/api/")).length;
   return { sourceSha: execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim(), app, handlers, total: app + handlers };
 }
 

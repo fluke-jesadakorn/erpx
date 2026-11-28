@@ -1,8 +1,8 @@
 //! Native Platform usage read: owner application behaviour and the executable
 //! SQL contract. The SQL execution itself is in the owner's sqlx adapter.
 #![allow(dead_code)]
-use erpx_server_platform_administration::public::native_platform_usage::*;
-use erpx_server_shared::public::FailureKind;
+use erpx_platform_administration_server::public::native_platform_usage::*;
+use erpx_platform_shared_server::public::FailureKind;
 use std::sync::Mutex;
 
 struct Store {

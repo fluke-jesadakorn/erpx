@@ -1,0 +1,1 @@
+export {personLevelHistory,leaveDefaultLevels,draftCompanyName,activeCompanyIdentity,activeCompanySlug,activeCompanyName,scopedBranchNames} from '@erpx/organization-server/adapters/people-app-entrypoint-facts';

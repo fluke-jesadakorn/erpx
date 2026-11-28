@@ -1,9 +1,9 @@
-use erpx_server_commercial::public::purchases::*;
+use erpx_commercial_server::public::purchases::*;
 use serde::Deserialize;
 
 #[test]
 fn lifecycle_review_matches_original_node_and_rejects_changed_authority_or_request() {
-    use erpx_server_commercial::public::package_review::*;
+    use erpx_commercial_server::public::package_review::*;
     let fixture:serde_json::Value=serde_json::from_str(include_str!("../../../fixtures/commercial/rust-packages/lifecycle-review.v1.json")).unwrap();
     assert_eq!(fixture["node"],"v26.11.1");
     let catalogue=current_package_catalogue().unwrap();
@@ -372,8 +372,8 @@ fn unknown_unicode_package_ids_keep_legacy_collation_hashes_and_stable_map_previ
 }
 #[test]
 fn wire_revision_matches_node_jsonb_number_and_locale_corpus() {
-    use erpx_server_commercial::public::purchases::{purchase_wire_revision, CompanyPackageGrant, CompanyPackageHistoryRight};
-    use erpx_server_shared::public::TimestampMillis;
+    use erpx_commercial_server::public::purchases::{purchase_wire_revision, CompanyPackageGrant, CompanyPackageHistoryRight};
+    use erpx_platform_shared_server::public::TimestampMillis;
     let grant = |package_id: &str, version, state: &str, starts_at, ends_at| CompanyPackageGrant {
         company_id: "company".into(), package_id: package_id.into(), package_version: 1,
         state: state.into(), starts_at, ends_at, version, reason: "fixture".into(), evidence: "fixture".into(),
@@ -399,15 +399,15 @@ fn wire_revision_matches_node_jsonb_number_and_locale_corpus() {
 
 #[test]
 fn assets_package_mode_matches_actual_typescript_switch() {
-    use erpx_server_commercial::public::asset_package_mode::{ResolvedPackageEnvironment,resolve_assets_package_mode};
-    use erpx_server_shared::public::{BusinessError,FailureKind};
+    use erpx_commercial_server::public::asset_package_mode::{ResolvedPackageEnvironment,resolve_assets_package_mode};
+    use erpx_platform_shared_server::public::{BusinessError,FailureKind};
     use std::cell::Cell;
     // Mock only the resolved runtime environment; execute the actual TS
     // switch. The runtime's own environment derivation needs separate tests.
     let script=r#"import {mock} from 'bun:test';let environment='local',calls=0;mock.module(process.argv[1],()=>({runtimeEnv:async()=>{calls++;return {ERPX_ENVIRONMENT:environment}}}));const m=await import(process.argv[2]);const cases=[[null,'production'],['disabled','production'],['shadow','local'],['enforced','local'],['shadow','production'],['enforced','staging'],['','local'],['SHADOW','local'],[' enforced','local']];const out=[];for(const [raw,env] of cases){environment=env;calls=0;if(raw===null)delete process.env.ERPX_ASSETS_PACKAGE_ENFORCEMENT;else process.env.ERPX_ASSETS_PACKAGE_ENFORCEMENT=raw;try{out.push({mode:await m.assetsPackageEnforcementMode(),calls})}catch(e){out.push({status:e.status,code:e.code,message:e.message,calls})}}process.stdout.write(JSON.stringify(out));"#;
     let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let runtime=root.join("packages/server-runtime/src/public/runtime.ts");
-    let switch=root.join("packages/server-commercial/src/adapters/development-package-enforcement.ts");
+    let runtime=root.join("platform/runtime/server/src/public/runtime.ts");
+    let switch=root.join("modules/commercial/server/src/adapters/development-package-enforcement.ts");
     let output=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(root).args(["--conditions=react-server","-e",script]).arg(runtime).arg(switch).output().unwrap();assert!(output.status.success(),"actual TypeScript mode oracle unavailable");
     let expected:Vec<serde_json::Value>=serde_json::from_slice(&output.stdout).unwrap();
     let cases=[(None,"production"),(Some("disabled"),"production"),(Some("shadow"),"local"),(Some("enforced"),"local"),(Some("shadow"),"production"),(Some("enforced"),"staging"),(Some(""),"local"),(Some("SHADOW"),"local"),(Some(" enforced"),"local")];

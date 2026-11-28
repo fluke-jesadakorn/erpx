@@ -1,7 +1,7 @@
 //! Native CRM account create owner unit facts. Domain validation +
 //! application delegation against an in-memory fake. No PostgreSQL, no
 //! purchase check, no HTTP. The TS runtime stays authoritative.
-use erpx_server_crm::public::accounts::{
+use erpx_crm_server::public::accounts::{
     AccountCreateInput, AccountCreatePlan, AccountCreateRepository, AccountLinkFinanceActor,
     AccountLinkFinanceInput, AccountLinkFinancePlan, AccountLinkFinanceRepository, AccountsFuture,
     ContactCreateInput, ContactCreatePlan, GuestLinkInput, GuestLinkPlan, GuestSharingInput,
@@ -10,8 +10,8 @@ use erpx_server_crm::public::accounts::{
     validate_account_link_finance, validate_contact_create, validate_guest_link,
     validate_guest_sharing,
 };
-use erpx_server_crm::public::pipeline::CrmPipelineActor;
-use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, TimestampMillis};
+use erpx_crm_server::public::pipeline::CrmPipelineActor;
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, FailureKind, TimestampMillis};
 use serde_json::json;
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
@@ -285,7 +285,7 @@ fn identity_family_matches_ts_zod_for_all_owner_complete_actions() {
     ]);
     let script = r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const m=await import(process.argv[1]);const cases=JSON.parse(process.argv[2]);process.stdout.write(JSON.stringify(cases.map(input=>{const r=m.crmIdentityCommand.safeParse(input);if(!r.success)return null;const d=r.data;switch(d.action){case'create-contact':return['create-contact',d.accountId,d.name,d.detail];case'link-guest':return['link-guest',d.contactId,d.guestId,d.propertyId,d.evidence,d.sharingEvidence===undefined?null:d.sharingEvidence];case'guest-sharing':return['guest-sharing',d.linkId,d.expectedVersion,d.state,d.evidence];default:return null;}})));"#;
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let module = root.join("packages/server-crm/src/domain/identities.ts");
+    let module = root.join("modules/crm/server/src/domain/identities.ts");
     let output = std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
         .current_dir(root)
         .args(["--conditions=react-server", "-e", script])

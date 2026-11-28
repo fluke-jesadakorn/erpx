@@ -10,11 +10,11 @@
     "lint": "bun ../../scripts/testing/scoped-lint.ts --app=forms"
   },
   "dependencies": {
-    "@erpx/feature-forms": "workspace:*",
-    "@erpx/workplace": "workspace:*",
+    "@erpx/product-forms-ui": "workspace:*",
+    "@erpx/platform-workplace": "workspace:*",
     "next": "16.4.3",
     "react": "19.3.1",
     "react-dom": "19.3.1",
-    "@erpx/contracts": "workspace:*"
+    "@erpx/platform-contracts": "workspace:*"
   }
 }

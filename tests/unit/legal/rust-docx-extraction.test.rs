@@ -1,4 +1,4 @@
-use erpx_server_legal::public::{DocumentExtractionFailure, extract_docx_text};
+use erpx_legal_server::public::{DocumentExtractionFailure, extract_docx_text};
 use serde_json::Value;
 use std::io::{Cursor, Write};
 

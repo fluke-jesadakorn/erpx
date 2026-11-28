@@ -2,9 +2,9 @@ import { createHash } from "node:crypto";
 import { chmod, copyFile, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
-import type { EngineeringGate, EngineeringGateId, EngineeringManifest, EngineeringObservation } from "@erpx/feature-runtime/lib/engineering-completion";
-import { evaluateEngineeringPerformance, type PerformanceSample } from "@erpx/feature-runtime/lib/engineering-performance";
-import { attachmentReconciliationEvidenceValid,businessWorkerEvidenceValid,financialContinuityEvidenceValid,stockContinuityEvidenceValid } from "@erpx/feature-runtime/lib/engineering-gate-evidence";
+import type { EngineeringGate, EngineeringGateId, EngineeringManifest, EngineeringObservation } from "@erpx/platform-runtime-ui/lib/engineering-completion";
+import { evaluateEngineeringPerformance, type PerformanceSample } from "@erpx/platform-runtime-ui/lib/engineering-performance";
+import { attachmentReconciliationEvidenceValid,businessWorkerEvidenceValid,financialContinuityEvidenceValid,stockContinuityEvidenceValid } from "@erpx/platform-runtime-ui/lib/engineering-gate-evidence";
 import { runtimeSourceFingerprint, verificationSourceFingerprint } from "../../local/source-fingerprint";
 import { playwrightObservations,requiredBrowserExecutionsValid,syntheticRollbackEvidenceValid } from "./engineering-test-results";
 

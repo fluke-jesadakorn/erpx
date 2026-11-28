@@ -3,9 +3,9 @@ import {mkdtemp,mkdir,readFile,rm,cp,appendFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {composeUiModules,uiModuleSelection} from '../../../scripts/local/ui-module-registration';
-import ExampleModulePage from '../../../packages/feature-runtime/src/modules/example/page';
-import {productPageAllowed} from '@erpx/feature-runtime/lib/product-route-policy';
-import {parseHoldingRoute} from '@erpx/contracts/holding-hosts';
+import ExampleModulePage from '../../../platform/runtime/ui/src/modules/example/page';
+import {productPageAllowed} from '@erpx/platform-runtime-ui/lib/product-route-policy';
+import {parseHoldingRoute} from '@erpx/platform-contracts/holding-hosts';
 const directories:string[]=[];
 afterEach(async()=>{vi.unstubAllEnvs();vi.unstubAllGlobals();await Promise.all(directories.splice(0).map(path=>rm(path,{recursive:true,force:true})));});
 it('registers only the explicitly enabled example route in the isolated Apps snapshot',async()=>{
@@ -16,11 +16,11 @@ it('registers only the explicitly enabled example route in the isolated Apps sna
  await composeUiModules(process.cwd(),snapshot,true);expect(await readFile(join(snapshot,'apps/launcher/src/proxy.ts'),'utf8')).toContain("appProxy('apps', ['/applications/example-module'])");
  for(const method of ['GET','HEAD'])expect(productPageAllowed('apps','/applications/example-module',method,['/applications/example-module'])).toBe(true);
  expect(productPageAllowed('apps','/applications/example-module')).toBe(false);expect(productPageAllowed('apps','/applications/example-module','POST',['/applications/example-module'])).toBe(false);expect(productPageAllowed('finance','/applications/example-module','GET',['/applications/example-module'])).toBe(false);expect(productPageAllowed('apps','/applications/other','GET',['/applications/example-module'])).toBe(false);expect(productPageAllowed('apps','/api/test','GET',['/api/test'])).toBe(false);
-expect(await readFile(join(snapshot,'apps/launcher/src/app/applications/example-module/implementation.tsx'),'utf8')).toBe(await readFile('packages/feature-runtime/src/modules/example/page.tsx','utf8'));
+expect(await readFile(join(snapshot,'apps/launcher/src/app/applications/example-module/implementation.tsx'),'utf8')).toBe(await readFile('platform/runtime/ui/src/modules/example/page.tsx','utf8'));
  const ts=await import('typescript'),wrapper=await readFile(join(snapshot,'apps/launcher/src/app/applications/example-module/page.tsx'),'utf8'),compiled=ts.transpileModule(wrapper,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,denied=vi.fn(async()=>{throw Error('session required');}),render=vi.fn();const wrapperModule={exports:{} as {default?:()=>Promise<unknown>}};
- new Function('require','module','exports',compiled)((name:string)=>name==='@erpx/server-identity_access/public/authorization'?{currentSession:denied}:name==='./implementation'?{default:render}:null,wrapperModule,wrapperModule.exports);await expect(wrapperModule.exports.default!()).rejects.toThrow('session required');expect(render).not.toHaveBeenCalled();
+ new Function('require','module','exports',compiled)((name:string)=>name==='@erpx/identity-access-server/public/authorization'?{currentSession:denied}:name==='./implementation'?{default:render}:null,wrapperModule,wrapperModule.exports);await expect(wrapperModule.exports.default!()).rejects.toThrow('session required');expect(render).not.toHaveBeenCalled();
  await expect(uiModuleSelection(process.cwd(),'apps','unknown')).rejects.toThrow('UNKNOWN_UI_MODULE_SELECTION');await expect(uiModuleSelection(process.cwd(),'finance','erpx-example')).rejects.toThrow('UI_MODULE_APP_MISMATCH');
- const fixture=join(root,'identity');for(const dir of ['contracts/modules','packages/feature-runtime/src/modules/example','scripts/local'])await mkdir(join(fixture,dir),{recursive:true});for(const path of ['contracts/modules/ui-modules.json','packages/feature-runtime/src/modules/example/page.tsx','scripts/local/ui-module-registration.ts'])await cp(path,join(fixture,path));
+ const fixture=join(root,'identity');for(const dir of ['contracts/modules','platform/runtime/ui/src/modules/example','scripts/local'])await mkdir(join(fixture,dir),{recursive:true});for(const path of ['contracts/modules/ui-modules.json','platform/runtime/ui/src/modules/example/page.tsx','scripts/local/ui-module-registration.ts'])await cp(path,join(fixture,path));
  const enabledBefore=await uiModuleSelection(fixture,'apps','erpx-example'),disabledBefore=await uiModuleSelection(fixture,'apps',undefined);await appendFile(join(fixture,'scripts/local/ui-module-registration.ts'),'\n// generated wrapper changed\n');
  expect((await uiModuleSelection(fixture,'apps','erpx-example')).fingerprint).not.toBe(enabledBefore.fingerprint);expect((await uiModuleSelection(fixture,'apps',undefined)).fingerprint).toBe(disabledBefore.fingerprint);
 });

@@ -4,8 +4,8 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
-use erpx_server_identity_access::public::SystemAuthenticationSecrets;
-use erpx_service::private_development_api::*;
+use erpx_identity_access_server::public::SystemAuthenticationSecrets;
+use erpx_platform_composition::private_development_api::*;
 use fixture::{account, cookie, document};
 use std::{
     path::Path,
@@ -70,7 +70,7 @@ async fn actual_node_ssr_transport_reads_current_three_database_sessions_bypasse
    let body="proxy-control-ok";let response=format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len());let _=stream.write_all(response.as_bytes()).await;
   }}}});
   let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();let node=std::env::var("ERPX_NODE_BIN").expect("Explicit pinned Node required");
-  let mut child=Command::new(node).env_clear().env("PATH",std::env::var("PATH").unwrap_or_default()).env("NODE_ENV","test").env("NODE_USE_ENV_PROXY","1").env("HTTP_PROXY",format!("http://{trap_address}")).env("HTTPS_PROXY",format!("http://{trap_address}")).args(["--conditions=react-server","--use-env-proxy"]).arg(root.join("tests/support/runtime/native-session-client.mjs")).arg(root.join("packages/feature-runtime/src/adapters/server/native-session-http.ts")).kill_on_drop(true).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).spawn().unwrap();
+  let mut child=Command::new(node).env_clear().env("PATH",std::env::var("PATH").unwrap_or_default()).env("NODE_ENV","test").env("NODE_USE_ENV_PROXY","1").env("HTTP_PROXY",format!("http://{trap_address}")).env("HTTPS_PROXY",format!("http://{trap_address}")).args(["--conditions=react-server","--use-env-proxy"]).arg(root.join("tests/support/runtime/native-session-client.mjs")).arg(root.join("platform/runtime/ui/src/adapters/server/native-session-http.ts")).kill_on_drop(true).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).spawn().unwrap();
   let mut input=child.stdin.take().unwrap();let mut output=BufReader::new(child.stdout.take().unwrap());let errors=child.stderr.take().unwrap();let error_reader=tokio::spawn(async move{let mut bytes=Vec::new();errors.take(8193).read_to_end(&mut bytes).await.map(|_|bytes)});
   let payload=serde_json::json!({"configuration":{"privateBaseUrl":format!("http://{address}"),"accountOrigin":"https://account.example.test","holdingOrigins":["https://acme.example.test","https://northstar.example.test"],"timeoutMs":1500},"cases":[{"host":"account.example.test","cookie":cookie(&central),"expectedUser":"fixture-a"},{"host":"acme.example.test","cookie":format!("__Host-erpx-product={}",first.token.expose()),"expectedUser":"fixture-a","expectedSession":first.result.session_id},{"host":"northstar.example.test","cookie":format!("__Host-erpx-product={}",second.token.expose()),"expectedUser":"fixture-a","expectedSession":second.result.session_id}]});
   let result=async {

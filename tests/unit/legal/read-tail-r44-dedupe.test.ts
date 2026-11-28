@@ -5,16 +5,16 @@ vi.mock('server-only', () => ({}));
 import {
   legalExternalUploadShareJoinHead,
   legalFilePreservationHoldTargetHead,
-} from '../../../packages/server-legal/src/adapters/legal-read-tail-r44-sources';
-import contract from '../../../packages/server-legal/src/adapters/legal-read-tail-r44-sources.json' with {
+} from '../../../modules/legal/server/src/adapters/legal-read-tail-r44-sources';
+import contract from '../../../modules/legal/server/src/adapters/legal-read-tail-r44-sources.json' with {
   type: 'json',
 };
-import migrationContract from '../../../packages/server-legal/src/adapters/attachment-migration-facts-sources.json' with {
+import migrationContract from '../../../modules/legal/server/src/adapters/attachment-migration-facts-sources.json' with {
   type: 'json',
 };
 
-const srcRoot = resolve(__dirname, '../../../packages/server-legal/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-legal/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/legal/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/legal/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 const LEGAL_HOLD_EXISTS = "EXISTS(SELECT 1 FROM legal_holds h WHERE h.item_id=i.id AND h.state<>'released') legal_hold";
 

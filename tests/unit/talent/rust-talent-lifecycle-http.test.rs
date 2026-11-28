@@ -1,7 +1,7 @@
 //! Actual owner-local HTTP router tests for the native Talent lifecycle slice.
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
-use erpx_server_talent::public::talent_http::{
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
+use erpx_talent_server::public::talent_http::{
     TalentLifecycleHttpBackend, TalentLifecycleHttpCommand, TalentLifecycleHttpFuture,
     TalentLifecycleHttpRequest, TalentLifecycleHttpResponse, TalentLifecycleHttpTarget,
     talent_lifecycle_http_router,

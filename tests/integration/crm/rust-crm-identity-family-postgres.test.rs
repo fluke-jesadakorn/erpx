@@ -6,10 +6,10 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_crm::public::accounts::{
+use erpx_crm_server::public::accounts::{
     PgCrmIdentityFamily, change_guest_sharing, create_contact, link_guest,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
 

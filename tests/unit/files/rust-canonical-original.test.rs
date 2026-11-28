@@ -1,5 +1,5 @@
-use erpx_server_files::public::canonical_original::*;
-use erpx_server_shared::public::{CompanyId, HoldingId, RecordId, UserId};
+use erpx_files_server::public::canonical_original::*;
+use erpx_platform_shared_server::public::{CompanyId, HoldingId, RecordId, UserId};
 use sha2::{Digest, Sha256};
 use std::{fs, os::unix::fs::symlink};
 

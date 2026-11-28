@@ -5,13 +5,13 @@ mod fixture;
 #[path = "../../support/rust-directory-provenance-facts.rs"]
 mod source_facts;
 use auth::*;
-use erpx_server_identity_access::public::effective_authority::{
+use erpx_identity_access_server::public::effective_authority::{
     PgQueuedWorkAuthorizer, PgQueuedWorkSourcePort, QueuedWorkBinding,
 };
-use erpx_server_runtime::public::postgres::PgWorkFuture;
-use erpx_server_runtime::public::postgres::{DatabasePool, PgTransactionError};
-use erpx_server_shared::public::{BusinessError, UserId};
-use erpx_server_shared::public::{FailureKind, HoldingId};
+use erpx_platform_runtime_server::public::postgres::PgWorkFuture;
+use erpx_platform_runtime_server::public::postgres::{DatabasePool, PgTransactionError};
+use erpx_platform_shared_server::public::{BusinessError, UserId};
+use erpx_platform_shared_server::public::{FailureKind, HoldingId};
 use sqlx::{PgConnection, Row};
 use std::sync::{
     Arc,
@@ -21,8 +21,8 @@ use std::time::Duration;
 
 #[tokio::test]
 async fn quality_same_person_retains_exact_company_mapping_and_unit() {
-    use erpx_server_identity_access::public::quality_same_person::{inspect_quality_same_person, lock_quality_same_person_sources};
-    use erpx_server_shared::public::CompanyId;
+    use erpx_identity_access_server::public::quality_same_person::{inspect_quality_same_person, lock_quality_same_person_sources};
+    use erpx_platform_shared_server::public::CompanyId;
     use sqlx::Connection;
     fixture::with_database(2, |control| async move { fixture::with_database(3, move |holding| async move {
         setup(&control, &holding).await;
@@ -63,8 +63,8 @@ async fn quality_same_person_retains_exact_company_mapping_and_unit() {
 
 #[tokio::test]
 async fn quality_same_person_writer_contention_is_scoped_and_fresh() {
-    use erpx_server_identity_access::public::quality_same_person::{inspect_quality_same_person, lock_quality_same_person_sources};
-    use erpx_server_shared::public::CompanyId;
+    use erpx_identity_access_server::public::quality_same_person::{inspect_quality_same_person, lock_quality_same_person_sources};
+    use erpx_platform_shared_server::public::CompanyId;
     use sqlx::Connection;
     fixture::with_database(2, |control| async move { fixture::with_database(3, move |holding| async move {
         setup(&control, &holding).await;
@@ -108,7 +108,7 @@ async fn quality_same_person_writer_contention_is_scoped_and_fresh() {
 
 #[tokio::test]
 async fn permission_catalog_utility_marks_only_its_nowait_conflict_and_retains_lock() {
-    use erpx_server_identity_access::public::permission_catalog_lock::lock_permission_catalog_sources;
+    use erpx_identity_access_server::public::permission_catalog_lock::lock_permission_catalog_sources;
     fixture::with_database(2,|control|async move {fixture::with_database(3,move|holding|async move {
         setup(&control,&holding).await;
         let mut writer=holding.raw().begin().await.unwrap();
@@ -132,9 +132,9 @@ async fn permission_catalog_utility_marks_only_its_nowait_conflict_and_retains_l
 
 #[tokio::test]
 async fn selected_quality_recipients_require_real_presnapshot_catalog_lock() {
-    use erpx_server_identity_access::public::effective_authority::HoldingWorkSourcePreparation;
-    use erpx_server_identity_access::public::quality_recipients::{QualityRecipientRequest,QualityRecipientStatus,inspect_quality_recipients_for_selected,lock_quality_recipient_sources};
-    use erpx_server_shared::public::{CompanyId,RecordId};
+    use erpx_identity_access_server::public::effective_authority::HoldingWorkSourcePreparation;
+    use erpx_identity_access_server::public::quality_recipients::{QualityRecipientRequest,QualityRecipientStatus,inspect_quality_recipients_for_selected,lock_quality_recipient_sources};
+    use erpx_platform_shared_server::public::{CompanyId,RecordId};
     #[derive(Clone)] struct QualitySources;
     impl HoldingWorkSourcePreparation for QualitySources {
         fn prepare<'a>(&'a self,c:&'a mut PgConnection)->PgWorkFuture<'a,(),BusinessError> {
@@ -186,9 +186,9 @@ async fn selected_quality_recipients_require_real_presnapshot_catalog_lock() {
 
 #[tokio::test]
 async fn quality_recipient_permissions_first_writer_forces_scoped_retry() {
-    use erpx_server_identity_access::public::quality_recipients::{QualityRecipientRequest,QualityRecipientStatus,inspect_quality_recipients,lock_quality_recipient_sources};
-    use erpx_server_runtime::public::postgres::{PgUnitOfWork,TransactionOptions};
-    use erpx_server_shared::public::{CompanyId,RecordId};
+    use erpx_identity_access_server::public::quality_recipients::{QualityRecipientRequest,QualityRecipientStatus,inspect_quality_recipients,lock_quality_recipient_sources};
+    use erpx_platform_runtime_server::public::postgres::{PgUnitOfWork,TransactionOptions};
+    use erpx_platform_shared_server::public::{CompanyId,RecordId};
     fixture::with_database(2,|control|async move {fixture::with_database(3,move|holding|async move {
         setup(&control,&holding).await;
         sqlx::raw_sql("INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','custom_native_authority',2,'[\"quality.inspect\"]','[]','[\"holding\"]','fixture',0); UPDATE iam_roles SET published_revision=2 WHERE id='custom_native_authority'; UPDATE assignments SET valid_from=0,valid_until=9007199254740991 WHERE id='grant'").execute(holding.raw()).await.unwrap();
@@ -216,8 +216,8 @@ async fn quality_recipient_permissions_first_writer_forces_scoped_retry() {
 
 #[tokio::test]
 async fn quality_recipient_roles_first_writer_commits_before_first_snapshot() {
-    use erpx_server_identity_access::public::quality_recipients::{QualityRecipientRequest,QualityRecipientStatus,inspect_quality_recipients,lock_quality_recipient_sources};
-    use erpx_server_shared::public::{CompanyId,RecordId};
+    use erpx_identity_access_server::public::quality_recipients::{QualityRecipientRequest,QualityRecipientStatus,inspect_quality_recipients,lock_quality_recipient_sources};
+    use erpx_platform_shared_server::public::{CompanyId,RecordId};
     use sqlx::Connection;
     fixture::with_database(2,|control|async move {fixture::with_database(3,move|holding|async move {
         setup(&control,&holding).await;
@@ -239,8 +239,8 @@ async fn quality_recipient_roles_first_writer_commits_before_first_snapshot() {
 
 #[tokio::test]
 async fn quality_recipient_missing_permission_is_stable_until_unit_finishes() {
-    use erpx_server_identity_access::public::quality_recipients::{QualityRecipientRequest,QualityRecipientStatus,inspect_quality_recipients,lock_quality_recipient_sources};
-    use erpx_server_shared::public::{CompanyId,RecordId};
+    use erpx_identity_access_server::public::quality_recipients::{QualityRecipientRequest,QualityRecipientStatus,inspect_quality_recipients,lock_quality_recipient_sources};
+    use erpx_platform_shared_server::public::{CompanyId,RecordId};
     fixture::with_database(2,|control|async move {fixture::with_database(3,move|holding|async move {
         setup(&control,&holding).await;
         sqlx::raw_sql("INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','custom_native_authority',2,'[\"quality.inspect\"]','[]','[\"holding\"]','fixture',0); UPDATE iam_roles SET published_revision=2 WHERE id='custom_native_authority'; UPDATE assignments SET valid_from=0,valid_until=9007199254740991 WHERE id='grant'").execute(holding.raw()).await.unwrap();
@@ -266,8 +266,8 @@ async fn quality_recipient_missing_permission_is_stable_until_unit_finishes() {
 
 #[tokio::test]
 async fn quality_recipient_set_matches_scoped_status_and_alias_rules() {
-    use erpx_server_identity_access::public::quality_recipients::{inspect_quality_recipients,lock_quality_recipient_sources,QualityRecipientRequest,QualityRecipientStatus};
-    use erpx_server_shared::public::{CompanyId,RecordId};
+    use erpx_identity_access_server::public::quality_recipients::{inspect_quality_recipients,lock_quality_recipient_sources,QualityRecipientRequest,QualityRecipientStatus};
+    use erpx_platform_shared_server::public::{CompanyId,RecordId};
     fixture::with_database(2, |control| async move {
         fixture::with_database(3, move |holding| async move {
             setup(&control,&holding).await;
@@ -312,8 +312,8 @@ async fn quality_recipient_set_matches_scoped_status_and_alias_rules() {
 
 #[tokio::test]
 async fn sales_recipient_scoped_current_assignment_is_transaction_bound() {
-    use erpx_server_identity_access::public::sales_recipient::{SalesRecipientRequest, inspect_sales_recipient, lock_sales_recipient_sources, inspect_sales_assignment_join};
-    use erpx_server_shared::public::CompanyId;
+    use erpx_identity_access_server::public::sales_recipient::{SalesRecipientRequest, inspect_sales_recipient, lock_sales_recipient_sources, inspect_sales_assignment_join};
+    use erpx_platform_shared_server::public::CompanyId;
     fixture::with_database(2, |control| async move {
         fixture::with_database(3, move |holding| async move {
             setup(&control, &holding).await;
@@ -327,7 +327,7 @@ async fn sales_recipient_scoped_current_assignment_is_transaction_bound() {
             join.require_current(&mut tx).await.unwrap();
             let oracle=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
                 .current_dir(concat!(env!("CARGO_MANIFEST_DIR"),"/../.."))
-                .args(["--conditions=react-server","-e", "import {commercialOwnerProjectionSources as s} from './packages/server-identity_access/src/adapters/commercial-owner-projection-sources.ts'; process.stdout.write(s.assignments)"])
+                .args(["--conditions=react-server","-e", "import {commercialOwnerProjectionSources as s} from './modules/identity-access/server/src/adapters/commercial-owner-projection-sources.ts'; process.stdout.write(s.assignments)"])
                 .output().unwrap();
             assert!(oracle.status.success());
             let legacy=String::from_utf8(oracle.stdout).unwrap();
@@ -394,7 +394,7 @@ async fn sales_recipient_scoped_current_assignment_is_transaction_bound() {
 
 #[tokio::test]
 async fn sales_recipient_preparation_waits_for_crm_writer_before_snapshot() {
-    use erpx_server_identity_access::public::sales_recipient::lock_sales_recipient_sources;
+    use erpx_identity_access_server::public::sales_recipient::lock_sales_recipient_sources;
     fixture::with_database(2, |control| async move {
         fixture::with_database(3, move |holding| async move {
             setup(&control, &holding).await;
@@ -500,7 +500,7 @@ impl PgQueuedWorkSourcePort for FixtureQueuedSource {
     }
 }
 async fn queue_from_current(
-    authorizer: &erpx_server_identity_access::public::effective_authority::HoldingWorkAuthorizer,
+    authorizer: &erpx_identity_access_server::public::effective_authority::HoldingWorkAuthorizer,
 ) {
     authorizer.execute("acme.example.test",proof(),input(),access(),|connection,current|Box::pin(async move{
         sqlx::query("CREATE TABLE native_queued_owner_jobs(id text PRIMARY KEY,company_id text,user_id text,payload text,token text,deadline bigint)").execute(&mut *connection).await?;
@@ -760,24 +760,24 @@ async fn seed_operational_worker_reference(pool: &DatabasePool) {
     sqlx::raw_sql("INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,created_by,created_at,updated_at)VALUES('worker','user','company','PRIVATE_WORKER_NAME','TH','fixture',0,0);INSERT INTO hr_engagements(id,person_id,company_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at)VALUES('worker-engagement','worker','company','employee','salaried','active','2026-01-01','PRIVATE_JOB_TITLE','THB','fixture',0,0);INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy)VALUES('company','user','local:user','worker','active','local');INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('*','custom_native_authority',2,'[\"finance.read\",\"finance.write\",\"module.finance.read\",\"records.write\",\"records.review\"]','[]','[\"holding\",\"branch\",\"department\"]','fixture',0);UPDATE iam_roles SET published_revision=2 WHERE id='custom_native_authority';INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status)VALUES('worker-dept','department','workshop','Workshop','branch','company','branch','active')").execute(pool.raw()).await.unwrap();
 }
 fn operational_worker_request(
-    permission:erpx_server_identity_access::public::operational_worker::OperationalWorkerPermission,
+    permission:erpx_identity_access_server::public::operational_worker::OperationalWorkerPermission,
     branch: &str,
     department: Option<&str>,
-) -> erpx_server_identity_access::public::operational_worker::OperationalWorkerRequest {
-    erpx_server_identity_access::public::operational_worker::OperationalWorkerRequest {
-        company_id: erpx_server_shared::public::CompanyId::new("company").unwrap(),
+) -> erpx_identity_access_server::public::operational_worker::OperationalWorkerRequest {
+    erpx_identity_access_server::public::operational_worker::OperationalWorkerRequest {
+        company_id: erpx_platform_shared_server::public::CompanyId::new("company").unwrap(),
         user_id: UserId::new("user").unwrap(),
-        branch_id: erpx_server_shared::public::RecordId::new(branch).unwrap(),
-        department_id: department.map(|s| erpx_server_shared::public::RecordId::new(s).unwrap()),
+        branch_id: erpx_platform_shared_server::public::RecordId::new(branch).unwrap(),
+        department_id: department.map(|s| erpx_platform_shared_server::public::RecordId::new(s).unwrap()),
         permission,
     }
 }
 #[tokio::test]
 async fn operational_worker_reference_requires_actual_people_current_permission_and_exact_record_scope()
  {
-    use erpx_server_identity_access::public::operational_worker::*;
-    use erpx_server_runtime::public::postgres::{PgUnitOfWork, TransactionOptions};
-    use erpx_server_shared::public::TimestampMillis;
+    use erpx_identity_access_server::public::operational_worker::*;
+    use erpx_platform_runtime_server::public::postgres::{PgUnitOfWork, TransactionOptions};
+    use erpx_platform_shared_server::public::TimestampMillis;
     fixture::with_database(2,|control|async move{fixture::with_database(2,move|holding|async move{
         setup(&control,&holding).await;seed_operational_worker_reference(&holding).await;
         PgUnitOfWork::new(holding.clone()).run::<(),BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move{
@@ -804,8 +804,8 @@ async fn operational_worker_reference_requires_actual_people_current_permission_
 }
 #[tokio::test]
 async fn operational_worker_reference_retains_current_role_and_refuses_a_different_transaction() {
-    use erpx_server_identity_access::public::operational_worker::*;
-    use erpx_server_shared::public::TimestampMillis;
+    use erpx_identity_access_server::public::operational_worker::*;
+    use erpx_platform_shared_server::public::TimestampMillis;
     fixture::with_database(2,|control|async move{fixture::with_database(2,move|holding|async move{
         setup(&control,&holding).await;seed_operational_worker_reference(&holding).await;
         let now=TimestampMillis::new(NOW);let mut tx=holding.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_operational_worker_sources(&mut tx).await.unwrap();
@@ -818,7 +818,7 @@ async fn operational_worker_reference_retains_current_role_and_refuses_a_differe
 
 #[derive(Clone)]
 struct SelectedFixtureLocks;
-impl erpx_server_identity_access::public::effective_authority::HoldingWorkSourcePreparation
+impl erpx_identity_access_server::public::effective_authority::HoldingWorkSourcePreparation
     for SelectedFixtureLocks
 {
     fn prepare<'c>(&'c self, _: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
@@ -834,7 +834,7 @@ async fn selected_ingress_wire_precedes_permission_but_current_identity_precedes
         let result=authorizer.execute_with_selected_ingress_deferred("acme.example.test",proof(),||Ok(input()),(denied,SelectedFixtureLocks),|_|Ok::<_,&'static str>(()),|_,_,_|Box::pin(async {Ok(())})).await;code(result,"PERMISSION_REQUIRED");
         let seen=Arc::new(AtomicUsize::new(0));let observer=seen.clone();let result=authorizer.execute_with_selected_ingress_deferred("wrong.example.test",proof(),||Ok(input()),(access(),SelectedFixtureLocks),move |_| {observer.fetch_add(1,Ordering::SeqCst);Ok::<_,&'static str>(())},|_,_,_|Box::pin(async{Ok(())})).await;code(result,"WORKSPACE_NOT_FOUND");assert_eq!(seen.load(Ordering::SeqCst),0);
         let observer=seen.clone();let mut stale=input();stale.expected.as_mut().unwrap().revision=6;let result=authorizer.execute_with_selected_ingress_deferred("acme.example.test",proof(),move||Ok(stale),(access(),SelectedFixtureLocks),move |_| {observer.fetch_add(1,Ordering::SeqCst);Ok::<_,&'static str>(())},|_,_,_|Box::pin(async{Ok(())})).await;code(result,"WORK_CONTEXT_CHANGED");assert_eq!(seen.load(Ordering::SeqCst),0);
-        let observer=seen.clone();let result=authorizer.execute_with_selected_ingress_deferred("acme.example.test",erpx_server_identity_access::public::DeviceProof::default(),||Ok(input()),(access(),SelectedFixtureLocks),move |_| {observer.fetch_add(1,Ordering::SeqCst);Ok::<_,&'static str>(())},|_,_,_|Box::pin(async{Ok(())})).await;code(result,"UNAUTHENTICATED");
+        let observer=seen.clone();let result=authorizer.execute_with_selected_ingress_deferred("acme.example.test",erpx_identity_access_server::public::DeviceProof::default(),||Ok(input()),(access(),SelectedFixtureLocks),move |_| {observer.fetch_add(1,Ordering::SeqCst);Ok::<_,&'static str>(())},|_,_,_|Box::pin(async{Ok(())})).await;code(result,"UNAUTHENTICATED");
         sqlx::raw_sql("INSERT INTO iam_members(company_id,user_id,principal_id,status,login_policy) VALUES('company','user','local:user','active','emergency')").execute(holding.raw()).await.unwrap();
         let observer=seen.clone();let result=authorizer.execute_with_selected_ingress_deferred("acme.example.test",proof(),||Ok(input()),(access(),SelectedFixtureLocks),move |_| {observer.fetch_add(1,Ordering::SeqCst);Ok::<_,&'static str>(())},|_,_,_|Box::pin(async{Ok(())})).await;code(result,"EMERGENCY_ACCESS_REQUIRED");assert_eq!(seen.load(Ordering::SeqCst),0);
         assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM native_owner_effects").fetch_one(holding.raw()).await.unwrap(),0);
@@ -894,8 +894,8 @@ async fn selected_ingress_holds_real_control_and_assignment_locks_until_owner_co
 
 #[tokio::test]
 async fn selected_ingress_checks_time_again_after_fresh_final_identity_inspection() {
-    use erpx_server_identity_access::public::effective_authority::HoldingWorkAuthorizer;
-    use erpx_server_shared::public::{Clock, TimestampMillis};
+    use erpx_identity_access_server::public::effective_authority::HoldingWorkAuthorizer;
+    use erpx_platform_shared_server::public::{Clock, TimestampMillis};
     use std::sync::atomic::AtomicBool;
     struct SteppedClock {
         armed: AtomicBool,
@@ -951,7 +951,7 @@ async fn selected_ingress_checks_time_again_after_fresh_final_identity_inspectio
                     proof(),
                     || Ok(input()),
                     (access(), SelectedFixtureLocks),
-                    erpx_server_identity_access::public::effective_authority::SelectedTransportCallbacks::<_, (), &'static str, _>::new::<()>(  move |_| {
+                    erpx_identity_access_server::public::effective_authority::SelectedTransportCallbacks::<_, (), &'static str, _>::new::<()>(  move |_| {
                         let armed = armed.clone();
                         Box::pin(async move {
                             tokio::task::yield_now().await;
@@ -989,18 +989,18 @@ async fn transport_initial_read_tag_is_distinct_from_final_permission_and_local_
         let mut denied=access();denied.permission="finance.pay".into();
         let result=authorizer.execute_with_selected_transport_ingress_deferred(
             "acme.example.test",proof(),||Ok(input()),(denied,SelectedFixtureLocks),
-            erpx_server_identity_access::public::effective_authority::SelectedTransportCallbacks::<_, (), &'static str, _>::new::<()>(  |_|Box::pin(async {Ok::<_,&'static str>(())}),|_,error|{assert_eq!(error.code,"PERMISSION_REQUIRED");Ok("initial-read")},
+            erpx_identity_access_server::public::effective_authority::SelectedTransportCallbacks::<_, (), &'static str, _>::new::<()>(  |_|Box::pin(async {Ok::<_,&'static str>(())}),|_,error|{assert_eq!(error.code,"PERMISSION_REQUIRED");Ok("initial-read")},
             move |_,_,_| { action_calls.fetch_add(1,Ordering::SeqCst);Box::pin(async {Ok::<_,PgTransactionError<BusinessError>>(Ok::<_,&'static str>(()))}) }
         )).await.unwrap();
         assert_eq!(result,Err("initial-read"));assert_eq!(calls.load(Ordering::SeqCst),0);
         let local=authorizer.execute_with_selected_transport_ingress_deferred(
             "acme.example.test",proof(),||Ok(input()),(access(),SelectedFixtureLocks),
-            erpx_server_identity_access::public::effective_authority::SelectedTransportCallbacks::<_, (), &'static str, _>::new::<()>(  |_|Box::pin(async {Ok::<_,&'static str>(())}),|_,_|Ok("initial-read"),
+            erpx_identity_access_server::public::effective_authority::SelectedTransportCallbacks::<_, (), &'static str, _>::new::<()>(  |_|Box::pin(async {Ok::<_,&'static str>(())}),|_,_|Ok("initial-read"),
             |_,_,_|Box::pin(async {Ok::<_,PgTransactionError<BusinessError>>(Err::<(),_>("initial-write"))})
         )).await.unwrap();assert_eq!(local,Err("initial-write"));
         let final_denial=authorizer.execute_with_selected_transport_ingress_deferred(
             "acme.example.test",proof(),||Ok(input()),(access(),SelectedFixtureLocks),
-            erpx_server_identity_access::public::effective_authority::SelectedTransportCallbacks::<_, (), &'static str, _>::new::<()>(  |_|Box::pin(async {Ok::<_,&'static str>(())}),|_,_|Ok("initial-read"),
+            erpx_identity_access_server::public::effective_authority::SelectedTransportCallbacks::<_, (), &'static str, _>::new::<()>(  |_|Box::pin(async {Ok::<_,&'static str>(())}),|_,_|Ok("initial-read"),
             |c,current,_|Box::pin(async move {
                 assert!(current.has_permission("finance.write"));
                 assert_eq!(current.selection().role_revision(),1);
@@ -1020,7 +1020,7 @@ async fn transport_initial_read_tag_is_distinct_from_final_permission_and_local_
         assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM native_owner_effects").fetch_one(holding.raw()).await.unwrap(),0);
         let final_revoked=authorizer.execute_with_selected_transport_ingress_deferred(
             "acme.example.test",proof(),||Ok(input()),(access(),SelectedFixtureLocks),
-            erpx_server_identity_access::public::effective_authority::SelectedTransportCallbacks::<_, (), &'static str, _>::new::<()>(  |_|Box::pin(async {Ok::<_,&'static str>(())}),|_,_|Ok("initial-read"),
+            erpx_identity_access_server::public::effective_authority::SelectedTransportCallbacks::<_, (), &'static str, _>::new::<()>(  |_|Box::pin(async {Ok::<_,&'static str>(())}),|_,_|Ok("initial-read"),
             |c,_,_|Box::pin(async move {
                 sqlx::query("UPDATE assignments SET revoked_at=$1 WHERE id='grant'").bind(NOW).execute(c).await?;
                 Ok::<_,PgTransactionError<BusinessError>>(Err::<(),_>("initial-write"))
@@ -1033,7 +1033,7 @@ async fn transport_initial_read_tag_is_distinct_from_final_permission_and_local_
 
 #[tokio::test]
 async fn permission_catalog_require_checks_actual_mode_and_savepoint_release() {
-    use erpx_server_identity_access::public::permission_catalog_lock::{lock_permission_catalog_sources,require_permission_catalog_lock};
+    use erpx_identity_access_server::public::permission_catalog_lock::{lock_permission_catalog_sources,require_permission_catalog_lock};
     fixture::with_database(2, |control| async move {fixture::with_database(2, move |holding| async move {
         setup(&control,&holding).await;
         let mut outside=holding.raw().acquire().await.unwrap();assert!(require_permission_catalog_lock(&mut outside).await.is_err());drop(outside);
@@ -1052,11 +1052,11 @@ async fn permission_catalog_require_checks_actual_mode_and_savepoint_release() {
 
 #[tokio::test]
 async fn effective_authority_requires_all_owner_fences_in_same_unit() {
-    use erpx_server_identity_access::public::effective_authority::require_effective_authority_sources_held;
-    use erpx_server_identity_access::public::field_service_workspace::lock_service_workspace_authority;
-    use erpx_server_manage_erpx::public::lock_beta_policy_sources;
-    use erpx_server_organization::public::lock_organization_authority_sources;
-    use erpx_server_people_payroll::public::identity_facts::lock_people_authority_sources;
+    use erpx_identity_access_server::public::effective_authority::require_effective_authority_sources_held;
+    use erpx_identity_access_server::public::field_service_workspace::lock_service_workspace_authority;
+    use erpx_manage_erpx_server::public::lock_beta_policy_sources;
+    use erpx_organization_server::public::lock_organization_authority_sources;
+    use erpx_people_payroll_server::public::identity_facts::lock_people_authority_sources;
     const IDENTITY_LOCKS:&str="LOCK TABLE assignments,iam_roles,iam_role_revisions,iam_members,iam_identities,iam_connections,iam_revoked_sessions,iam_emergency_sessions,active_work_contexts,iam_access_subjects,iam_access_invitations,um_attributes,um_values,um_groups,um_memberships,um_policies,um_attachments,um_candidates,iam_directory_source_selections,iam_directory_observation_sources IN SHARE MODE";
     fixture::with_database(2, |control| async move {fixture::with_database(2, move |holding| async move {
         setup(&control,&holding).await;
@@ -1081,7 +1081,7 @@ async fn effective_authority_requires_all_owner_fences_in_same_unit() {
 
 #[tokio::test]
 async fn field_workspace_authority_fence_requires_catalog_and_marks_conflicts_retryable() {
-    use erpx_server_identity_access::public::field_service_workspace::{lock_service_workspace_authority,lock_service_workspace_authority_fenced,require_service_workspace_authority_fenced_held};
+    use erpx_identity_access_server::public::field_service_workspace::{lock_service_workspace_authority,lock_service_workspace_authority_fenced,require_service_workspace_authority_fenced_held};
     fixture::with_database(2, |control| async move {fixture::with_database(2, move |holding| async move {
         setup(&control,&holding).await;
         let mut absent=holding.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *absent).await.unwrap();lock_service_workspace_authority(&mut absent).await.unwrap();
@@ -1103,21 +1103,21 @@ async fn field_workspace_authority_fence_requires_catalog_and_marks_conflicts_re
 struct TypedCatalogPreparation { attempts:Arc<AtomicUsize>, drops:Arc<AtomicUsize>, conflicts:tokio::sync::mpsc::UnboundedSender<()>, conflict_release:Option<Arc<tokio::sync::Notify>> }
 struct TypedCatalogToken { unit:(String,i32,String,String), drops:Arc<AtomicUsize> }
 impl Drop for TypedCatalogToken {fn drop(&mut self){self.drops.fetch_add(1,Ordering::SeqCst);}}
-impl erpx_server_identity_access::public::effective_authority::HoldingPreparedSource for TypedCatalogToken {
+impl erpx_identity_access_server::public::effective_authority::HoldingPreparedSource for TypedCatalogToken {
     fn require_current<'c>(&'c self,c:&'c mut PgConnection)->PgWorkFuture<'c,(),BusinessError>{
         Box::pin(async move {
-            erpx_server_identity_access::public::permission_catalog_lock::require_permission_catalog_lock(&mut *c).await?;
+            erpx_identity_access_server::public::permission_catalog_lock::require_permission_catalog_lock(&mut *c).await?;
             let unit:(String,i32,String,String)=sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text").fetch_one(c).await?;
             if unit!=self.unit{return Err(BusinessError::new(FailureKind::Conflict,"TEST_TOKEN_UNIT_CHANGED","Token changed unit.").into());}Ok(())
         })
     }
 }
-impl erpx_server_identity_access::public::effective_authority::TypedHoldingWorkSourcePreparation for TypedCatalogPreparation {
+impl erpx_identity_access_server::public::effective_authority::TypedHoldingWorkSourcePreparation for TypedCatalogPreparation {
     type Token=TypedCatalogToken;
     fn prepare_typed<'c>(&'c self,c:&'c mut PgConnection)->PgWorkFuture<'c,Self::Token,BusinessError>{
         Box::pin(async move {
             self.attempts.fetch_add(1,Ordering::SeqCst);
-            if let Err(error)=erpx_server_identity_access::public::permission_catalog_lock::lock_permission_catalog_sources(&mut *c).await {
+            if let Err(error)=erpx_identity_access_server::public::permission_catalog_lock::lock_permission_catalog_sources(&mut *c).await {
                 if matches!(&error,PgTransactionError::Persistence(e) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED") {let _=self.conflicts.send(()); if let Some(release)=&self.conflict_release { release.notified().await; }}
                 return Err(error);
             }
@@ -1147,7 +1147,7 @@ async fn typed_preparation_is_attempt_local_and_retries_real_catalog_conflict() 
 
 #[tokio::test]
 async fn selected_transport_typed_token_is_dropped_on_success_and_action_failure() {
-    use erpx_server_identity_access::public::effective_authority::SelectedIngressFuture;
+    use erpx_identity_access_server::public::effective_authority::SelectedIngressFuture;
     fixture::with_database(2,|control|async move {fixture::with_database(2,move|holding|async move {
         let(authorizer,_clock)=setup(&control,&holding).await;let attempts=Arc::new(AtomicUsize::new(0));let drops=Arc::new(AtomicUsize::new(0));let (send,_receive)=tokio::sync::mpsc::unbounded_channel();
         let prep=TypedCatalogPreparation{attempts:attempts.clone(),drops:drops.clone(),conflicts:send,conflict_release:None};
@@ -1208,10 +1208,10 @@ async fn typed_preparation_mints_a_fresh_token_after_serialization_retry() {
 #[derive(Clone)]
 struct DeferredFactPreparation(TypedCatalogPreparation);
 struct DeferredFactToken(TypedCatalogToken);
-impl erpx_server_identity_access::public::effective_authority::HoldingPreparedSource for DeferredFactToken {
+impl erpx_identity_access_server::public::effective_authority::HoldingPreparedSource for DeferredFactToken {
     fn require_current<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move {
-            use erpx_server_identity_access::public::effective_authority::HoldingPreparedSource;
+            use erpx_identity_access_server::public::effective_authority::HoldingPreparedSource;
             self.0.require_current(&mut *c).await?;
             let changed: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM native_owner_effects WHERE id='deferred-fact')").fetch_one(c).await?;
             if changed { return Err(BusinessError::new(FailureKind::Conflict,"TEST_DEFERRED_FACT_CHANGED","Retained fact changed.").into()); }
@@ -1219,11 +1219,11 @@ impl erpx_server_identity_access::public::effective_authority::HoldingPreparedSo
         })
     }
 }
-impl erpx_server_identity_access::public::effective_authority::TypedHoldingWorkSourcePreparation for DeferredFactPreparation {
+impl erpx_identity_access_server::public::effective_authority::TypedHoldingWorkSourcePreparation for DeferredFactPreparation {
     type Token = DeferredFactToken;
     fn prepare_typed<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, Self::Token, BusinessError> {
         Box::pin(async move {
-            use erpx_server_identity_access::public::effective_authority::{HoldingPreparedSource,TypedHoldingWorkSourcePreparation};
+            use erpx_identity_access_server::public::effective_authority::{HoldingPreparedSource,TypedHoldingWorkSourcePreparation};
             let token = DeferredFactToken(self.0.prepare_typed(&mut *c).await?);
             token.require_current(c).await?;
             Ok(token)
@@ -1233,7 +1233,7 @@ impl erpx_server_identity_access::public::effective_authority::TypedHoldingWorkS
 
 #[tokio::test]
 async fn typed_final_guard_rejects_deferred_trigger_fact_drift_and_rolls_back() {
-    use erpx_server_identity_access::public::effective_authority::SelectedIngressFuture;
+    use erpx_identity_access_server::public::effective_authority::SelectedIngressFuture;
     fixture::with_database(2, |control| async move { fixture::with_database(2, move |holding| async move {
         let (authorizer, _) = setup(&control, &holding).await;
         sqlx::raw_sql("CREATE FUNCTION typed_deferred_fact() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN INSERT INTO native_owner_effects VALUES ('deferred-fact'); RETURN NEW; END $$; CREATE CONSTRAINT TRIGGER typed_deferred_fact AFTER INSERT ON native_owner_effects DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.id = 'deferred-action') EXECUTE FUNCTION typed_deferred_fact()").execute(holding.raw()).await.unwrap();
@@ -1255,7 +1255,7 @@ async fn typed_final_guard_rejects_deferred_trigger_fact_drift_and_rolls_back() 
 
 #[tokio::test]
 async fn sales_iam_boundary_requires_canonical_sources_and_same_unit() {
-    use erpx_server_identity_access::public::{permission_catalog_lock::lock_permission_catalog_sources, sales_recipient::{lock_sales_recipient_sources,inspect_sales_iam_boundary}};
+    use erpx_identity_access_server::public::{permission_catalog_lock::lock_permission_catalog_sources, sales_recipient::{lock_sales_recipient_sources,inspect_sales_iam_boundary}};
     fixture::with_database(2,|control|async move {
         fixture::with_database(2,move|holding|async move {
             setup(&control,&holding).await;

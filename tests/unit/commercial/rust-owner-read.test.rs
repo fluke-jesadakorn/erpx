@@ -1,4 +1,4 @@
-use erpx_server_commercial::public::owner_read::{
+use erpx_commercial_server::public::owner_read::{
     OWNER_READ_OPERATION, PRINCIPAL_EVENTS, SQL_PRINCIPAL_EVENTS, SQL_USAGE_METER, SQL_USAGE_SEAT,
     SQL_USAGE_SNAPSHOT, USAGE_METER, USAGE_SEAT, USAGE_SNAPSHOT, is_owner_read, statement,
 };

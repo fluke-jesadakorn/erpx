@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { relative, resolve } from "node:path";
-import { appDefinitions } from "@erpx/contracts/apps";
+import { appDefinitions } from "@erpx/platform-contracts/apps";
 
 const root = resolve(import.meta.dirname, "../..");
 const ignored = new Set(["node_modules", ".next", ".build", ".cache", ".turbo"]);

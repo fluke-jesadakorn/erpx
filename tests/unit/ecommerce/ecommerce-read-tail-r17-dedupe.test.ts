@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
 
-const srcRoot = resolve(__dirname, '../../../packages/server-ecommerce/src');
+const srcRoot = resolve(__dirname, '../../../modules/ecommerce/server/src');
 const src = readFileSync(resolve(srcRoot, 'adapters/package-obligations.ts'), 'utf8');
 
 // Pre-dedupe guard SQL copied verbatim from HEAD, kept only as byte-identity oracles.

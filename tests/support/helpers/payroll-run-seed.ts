@@ -1,17 +1,17 @@
 import { z } from "zod";
 import { expenseDb } from "./expense-fixture";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import { sha256 } from "@erpx/server-runtime/public/crypto";
-import { calculatePayrollItemForSystem } from "@erpx/server-people_payroll/public/people-payroll";
-import { payrollAccountingLines, type PayrollPostingItem } from "@erpx/server-people_payroll/domain/payroll-accounting";
-import { payrollPostSchema } from "@erpx/server-people_payroll/domain/people-payroll";
-import { assertStatutoryRunReady } from "@erpx/server-people_payroll/public/payroll-statutory";
-import { prepareJournal } from "@erpx/server-finance/public/journal-planning";
-import { snapshotMoney } from "@erpx/server-finance/public/company-money";
-import { preparePayslipIssue } from "@erpx/server-people_payroll/public/payroll-payslips";
-import { preparePayrollDeductionConsumption } from "@erpx/server-people_payroll/public/payroll-deductions";
-import { calculatePayrollAdjustmentRun } from "@erpx/server-people_payroll/adapters/payroll-adjustments";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import type { SqlDatabase } from "@erpx/platform-runtime-server/public/runtime/types";
+import { sha256 } from "@erpx/platform-runtime-server/public/crypto";
+import { calculatePayrollItemForSystem } from "@erpx/people-payroll-server/public/people-payroll";
+import { payrollAccountingLines, type PayrollPostingItem } from "@erpx/people-payroll-server/domain/payroll-accounting";
+import { payrollPostSchema } from "@erpx/people-payroll-server/domain/people-payroll";
+import { assertStatutoryRunReady } from "@erpx/people-payroll-server/public/payroll-statutory";
+import { prepareJournal } from "@erpx/finance-server/public/journal-planning";
+import { snapshotMoney } from "@erpx/finance-server/public/company-money";
+import { preparePayslipIssue } from "@erpx/people-payroll-server/public/payroll-payslips";
+import { preparePayrollDeductionConsumption } from "@erpx/people-payroll-server/public/payroll-deductions";
+import { calculatePayrollAdjustmentRun } from "@erpx/people-payroll-server/adapters/payroll-adjustments";
 
 /** Test-only payroll-run seed. The production create/calculate/post commands are
  * native; this preserves the original run, item and posting rows the retired

@@ -3,15 +3,15 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
 const { captured } = vi.hoisted(() => ({ captured: [] as string[] }));
-vi.mock('@erpx/server-workflow/public/command-assertions', () => ({
+vi.mock('@erpx/workflow-server/public/command-assertions', () => ({
   assertion: (_db: unknown, _id: string, _step: string, query: string) => {
     captured.push(query);
     return { sql: query };
   },
 }));
-import { OperationalAttachmentEcommerceFacts } from '../../../packages/server-ecommerce/src/adapters/attachments-operational-facts';
+import { OperationalAttachmentEcommerceFacts } from '../../../modules/ecommerce/server/src/adapters/attachments-operational-facts';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-ecommerce/src');
+const srcRoot = resolve(__dirname, '../../../modules/ecommerce/server/src');
 const src = readFileSync(resolve(srcRoot, 'adapters/attachments-operational-facts.ts'), 'utf8');
 
 // Pre-dedupe version-guard literals copied verbatim from HEAD, kept only as byte-identity oracles.

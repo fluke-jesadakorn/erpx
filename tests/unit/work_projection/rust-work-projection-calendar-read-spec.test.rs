@@ -2,21 +2,21 @@
 //!
 //! Pins the exact allow-list and positional arities of the twelve SELECT facts
 //! that the TypeScript feature bridge in
-//! `packages/feature-work_projection/src/lib/native-calendar-read.ts` sends to
+//! `modules/work-projection/ui/src/lib/native-calendar-read.ts` sends to
 //! the private `/work/owner-read` route. Any drift in the Rust read surface
 //! breaks this test before it can break a live calendar command. No database
 //! and no network are required.
 
-use erpx_server_shared::public::BusinessError;
-use erpx_server_work_projection::public::calendar_read::{
+use erpx_platform_shared_server::public::BusinessError;
+use erpx_work_projection_server::public::calendar_read::{
     READ_12, READ_26, READ_37, READ_60, READ_61, READ_62, READ_63, READ_64, READ_65, READ_66,
     READ_67, arity, supported, validate,
 };
-use erpx_server_work_projection::public::calendar_read_http::{
+use erpx_work_projection_server::public::calendar_read_http::{
     CalendarReadFuture, CalendarReadHttpBackend, CalendarReadHttpRequest, CalendarReadHttpTarget,
     calendar_read_router,
 };
-use erpx_server_work_projection::public::calendar_read_tail::{
+use erpx_work_projection_server::public::calendar_read_tail::{
     CalendarReadFamily, OccurrenceException, OccurrenceExceptionChange, OccurrenceResponse,
     OccurrenceResponseValue, ReminderAuthorization, family_of,
 };

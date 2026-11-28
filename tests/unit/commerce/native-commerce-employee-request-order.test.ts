@@ -3,8 +3,8 @@ vi.mock('server-only', () => ({}));
 import {
   NativeCommerceEmployeeOrderError,
   nativeCommerceEmployeeOrderReader,
-} from '../../../packages/feature-commerce/src/public/native-commerce-employee-request-order';
-import type { NativeCommerceOrdersTransport } from '../../../packages/feature-commerce/src/public/native-commerce-orders';
+} from '../../../modules/commerce/ui/src/public/native-commerce-employee-request-order';
+import type { NativeCommerceOrdersTransport } from '../../../modules/commerce/ui/src/public/native-commerce-orders';
 
 const config = JSON.stringify({
   privateBaseUrl: 'http://127.0.0.1:44994',

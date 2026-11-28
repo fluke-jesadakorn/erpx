@@ -2,10 +2,10 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { legalItemOrderedSql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r35-sources';
+import { legalItemOrderedSql } from '../../../modules/legal/server/src/adapters/legal-read-tail-r35-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-legal/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-legal/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/legal/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/legal/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const ordered = (columns: string, table: string, order: string, limit?: number) =>
   `SELECT ${columns} FROM ${table} WHERE item_id=? ORDER BY ${order}${limit === undefined ? '' : ` LIMIT ${limit}`}`;
 

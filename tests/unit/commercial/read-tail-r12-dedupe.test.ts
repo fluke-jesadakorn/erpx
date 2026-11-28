@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { purchaseScopeRead } from '../../../packages/server-commercial/src/adapters/commercial-read-tail-r12-sources';
-import { purchaseObservationAgg } from '../../../packages/server-commercial/src/adapters/commercial-read-tail-r6-sources';
+import { purchaseScopeRead } from '../../../modules/commercial/server/src/adapters/commercial-read-tail-r12-sources';
+import { purchaseObservationAgg } from '../../../modules/commercial/server/src/adapters/commercial-read-tail-r6-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-commercial/src');
+const srcRoot = resolve(__dirname, '../../../modules/commercial/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 // Pre-dedupe oracles copied verbatim from HEAD (r11 baseline, BEFORE=24). The

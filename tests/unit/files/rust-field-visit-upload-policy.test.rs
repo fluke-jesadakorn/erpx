@@ -1,4 +1,4 @@
-use erpx_server_files::public::field_visit_upload::{
+use erpx_files_server::public::field_visit_upload::{
     FIELD_UPLOAD_MAX_BYTES, FieldFileReservation, field_reservation_replay_matches,
     field_upload_id, field_upload_link_id, normalize_fresh_field_file, validate_field_upload_bytes,
 };

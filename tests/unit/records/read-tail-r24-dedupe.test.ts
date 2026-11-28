@@ -5,9 +5,9 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { childRowAgg, legalRequestAttachmentSourceImage } from '../../../packages/server-records/src/adapters/legal-attachment-read-sources';
+import { childRowAgg, legalRequestAttachmentSourceImage } from '../../../modules/records/server/src/adapters/legal-attachment-read-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-records/src');
+const srcRoot = resolve(__dirname, '../../../modules/records/server/src');
 const shared = readFileSync(resolve(srcRoot, 'adapters/legal-attachment-read-sources.ts'), 'utf8');
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 const readOnly = (sql: string) => {

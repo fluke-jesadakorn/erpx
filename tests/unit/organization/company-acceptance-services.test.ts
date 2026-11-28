@@ -1,8 +1,8 @@
 import {expect,it,vi} from "vitest";
-import {createCompanyAcceptanceService,type OwnerCommands} from "@erpx/server-organization/application/company-business-acceptance";
-import type {AcceptanceRow} from "@erpx/server-organization/domain/company-business-acceptance";
-import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import {ApiError} from "@erpx/server-runtime/public/http";
+import {createCompanyAcceptanceService,type OwnerCommands} from "@erpx/organization-server/application/company-business-acceptance";
+import type {AcceptanceRow} from "@erpx/organization-server/domain/company-business-acceptance";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
+import {ApiError} from "@erpx/platform-runtime-server/public/http";
 function only<T>(values:Partial<T>):T{return new Proxy(values,{get(target,name){if(name in target)return Reflect.get(target,name);throw Error(`Unexpected port ${String(name)}`);}}) as T;}
 type Ports=Parameters<typeof createCompanyAcceptanceService<string>>[0];
 const actor={userId:"owner",companyId:"company",branchId:null,departmentId:null,scope:{kind:"holding"},permissions:["organization.manage"]} as unknown as WorkContext;

@@ -2,18 +2,18 @@
 mod fixture;
 mod domain {
     pub(crate) mod rfq_transition {
-        pub use erpx_server_procurement::public::rfq_transition::*;
+        pub use erpx_procurement_server::public::rfq_transition::*;
     }
 }
-#[path = "../../../packages/server-procurement/src/adapters/rfq_transition_stage.rs"]
+#[path = "../../../modules/procurement/server/src/adapters/rfq_transition_stage.rs"]
 mod rfq_transition_stage;
-#[path = "../../../src/composition/src/procurement_rfq_notice.rs"]
+#[path = "../../../platform/composition/src/procurement_rfq_notice.rs"]
 mod rfq_notice;
-#[path = "../../../src/composition/src/procurement_rfq_assertions.rs"]
+#[path = "../../../platform/composition/src/procurement_rfq_assertions.rs"]
 mod rfq_assertions;
-#[path = "../../../src/composition/src/procurement_rfq_quantity.rs"]
+#[path = "../../../platform/composition/src/procurement_rfq_quantity.rs"]
 mod rfq_quantity;
-use erpx_server_procurement::public::rfq_transition::{RfqTransitionAction, RfqTransitionDecision};
+use erpx_procurement_server::public::rfq_transition::{RfqTransitionAction, RfqTransitionDecision};
 use rfq_transition_stage::*;
 use sqlx::{Connection, Row};
 
@@ -21,7 +21,7 @@ use sqlx::{Connection, Row};
 async fn node_postgres_promise_all_first_error_and_aborted_unit() {
     fixture::with_database(2, |pool| async move {
         let db_name: String=sqlx::query_scalar("SELECT current_database()::text").fetch_one(pool.raw()).await.unwrap();
-        let script=r#"const {Pool}=require('pg');const {transactionDatabase,PostgresDatabase}=require('./packages/server-runtime/src/adapters/runtime/postgres.ts');
+        let script=r#"const {Pool}=require('pg');const {transactionDatabase,PostgresDatabase}=require('./platform/runtime/server/src/adapters/runtime/postgres.ts');
 const url=new URL(process.env.ERPX_TEST_ADMIN_URL);url.pathname='/'+process.env.ERPX_CASE_DATABASE;
 (async()=>{const pool=new Pool({connectionString:url.toString()});const c=await pool.connect();try{await c.query('BEGIN');const db=transactionDatabase(c);const work=[db.prepare('SELECT 1').all(),db.prepare('SELECT 1/0 AS value').all(),db.prepare('SELECT 1 FROM no_such_rfq_table').all(),db.prepare('SELECT 2').all()];const settled=await Promise.allSettled(work);let later;try{await db.prepare('SELECT 3').all()}catch(e){later=e.code}await c.query('ROLLBACK');await c.query('BEGIN');const decoded=await Promise.allSettled([db.prepare('SELECT 1').all(),db.prepare('SELECT 9007199254740992::bigint AS value').all(),db.prepare('SELECT 3').all(),db.prepare('SELECT 4').all()]);const afterDecode=await db.prepare('SELECT 5 AS value').first();const mixed=[];for(const statements of [["SELECT 9007199254740992::bigint AS value","SELECT 1/0 AS value","SELECT 1","SELECT 2"],["SELECT 1/0 AS value","SELECT 9007199254740992::bigint AS value","SELECT 1","SELECT 2"],["SELECT 9007199254740992::bigint AS value","SELECT 9007199254740992::bigint AS value","SELECT 1","SELECT 2"]]){await c.query('ROLLBACK');await c.query('BEGIN');const results=await Promise.allSettled(statements.map(sql=>db.prepare(sql).all()));let after='ok';try{await db.prepare('SELECT 5').all()}catch(e){after=e.code}mixed.push({codes:results.map(x=>x.status==='rejected'?(x.reason.code||x.reason.name):'ok'),after})}const direct=[];for(const statements of [["SELECT 9007199254740992::bigint AS value","SELECT 1/0 AS value","SELECT 1","SELECT 2"],["SELECT 1/0 AS value","SELECT 9007199254740992::bigint AS value","SELECT 1","SELECT 2"]]){await c.query('ROLLBACK');await c.query('BEGIN');const pending=statements.map(sql=>db.prepare(sql).all());let first='ok';try{await Promise.all(pending)}catch(e){first=e.code||e.name}const rollback=c.query('ROLLBACK');const outcomes=await Promise.allSettled(pending);await rollback;const after=await db.prepare('SELECT 9 AS value').first();direct.push({first,codes:outcomes.map(x=>x.status==='rejected'?(x.reason.code||x.reason.name):'ok'),after:after.value})}const plain=new PostgresDatabase({connectionString:url.toString(),max:1});const disabled=[];for(const statements of [["SELECT 1/0 AS value","SELECT 9007199254740992::bigint AS value","SELECT 1","SELECT 2"],["SELECT 9007199254740992::bigint AS value","SELECT 1/0 AS value","SELECT 1","SELECT 2"]]){const results=await Promise.allSettled(statements.map(sql=>plain.prepare(sql).all()));disabled.push(results.map(x=>x.status==='rejected'?(x.reason.code||x.reason.name):'ok'))}await plain.pool.end();process.stdout.write(JSON.stringify({codes:settled.map(x=>x.status==='rejected'?x.reason.code:'ok'),later,decode:decoded.map(x=>x.status==='rejected'?x.reason.name+':'+x.reason.message:'ok'),afterDecode:afterDecode.value,mixed,disabled,direct}));}finally{await c.query('ROLLBACK');c.release();await pool.end()}})().catch(e=>{process.stderr.write(e.code||e.name);process.exitCode=1});"#;
         let output=std::process::Command::new(std::env::var("ERPX_NODE_BIN").expect("pinned Node required"))
@@ -48,7 +48,7 @@ const url=new URL(process.env.ERPX_TEST_ADMIN_URL);url.pathname='/'+process.env.
 
 #[tokio::test]
 async fn allocation_source_preserves_grouped_numeric_without_i64_truncation() {
-    use erpx_server_procurement::public::rfq_request_allocations::read_rfq_request_allocations;
+    use erpx_procurement_server::public::rfq_request_allocations::read_rfq_request_allocations;
     fixture::with_database(2, |pool| async move {
         let mut c=pool.raw().acquire().await.unwrap();
         sqlx::raw_sql("CREATE TABLE procurement_rfqs(id text PRIMARY KEY,request_id text,status text); CREATE TABLE procurement_rfq_lines(rfq_id text,request_item_ordinal integer,request_quantity_milli bigint); INSERT INTO procurement_rfqs VALUES('a','request','approved'),('b','request','cancelled'),('c','other','approved'); INSERT INTO procurement_rfq_lines VALUES('a',0,9000000000000000000),('a',0,9000000000000000000),('a',NULL,NULL),('b',0,10),('c',0,20)").execute(&mut *c).await.unwrap();
@@ -64,7 +64,7 @@ async fn allocation_source_preserves_grouped_numeric_without_i64_truncation() {
 
 #[tokio::test]
 async fn migrated_cancel_releases_commitment_and_cache_changes_roll_back() {
-    use erpx_server_runtime::public::postgres::{MigrationTrack, load_migrations, migrate_database};
+    use erpx_platform_runtime_server::public::postgres::{MigrationTrack, load_migrations, migrate_database};
     fixture::with_database(3, |pool| async move {
         let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
         let files=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();
@@ -77,7 +77,7 @@ async fn migrated_cancel_releases_commitment_and_cache_changes_roll_back() {
         let mut c=pool.raw().acquire().await.unwrap();let mut tx=c.begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE").await.unwrap();
         lock_transition_sources(&mut tx).await.unwrap();
         sqlx::query("LOCK TABLE public.procurement_request_item_commitments IN SHARE ROW EXCLUSIVE MODE").execute(&mut *tx).await.unwrap();
-        erpx_server_collaboration::public::rfq_notifications::lock_rfq_notifications(&mut tx).await.unwrap();
+        erpx_collaboration_server::public::rfq_notifications::lock_rfq_notifications(&mut tx).await.unwrap();
         use rfq_assertions::{RfqAssertionInput, RfqRequestAssertion, stage_rfq_assertions};
         let assertion = RfqAssertionInput{key:"assert-key",id:"rfq",version:1,status:"collecting",company:"company",branch:Some("branch"),department:None,request:Some(RfqRequestAssertion{id:"request",evidence_version:Some(1),items_json:Some("[{\"quantity\":\"2\",\"unit\":\"each\"}]")})};
         stage_rfq_assertions(&mut tx,&assertion).await.unwrap();
@@ -133,7 +133,7 @@ async fn migrated_cancel_releases_commitment_and_cache_changes_roll_back() {
         assert!(stage_transition(&mut tx,&input).await.unwrap());
         assert_eq!(sqlx::query_scalar::<_,i64>("SELECT allocated_quantity_milli FROM procurement_request_item_commitments WHERE request_id='request' AND request_item_ordinal=0").fetch_one(&mut *tx).await.unwrap(),0);
         assert_eq!(sqlx::query_scalar::<_,i64>("SELECT revision FROM work_cache_revision_baselines WHERE table_name='procurement_rfqs'").fetch_one(&mut *tx).await.unwrap(),before+1);
-        let notice=erpx_server_procurement::public::rfq_notification_source::bind_rfq_notification_source(&mut tx,"company","rfq",2).await.unwrap();
+        let notice=erpx_procurement_server::public::rfq_notification_source::bind_rfq_notification_source(&mut tx,"company","rfq",2).await.unwrap();
         rfq_notice::notify_rfq(&mut tx,"cancel-key",&notice).await.unwrap();
         assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM staff_notifications WHERE record_type='procurement_rfq' AND record_id='rfq'").fetch_one(&mut *tx).await.unwrap(),1);
         assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM inbox_events WHERE source_type='procurement_rfq' AND source_id='rfq'").fetch_one(&mut *tx).await.unwrap(),1);
@@ -152,7 +152,7 @@ async fn migrated_cancel_releases_commitment_and_cache_changes_roll_back() {
 
 #[tokio::test]
 async fn notification_source_is_current_and_bound_to_its_transaction() {
-    use erpx_server_procurement::public::rfq_notification_source::bind_rfq_notification_source;
+    use erpx_procurement_server::public::rfq_notification_source::bind_rfq_notification_source;
     fixture::with_database(2, |pool| async move {
         let mut c=pool.raw().acquire().await.unwrap();
         sqlx::raw_sql("CREATE TABLE procurement_rfqs(id text primary key,company_id text,branch_id text,department_id text,version bigint,updated_at bigint); CREATE TABLE procurement_rfq_events(id text primary key); INSERT INTO procurement_rfqs VALUES('r','c','b',NULL,2,20);").execute(&mut *c).await.unwrap();

@@ -1,5 +1,5 @@
-use erpx_server_identity_access::public::{directory::refresh_rules::*, work_context::*};
-use erpx_server_shared::public::{AssignmentId, CompanyId, RecordId, UserId};
+use erpx_identity_access_server::public::{directory::refresh_rules::*, work_context::*};
+use erpx_platform_shared_server::public::{AssignmentId, CompanyId, RecordId, UserId};
 const NOW: i64 = 1_800_000_000_000;
 fn member() -> DirectoryRefreshMemberFacts {
     DirectoryRefreshMemberFacts {
@@ -72,7 +72,7 @@ fn fixture() -> (HoldingWorkspaceRequest, DirectoryRefreshSelectionFacts) {
 fn fence(
     input: &HoldingWorkspaceRequest,
     facts: &DirectoryRefreshSelectionFacts,
-) -> Result<ExpectedWorkSelection, erpx_server_shared::public::BusinessError> {
+) -> Result<ExpectedWorkSelection, erpx_platform_shared_server::public::BusinessError> {
     selection_fence(
         input,
         &RecordId::new("actual-child").unwrap(),

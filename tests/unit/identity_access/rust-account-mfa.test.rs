@@ -1,4 +1,4 @@
-use erpx_server_identity_access::public::account_security::*;
+use erpx_identity_access_server::public::account_security::*;
 
 #[test]
 fn rfc4226_and_rfc6238_vectors_preserve_the_existing_six_digit_sha1_protocol() {
@@ -90,7 +90,7 @@ fn code_shape_step_order_and_strict_freshness_boundaries_match_source() {
 }
 #[test]
 fn unchanged_node_source_oracle_covers_totp_uri_and_private_source_revision_hashes() {
-    use erpx_server_identity_access::public::account_security_http::AccountSecuritySeed;
+    use erpx_identity_access_server::public::account_security_http::AccountSecuritySeed;
     use serde_json::Value;
     let fixture: Value = serde_json::from_str(include_str!(
         "../../../fixtures/identity_access/account-security/conformance.v1.json"

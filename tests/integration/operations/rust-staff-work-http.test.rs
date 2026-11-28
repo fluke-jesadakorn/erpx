@@ -1,12 +1,12 @@
 //! Native Staff Work HTTP transport facts over a real loopback listener.
-use erpx_server_operations::public::staff_work_http::{
+use erpx_operations_server::public::staff_work_http::{
     StaffWorkHttpBackend, StaffWorkHttpCommandRequest, StaffWorkHttpFuture, StaffWorkHttpReadKind,
     StaffWorkHttpReadRequest, StaffWorkHttpResponse, StaffWorkHttpTarget, staff_work_router,
 };
-use erpx_server_runtime::public::http_support::{
+use erpx_platform_runtime_server::public::http_support::{
     Router, serde_json::Value, serde_json::json, serve,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},

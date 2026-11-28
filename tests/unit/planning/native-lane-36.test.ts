@@ -11,7 +11,7 @@ import {
   nativeResources,
   nativeScenario,
   nativeScopedRecommendation,
-} from '../../../packages/server-planning/src/adapters/native-lane-36/client';
+} from '../../../modules/planning/server/src/adapters/native-lane-36/client';
 
 const ENV = 'ERPX_NATIVE_PLANNING_LANE36_CONFIG';
 /** Exact development configuration pin: three registered Holdings. */

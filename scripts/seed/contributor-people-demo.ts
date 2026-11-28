@@ -3,10 +3,10 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { getLocalProxy } from '../local/fixtures';
-import { packageGrantStore, readCompanyPackageGrants } from '@erpx/server-commercial/public/package-grants';
-import { commercialCompanies } from '@erpx/server-organization/public/commercial-companies';
-import type { PostgresDatabase } from '@erpx/server-runtime/public/runtime/postgres';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import { packageGrantStore, readCompanyPackageGrants } from '@erpx/commercial-server/public/package-grants';
+import { commercialCompanies } from '@erpx/organization-server/public/commercial-companies';
+import type { PostgresDatabase } from '@erpx/platform-runtime-server/public/runtime/postgres';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
 
 const root = '/workspace/erpx', config = `${root}/.runtime/local/config`;
 const key = process.env.ERPX_DEV_WORKSPACE_KEY ?? '';

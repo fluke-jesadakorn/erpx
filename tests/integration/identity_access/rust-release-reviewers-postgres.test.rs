@@ -1,11 +1,11 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_identity_access::public::release_reviewers::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_identity_access_server::public::release_reviewers::*;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgUnitOfWork, TransactionOptions, load_migrations,
     migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, RecordId, UserId};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, RecordId, UserId};
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -72,7 +72,7 @@ async fn current_reviewer_revoked_after_earlier_snapshot_retries_then_denies() {
 
 #[tokio::test]
 async fn stock_count_flow_participants_match_typescript_without_size_caps() {
-    use erpx_server_identity_access::public::service_count_flow_participants::{inspect_stock_count_flow_assignments,lock_stock_count_flow_assignment_sources,service_count_flow_active_members,service_count_flow_reviewers};
+    use erpx_identity_access_server::public::service_count_flow_participants::{inspect_stock_count_flow_assignments,lock_stock_count_flow_assignment_sources,service_count_flow_active_members,service_count_flow_reviewers};
     fixture::with_database(2,|pool|async move {
         setup(&pool).await;
         sqlx::raw_sql("INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status) VALUES('*','flow-test','Flow reviewer',false,1,'active'),('*','flow-no-role','No flow',false,1,'active'),('*','flow-owner','Owner only',false,1,'active'),('*','flow-both','Both roles',false,1,'active');
@@ -91,9 +91,9 @@ async fn stock_count_flow_participants_match_typescript_without_size_caps() {
         let db:String=sqlx::query_scalar("SELECT current_database()").fetch_one(pool.raw()).await.unwrap();
         let script=r#"
 if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');
-import pg from 'pg';import './packages/server-runtime/src/adapters/runtime/postgres.ts';
-import {createFlowRoutingSourceRepository} from './packages/server-identity_access/src/adapters/workflow-flow-routing-facts.ts';
-import {workflowStaffRoleUsers} from './packages/server-identity_access/src/adapters/workflow-role-facts.ts';
+import pg from 'pg';import './platform/runtime/server/src/adapters/runtime/postgres.ts';
+import {createFlowRoutingSourceRepository} from './modules/identity-access/server/src/adapters/workflow-flow-routing-facts.ts';
+import {workflowStaffRoleUsers} from './modules/identity-access/server/src/adapters/workflow-role-facts.ts';
 const u=new URL(process.env.ERPX_TEST_ADMIN_URL);u.pathname='/'+process.env.COUNT_TEST_DB;const c=new pg.Client({connectionString:u.toString()});await c.connect();
 const db={prepare(sql){return{bind(...args){return{async all(){let i=0;const q=sql.replace(/\?/g,()=>'$'+(++i));return{results:(await c.query(q,args)).rows}}}}}}};
 const now=Date.now();const members=(await createFlowRoutingSourceRepository(db).readReadFlowMembers('company',now,now)).results.map(r=>r.user_id).sort();
@@ -109,7 +109,7 @@ process.stdout.write(JSON.stringify({members,reviewers}));await c.end();
         lock_stock_count_flow_assignment_sources(&mut tx).await.unwrap();
         let now:i64=sqlx::query_scalar("SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint").fetch_one(&mut *tx).await.unwrap();
         let company=CompanyId::new("company").unwrap();
-        let projection_script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const {finalRootOwnerProjectionSources:s}=await import('./packages/server-identity_access/src/adapters/final-root-owner-projection-sources.ts');process.stdout.write(s.assignments);"#;
+        let projection_script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const {finalRootOwnerProjectionSources:s}=await import('./modules/identity-access/server/src/adapters/final-root-owner-projection-sources.ts');process.stdout.write(s.assignments);"#;
         let projection=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")).args(["--conditions=react-server","-e",projection_script]).output().unwrap();assert!(projection.status.success());let ts_sql=String::from_utf8(projection.stdout).unwrap();
         let witness=inspect_stock_count_flow_assignments(&mut tx,&company,now).await.unwrap();
         {

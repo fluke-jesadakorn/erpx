@@ -7,13 +7,13 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_commercial::public::purchases::current_package_catalogue;
-use erpx_server_identity_access::public::work_context::HoldingWorkspaceRequest;
-use erpx_server_runtime::public::postgres::DatabasePool;
-use erpx_server_shared::public::{CommandKey, CompanyId, HoldingId};
-use erpx_service::finance_journal_detail::*;
-use erpx_service::finance_journal_detail_http::*;
-use erpx_service::finance_journal_review::FinanceJournalEnvironment;
+use erpx_commercial_server::public::purchases::current_package_catalogue;
+use erpx_identity_access_server::public::work_context::HoldingWorkspaceRequest;
+use erpx_platform_runtime_server::public::postgres::DatabasePool;
+use erpx_platform_shared_server::public::{CommandKey, CompanyId, HoldingId};
+use erpx_platform_composition::finance_journal_detail::*;
+use erpx_platform_composition::finance_journal_detail_http::*;
+use erpx_platform_composition::finance_journal_review::FinanceJournalEnvironment;
 use facts::{Prepared, account, setup};
 use std::sync::Arc;
 use tower::ServiceExt;
@@ -34,7 +34,7 @@ fn service(p: &Prepared) -> FinanceJournalDetailService<facts::TestClock> {
 
 fn owned_maker(
     p: &Prepared,
-) -> impl FnOnce() -> Result<HoldingWorkspaceRequest, erpx_server_shared::public::BusinessError>
+) -> impl FnOnce() -> Result<HoldingWorkspaceRequest, erpx_platform_shared_server::public::BusinessError>
        + Send
        + 'static {
     let request = p.maker_selection.clone();
@@ -157,7 +157,7 @@ async fn sales_receipt_issue_read_and_export() {
             .execute(&mut *tx)
             .await
             .unwrap();
-        let scoped = erpx_server_finance::public::sales_receipts::read_customer_receipt(
+        let scoped = erpx_finance_server::public::sales_receipts::read_customer_receipt(
             &mut tx,
             "company",
             Some("branch"),
@@ -167,7 +167,7 @@ async fn sales_receipt_issue_read_and_export() {
         .await
         .unwrap();
         assert!(scoped.is_none());
-        let foreign = erpx_server_finance::public::sales_receipts::read_customer_receipt(
+        let foreign = erpx_finance_server::public::sales_receipts::read_customer_receipt(
             &mut tx,
             "another-company",
             None,
@@ -190,7 +190,7 @@ async fn sales_receipt_issue_read_and_export() {
             )
             .await
         {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                 assert_eq!(error.code, "POSTED_RECEIPT_REQUIRED");
             }
             other => panic!("unposted payment must fail: {other:?}"),

@@ -1,12 +1,12 @@
-import { packageGrantStore } from "@erpx/server-commercial/public/package-grants";
+import { packageGrantStore } from "@erpx/commercial-server/public/package-grants";
 import { beforeAll, beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { applyMigrations, env, type TestMigration } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
-import {calculateCloseReconciliations,createInvoice,createParty,decideFxRevaluation,fxRevaluationWorkspace,postInvoice,prepareFxRevaluation} from '@erpx/server-finance/public/finance';
-import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
+import {calculateCloseReconciliations,createInvoice,createParty,decideFxRevaluation,fxRevaluationWorkspace,postInvoice,prepareFxRevaluation} from '@erpx/finance-server/public/finance';
+import {assignFlowPrimary,resolveFlow} from '@erpx/workflow-server/public/flow-routing';
 
 vi.mock("server-only", () => ({}));
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
 
 afterEach(()=>vi.unstubAllEnvs());
 let f: Awaited<ReturnType<typeof expenseFixture>>;

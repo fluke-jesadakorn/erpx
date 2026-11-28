@@ -9,7 +9,7 @@ import {
   planRuntimeControlPlane,
   RD_MIGRATION_RECEIPTS,
   RD_MIGRATION_CHECKSUM,
-} from '../../../packages/server-runtime/src/adapters/native-runtime-control-plane';
+} from '../../../platform/runtime/server/src/adapters/native-runtime-control-plane';
 import {
   executiveReportRevisionsSql,
   executiveReportSharesSql,
@@ -17,9 +17,9 @@ import {
   holdingBindingsSql,
   reportLockSql,
   reportVersionGuardSql,
-} from '../../../packages/server-runtime/src/adapters/read-tail-sql';
+} from '../../../platform/runtime/server/src/adapters/read-tail-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-runtime/src');
+const srcRoot = resolve(__dirname, '../../../platform/runtime/server/src');
 const adapterDir = resolve(srcRoot, 'adapters');
 const src = (name: string) => readFileSync(resolve(adapterDir, name), 'utf8');
 const rust = (name: string) => readFileSync(resolve(srcRoot, name), 'utf8');

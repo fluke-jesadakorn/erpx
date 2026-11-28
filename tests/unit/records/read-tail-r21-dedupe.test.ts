@@ -5,9 +5,9 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { employeeRequestColumnsSql } from '../../../packages/server-records/src/adapters/read-tail-employee-request-columns';
+import { employeeRequestColumnsSql } from '../../../modules/records/server/src/adapters/read-tail-employee-request-columns';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-records/src');
+const srcRoot = resolve(__dirname, '../../../modules/records/server/src');
 const shared = readFileSync(resolve(srcRoot, 'adapters/read-tail-employee-request-columns.ts'), 'utf8');
 const commerce = readFileSync(resolve(srcRoot, 'adapters/commerce-entrypoint-facts.ts'), 'utf8');
 const employeeReads = readFileSync(resolve(srcRoot, 'adapters/employee-requests-read.ts'), 'utf8');

@@ -1,7 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { nativeTalentReadFirst } from '../../../packages/server-talent/src/adapters/native-talent-read';
+import { nativeTalentReadFirst } from '../../../modules/talent/server/src/adapters/native-talent-read';
 
 const kind = 'talent_rd_workspace_record_source';
 const sql =
@@ -29,7 +29,7 @@ async function tsFiles(directory: URL): Promise<string[]> {
 
 describe('talent read-tail r31 owner-local point read native port', () => {
   it('retired the TS point read and routes the caller through the native kind', async () => {
-    const text = await readFile(new URL('../../../packages/server-talent/src/adapters/record-purchases.ts', import.meta.url), 'utf8');
+    const text = await readFile(new URL('../../../modules/talent/server/src/adapters/record-purchases.ts', import.meta.url), 'utf8');
     expect(text).not.toContain('SELECT capability,company_id FROM (${sources})');
     expect(text).toContain("nativeTalentReadFirst<{capability:string;company_id:string}>('talent_rd_workspace_record_source',[id],database)");
     // The r22 sources family, locks and cross-owner predicates stay untouched.
@@ -42,7 +42,7 @@ describe('talent read-tail r31 owner-local point read native port', () => {
 
   it('re-pins the talent owner SELECT KPI strictly below BEFORE=48 to 9', async () => {
     let count = 0;
-    const srcDir = new URL('../../../packages/server-talent/src/', import.meta.url);
+    const srcDir = new URL('../../../modules/talent/server/src/', import.meta.url);
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
     expect(count).toBe(9);
     expect(count).toBeLessThan(40);

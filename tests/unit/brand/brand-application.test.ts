@@ -1,12 +1,12 @@
 import { describe, expect, test, it, vi, beforeEach, afterEach } from "vitest";
 import { readFile } from "node:fs/promises";
 vi.mock("server-only", () => ({}));
-import { assertBrandCategoryLocks, assertBrandIndependentPublisher } from "@erpx/server-brand/domain/policy";
-import { brandIdentitySchema, type ActiveBrandIdentity, type BrandCategoryLock, type BrandDraft } from "@erpx/server-brand/domain/identity";
-import { readBrandIdentityWorkspace } from "@erpx/server-brand/application/identity-read";
-import * as brandPublic from "@erpx/server-brand/public/brand-identity";
-import * as brandIndex from "@erpx/server-brand/index";
-import { nativeBrandIdentityWorkspace } from "@erpx/feature-brand/lib/native-brand-identity";
+import { assertBrandCategoryLocks, assertBrandIndependentPublisher } from "@erpx/brand-server/domain/policy";
+import { brandIdentitySchema, type ActiveBrandIdentity, type BrandCategoryLock, type BrandDraft } from "@erpx/brand-server/domain/identity";
+import { readBrandIdentityWorkspace } from "@erpx/brand-server/application/identity-read";
+import * as brandPublic from "@erpx/brand-server/public/brand-identity";
+import * as brandIndex from "@erpx/brand-server/index";
+import { nativeBrandIdentityWorkspace } from "@erpx/brand-ui/lib/native-brand-identity";
 
 const identity = { identity: { shortName: "ERPX", tagline: "Approved identity" }, visual: { accentColor: "#224488", logoPublicationId: null } };
 const reason = "Independently review the identity";
@@ -63,10 +63,10 @@ describe("Retained Brand identity contract", () => {
 });
 
 async function readBrandIdentityPorts(available: boolean, row: ActiveBrandIdentity | null) {
-  const { readPublishedBrandIdentity } = await import("@erpx/server-brand/application/identity-read");
+  const { readPublishedBrandIdentity } = await import("@erpx/brand-server/application/identity-read");
   return readPublishedBrandIdentity({ async available() { return available; }, async active() { return row; } });
 }
-import { normalizeBrandMedia } from "@erpx/server-brand/application/branding";
+import { normalizeBrandMedia } from "@erpx/brand-server/application/branding";
 describe("Retained Branding media normalization", () => {
   test("validates image metadata before encoding", async () => {
     const encoded = await normalizeBrandMedia({
@@ -100,7 +100,7 @@ describe("Retained Branding media normalization", () => {
 describe("Brand residual read tail", () => {
   test("current-scope probe renders from the Rust-owned scope head with a bound VALUES tuple", async () => {
     const read = (name: string) =>
-      readFile(new URL(`../../../packages/server-brand/src/adapters/${name}`, import.meta.url), "utf8");
+      readFile(new URL(`../../../modules/brand/server/src/adapters/${name}`, import.meta.url), "utf8");
     const source = await read("attachment-read.ts");
     expect(source.match(/SELECT/g)).toHaveLength(0);
     expect(source).toContain("brandAttachmentScopeProbeSql(currentScope.where)");
@@ -169,7 +169,7 @@ describe("native Brand pure-read cutover", () => {
   };
 
   it("exposes only SQL-free read discriminators", async () => {
-    const ports = await import("../../../packages/server-brand/src/adapters/native-brand-read-ports");
+    const ports = await import("../../../modules/brand/server/src/adapters/native-brand-read-ports");
     for (const kind of [ports.BRAND_RD_EVIDENCE_SEARCH, ports.BRAND_RD_METRIC_PROFILES_LABEL,
       ports.BRAND_RD_METRIC_PROFILES_BRANCH, ports.BRAND_RD_METRIC_UPDATES_MONTH, ports.BRAND_RD_WORKSPACE_CHOICE])
       expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
@@ -196,7 +196,7 @@ describe("native Brand pure-read cutover", () => {
       ] }), { status: 200, headers: { "content-type": "application/json" } });
     }));
     try {
-      const { workspaceChoiceBrands } = await import("../../../packages/server-brand/src/adapters/workspace-choice-brand");
+      const { workspaceChoiceBrands } = await import("../../../modules/brand/server/src/adapters/workspace-choice-brand");
       expect(await workspaceChoiceBrands({} as never, ["co-a", "co-b"], { holdingId: "h001", holdingSlug: "acme" })).toEqual([
         { scope_kind: "holding", scope_id: "holding-1", primary_publication_id: "pub-1" },
         { scope_kind: "branch", scope_id: "branch-1", primary_publication_id: null },
@@ -235,7 +235,7 @@ describe("native Brand pure-read cutover", () => {
       });
     }));
     try {
-      const { executiveEvidenceSources } = await import("../../../packages/server-brand/src/adapters/executive-evidence-sources");
+      const { executiveEvidenceSources } = await import("../../../modules/brand/server/src/adapters/executive-evidence-sources");
       const { db, bound, prepared } = fakeDb();
       const input = {
         metric: "brand-profile-updates",
@@ -253,8 +253,8 @@ describe("native Brand pure-read cutover", () => {
   });
 
   it("selects the metric read kind per reachable compound breakdown", async () => {
-    const { readExecutiveMetricProjection } = await import("../../../packages/server-brand/src/adapters/executive-metric-projections");
-    const ports = await import("../../../packages/server-brand/src/adapters/native-brand-read-ports");
+    const { readExecutiveMetricProjection } = await import("../../../modules/brand/server/src/adapters/executive-metric-projections");
+    const ports = await import("../../../modules/brand/server/src/adapters/native-brand-read-ports");
     const { db } = fakeDb();
     const filters = { from: "2026-01-01", to: "2026-01-31", currency: "THB" };
     await readExecutiveMetricProjection(db as never, actor, "brand-profiles", filters, "default");
@@ -273,7 +273,7 @@ describe("native Brand pure-read cutover", () => {
 
   it("leaves no TypeScript SELECT literal in the three cut adapters", async () => {
     for (const name of ["executive-evidence-sources", "executive-metric-projections", "workspace-choice-brand"]) {
-      const src = await readFile(new URL(`../../../packages/server-brand/src/adapters/${name}.ts`, import.meta.url), "utf8");
+      const src = await readFile(new URL(`../../../modules/brand/server/src/adapters/${name}.ts`, import.meta.url), "utf8");
       expect(src).not.toMatch(/\bSELECT\s/);
     }
   });

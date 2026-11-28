@@ -6,9 +6,9 @@ import ts from 'typescript';
 
 vi.mock('server-only', () => ({}));
 
-import { assignmentReadSql } from '@erpx/server-identity_access/public/record-source-authority';
+import { assignmentReadSql } from '@erpx/identity-access-server/public/record-source-authority';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-sales/src');
+const srcRoot = resolve(__dirname, '../../../modules/sales/server/src');
 const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const source = read('followup-source-sql.ts');
 const pricing = read('pricing-purchases.ts');

@@ -1,5 +1,5 @@
 [workspace]
-members = ["packages/server-crm", "packages/server-work_projection", "packages/server-brand", "packages/server-pos", "packages/server-projects", "packages/server-procurement", "packages/server-sales", "packages/server-manufacturing", "packages/server-ecommerce", "packages/server-marketing", "packages/server-customer_360", "packages/server-customer_authority", "packages/server-billing", "packages/server-benefits", "packages/server-talent", "packages/server-learning", "packages/server-operations", "packages/server-records", "packages/server-field_service", "packages/server-support","packages/server-collaboration", "packages/server-assets", "packages/server-maintenance", "packages/server-commerce", "packages/server-quality", "packages/server-inventory", "packages/server-shared", "packages/server-runtime", "packages/server-legal", "src/composition", "packages/server-finance", "packages/server-identity_access", "packages/server-organization", "packages/server-people_payroll", "packages/server-files", "packages/server-manage_erpx", "packages/server-commercial", "packages/server-platform_administration", "packages/server-pms", "packages/server-workflow", "packages/server-planning", "packages/server-agent"]
+members = ["modules/crm/server", "modules/work-projection/server", "modules/brand/server", "modules/pos/server", "modules/projects/server", "modules/procurement/server", "modules/sales/server", "modules/manufacturing/server", "modules/ecommerce/server", "modules/marketing/server", "modules/customer-360/server", "modules/customer-authority/server", "modules/billing/server", "modules/benefits/server", "modules/talent/server", "modules/learning/server", "modules/operations/server", "modules/records/server", "modules/field-service/server", "modules/support/server","modules/collaboration/server", "modules/assets/server", "modules/maintenance/server", "modules/commerce/server", "modules/quality/server", "modules/inventory/server", "platform/shared/server", "platform/runtime/server", "modules/legal/server", "platform/composition", "modules/finance/server", "modules/identity-access/server", "modules/organization/server", "modules/people-payroll/server", "modules/files/server", "modules/manage-erpx/server", "modules/commercial/server", "modules/platform-administration/server", "modules/pms/server", "modules/workflow/server", "modules/planning/server", "modules/agent/server"]
 resolver = "3"
 
 [workspace.package]
@@ -10,28 +10,28 @@ license = "Apache-2.0"
 publish = false
 
 [workspace.dependencies]
-erpx-server-work-projection = { path = "packages/server-work_projection" }
-erpx-server-brand = { path = "packages/server-brand" }
-erpx-server-pos = { path = "packages/server-pos" }
-erpx-server-operations = { path = "packages/server-operations" }
-erpx-server-records = { path = "packages/server-records" }
-erpx-server-learning = { path = "packages/server-learning" }
-erpx-server-field-service = { path = "packages/server-field_service" }
-erpx-server-support = { path = "packages/server-support" }
+erpx-work-projection-server = { path = "modules/work-projection/server" }
+erpx-brand-server = { path = "modules/brand/server" }
+erpx-pos-server = { path = "modules/pos/server" }
+erpx-operations-server = { path = "modules/operations/server" }
+erpx-records-server = { path = "modules/records/server" }
+erpx-learning-server = { path = "modules/learning/server" }
+erpx-field-service-server = { path = "modules/field-service/server" }
+erpx-support-server = { path = "modules/support/server" }
 ml-dsa = { version = "=0.1.1", default-features = false }
 rsa = { version = "=0.9.10", default-features = false }
 p521 = { version = "=0.14.0", default-features = false, features = ["ecdsa"] }
-erpx-server-collaboration = { path = "packages/server-collaboration" }
-erpx-server-assets = { path = "packages/server-assets" }
-erpx-server-benefits = { path = "packages/server-benefits" }
-erpx-server-billing = { path = "packages/server-billing" }
-erpx-server-maintenance = { path = "packages/server-maintenance" }
-erpx-server-manufacturing = { path = "packages/server-manufacturing" }
-erpx-server-marketing = { path = "packages/server-marketing" }
-erpx-server-customer-360 = { path = "packages/server-customer_360" }
-erpx-server-customer-authority = { path = "packages/server-customer_authority" }
-erpx-server-ecommerce = { path = "packages/server-ecommerce" }
-erpx-server-talent = { path = "packages/server-talent" }
+erpx-collaboration-server = { path = "modules/collaboration/server" }
+erpx-assets-server = { path = "modules/assets/server" }
+erpx-benefits-server = { path = "modules/benefits/server" }
+erpx-billing-server = { path = "modules/billing/server" }
+erpx-maintenance-server = { path = "modules/maintenance/server" }
+erpx-manufacturing-server = { path = "modules/manufacturing/server" }
+erpx-marketing-server = { path = "modules/marketing/server" }
+erpx-customer-360-server = { path = "modules/customer-360/server" }
+erpx-customer-authority-server = { path = "modules/customer-authority/server" }
+erpx-ecommerce-server = { path = "modules/ecommerce/server" }
+erpx-talent-server = { path = "modules/talent/server" }
 libvips = "=2.3.0"
 pkg-config = "=0.3.34"
 ldap3_proto = "=0.8.1"
@@ -39,28 +39,28 @@ bytes = "=1.12.1"
 tracing = "=0.1.44"
 tokio-util = { version = "=0.7.20", default-features = false, features = ["codec"] }
 tokio-rustls = { version = "=0.26.6", default-features = false, features = ["ring", "tls12"] }
-erpx-server-commerce = { path = "packages/server-commerce" }
-erpx-server-crm = { path = "packages/server-crm" }
-erpx-server-quality = { path = "packages/server-quality" }
-erpx-server-sales = { path = "packages/server-sales" }
-erpx-server-procurement = { path = "packages/server-procurement" }
-erpx-server-projects = { path = "packages/server-projects" }
-erpx-server-inventory = { path = "packages/server-inventory" }
-erpx-server-shared = { path = "packages/server-shared" }
-erpx-server-runtime = { path = "packages/server-runtime" }
-erpx-server-finance = { path = "packages/server-finance" }
-erpx-server-identity-access = { path = "packages/server-identity_access" }
-erpx-server-organization = { path = "packages/server-organization" }
-erpx-server-people-payroll = { path = "packages/server-people_payroll" }
-erpx-server-files = { path = "packages/server-files" }
-erpx-server-manage-erpx = { path = "packages/server-manage_erpx" }
-erpx-server-commercial = { path = "packages/server-commercial" }
-erpx-server-platform-administration = { path = "packages/server-platform_administration" }
-erpx-server-pms = { path = "packages/server-pms" }
-erpx-server-workflow = { path = "packages/server-workflow" }
-erpx-server-planning = { path = "packages/server-planning" }
-erpx-server-agent = { path = "packages/server-agent" }
-erpx-server-legal = { path = "packages/server-legal" }
+erpx-commerce-server = { path = "modules/commerce/server" }
+erpx-crm-server = { path = "modules/crm/server" }
+erpx-quality-server = { path = "modules/quality/server" }
+erpx-sales-server = { path = "modules/sales/server" }
+erpx-procurement-server = { path = "modules/procurement/server" }
+erpx-projects-server = { path = "modules/projects/server" }
+erpx-inventory-server = { path = "modules/inventory/server" }
+erpx-platform-shared-server = { path = "platform/shared/server" }
+erpx-platform-runtime-server = { path = "platform/runtime/server" }
+erpx-finance-server = { path = "modules/finance/server" }
+erpx-identity-access-server = { path = "modules/identity-access/server" }
+erpx-organization-server = { path = "modules/organization/server" }
+erpx-people-payroll-server = { path = "modules/people-payroll/server" }
+erpx-files-server = { path = "modules/files/server" }
+erpx-manage-erpx-server = { path = "modules/manage-erpx/server" }
+erpx-commercial-server = { path = "modules/commercial/server" }
+erpx-platform-administration-server = { path = "modules/platform-administration/server" }
+erpx-pms-server = { path = "modules/pms/server" }
+erpx-workflow-server = { path = "modules/workflow/server" }
+erpx-planning-server = { path = "modules/planning/server" }
+erpx-agent-server = { path = "modules/agent/server" }
+erpx-legal-server = { path = "modules/legal/server" }
 axum = { version = "=0.8.9", default-features = false, features = ["http1", "json", "tokio", "query"] }
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = { version = "=1.0.151", features = ["float_roundtrip"] }

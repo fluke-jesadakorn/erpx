@@ -1,15 +1,15 @@
 //! Native Billing invoice lifecycle policy, CAS, replay, transitions and
 //! bounded-input tests. These exercise the owner application with a repository
 //! probe; PostgreSQL behavior is covered by the dedicated Postgres target.
-use erpx_server_billing::public::cost::{AuditEntry, ReceiptSnapshot};
-use erpx_server_billing::public::invoice::BillingInvoiceRepository;
-use erpx_server_billing::public::invoice::{
+use erpx_billing_server::public::cost::{AuditEntry, ReceiptSnapshot};
+use erpx_billing_server::public::invoice::BillingInvoiceRepository;
+use erpx_billing_server::public::invoice::{
     BillingAccountFacts, BillingCostFacts, BillingInvoiceCommand, BillingInvoiceRecord,
     BillingPeriodFacts, CreateInvoice, FinalizeInvoice, InvoiceLine, UpdateInvoice,
     ValidatedInvoiceWrite, VoidInvoice, execute_invoice_command,
 };
-use erpx_server_billing::public::workspace::{BillingActor, BillingFuture};
-use erpx_server_shared::public::{
+use erpx_billing_server::public::workspace::{BillingActor, BillingFuture};
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, FailureKind, HoldingId, RecordId, TimestampMillis,
     UserId,
 };

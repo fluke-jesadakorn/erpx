@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import ledger from "../../../docs/status/business-acceptance-evidence.json";
-import { validateAcceptanceEvidence } from "@erpx/catalogue/acceptance-evidence";
+import { validateAcceptanceEvidence } from "@erpx/platform-catalogue/acceptance-evidence";
 
 describe("acceptance evidence boundaries", () => {
   const record = ledger.records[0];

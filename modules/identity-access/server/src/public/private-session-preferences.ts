@@ -1,0 +1,1 @@
+export {withCurrentPrivateSessionPreferences,withCurrentSelfAccountPreferences,assertPrivateSessionPreferenceUnit} from '@erpx/identity-access-server/adapters/private-session-preferences';

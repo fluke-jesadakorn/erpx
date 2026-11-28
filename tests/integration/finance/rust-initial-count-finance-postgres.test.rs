@@ -1,10 +1,10 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_finance::public::initial_count_finance::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_finance_server::public::initial_count_finance::*;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, HoldingId};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, HoldingId};
 
 async fn setup(p: &DatabasePool) {
     let files = load_migrations(
@@ -118,14 +118,14 @@ impl PgInitialCountPostingSource for TestSource {
     }
 }
 struct TestClock;
-impl erpx_server_shared::public::Clock for TestClock {
-    fn now(&self) -> erpx_server_shared::public::TimestampMillis {
-        erpx_server_shared::public::TimestampMillis::new(1800000000000)
+impl erpx_platform_shared_server::public::Clock for TestClock {
+    fn now(&self) -> erpx_platform_shared_server::public::TimestampMillis {
+        erpx_platform_shared_server::public::TimestampMillis::new(1800000000000)
     }
 }
-fn actor() -> erpx_server_finance::public::FinanceActor {
-    use erpx_server_shared::public::{AssignmentId, UserId};
-    erpx_server_finance::public::FinanceActor {
+fn actor() -> erpx_finance_server::public::FinanceActor {
+    use erpx_platform_shared_server::public::{AssignmentId, UserId};
+    erpx_finance_server::public::FinanceActor {
         user_id: UserId::new("user").unwrap(),
         holding_id: HoldingId::new("h001").unwrap(),
         company_id: CompanyId::new("company").unwrap(),
@@ -141,7 +141,7 @@ async fn original_journal_effects_zero_and_transaction_rollback() {
             sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
             lock_initial_count_finance_sources(&mut tx).await.unwrap();
             let finance=read_initial_count_finance(&mut tx,&actor().holding_id,&basis(),"2026-05-01").await.unwrap();
-            let source=TestSource { finance, facts:InitialCountPostingFacts { actor:actor(), command_key:erpx_server_shared::public::CommandKey::new(key).unwrap(), count_id:format!("count-{key}"), count_number:"COUNT-1".into(), reason:"Verified physical count".into(), actual_cost_delta_minor:delta } };
+            let source=TestSource { finance, facts:InitialCountPostingFacts { actor:actor(), command_key:erpx_platform_shared_server::public::CommandKey::new(key).unwrap(), count_id:format!("count-{key}"), count_number:"COUNT-1".into(), reason:"Verified physical count".into(), actual_cost_delta_minor:delta } };
             let plan=prepare_initial_count_posting(&mut tx,&source,&TestClock).await.unwrap();
             assert_eq!(plan.journal_id().is_some(),delta!=0);
             let retained=plan.persist(&mut tx).await.unwrap();
@@ -169,7 +169,7 @@ async fn deferred_book_projection_rejects_inactive_mapping_and_rolls_back() {
         sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
         lock_initial_count_finance_sources(&mut tx).await.unwrap();
         let finance=read_initial_count_finance(&mut tx,&actor().holding_id,&basis(),"2026-05-01").await.unwrap();
-        let source=TestSource { finance, facts:InitialCountPostingFacts { actor:actor(), command_key:erpx_server_shared::public::CommandKey::new("missing-map").unwrap(), count_id:"count-map".into(), count_number:"COUNT-2".into(), reason:"Verified physical count".into(), actual_cost_delta_minor:125 } };
+        let source=TestSource { finance, facts:InitialCountPostingFacts { actor:actor(), command_key:erpx_platform_shared_server::public::CommandKey::new("missing-map").unwrap(), count_id:"count-map".into(), count_number:"COUNT-2".into(), reason:"Verified physical count".into(), actual_cost_delta_minor:125 } };
         let retained=prepare_initial_count_posting(&mut tx,&source,&TestClock).await.unwrap().persist(&mut tx).await.unwrap();
         assert!(retained.flush_and_require_after(&mut tx).await.is_err());
         drop(retained);
@@ -188,7 +188,7 @@ async fn approved_book_uses_mapped_accounts_and_captures_both_events() {
         sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
         lock_initial_count_finance_sources(&mut tx).await.unwrap();
         let finance=read_initial_count_finance(&mut tx,&actor().holding_id,&basis(),"2026-05-01").await.unwrap();
-        let source=TestSource { finance, facts:InitialCountPostingFacts { actor:actor(), command_key:erpx_server_shared::public::CommandKey::new("book-count").unwrap(), count_id:"count-book".into(), count_number:"COUNT-3".into(), reason:"Verified physical count".into(), actual_cost_delta_minor:125 } };
+        let source=TestSource { finance, facts:InitialCountPostingFacts { actor:actor(), command_key:erpx_platform_shared_server::public::CommandKey::new("book-count").unwrap(), count_id:"count-book".into(), count_number:"COUNT-3".into(), reason:"Verified physical count".into(), actual_cost_delta_minor:125 } };
         let retained=prepare_initial_count_posting(&mut tx,&source,&TestClock).await.unwrap().persist(&mut tx).await.unwrap();
         retained.flush_and_require_after(&mut tx).await.unwrap();
         let lines:Vec<(String,i64,i64)>=sqlx::query_as("SELECT account_id,debit_minor,credit_minor FROM finance_journal_lines WHERE journal_id='book-rule-journal-book-count' ORDER BY ordinal").fetch_all(&mut *tx).await.unwrap();
@@ -235,7 +235,7 @@ async fn trigger_timestamp_tampering_is_rejected_and_rolls_back() {
             sqlx::raw_sql(function).execute(&mut *tx).await.unwrap();
             lock_initial_count_finance_sources(&mut tx).await.unwrap();
             let finance=read_initial_count_finance(&mut tx,&actor().holding_id,&basis(),"2026-05-01").await.unwrap();
-            let source=TestSource { finance, facts:InitialCountPostingFacts { actor:actor(), command_key:erpx_server_shared::public::CommandKey::new(key).unwrap(), count_id:format!("count-{key}"), count_number:"COUNT-4".into(), reason:"Verified physical count".into(), actual_cost_delta_minor:125 } };
+            let source=TestSource { finance, facts:InitialCountPostingFacts { actor:actor(), command_key:erpx_platform_shared_server::public::CommandKey::new(key).unwrap(), count_id:format!("count-{key}"), count_number:"COUNT-4".into(), reason:"Verified physical count".into(), actual_cost_delta_minor:125 } };
             let retained=prepare_initial_count_posting(&mut tx,&source,&TestClock).await.unwrap().persist(&mut tx).await.unwrap();
             denied(retained.flush_and_require_after(&mut tx).await,"COUNT_FINANCE_SOURCE_CHANGED");
             drop(retained);
@@ -313,7 +313,7 @@ async fn retained_finance_image(c: &mut sqlx::PgConnection) -> String {
     // Execute the actual retained TypeScript SQL, preserving PostgreSQL jsonb
     // rendering rather than reproducing its property ordering in Rust.
     let source = include_str!(
-        "../../../packages/server-finance/src/adapters/initial-physical-stock-count-sources.ts"
+        "../../../modules/finance/server/src/adapters/initial-physical-stock-count-sources.ts"
     );
     let original = source
         .split("database.prepare(`")
@@ -372,7 +372,7 @@ async fn discovery_matches_retained_images_and_reports_period_readiness() {
 
 #[tokio::test]
 async fn native_service_customer_creation_keeps_the_original_reference_delta_and_full_row() {
-    use erpx_server_finance::public::{ServiceCustomerInput, field_service_customer::*};
+    use erpx_finance_server::public::{ServiceCustomerInput, field_service_customer::*};
     fixture::with_database(2,|p|async move{
         setup(&p).await;
         let company=CompanyId::new("company").unwrap();

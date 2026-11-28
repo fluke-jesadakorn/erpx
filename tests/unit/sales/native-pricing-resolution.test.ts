@@ -5,15 +5,15 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { commercialOwnerProjectionSources as commerce } from '@erpx/server-commerce/public/commercial-owner-projection-sources';
+import { commercialOwnerProjectionSources as commerce } from '@erpx/commerce-server/public/commercial-owner-projection-sources';
 import {
   SALES_RD_PRICING_LIST_BY_ID,
   SALES_RD_PRICING_LIST_ACTIVE_BY_ID,
   SALES_RD_PRICING_LIST_ACTIVE,
   SALES_RD_PRICING_ITEMS_BY_LIST,
-} from '../../../packages/server-sales/src/adapters/native-sales-read';
+} from '../../../modules/sales/server/src/adapters/native-sales-read';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-sales/src');
+const srcRoot = resolve(__dirname, '../../../modules/sales/server/src');
 const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const registry = read('native_sales_read_sql.rs');
 const pricing = read('pricing.ts');

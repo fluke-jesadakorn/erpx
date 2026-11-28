@@ -8,16 +8,16 @@ vi.mock('server-only', () => ({}));
 import {
   employeeRequestsProjectionSql,
   platformOwnerProjectionSources,
-} from '../../../packages/server-records/src/adapters/platform-owner-projection-sources';
-import { commerceFinalOwnerProjectionSources } from '../../../packages/server-records/src/adapters/commerce-final-owner-projection-sources';
-import { identityVerifiedContextProjections } from '../../../packages/server-records/src/adapters/identity-access-verified-context-projections';
+} from '../../../modules/records/server/src/adapters/platform-owner-projection-sources';
+import { commerceFinalOwnerProjectionSources } from '../../../modules/records/server/src/adapters/commerce-final-owner-projection-sources';
+import { identityVerifiedContextProjections } from '../../../modules/records/server/src/adapters/identity-access-verified-context-projections';
 
 const root = resolve(__dirname, '../../..');
 const read = (p: string) => readFileSync(resolve(root, p), 'utf8');
 const sha = (s: string) => createHash('sha256').update(s, 'utf8').digest('hex');
-const source = read('packages/server-records/src/adapters/platform-owner-projection-sources.ts');
-const contract = read('packages/server-records/src/adapters/owner-projection-head-sources.json');
-const rust = read('packages/server-records/src/adapters/owner_projection_head.rs');
+const source = read('modules/records/server/src/adapters/platform-owner-projection-sources.ts');
+const contract = read('modules/records/server/src/adapters/owner-projection-head-sources.json');
+const rust = read('modules/records/server/src/adapters/owner_projection_head.rs');
 
 // Frozen bytes of the retired employee_requests projection literal.
 const projection =
@@ -60,7 +60,7 @@ describe('Records static owner-projection head cutover', () => {
       '18980ef56ba727d0cb173302fec18c5b9f886b85496430be02b75f07d1e29a4d',
     );
     expect(commerceFinalOwnerProjectionSources.employee_requests).toBe(projection);
-    const department = read('packages/server-records/src/adapters/department-override-facts.ts');
+    const department = read('modules/records/server/src/adapters/department-override-facts.ts');
     expect(department).toContain(
       "const pendingDepartmentRowsSql = `${employeeRequestsProjectionSql} WHERE company_id=? AND state='awaiting_approval'",
     );
@@ -79,7 +79,7 @@ describe('Records static owner-projection head cutover', () => {
           total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
       }
     };
-    walk(resolve(root, 'packages/server-records/src'));
+    walk(resolve(root, 'modules/records/server/src'));
     expect(total).toBe(6);
     expect(total).toBeLessThan(7);
   });

@@ -2,23 +2,23 @@ import {afterEach,expect,it,vi} from 'vitest';
 import type {ReactElement} from 'react';
 
 const ports=vi.hoisted(()=>({allowed:true,handbook:vi.fn(()=>{throw Error('WORK_PACKAGE_REQUIRED');}),learning:vi.fn<(...args:[unknown,boolean])=>Promise<unknown>>(async()=>({courses:[],assignments:[],people:[],canWrite:false,canReview:false,actorId:'learner'}))}));
-vi.mock("@erpx/server-identity_access/public/authorization",()=>({requireWorkContext:async()=>({holdingId:'H001',modules:['learning']}),publicScope:()=>({kind:'holding',holdingSlug:'test',holdingId:'H001',holdingName:'Test',companyId:'company'})}));
-vi.mock("@erpx/server-collaboration/public/presentation-queries",()=>({collaborationPresentationQueries:async()=>({handbookAccess:ports.handbook})}));
-vi.mock("@erpx/workplace/lib/native-learning",()=>({nativeLearningWorkspacePage:ports.learning}));
-vi.mock("@erpx/catalogue/module-access",()=>({hasModuleAccess:()=>ports.allowed}));
-vi.mock("@erpx/feature-identity_access/lib/permissions",()=>({hasPermission:()=>ports.allowed}));
+vi.mock("@erpx/identity-access-server/public/authorization",()=>({requireWorkContext:async()=>({holdingId:'H001',modules:['learning']}),publicScope:()=>({kind:'holding',holdingSlug:'test',holdingId:'H001',holdingName:'Test',companyId:'company'})}));
+vi.mock("@erpx/collaboration-server/public/presentation-queries",()=>({collaborationPresentationQueries:async()=>({handbookAccess:ports.handbook})}));
+vi.mock("@erpx/platform-workplace/lib/native-learning",()=>({nativeLearningWorkspacePage:ports.learning}));
+vi.mock("@erpx/platform-catalogue/module-access",()=>({hasModuleAccess:()=>ports.allowed}));
+vi.mock("@erpx/identity-access-ui/lib/permissions",()=>({hasPermission:()=>ports.allowed}));
 vi.mock('next/navigation',()=>({forbidden:()=>{throw Error('FORBIDDEN');},notFound:()=>{throw Error('NOT_FOUND');}}));
-vi.mock("@erpx/server-work_projection/public/page-error",()=>({pageError:(error:unknown)=>{throw error;}}));
-vi.mock("@erpx/workplace/components/section-workspace",()=>({SectionWorkspace:()=>null}));
-vi.mock("@erpx/feature-learning/components/learning-console",()=>({LearningConsole:()=>null}));
-vi.mock("@erpx/feature-records/components/record-catalog",()=>({RecordCatalog:()=>null}));
-vi.mock("@erpx/feature-records/components/record-link",()=>({RecordLink:()=>null}));
-vi.mock("@erpx/ui/components/list-filters",()=>({ListFilters:()=>null}));
+vi.mock("@erpx/work-projection-server/public/page-error",()=>({pageError:(error:unknown)=>{throw error;}}));
+vi.mock("@erpx/platform-workplace/components/section-workspace",()=>({SectionWorkspace:()=>null}));
+vi.mock("@erpx/learning-ui/components/learning-console",()=>({LearningConsole:()=>null}));
+vi.mock("@erpx/records-ui/components/record-catalog",()=>({RecordCatalog:()=>null}));
+vi.mock("@erpx/records-ui/components/record-link",()=>({RecordLink:()=>null}));
+vi.mock("@erpx/platform-ui/components/list-filters",()=>({ListFilters:()=>null}));
 
 const screens=async()=>[
- (await import('@erpx/workplace/routes/holdings/[holdingSlug]/knowledge/learning/courses/_screen')).default,
- (await import('@erpx/workplace/routes/holdings/[holdingSlug]/knowledge/learning/assignments/_screen')).default,
- (await import('@erpx/workplace/routes/holdings/[holdingSlug]/knowledge/learning/mine/_screen')).default,
+ (await import('@erpx/platform-workplace/routes/holdings/[holdingSlug]/knowledge/learning/courses/_screen')).default,
+ (await import('@erpx/platform-workplace/routes/holdings/[holdingSlug]/knowledge/learning/assignments/_screen')).default,
+ (await import('@erpx/platform-workplace/routes/holdings/[holdingSlug]/knowledge/learning/mine/_screen')).default,
 ];
 afterEach(()=>{ports.allowed=true;ports.handbook.mockClear();ports.learning.mockClear();});
 
@@ -41,19 +41,19 @@ it('retains the original module and record authority checks before loading Learn
 // Only layout/catalog/filter slots are rendered as small semantic test ports.
 import {createElement,Fragment,type ReactNode} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import * as learningWorkspaceFrame from '@erpx/workplace/components/section-workspace';
-import * as learningRecordCatalog from '@erpx/feature-records/components/record-catalog';
-import * as learningListFilters from '@erpx/ui/components/list-filters';
-vi.mock("@erpx/workplace/components/destination-index",()=>({DestinationIndex:()=>null}));
-vi.mock("@erpx/workplace/components/handbook-controls",()=>({HandbookEditors:()=>null}));
-vi.mock("@erpx/server-organization/public/member-directory",()=>({companyMembers:vi.fn(()=>{throw Error('UNRELATED_COMPANY_DIRECTORY_READ');})}));
-vi.mock("@erpx/server-collaboration/public/handbook-purchases",()=>({handbookPresentationContext:()=>{throw Error('UNRELATED_HANDBOOK_CONTEXT');}}));
+import * as learningWorkspaceFrame from '@erpx/platform-workplace/components/section-workspace';
+import * as learningRecordCatalog from '@erpx/records-ui/components/record-catalog';
+import * as learningListFilters from '@erpx/platform-ui/components/list-filters';
+vi.mock("@erpx/platform-workplace/components/destination-index",()=>({DestinationIndex:()=>null}));
+vi.mock("@erpx/platform-workplace/components/handbook-controls",()=>({HandbookEditors:()=>null}));
+vi.mock("@erpx/organization-server/public/member-directory",()=>({companyMembers:vi.fn(()=>{throw Error('UNRELATED_COMPANY_DIRECTORY_READ');})}));
+vi.mock("@erpx/collaboration-server/public/handbook-purchases",()=>({handbookPresentationContext:()=>{throw Error('UNRELATED_HANDBOOK_CONTEXT');}}));
 
 const learningDeepLinks=[
- {name:'assignment root',kind:'learning_assignment',section:'assignments',explicitSection:false,screen:()=>import('@erpx/workplace/routes/holdings/[holdingSlug]/knowledge/learning/assignments/_screen'),page:()=>import('@erpx/feature-learn/routes/holdings/[holdingSlug]/knowledge/learning/assignments/[id]/page')},
- {name:'assignment section',kind:'learning_assignment',section:'assignments',explicitSection:true,screen:()=>import('@erpx/workplace/routes/holdings/[holdingSlug]/knowledge/learning/assignments/_screen'),page:()=>import('@erpx/feature-learn/routes/holdings/[holdingSlug]/knowledge/learning/assignments/[id]/[recordSection]/page')},
- {name:'course root',kind:'learning_course',section:'courses',explicitSection:false,screen:()=>import('@erpx/workplace/routes/holdings/[holdingSlug]/knowledge/learning/courses/_screen'),page:()=>import('@erpx/feature-learn/routes/holdings/[holdingSlug]/knowledge/learning/records/learning_course/[id]/page')},
- {name:'course section',kind:'learning_course',section:'courses',explicitSection:true,screen:()=>import('@erpx/workplace/routes/holdings/[holdingSlug]/knowledge/learning/courses/_screen'),page:()=>import('@erpx/feature-learn/routes/holdings/[holdingSlug]/knowledge/learning/records/learning_course/[id]/[recordSection]/page')},
+ {name:'assignment root',kind:'learning_assignment',section:'assignments',explicitSection:false,screen:()=>import('@erpx/platform-workplace/routes/holdings/[holdingSlug]/knowledge/learning/assignments/_screen'),page:()=>import('@erpx/product-learn-ui/routes/holdings/[holdingSlug]/knowledge/learning/assignments/[id]/page')},
+ {name:'assignment section',kind:'learning_assignment',section:'assignments',explicitSection:true,screen:()=>import('@erpx/platform-workplace/routes/holdings/[holdingSlug]/knowledge/learning/assignments/_screen'),page:()=>import('@erpx/product-learn-ui/routes/holdings/[holdingSlug]/knowledge/learning/assignments/[id]/[recordSection]/page')},
+ {name:'course root',kind:'learning_course',section:'courses',explicitSection:false,screen:()=>import('@erpx/platform-workplace/routes/holdings/[holdingSlug]/knowledge/learning/courses/_screen'),page:()=>import('@erpx/product-learn-ui/routes/holdings/[holdingSlug]/knowledge/learning/records/learning_course/[id]/page')},
+ {name:'course section',kind:'learning_course',section:'courses',explicitSection:true,screen:()=>import('@erpx/platform-workplace/routes/holdings/[holdingSlug]/knowledge/learning/courses/_screen'),page:()=>import('@erpx/product-learn-ui/routes/holdings/[holdingSlug]/knowledge/learning/records/learning_course/[id]/[recordSection]/page')},
 ];
 
 it.each(learningDeepLinks)('server-renders the actual $name deep link with its Learning background and retained record/query context',async route=>{

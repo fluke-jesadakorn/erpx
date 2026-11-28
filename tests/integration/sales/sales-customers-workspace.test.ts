@@ -1,14 +1,14 @@
 import { beforeAll, beforeEach, afterEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
-import {orderSchema,saveMaster,saveOrder,commercePage} from '@erpx/server-commerce/public/commerce';
-import { customerWorkspaceDirectory, customerWorkspaceProfile, salesToday, customerReviewCounts } from "@erpx/server-sales/public/sales-customers";
-import { customerTimeline } from "@erpx/server-customer_360/public/customer-timeline";
+import {orderSchema,saveMaster,saveOrder,commercePage} from '@erpx/commerce-server/public/commerce';
+import { customerWorkspaceDirectory, customerWorkspaceProfile, salesToday, customerReviewCounts } from "@erpx/sales-server/public/sales-customers";
+import { customerTimeline } from "@erpx/customer-360-server/public/customer-timeline";
 import {seedSupportTicket} from '../../support/helpers/support-ticket-seed';
-import * as crm from "@erpx/server-crm/public/crm";
-import { editedCustomerParty } from "@erpx/server-finance/public/document-posting-preview";
+import * as crm from "@erpx/crm-server/public/crm";
+import { editedCustomerParty } from "@erpx/finance-server/public/document-posting-preview";
 vi.mock('next/headers',()=>({headers:async()=>{throw new Error('NO_REQUEST_SCOPE');}}));
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
 let f: Awaited<ReturnType<typeof expenseFixture>>, customer: string, noDocument: string, order: string;
 beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });
 beforeEach(async () => {

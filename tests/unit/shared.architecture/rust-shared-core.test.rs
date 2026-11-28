@@ -1,4 +1,4 @@
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     CommandKey, ConsumptionLot, DecimalAmount, RecordId, SourceRecord, SourceRecordKind,
     record_source_contract::{SourceKind, SourceRecord as SourceSnapshot, SourceReference},
 };

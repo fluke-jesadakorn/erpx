@@ -1,5 +1,5 @@
-use erpx_server_finance::public::{FinanceActor, parts_draft::*};
-use erpx_server_shared::public::{
+use erpx_finance_server::public::{FinanceActor, parts_draft::*};
+use erpx_platform_shared_server::public::{
     AssignmentId, CommandKey, CompanyId, HoldingId, RecordId, TimestampMillis, UserId,
 };
 use serde_json::{Value, json};
@@ -293,7 +293,7 @@ fn source_kind_requires_its_own_scope_variant() {
 
 #[test]
 fn service_customer_preserves_original_defaults_strings_and_exact_credit_amounts() {
-    use erpx_server_finance::public::ServiceCustomerInput;
+    use erpx_finance_server::public::ServiceCustomerInput;
     let wire = json!({"expectedVersion":0.0,"contextKey":"a".repeat(64),"input":{"kind":"customer","code":" C-01 ","name":" Original customer ","currency":"thb"}});
     let parsed = ServiceCustomerInput::parse(&serde_json::to_vec(&wire).unwrap()).unwrap();
     assert_eq!(parsed.input.code, " C-01 ");
@@ -320,7 +320,7 @@ fn service_customer_preserves_original_defaults_strings_and_exact_credit_amounts
 }
 #[test]
 fn service_customer_refuses_non_customer_unknown_null_and_invalid_wire_values() {
-    use erpx_server_finance::public::ServiceCustomerInput;
+    use erpx_finance_server::public::ServiceCustomerInput;
     let base = json!({"expectedVersion":0,"contextKey":"a".repeat(64),"input":{"kind":"customer","code":"C01","name":"Customer","currency":"THB"}});
     for (field, value) in [
         ("kind", json!("supplier")),

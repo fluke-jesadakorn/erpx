@@ -1,8 +1,8 @@
 //! Native operations projection public contract and HTTP ingress.
 #![allow(dead_code)]
-use erpx_server_platform_administration::public::platform_operations::*;
-use erpx_server_platform_administration::public::platform_operations_projection::*;
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_administration_server::public::platform_operations::*;
+use erpx_platform_administration_server::public::platform_operations_projection::*;
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 fn projection() -> PlatformOperationsProjection {
@@ -121,7 +121,7 @@ async fn projection_router_requires_exact_host_and_maps_failures() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = tokio::spawn(async move {
-        let _ = erpx_server_runtime::public::http_support::serve(listener, router).await;
+        let _ = erpx_platform_runtime_server::public::http_support::serve(listener, router).await;
     });
     let (status, body) = http(
         addr,

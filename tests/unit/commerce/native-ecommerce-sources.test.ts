@@ -6,7 +6,7 @@ vi.mock('server-only', () => ({}));
 import {
   ecommerceCurrencyConfiguration,
   NativeCommerceEcommerceSourcesError,
-} from '../../../packages/server-commerce/src/adapters/native-ecommerce-sources';
+} from '../../../modules/commerce/server/src/adapters/native-ecommerce-sources';
 
 const host = 'acme.example.com';
 const origin = `https://${host}`;

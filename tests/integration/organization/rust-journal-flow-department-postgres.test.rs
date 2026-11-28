@@ -1,12 +1,12 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_organization::public::journal_flow_department::{
+use erpx_organization_server::public::journal_flow_department::{
     journal_flow_team_name, lock_journal_flow_department_sources,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     MigrationTrack, PgUnitOfWork, TransactionOptions, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId};
 
 #[tokio::test]
 async fn journal_flow_team_name_uses_active_same_company_node_or_company() {
@@ -60,7 +60,7 @@ async fn journal_flow_team_name_uses_active_same_company_node_or_company() {
 
         // Evaluate the actual TS Flow expression under pinned Bun rather than
         // substituting a Rust copy of its nullish fallback.
-        let script = r#"import {readFileSync} from 'node:fs';if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const source=readFileSync('packages/server-workflow/src/application/flow-routing.ts','utf8');const match=source.match(/teamName:\s*(p\.team_name\s*\?\?\s*"Company")/);if(!match)throw Error('FLOW_TEAM_EXPRESSION_CHANGED');const evaluate=new Function('p',`return (${match[1]})`);process.stdout.write(JSON.stringify([null,'','   ','Service'].map(team_name=>evaluate({team_name}))));"#;
+        let script = r#"import {readFileSync} from 'node:fs';if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const source=readFileSync('modules/workflow/server/src/application/flow-routing.ts','utf8');const match=source.match(/teamName:\s*(p\.team_name\s*\?\?\s*"Company")/);if(!match)throw Error('FLOW_TEAM_EXPRESSION_CHANGED');const evaluate=new Function('p',`return (${match[1]})`);process.stdout.write(JSON.stringify([null,'','   ','Service'].map(team_name=>evaluate({team_name}))));"#;
         let oracle=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
             .current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
             .args(["-e",script]).output().unwrap();
@@ -124,11 +124,11 @@ async fn journal_flow_team_name_uses_active_same_company_node_or_company() {
 
 #[tokio::test]
 async fn stock_count_flow_organization_projection_retains_exact_source() {
-    use erpx_server_organization::public::journal_flow_department::{inspect_stock_count_flow_organization,lock_stock_count_flow_organization_sources};
+    use erpx_organization_server::public::journal_flow_department::{inspect_stock_count_flow_organization,lock_stock_count_flow_organization_sources};
     fixture::with_database(2,|pool|async move {
         let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let files=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
         sqlx::raw_sql("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,status) VALUES('company','company','company','Company',NULL,'company','active'),('empty','department','empty','','company','company','active'),('space','department','space','   ','company','company','active'),('suspended','department','suspended','Suspended','company','company','suspended'); INSERT INTO staff_levels(id,company_id,code,name,rank,active,created_at,updated_at) VALUES('level','company','L1','Level',1,1,0,0); INSERT INTO organization_positions(id,company_id,title,level_id,created_by,created_at,updated_at) VALUES('position','company','Position','level','fixture',0,0)").execute(pool.raw()).await.unwrap();
-        let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const {finalRootOwnerProjectionSources:s}=await import('./packages/server-organization/src/adapters/final-root-owner-projection-sources.ts');const {peoplePayrollFinalOwnerProjections:p}=await import('./packages/server-organization/src/adapters/people-payroll-final-owner-projections.ts');process.stdout.write(JSON.stringify({nodes:s.organization_nodes,levels:s.staff_levels,positions:s.organization_positions,join:p().workflow_flow_routing_facts_organization_nodes_n_join}));"#;
+        let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const {finalRootOwnerProjectionSources:s}=await import('./modules/organization/server/src/adapters/final-root-owner-projection-sources.ts');const {peoplePayrollFinalOwnerProjections:p}=await import('./modules/organization/server/src/adapters/people-payroll-final-owner-projections.ts');process.stdout.write(JSON.stringify({nodes:s.organization_nodes,levels:s.staff_levels,positions:s.organization_positions,join:p().workflow_flow_routing_facts_organization_nodes_n_join}));"#;
         let out=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")).args(["--conditions=react-server","-e",script]).output().unwrap();assert!(out.status.success(),"TS Organization projections unavailable: {}",String::from_utf8_lossy(&out.stderr));let oracle:serde_json::Value=serde_json::from_slice(&out.stdout).unwrap();
         let company=CompanyId::new("company").unwrap();
         let mut missing=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *missing).await.unwrap();assert!(inspect_stock_count_flow_organization(&mut missing,&company).await.is_err());missing.rollback().await.unwrap();

@@ -5,10 +5,10 @@ import {writeFileSync,readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 const require=createRequire(resolve('package.json')),ts=require('typescript'),zod=require('zod');
 const revision='a5ed8737a2f05eff1ee9841fda4a094b3926d732';
-const paths=['packages/server-maintenance/src/domain/work.ts','packages/server-shared/src/domain/consumption-lot.ts'];
+const paths=['modules/maintenance/server/src/domain/work.ts','platform/shared/server/src/domain/consumption-lot.ts'];
 const sources=new Map(paths.map(p=>[p,execFileSync('git',['show',`${revision}:${p}`],{encoding:'utf8'})]));
 function compile(p,bindings){const loaded={exports:{}};const code=ts.transpileModule(sources.get(p),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;new Function('module','exports','require',code)(loaded,loaded.exports,n=>n==='zod'?zod:bindings[n]??(()=>{throw Error('Unreviewed source dependency '+n);})());return loaded.exports;}
-const lot=compile(paths[1],{}),domain=compile(paths[0],{'@erpx/server-shared/index':lot});
+const lot=compile(paths[1],{}),domain=compile(paths[0],{'@erpx/platform-shared-server/index':lot});
 const common={expectedVersion:7,reason:' Synthetic reason '};
 const part={...common,action:'issue-part',warehouseId:'warehouse',productId:'spare',quantityMilli:1000,entryDate:'2026-10-27'};
 const create={assetId:'asset',assetVersion:2,title:' Synthetic work ',priority:'normal',ownerId:'owner',reason:' Synthetic create '};

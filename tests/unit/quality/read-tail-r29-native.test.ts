@@ -5,13 +5,13 @@ import { describe, expect, it } from 'vitest';
 const root = resolve(process.cwd());
 const read = (path: string) => readFileSync(resolve(root, path), 'utf8');
 
-const plans = read('packages/server-quality/src/adapters/native_quality_read_sql.rs');
-const http = read('packages/server-quality/src/adapters/quality_http.rs');
-const client = read('packages/server-quality/src/adapters/native-quality-read.ts');
-const records = read('packages/server-quality/src/adapters/record-purchases.ts');
-const service = read('packages/server-quality/src/adapters/attachments-service-facts.ts');
-const operational = read('packages/server-quality/src/adapters/attachments-operational-facts.ts');
-const armHead = read('packages/server-quality/src/adapters/quality-source-arm-head.ts');
+const plans = read('modules/quality/server/src/adapters/native_quality_read_sql.rs');
+const http = read('modules/quality/server/src/adapters/quality_http.rs');
+const client = read('modules/quality/server/src/adapters/native-quality-read.ts');
+const records = read('modules/quality/server/src/adapters/record-purchases.ts');
+const service = read('modules/quality/server/src/adapters/attachments-service-facts.ts');
+const operational = read('modules/quality/server/src/adapters/attachments-operational-facts.ts');
+const armHead = read('modules/quality/server/src/adapters/quality-source-arm-head.ts');
 
 /** G4 / retire.quality.native-read-r30. The r29 design was measured at 31 but
  * reverted while the tree briefly showed 33. This witness re-pins the closed
@@ -68,7 +68,7 @@ describe('quality read-tail r29 native hold/spec probes and CAS guards', () => {
     expect(client).toContain('return (context?guard.withContext(context):guard).run();');
     expect(client).toContain('__nativeWrite:true');
     expect(client).toContain('withContext(next:GuardContext){context=next;return descriptor;}');
-    expect(client).toContain('import {assertion} from "@erpx/server-workflow/public/command-assertions";');
+    expect(client).toContain('import {assertion} from "@erpx/workflow-server/public/command-assertions";');
   });
 
   it('rewires callers and leaves no TypeScript SQL mirror helper', () => {
@@ -84,7 +84,7 @@ describe('quality read-tail r29 native hold/spec probes and CAS guards', () => {
       expect(text).not.toContain('qualitySourceIdExistsSql');
       expect(text).not.toContain('qualityAttachmentVersionGuardSql');
     }
-    expect(() => read('packages/server-quality/src/adapters/quality-record-source-sql.ts')).toThrow();
+    expect(() => read('modules/quality/server/src/adapters/quality-record-source-sql.ts')).toThrow();
   });
 
   it('pins the owner TypeScript SELECT KPI at 31 (before 33)', () => {
@@ -96,7 +96,7 @@ describe('quality read-tail r29 native hold/spec probes and CAS guards', () => {
         else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
       }
     };
-    walk(resolve(root, 'packages/server-quality/src'));
+    walk(resolve(root, 'modules/quality/server/src'));
     expect(total).toBe(1);
   });
 });

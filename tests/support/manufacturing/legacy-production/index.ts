@@ -1,6 +1,6 @@
 import "server-only";
-import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import {changeManufacturingOrder as retained} from "@erpx/server-manufacturing/public/production";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
+import {changeManufacturingOrder as retained} from "@erpx/manufacturing-server/public/production";
 import {changeManufacturingOrder as legacy} from "./adapters-production";
 
 /**

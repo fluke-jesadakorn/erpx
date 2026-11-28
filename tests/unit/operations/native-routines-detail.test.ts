@@ -3,7 +3,7 @@ import {
   nativeRoutineTemplateDetail,
   nativeRoutineTemplateSchedules,
   type NativeRoutineTemplateRow,
-} from '@erpx/feature-operations/public/native-routines-read';
+} from '@erpx/operations-ui/public/native-routines-read';
 
 let transportOverride: Parameters<typeof nativeRoutineTemplateDetail>[4];
 const config = JSON.stringify({privateBaseUrl: 'http://127.0.0.1:44993', timeoutMs: 1000});

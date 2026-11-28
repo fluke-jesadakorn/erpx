@@ -1,11 +1,11 @@
 import { beforeAll, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { seedFinanceExpansionRehearsal } from "../../../fixtures/finance/expansion";
-import {statements} from '@erpx/server-finance/public/finance';
+import {statements} from '@erpx/finance-server/public/finance';
 import { key } from "../../support/helpers/expense-fixture";
-import { prepareFinancialReport, financialReportSchema, decideFinancePlan, snapshotFinancialReport, exportFinancialReport, prepareBudgetEdition, budgetEditionSchema, budgetActuals, budgetSourceRecords, financialReportSourceRecords } from "@erpx/server-finance/public/finance-planning";
-import { prepareGroupReportEdition, groupReportEditionSchema, decideGroupReportEdition, groupReportEditionExport, groupEditionAccountSources } from "@erpx/server-finance/public/finance-group-editions";
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
+import { prepareFinancialReport, financialReportSchema, decideFinancePlan, snapshotFinancialReport, exportFinancialReport, prepareBudgetEdition, budgetEditionSchema, budgetActuals, budgetSourceRecords, financialReportSourceRecords } from "@erpx/finance-server/public/finance-planning";
+import { prepareGroupReportEdition, groupReportEditionSchema, decideGroupReportEdition, groupReportEditionExport, groupEditionAccountSources } from "@erpx/finance-server/public/finance-group-editions";
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({
   runtimeEnv: async () => env,
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
 }));

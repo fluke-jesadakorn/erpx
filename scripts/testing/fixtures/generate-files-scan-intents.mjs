@@ -10,8 +10,8 @@ const root = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: new UR
 if (process.argv.length > 3) throw new Error('ORACLE_EXPECTS_OPTIONAL_OUTPUT_PATH');
 const output = process.argv[2] ?? `${root}/fixtures/files/scan-lifecycle/b0-scan-intents.json`;
 const baseline = 'a5ed8737a2f05eff1ee9841fda4a094b3926d732';
-const sourcePath = 'packages/server-files/src/application/attachments/service.ts';
-const legacyPath = 'packages/server-files/src/domain/attachments/legacy-policy.ts';
+const sourcePath = 'modules/files/server/src/application/attachments/service.ts';
+const legacyPath = 'modules/files/server/src/domain/attachments/legacy-policy.ts';
 const original = execFileSync('git', ['show', `${baseline}:${sourcePath}`], { cwd: root, maxBuffer: 1024 * 1024 }).toString();
 const legacyOriginal = execFileSync('git', ['show', `${baseline}:${legacyPath}`], { cwd: root, maxBuffer: 1024 * 1024 }).toString();
 const current = await readFile(`${root}/${sourcePath}`, 'utf8');

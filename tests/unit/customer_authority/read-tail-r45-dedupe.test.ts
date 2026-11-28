@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { finalRootOwnerProjectionSources as commerce } from '@erpx/server-commerce/public/final-root-owner-projection-sources';
-import { jsonbAggregateHead } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r45-sources';
-import { jsonbAggFact } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-sql';
-import { portalPurchaseBindingSource } from '../../../packages/server-customer_authority/src/adapters/portal-purchase-binding-source';
+import { finalRootOwnerProjectionSources as commerce } from '@erpx/commerce-server/public/final-root-owner-projection-sources';
+import { jsonbAggregateHead } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-tail-r45-sources';
+import { jsonbAggFact } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-sql';
+import { portalPurchaseBindingSource } from '../../../modules/customer-authority/server/src/adapters/portal-purchase-binding-source';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-customer_authority/src');
+const srcRoot = resolve(__dirname, '../../../modules/customer-authority/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 // Verbatim pre-dedupe literals from HEAD (BEFORE=21). The r21 customer-document
@@ -77,7 +77,7 @@ describe('Customer Authority read-tail r45 JSONB aggregate head family', () => {
     expect(read).toContain('LOCK TABLE company_package_grants IN SHARE ROW EXCLUSIVE MODE');
     expect(read).toContain('customerPortalSourceReadLocks(database)');
     expect(read).toContain('privateFileDenialAuthorityWitness(database,actor)');
-    expect(read).toContain("import {bindingIdentityCurrentSql} from '@erpx/server-customer_authority/adapters/attachment-withdraw-proof'");
+    expect(read).toContain("import {bindingIdentityCurrentSql} from '@erpx/customer-authority-server/adapters/attachment-withdraw-proof'");
 
     const projection = src('portal-projection-unit.ts');
     expect(projection.match(/jsonbAggFact\(/g) ?? []).toHaveLength(7);

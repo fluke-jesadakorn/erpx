@@ -3,11 +3,11 @@
 #![allow(dead_code)]
 #[path = "../../support/operations/rust-operations-database.rs"]
 mod fixture;
-use erpx_server_operations::public::queue_read::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_operations_server::public::queue_read::*;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use sqlx::Connection;
 use std::{future::Future, pin::Pin};
 
@@ -204,7 +204,7 @@ async fn hidden_sources_are_excluded_and_detail_is_a_scoped_not_found() {
         .unwrap_err();
         assert!(matches!(
             error,
-            erpx_server_runtime::public::postgres::PgTransactionError::Business(ref error)
+            erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(ref error)
                 if error.kind == FailureKind::NotFound
                     && error.code == "OPERATIONS_EXCEPTION_NOT_FOUND"
         ));

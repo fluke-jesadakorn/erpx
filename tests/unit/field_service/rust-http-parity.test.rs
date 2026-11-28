@@ -1,7 +1,7 @@
 //! Finite source probes; joined HTTP/PG assertions remain separate.
-use erpx_server_field_service::public::parts::FieldServiceRawOrderTarget;
-use erpx_server_shared::public::{AssignmentId, CompanyId, UserId};
-use erpx_server_workflow::public::commands::{
+use erpx_field_service_server::public::parts::FieldServiceRawOrderTarget;
+use erpx_platform_shared_server::public::{AssignmentId, CompanyId, UserId};
+use erpx_workflow_server::public::commands::{
     CommandActor, CommandField, CommandJson, WorkflowRecordIdentity,
     command_fingerprint_source_ordered,
 };
@@ -65,7 +65,7 @@ fn actual_source_target_fingerprints_keep_logical_utf16_separate_from_physical_t
 }
 #[test]
 fn actual_schema_probe_families_preserve_first_zod_messages() {
-    use erpx_server_field_service::public::parts::{
+    use erpx_field_service_server::public::parts::{
         field_service_first_wire_message, normalize_field_service_parts,
     };
     let fixture = CommandJson::parse(include_str!(
@@ -120,7 +120,7 @@ fn actual_schema_probe_families_preserve_first_zod_messages() {
 }
 #[test]
 fn source_recorded_dispatch_branches_match_prepared_wire() {
-    use erpx_service::field_service_http::{OtherPostBranch, SharedPostWire, classify_shared_post};
+    use erpx_platform_composition::field_service_http::{OtherPostBranch, SharedPostWire, classify_shared_post};
     let fixture = CommandJson::parse(include_str!(
         "../../../fixtures/field_service/rust-http/conformance.v1.json"
     ))
@@ -185,19 +185,19 @@ fn source_recorded_dispatch_branches_match_prepared_wire() {
 }
 
 // Include the actual shared handler, with a fake executor only in this test crate.
-#[path = "../../../src/composition/src/field_service_http_core.rs"]
+#[path = "../../../platform/composition/src/field_service_http_core.rs"]
 mod field_service_http_core;
-#[path = "../../../src/composition/src/field_service_http_wire.rs"]
+#[path = "../../../platform/composition/src/field_service_http_wire.rs"]
 mod field_service_http_wire;
 use axum::{
     body::{Body, to_bytes},
     http::{HeaderMap, Request, StatusCode, header},
 };
-use erpx_server_field_service::public::parts::{
+use erpx_field_service_server::public::parts::{
     FieldServicePartsCommand, FieldServicePartsInput, FieldServicePartsPreparationPorts,
     FieldServicePreparedConsumptionFacts, prepare_new_field_service_parts,
 };
-use erpx_server_shared::public::{BusinessError, CommandKey, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey, TimestampMillis};
 use field_service_http_core::{
     PendingIngress, PostExecutor, PostResponse, TrustedTarget, router_for_executor,
 };
@@ -226,10 +226,10 @@ impl FieldServicePartsPreparationPorts for FakePorts {
     ) -> Result<(), BusinessError> {
         let action = command.input().action();
         let state = match action {
-            erpx_server_field_service::public::parts::FieldServicePartsActionKind::Reserve => {
+            erpx_field_service_server::public::parts::FieldServicePartsActionKind::Reserve => {
                 "scheduled"
             }
-            erpx_server_field_service::public::parts::FieldServicePartsActionKind::Issue => {
+            erpx_field_service_server::public::parts::FieldServicePartsActionKind::Issue => {
                 "in_visit"
             }
         };
@@ -340,14 +340,14 @@ impl PostExecutor for FakeExecutor {
                     };
                     let action = normalized.input().action();
                     let version = normalized.input().expected_version() + 1;
-                    let command=normalized.into_physical_command(key,erpx_server_field_service::public::parts::FieldServicePhysicalOrderId::from_storage(target.storage_text()));
+                    let command=normalized.into_physical_command(key,erpx_field_service_server::public::parts::FieldServicePhysicalOrderId::from_storage(target.storage_text()));
                     if let Err(error) =
                         prepare_new_field_service_parts(&mut FakePorts, &(), &command).await
                     {
                         return PostResponse::business(error);
                     }
                     let id = CommandJson::from_utf16_string(target.original_utf16()).unwrap();
-                    let status=match action {erpx_server_field_service::public::parts::FieldServicePartsActionKind::Reserve=>"scheduled",erpx_server_field_service::public::parts::FieldServicePartsActionKind::Issue=>"in_visit"};
+                    let status=match action {erpx_field_service_server::public::parts::FieldServicePartsActionKind::Reserve=>"scheduled",erpx_field_service_server::public::parts::FieldServicePartsActionKind::Issue=>"in_visit"};
                     PostResponse::Success(
                         CommandJson::parse(&format!(
                             "{{\"id\":{},\"version\":{},\"status\":\"{}\"}}",
@@ -585,7 +585,7 @@ async fn shared_handler_retains_source_review_numeric_and_nested_object_messages
         let wire = text(&property(&request, "body"));
         let expected = property(&case, "response");
         let issue = property(&case, "firstIssue");
-        let failure = match erpx_server_field_service::public::parts::normalize_field_service_parts(
+        let failure = match erpx_field_service_server::public::parts::normalize_field_service_parts(
             wire.as_bytes(),
         ) {
             Err(error) => error,
@@ -597,10 +597,10 @@ async fn shared_handler_retains_source_review_numeric_and_nested_object_messages
             .path
             .iter()
             .map(|part| match part {
-                erpx_server_field_service::public::parts::FieldServiceIssuePath::Field(value) => {
+                erpx_field_service_server::public::parts::FieldServiceIssuePath::Field(value) => {
                     serde_json::json!(value)
                 }
-                erpx_server_field_service::public::parts::FieldServiceIssuePath::Index(value) => {
+                erpx_field_service_server::public::parts::FieldServiceIssuePath::Index(value) => {
                     serde_json::json!(value)
                 }
             })
@@ -649,8 +649,8 @@ async fn shared_handler_retains_source_review_numeric_and_nested_object_messages
 
 #[test]
 fn service_posting_context_matches_retained_javascript_ordered_json() {
-    use erpx_server_workflow::public::commands::CommandJson;
-    use erpx_service::service_parts_posting_setup::retained_context_key;
+    use erpx_workflow_server::public::commands::CommandJson;
+    use erpx_platform_composition::service_parts_posting_setup::retained_context_key;
     use std::io::Write;
     use std::process::{Command, Stdio};
     let identity = CommandJson::parse(r#"["company",null,null,"user","assignment","finance",{"sessionId":"session","revision":8,"assignmentVersion":3},{"personUserIds":["user"],"emergencyUntil":null,"roleRevision":1,"identityVersion":1,"permissions":["finance.read"],"grantablePermissions":[],"principalId":"local:user","personId":null,"freshUntil":null,"queuedAssignmentVersion":3}]"#).unwrap();
@@ -684,9 +684,9 @@ fn service_posting_context_matches_retained_javascript_ordered_json() {
 
 #[test]
 fn service_posting_wire_preserves_normalization_and_optional_fingerprint() {
-    use erpx_server_commerce::public::service_parts_posting::PostingMode;
-    use erpx_server_workflow::public::commands::CommandJson;
-    use erpx_service::service_parts_posting_setup::normalize_service_posting_command;
+    use erpx_commerce_server::public::service_parts_posting::PostingMode;
+    use erpx_workflow_server::public::commands::CommandJson;
+    use erpx_platform_composition::service_parts_posting_setup::normalize_service_posting_command;
     let key = "a".repeat(64);
     let body = format!(
         r#"{{"reason":"  Test  ","contextKey":"{key}","expectedVersion":0,"chartId":" chart ","currency":"THB","receivableAccountId":"r","payableAccountId":"p","revenueAccountId":"v","inventoryAccountId":"i","clearingAccountId":"c","cogsAccountId":"g","inputTaxAccountId":"x","outputTaxAccountId":"y","cashAccountId":"s"}}"#
@@ -730,8 +730,8 @@ fn service_posting_wire_preserves_normalization_and_optional_fingerprint() {
 
 #[test]
 fn service_prerequisite_wire_preserves_defaults_optional_fields_and_utf16() {
-    use erpx_server_workflow::public::commands::CommandJson;
-    use erpx_service::service_parts_prerequisite_setup::normalize_service_prerequisite;
+    use erpx_workflow_server::public::commands::CommandJson;
+    use erpx_platform_composition::service_parts_prerequisite_setup::normalize_service_prerequisite;
     let context = "a".repeat(64);
     let raw = format!(
         r#"{{"expectedVersion":0,"contextKey":"{context}","input":{{"chartId":"chart","code":"  X  ","name":"  \ud800  ","category":"asset","parentId":null}}}}"#
@@ -769,8 +769,8 @@ fn service_prerequisite_wire_preserves_defaults_optional_fields_and_utf16() {
 
 #[test]
 fn service_stock_master_wire_preserves_retained_defaults_and_logical_utf16() {
-    use erpx_server_workflow::public::commands::CommandJson;
-    use erpx_service::service_stock_setup::normalize_service_stock_master;
+    use erpx_workflow_server::public::commands::CommandJson;
+    use erpx_platform_composition::service_stock_setup::normalize_service_stock_master;
     let product =
         CommandJson::parse(r#"{"sku":" A1 ","name":" \ud800x ","price":"00012.30"}"#).unwrap();
     let value = normalize_service_stock_master(&product, "products").unwrap();

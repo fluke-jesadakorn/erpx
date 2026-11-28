@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-marketing/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/marketing/server/src/adapters/${name}`, import.meta.url);
 
 const original = {
   engagements: 'SELECT * FROM marketing_engagement_events',
@@ -28,7 +28,7 @@ describe('marketing settlement source dedupe', () => {
 
   it('emits the original byte-identical settlement source statements', async () => {
     const { marketingPackageSettlementSources } = await import(
-      '../../../packages/server-marketing/src/adapters/package-obligations.ts'
+      '../../../modules/marketing/server/src/adapters/package-obligations.ts'
     );
     for (const [variant, sql] of Object.entries(original)) {
       expect(marketingPackageSettlementSources[variant as keyof typeof original]).toBe(sql);
@@ -54,10 +54,10 @@ describe('marketing settlement source dedupe', () => {
 
   it('shares the one projection frame with the legacy candidate reader', async () => {
     const { marketingPlainSourceSql } = await import(
-      '../../../packages/server-marketing/src/adapters/marketing-plain-source-sql.ts'
+      '../../../modules/marketing/server/src/adapters/marketing-plain-source-sql.ts'
     );
     const { marketingCandidateSourceSql } = await import(
-      '../../../packages/server-marketing/src/adapters/marketing-candidate-source.ts'
+      '../../../modules/marketing/server/src/adapters/marketing-candidate-source.ts'
     );
     expect(marketingPlainSourceSql('candidate')).toBe(candidate);
     expect(marketingCandidateSourceSql).toBe(candidate);

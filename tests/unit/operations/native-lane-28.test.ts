@@ -10,7 +10,7 @@ import {
   nativeLane28LevelHistory,
   nativeLane28Configured,
   type NativeStaffLevelFacts,
-} from '../../../packages/server-operations/src/adapters/native-lane-28/client';
+} from '../../../modules/operations/server/src/adapters/native-lane-28/client';
 
 const host = 'acme.example.test';
 const origin = `https://${host}`;
@@ -234,7 +234,7 @@ describe('native lane-28 SQL/result oracle', () => {
 
   it('pins the Rust owner constants against the byte oracles', async () => {
     const domain = await readFile(
-      new URL('../../../packages/server-operations/src/adapters/native_lane_28/domain.rs', import.meta.url),
+      new URL('../../../modules/operations/server/src/adapters/native_lane_28/domain.rs', import.meta.url),
       'utf8',
     );
     expect(domain).toContain('0f76f4b04f07e67557e64c05f74e6d6abdb0280feb7a36f699111aaa5a02a540');
@@ -248,7 +248,7 @@ describe('native lane-28 SQL/result oracle', () => {
   it('leaves no SQL in the replaced TypeScript adapters', async () => {
     for (const file of ['staff-facts.ts', 'company-acceptance-facts.ts', 'people-level-history.ts']) {
       const text = await readFile(
-        new URL(`../../../packages/server-operations/src/adapters/${file}`, import.meta.url),
+        new URL(`../../../modules/operations/server/src/adapters/${file}`, import.meta.url),
         'utf8',
       );
       expect(text, file).not.toMatch(/SELECT|prepare\(|FROM staff_levels/);

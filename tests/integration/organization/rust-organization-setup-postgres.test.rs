@@ -1,14 +1,14 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_organization::public::organization_nodes::{
+use erpx_organization_server::public::organization_nodes::{
     OrganizationAuthority, OrganizationCommand, OrganizationCommandActor,
 };
-use erpx_server_organization::public::organization_setup::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_organization_server::public::organization_setup::*;
+use erpx_platform_runtime_server::public::postgres::{
     MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions, load_migrations,
     migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, Clock, CompanyId, HoldingId, TimestampMillis, UserId,
 };
 use serde_json::json;
@@ -98,7 +98,7 @@ fn standard_template(expected_version: i64) -> TemplateInput {
     )
 }
 
-async fn seed(pool: &erpx_server_runtime::public::postgres::DatabasePool) {
+async fn seed(pool: &erpx_platform_runtime_server::public::postgres::DatabasePool) {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
     let files = load_migrations(root, MigrationTrack::HoldingWrite)
         .await
@@ -139,7 +139,7 @@ async fn seed(pool: &erpx_server_runtime::public::postgres::DatabasePool) {
 }
 
 async fn run<T, F>(
-    pool: erpx_server_runtime::public::postgres::DatabasePool,
+    pool: erpx_platform_runtime_server::public::postgres::DatabasePool,
     f: F,
 ) -> Result<T, PgTransactionError<BusinessError>>
 where
@@ -728,7 +728,7 @@ async fn apply_template_requires_active_placement_and_the_six_levels() {
 
 #[tokio::test]
 async fn records_department_head_preserves_actual_typescript_seat_and_legacy_precedence() {
-    use erpx_server_organization::public::records_request_department_head::{
+    use erpx_organization_server::public::records_request_department_head::{
         lock_records_request_department_head, observe_records_request_department_head,
     };
     fixture::with_database(2, |pool| async move {
@@ -802,7 +802,7 @@ async fn records_department_head_preserves_actual_typescript_seat_and_legacy_pre
 
 #[tokio::test]
 async fn records_department_head_fences_shadow_rls_cross_unit_and_writer() {
-    use erpx_server_organization::public::records_request_department_head::{lock_records_request_department_head, observe_records_request_department_head};
+    use erpx_organization_server::public::records_request_department_head::{lock_records_request_department_head, observe_records_request_department_head};
     fixture::with_database(2, |pool| async move {
         seed(&pool).await;
         let company = CompanyId::new("company").unwrap();
@@ -857,7 +857,7 @@ async fn records_department_head_fences_shadow_rls_cross_unit_and_writer() {
 
 #[tokio::test]
 async fn records_department_head_writer_first_and_legacy_source_fences() {
-    use erpx_server_organization::public::records_request_department_head::{lock_records_request_department_head, observe_records_request_department_head};
+    use erpx_organization_server::public::records_request_department_head::{lock_records_request_department_head, observe_records_request_department_head};
     fixture::with_database(2, |pool| async move {
         seed(&pool).await;
         let company = CompanyId::new("company").unwrap();

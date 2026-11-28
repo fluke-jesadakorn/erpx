@@ -1,22 +1,22 @@
 import {afterEach,beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {env,applyMigrations} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {getProject,projectSchema,taskSchema} from '@erpx/server-operations/public/staff-tasks';
+import {getProject,projectSchema,taskSchema} from '@erpx/operations-server/public/staff-tasks';
 import {saveTask} from '../../support/operations/staff-tasks-fixture';
-import {projectGraph,projectHandoffWork} from "@erpx/server-projects/public/project-structure";
-import {listProjectCostAllocations} from "@erpx/server-projects/public/project-actuals";
+import {projectGraph,projectHandoffWork} from "@erpx/projects-server/public/project-structure";
+import {listProjectCostAllocations} from "@erpx/projects-server/public/project-actuals";
 import {approveCostAllocation,seedCostAllocation,seedMilestone,seedProjectFor,seedWorkLog} from "./project-actual-fixtures";
 import {seedFinanceJournal} from '../../support/helpers/finance-journal-seed';
-import {packageGrantStore,readCompanyPackageGrants} from "@erpx/server-commercial/public/package-grants";
-import {packageGrantRevision} from "@erpx/server-commercial/public/package-grants";
-import {withOwnerPackageObligations,readOwnerPackageObligations,ownerPackageObligations} from "@erpx/server-commercial/public/owner-package-obligations";
-import {projectPackageObligations} from "@erpx/server-projects/public/package-obligations";
-import {listProjects} from "@erpx/server-projects/public/staff-projects";
-import {getTask} from '@erpx/server-operations/public/staff-task-read';
-import {listTasks,taskDetail} from '@erpx/server-operations/public/staff-tasks';
-import {getStaffWork} from "@erpx/server-work_projection/public/domain-work";
-import {enrichFlowWork} from "@erpx/server-workflow/public/flow-work";
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+import {packageGrantStore,readCompanyPackageGrants} from "@erpx/commercial-server/public/package-grants";
+import {packageGrantRevision} from "@erpx/commercial-server/public/package-grants";
+import {withOwnerPackageObligations,readOwnerPackageObligations,ownerPackageObligations} from "@erpx/commercial-server/public/owner-package-obligations";
+import {projectPackageObligations} from "@erpx/projects-server/public/package-obligations";
+import {listProjects} from "@erpx/projects-server/public/staff-projects";
+import {getTask} from '@erpx/operations-server/public/staff-task-read';
+import {listTasks,taskDetail} from '@erpx/operations-server/public/staff-tasks';
+import {getStaffWork} from "@erpx/work-projection-server/public/domain-work";
+import {enrichFlowWork} from "@erpx/workflow-server/public/flow-work";
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);await applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS);});
 afterEach(()=>vi.unstubAllEnvs());
@@ -85,7 +85,7 @@ it('prevents a retained Project task from regaining submit authority during Flow
  await grantProject();await grantProject('draining');
  const retained=(await getStaffWork(f.owner)).find(row=>row.id===draft.id)!;expect(retained.canAct).toBe(false);expect((await enrichFlowWork(f.owner,[{...retained,canAct:true}]))[0].canAct).toBe(false);
 });
-type ProjectWorkerActor=import("@erpx/server-identity_access/public/authorization").WorkContext;
+type ProjectWorkerActor=import("@erpx/identity-access-server/public/authorization").WorkContext;
 async function zeroWorkerProjectCompany(purchased=true){
  const company=`projects-workers-${key()}`,branch=`${company}-branch`,department=`${company}-team`;
  await db.batch([
@@ -93,7 +93,7 @@ async function zeroWorkerProjectCompany(purchased=true){
   db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id) VALUES(?,'branch',?,'Real Projects Branch',?,?,?)").bind(branch,branch,company,company,branch),
   db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id) VALUES(?,'department',?,'Real Projects team',?,?,?)").bind(department,department,branch,company,branch),
  ]);
- const {loadIamAuthority}=await import('@erpx/server-identity_access/public/iam-store'),{selectWorkRole}=await import('@erpx/server-work_projection/public/work-role-store');
+ const {loadIamAuthority}=await import('@erpx/identity-access-server/public/iam-store'),{selectWorkRole}=await import('@erpx/work-projection-server/public/work-role-store');
  async function account(name:string,role='employee'):Promise<ProjectWorkerActor>{
   const userId=`${company}-${name}`,assignmentId=`assignment-${userId}`,email=`${userId}@example.test`,modules=['projects',...(role==='holding_owner'?['people_payroll']:[])];
   // Explicit original identity/account fixture, before any worker exists. The
@@ -105,14 +105,14 @@ async function zeroWorkerProjectCompany(purchased=true){
   actor.iam=await loadIamAuthority(db,company,userId,role,sessionId);return actor;
  }
  const owner=await account('company-hr-owner','holding_owner'),contributor=await account('project-contributor');
- const {positionSchema}=await import('@erpx/server-organization/public/organization');const {savePosition}=await import('../../support/helpers/organization-positions');const {installStaffLevels}=await import('../../support/helpers/organization-levels');await installStaffLevels(db,owner,key());
+ const {positionSchema}=await import('@erpx/organization-server/public/organization');const {savePosition}=await import('../../support/helpers/organization-positions');const {installStaffLevels}=await import('../../support/helpers/organization-levels');await installStaffLevels(db,owner,key());
  const ceo=String((await savePosition(db,owner,null,positionSchema.parse({title:'Actual first Company leader',levelId:`org-level-${company}-1`,branchId:null,departmentId:null,isCeo:true,reportsToPositionId:null,expectedVersion:0,reason:'Normal Organization prepares the first worker position'}),key())).id);
  const worker=String((await savePosition(db,owner,null,positionSchema.parse({title:'Actual Project contributor',levelId:`org-level-${company}-6`,branchId:branch,departmentId:department,isCeo:false,reportsToPositionId:ceo,expectedVersion:0,reason:'Normal Organization prepares the explicit Project worker position'}),key())).id);
  const store=packageGrantStore(db,{authorize:async(_tx,id)=>{if(id!==company)throw Error('PROJECT_WORKER_FIXTURE_COMPANY');return {userId:'isolated-project-worker-provider'};},obligations:async()=>{throw Error('PROJECT_WORKER_FIXTURE_CANNOT_INACTIVATE');}});
  async function purchase(state:'active'|'draining'='active'){const prior=(await readCompanyPackageGrants(db,company)).find(row=>row.packageId==='projects');return store.apply({expectedVersion:prior?.version??0,idempotencyKey:key(),grant:{companyId:company,packageId:'projects',packageVersion:1,state,startsAt:0,endsAt:null,version:(prior?.version??0)+1,reason:'Actual Projects-only worker-reference foundation',evidence:'test:projects-zero-worker-native'}});}
  if(purchased)await purchase();
  vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');
- const api=await import('@erpx/server-people_payroll/public/project-worker-startup'),jobs=await import('@erpx/server-people_payroll/public/people-lifecycle-jobs');
+ const api=await import('@erpx/people-payroll-server/public/project-worker-startup'),jobs=await import('@erpx/people-payroll-server/public/people-lifecycle-jobs');
  const counts=()=>Promise.all(['hr_people','hr_engagements','employees','people_lifecycle_cases','people_project_worker_starters','people_project_worker_placements','staff_projects','finance_charts','finance_accounts','finance_journals','finance_payments','hr_pay_groups','hr_payroll_runs'].map(table=>db.prepare(`SELECT count(*) n FROM ${table} WHERE company_id=?`).bind(company).first<number>('n')));
  expect(await counts()).toEqual(Array(13).fill(0));
  const accountImage=async()=>({assignments:(await db.prepare('SELECT to_jsonb(a)::text source FROM assignments a WHERE a.company_id=? ORDER BY a.id').bind(company).all()).results,members:(await db.prepare('SELECT to_jsonb(m)::text source FROM iam_members m WHERE m.company_id=? ORDER BY m.user_id').bind(company).all()).results,accounts:(await env.CONTROL_DB.prepare('SELECT to_jsonb(u)::text source FROM "user" u WHERE id LIKE ? ORDER BY id').bind(`${company}-%`).all()).results});
@@ -125,11 +125,11 @@ async function zeroWorkerProjectCompany(purchased=true){
 }
 
 it('prepares a true zero-worker Projects-only Company through original Directory and reviewed HR placement before explicit Project membership and approved time',async()=>{
- const s=await zeroWorkerProjectCompany(),unchanged=await s.nonWorkerImage(),grants=await readCompanyPackageGrants(db,s.company),{activeStaff}=await import('@erpx/server-operations/public/staff-policy');
+ const s=await zeroWorkerProjectCompany(),unchanged=await s.nonWorkerImage(),grants=await readCompanyPackageGrants(db,s.company),{activeStaff}=await import('@erpx/operations-server/public/staff-policy');
  expect(grants.map(row=>row.packageId)).toEqual(['projects']);await expect(activeStaff(db,s.company,s.owner.userId)).rejects.toMatchObject({code:'STAFF_LINK_REQUIRED'});
  const view=await s.api.projectWorkerStartupWorkspace(s.owner,{});expect(view).toMatchObject({available:true,schemaAvailable:true,readiness:'selection-required',contextKey:null});
  const options=await s.api.projectWorkerStartupAccounts(s.owner,{query:'project-contributor'});expect(options.accounts).toEqual([{id:s.contributor.userId,name:s.contributor.name,email:s.contributor.email}]);
- const {saveDirectoryPerson,directoryUpdateSchema}=await import('@erpx/server-people_payroll/public/people-directory');
+ const {saveDirectoryPerson,directoryUpdateSchema}=await import('@erpx/people-payroll-server/public/people-directory');
  await expect(saveDirectoryPerson(s.owner,null,directoryUpdateSchema.parse({legalName:'Generic People must remain closed',email:s.owner.email,countryCode:'TH',branchId:s.branch,departmentId:s.department,jobTitle:'Company leader',workerType:'employee',employmentType:'salaried',startDate:new Date().toISOString().slice(0,10),currency:'THB',managerPersonId:null,levelId:`org-level-${s.company}-1`,positionId:s.ceo,expectedVersion:1}),key())).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});expect(await s.counts()).toEqual(Array(13).fill(0));
  const owner=await s.prepare(s.owner,s.ceo,null),ownerPlacement=await s.submit(owner.result.id,s.ceo,null);expect(await s.pendingPeople()).toBe(1);expect(await s.jobs.drainPeopleLifecycle(db)).toBe(1);expect(await s.pendingPeople()).toBe(0);expect((await activeStaff(db,s.company,s.owner.userId)).person_id).toBe(owner.result.id);
  const contributor=await s.prepare(s.contributor,s.worker,owner.result.id),placement=await s.submit(contributor.result.id,s.worker,owner.result.id);expect(await s.pendingPeople()).toBe(1);expect(await s.jobs.drainPeopleLifecycle(db)).toBe(1);expect(await s.pendingPeople()).toBe(0);
@@ -147,7 +147,7 @@ it('prepares a true zero-worker Projects-only Company through original Directory
 it('links only an explicit original unlinked worker and keeps source/queued rollback plus reviewed due and cancellation duties correct while Projects drains',async()=>{
  const absent=await zeroWorkerProjectCompany(false),absentInput=absent.api.projectWorkerPrepareSchema.parse({mode:'create',accountId:absent.owner.userId,expectedVersion:0,contextKey:'0'.repeat(64),input:{legalName:absent.owner.name,email:absent.owner.email,countryCode:'TH',branchId:absent.branch,departmentId:absent.department,jobTitle:'Company leader',workerType:'employee',employmentType:'salaried',startDate:new Date().toISOString().slice(0,10),currency:'THB',managerPersonId:null,levelId:`org-level-${absent.company}-1`,positionId:absent.ceo,acceptRecommendedPay:false,acceptRecommendedLeave:false,reason:'Valid normal HR input must not create purchase authority'}});
  vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','disabled');const absentBefore=await absent.counts();await expect(absent.api.prepareProjectWorkerStartup(absent.owner,absentInput,key())).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});expect(await absent.counts()).toEqual(absentBefore);
- const s=await zeroWorkerProjectCompany(),{saveDirectoryPerson,directoryUpdateSchema}=await import('@erpx/server-people_payroll/public/people-directory'),{activeStaff}=await import('@erpx/server-operations/public/staff-policy');
+ const s=await zeroWorkerProjectCompany(),{saveDirectoryPerson,directoryUpdateSchema}=await import('@erpx/people-payroll-server/public/people-directory'),{activeStaff}=await import('@erpx/operations-server/public/staff-policy');
  const noHrBefore=await s.counts();await expect(s.api.projectWorkerStartupAccounts(s.contributor,{})).rejects.toMatchObject({status:403});expect(await s.counts()).toEqual(noHrBefore);
  const owner=await s.prepare(s.owner,s.ceo,null);await s.submit(owner.result.id,s.ceo,null);expect(await s.jobs.drainPeopleLifecycle(db)).toBe(1);
  // Existing unlinked legacy Person is produced by the original Directory under

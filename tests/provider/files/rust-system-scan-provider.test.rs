@@ -4,15 +4,15 @@
 )]
 #[path = "../../support/files/system-scan-facts.rs"]
 mod system;
-use erpx_server_files::public::{
+use erpx_files_server::public::{
     attachment_scan::{
         AttachmentScanRunOutcome, AttachmentScanSettlement, AttachmentScanTransactions,
     },
     malware_scanner::ClamAvConfig,
     preview::PreviewToolConfiguration,
 };
-use erpx_server_shared::public::Clock;
-use erpx_service::{files_scan_native::*, files_system_scan::assemble_development_files_scan};
+use erpx_platform_shared_server::public::Clock;
+use erpx_platform_composition::{files_scan_native::*, files_system_scan::assemble_development_files_scan};
 use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
@@ -187,7 +187,7 @@ async fn source(
     name: &str,
     mime: &str,
     body: &[u8],
-) -> erpx_server_shared::public::RecordId {
+) -> erpx_platform_shared_server::public::RecordId {
     facts::seed_source(&s.holdings[0], name, facts::TestOrigin::Managed, mime, body).await
 }
 async fn no_transactions(s: &fixture::account::System) {
@@ -222,7 +222,7 @@ async fn actual_clamav_infection_and_actual_decoder_rejection_never_become_avail
   // The frozen truncated invalid-png fixture correctly fails earlier admission.
   let valid=include_bytes!("../../../fixtures/files/preview/png-alpha.input");
   let bytes=[&valid[..33],&valid[valid.len()-12..]].concat();
-  assert_eq!(erpx_server_files::public::media_signature::detected_attachment_media_type(&bytes,"image/png"),Some("image/png"));
+  assert_eq!(erpx_files_server::public::media_signature::detected_attachment_media_type(&bytes,"image/png"),Some("image/png"));
   let id=source(&s,"native-invalid","image/png",&bytes).await;p.original("native-invalid",&bytes);
   assert!(matches!(worker.run_next(Some(&id)).await.unwrap(),AttachmentScanRunOutcome::Settled(AttachmentScanSettlement::Error{next_attempt:Some(2)})));
   let state:(String,String,i64)=sqlx::query_as("SELECT a.source_state,j.error_code,(SELECT count(*)FROM attachment_storage_ledger WHERE attachment_id=a.id AND variant='preview')FROM attachments a JOIN attachment_scan_attempts j ON j.attachment_id=a.id AND j.attempt=1 WHERE a.id=$1").bind(id.as_str()).fetch_one(s.holdings[0].raw()).await.unwrap();assert_eq!(state,("scan_error".into(),"ATTACHMENT_PREVIEW_DECODER_REJECTED".into(),0));worker.close().await;p.no_preview_temporaries();
@@ -301,8 +301,8 @@ async fn actual_held_decoder_lease_reclaim_and_caller_cancellation_retain_no_sta
 
 #[tokio::test]
 async fn field_runtime_loop_probes_real_providers_scans_and_shuts_down_without_open_transactions() {
- use erpx_service::field_attachment_intake_command::FieldIntakeProviderReadiness;
- use erpx_service::files_scan_worker::{FieldFilesScanTarget,assemble_field_files_scan_workers,run_field_files_scan_workers};
+ use erpx_platform_composition::field_attachment_intake_command::FieldIntakeProviderReadiness;
+ use erpx_platform_composition::files_scan_worker::{FieldFilesScanTarget,assemble_field_files_scan_workers,run_field_files_scan_workers};
  fixture::account::with_system(|s|async move {
   let p=Providers::new();let bytes=include_bytes!("../../../fixtures/files/preview/png-alpha.input");
   let id=facts::seed_source(&s.holdings[0],"field-runtime",facts::TestOrigin::ManagedField,"image/png",bytes).await;p.original("field-runtime",bytes);

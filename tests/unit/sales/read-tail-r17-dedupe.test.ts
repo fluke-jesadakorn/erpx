@@ -6,7 +6,7 @@ import ts from 'typescript';
 
 vi.mock('server-only', () => ({}));
 
-const srcRoot = resolve(__dirname, '../../../packages/server-sales/src');
+const srcRoot = resolve(__dirname, '../../../modules/sales/server/src');
 const src = readFileSync(resolve(srcRoot, 'adapters/followup-purchases.ts'), 'utf8');
 
 // Pre-dedupe rendered fragments copied from HEAD. The generator must render the

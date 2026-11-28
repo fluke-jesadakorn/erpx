@@ -5,9 +5,9 @@ import { resolve } from 'node:path';
 
 vi.mock('server-only', () => ({}));
 
-import { companyReleaseAttachmentReadSourceImage } from '../../../packages/server-platform_administration/src/adapters/company-release-attachment-read-sources';
+import { companyReleaseAttachmentReadSourceImage } from '../../../modules/platform-administration/server/src/adapters/company-release-attachment-read-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-platform_administration/src');
+const srcRoot = resolve(__dirname, '../../../modules/platform-administration/server/src');
 const source = (relative: string) => readFileSync(resolve(srcRoot, relative), 'utf8');
 const sha = (value: string) => createHash('sha256').update(value).digest('hex');
 

@@ -4,12 +4,12 @@
 //! refuses with its own named code. Only the two owner-local facts (ordinary
 //! approval view and an empty approval route) resolve without a delegate.
 #![allow(clippy::field_reassign_with_default)]
-use erpx_server_operations::public::staff_tasks::{
+use erpx_operations_server::public::staff_tasks::{
     ApprovalView, AttachmentRow, DecisionFact, FailClosedStaffTaskFactDelegates,
     PgStaffTaskSources, PostFact, ProjectFact, RouteFact, StaffFact, StaffTaskActor,
     StaffTaskFactDelegates, StaffTaskFuture, StaffTaskSources, TaskRow, TaskScope,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 
 fn actor() -> StaffTaskActor {
     StaffTaskActor {

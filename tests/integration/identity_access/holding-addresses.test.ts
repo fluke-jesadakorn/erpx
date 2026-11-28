@@ -2,11 +2,11 @@ import {beforeAll,it,expect,vi,afterEach} from 'vitest';
 import {readFile} from 'node:fs/promises';
 import {randomUUID} from 'node:crypto';
 import {env,applyMigrations} from '../../support/runtime-env';
-import {productSsoStore} from '@erpx/server-identity_access/adapters/product-sso-store';
+import {productSsoStore} from '@erpx/identity-access-server/adapters/product-sso-store';
 import {revokeSsoFamily} from './sso-family-oracle';
 
 const control=env.CONTROL_DB,db=env.H001_DB;
-vi.mock('@erpx/server-runtime/adapters/runtime',()=>({runtimeEnv:async()=>env}));
+vi.mock('@erpx/platform-runtime-server/adapters/runtime',()=>({runtimeEnv:async()=>env}));
 afterEach(()=>vi.unstubAllEnvs());
 beforeAll(async()=>{await applyMigrations(control,env.CONTROL_TEST_MIGRATIONS);await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 it('shares one host audience across applications and refuses a different Holding and revoked parent',async()=>{
@@ -26,7 +26,7 @@ it('shares one host audience across applications and refuses a different Holding
  expect(child.returnPath).toBe('/bangkok/accounting/finance?tag=one&tag=two');
  expect((await store.session(child.token,one))?.user.id).toBe(user);
  for(const [key,value]of Object.entries({ERPX_HOLDING_ROUTING:'enabled',ERPX_ENVIRONMENT:'local',ERPX_PRODUCT_ENVIRONMENT:'development',ERPX_PRODUCT_ROUTING:'enabled',ERPX_PRODUCT_SSO:'enabled'}))vi.stubEnv(key,value);
- const {createAuth}=await import('@erpx/server-identity_access/adapters/auth');
+ const {createAuth}=await import('@erpx/identity-access-server/adapters/auth');
  for(const app of ['finance','people']){
   vi.stubEnv('ERPX_APP_ID',app);
   const auth=await createAuth('https://acme.jesadakorn.com');

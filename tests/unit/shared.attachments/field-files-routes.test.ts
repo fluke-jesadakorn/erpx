@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {fieldFilesRoute,financePaymentFilesRoute,financeJournalFilesRoute} from '../../../packages/native-sdk/src/field-service-files-routes';
+import {fieldFilesRoute,financePaymentFilesRoute,financeJournalFilesRoute} from '../../../platform/native-sdk/src/field-service-files-routes';
 describe('private Field Files routes',()=>{
  it('constructs the agreed endpoints with encoded identifiers',()=>{
   expect(fieldFilesRoute('acme',{kind:'reserve',setId:'set 1'})).toEqual({method:'POST',path:'/api/v1/holdings/acme/field-service/attachment-sets/set%201/files'});

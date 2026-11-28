@@ -1,11 +1,11 @@
 //! Native Commerce quotation/sales-order policy and sequencing.
-use erpx_server_commerce::public::order::{
+use erpx_commerce_server::public::order::{
     AuditEntry, CommerceOrderActor, CommerceOrderCommandRepository, CommerceOrderFuture,
     CommerceOrderReadRepository, CommerceOrderReceipt, ConvertedReadback, LINES_LIMIT, OrderAction,
     OrderCommandReceipt, OutboxEntry, ReceiptEntry, SalesOrderLineRow, SalesOrderRow,
     TransitionCommand, TransitionPlan, order_detail, transition_order, transition_order_guarded,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, RecordId,
     TimestampMillis, UserId,
 };
@@ -17,7 +17,7 @@ const HASH: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
 #[test]
 fn legacy_goods_receipt_identity_matches_typescript_key_hash_and_result_order() {
-    use erpx_server_commerce::public::receipt::{
+    use erpx_commerce_server::public::receipt::{
         legacy_goods_receipt_number, legacy_goods_receipt_result,
     };
     for (key, number) in [
@@ -44,7 +44,7 @@ fn legacy_goods_receipt_identity_matches_typescript_key_hash_and_result_order() 
 
 #[test]
 fn legacy_goods_receipt_identity_matches_pinned_node_for_escaped_ids_and_boundaries() {
-    use erpx_server_commerce::public::receipt::{
+    use erpx_commerce_server::public::receipt::{
         legacy_goods_receipt_number, legacy_goods_receipt_result,
     };
     use std::process::Command;
@@ -87,13 +87,13 @@ fn legacy_goods_receipt_identity_matches_pinned_node_for_escaped_ids_and_boundar
 
 #[test]
 fn legacy_fulfillment_normalization_matches_installed_zod_schema_and_pinned_node() {
-    use erpx_server_commerce::public::receipt::normalize_legacy_fulfillment_input;
+    use erpx_commerce_server::public::receipt::normalize_legacy_fulfillment_input;
     use std::process::Command;
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let node = std::env::var_os("ERPX_NODE_BIN")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| root.join(".runtime/node/node-v26.11.1-darwin-arm64/bin/node"));
-    let script = r#"if(process.version!=='v26.11.1')throw Error('NODE_VERSION');const fs=require('node:fs'),z=require('zod');if(require('zod/package.json').version!=='4.6.7')throw Error('ZOD_VERSION');const s=fs.readFileSync('packages/server-commerce/src/domain/commerce.ts','utf8');const q=s.slice(s.indexOf('const quantity = z'),s.indexOf('export const orderSchema'));const f=s.slice(s.indexOf('export const fulfillmentSchema'),s.indexOf('export const invoiceFromDeliverySchema')).replace('export const fulfillmentSchema','const fulfillmentSchema');const schema=new Function('z',q+f+';return fulfillmentSchema')(z);const result=schema.safeParse(JSON.parse(process.argv[1]));process.stdout.write(result.success?'ok:'+JSON.stringify(result.data):'invalid');"#;
+    let script = r#"if(process.version!=='v26.11.1')throw Error('NODE_VERSION');const fs=require('node:fs'),z=require('zod');if(require('zod/package.json').version!=='4.6.7')throw Error('ZOD_VERSION');const s=fs.readFileSync('modules/commerce/server/src/domain/commerce.ts','utf8');const q=s.slice(s.indexOf('const quantity = z'),s.indexOf('export const orderSchema'));const f=s.slice(s.indexOf('export const fulfillmentSchema'),s.indexOf('export const invoiceFromDeliverySchema')).replace('export const fulfillmentSchema','const fulfillmentSchema');const schema=new Function('z',q+f+';return fulfillmentSchema')(z);const result=schema.safeParse(JSON.parse(process.argv[1]));process.stdout.write(result.success?'ok:'+JSON.stringify(result.data):'invalid');"#;
     let emoji = "😀".repeat(100);
     let long_emoji = "😀".repeat(101);
     let mut cases = vec![
@@ -139,8 +139,8 @@ fn legacy_fulfillment_normalization_matches_installed_zod_schema_and_pinned_node
 
 #[test]
 fn legacy_fulfillment_workflow_input_fingerprints_match_pinned_node_formatting_only() {
-    use erpx_server_commerce::public::receipt::legacy_fulfillment_workflow_input;
-    use erpx_server_workflow::public::commands::{
+    use erpx_commerce_server::public::receipt::legacy_fulfillment_workflow_input;
+    use erpx_workflow_server::public::commands::{
         CommandActor, CommandField, WorkAuthority, command_fingerprint,
     };
     use std::process::Command;
@@ -165,7 +165,7 @@ fn legacy_fulfillment_workflow_input_fingerprints_match_pinned_node_formatting_o
     let node = std::env::var_os("ERPX_NODE_BIN")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| root.join(".runtime/node/node-v26.11.1-darwin-arm64/bin/node"));
-    let script = r#"if(process.version!=='v26.11.1')throw Error('NODE_VERSION');const fs=require('node:fs'),z=require('zod'),c=require('node:crypto');if(require('zod/package.json').version!=='4.6.7')throw Error('ZOD_VERSION');const s=fs.readFileSync('packages/server-commerce/src/domain/commerce.ts','utf8');const q=s.slice(s.indexOf('const quantity = z'),s.indexOf('export const orderSchema'));const f=s.slice(s.indexOf('export const fulfillmentSchema'),s.indexOf('export const invoiceFromDeliverySchema')).replace('export const fulfillmentSchema','const fulfillmentSchema');const schema=new Function('z',q+f+';return fulfillmentSchema')(z);const input=schema.parse(JSON.parse(process.argv[1]));const p={actor:'user',assignment:'assignment',role:'manager',authority:{sessionId:'session',revision:7,assignmentVersion:3},company:'company',branch:null,department:'ฝ่าย',operation:'commerce.order.fulfill',recordId:'ใบสั่ง',input};process.stdout.write(c.createHash('sha256').update(JSON.stringify(p)).digest('hex'));"#;
+    let script = r#"if(process.version!=='v26.11.1')throw Error('NODE_VERSION');const fs=require('node:fs'),z=require('zod'),c=require('node:crypto');if(require('zod/package.json').version!=='4.6.7')throw Error('ZOD_VERSION');const s=fs.readFileSync('modules/commerce/server/src/domain/commerce.ts','utf8');const q=s.slice(s.indexOf('const quantity = z'),s.indexOf('export const orderSchema'));const f=s.slice(s.indexOf('export const fulfillmentSchema'),s.indexOf('export const invoiceFromDeliverySchema')).replace('export const fulfillmentSchema','const fulfillmentSchema');const schema=new Function('z',q+f+';return fulfillmentSchema')(z);const input=schema.parse(JSON.parse(process.argv[1]));const p={actor:'user',assignment:'assignment',role:'manager',authority:{sessionId:'session',revision:7,assignmentVersion:3},company:'company',branch:null,department:'ฝ่าย',operation:'commerce.order.fulfill',recordId:'ใบสั่ง',input};process.stdout.write(c.createHash('sha256').update(JSON.stringify(p)).digest('hex'));"#;
     let cases = [
         r#"{"expectedVersion":3,"date":"0000-02-29","lines":[{"lineId":"line","quantity":"0001.200"}]}"#,
         r#"{"completionMode":"mixed","expectedVersion":1,"date":"2026-11-04","evidenceNote":" \uFEFF note  ","lines":[{"lineId":"ไทย","quantity":"1.00","allocations":[{"lotId":"lot-1","quantity":"0.500","lotCode":" L-A ","quarantineReason":" review ","disposition":"quarantine"}]}]}"#,
@@ -192,13 +192,13 @@ fn legacy_fulfillment_workflow_input_fingerprints_match_pinned_node_formatting_o
 
 #[test]
 fn legacy_reservation_input_matches_pinned_zod() {
-    use erpx_server_commerce::public::sales_reservation_source::legacy_reservation_workflow_input;
+    use erpx_commerce_server::public::sales_reservation_source::legacy_reservation_workflow_input;
     use std::process::Command;
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let node = std::env::var_os("ERPX_NODE_BIN")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| root.join(".runtime/node/node-v26.11.1-darwin-arm64/bin/node"));
-    let script = r#"if(process.version!=='v26.11.1')throw Error('NODE_VERSION');const fs=require('node:fs'),z=require('zod');if(require('zod/package.json').version!=='4.6.7')throw Error('ZOD_VERSION');const s=fs.readFileSync('packages/server-commerce/src/domain/commerce.ts','utf8');const q=s.slice(s.indexOf('const quantity = z'),s.indexOf('export const orderSchema'));const d=s.slice(s.indexOf('export const stockReservationSchema')).replace('export const stockReservationSchema','const stockReservationSchema');const schema=new Function('z',q+d+';return stockReservationSchema')(z);try{process.stdout.write('ok:'+JSON.stringify(schema.parse(JSON.parse(process.argv[1]))))}catch{process.stdout.write('invalid')}"#;
+    let script = r#"if(process.version!=='v26.11.1')throw Error('NODE_VERSION');const fs=require('node:fs'),z=require('zod');if(require('zod/package.json').version!=='4.6.7')throw Error('ZOD_VERSION');const s=fs.readFileSync('modules/commerce/server/src/domain/commerce.ts','utf8');const q=s.slice(s.indexOf('const quantity = z'),s.indexOf('export const orderSchema'));const d=s.slice(s.indexOf('export const stockReservationSchema')).replace('export const stockReservationSchema','const stockReservationSchema');const schema=new Function('z',q+d+';return stockReservationSchema')(z);try{process.stdout.write('ok:'+JSON.stringify(schema.parse(JSON.parse(process.argv[1]))))}catch{process.stdout.write('invalid')}"#;
     for raw in [
         r#"{"reason":"  reason ","quantity":"0001.200","lineId":"ไทย","action":"reserve","expectedVersion":3,"extra":true}"#,
         r#"{"expectedVersion":1,"action":"release","lineId":"\udfff","quantity":"1","expiresAt":12,"reason":"\ufeffabc\u00a0"}"#,
@@ -392,7 +392,7 @@ struct CommandProbe {
     credit_calls: Vec<(String, i64)>,
     release_calls: Vec<String>,
     allow_conversion_preflight: bool,
-    save_list: Option<erpx_server_commerce::public::order::SaveOrderPriceList>,
+    save_list: Option<erpx_commerce_server::public::order::SaveOrderPriceList>,
     missing_save_product: bool,
 }
 
@@ -430,7 +430,7 @@ impl CommerceOrderCommandRepository for CommandProbe {
                 Ok(())
             } else {
                 Err(BusinessError::new(
-                    erpx_server_shared::public::FailureKind::Unavailable,
+                    erpx_platform_shared_server::public::FailureKind::Unavailable,
                     "COMMERCE_CONVERSION_MONEY_REQUIRED",
                     "The Finance conversion Money source is unavailable.",
                 ))
@@ -1180,7 +1180,7 @@ fn sales_credit_guard_precedes_stale_cas_after_authority_and_discount_checks() {
     assert_eq!(error.code, "CONFLICT");
     assert_eq!(
         error.kind,
-        erpx_server_shared::public::FailureKind::Conflict
+        erpx_platform_shared_server::public::FailureKind::Conflict
     );
     assert_eq!(
         error.message,
@@ -1277,7 +1277,7 @@ fn retained_identity_aliases_enforce_independent_approval_and_cancellation() {
 #[test]
 fn transition_preconditions_match_actual_ts_before_stale_version_guard() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let module = root.join("packages/server-commerce/src/application/commerce.ts");
+    let module = root.join("modules/commerce/server/src/application/commerce.ts");
     let script = r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const m=await import(process.argv[1]);const cases=[['approve','submitted','alias',true,false,false],['approve','submitted','other',false,false,false],['approve','submitted','other',true,true,false],['approve','submitted','other',true,false,false],['cancel','confirmed','alias',true,false,false],['cancel','confirmed','other',false,false,false],['cancel','partially_fulfilled','other',true,false,true]];const result=[];for(const [action,state,creator,approve,discount,fulfillment] of cases){const actor={userId:'user',companyId:'company',branchId:null,departmentId:null,iam:{permissions:['commerce.sales',...(approve?['commerce.approve']:[])],personUserIds:['alias']}};const row={kind:'quote',state,created_by:creator,discount_approval_required:discount?1:0};const err=(status,code,message)=>Object.assign(new Error(message),{status,code});const writer={replayCommand:async()=>null,readCommerceOrders1:async()=>row,readCommerceFulfillments4:async()=>fulfillment?{id:'f'}:null,guardRule1:()=>({}),prepareInventoryOrderReservations3:()=>({}),prepareCommerceOrders4:()=>({}),executeCommand:async()=>{throw err(409,'CONFLICT','stale')}};const app=m.createCommerceApplication({clock:{now:()=>1},require:a=>a,error:err,hash:async()=>'',forActor:async()=>writer});try{await app.transitionOrder(actor,'order-1',{action,expectedVersion:2},'command-key');result.push('allowed')}catch(e){result.push(e.code)}}process.stdout.write(JSON.stringify(result));"#;
     let oracle =
         std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
@@ -1739,15 +1739,15 @@ fn discount_reason_and_long_reason_use_utf16_js_trim_parity() {
 mod purchase_receipt {
     //! Portable Commerce purchase-receipt facts: valuation rounding, request
     //! validation, idempotency replay and persisted receipt shape.
-    use erpx_server_commerce::public::order::{CommerceOrderActor, OrderCommandReceipt};
-    use erpx_server_commerce::public::receipt::{
+    use erpx_commerce_server::public::order::{CommerceOrderActor, OrderCommandReceipt};
+    use erpx_commerce_server::public::receipt::{
         CommerceReceipt, CommerceReceiptLine, GoodsEffectReadback, GoodsValuation,
         GoodsValuationPlan, MAX_SAFE, ReceiptAllocationCommand, ReceiptCommand, ReceiptDisposition,
         ReceiptFulfillmentLinePlan, ReceiptLineCommand, ReceiptOrder, ReceiptOrderLine,
         calculate_legacy_goods_receipt, cumulative_stock_values, expected_fulfilled_lines,
         expected_order_state, goods_journal_id, line_value, prior_receipt, validate_goods_readback,
     };
-    use erpx_server_shared::public::{
+    use erpx_platform_shared_server::public::{
         AssignmentId, CommandKey, CompanyId, HoldingId, RecordId, UserId,
     };
 
@@ -1852,7 +1852,7 @@ mod purchase_receipt {
             &actor(),
             &input,
             &source,
-            erpx_server_shared::public::TimestampMillis::new(7),
+            erpx_platform_shared_server::public::TimestampMillis::new(7),
         )
         .unwrap();
         assert_eq!(calculation.order, source);
@@ -1874,7 +1874,7 @@ mod purchase_receipt {
                 &actor(),
                 &input,
                 &wrong,
-                erpx_server_shared::public::TimestampMillis::new(7)
+                erpx_platform_shared_server::public::TimestampMillis::new(7)
             )
             .unwrap_err()
             .code,
@@ -1885,7 +1885,7 @@ mod purchase_receipt {
                 &actor(),
                 &input,
                 &order("USD", "THB"),
-                erpx_server_shared::public::TimestampMillis::new(7)
+                erpx_platform_shared_server::public::TimestampMillis::new(7)
             )
             .unwrap_err()
             .code,
@@ -1916,7 +1916,7 @@ mod purchase_receipt {
             &actor(),
             &input,
             &source,
-            erpx_server_shared::public::TimestampMillis::new(7),
+            erpx_platform_shared_server::public::TimestampMillis::new(7),
         )
         .unwrap();
         assert_eq!(accepted.receipt.total_value_minor, 9_007_199_254_740_991);
@@ -1926,7 +1926,7 @@ mod purchase_receipt {
                 &actor(),
                 &input,
                 &source,
-                erpx_server_shared::public::TimestampMillis::new(7)
+                erpx_platform_shared_server::public::TimestampMillis::new(7)
             )
             .unwrap_err()
             .code,
@@ -1941,7 +1941,7 @@ mod purchase_receipt {
         let node = std::env::var_os("ERPX_NODE_BIN")
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|| root.join(".runtime/node/node-v26.11.1-darwin-arm64/bin/node"));
-        let script = r#"if(process.version!=='v26.11.1')throw Error('NODE_VERSION');const fs=require('node:fs'),s=fs.readFileSync('packages/feature-commerce/src/lib/commerce-math.ts','utf8');let a=s.slice(s.indexOf('export function scaledAmount'),s.indexOf('export function lineAmounts')).replace('export function','function').replaceAll(':number','');let b=s.slice(s.indexOf('export function lineAmounts')).replace('export function','function').replaceAll(':number','');const lineAmounts=new Function(a+b+';return lineAmounts')();const [qty,price,taxBps,total,fulfilled,subtotal,tax,priorSubtotal,priorTax]=JSON.parse(process.argv[1]);const amounts=qty===total-fulfilled?{subtotal:subtotal-priorSubtotal,tax:tax-priorTax}:lineAmounts(qty,price,taxBps);process.stdout.write(JSON.stringify(amounts));"#;
+        let script = r#"if(process.version!=='v26.11.1')throw Error('NODE_VERSION');const fs=require('node:fs'),s=fs.readFileSync('modules/commerce/ui/src/lib/commerce-math.ts','utf8');let a=s.slice(s.indexOf('export function scaledAmount'),s.indexOf('export function lineAmounts')).replace('export function','function').replaceAll(':number','');let b=s.slice(s.indexOf('export function lineAmounts')).replace('export function','function').replaceAll(':number','');const lineAmounts=new Function(a+b+';return lineAmounts')();const [qty,price,taxBps,total,fulfilled,subtotal,tax,priorSubtotal,priorTax]=JSON.parse(process.argv[1]);const amounts=qty===total-fulfilled?{subtotal:subtotal-priorSubtotal,tax:tax-priorTax}:lineAmounts(qty,price,taxBps);process.stdout.write(JSON.stringify(amounts));"#;
         for (qty, price, tax_bps, total, fulfilled, subtotal, tax, prior_subtotal, prior_tax) in [
             (1000, 3333, 700, 3000, 0, 10000, 700, 0, 0),
             (1000, 3333, 700, 3000, 2000, 10000, 700, 6667, 467),
@@ -2242,7 +2242,7 @@ mod purchase_receipt {
 
 // Save sequencing probe; the Finance methods intentionally use the trait's
 // fail-closed defaults, while every simulated write is recorded.
-impl erpx_server_commerce::public::order::CommerceOrderSaveRepository for CommandProbe {
+impl erpx_commerce_server::public::order::CommerceOrderSaveRepository for CommandProbe {
     fn setup_currency<'a>(
         &'a mut self,
         _: &'a CompanyId,
@@ -2264,7 +2264,7 @@ impl erpx_server_commerce::public::order::CommerceOrderSaveRepository for Comman
         _: &'a str,
     ) -> CommerceOrderFuture<
         'a,
-        Option<erpx_server_commerce::public::order::SaveOrderWarehouse>,
+        Option<erpx_commerce_server::public::order::SaveOrderWarehouse>,
         Self::Error,
     > {
         self.calls.push("save-warehouse");
@@ -2276,14 +2276,14 @@ impl erpx_server_commerce::public::order::CommerceOrderSaveRepository for Comman
         id: &'a str,
     ) -> CommerceOrderFuture<
         'a,
-        Option<erpx_server_commerce::public::order::SaveOrderProduct>,
+        Option<erpx_commerce_server::public::order::SaveOrderProduct>,
         Self::Error,
     > {
         self.calls.push("save-product");
         let missing = self.missing_save_product;
         Box::pin(async move {
             Ok(
-                (!missing).then(|| erpx_server_commerce::public::order::SaveOrderProduct {
+                (!missing).then(|| erpx_commerce_server::public::order::SaveOrderProduct {
                     id: id.into(),
                     name: "Service".into(),
                     item_type: "service".into(),
@@ -2296,7 +2296,7 @@ impl erpx_server_commerce::public::order::CommerceOrderSaveRepository for Comman
         &'a mut self,
         _: &'a CompanyId,
         _: &'a str,
-        _: erpx_server_commerce::public::order::OrderKind,
+        _: erpx_commerce_server::public::order::OrderKind,
         _: &'a str,
     ) -> CommerceOrderFuture<'a, bool, Self::Error> {
         self.calls.push("save-party");
@@ -2310,7 +2310,7 @@ impl erpx_server_commerce::public::order::CommerceOrderSaveRepository for Comman
         _: Option<&'a str>,
     ) -> CommerceOrderFuture<
         'a,
-        Option<erpx_server_commerce::public::order::SaveOrderPriceList>,
+        Option<erpx_commerce_server::public::order::SaveOrderPriceList>,
         Self::Error,
     > {
         self.calls.push("save-pricing");
@@ -2319,14 +2319,14 @@ impl erpx_server_commerce::public::order::CommerceOrderSaveRepository for Comman
     }
     fn insert_order<'a>(
         &'a mut self,
-        _: &'a erpx_server_commerce::public::order::SaveOrderPlan,
+        _: &'a erpx_commerce_server::public::order::SaveOrderPlan,
     ) -> CommerceOrderFuture<'a, bool, Self::Error> {
         self.calls.push("save-insert");
         Box::pin(async { Ok(true) })
     }
     fn update_order<'a>(
         &'a mut self,
-        _: &'a erpx_server_commerce::public::order::SaveOrderPlan,
+        _: &'a erpx_commerce_server::public::order::SaveOrderPlan,
     ) -> CommerceOrderFuture<'a, bool, Self::Error> {
         self.calls.push("save-update");
         Box::pin(async { Ok(true) })
@@ -2340,7 +2340,7 @@ impl erpx_server_commerce::public::order::CommerceOrderSaveRepository for Comman
     }
     fn insert_order_line<'a>(
         &'a mut self,
-        _: &'a erpx_server_commerce::public::order::SaveOrderLinePlan,
+        _: &'a erpx_commerce_server::public::order::SaveOrderLinePlan,
     ) -> CommerceOrderFuture<'a, (), Self::Error> {
         self.calls.push("save-insert-line");
         Box::pin(async { Ok(()) })
@@ -2357,7 +2357,7 @@ impl erpx_server_commerce::public::order::CommerceOrderSaveRepository for Comman
 
 #[test]
 fn native_save_without_money_port_fails_closed_but_replay_and_retained_modes_do_not_require_it() {
-    use erpx_server_commerce::public::order::{
+    use erpx_commerce_server::public::order::{
         OrderKind, SaveOrderCommand, SaveOrderInput, SaveOrderLineInput, save_order_outcome,
         save_order_outcome_native,
     };
@@ -2441,7 +2441,7 @@ fn native_save_without_money_port_fails_closed_but_replay_and_retained_modes_do_
 
 #[test]
 fn native_save_validates_warehouse_and_entire_price_list_before_product_reads() {
-    use erpx_server_commerce::public::order::{
+    use erpx_commerce_server::public::order::{
         OrderKind, SaveOrderCommand, SaveOrderInput, SaveOrderLineInput, SaveOrderPriceItem,
         SaveOrderPriceList, save_order_outcome_native,
     };
@@ -2566,7 +2566,7 @@ fn native_save_validates_warehouse_and_entire_price_list_before_product_reads() 
 
 #[test]
 fn native_save_kind_lock_precedes_stale_warehouse_and_pricing() {
-    use erpx_server_commerce::public::order::{
+    use erpx_commerce_server::public::order::{
         OrderKind, SaveOrderCommand, SaveOrderInput, SaveOrderLineInput, save_order_outcome_native,
     };
     let command = SaveOrderCommand {
@@ -2619,7 +2619,7 @@ fn native_save_kind_lock_precedes_stale_warehouse_and_pricing() {
 
 #[test]
 fn native_save_kind_precedes_date_and_duplicate_semantics_without_weakening_shape() {
-    use erpx_server_commerce::public::order::{
+    use erpx_commerce_server::public::order::{
         OrderKind, SaveOrderCommand, SaveOrderInput, SaveOrderLineInput, save_order_outcome_native,
     };
     let line = SaveOrderLineInput {

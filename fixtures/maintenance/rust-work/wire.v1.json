@@ -27,11 +27,11 @@
   "node": "v26.11.1",
   "sources": [
     {
-      "path": "packages/server-maintenance/src/domain/work.ts",
+      "path": "modules/maintenance/server/src/domain/work.ts",
       "sha256": "8e3eec4cd4dcdd0899134c8e04d2f492f1c6fc23666d4ba0496c8d60a550c007"
     },
     {
-      "path": "packages/server-shared/src/domain/consumption-lot.ts",
+      "path": "platform/shared/server/src/domain/consumption-lot.ts",
       "sha256": "dddcf06b3390953a58715a7c7888b888fa1069a9f82ae0cf675f8fc799aa543f"
     }
   ],

@@ -2,9 +2,9 @@ import {describe,it,expect,vi} from 'vitest';
 const {requestHeaders}=vi.hoisted(()=>({requestHeaders:vi.fn()}));
 vi.mock('server-only',()=>({}));
 vi.mock('next/headers',()=>({headers:requestHeaders}));
-import {createNativeSessionClient,createNextNativeSessionReader,NativeSessionReadError} from '@erpx/feature-runtime/public/server';
-import type {NativeSessionFetch} from '@erpx/feature-runtime/public/server';
-import type {AccountSessionResponse} from '@erpx/contracts/account-auth';
+import {createNativeSessionClient,createNextNativeSessionReader,NativeSessionReadError} from '@erpx/platform-runtime-ui/public/server';
+import type {NativeSessionFetch} from '@erpx/platform-runtime-ui/public/server';
+import type {AccountSessionResponse} from '@erpx/platform-contracts/account-auth';
 const configuration={privateBaseUrl:'http://127.0.0.1:43117',accountOrigin:'https://account.example.test',holdingOrigins:['https://acme.example.test','https://northstar.example.test'],timeoutMs:250} as const;
 function session(id='alpha'):AccountSessionResponse{return {session:{id:'session-'+id,userId:id,expiresAt:'2026-10-27T12:00:00Z',createdAt:'2026-10-27T11:00:00Z',updatedAt:'2026-10-27T11:00:00Z'},user:{id,name:'Synthetic '+id,email:id+'@example.test',emailVerified:true,image:null}};}
 function json(value:unknown,status=200){return new Response(JSON.stringify(value),{status,headers:{'content-type':'application/json','cache-control':'private, no-store'}});}
@@ -55,8 +55,8 @@ describe('typed server-only native session transport',()=>{
 
 describe('Identity application native session selection',()=>{
  it('maps the validated native session dates and identity without a token or an Actor',async()=>{
-  const {createIdentitySessionAuthenticator}=await import('../../../packages/server-identity_access/src/adapters/native-session');
-  const {createIdentitySession}=await import('@erpx/server-identity_access/application/authorization');
+  const {createIdentitySessionAuthenticator}=await import('../../../modules/identity-access/server/src/adapters/native-session');
+  const {createIdentitySession}=await import('@erpx/identity-access-server/application/authorization');
   const previous=process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG;let captured:Pick<Headers,'get'>|undefined;
   try{process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG=JSON.stringify(configuration);const native=vi.fn(()=>async(headers:Pick<Headers,'get'>)=>{captured=headers;return session();});
    const result=await createIdentitySession({headers:async()=>incoming(),authenticate:createIdentitySessionAuthenticator(native)})();
@@ -65,8 +65,8 @@ describe('Identity application native session selection',()=>{
   }finally{if(previous===undefined)delete process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG;else process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG=previous;}
  });
  it('requires native configuration and preserves malformed, anonymous and unavailable failures without legacy fallback',async()=>{
-  const {createIdentitySessionAuthenticator}=await import('../../../packages/server-identity_access/src/adapters/native-session');
-  const {createIdentitySession}=await import('@erpx/server-identity_access/application/authorization');
+  const {createIdentitySessionAuthenticator}=await import('../../../modules/identity-access/server/src/adapters/native-session');
+  const {createIdentitySession}=await import('@erpx/identity-access-server/application/authorization');
   const previous=process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG;
   try{delete process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG;const native=vi.fn(()=>{throw Error('unexpected native');});const absent=createIdentitySessionAuthenticator(native);await expect(absent('https://acme.example.test',incoming())).rejects.toMatchObject({code:'NATIVE_SESSION_CONFIGURATION_REQUIRED',status:503});expect(native).not.toHaveBeenCalled();
    process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG='{broken';const broken=createIdentitySessionAuthenticator();await expect(broken('https://acme.example.test',incoming())).rejects.toMatchObject({code:'NATIVE_SESSION_CONFIGURATION_INVALID'});
@@ -84,7 +84,7 @@ it('requires an explicit contributor profile for exact local authorities',async(
  expect(()=>createNativeSessionClient({...local,originProfile:'public'},send)).toThrow(NativeSessionReadError);
 });
 it('derives native session profile only from trusted development configuration',async()=>{
- const {createIdentitySessionAuthenticator}=await import('../../../packages/server-identity_access/src/adapters/native-session');const client=vi.fn((config:unknown)=>{void config;return async()=>null;});
+ const {createIdentitySessionAuthenticator}=await import('../../../modules/identity-access/server/src/adapters/native-session');const client=vi.fn((config:unknown)=>{void config;return async()=>null;});
  try{vi.stubEnv('ERPX_NATIVE_ACCOUNT_SESSION_CONFIG',JSON.stringify({...configuration,originProfile:'contributor'}));vi.stubEnv('NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE','container-localhost');vi.stubEnv('NODE_ENV','production');await createIdentitySessionAuthenticator(client)(undefined,incoming());expect(client.mock.calls.at(-1)?.[0]).toMatchObject({originProfile:'public'});vi.stubEnv('NODE_ENV','development');await createIdentitySessionAuthenticator(client)(undefined,incoming());expect(client.mock.calls.at(-1)?.[0]).toMatchObject({originProfile:'contributor'});}
  finally{vi.unstubAllEnvs();}
 });
@@ -96,15 +96,15 @@ describe('native Account role selection transport',()=>{
  const identity={sessionId:'synthetic-session',userId:'alpha',companyId:'company'};
  const state=()=>({holdingId:'h001',...identity,expiresAt:Date.now()+60000,options:[],selection:null,valid:false,branchId:null,departmentId:null,branchSlug:null,departmentSlug:null});
  it('binds only current Account identity and forwards opaque cookies/selectors without serialized authority',async()=>{
-  const {createNativeWorkRoleTransport}=await import('@erpx/server-identity_access/public/native-work-role-transport');
-  const send=vi.fn(async(_input:Parameters<typeof import('@erpx/native-sdk/field-service-parts').nativeWorkRolesRequest>[0])=>{void _input;return {status:200,body:{data:state()}};} );
+  const {createNativeWorkRoleTransport}=await import('@erpx/identity-access-server/public/native-work-role-transport');
+  const send=vi.fn(async(_input:Parameters<typeof import('@erpx/platform-native-sdk/field-service-parts').nativeWorkRolesRequest>[0])=>{void _input;return {status:200,body:{data:state()}};} );
   const h=incoming();h.set('x-erpx-context-company','forged-other-company');h.set('x-erpx-context-assignment','forged-role');h.set('x-erpx-workspace-branch','bangkok');
   expect(await createNativeWorkRoleTransport(JSON.stringify(config),send)(h,identity,'initialize')).toMatchObject(identity);
   const call=send.mock.calls[0]![0] as unknown as {headers:Headers;mode:string;method:string};expect(call).toMatchObject({method:'GET',mode:'initialize'});
   expect([...call.headers.keys()].sort()).toEqual(['accept','cookie','host','x-erpx-context-company','x-erpx-workspace-branch']);expect(call.headers.get('x-erpx-context-company')).toBe('company');expect(call.headers.get('cookie')).toBe(h.get('cookie'));
  });
  it('requires exact mutation origin and forbids wrong targets, protected ports and oversized cookies before IO',async()=>{
-  const {createNativeWorkRoleTransport}=await import('@erpx/server-identity_access/public/native-work-role-transport');const send=vi.fn(async()=>({status:200,body:{data:state()}}));
+  const {createNativeWorkRoleTransport}=await import('@erpx/identity-access-server/public/native-work-role-transport');const send=vi.fn(async()=>({status:200,body:{data:state()}}));
   for(const privateBaseUrl of ['http://127.0.0.1:3100','http://127.0.0.1:3101','http://127.0.0.1:3103','http://127.0.0.1:3203','https://127.0.0.1:43117','http://external.example.test:43117'])expect(()=>createNativeWorkRoleTransport(JSON.stringify({...config,privateBaseUrl}),send)).toThrow();
   const read=createNativeWorkRoleTransport(JSON.stringify(config),send);
   await expect(read(incoming('retired.example.test'),identity,'restore')).rejects.toMatchObject({code:'NATIVE_WORK_ROLE_TARGET_UNAVAILABLE'});
@@ -113,25 +113,25 @@ describe('native Account role selection transport',()=>{
   const h=incoming();h.set('origin','https://northstar.example.test');await expect(read(h,identity,'initialize')).rejects.toMatchObject({code:'ORIGIN_FORBIDDEN'});expect(send).not.toHaveBeenCalled();
  });
  it('admits the production work-role transport only with production opt-in',async()=>{
-  const {createNativeWorkRoleTransport}=await import('@erpx/server-identity_access/public/native-work-role-transport');const send=vi.fn(async(_input:{baseUrl:string})=>({status:200,body:{data:state()}}));
+  const {createNativeWorkRoleTransport}=await import('@erpx/identity-access-server/public/native-work-role-transport');const send=vi.fn(async(_input:{baseUrl:string})=>({status:200,body:{data:state()}}));
   const read=createNativeWorkRoleTransport(JSON.stringify({...config,privateBaseUrl:'http://127.0.0.1:3101',production:true}),send);
   await expect(read(incoming(),identity,'initialize')).resolves.toMatchObject(identity);
   expect(send.mock.calls[0]![0]).toMatchObject({baseUrl:'http://127.0.0.1:3101'});
   expect(()=>createNativeWorkRoleTransport(JSON.stringify({...config,privateBaseUrl:'http://127.0.0.1:3101'}),send)).toThrow();
  });
  it('rejects a response from a stale account or Company and preserves native CAS/session errors',async()=>{
-  const {createNativeWorkRoleTransport}=await import('@erpx/server-identity_access/public/native-work-role-transport');
+  const {createNativeWorkRoleTransport}=await import('@erpx/identity-access-server/public/native-work-role-transport');
   for(const delta of [{companyId:'another-company'},{userId:'beta'},{sessionId:'another-session'},{holdingId:'h002'},{selection:{assignmentId:'role',assignmentVersion:1,revision:-1,expiresAt:Date.now()+1}}])await expect(createNativeWorkRoleTransport(JSON.stringify(config),async()=>({status:200,body:{data:{...state(),...delta}}}))(incoming(),identity,'restore')).rejects.toMatchObject({code:'NATIVE_WORK_ROLE_RESPONSE_INVALID'});
   for(const [status,code]of [[409,'WORK_CONTEXT_CHANGED'],[401,'SESSION_REVOKED']]as const)await expect(createNativeWorkRoleTransport(JSON.stringify(config),async()=>({status,body:{error:{code,message:'Synthetic native failure'}}}))(incoming(),identity,'restore')).rejects.toMatchObject({status,code});
  });
 });
 
 it('discovers native Companies before Company selection without forwarding a picker grant or Company authority',async()=>{
- const {createNativeAccountCompaniesReader}=await import('../../../packages/server-identity_access/src/adapters/native-account-companies');
+ const {createNativeAccountCompaniesReader}=await import('../../../modules/identity-access/server/src/adapters/native-account-companies');
  const config={privateBaseUrl:'http://127.0.0.1:43117',timeoutMs:250,holdings:[{origin:'https://acme.example.test',holdingSlug:'acme',holdingId:'h001'}]};
  const identity={sessionId:'synthetic-session',userId:'alpha'};
  const view={holdingId:'h001',...identity,name:'Synthetic account',email:'alpha@example.test',expiresAt:Date.now()+60000,companies:[{id:'company',slug:'company',name:'Synthetic Company'}]};
- const send=vi.fn(async(input:Parameters<typeof import('@erpx/native-sdk/field-service-parts').nativeAccountCompaniesRequest>[0])=>{expect([...input.headers.keys()].sort()).toEqual(['accept','cookie','host']);return {status:200,body:{data:view}};});
+ const send=vi.fn(async(input:Parameters<typeof import('@erpx/platform-native-sdk/field-service-parts').nativeAccountCompaniesRequest>[0])=>{expect([...input.headers.keys()].sort()).toEqual(['accept','cookie','host']);return {status:200,body:{data:view}};});
  const h=incoming();h.set('x-erpx-context-company','foreign-picker-company');h.set('x-erpx-context-assignment','forged-picker-role');
  expect(await createNativeAccountCompaniesReader(JSON.stringify(config),send)(h,identity,'h001')).toEqual(view);expect(send).toHaveBeenCalledTimes(1);
  for(const delta of [{holdingId:'h002'},{userId:'beta'},{sessionId:'other-session'},{companies:[view.companies[0],view.companies[0]]}])await expect(createNativeAccountCompaniesReader(JSON.stringify(config),async()=>({status:200,body:{data:{...view,...delta}}}))(h,identity,'h001')).rejects.toMatchObject({code:'NATIVE_ACCOUNT_COMPANIES_RESPONSE_INVALID'});
@@ -145,19 +145,19 @@ it('renders native role choices and current organization paths without the retir
  const choice={id:'branch-grant',version:3,role:'custom_review',companyId:'company',branchId:'native-branch',modules:[],scopeKind:'branch',scopeNodeId:'native-branch',label:'Native role · Native branch',validUntil:Date.now()+60000,branchSlug:'native-branch-path',departmentSlug:null};
  const send=vi.fn(async()=>({status:200,body:{data:{holdingId:'h001',companyId:'company',userId:'alpha',sessionId:'synthetic-session',expiresAt:Date.now()+60000,options:[choice],selection:{assignmentId:'branch-grant',assignmentVersion:3,revision:9,expiresAt:Date.now()+60000},valid:false,branchId:null,departmentId:null,branchSlug:null,departmentSlug:null}}}));
  const prepare=vi.fn(()=>{throw Error('RETIRED_ROLE_OPTIONS_SQL_MUST_NOT_RUN');}),write={prepare};
- vi.resetModules();vi.doMock('@erpx/server-identity_access/public/authorization',()=>({requireAccountAccess:async()=>access}));vi.doMock('@erpx/server-runtime/public/runtime',()=>({holdingResources:async()=>({write})}));vi.doMock('@erpx/native-sdk/field-service-parts',()=>({nativeWorkRolesRequest:send}));
+ vi.resetModules();vi.doMock('@erpx/identity-access-server/public/authorization',()=>({requireAccountAccess:async()=>access}));vi.doMock('@erpx/platform-runtime-server/public/runtime',()=>({holdingResources:async()=>({write})}));vi.doMock('@erpx/platform-native-sdk/field-service-parts',()=>({nativeWorkRolesRequest:send}));
  try{
   vi.stubEnv('ERPX_NATIVE_FIELD_SERVICE_WORKSPACE_CONFIG',JSON.stringify({privateBaseUrl:'http://127.0.0.1:43117',timeoutMs:250,holdings:[{origin:'https://acme.example.test',holdingId:'h001',holdingSlug:'acme'}]}));requestHeaders.mockResolvedValue(incoming());
-  const {workRoleOptions}=await import('../../../packages/server-work_projection/src/adapters/work-role-options');const result=await workRoleOptions('acme');
+  const {workRoleOptions}=await import('../../../modules/work-projection/server/src/adapters/work-role-options');const result=await workRoleOptions('acme');
   expect(result.options).toHaveLength(1);expect(result.options[0]).toMatchObject({id:'branch-grant',version:3,label:choice.label});expect(result.options[0]!.href).toContain('/branches/native-branch-path/home');expect(result.selection).toMatchObject({assignment_id:'branch-grant',assignment_version:3,revision:9});expect(result.selected?.id).toBe('branch-grant');expect(prepare).not.toHaveBeenCalled();expect(send).toHaveBeenCalledOnce();
- }finally{vi.unstubAllEnvs();vi.doUnmock('@erpx/server-identity_access/public/authorization');vi.doUnmock('@erpx/server-runtime/public/runtime');vi.doUnmock('@erpx/native-sdk/field-service-parts');vi.resetModules();}
+ }finally{vi.unstubAllEnvs();vi.doUnmock('@erpx/identity-access-server/public/authorization');vi.doUnmock('@erpx/platform-runtime-server/public/runtime');vi.doUnmock('@erpx/platform-native-sdk/field-service-parts');vi.resetModules();}
 });
 
 it('keeps preference transport bound to the current account and exact Holding without a SQL fallback',async()=>{
- const {createNativeAccountPreferencesClient}=await import('../../../packages/server-work_projection/src/adapters/native-account-preferences');
+ const {createNativeAccountPreferencesClient}=await import('../../../modules/work-projection/server/src/adapters/native-account-preferences');
  const config={privateBaseUrl:'http://127.0.0.1:43117',timeoutMs:250,holdings:[{origin:'https://acme.example.test',holdingSlug:'acme',holdingId:'h001'}]};
  const value={holdingId:'h001',holdingSlug:'acme',holdingName:'Synthetic Holding',userId:'alpha',sessionId:'synthetic-session',workspace:{workspacePath:'/holdings/acme/home',platformAssignmentId:'retained-platform'},company:{companyId:'company'}};
- const calls:Parameters<typeof import('@erpx/native-sdk/field-service-parts').nativeAccountPreferencesRequest>[0][]=[];
+ const calls:Parameters<typeof import('@erpx/platform-native-sdk/field-service-parts').nativeAccountPreferencesRequest>[0][]=[];
  const send=vi.fn(async(input:typeof calls[number])=>{calls.push(input);return {status:200,body:{data:value}};});
  const client=createNativeAccountPreferencesClient(JSON.stringify(config),send),h=incoming();
  expect(await client(h,'alpha','GET',undefined,'h001')).toEqual(value);expect([...calls[0]!.headers.keys()].sort()).toEqual(['accept','cookie','host']);
@@ -170,36 +170,36 @@ it('keeps preference transport bound to the current account and exact Holding wi
 
 it('keeps Company selection as native transport and sets a Secure HttpOnly Holding cookie from its acknowledgement',async()=>{
  const choose=vi.fn(async()=>({holdingId:'h001',holdingSlug:'acme',holdingName:'Synthetic Holding',userId:'alpha',sessionId:'synthetic-session',company:{companyId:'company'},workspace:{workspacePath:'/holdings/acme/home',platformAssignmentId:null}}));
- vi.resetModules();vi.doMock('@erpx/server-identity_access/public/authorization',()=>({currentSession:async()=>({session:{user:{id:'alpha'}}})}));vi.doMock('@erpx/server-work_projection/public/workspace-preferences',()=>({selectNativeCompanyPreference:choose}));
+ vi.resetModules();vi.doMock('@erpx/identity-access-server/public/authorization',()=>({currentSession:async()=>({session:{user:{id:'alpha'}}})}));vi.doMock('@erpx/work-projection-server/public/workspace-preferences',()=>({selectNativeCompanyPreference:choose}));
  try{
   vi.stubEnv('ERPX_NATIVE_ACCOUNT_SESSION_CONFIG','{}');
-  const {POST}=await import('../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/companies/active/route');
+  const {POST}=await import('../../../platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/companies/active/route');
   const body='{"companyId":"company","extra":"leave schema decisions to Rust"}',h=incoming();h.set('origin','https://acme.example.test');
   const response=await POST(new Request('https://acme.example.test/api/v1/holdings/acme/companies/active',{method:'POST',headers:h,body}),{params:Promise.resolve({holdingSlug:'acme'})});
   expect(response.status).toBe(200);expect(await response.json()).toEqual({data:{companyId:'company'}});expect(choose).toHaveBeenCalledWith(expect.anything(),'alpha',body,'acme');
   const cookie=response.headers.get('set-cookie');expect(cookie).toContain('erpx_company_h001=company');expect(cookie).toMatch(/; Secure/i);expect(cookie).toMatch(/; HttpOnly/i);expect(cookie).toMatch(/; SameSite=lax/i);expect(cookie).toContain('Path=/');
- }finally{vi.unstubAllEnvs();vi.doUnmock('@erpx/server-identity_access/public/authorization');vi.doUnmock('@erpx/server-work_projection/public/workspace-preferences');vi.resetModules();}
+ }finally{vi.unstubAllEnvs();vi.doUnmock('@erpx/identity-access-server/public/authorization');vi.doUnmock('@erpx/work-projection-server/public/workspace-preferences');vi.resetModules();}
 });
 
 it('keeps native SSR Company hints separate from captured Work and rejects incomplete presentation',async()=>{
- const {createNativeWorkRoleTransport}=await import('@erpx/server-identity_access/public/native-work-role-transport');
+ const {createNativeWorkRoleTransport}=await import('@erpx/identity-access-server/public/native-work-role-transport');
  const config={privateBaseUrl:'http://127.0.0.1:43117',timeoutMs:250,holdings:[{origin:'https://acme.example.test',holdingId:'h001',holdingSlug:'acme'}]};
  const state={holdingId:'h001',companyId:'company',sessionId:'synthetic-session',userId:'alpha',expiresAt:Date.now()+60000,holdingName:'Synthetic Holding',companyName:'Synthetic Company',companySlug:'acme',branchName:null,departmentName:null,workspaces:[],context:null,options:[],selection:null,valid:false,branchId:null,departmentId:null,branchSlug:null,departmentSlug:null};
- const send=vi.fn(async(input:Parameters<typeof import('@erpx/native-sdk/field-service-parts').nativeWorkRolesRequest>[0])=>{expect(input.mode).toBe('access');expect(input.headers.get('x-erpx-requested-company')).toBe('company');expect(input.headers.has('x-erpx-context-company')).toBe(false);expect(input.headers.has('x-erpx-context-assignment')).toBe(false);return {status:200,body:{data:state}};});
+ const send=vi.fn(async(input:Parameters<typeof import('@erpx/platform-native-sdk/field-service-parts').nativeWorkRolesRequest>[0])=>{expect(input.mode).toBe('access');expect(input.headers.get('x-erpx-requested-company')).toBe('company');expect(input.headers.has('x-erpx-context-company')).toBe(false);expect(input.headers.has('x-erpx-context-assignment')).toBe(false);return {status:200,body:{data:state}};});
  const h=incoming();h.set('x-erpx-context-company','forged-company');h.set('x-erpx-context-assignment','forged-role');
  expect(await createNativeWorkRoleTransport(JSON.stringify(config),send)(h,{sessionId:'synthetic-session',userId:'alpha',companyId:'company'},'access')).toEqual(state);
- const frameSend=vi.fn(async(input:Parameters<typeof import('@erpx/native-sdk/field-service-parts').nativeWorkRolesRequest>[0])=>{expect(input.mode).toBe('context');expect(input.headers.get('x-erpx-context-company')).toBe('forged-company');expect(input.headers.get('x-erpx-context-assignment')).toBe('forged-role');return {status:409,body:{error:{code:'WORK_CONTEXT_CHANGED'}}};});
+ const frameSend=vi.fn(async(input:Parameters<typeof import('@erpx/platform-native-sdk/field-service-parts').nativeWorkRolesRequest>[0])=>{expect(input.mode).toBe('context');expect(input.headers.get('x-erpx-context-company')).toBe('forged-company');expect(input.headers.get('x-erpx-context-assignment')).toBe('forged-role');return {status:409,body:{error:{code:'WORK_CONTEXT_CHANGED'}}};});
  await expect(createNativeWorkRoleTransport(JSON.stringify(config),frameSend)(h,{sessionId:'synthetic-session',userId:'alpha'},'context')).rejects.toMatchObject({status:409,code:'WORK_CONTEXT_CHANGED'});
  for(const delta of [{valid:true,context:null},{workspaces:[{kind:'department',id:'d',label:'Synthetic department',inherited:false,branchSlug:null,departmentSlug:null}]}])await expect(createNativeWorkRoleTransport(JSON.stringify(config),async()=>({status:200,body:{data:{...state,...delta}}}))(h,{sessionId:'synthetic-session',userId:'alpha'},'context')).rejects.toMatchObject({code:'NATIVE_WORK_ROLE_RESPONSE_INVALID'});
 });
 
 it('maps native account/work reads without recomputing business authority or accepting a stale Account',async()=>{
- const {nativeAccountReadModel,nativeWorkReadModel}=await import('../../../packages/server-identity_access/src/adapters/native-account-context');
+ const {nativeAccountReadModel,nativeWorkReadModel}=await import('../../../modules/identity-access/server/src/adapters/native-account-context');
  const session={session:{id:'synthetic-session',expiresAt:Date.now()+60000},user:{id:'alpha',name:'Synthetic account',email:'alpha@example.test'}};
- const state:import('@erpx/contracts/field-service-reserve').NativeWorkRoleState={holdingId:'h001',companyId:'company',sessionId:'synthetic-session',userId:'alpha',expiresAt:Date.now()+60000,holdingName:'Synthetic Holding',companyName:'Synthetic Company',companySlug:'acme',branchName:null,departmentName:null,workspaces:[{kind:'branch',id:'branch',label:'Synthetic branch',inherited:true,branchSlug:'bangkok',departmentSlug:null}],context:{expiresAt:Date.now()+60000,modules:['field_service'],beta:false,iam:{roleRevision:2,identityVersion:3,permissions:['service.read'],grantablePermissions:[],principalId:'principal',personId:null,personUserIds:['alpha'],hrAppointmentVersion:null,emergencyUntil:null,freshUntil:null}},options:[{id:'selected',version:4,role:'field-engineer',companyId:'company',branchId:null,scopeKind:'holding',scopeNodeId:null,modules:['ignored-draft-module'],label:'Synthetic role',validUntil:Date.now()+60000,branchSlug:null,departmentSlug:null}],selection:{assignmentId:'selected',assignmentVersion:4,revision:5,expiresAt:Date.now()+60000},valid:true,branchId:null,departmentId:null,branchSlug:null,departmentSlug:null};
+ const state:import('@erpx/platform-contracts/field-service-reserve').NativeWorkRoleState={holdingId:'h001',companyId:'company',sessionId:'synthetic-session',userId:'alpha',expiresAt:Date.now()+60000,holdingName:'Synthetic Holding',companyName:'Synthetic Company',companySlug:'acme',branchName:null,departmentName:null,workspaces:[{kind:'branch',id:'branch',label:'Synthetic branch',inherited:true,branchSlug:'bangkok',departmentSlug:null}],context:{expiresAt:Date.now()+60000,modules:['field_service'],beta:false,iam:{roleRevision:2,identityVersion:3,permissions:['service.read'],grantablePermissions:[],principalId:'principal',personId:null,personUserIds:['alpha'],hrAppointmentVersion:null,emergencyUntil:null,freshUntil:null}},options:[{id:'selected',version:4,role:'field-engineer',companyId:'company',branchId:null,scopeKind:'holding',scopeNodeId:null,modules:['ignored-draft-module'],label:'Synthetic role',validUntil:Date.now()+60000,branchSlug:null,departmentSlug:null}],selection:{assignmentId:'selected',assignmentVersion:4,revision:5,expiresAt:Date.now()+60000},valid:true,branchId:null,departmentId:null,branchSlug:null,departmentSlug:null};
  const access=nativeAccountReadModel(state,session,incoming(),{kind:'holding',holdingSlug:'acme'});const work=nativeWorkReadModel(state,access);
  expect(work).toMatchObject({authority:{sessionId:'synthetic-session',revision:5,assignmentVersion:4},modules:['field_service'],iam:{permissions:['service.read'],roleRevision:2,identityVersion:3},workspaces:[{href:'/holdings/acme/branches/bangkok/home'}]});expect(work.iam).not.toHaveProperty('hrAppointmentVersion');
- const {createNativeWorkRoleTransport}=await import('@erpx/server-identity_access/public/native-work-role-transport');
+ const {createNativeWorkRoleTransport}=await import('@erpx/identity-access-server/public/native-work-role-transport');
  const config={privateBaseUrl:'http://127.0.0.1:43117',timeoutMs:250,holdings:[{origin:'https://acme.example.test',holdingId:'h001',holdingSlug:'acme'}]};
  const zero={...state,context:{...state.context!,iam:{...state.context!.iam,identityVersion:0}}};
  expect((await createNativeWorkRoleTransport(JSON.stringify(config),async()=>({status:200,body:{data:zero}}))(incoming(),{sessionId:session.session.id,userId:session.user.id,companyId:'company'},'context')).context?.iam.identityVersion).toBe(0);
@@ -211,7 +211,7 @@ it('maps native account/work reads without recomputing business authority or acc
 });
 
 it('keeps original Company hint precedence without loading unrelated preferences or silently replacing a withdrawn choice',async()=>{
- const {nativeCompanyHint}=await import('../../../packages/server-identity_access/src/adapters/native-account-context');
+ const {nativeCompanyHint}=await import('../../../modules/identity-access/server/src/adapters/native-account-context');
  const requested={kind:'holding' as const,holdingSlug:'acme'},memory=vi.fn(async()=> 'remembered'),available=vi.fn(async()=>[{id:'sole-current-company'}]);
  const h=new Headers({'x-erpx-context-company':'context',cookie:'erpx_company_h001=cookie'});
  expect(await nativeCompanyHint(h,'h001',requested,{companyId:'original'},memory,available)).toBe('original');expect(memory).not.toHaveBeenCalled();
@@ -224,7 +224,7 @@ it('keeps original Company hint precedence without loading unrelated preferences
 });
 
 it('proxies native authentication and SSO with separate public authority, opaque body, cookies and unfollowed redirects',async()=>{
- const {createNativeAccountHttpTransport}=await import('@erpx/native-sdk/session');
+ const {createNativeAccountHttpTransport}=await import('@erpx/platform-native-sdk/session');
  const cookies=['__Host-erpx-product=synthetic; Path=/; Secure; HttpOnly; SameSite=Lax','__Host-erpx-sso=; Path=/; Secure; HttpOnly; Max-Age=0'];
  const send=vi.fn(async(url:URL,init:RequestInit)=>{
   expect(url.origin).toBe(configuration.privateBaseUrl);expect(new Headers(init.headers).get('host')).toBe('acme.example.test');expect(new Headers(init.headers).has('x-forwarded-host')).toBe(false);expect(init.redirect).toBe('manual');
@@ -237,7 +237,7 @@ it('proxies native authentication and SSO with separate public authority, opaque
  const reply=await createNativeAccountHttpTransport(configuration,post)(new Request(configuration.accountOrigin+'/api/auth/sign-in/email',{method:'POST',headers:{host:'account.example.test',origin:configuration.accountOrigin,'content-type':'application/json'},body}));expect(reply.status).toBe(401);expect(await reply.json()).toEqual({error:{code:'INVALID_CREDENTIALS'}});
 });
 it('rejects unregistered authentication authority/origin and oversized bodies before private IO with no fallback',async()=>{
- const {createNativeAccountHttpTransport}=await import('@erpx/native-sdk/session');const send=vi.fn(async()=>new Response(null,{status:200})),run=createNativeAccountHttpTransport(configuration,send);
+ const {createNativeAccountHttpTransport}=await import('@erpx/platform-native-sdk/session');const send=vi.fn(async()=>new Response(null,{status:200})),run=createNativeAccountHttpTransport(configuration,send);
  await expect(run(new Request('https://retired.example.test/api/auth/get-session',{headers:{host:'retired.example.test'}}))).rejects.toMatchObject({code:'NATIVE_ACCOUNT_AUTHORITY_INVALID'});
  for(const origin of [undefined,'https://foreign.example.test'])await expect(run(new Request(configuration.accountOrigin+'/api/auth/sign-in/email',{method:'POST',headers:{host:'account.example.test',...(origin?{origin}:{})},body:'{}'}))).rejects.toMatchObject({code:'NATIVE_ACCOUNT_ORIGIN_FORBIDDEN'});
  await expect(run(new Request(configuration.accountOrigin+'/api/auth/sign-in/email',{method:'POST',headers:{host:'account.example.test',origin:configuration.accountOrigin},body:'x'.repeat(8193)}))).rejects.toMatchObject({code:'NATIVE_ACCOUNT_PAYLOAD_LIMIT'});expect(send).not.toHaveBeenCalled();
@@ -245,7 +245,7 @@ it('rejects unregistered authentication authority/origin and oversized bodies be
 });
 
 it('preserves native drawer CORS preflight and DELETE input without inventing Account decisions',async()=>{
- const {createNativeAccountHttpTransport}=await import('@erpx/native-sdk/session');
+ const {createNativeAccountHttpTransport}=await import('@erpx/platform-native-sdk/session');
  const send=vi.fn(async(url:URL,init:RequestInit)=>{expect(url.pathname).toBe('/api/v1/account/device-accounts');const h=new Headers(init.headers);expect(h.get('host')).toBe('account.example.test');expect(h.get('origin')).toBe(configuration.holdingOrigins[0]);
   if(init.method==='OPTIONS'){expect(h.get('access-control-request-method')).toBe('DELETE');expect(h.get('access-control-request-headers')).toBe('content-type');return new Response(null,{status:204,headers:{'access-control-allow-origin':configuration.holdingOrigins[0],'access-control-allow-credentials':'true'}});}
   expect(init.method).toBe('DELETE');expect(init.body).toBe('{"handle":"synthetic-handle","revision":7}');return Response.json({error:{code:'DEVICE_ACCOUNTS_CHANGED'}},{status:409});
@@ -256,7 +256,7 @@ it('preserves native drawer CORS preflight and DELETE input without inventing Ac
 });
 
 it('uses the real private HTTP transport for an opaque POST and preserves two auth cookies without following its redirect',async()=>{
- const {createServer}=await import('node:http');const {createNativeAccountHttpTransport}=await import('@erpx/native-sdk/session');let calls=0,body='',authority:string|undefined;
+ const {createServer}=await import('node:http');const {createNativeAccountHttpTransport}=await import('@erpx/platform-native-sdk/session');let calls=0,body='',authority:string|undefined;
  const server=createServer((request,response)=>{calls++;authority=request.headers.host;expect(request.method).toBe('POST');expect(request.url).toBe('/api/auth/sign-in/email');expect(request.headers.origin).toBe(configuration.accountOrigin);expect(request.headers['x-forwarded-host']).toBeUndefined();request.setEncoding('utf8');request.on('data',chunk=>{body+=chunk;});request.on('end',()=>{response.writeHead(303,{'location':configuration.accountOrigin+'/login?synthetic=1','set-cookie':['__Host-erpx-device=synthetic-device; Path=/; Secure; HttpOnly','__Secure-erpx-account.session_token=synthetic-session; Path=/; Secure; HttpOnly']});response.end();});});
  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
  try{
@@ -267,7 +267,7 @@ it('uses the real private HTTP transport for an opaque POST and preserves two au
 });
 
 it('forwards only native Account MFA enrollment/verification while preserving opaque input',async()=>{
- const {createNativeAccountHttpTransport}=await import('@erpx/native-sdk/session');
+ const {createNativeAccountHttpTransport}=await import('@erpx/platform-native-sdk/session');
  const send=vi.fn(async(url:URL,init:RequestInit)=>{expect(url.pathname).toMatch(/^\/api\/v1\/account\/iam\/mfa\/(enroll|verify)$/);expect(new Headers(init.headers).get('host')).toBe('acme.example.test');expect(init.body).toBe('{"code":"synthetic"}');return Response.json({error:{code:'MFA_INVALID'}},{status:422});});
  const run=createNativeAccountHttpTransport(configuration,send);
  for(const action of ['enroll','verify']){const reply=await run(new Request(configuration.holdingOrigins[0]+'/api/v1/account/iam/mfa/'+action,{method:'POST',headers:{host:'acme.example.test',origin:configuration.holdingOrigins[0],'content-type':'application/json'},body:'{"code":"synthetic"}'}));expect(reply.status).toBe(422);}
@@ -276,7 +276,7 @@ it('forwards only native Account MFA enrollment/verification while preserving op
 });
 
 it('forwards native Account security read and revocation with their exact key and no broader writer',async()=>{
- const {createNativeAccountHttpTransport}=await import('@erpx/native-sdk/session');
+ const {createNativeAccountHttpTransport}=await import('@erpx/platform-native-sdk/session');
  const seed={accountKey:'a'.repeat(64),revision:'b'.repeat(64),mfaEnabled:true,mfaFreshUntil:1_900_000_000_000,families:[{handle:'c'.repeat(64),current:true,createdAt:1,expiresAt:2,userAgent:null,audiences:['account']}],legacySessions:0};
  const send=vi.fn(async(url:URL,init:RequestInit)=>{
   expect(url.pathname).toBe('/api/v1/account/security');
@@ -298,23 +298,23 @@ it('uses native Account security for the SSR seed and never falls back to the re
  const seed={accountKey:'a'.repeat(64),revision:'b'.repeat(64),mfaEnabled:true,mfaFreshUntil:1_900_000_000_000,families:[],legacySessions:0};
  const native=vi.fn<(headers:Pick<Headers,'get'>)=>Promise<typeof seed>>(async()=>seed),session=vi.fn(async()=>({session:{user:{id:'alpha'},session:{id:'session-alpha'}}}));
  vi.resetModules();
- vi.doMock('@erpx/server-identity_access/adapters/authorization',()=>({currentSession:session}));
- vi.doMock('@erpx/server-identity_access/adapters/native-recovery',()=>({nativeEmergencyAccess:{active:async()=>[]}}));
- vi.doMock('@erpx/server-identity_access/adapters/native-account-security',()=>({nativeAccountSecurityRead:native}));
+ vi.doMock('@erpx/identity-access-server/adapters/authorization',()=>({currentSession:session}));
+ vi.doMock('@erpx/identity-access-server/adapters/native-recovery',()=>({nativeEmergencyAccess:{active:async()=>[]}}));
+ vi.doMock('@erpx/identity-access-server/adapters/native-account-security',()=>({nativeAccountSecurityRead:native}));
  try{
   vi.stubEnv('ERPX_NATIVE_ACCOUNT_SESSION_CONFIG',JSON.stringify(configuration));
   requestHeaders.mockResolvedValue(incoming('account.example.test','__Host-erpx-device=synthetic'));
-  let security=await import('../../../packages/server-identity_access/src/adapters/account-security');
+  let security=await import('../../../modules/identity-access/server/src/adapters/account-security');
   expect(await security.currentAccountSecurity()).toEqual({security:seed,emergency:[]});
   expect(native).toHaveBeenCalledOnce();expect(native.mock.calls[0]![0].get('host')).toBe('account.example.test');
   native.mockRejectedValueOnce(new Error('native security unavailable'));vi.resetModules();
-  security=await import('../../../packages/server-identity_access/src/adapters/account-security');
+  security=await import('../../../modules/identity-access/server/src/adapters/account-security');
   await expect(security.currentAccountSecurity()).rejects.toThrow('native security unavailable');
- }finally{vi.unstubAllEnvs();vi.doUnmock('@erpx/server-identity_access/adapters/authorization');vi.doUnmock('@erpx/server-identity_access/adapters/native-recovery');vi.doUnmock('@erpx/server-identity_access/adapters/native-account-security');vi.resetModules();}
+ }finally{vi.unstubAllEnvs();vi.doUnmock('@erpx/identity-access-server/adapters/authorization');vi.doUnmock('@erpx/identity-access-server/adapters/native-recovery');vi.doUnmock('@erpx/identity-access-server/adapters/native-account-security');vi.resetModules();}
 });
 
 it('reads the native Account security seed through validated private authority and fails closed',async()=>{
- const {createNativeAccountSecurityReader}=await import('../../../packages/server-identity_access/src/adapters/native-account-security');
+ const {createNativeAccountSecurityReader}=await import('../../../modules/identity-access/server/src/adapters/native-account-security');
  const seed={accountKey:'a'.repeat(64),revision:'b'.repeat(64),mfaEnabled:false,mfaFreshUntil:null,families:[],legacySessions:0};
  const send=vi.fn(async(request:Request)=>{expect(request.url).toBe('https://account.example.test/api/v1/account/security');expect(request.method).toBe('GET');expect(request.headers.get('accept')).toBe('application/json');expect(request.headers.get('cookie')).toBe('__Host-erpx-device=synthetic');return Response.json({data:seed});});
  expect(await createNativeAccountSecurityReader(send)(new Headers({host:'account.example.test',cookie:'__Host-erpx-device=synthetic'}))).toEqual(seed);expect(send).toHaveBeenCalledOnce();

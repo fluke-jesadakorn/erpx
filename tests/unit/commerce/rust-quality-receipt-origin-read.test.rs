@@ -2,12 +2,12 @@
 //! the owner-local successor of the receipt half of
 //! `adapters/quality-purchase-sources.ts`.
 
-use erpx_server_commerce::public::quality_receipt_origin_read::{
+use erpx_commerce_server::public::quality_receipt_origin_read::{
     QualityReceiptOriginFacts, QualityReceiptOriginRead, QualityReceiptOriginReadFuture,
     QualityReceiptOriginReadTarget, quality_receipt_origin_read_router,
     quality_receipt_origin_read_router_for_targets,
 };
-use erpx_server_runtime::public::http_support::serve;
+use erpx_platform_runtime_server::public::http_support::serve;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 

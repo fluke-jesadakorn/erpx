@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { createHomeCache, type HomeCachePorts, type HomeFill } from "@erpx/server-work_projection/application/home-cache";
-import type { CachedResult } from "@erpx/server-work_projection/domain/work-cache";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import { createHomeCache, type HomeCachePorts, type HomeFill } from "@erpx/work-projection-server/application/home-cache";
+import type { CachedResult } from "@erpx/work-projection-server/domain/work-cache";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
 const actor = { holdingId: "h001", companyId: "company", userId: "reader", assignmentId: "grant", role: "employee",
   scope: { kind: "holding" }, branchId: null, departmentId: null, modules: ["collaboration"],
   assignments: [{ id: "grant", version: 1, validUntil: 90_000 }],

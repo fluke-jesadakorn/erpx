@@ -5,8 +5,8 @@
 #[path = "../../support/rust-account-device-http.rs"]
 mod http;
 use axum::http::{StatusCode, header};
-use erpx_server_identity_access::public::account_revocation::*;
-use erpx_server_identity_access::public::{account_auth_router, *};
+use erpx_identity_access_server::public::account_revocation::*;
+use erpx_identity_access_server::public::{account_auth_router, *};
 use http::revocation as fixture;
 use http::*;
 use serde_json::{Value, json};
@@ -489,7 +489,7 @@ async fn parent_expiry_after_real_holding_commits_denies_recovery_and_keeps_old_
 
 #[tokio::test]
 async fn key_migration_backfills_only_original_native_digest_ids_and_is_idempotent() {
-    use erpx_server_runtime::public::postgres::{
+    use erpx_platform_runtime_server::public::postgres::{
         MigrationTrack, load_migrations, migrate_database,
     };
     fixture::database::with_database(2,|pool|async move{

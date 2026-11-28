@@ -6,14 +6,14 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_runtime::public::executive_connections::{
+use erpx_platform_runtime_server::public::executive_connections::{
     ConnectionActor, ExecutiveConnectionsStore, PgExecutiveConnections, commit_create, connections,
     consume_rate, hash_secret, list, prepare_create,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{Clock, TimestampMillis};
+use erpx_platform_shared_server::public::{Clock, TimestampMillis};
 use serde_json::json;
 use std::path::Path;
 
@@ -366,7 +366,7 @@ fn executive_canvas_keeps_no_typescript_reorder_read_oracle() {
 
 #[test]
 fn native_reorder_oracle_is_a_registered_test_target() {
-    let manifest = include_str!("../../../packages/server-runtime/Cargo.toml");
+    let manifest = include_str!("../../../platform/runtime/server/Cargo.toml");
     assert!(manifest.contains("name = \"executive_connections_postgres\""));
     assert!(manifest.contains("path = \"../../tests/integration/shared.executive/rust-executive-connections-postgres.test.rs\""));
 }

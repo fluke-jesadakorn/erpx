@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_customer_authority::public::portal_support_commands::{AcknowledgeInput,CloseInput,CustomerActor,PgPortalSupportCommands,RespondInput,SupportActor};
-use erpx_server_commercial::public::purchases::PackageEnforcementMode;
-use erpx_server_runtime::public::postgres::{DatabasePool,MigrationTrack,PgTransactionError,PgUnitOfWork,TransactionOptions,load_migrations,migrate_database};
-use erpx_server_shared::public::BusinessError;
+use erpx_customer_authority_server::public::portal_support_commands::{AcknowledgeInput,CloseInput,CustomerActor,PgPortalSupportCommands,RespondInput,SupportActor};
+use erpx_commercial_server::public::purchases::PackageEnforcementMode;
+use erpx_platform_runtime_server::public::postgres::{DatabasePool,MigrationTrack,PgTransactionError,PgUnitOfWork,TransactionOptions,load_migrations,migrate_database};
+use erpx_platform_shared_server::public::BusinessError;
 const NOW:i64=1_800_000_000_000;const COMPANY:&str="company";
 type Error=PgTransactionError<BusinessError>;
 fn code(e:&Error)->&'static str{match e{PgTransactionError::Business(e)=>e.code,PgTransactionError::Persistence(_)=>"PERSISTENCE"}}

@@ -2,11 +2,11 @@ import { describe, expect, test } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { SANITIZATION_ATTESTED_HEAD_SQL } from '../../../packages/server-files/src/adapters/read-tail-r40-source-sql';
+import { SANITIZATION_ATTESTED_HEAD_SQL } from '../../../modules/files/server/src/adapters/read-tail-r40-source-sql';
 
 const rootDir = resolve(__dirname, '../../..');
-const srcRoot = resolve(rootDir, 'packages/server-files/src');
-const rel = (p: string) => `packages/server-files/src/adapters/${p}`;
+const srcRoot = resolve(rootDir, 'modules/files/server/src');
+const rel = (p: string) => `modules/files/server/src/adapters/${p}`;
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const git = (...a: string[]) => execFileSync('git', a, { cwd: rootDir, encoding: 'utf8' });
 
@@ -79,59 +79,59 @@ describe('Files read-tail r40 parameterized family', () => {
       const p = rel(h);
       expect(git('rev-parse', `HEAD:${p}`).trim()).toBe(git('hash-object', p).trim());
     }
-    const changed = git('diff', '--name-only', '--', 'packages/server-files/src').trim().split('\n').filter(Boolean);
+    const changed = git('diff', '--name-only', '--', 'modules/files/server/src').trim().split('\n').filter(Boolean);
     expect(changed.every(p => [
-      'packages/server-files/src/adapters/read-tail-r45-source-sql.ts',
-      'packages/server-files/src/adapters/read-tail-r43-source-sql.ts',
-      'packages/server-files/src/adapters/field_owner_head.rs',
-      'packages/server-files/src/public/field_owner_head.rs',
-      'packages/server-files/src/adapters/settlement_head.rs',
-      'packages/server-files/src/public/settlement_head.rs',
-      'packages/server-files/src/adapters/mod.rs',
-      'packages/server-files/src/public/mod.rs',
+      'modules/files/server/src/adapters/read-tail-r45-source-sql.ts',
+      'modules/files/server/src/adapters/read-tail-r43-source-sql.ts',
+      'modules/files/server/src/adapters/field_owner_head.rs',
+      'modules/files/server/src/public/field_owner_head.rs',
+      'modules/files/server/src/adapters/settlement_head.rs',
+      'modules/files/server/src/public/settlement_head.rs',
+      'modules/files/server/src/adapters/mod.rs',
+      'modules/files/server/src/public/mod.rs',
       rel('commerce-facts.ts'), rel(SR), rel('field-file-writer-owner.ts'), rel('attachments/service.ts'),
       rel('legal-destruction-source-facts.ts'), rel('messaging-upload-rollback.ts'),
-          'packages/server-files/src/adapters/app-attachment-sources.ts',
-      'packages/server-files/src/adapters/leave-review-evidence-facts.ts',
-      'packages/server-files/src/adapters/attachments/migration.ts',
-      'packages/server-files/src/adapters/attachments/service-repository.ts',
+          'modules/files/server/src/adapters/app-attachment-sources.ts',
+      'modules/files/server/src/adapters/leave-review-evidence-facts.ts',
+      'modules/files/server/src/adapters/attachments/migration.ts',
+      'modules/files/server/src/adapters/attachments/service-repository.ts',
       // r44 read-tail call sites and helper (assigned owner paths).
-      'packages/server-files/src/adapters/read-tail-r44-source-sql.ts',
-      'packages/server-files/src/adapters/collaboration-home-sources.ts',
-      'packages/server-files/src/adapters/document-derivatives.ts',
-      'packages/server-files/src/adapters/messaging-file-settlements.ts',
-      'packages/server-files/src/adapters/portal-package-obligation-sources.ts',
-      'packages/server-files/src/adapters/attachments/service.ts',
-      'packages/server-files/src/adapters/attachments/service-repository.ts',
-      'packages/server-files/src/adapters/messaging-upload-rollback.ts',
+      'modules/files/server/src/adapters/read-tail-r44-source-sql.ts',
+      'modules/files/server/src/adapters/collaboration-home-sources.ts',
+      'modules/files/server/src/adapters/document-derivatives.ts',
+      'modules/files/server/src/adapters/messaging-file-settlements.ts',
+      'modules/files/server/src/adapters/portal-package-obligation-sources.ts',
+      'modules/files/server/src/adapters/attachments/service.ts',
+      'modules/files/server/src/adapters/attachments/service-repository.ts',
+      'modules/files/server/src/adapters/messaging-upload-rollback.ts',
       // r47 read-tail call site (assigned owner path).
-      'packages/server-files/src/adapters/social-upload-cleanup.ts',
+      'modules/files/server/src/adapters/social-upload-cleanup.ts',
       // r48 read-tail call sites and helper (assigned owner paths).
-      'packages/server-files/src/adapters/ecommerce-package-obligation-sources.ts',
-      'packages/server-files/src/adapters/marketing-package-obligation-sources.ts',
-      'packages/server-files/src/adapters/read-tail-r48-source-sql.ts',
+      'modules/files/server/src/adapters/ecommerce-package-obligation-sources.ts',
+      'modules/files/server/src/adapters/marketing-package-obligation-sources.ts',
+      'modules/files/server/src/adapters/read-tail-r48-source-sql.ts',
       // r49 read-tail call site (assigned owner path).
-      'packages/server-files/src/adapters/beta-management-facts.ts',
+      'modules/files/server/src/adapters/beta-management-facts.ts',
       // r50 read-tail call sites and helper (assigned owner paths).
-      'packages/server-files/src/adapters/leave-evidence-sources.ts',
-      'packages/server-files/src/adapters/read-tail-r50-source-sql.ts',
+      'modules/files/server/src/adapters/leave-evidence-sources.ts',
+      'modules/files/server/src/adapters/read-tail-r50-source-sql.ts',
       // r51 read-tail call sites and helper (assigned owner paths).
-      'packages/server-files/src/adapters/read-tail-r51-source-sql.ts',
+      'modules/files/server/src/adapters/read-tail-r51-source-sql.ts',
       // r52 read-tail call sites and helper (assigned owner paths).
-      'packages/server-files/src/adapters/read-tail-r52-source-sql.ts',
-      'packages/server-files/src/adapters/attachment-denied-read-audits.ts',
-      'packages/server-files/src/adapters/customer-portal-files.ts',
+      'modules/files/server/src/adapters/read-tail-r52-source-sql.ts',
+      'modules/files/server/src/adapters/attachment-denied-read-audits.ts',
+      'modules/files/server/src/adapters/customer-portal-files.ts',
       // r53 read-tail call site and helper (assigned owner paths).
-      'packages/server-files/src/adapters/attachments/service-repository.ts',
-      'packages/server-files/src/adapters/read-tail-r53-source-sql.ts',
+      'modules/files/server/src/adapters/attachments/service-repository.ts',
+      'modules/files/server/src/adapters/read-tail-r53-source-sql.ts',
       // lane 21 + 22 native cutovers: call sites and per-holding module export.
-      'packages/server-files/src/adapters/commercial-usage-facts.ts',
-      'packages/server-files/src/adapters/native_lane_21/mod.rs',
-      'packages/server-files/src/adapters/work-read-facts.ts',
+      'modules/files/server/src/adapters/commercial-usage-facts.ts',
+      'modules/files/server/src/adapters/native_lane_21/mod.rs',
+      'modules/files/server/src/adapters/work-read-facts.ts',
       // wave 2 native cutovers: retired call sites and owner modules.
-      'packages/server-files/src/adapters/finance-tax-signatures.ts',
-      'packages/server-files/src/adapters/people-evaluation-facts.ts',
-      'packages/server-files/src/adapters/records-employee-requests-owned-facts.ts',
+      'modules/files/server/src/adapters/finance-tax-signatures.ts',
+      'modules/files/server/src/adapters/people-evaluation-facts.ts',
+      'modules/files/server/src/adapters/records-employee-requests-owned-facts.ts',
     ].includes(p) || /native_lane_\d+|native-lane-\d+/.test(p))).toBe(true);
   });
 

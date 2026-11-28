@@ -2,12 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-marketing/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/marketing/server/src/adapters/${name}`, import.meta.url);
 
 describe('marketing owner-local point read dedupe', () => {
   it('emits byte-identical SQL for the asset, candidate/lock and history variants', async () => {
     const { marketingLocalPointReadSql } = await import(
-      '../../../packages/server-marketing/src/adapters/marketing-local-point-read-sql.ts'
+      '../../../modules/marketing/server/src/adapters/marketing-local-point-read-sql.ts'
     );
     expect(marketingLocalPointReadSql('asset')).toBe(
       'SELECT * FROM marketing_assets WHERE id=? AND company_id=?',
@@ -25,7 +25,7 @@ describe('marketing owner-local point read dedupe', () => {
 
   it('emits byte-identical SQL for the attachment owner fact reads', async () => {
     const { attachmentOwnerFactReadSql } = await import(
-      '../../../packages/server-marketing/src/adapters/attachment-owner-fact-read-sql.ts'
+      '../../../modules/marketing/server/src/adapters/attachment-owner-fact-read-sql.ts'
     );
     expect(attachmentOwnerFactReadSql('asset')).toBe(
       'SELECT company_id,NULL::text branch_id,NULL::text department_id,version,kind FROM marketing_assets WHERE id=? AND company_id=?',

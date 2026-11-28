@@ -6,16 +6,16 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_identity_access::public::iam_roles::{
+use erpx_identity_access_server::public::iam_roles::{
     AccessReviewCampaignInput, AccessReviewCancelInput, AccessReviewDecisionInput, IamRoleActor,
     PgIamRolesReviews, ReviewDecisionInput, RoleSaveInput, cancel_access_review_campaign,
     decide_access_review_item, decide_review, save_role, start_access_review,
 };
-use erpx_server_identity_access::public::permission_catalog::permission_catalog;
-use erpx_server_runtime::public::postgres::{
+use erpx_identity_access_server::public::permission_catalog::permission_catalog;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, HoldingId, RecordId, UserId,
 };
 use serde_json::Value;

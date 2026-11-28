@@ -5,7 +5,7 @@ ARG TARGETARCH
 ARG ERPX_SOURCE_KEY
 WORKDIR /workspace/erpx
 COPY . .
-RUN test -n "$ERPX_SOURCE_KEY" && test -n "$TARGETARCH" && cargo build --locked --release -p erpx-service --no-default-features --features private-field-api --bin erpx-server \
+RUN test -n "$ERPX_SOURCE_KEY" && test -n "$TARGETARCH" && cargo build --locked --release -p erpx-platform-composition --no-default-features --features private-field-api --bin erpx-server \
     && install -D -m 0755 target/release/erpx-server /out/erpx-server
 RUN printf "%s\n%s\n" "$ERPX_SOURCE_KEY" "$TARGETARCH" > /out/build-identity && mkdir -p /out/manifest-path \
     && find migrations/postgres -type d -exec chmod 0755 {} + \
@@ -20,7 +20,7 @@ WORKDIR /workspace/erpx
 COPY --from=build /out/erpx-server /usr/local/bin/erpx-server
 # The binary resolves its migration inventory relative to CARGO_MANIFEST_DIR.
 COPY --from=build /workspace/erpx/migrations/postgres /workspace/erpx/migrations/postgres
-COPY --from=build /out/manifest-path /workspace/erpx/src/composition
+COPY --from=build /out/manifest-path /workspace/erpx/platform/composition
 USER 65532:65532
 ENTRYPOINT ["/usr/local/bin/erpx-server"]
 

@@ -16,7 +16,7 @@ const minioEnvironment={
   attachmentsV2:process.env.ERPX_ATTACHMENTS_V2,
 };
 const validPngFixture=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOQaEj4D8IMMAYAQaQH3RNNL/AAAAAASUVORK5CYII=","base64");
-vi.mock("@erpx/server-identity_access/public/authorization", () => ({
+vi.mock("@erpx/identity-access-server/public/authorization", () => ({
   requireWorkContext: async (slug: string) => {
     if (slug !== "billing-api") throw new Error("FORBIDDEN");
     return {
@@ -39,17 +39,17 @@ vi.mock("@erpx/server-identity_access/public/authorization", () => ({
     },
   }),
 }));
-vi.mock("@erpx/server-operations/public/staff-policy", () => ({
+vi.mock("@erpx/operations-server/public/staff-policy", () => ({
   requireCompanyAuthority: async () => {},
 }));
-vi.mock("@erpx/server-files/public/attachments/scanner",()=>({
+vi.mock("@erpx/files-server/public/attachments/scanner",()=>({
   attachmentScannerReadiness:async(environment:NodeJS.ProcessEnv=process.env)=>{session.scannerGate=environment.ERPX_ATTACHMENTS_V2??null;return {enabled:true,ready:session.scannerReady,engine:"ClamAV billing test",definitionUpdatedAt:Date.now(),error:session.scannerReady?null:"CLAMD_UNAVAILABLE"};},
   scanAttachmentBytes:async()=>({clean:true,signature:null,engine:"ClamAV billing test",definitionUpdatedAt:Date.now()}),
 }));
-vi.mock("@erpx/server-files/public/attachments/preview",()=>({
+vi.mock("@erpx/files-server/public/attachments/preview",()=>({
   detectedAttachmentMediaType:(_bytes:Uint8Array,declared:string)=>declared,
 }));
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({
   runtimeEnv: async () => ({
     ...env,
     ERPX_DATA_DIR: session.dataDir,
@@ -57,14 +57,14 @@ vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   }),
   holdingResources: async () => ({ write: env.H001_DB }),
 }));
-import { billingHandler } from "@erpx/server-billing/public/billing-api";
+import { billingHandler } from "@erpx/billing-server/public/billing-api";
 import {
   billingEvidenceReadiness,
   billingEvidenceStore,
   drainBillingEvidenceScans,
   reconcileBillingEvidenceStorage,
   recordBillingEvidenceReconciliation,
-} from "@erpx/server-billing/public/billing-attachments";
+} from "@erpx/billing-server/public/billing-attachments";
 const customer = billingHandler(false),
   platform = billingHandler(true);
 const ctx = (path: string[] = []) => ({

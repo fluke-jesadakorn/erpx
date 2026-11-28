@@ -4,13 +4,13 @@ import { resolve } from "node:path";
 
 const ROOT = new URL("../../../", import.meta.url).pathname.replace(/\/$/, "");
 const TS = readFileSync(
-  resolve(ROOT, "packages/server-inventory/src/adapters/inventory-transfers.ts"),
+  resolve(ROOT, "modules/inventory/server/src/adapters/inventory-transfers.ts"),
   "utf8",
 );
 const RS = readFileSync(
   resolve(
     ROOT,
-    "packages/server-inventory/src/adapters/native_transfer_list/postgres.rs",
+    "modules/inventory/server/src/adapters/native_transfer_list/postgres.rs",
   ),
   "utf8",
 );

@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { SELECT_ATTACHMENT_ID_SQL } from '../../../packages/server-files/src/adapters/read-tail-r27-source-sql';
+import { SELECT_ATTACHMENT_ID_SQL } from '../../../modules/files/server/src/adapters/read-tail-r27-source-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-files/src');
+const srcRoot = resolve(__dirname, '../../../modules/files/server/src');
 const adapterDir = resolve(srcRoot, 'adapters');
 const src = (name: string) => readFileSync(resolve(adapterDir, name), 'utf8');
 

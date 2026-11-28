@@ -1,12 +1,12 @@
 import { describe, expect, test, vi } from 'vitest';
-import { createFinanceGroupOwnershipApplication, type FinanceGroupOwnershipPorts, type FinanceGroupOwnershipRepository } from "@erpx/server-finance/application/finance-group-ownership";
-import { createFinanceGroupEditionsApplication, type FinanceGroupEditionsPorts, type FinanceGroupEditionsRepository } from "@erpx/server-finance/application/finance-group-editions";
-import { createFinanceConsolidationApplication, type FinanceConsolidationPorts, type FinanceConsolidationRepository } from "@erpx/server-finance/application/finance-consolidation";
-import { ownershipEditionSchema, acquisitionEditionSchema, type Row } from "@erpx/server-finance/domain/finance-group-ownership";
-import { groupReportEditionSchema } from "@erpx/server-finance/domain/finance-group-editions";
-import { convert, translationRate, translateMinor } from "@erpx/server-finance/domain/group-consolidation-math";
-import type { GroupCommands } from "@erpx/server-finance/domain/group-command-ports";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import { createFinanceGroupOwnershipApplication, type FinanceGroupOwnershipPorts, type FinanceGroupOwnershipRepository } from "@erpx/finance-server/application/finance-group-ownership";
+import { createFinanceGroupEditionsApplication, type FinanceGroupEditionsPorts, type FinanceGroupEditionsRepository } from "@erpx/finance-server/application/finance-group-editions";
+import { createFinanceConsolidationApplication, type FinanceConsolidationPorts, type FinanceConsolidationRepository } from "@erpx/finance-server/application/finance-consolidation";
+import { ownershipEditionSchema, acquisitionEditionSchema, type Row } from "@erpx/finance-server/domain/finance-group-ownership";
+import { groupReportEditionSchema } from "@erpx/finance-server/domain/finance-group-editions";
+import { convert, translationRate, translateMinor } from "@erpx/finance-server/domain/group-consolidation-math";
+import type { GroupCommands } from "@erpx/finance-server/domain/group-command-ports";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
 
 const actor: WorkContext = {userId:'owner',name:'Owner',email:'owner@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['finance'],assignments:[],workspaces:[],authority:{sessionId:'session',revision:1,assignmentVersion:1}};
 function strict<Ports extends object>(facts: Partial<Ports>): Ports {

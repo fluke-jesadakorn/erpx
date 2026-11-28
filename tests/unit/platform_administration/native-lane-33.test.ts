@@ -2,15 +2,15 @@ import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { ApiError } from "@erpx/server-runtime/public/http";
+import { ApiError } from "@erpx/platform-runtime-server/public/http";
 import {
   nativeReleaseChildImageConfigured,
   parseNativeConfig,
   selectHolding,
   validateImage,
-} from "../../../packages/server-platform_administration/src/adapters/native-lane-33/client";
+} from "../../../modules/platform-administration/server/src/adapters/native-lane-33/client";
 
-const root = resolve(__dirname, "../../../packages/server-platform_administration/src");
+const root = resolve(__dirname, "../../../modules/platform-administration/server/src");
 const src = (relative: string) => readFileSync(resolve(root, relative), "utf8");
 const sha = (value: string) => createHash("sha256").update(value).digest("hex");
 

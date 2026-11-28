@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 
 const src = (name: string) =>
-  new URL(`../../../packages/server-work_projection/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/work-projection/server/src/adapters/${name}`, import.meta.url);
 
 const lock =
   'SELECT version FROM staff_daily_plans WHERE company_id=? AND user_id=? AND plan_date=? FOR UPDATE';
@@ -24,7 +24,7 @@ describe('work_projection read-tail r18 dedupe', () => {
 
   it('emits the original byte-identical SQL for both assertion callers', async () => {
     const { dailyPlanSql } = await import(
-      '../../../packages/server-work_projection/src/adapters/read-tail-sql.ts'
+      '../../../modules/work-projection/server/src/adapters/read-tail-sql.ts'
     );
     expect(dailyPlanSql('version')).toBe(version);
     expect(dailyPlanSql('1', ' AND version=? AND last_command_id=?')).toBe(written);

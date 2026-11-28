@@ -2,7 +2,7 @@
 mod database;
 #[path = "../../support/rust-account-invitation.rs"]
 mod fixture;
-use erpx_server_runtime::public::postgres::DatabasePool;
+use erpx_platform_runtime_server::public::postgres::DatabasePool;
 use fixture::{effects, setup, signup};
 use std::sync::Arc;
 

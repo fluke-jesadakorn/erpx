@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { idNameEmailByUserIdsSql } from '../../../packages/server-identity_access/src/adapters/iam-probe-sql';
+import { idNameEmailByUserIdsSql } from '../../../modules/identity-access/server/src/adapters/iam-probe-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-identity_access/src');
+const srcRoot = resolve(__dirname, '../../../modules/identity-access/server/src');
 const read = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
 const sqlSrc = read('adapters/iam-probe-sql.ts');
 const ids = ['u1', 'u2'];

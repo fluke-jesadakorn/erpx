@@ -1,13 +1,13 @@
 //! Native Billing cost-review command policy, CAS, replay and readback.
-use erpx_server_billing::public::cost::{
+use erpx_billing_server::public::cost::{
     AccountSnapshot, AuditEntry, BillingCostCommand, BillingCostCommandRepository,
     CompleteCostReview, DeleteCost, ReceiptSnapshot, RecordCost, command_identity,
     execute_cost_command,
 };
-use erpx_server_billing::public::workspace::{
+use erpx_billing_server::public::workspace::{
     BillingActor, BillingCostView, BillingFuture, BillingPeriodView,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, FailureKind, HoldingId, RecordId, TimestampMillis,
     UserId,
 };
@@ -93,7 +93,7 @@ struct Probe {
     evidence: bool,
     original: bool,
     existing: Option<BillingCostView>,
-    inserted: Option<erpx_server_billing::public::cost::ValidatedCostDraft>,
+    inserted: Option<erpx_billing_server::public::cost::ValidatedCostDraft>,
     readback: Option<BillingCostView>,
     deleted_period: Option<String>,
     cost_exists: bool,
@@ -218,7 +218,7 @@ impl BillingCostCommandRepository for Probe {
 
     fn insert_cost<'a>(
         &'a mut self,
-        cost: &'a erpx_server_billing::public::cost::ValidatedCostDraft,
+        cost: &'a erpx_billing_server::public::cost::ValidatedCostDraft,
         _: &'a HoldingId,
         _: TimestampMillis,
     ) -> BillingFuture<'a, bool, Self::Error> {
@@ -332,13 +332,13 @@ fn run_with(
     command: BillingCostCommand,
     actor: &BillingActor,
     probe: &mut Probe,
-) -> Result<erpx_server_billing::public::cost::CommandReceipt, BusinessError> {
+) -> Result<erpx_billing_server::public::cost::CommandReceipt, BusinessError> {
     test_block_on(async { execute_cost_command(actor, &target(), &command, probe, NOW).await })
 }
 
 fn run(
     command: BillingCostCommand,
-) -> Result<erpx_server_billing::public::cost::CommandReceipt, BusinessError> {
+) -> Result<erpx_billing_server::public::cost::CommandReceipt, BusinessError> {
     let mut probe = Probe::default();
     run_with(command, &admin(), &mut probe)
 }

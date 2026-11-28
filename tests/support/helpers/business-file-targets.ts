@@ -1,18 +1,18 @@
 import {seedCommerceFulfillment} from "./commerce-fulfillment-seed";
 import type {expenseFixture} from "./expense-fixture";
-import type {SqlDatabase} from "@erpx/server-runtime/adapters/runtime/types";
-import type {AttachmentPolicy,AttachmentComponentKind} from "@erpx/server-files/public/attachments/types";
+import type {SqlDatabase} from "@erpx/platform-runtime-server/adapters/runtime/types";
+import type {AttachmentPolicy,AttachmentComponentKind} from "@erpx/files-server/public/attachments/types";
 import {expect} from 'vitest';
-import {actRfq} from "@erpx/server-procurement/public/procurement-rfqs";
-import {requestCommerceReturn,decideCommerceReturn} from '@erpx/server-commerce/public/commerce';
-import {recordSupplierPromise} from "@erpx/server-procurement/public/supplier-promises";
-import {transitionCount} from "@erpx/server-inventory/public/inventory-counts";
-import {transitionTransfer} from "@erpx/server-inventory/public/inventory-transfers";
+import {actRfq} from "@erpx/procurement-server/public/procurement-rfqs";
+import {requestCommerceReturn,decideCommerceReturn} from '@erpx/commerce-server/public/commerce';
+import {recordSupplierPromise} from "@erpx/procurement-server/public/supplier-promises";
+import {transitionCount} from "@erpx/inventory-server/public/inventory-counts";
+import {transitionTransfer} from "@erpx/inventory-server/public/inventory-transfers";
 import {dispatchTransit,receiveTransit,requestTransitLoss} from "../inventory/legacy-transit-writer";
 import {seedNativeQualityEvidence} from "../../../fixtures/quality/evidence";
-import {changeManufacturingOrder} from "@erpx/server-manufacturing/public/production";
-import {createInvoice,invoiceSchema,postInvoice} from '@erpx/server-finance/public/finance';
-import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
+import {changeManufacturingOrder} from "@erpx/manufacturing-server/public/production";
+import {createInvoice,invoiceSchema,postInvoice} from '@erpx/finance-server/public/finance';
+import {assignFlowPrimary,resolveFlow} from '@erpx/workflow-server/public/flow-routing';
 export const businessFileOwners=[
  'procurement_rfq','purchase_order','purchase_receipt','supplier_bill','supplier_bill_match','landed_cost','stock_count','inventory_stock_count','stock_transfer','inventory_transfer','inventory_transit','product','inventory_lot','quality_hold','inventory_quality_hold','inventory_quality_spec','commerce_order','commerce_order_delivery','commerce_fulfillment','commerce_return','crm_account','crm_opportunity','marketing_campaign','marketing_asset','asset','maintenance_work','field_service_visit','production_run','planning_scenario','manufacturing_spec','project','ecommerce_listing',
 ] as const;

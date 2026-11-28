@@ -1,15 +1,15 @@
 // Native PMS room/housekeeping command domain/application facts. No database,
 // browser, adapter, persisted receipt or HTTP acceptance is inferred.
 mod domain {
-    #[path = "../../../../packages/server-pms/src/domain/room_board.rs"]
+    #[path = "../../../../modules/pms/server/src/domain/room_board.rs"]
     pub mod room_board;
-    #[path = "../../../../packages/server-pms/src/domain/room_command.rs"]
+    #[path = "../../../../modules/pms/server/src/domain/room_command.rs"]
     pub mod room_command;
 }
 mod application {
-    #[path = "../../../../packages/server-pms/src/application/room_board.rs"]
+    #[path = "../../../../modules/pms/server/src/application/room_board.rs"]
     pub mod room_board;
-    #[path = "../../../../packages/server-pms/src/application/room_command.rs"]
+    #[path = "../../../../modules/pms/server/src/application/room_command.rs"]
     pub mod room_command;
 }
 
@@ -20,7 +20,7 @@ use domain::room_command::{
     PmsRoomCommandFacts, PmsRoomCommandInput, PmsRoomCommandOperation, PmsRoomSaveInput,
     PmsRoomTypeSaveInput, PmsTaskCreateInput, PmsTaskKind, PmsTaskPriority, plan_room_command,
 };
-use erpx_server_shared::public::CommandKey;
+use erpx_platform_shared_server::public::CommandKey;
 use serde_json::json;
 
 fn actor() -> PmsBoardActor {

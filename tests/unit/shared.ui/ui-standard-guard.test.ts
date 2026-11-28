@@ -68,7 +68,7 @@ describe("shared UI migration guard", () => {
     expect(result.output).toContain("Migrated caller presentation guard passed.");
   });
 
-  it.each(["@erpx/ui/components/button","@erpx/ui/components/foundation","@erpx/feature-shared/components/features/feature-page"])("keeps the actual workspace control boundary for %s",specifier=>{
+  it.each(["@erpx/platform-ui/components/button","@erpx/platform-ui/components/foundation","@erpx/platform-shared-ui/components/features/feature-page"])("keeps the actual workspace control boundary for %s",specifier=>{
     const invalid=fixture({content:`import { Button as Action } from "${specifier}"; export const View=()=> <Action>Open</Action>;`});
     expect(invalid.status).toBe(1);expect(invalid.output).toContain("Action lacks explicit appearance");
     expect(fixture({content:`import { Button as Action } from "${specifier}"; export const View=()=> <Action appearance="standard">Open</Action>;`}).status).toBe(0);
@@ -295,7 +295,7 @@ describe("lease-bound anonymous Forms UI ingestion",()=>{
 
 import {assertProductHostUiMetadata,productHostUiProjection,type ProductHostUiState} from "../../../scripts/testing/product-host-ui-evidence";
 import type {ProductHostLease,ProductHostPlan} from "../../../scripts/testing/product-host-cohort";
-import {productIds as uiProductIds,developmentProductOrigin as uiProductOrigin} from "@erpx/contracts/product-registry";
+import {productIds as uiProductIds,developmentProductOrigin as uiProductOrigin} from "@erpx/platform-contracts/product-registry";
 /** Controlled metadata ports only. Real loadUiAcceptance additionally reads the
  * original lease/arm, validates native TLS/key/SPKI and hashes actual tools. */
 function uiLeasedProductContract(change?:(lease:ProductHostLease,plan:ProductHostPlan)=>void){
@@ -338,7 +338,7 @@ it("preserves both native Front handoff routes and their original query and hash
 });
 
 it("accepts workspace source identities while refusing traversal and generated outputs",()=>{
- for(const path of ["src/app/page.tsx",'apps/finance/src/app/page.tsx','packages/server-finance/src/public/finance.ts'])expect(workspaceSourcePath(path)).toBe(true);
+ for(const path of ["src/app/page.tsx",'apps/finance/src/app/page.tsx','modules/finance/server/src/public/finance.ts'])expect(workspaceSourcePath(path)).toBe(true);
  for(const path of ['apps/finance/.build/server.js','node_modules/next/index.js','docs/testing/receipt.json'])expect(workspaceSourcePath(path)).toBe(false);
- for(const path of ['apps/finance/src/../../.env','packages/ui/src/../private.ts','/apps/finance/src/app/page.tsx'])expect(()=>workspaceSourcePath(path)).toThrow('UI_EVIDENCE_PATH_REQUIRED');
+ for(const path of ['apps/finance/src/../../.env','platform/ui/src/../private.ts','/apps/finance/src/app/page.tsx'])expect(()=>workspaceSourcePath(path)).toThrow('UI_EVIDENCE_PATH_REQUIRED');
 });

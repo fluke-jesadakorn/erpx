@@ -3,11 +3,11 @@
 //! The crate manifest has `autotests = false`; the lead must register this file
 //! as a `[[test]]` target named `crm_collaboration_lead` before `cargo test`
 //! picks it up. No build was run by the worker (BUILD FREEZE).
-use erpx_server_crm::public::collaboration_lead::{
+use erpx_crm_server::public::collaboration_lead::{
     CollaborationLeadActor, CollaborationLeadFuture, CollaborationLeadRepository,
     CollaborationLeadRow, LEAD_SQL, crm_collaboration_notification_lead,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, TimestampMillis};
 use std::future::Future;
 use std::pin::Pin;
 

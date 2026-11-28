@@ -17,7 +17,7 @@ import {
   readLane17ReplenishmentRows,
   readLane17CountRows,
   nativeInventoryLane17Configured,
-} from "../../../packages/server-inventory/src/adapters/native-lane-17/client";
+} from "../../../modules/inventory/server/src/adapters/native-lane-17/client";
 
 const ROOT = new URL("../../../", import.meta.url).pathname.replace(/\/$/, "");
 const CONFIG_KEY = "ERPX_NATIVE_INVENTORY_LANE17_READ_CONFIG";
@@ -255,9 +255,9 @@ describe("native lane 17 slice evidence", () => {
     "inventory-consumption.ts",
   ].map((name) => ({
     name,
-    source: readFileSync(`${ROOT}/packages/server-inventory/src/adapters/${name}`, "utf8"),
+    source: readFileSync(`${ROOT}/modules/inventory/server/src/adapters/${name}`, "utf8"),
   }));
-  const rust = readFileSync(`${ROOT}/packages/server-inventory/src/adapters/native_lane_17/postgres.rs`, "utf8");
+  const rust = readFileSync(`${ROOT}/modules/inventory/server/src/adapters/native_lane_17/postgres.rs`, "utf8");
 
   test("every replaced TypeScript adapter retains no SQL statement", () => {
     for (const { name, source } of adapters) {
@@ -285,7 +285,7 @@ describe("native lane 17 slice evidence", () => {
   });
 
   test("the count adapter no longer carries the count-lot-line SQL", () => {
-    const counts = readFileSync(`${ROOT}/packages/server-inventory/src/adapters/inventory-counts.ts`, "utf8");
+    const counts = readFileSync(`${ROOT}/modules/inventory/server/src/adapters/inventory-counts.ts`, "utf8");
     expect(counts).not.toContain("FROM inventory_count_lot_lines cl JOIN inventory_count_lines l");
     expect(counts).toContain("native-lane-17/client");
   });
@@ -299,7 +299,7 @@ describe("native lane 17 slice evidence", () => {
         else if (entry.name.endsWith(".ts")) total += (readFileSync(path, "utf8").match(/SELECT /g) ?? []).length;
       }
     };
-    walk(resolve(ROOT, "packages/server-inventory/src"));
+    walk(resolve(ROOT, "modules/inventory/server/src"));
     expect(total).toBe(276);
   });
 });

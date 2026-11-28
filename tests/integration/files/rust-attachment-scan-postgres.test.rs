@@ -2,9 +2,9 @@
 mod facts;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_files::public::attachment_scan::*;
-use erpx_server_runtime::public::postgres::{PgTransactionError, PgUnitOfWork, TransactionOptions};
-use erpx_server_shared::public::{BusinessError, Clock};
+use erpx_files_server::public::attachment_scan::*;
+use erpx_platform_runtime_server::public::postgres::{PgTransactionError, PgUnitOfWork, TransactionOptions};
+use erpx_platform_shared_server::public::{BusinessError, Clock};
 use sqlx::Connection;
 use std::sync::Arc;
 
@@ -209,7 +209,7 @@ async fn real_legacy_alias_and_specialized_origins_sanitize_without_invented_par
   let state:(String,String,i64)=sqlx::query_as("SELECT a.source_state,j.state,(SELECT count(*)FROM attachment_events WHERE attachment_id=a.id AND action LIKE 'scan.%')FROM attachments a JOIN attachment_scan_attempts j ON j.attachment_id=a.id WHERE a.id=$1").bind(id.as_str()).fetch_one(pool.raw()).await.unwrap();assert_eq!(state,("quarantined".into(),"pending".into(),0));
   let now=clock.clone();let requested=id.clone();
   PgUnitOfWork::new(pool.clone()).run::<(),BusinessError,_>(TransactionOptions::default(),move|c|{let clock=now.clone();let id=requested.clone();Box::pin(async move{
-   let mut wrong=facts::scope();wrong.company_id=erpx_server_shared::public::CompanyId::new("outside-company").unwrap();assert!(claim_attachment_scan(c,&wrong,Some(&id),&clock,&mut facts::Ids).await?.is_none());Ok(())
+   let mut wrong=facts::scope();wrong.company_id=erpx_platform_shared_server::public::CompanyId::new("outside-company").unwrap();assert!(claim_attachment_scan(c,&wrong,Some(&id),&clock,&mut facts::Ids).await?.is_none());Ok(())
   })}).await.unwrap();
   let overlap=facts::seed_managed(&pool,"overlap").await;sqlx::query("INSERT INTO attachment_scan_attempts(id,attachment_id,attempt,state,created_at)VALUES('historical-overlap',$1,2,'pending',0)").bind(overlap.as_str()).execute(pool.raw()).await.unwrap();let now=clock.clone();
   let result=PgUnitOfWork::new(pool.clone()).run::<(),BusinessError,_>(TransactionOptions::default(),move|c|{let clock=now.clone();let id=overlap.clone();Box::pin(async move{claim_attachment_scan(c,&facts::scope(),Some(&id),&clock,&mut facts::Ids).await?;Ok(())})}).await;
@@ -239,7 +239,7 @@ fn write_original(
 async fn actual_private_storage_stages_without_database_lease_adopts_crash_object_and_retains_exact_ledger()
  {
     fixture::with_database(2,|pool|async move{
-  use erpx_server_files::public::preview::{PreviewArtifact,PreviewMedia};use sha2::{Digest,Sha256};use std::os::unix::fs::{PermissionsExt,symlink};
+  use erpx_files_server::public::preview::{PreviewArtifact,PreviewMedia};use sha2::{Digest,Sha256};use std::os::unix::fs::{PermissionsExt,symlink};
   facts::migrate(&pool).await;let clock=facts::TestClock::new(1000);
   let body=include_bytes!("../../../fixtures/files/preview/png-alpha.input");let output=include_bytes!("../../../fixtures/files/preview/png-alpha.webp");
   let id=facts::seed_source(&pool,"storage",facts::TestOrigin::Managed,"image/png",body).await;let prepared=Arc::new(facts::claim(&pool,&id,&clock).await.unwrap());

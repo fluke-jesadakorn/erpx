@@ -3,13 +3,13 @@
 //! restart/failure logs. No database is opened.
 #![allow(dead_code)]
 
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DEFAULT_MAX_EVENTS_PER_PASS, MAX_EVENTS_PER_PASS_LIMIT, OutboxAttestation,
     OutboxHandlerRegistry, OutboxHolding, OutboxPassReport, OutboxRetrySchedule, OutboxSupervisor,
     OutboxSupervisorPolicy, WorkerFuture, WorkerOutcome, failure_log_line, restart_log_line,
     retry_delay_millis, retry_schedule,
 };
-use erpx_server_runtime::public::postgres::{OutboxJob, OutboxJobHandler};
+use erpx_platform_runtime_server::public::postgres::{OutboxJob, OutboxJobHandler};
 use sqlx::PgPool;
 use std::{sync::Arc, time::Duration};
 
@@ -281,7 +281,7 @@ async fn an_invalid_clock_rejects_every_holding_without_touching_a_pool() {
     assert_eq!(report.completed, 0);
     assert!(report.holdings.iter().all(|(_, outcome)| matches!(
         outcome,
-        erpx_server_runtime::public::postgres::OutboxHoldingOutcome::Rejected {
+        erpx_platform_runtime_server::public::postgres::OutboxHoldingOutcome::Rejected {
             code: "INVALID_OUTBOX_CLOCK",
             ..
         }

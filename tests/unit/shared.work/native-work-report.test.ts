@@ -8,7 +8,7 @@ import {
   readNativeWorkReport,
   validateReportProjection,
   type NativeWorkReportTransport,
-} from '../../../packages/feature-work_projection/src/lib/native-work-report';
+} from '../../../modules/work-projection/ui/src/lib/native-work-report';
 
 const config = JSON.stringify({
   privateBaseUrl: 'http://127.0.0.1:44993',

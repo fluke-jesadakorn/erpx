@@ -1,7 +1,7 @@
 //! Owner fence identity and snapshot behavior only; no portal authority.
 #[path = "../../support/rust-postgres.rs"] mod fixture;
-use erpx_server_commercial::public::{portal_purchase::PortalPurchaseFence, purchase_command_boundary::lock_portal_purchase_writer_fence};
-use erpx_server_runtime::public::postgres::{load_migrations,migrate_database,MigrationTrack};
+use erpx_commercial_server::public::{portal_purchase::PortalPurchaseFence, purchase_command_boundary::lock_portal_purchase_writer_fence};
+use erpx_platform_runtime_server::public::postgres::{load_migrations,migrate_database,MigrationTrack};
 use sqlx::Connection;
 
 #[tokio::test]
@@ -26,9 +26,9 @@ async fn portal_fence_same_unit_and_direct_history_snapshot() {
 
 #[tokio::test]
 async fn portal_pre_matches_same_source_typescript() {
- use erpx_server_commercial::public::portal_purchase::inspect_portal_purchase_pre;
- use erpx_server_commercial::public::purchases::{current_package_catalogue,CapabilityPurpose,PackageEnforcementMode};
- use erpx_server_shared::public::{Clock,CompanyId,TimestampMillis,FailureKind};
+ use erpx_commercial_server::public::portal_purchase::inspect_portal_purchase_pre;
+ use erpx_commercial_server::public::purchases::{current_package_catalogue,CapabilityPurpose,PackageEnforcementMode};
+ use erpx_platform_shared_server::public::{Clock,CompanyId,TimestampMillis,FailureKind};
  use std::io::Write;
  struct TestClock; impl Clock for TestClock {fn now(&self)->TimestampMillis{TimestampMillis::new(1000)}}
  fixture::with_database(4,|pool| async move {
@@ -53,10 +53,10 @@ async fn portal_pre_matches_same_source_typescript() {
 
 #[tokio::test]
 async fn portal_after_guard_and_typescript_shadow_agree() {
- use erpx_server_commercial::public::portal_purchase::finish_portal_purchase;
- use erpx_server_commercial::public::purchases::{current_package_catalogue,CapabilityPurpose,PackageEnforcementMode};
- use erpx_server_runtime::public::postgres::PgTransactionError;
- use erpx_server_shared::public::{CompanyId,FailureKind};
+ use erpx_commercial_server::public::portal_purchase::finish_portal_purchase;
+ use erpx_commercial_server::public::purchases::{current_package_catalogue,CapabilityPurpose,PackageEnforcementMode};
+ use erpx_platform_runtime_server::public::postgres::PgTransactionError;
+ use erpx_platform_shared_server::public::{CompanyId,FailureKind};
  use std::io::Write;
  fixture::with_database(4,|pool|async move {
   let files=load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
@@ -76,10 +76,10 @@ async fn portal_after_guard_and_typescript_shadow_agree() {
 
 #[tokio::test]
 async fn enforced_after_matches_typescript_and_preserves_collisions() {
- use erpx_server_commercial::public::portal_purchase::finish_portal_purchase;
- use erpx_server_commercial::public::purchases::{current_package_catalogue,CapabilityPurpose,PackageEnforcementMode};
- use erpx_server_runtime::public::postgres::PgTransactionError;
- use erpx_server_shared::public::CompanyId;
+ use erpx_commercial_server::public::portal_purchase::finish_portal_purchase;
+ use erpx_commercial_server::public::purchases::{current_package_catalogue,CapabilityPurpose,PackageEnforcementMode};
+ use erpx_platform_runtime_server::public::postgres::PgTransactionError;
+ use erpx_platform_shared_server::public::CompanyId;
  use std::io::Write;
  fixture::with_database(4,|pool|async move {
   let files=load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
@@ -105,9 +105,9 @@ async fn enforced_after_matches_typescript_and_preserves_collisions() {
 
 #[tokio::test]
 async fn before_guard_matches_typescript_and_waits_for_advisory() {
- use erpx_server_commercial::public::portal_purchase::{begin_portal_purchase,finish_portal_purchase};
- use erpx_server_commercial::public::purchases::{current_package_catalogue,CapabilityPurpose,PackageEnforcementMode};
- use erpx_server_shared::public::CompanyId;
+ use erpx_commercial_server::public::portal_purchase::{begin_portal_purchase,finish_portal_purchase};
+ use erpx_commercial_server::public::purchases::{current_package_catalogue,CapabilityPurpose,PackageEnforcementMode};
+ use erpx_platform_shared_server::public::CompanyId;
  use std::io::Write;
  fixture::with_database(5,|pool|async move {
   let files=load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
@@ -121,7 +121,7 @@ async fn before_guard_matches_typescript_and_waits_for_advisory() {
    let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");let mut child=std::process::Command::new(std::env::var("ERPX_NODE_BIN").unwrap()).current_dir(root).args(["--conditions=react-server","--import=tsx","scripts/testing/fixtures/portal-purchase-legacy-oracle.ts"]).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).spawn().unwrap();write!(child.stdin.take().unwrap(),"{}",serde_json::json!({"database":database,"token":token,"kind":"before","company":company,"purpose":"settle-existing"})).unwrap();let out=child.wait_with_output().unwrap();assert!(out.status.success(),"TS before oracle failed");let expected:serde_json::Value=serde_json::from_slice(&out.stdout).unwrap();
    let mut tx=pool.raw().begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE").await.unwrap();lock_portal_purchase_writer_fence(&mut tx).await.unwrap();let fence=PortalPurchaseFence::bind(&mut tx).await.unwrap();let catalogue=current_package_catalogue().unwrap();let company=CompanyId::new(company).unwrap();
    let result=begin_portal_purchase(&mut tx,Some(&fence),&company,&catalogue,"sales.portal",CapabilityPurpose::SettleExisting,PackageEnforcementMode::Enforced,"before-key").await;assert_eq!(result.is_ok(),expected["ok"].as_bool().unwrap());
-   if result.is_ok(){let count:i64=sqlx::query_scalar("SELECT count(*) FROM command_assertions WHERE command_id='before-key' AND step='commercial-purchase-before'").fetch_one(&mut *tx).await.unwrap();assert_eq!(count,1);finish_portal_purchase(&mut tx,Some(&fence),&company,&catalogue,"sales.portal",CapabilityPurpose::SettleExisting,PackageEnforcementMode::Enforced,"before-key").await.unwrap();let count:i64=sqlx::query_scalar("SELECT count(*) FROM command_assertions WHERE command_id='before-key'").fetch_one(&mut *tx).await.unwrap();assert_eq!(count,0);} else if let Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e))=result {assert_eq!(e.code,expected["code"].as_str().unwrap());}
+   if result.is_ok(){let count:i64=sqlx::query_scalar("SELECT count(*) FROM command_assertions WHERE command_id='before-key' AND step='commercial-purchase-before'").fetch_one(&mut *tx).await.unwrap();assert_eq!(count,1);finish_portal_purchase(&mut tx,Some(&fence),&company,&catalogue,"sales.portal",CapabilityPurpose::SettleExisting,PackageEnforcementMode::Enforced,"before-key").await.unwrap();let count:i64=sqlx::query_scalar("SELECT count(*) FROM command_assertions WHERE command_id='before-key'").fetch_one(&mut *tx).await.unwrap();assert_eq!(count,0);} else if let Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e))=result {assert_eq!(e.code,expected["code"].as_str().unwrap());}
    tx.rollback().await.unwrap();
   }
   let mut holder=pool.raw().begin().await.unwrap();let hp:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *holder).await.unwrap();sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended('commercial.package:company:company',0))").execute(&mut *holder).await.unwrap();

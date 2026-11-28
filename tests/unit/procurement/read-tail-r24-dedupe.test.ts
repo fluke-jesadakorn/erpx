@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
-import { eligiblePurchaseCount, memberScopeExclusion } from '../../../packages/server-procurement/src/adapters/read-tail-r24';
+import { eligiblePurchaseCount, memberScopeExclusion } from '../../../modules/procurement/server/src/adapters/read-tail-r24';
 
 const src = (name: string) => readFileSync(
-  new URL(`../../../packages/server-procurement/src/adapters/${name}`, import.meta.url), 'utf8',
+  new URL(`../../../modules/procurement/server/src/adapters/${name}`, import.meta.url), 'utf8',
 );
 const M = 'MEMBERS', A = 'ASSIGN';
 
@@ -55,7 +55,7 @@ describe('Procurement read-tail r24 parameterized family dedupe', () => {
   });
 
   test('worktree SELECT count is strictly lower than the recorded BEFORE=142', () => {
-    const root = new URL('../../../packages/server-procurement/src/', import.meta.url);
+    const root = new URL('../../../modules/procurement/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {

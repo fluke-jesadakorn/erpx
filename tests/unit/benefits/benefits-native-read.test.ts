@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
 
 const source = (path: string) => readFileSync(
-  resolve(__dirname, '../../../packages/server-benefits/src', path),
+  resolve(__dirname, '../../../modules/benefits/server/src', path),
   'utf8',
 );
 
@@ -12,18 +12,18 @@ const { nativeWorkspace, nativeDetail } = vi.hoisted(() => ({
   nativeWorkspace: vi.fn(),
   nativeDetail: vi.fn(),
 }));
-vi.mock('@erpx/feature-benefits/public/native-benefits-workspace-page', () => ({
+vi.mock('@erpx/benefits-ui/public/native-benefits-workspace-page', () => ({
   nativeBenefitsWorkspace: nativeWorkspace,
   nativeBenefitDetail: nativeDetail,
 }));
 
-import { ApiError } from '@erpx/server-runtime/public/http';
+import { ApiError } from '@erpx/platform-runtime-server/public/http';
 import {
   benefitsWorkspace,
   benefitDetail,
   benefitWork,
-} from '@erpx/server-benefits/adapters/benefits-native-read';
-import { benefitsWorkspace as portWorkspace, benefitDetail as portDetail, benefitWork as portWork } from '@erpx/server-benefits/public/benefits-native-read';
+} from '@erpx/benefits-server/adapters/benefits-native-read';
+import { benefitsWorkspace as portWorkspace, benefitDetail as portDetail, benefitWork as portWork } from '@erpx/benefits-server/public/benefits-native-read';
 
 const actor = { userId: 'user' } as never;
 const election = (id: string, personId: string, status: string, updatedAt = 20) => ({

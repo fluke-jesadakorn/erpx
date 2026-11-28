@@ -5,21 +5,21 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_benefits::public::command::{
+use erpx_benefits_server::public::command::{
     BenefitCommandPorts, BenefitEvidenceRequest, BenefitLearningRequest, BenefitsCommandActor,
     BenefitsEvidencePort, BenefitsLearningPort, PgBenefitsCommand, PreparedBenefitLearning, change,
     change_with_ports, create_dependent, create_election, create_election_with_ports, create_plan,
     create_window,
 };
-use erpx_server_benefits::public::workspace::{
+use erpx_benefits_server::public::workspace::{
     BenefitsEntitlement, BenefitsEntitlementPort, BenefitsFuture, BenefitsPeoplePort,
     BenefitsWorker,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CommandKey, CompanyId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey, CompanyId, TimestampMillis};
 use serde_json::{Value, json};
 use sqlx::PgConnection;
 
@@ -237,7 +237,7 @@ async fn commands_persist_scoped_rows_receipts_audit_cas_and_payroll_handoff() {
                     let mut command = PgBenefitsCommand::new(connection, &reviewer);
                     let published = change(
                         &reviewer,
-                        erpx_server_benefits::public::command::BenefitRecordKind::Plan,
+                        erpx_benefits_server::public::command::BenefitRecordKind::Plan,
                         plan_id,
                         &json!({
                             "entity": "plan",
@@ -273,7 +273,7 @@ async fn commands_persist_scoped_rows_receipts_audit_cas_and_payroll_handoff() {
                     let mut command = PgBenefitsCommand::new(connection, &reviewer);
                     let opened = change(
                         &reviewer,
-                        erpx_server_benefits::public::command::BenefitRecordKind::Window,
+                        erpx_benefits_server::public::command::BenefitRecordKind::Window,
                         window_id,
                         &json!({
                             "entity": "window",
@@ -311,7 +311,7 @@ async fn commands_persist_scoped_rows_receipts_audit_cas_and_payroll_handoff() {
                     let mut command = PgBenefitsCommand::new(connection, &reviewer);
                     let verified = change(
                         &reviewer,
-                        erpx_server_benefits::public::command::BenefitRecordKind::Dependent,
+                        erpx_benefits_server::public::command::BenefitRecordKind::Dependent,
                         dependent_id,
                         &json!({
                             "entity": "dependent",
@@ -353,7 +353,7 @@ async fn commands_persist_scoped_rows_receipts_audit_cas_and_payroll_handoff() {
                     assert_eq!(election.status, "elected");
                     let submitted = change(
                         &owner,
-                        erpx_server_benefits::public::command::BenefitRecordKind::Election,
+                        erpx_benefits_server::public::command::BenefitRecordKind::Election,
                         election_id,
                         &json!({
                             "entity": "election",
@@ -376,7 +376,7 @@ async fn commands_persist_scoped_rows_receipts_audit_cas_and_payroll_handoff() {
                     let mut command = PgBenefitsCommand::new(connection, &reviewer);
                     let acknowledged = change(
                         &reviewer,
-                        erpx_server_benefits::public::command::BenefitRecordKind::Election,
+                        erpx_benefits_server::public::command::BenefitRecordKind::Election,
                         election_id,
                         &json!({
                             "entity": "election",
@@ -408,7 +408,7 @@ async fn commands_persist_scoped_rows_receipts_audit_cas_and_payroll_handoff() {
                     });
                     let released = change(
                         &releaser,
-                        erpx_server_benefits::public::command::BenefitRecordKind::Election,
+                        erpx_benefits_server::public::command::BenefitRecordKind::Election,
                         election_id,
                         &release_input,
                         &release_key,
@@ -423,7 +423,7 @@ async fn commands_persist_scoped_rows_receipts_audit_cas_and_payroll_handoff() {
                     assert_eq!(
                         change(
                             &releaser,
-                            erpx_server_benefits::public::command::BenefitRecordKind::Election,
+                            erpx_benefits_server::public::command::BenefitRecordKind::Election,
                             election_id,
                             &release_input,
                             &release_key,
@@ -437,7 +437,7 @@ async fn commands_persist_scoped_rows_receipts_audit_cas_and_payroll_handoff() {
                     );
                     let changed_release = change(
                         &releaser,
-                        erpx_server_benefits::public::command::BenefitRecordKind::Election,
+                        erpx_benefits_server::public::command::BenefitRecordKind::Election,
                         election_id,
                         &json!({
                             "entity": "election",
@@ -457,7 +457,7 @@ async fn commands_persist_scoped_rows_receipts_audit_cas_and_payroll_handoff() {
                     assert_eq!(business(changed_release).code, "IDEMPOTENCY_CONFLICT");
                     let stale_plan = change(
                         &releaser,
-                        erpx_server_benefits::public::command::BenefitRecordKind::Plan,
+                        erpx_benefits_server::public::command::BenefitRecordKind::Plan,
                         plan_id,
                         &json!({
                             "entity": "plan",
@@ -593,7 +593,7 @@ async fn foreign_company_and_reviewer_self_review_are_rejected_before_owner_effe
                     .await?;
                     let own_publish = change(
                         &owner,
-                        erpx_server_benefits::public::command::BenefitRecordKind::Plan,
+                        erpx_benefits_server::public::command::BenefitRecordKind::Plan,
                         &plan.id,
                         &json!({
                             "entity": "plan",
@@ -616,7 +616,7 @@ async fn foreign_company_and_reviewer_self_review_are_rejected_before_owner_effe
                     let mut foreign_command = PgBenefitsCommand::new(connection, &foreign);
                     let foreign_read = change(
                         &foreign,
-                        erpx_server_benefits::public::command::BenefitRecordKind::Plan,
+                        erpx_benefits_server::public::command::BenefitRecordKind::Plan,
                         &plan.id,
                         &json!({
                             "entity": "plan",
@@ -750,7 +750,7 @@ impl BenefitsEvidencePort for MountedEvidence {
         &'a mut self,
         unit: Option<&'a mut PgConnection>,
         request: BenefitEvidenceRequest,
-    ) -> erpx_server_benefits::public::command::BenefitsCommandFuture<
+    ) -> erpx_benefits_server::public::command::BenefitsCommandFuture<
         'a,
         Option<Self::Prepared>,
         BusinessError,
@@ -769,7 +769,7 @@ impl BenefitsEvidencePort for MountedEvidence {
         &'a mut self,
         unit: Option<&'a mut PgConnection>,
         prepared: &'a Self::Prepared,
-    ) -> erpx_server_benefits::public::command::BenefitsCommandFuture<'a, (), BusinessError> {
+    ) -> erpx_benefits_server::public::command::BenefitsCommandFuture<'a, (), BusinessError> {
         Box::pin(async move {
             assert!(unit.is_some());
             assert!(!prepared.command_id.is_empty());
@@ -794,7 +794,7 @@ impl BenefitsLearningPort for MountedLearning {
         &'a mut self,
         unit: Option<&'a mut PgConnection>,
         request: BenefitLearningRequest,
-    ) -> erpx_server_benefits::public::command::BenefitsCommandFuture<
+    ) -> erpx_benefits_server::public::command::BenefitsCommandFuture<
         'a,
         Self::Prepared,
         BusinessError,
@@ -814,7 +814,7 @@ impl BenefitsLearningPort for MountedLearning {
         &'a mut self,
         unit: Option<&'a mut PgConnection>,
         request: BenefitLearningRequest,
-    ) -> erpx_server_benefits::public::command::BenefitsCommandFuture<
+    ) -> erpx_benefits_server::public::command::BenefitsCommandFuture<
         'a,
         Self::Prepared,
         BusinessError,
@@ -834,7 +834,7 @@ impl BenefitsLearningPort for MountedLearning {
         &'a mut self,
         unit: Option<&'a mut PgConnection>,
         prepared: &'a Self::Prepared,
-    ) -> erpx_server_benefits::public::command::BenefitsCommandFuture<'a, (), BusinessError> {
+    ) -> erpx_benefits_server::public::command::BenefitsCommandFuture<'a, (), BusinessError> {
         Box::pin(async move {
             assert!(unit.is_some());
             assert!(!prepared.certificate_id.is_empty());
@@ -878,7 +878,7 @@ async fn mounted_evidence_port_binds_the_exact_dependent_verification_action() {
                         let mut command = PgBenefitsCommand::new(connection, &reviewer);
                         let verified = change_with_ports(
                             &reviewer,
-                            erpx_server_benefits::public::command::BenefitRecordKind::Dependent,
+                            erpx_benefits_server::public::command::BenefitRecordKind::Dependent,
                             "dependent-evidence",
                             &json!({
                                 "entity": "dependent",
@@ -911,7 +911,7 @@ async fn mounted_evidence_port_binds_the_exact_dependent_verification_action() {
                         let mut command = PgBenefitsCommand::new(connection, &reviewer);
                         let error = change(
                             &reviewer,
-                            erpx_server_benefits::public::command::BenefitRecordKind::Dependent,
+                            erpx_benefits_server::public::command::BenefitRecordKind::Dependent,
                             "dependent-without-port",
                             &json!({
                                 "entity": "dependent",
@@ -1026,7 +1026,7 @@ async fn mounted_learning_port_consumes_plan_gated_election_and_submit() {
 
                         let submitted = change_with_ports(
                             &owner,
-                            erpx_server_benefits::public::command::BenefitRecordKind::Election,
+                            erpx_benefits_server::public::command::BenefitRecordKind::Election,
                             &election.id,
                             &json!({
                                 "entity": "election",

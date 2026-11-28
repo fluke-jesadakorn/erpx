@@ -10,9 +10,9 @@ import {
   SALES_RD_PURCHASE_PROJECTION_C_DENY,
   SALES_RD_PURCHASE_PROJECTION_FP_READ,
   SALES_RD_PURCHASE_PROJECTION_FP_DENY,
-} from '../../../packages/server-sales/src/adapters/native-sales-read';
+} from '../../../modules/sales/server/src/adapters/native-sales-read';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-sales/src');
+const srcRoot = resolve(__dirname, '../../../modules/sales/server/src');
 const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const registry = read('native_sales_read_sql.rs');
 const purchases = read('followup-purchases.ts');

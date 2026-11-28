@@ -4,15 +4,15 @@ import {
   billingCommand,
   type BillingActor,
   type BillingInput,
-} from "@erpx/server-billing/public/billing";
-import { drainBilling } from "@erpx/server-billing/public/billing-jobs";
-import { ApiError } from "@erpx/server-runtime/adapters/http";
-import { billingMonth, monthBounds, proratedSupport, type InvoiceLine } from "@erpx/feature-billing/lib/billing";
+} from "@erpx/billing-server/public/billing";
+import { drainBilling } from "@erpx/billing-server/public/billing-jobs";
+import { ApiError } from "@erpx/platform-runtime-server/adapters/http";
+import { billingMonth, monthBounds, proratedSupport, type InvoiceLine } from "@erpx/billing-ui/lib/billing";
 import {
   billingStripe,
   type BillingStripe,
   type StripeObject,
-} from "@erpx/server-billing/public/billing-stripe";
+} from "@erpx/billing-server/public/billing-stripe";
 const db = env.CONTROL_DB;
 beforeAll(() => applyMigrations(db, env.CONTROL_TEST_MIGRATIONS));
 /** Native-owned Billing workspace oracle. The retired TypeScript `billingView`

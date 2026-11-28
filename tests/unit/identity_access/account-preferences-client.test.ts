@@ -1,6 +1,6 @@
 import { expect, it, vi } from "vitest";
-import { createAccountPreferencesClient } from "@erpx/feature-identity_access/lib/account-preferences-client";
-import type { AccountPreferences, AccountPreferenceSnapshot } from "@erpx/server-identity_access/public/account-preferences";
+import { createAccountPreferencesClient } from "@erpx/identity-access-ui/lib/account-preferences-client";
+import type { AccountPreferences, AccountPreferenceSnapshot } from "@erpx/identity-access-server/public/account-preferences";
 
 const key = "a".repeat(64), other = "b".repeat(64);
 const preference = (version = 1, appearance: AccountPreferences["appearance"] = "light", language: AccountPreferences["language"] = "en") => ({ version, appearance, language });
@@ -130,8 +130,8 @@ it("accepts a matching central Account save without a duplicate PATCH and ignore
   expect(ports.write).not.toHaveBeenCalled(); expect(ports.read).not.toHaveBeenCalled();
 });
 
-import {createAccountLanguageRefresh,createAccountPreferenceRefresh} from '@erpx/feature-identity_access/lib/account-preference-refresh';
-import type {PreferenceRefreshOutcome} from '@erpx/feature-identity_access/lib/account-preferences-client';
+import {createAccountLanguageRefresh,createAccountPreferenceRefresh} from '@erpx/identity-access-ui/lib/account-preference-refresh';
+import type {PreferenceRefreshOutcome} from '@erpx/identity-access-ui/lib/account-preferences-client';
 function synchronizationFixture(){
  let visible=true,active=true,sequence=0;const timers=new Map<number,{run:()=>void;delay:number}>(),read=vi.fn(async():Promise<PreferenceRefreshOutcome>=>'ok');
  const synchronization=createAccountPreferenceRefresh({visible:()=>visible,active:()=>active,read,setTimer:(run,delay)=>{const id=++sequence;timers.set(id,{run,delay});return id;},clearTimer:id=>{timers.delete(id);}});
@@ -173,14 +173,14 @@ it('ignores an older same-account periodic snapshot without applying it or stopp
 it('a hidden or anonymous/context-unavailable surface does not start a periodic read',()=>{const f=synchronizationFixture();f.visible(false);f.synchronization.start();expect(f.timers.size).toBe(0);f.visible(true);f.active(false);f.synchronization.start();expect(f.timers.size).toBe(0);expect(f.read).not.toHaveBeenCalled();f.synchronization.dispose();});
 it('keeps a hidden page language refresh pending until it is visible without refreshing business content in the background',()=>{let active=false;const refresh=vi.fn(),language=createAccountLanguageRefresh('en',{active:()=>active,dirty:()=>false,refresh});language.apply('th');language.flush();expect(refresh).not.toHaveBeenCalled();expect(language.pending()).toBe(true);active=true;language.flush();language.flush();expect(refresh).toHaveBeenCalledTimes(1);});
 
-import {createAccountSecurityCommand,accountSecurityAcknowledgement} from '@erpx/feature-identity_access/lib/account-security-client';
-import {accountSecurityInput,accountSecuritySeedSchema,type AccountSecuritySeed} from '@erpx/feature-identity_access/lib/account-security';
-import {AccountShell} from '@erpx/feature-identity_access/components/account-shell';
-import {AccountSessions} from '@erpx/feature-identity_access/components/account-sessions';
-import {accountSelfNavigation} from '@erpx/feature-identity_access/lib/account-self-navigation';
+import {createAccountSecurityCommand,accountSecurityAcknowledgement} from '@erpx/identity-access-ui/lib/account-security-client';
+import {accountSecurityInput,accountSecuritySeedSchema,type AccountSecuritySeed} from '@erpx/identity-access-ui/lib/account-security';
+import {AccountShell} from '@erpx/identity-access-ui/components/account-shell';
+import {AccountSessions} from '@erpx/identity-access-ui/components/account-sessions';
+import {accountSelfNavigation} from '@erpx/identity-access-ui/lib/account-self-navigation';
 import {createElement,Fragment,isValidElement,type ReactNode} from 'react';
-import {AccountSecurity} from '@erpx/workplace/routes/security/security-form';
-import {createAccountSecurityHttpPort} from '@erpx/feature-identity_access/adapters/http/account-security';
+import {AccountSecurity} from '@erpx/platform-workplace/routes/security/security-form';
+import {createAccountSecurityHttpPort} from '@erpx/identity-access-ui/adapters/http/account-security';
 import {renderToStaticMarkup} from 'react-dom/server';
 vi.mock('next/navigation',()=>({useRouter:()=>({refresh:vi.fn(),push:vi.fn()})}));
 it('keeps the exact personal security body and key through lost or malformed acknowledgements and blocks a changed uncertain action',async()=>{
@@ -199,7 +199,7 @@ it('keeps authenticator setup and the existing emergency seed server-rendered wi
 });
 it('drops an actual typed MFA setup response after account change or unmount before exposing a key or dispatching freshness',async()=>{
  for(const mode of ['change','unmount']){
-  const source=readFileSync(new URL('../../../packages/workplace/src/routes/security/security-form.tsx',import.meta.url),'utf8');
+  const source=readFileSync(new URL('../../../platform/workplace/src/routes/security/security-form.tsx',import.meta.url),'utf8');
   const browser=Object.assign(new EventTarget(),{location:new URL('https://account-dev-erpx.jesadakorn.com/security')}),documentPort={documentElement:{dataset:{erpxApp:'account'}}},late=deferred<Response>(),transport=vi.fn(()=>late.promise),updated=vi.fn();browser.addEventListener('erpx:account-security-updated',updated);
   const values:unknown[]=[],cleanups:(()=>void)[]=[],effects=new Set<number>();let cursor=0;
   const ports={jsx:createElement,Fragment,window:browser,CustomEvent,contextGeneration:()=>0,createAccountSecurityHttpPort,holdingFetch:actualHoldingFetch(browser,documentPort,transport),
@@ -222,11 +222,11 @@ it('keeps original Console self links when central Account routing is disabled a
 
 import {readFileSync} from 'node:fs';
 import ts from 'typescript';
-import {holdingHostForHost,holdingTransportPath,contributorExactOrigin} from '@erpx/contracts/holding-hosts';
-import {isProductHostKey} from '@erpx/contracts/product-registry';
-import type {AccountProfile} from '@erpx/server-identity_access/public/account-preferences';
-import {accountProfileAcknowledgement,accountProfilePreferenceEvent,accountProfileResponseCurrent,observeAccountProfileWitness,type AccountProfileWitness} from '@erpx/feature-identity_access/lib/account-profile-client';
-import {AccountProfileForm} from '@erpx/feature-identity_access/components/account-profile-form';
+import {holdingHostForHost,holdingTransportPath,contributorExactOrigin} from '@erpx/platform-contracts/holding-hosts';
+import {isProductHostKey} from '@erpx/platform-contracts/product-registry';
+import type {AccountProfile} from '@erpx/identity-access-server/public/account-preferences';
+import {accountProfileAcknowledgement,accountProfilePreferenceEvent,accountProfileResponseCurrent,observeAccountProfileWitness,type AccountProfileWitness} from '@erpx/identity-access-ui/lib/account-profile-client';
+import {AccountProfileForm} from '@erpx/identity-access-ui/components/account-profile-form';
 
 /** Execute the original owner handler with explicit state/browser ports. This
  * does not simulate React hooks or claim a browser/hydration observation. */
@@ -243,12 +243,12 @@ function accountOwnerCallable(source:string,name:string,kind:'function'|'variabl
 }
 /** Bind the actual imported transport, with its real registry/path helpers.
  * Each handler fixture owns browser ports; globals and production code stay intact. */
-function actualHoldingFetch(windowPort:unknown,documentPort:unknown,transport:unknown):typeof import('@erpx/contracts/holding-fetch').holdingFetch {
- const source=readFileSync(new URL('../../../packages/contracts/src/holding-fetch.ts',import.meta.url),'utf8');
- return accountOwnerCallable(source,'holdingFetch','function',{window:windowPort,document:documentPort,globalThis:{fetch:transport},holdingHostForHost,holdingTransportPath,contributorExactOrigin,isProductHostKey}) as typeof import('@erpx/contracts/holding-fetch').holdingFetch;
+function actualHoldingFetch(windowPort:unknown,documentPort:unknown,transport:unknown):typeof import('@erpx/platform-contracts/holding-fetch').holdingFetch {
+ const source=readFileSync(new URL('../../../platform/contracts/src/holding-fetch.ts',import.meta.url),'utf8');
+ return accountOwnerCallable(source,'holdingFetch','function',{window:windowPort,document:documentPort,globalThis:{fetch:transport},holdingHostForHost,holdingTransportPath,contributorExactOrigin,isProductHostKey}) as typeof import('@erpx/platform-contracts/holding-fetch').holdingFetch;
 }
-const profileOwnerSource=()=>readFileSync(new URL("../../../packages/feature-identity_access/src/components/account-profile-form.tsx",import.meta.url),'utf8');
-const preferenceProviderSource=()=>readFileSync(new URL("../../../packages/feature-identity_access/src/components/account-preferences-provider.tsx",import.meta.url),'utf8');
+const profileOwnerSource=()=>readFileSync(new URL("../../../modules/identity-access/ui/src/components/account-profile-form.tsx",import.meta.url),'utf8');
+const preferenceProviderSource=()=>readFileSync(new URL("../../../modules/identity-access/ui/src/components/account-preferences-provider.tsx",import.meta.url),'utf8');
 
 type AccountProfileFormState={received:AccountProfile;baseline:AccountProfile;draft:Pick<AccountProfile,'name'>&Pick<AccountPreferences,'language'|'appearance'>};
 function actualAccountProfileFixture(options:{accountKey?:string;initialVersion?:number;priorWitness?:AccountProfileWitness;clean?:boolean;preferenceRead?:AccountPreferences;holdPreferenceWrite?:boolean}={}){

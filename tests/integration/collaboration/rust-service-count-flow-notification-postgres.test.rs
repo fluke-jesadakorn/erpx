@@ -4,34 +4,34 @@ mod fixture;
 #[path = "../../support/quality/quality-facts.rs"]
 #[allow(dead_code)]
 mod quality_facts;
-use erpx_server_collaboration::public::crm_activity_notification::*;
-use erpx_server_collaboration::public::service_count_flow_notification::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_collaboration_server::public::crm_activity_notification::*;
+use erpx_collaboration_server::public::service_count_flow_notification::*;
+use erpx_platform_runtime_server::public::postgres::{
     MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions, load_migrations,
     migrate_database,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 use sqlx::PgConnection;
 type Error = PgTransactionError<BusinessError>;
-use erpx_server_collaboration::public::quality_notification::*;
+use erpx_collaboration_server::public::quality_notification::*;
 struct QualitySource(QualityNotificationFacts);
 
 struct JoinedQualitySource {
     facts: QualityNotificationFacts,
-    hold: erpx_server_quality::public::quality_http::CurrentQualityDetail,
-    effect: erpx_server_quality::public::quality_http::RetainedQualityCancellation,
-    recipients: erpx_server_identity_access::public::quality_recipients::CurrentQualityRecipients,
+    hold: erpx_quality_server::public::quality_http::CurrentQualityDetail,
+    effect: erpx_quality_server::public::quality_http::RetainedQualityCancellation,
+    recipients: erpx_identity_access_server::public::quality_recipients::CurrentQualityRecipients,
 }
 
 #[tokio::test]
 async fn quality_cancellation_writer_intent_serializes_competing_commands() {
-    use erpx_server_quality::public::quality_http::{
+    use erpx_quality_server::public::quality_http::{
         lock_quality_cancellation_writes, lock_quality_read_sources, prepare_quality_cancellation,
     };
-    use erpx_server_quality::public::quality_read::{
+    use erpx_quality_server::public::quality_read::{
         CancellationAction, QualityCancellationCommand,
     };
-    use erpx_server_shared::public::{CommandKey, CompanyId, RecordId, UserId};
+    use erpx_platform_shared_server::public::{CommandKey, CompanyId, RecordId, UserId};
     use sqlx::Connection;
     fixture::with_database(3,|pool|async move {
         quality_facts::setup(&pool).await;quality_facts::hold(&pool,"race-hold").await;
@@ -66,7 +66,7 @@ impl PgQualityNotificationSource for JoinedQualitySource {
         self.hold.require_current(c).await?;
         self.recipients.require_current(c).await?;
         let h = &self.hold.data().hold;
-        if h.status != erpx_server_quality::public::quality_read::HoldStatus::CancelPending
+        if h.status != erpx_quality_server::public::quality_read::HoldStatus::CancelPending
             || h.id != self.facts.hold_id
             || h.company_id != self.facts.company_id
             || h.version != self.facts.version
@@ -85,15 +85,15 @@ impl PgQualityNotificationSource for JoinedQualitySource {
 
 #[tokio::test]
 async fn quality_notice_joins_actual_quality_and_identity_witnesses_atomically() {
-    use erpx_server_identity_access::public::quality_recipients::*;
-    use erpx_server_quality::public::quality_http::{
+    use erpx_identity_access_server::public::quality_recipients::*;
+    use erpx_quality_server::public::quality_http::{
         lock_quality_cancellation_writes, lock_quality_read_sources, prepare_quality_cancellation,
         read_quality_detail,
     };
-    use erpx_server_quality::public::quality_read::{
+    use erpx_quality_server::public::quality_read::{
         CancellationAction, QualityCancellationCommand,
     };
-    use erpx_server_shared::public::{CommandKey, CompanyId, RecordId, UserId};
+    use erpx_platform_shared_server::public::{CommandKey, CompanyId, RecordId, UserId};
     fixture::with_database(3,|pool|async move {
         quality_facts::setup(&pool).await;quality_facts::hold(&pool,"joined-hold").await;
         sqlx::raw_sql("INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status) VALUES('*','quality_notice_test','Quality test',false,1,'active'); INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','quality_notice_test',1,'[\"quality.read\",\"quality.release\"]','[]','[\"holding\",\"branch\"]','fixture',0); INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy) VALUES('company','manager','local:manager','manager','active','local'); INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind,scope_node_id) VALUES('quality-notice-manager','manager','quality_notice_test','[]','company',0,9007199254740991,1,'branch','branch')").execute(pool.raw()).await.unwrap();
@@ -204,7 +204,7 @@ impl PgCrmActivityNotificationSource for SwitchingCrmActivitySource {
 struct ActualCrmLeadSource(CrmLeadNotificationFacts);
 struct JoinedCrmQualificationSource<'a> {
     facts: CrmLeadNotificationFacts,
-    qualification: &'a erpx_server_crm::public::leads_native::RetainedCrmQualification<'a>,
+    qualification: &'a erpx_crm_server::public::leads_native::RetainedCrmQualification<'a>,
 }
 impl PgCrmLeadNotificationSource for JoinedCrmQualificationSource<'_> {
     fn facts(&self) -> &CrmLeadNotificationFacts {
@@ -234,14 +234,14 @@ impl PgCrmLeadNotificationSource for JoinedCrmQualificationSource<'_> {
 
 #[tokio::test]
 async fn qualified_crm_owner_effect_supplies_actual_lead_notification_source() {
-    use erpx_server_crm::public::activity_source::{
+    use erpx_crm_server::public::activity_source::{
         CrmReviewedAccountLinkRequest, inspect_crm_reviewed_account_link,
         lock_crm_reviewed_account_link_sources,
     };
-    use erpx_server_crm::public::leads_native::{
+    use erpx_crm_server::public::leads_native::{
         LeadActor, LeadChangeInput, apply_crm_qualification_retained,
     };
-    use erpx_server_shared::public::CompanyId;
+    use erpx_platform_shared_server::public::CompanyId;
     fixture::with_database(2, |pool| async move {
         let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
         let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();
@@ -532,7 +532,7 @@ async fn notification_planned_image_is_retained_and_existing_unique_conflict_is_
 // retain the actual staged Quality/Inventory Count effects.
 struct CountNoticeOracle {
     facts: QualityCountNoticeFacts,
-    audience: Option<erpx_server_identity_access::public::quality_recipients::CurrentQualityRecipients>,
+    audience: Option<erpx_identity_access_server::public::quality_recipients::CurrentQualityRecipients>,
     hold_image: serde_json::Value,
 }
 impl PgQualityCountNoticeSource for CountNoticeOracle {
@@ -562,8 +562,8 @@ impl PgQualityCountNoticeSource for FailNoticeAfterInsert<'_> {
 
 #[tokio::test]
 async fn quality_count_notice_audience_bridge_and_rollback() {
-    use erpx_server_identity_access::public::quality_recipients::*;
-    use erpx_server_shared::public::{CompanyId,RecordId};
+    use erpx_identity_access_server::public::quality_recipients::*;
+    use erpx_platform_shared_server::public::{CompanyId,RecordId};
     fixture::with_database(3,|pool|async move {
         quality_facts::setup(&pool).await; quality_facts::hold(&pool,"count-child").await; quality_facts::hold(&pool,"count-parent").await;
         sqlx::query("UPDATE inventory_quality_holds SET version=2 WHERE id='count-parent'").execute(pool.raw()).await.unwrap();

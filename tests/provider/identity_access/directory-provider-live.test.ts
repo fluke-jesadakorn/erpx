@@ -3,9 +3,9 @@ import { resolve } from "node:path";
 import {
   readAutomationInventory,
   applyDirectoryAction,
-} from "@erpx/server-identity_access/public/directory-provider";
-import type { ProviderConnection } from "@erpx/server-identity_access/public/iam-providers";
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
+} from "@erpx/identity-access-server/public/directory-provider";
+import type { ProviderConnection } from "@erpx/identity-access-server/public/iam-providers";
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({
   runtimeEnv: async () => ({
     ERPX_IAM_SECRET_PROFILES: resolve(
       process.env.ERPX_UCS_PROFILE_FILE ?? ".scratch/ucs-lab/profiles.json",

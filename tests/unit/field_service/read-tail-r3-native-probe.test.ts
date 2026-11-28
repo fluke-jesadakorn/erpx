@@ -9,9 +9,9 @@ import {
   requireServiceWorkspaceRecordRead,
   serviceMetricHistoryAccess,
   serviceSourceReadScope,
-} from '../../../packages/server-field_service/src/adapters/record-purchases';
+} from '../../../modules/field-service/server/src/adapters/record-purchases';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-field_service/src');
+const srcRoot = resolve(__dirname, '../../../modules/field-service/server/src');
 const read = (path: string) => readFileSync(resolve(srcRoot, path), 'utf8');
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 const probes = JSON.parse(read('adapters/record-probe-sources.json')) as {
@@ -84,7 +84,7 @@ describe('field_service read-tail r3 native record probe', () => {
   });
 
   test('metric history access still delegates to the native report reader', async () => {
-    const native = await import('../../../packages/server-field_service/src/adapters/native-executive');
+    const native = await import('../../../modules/field-service/server/src/adapters/native-executive');
     const spy = vi.spyOn(native, 'nativeFieldReportAccess').mockResolvedValue(true);
     const access = await serviceMetricHistoryAccess({} as never, {} as never);
     expect(access).toEqual({ 'open-service-orders': true, 'service-billing-releases': true, 'field-visit-completion': true });

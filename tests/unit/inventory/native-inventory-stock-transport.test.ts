@@ -3,9 +3,9 @@ vi.mock('server-only',()=>({}));
 import {
   createNativeInventoryReceiptReader,
   createNativeInventoryStockRegisterReader,
-} from '../../../packages/feature-inventory/src/adapters/server/native-stock-register';
-import {selectNativeStockRegisterView} from '../../../packages/feature-inventory/src/lib/native-availability';
-import type {NativeAvailabilityContext} from '../../../packages/feature-inventory/src/adapters/server/native-availability';
+} from '../../../modules/inventory/ui/src/adapters/server/native-stock-register';
+import {selectNativeStockRegisterView} from '../../../modules/inventory/ui/src/lib/native-availability';
+import type {NativeAvailabilityContext} from '../../../modules/inventory/ui/src/adapters/server/native-availability';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44991',

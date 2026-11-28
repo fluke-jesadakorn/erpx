@@ -1,0 +1,94 @@
+import type {WorkContext} from '@erpx/identity-access-server/public/authorization';
+type Row=Record<string,unknown>;
+import {BusinessRuleError,type Clock} from '@erpx/platform-shared-server/index';
+import {agentSourceAllowed} from '@erpx/agent-server/domain/source-policy';
+import type {AssistantGovernance} from '@erpx/agent-server/domain/governance';
+export interface AgentGovernanceRepository<Effect>{policyCandidates(companyId:string,userId:string):Promise<(Row)[]>;
+ activePrivateSession(sessionId:string,companyId:string,userId:string,assignmentId:string,now:number):Promise<Record<string,unknown>|null>;
+ lockSession(sessionId:string):Effect;
+ guardPrivateSession(key:string,value:"private-session",sessionId:string,companyId:string,userId:string,assignmentId:string):Effect;
+ guardDefaultPolicy(key:string,value:"agent-default",companyId:string,path:string,userId:string):Effect;
+ lockApprovedAssignment(assignmentId:string):Effect;
+ lockAssignedPool(poolId:string):Effect;
+ guardApprovedPolicy(key:string,value:"approved-agent",assignmentId:string,companyId:string,assignmentVersion:number | null,agentVersionId:string | null,agentVersionRevision:number | null,catalogVersion:number | null,userId:string,poolId:string | null,poolVersion:number | null):Effect;
+ latestPrivateSession(companyId:string,userId:string,assignmentId:string,scopeKey:string,conversationKey:string):Promise<{id:string;generation:number;status:string;expires_at:number}|null>;
+ preparePrivateSession(id:string,companyId:string,userId:string,assignmentId:string,scopeKey:string,conversationKey:string,assignmentId2:string | null,now:number,generation:number):Promise<Effect>;
+ preparePrivateSessionControls(id:string,value:number,now:number):Promise<Effect>;
+ recordInvocation(value:string,sessionId:string,turnId:string,companyId:string,userId:string,agentVersionId:string | null,value2:string,value3:string,value4:string,value5:string,outcome:"succeeded" | "failed",value6:number | null,value7:number | null,value8:string | null,now:number,value9:string):Promise<void>;
+ batch(effects:Effect[]):Promise<void>;}
+export function createAssistantGovernanceGuards<Effect>(r:AgentGovernanceRepository<Effect>){return (a:WorkContext,key:string,path:string,governance:AssistantGovernance):Effect[]=>{
+  const sessionGuards=[r.lockSession(governance.sessionId),
+    r.guardPrivateSession(key,"private-session",governance.sessionId,a.companyId,a.userId,a.assignmentId)];
+  if(!governance.assignmentId)return [...sessionGuards,r.guardDefaultPolicy(key,"agent-default",a.companyId,path,a.userId)];
+  return [...sessionGuards,r.lockApprovedAssignment(governance.assignmentId),
+    ...(governance.poolId?[r.lockAssignedPool(governance.poolId)]:[]),
+    r.guardApprovedPolicy(key,"approved-agent",governance.assignmentId,a.companyId,governance.assignmentVersion,governance.agentVersionId,governance.agentVersionRevision,governance.catalogVersion,a.userId,governance.poolId,governance.poolVersion)];
+};}
+export interface AgentGovernancePorts<Effect>{repository(actor:WorkContext):Promise<AgentGovernanceRepository<Effect>>;clock:Clock;hash(value:string):Promise<string>;authorize(actor:WorkContext,permission:string):void;}
+export function createAgentGovernanceApplication<Effect>(ports:AgentGovernancePorts<Effect>){async function assistantPolicy(a: WorkContext, path: string): Promise<Omit<AssistantGovernance, "sessionId">> {
+const r=await ports.repository(a);
+  const candidates = (await r.policyCandidates(a.companyId,a.userId));
+  const row = candidates.find(candidate => agentSourceAllowed(path,[String(candidate.scope_path)]));
+  if (!row) return {assignmentId:null,assignmentVersion:null,agentVersionId:null,agentVersionRevision:null,catalogVersion:null,poolId:null,poolVersion:null,prompt:null,allowedSources:["/"]};
+  if (row.version_status !== "approved" || row.catalog_status !== "approved" || row.pool_id && row.pool_status !== "active")
+    throw new BusinessRuleError(409,"AI_AGENT_UNAVAILABLE","This assigned agent is no longer approved or its pool is unavailable. Continue with the manual workflow guide.");
+  return {assignmentId:String(row.id),assignmentVersion:Number(row.assignment_version),agentVersionId:String(row.agent_version_id),agentVersionRevision:Number(row.version_revision),catalogVersion:Number(row.catalog_version),poolId:row.pool_id?String(row.pool_id):null,poolVersion:row.pool_id?Number(row.pool_version):null,prompt:String(row.prompt),allowedSources:JSON.parse(String(row.allowed_sources_json)) as string[]};
+}
+async function validateAssistantGovernance(a:WorkContext,path:string,governance:AssistantGovernance) {
+const r=await ports.repository(a);
+  const current=await assistantPolicy(a,path),original={...governance};
+  delete (original as Partial<AssistantGovernance>).sessionId;
+  if(JSON.stringify(current)!==JSON.stringify(original))
+    throw new BusinessRuleError(409,"AI_AGENT_CHANGED","The approved agent or its assignment changed. Continue manually or ask again.");
+  const session=await r.activePrivateSession(governance.sessionId,a.companyId,a.userId,a.assignmentId,ports.clock.now());
+  if(!session)throw new BusinessRuleError(409,"AI_SESSION_EXPIRED","This private session expired. Ask again to start a new session; retained evidence stays private.");
+}
+async function assistantGovernanceContext(
+  a: WorkContext,
+  conversationKey: string,
+  scopeKey: string,
+  path: string,
+):Promise<AssistantGovernance> {
+const r=await ports.repository(a);
+  const policy=await assistantPolicy(a,path),now=ports.clock.now();
+  const existing=await r.latestPrivateSession(a.companyId,a.userId,a.assignmentId,scopeKey,conversationKey);
+  if(existing?.status==="active"&&Number(existing.expires_at)>now)return {sessionId:existing.id,...policy};
+  const generation=Number(existing?.generation??0)+1,id=`ai-session-${await ports.hash(JSON.stringify([a.companyId,a.userId,a.assignmentId,scopeKey,conversationKey,generation]))}`;
+  await r.batch([
+    await r.preparePrivateSession(id,a.companyId,a.userId,a.assignmentId,scopeKey,conversationKey,policy.assignmentId,now,generation),
+    await r.preparePrivateSessionControls(id,now+30*24*60*60*1000,now),
+  ]);
+  return {sessionId:id,...policy};
+}
+async function recordAssistantInvocation(
+  a: WorkContext,
+  input: {
+    sessionId: string;
+    agentVersionId: string | null;
+    assignmentId?: string | null;
+    assignmentVersion?: number | null;
+    agentVersionRevision?: number | null;
+    catalogVersion?: number | null;
+    poolId?: string | null;
+    poolVersion?: number | null;
+    prompt?: string | null;
+    allowedSources?: string[];
+    turnId: string;
+    question: string;
+    sources: unknown;
+    provider: unknown;
+    outcome: "succeeded" | "failed";
+    inputTokens?: number;
+    outputTokens?: number;
+    error?: string;
+  },
+) {
+const r=await ports.repository(a);
+  await r.recordInvocation(`ai-evidence-${input.turnId}`,input.sessionId,input.turnId,a.companyId,a.userId,input.agentVersionId,await ports.hash(input.question),await ports.hash(JSON.stringify(input.sources)),JSON.stringify({
+        assignmentId: a.assignmentId,
+        companyId: a.companyId,
+        branchId: a.branchId,
+        departmentId: a.departmentId,
+      }),JSON.stringify(input.provider),input.outcome,input.inputTokens ?? null,input.outputTokens ?? null,input.error ?? null,ports.clock.now(),JSON.stringify({assignmentId:input.assignmentId??null,assignmentVersion:input.assignmentVersion??null,agentVersionId:input.agentVersionId,agentVersionRevision:input.agentVersionRevision??null,catalogVersion:input.catalogVersion??null,poolId:input.poolId??null,poolVersion:input.poolVersion??null,promptDigest:input.prompt?await ports.hash(input.prompt):null,allowedSources:input.allowedSources??["/"]}));
+}
+return {validateAssistantGovernance,assistantGovernanceContext,recordAssistantInvocation};}

@@ -1,0 +1,41 @@
+{
+  "name": "@erpx/product-recruit-ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./routes/holdings/[holdingSlug]/@record/people-organization/talent/records/talent_candidate/[id]/[recordSection]/page": "./src/routes/holdings/[holdingSlug]/@record/people-organization/talent/records/talent_candidate/[id]/[recordSection]/page.tsx",
+    "./routes/holdings/[holdingSlug]/@record/people-organization/talent/records/talent_candidate/[id]/page": "./src/routes/holdings/[holdingSlug]/@record/people-organization/talent/records/talent_candidate/[id]/page.tsx",
+    "./routes/holdings/[holdingSlug]/@record/people-organization/talent/records/talent_requisition/[id]/[recordSection]/page": "./src/routes/holdings/[holdingSlug]/@record/people-organization/talent/records/talent_requisition/[id]/[recordSection]/page.tsx",
+    "./routes/holdings/[holdingSlug]/@record/people-organization/talent/records/talent_requisition/[id]/page": "./src/routes/holdings/[holdingSlug]/@record/people-organization/talent/records/talent_requisition/[id]/page.tsx",
+    "./routes/holdings/[holdingSlug]/@record/people-organization/talent/[id]/[recordSection]/page": "./src/routes/holdings/[holdingSlug]/@record/people-organization/talent/[id]/[recordSection]/page.tsx",
+    "./routes/holdings/[holdingSlug]/@record/people-organization/talent/[id]/page": "./src/routes/holdings/[holdingSlug]/@record/people-organization/talent/[id]/page.tsx",
+    "./routes/holdings/[holdingSlug]/people-organization/talent/candidates/[id]/privacy/overview/page": "./src/routes/holdings/[holdingSlug]/people-organization/talent/candidates/[id]/privacy/overview/page.tsx",
+    "./routes/holdings/[holdingSlug]/people-organization/talent/candidates/[id]/privacy/page": "./src/routes/holdings/[holdingSlug]/people-organization/talent/candidates/[id]/privacy/page.tsx",
+    "./routes/holdings/[holdingSlug]/people-organization/talent/records/talent_candidate/[id]/[recordSection]/page": "./src/routes/holdings/[holdingSlug]/people-organization/talent/records/talent_candidate/[id]/[recordSection]/page.tsx",
+    "./routes/holdings/[holdingSlug]/people-organization/talent/records/talent_candidate/[id]/page": "./src/routes/holdings/[holdingSlug]/people-organization/talent/records/talent_candidate/[id]/page.tsx",
+    "./routes/holdings/[holdingSlug]/people-organization/talent/records/talent_requisition/[id]/[recordSection]/page": "./src/routes/holdings/[holdingSlug]/people-organization/talent/records/talent_requisition/[id]/[recordSection]/page.tsx",
+    "./routes/holdings/[holdingSlug]/people-organization/talent/records/talent_requisition/[id]/page": "./src/routes/holdings/[holdingSlug]/people-organization/talent/records/talent_requisition/[id]/page.tsx",
+    "./routes/holdings/[holdingSlug]/people-organization/talent/[id]/[recordSection]/page": "./src/routes/holdings/[holdingSlug]/people-organization/talent/[id]/[recordSection]/page.tsx",
+    "./routes/holdings/[holdingSlug]/people-organization/talent/[id]/page": "./src/routes/holdings/[holdingSlug]/people-organization/talent/[id]/page.tsx",
+    "./routes/holdings/[holdingSlug]/people-organization/talent/page": "./src/routes/holdings/[holdingSlug]/people-organization/talent/page.tsx",
+    "./routes/api/v1/holdings/[holdingSlug]/talent/route": "./src/routes/api/v1/holdings/[holdingSlug]/talent/route.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/records-ui": "workspace:*",
+    "@erpx/talent-ui": "workspace:*",
+    "@erpx/work-projection-ui": "workspace:*",
+    "@erpx/identity-access-server": "workspace:*",
+    "@erpx/manage-erpx-server": "workspace:*",
+    "@erpx/people-payroll-server": "workspace:*",
+    "@erpx/platform-runtime-server": "workspace:*",
+    "@erpx/talent-server": "workspace:*",
+    "@erpx/platform-workplace": "workspace:*",
+    "next": "16.4.3",
+    "zod": "4.6.7"
+  }
+}

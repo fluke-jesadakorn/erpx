@@ -1,7 +1,7 @@
 //! Portable stock-register admission and reconciliation. These cases do not
 //! prove a transaction, IAM or PostgreSQL source; they pin the owner's field
 //! and arithmetic contract.
-use erpx_server_inventory::public::stock_register::*;
+use erpx_inventory_server::public::stock_register::*;
 
 fn stock(
     warehouse: &str,
@@ -153,17 +153,17 @@ fn rejects_serial_lot_identity_mix_and_invalid_lifecycle() {
 
 
 mod transfer_landed_reorder {
-    use erpx_server_inventory::public::landed_costs::{
+    use erpx_inventory_server::public::landed_costs::{
         LandedCostAction, LandedCostActionInput, LandedCostCreateInput, LandedCostCreateSource,
         LandedCostRecord, LandedCostTransitionSource, ReceiptLine, ReceiptLotBalance, ReceiptRecord,
         ReceivingStock, money_minor, plan_create, plan_transition as plan_landed_transition,
     };
-    use erpx_server_inventory::public::reorder_policies::{
+    use erpx_inventory_server::public::reorder_policies::{
         ReorderAction, ReorderActionInput, ReorderPolicyRecord, ReorderProduct, ReorderSaveInput,
         ReorderSaveSource, ReorderTransitionSource, ReorderWarehouse, plan_save as plan_reorder_save,
         plan_transition as plan_reorder_transition,
     };
-    use erpx_server_inventory::public::transfers::{
+    use erpx_inventory_server::public::transfers::{
         LotSnapshot, StockSnapshot, TransferAction, TransferActionInput, TransferLineFacts,
         TransferLineInput, TransferSaveInput, TransferSaveSource, TransferTransitionSource, Warehouse,
         plan_save, plan_transition, positive_quantity,
@@ -306,7 +306,7 @@ mod transfer_landed_reorder {
             }],
         };
         let mut partial = line("product", "2");
-        partial.allocations = vec![erpx_server_inventory::public::transfers::TransferLotAllocationInput {
+        partial.allocations = vec![erpx_inventory_server::public::transfers::TransferLotAllocationInput {
             lot_id: "lot-a".into(),
             quantity: "1".into(),
         }];
@@ -318,11 +318,11 @@ mod transfer_landed_reorder {
         );
         let mut held = line("product", "2");
         held.allocations = vec![
-            erpx_server_inventory::public::transfers::TransferLotAllocationInput {
+            erpx_inventory_server::public::transfers::TransferLotAllocationInput {
                 lot_id: "lot-a".into(),
                 quantity: "1".into(),
             },
-            erpx_server_inventory::public::transfers::TransferLotAllocationInput {
+            erpx_inventory_server::public::transfers::TransferLotAllocationInput {
                 lot_id: "lot-b".into(),
                 quantity: "1".into(),
             },
@@ -338,7 +338,7 @@ mod transfer_landed_reorder {
     #[test]
     fn transfer_transition_requires_independence_and_current_version() {
         let source = TransferTransitionSource {
-            transfer: erpx_server_inventory::public::transfers::TransferRecord {
+            transfer: erpx_inventory_server::public::transfers::TransferRecord {
                 id: "transfer".into(),
                 company_id: "company".into(),
                 source_warehouse_id: "source".into(),

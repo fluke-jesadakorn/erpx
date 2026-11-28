@@ -1,4 +1,4 @@
-use erpx_server_finance::public::{
+use erpx_finance_server::public::{
     DepreciationInput, InstrumentInput, decimal_to_units, depreciation_amount, half_away,
     instrument_schedule, monthly_date, units_to_decimal,
 };
@@ -14,7 +14,7 @@ fn corpus() -> Value {
 
 #[test]
 fn owner_transaction_plans_and_witnesses_are_not_wire_constructible() {
-    use erpx_server_finance::public::{JournalPreparation, JournalTransactionWitness};
+    use erpx_finance_server::public::{JournalPreparation, JournalTransactionWitness};
     trait WireBoundary<Marker> {
         fn requires_owner_preparation() {}
     }
@@ -37,7 +37,7 @@ fn json_integer_forms_keep_javascript_semantics_without_coercing_strings() {
 
 #[test]
 fn allocation_unicode_rate_selection_and_quote_conversion_match_pinned_node() {
-    use erpx_server_finance::public::{
+    use erpx_finance_server::public::{
         AllocationWeight, FinanceCollation, ManualRate, allocate_units, convert_currency_units,
         resolve_manual_rate,
     };
@@ -109,7 +109,7 @@ fn allocation_unicode_rate_selection_and_quote_conversion_match_pinned_node() {
 
 #[test]
 fn published_currency_scales_and_functional_fx_match_source_policy() {
-    use erpx_server_finance::public::{
+    use erpx_finance_server::public::{
         FinanceCollation, ManualRate, embedded_currency_rules, functional_fx_evidence,
     };
     let rules = embedded_currency_rules().unwrap();
@@ -161,14 +161,14 @@ fn published_currency_scales_and_functional_fx_match_source_policy() {
 
 #[path = "../../support/finance/journal-facts.rs"]
 mod journal_fixture;
-use erpx_server_finance::public::{FinanceActor, JournalDraft};
-use erpx_server_shared::public::{CommandKey, CompanyId};
+use erpx_finance_server::public::{FinanceActor, JournalDraft};
+use erpx_platform_shared_server::public::{CommandKey, CompanyId};
 use journal_fixture::JournalFacts;
 
 #[tokio::test]
 async fn journal_application_uses_scoped_ports_and_stops_at_failed_guards() {
-    use erpx_server_finance::public::{JournalStatus, prepare_journal};
-    use erpx_server_shared::public::{AssignmentId, HoldingId, UserId};
+    use erpx_finance_server::public::{JournalStatus, prepare_journal};
+    use erpx_platform_shared_server::public::{AssignmentId, HoldingId, UserId};
     let actor = FinanceActor {
         user_id: UserId::new("user").unwrap(),
         holding_id: HoldingId::new("holding").unwrap(),
@@ -291,7 +291,7 @@ async fn journal_application_uses_scoped_ports_and_stops_at_failed_guards() {
 
 #[test]
 fn journal_fx_rounding_and_failures_match_original_use_case() {
-    use erpx_server_finance::public::{
+    use erpx_finance_server::public::{
         JournalLineInput, functional_fx_micros, prepare_journal_amounts,
     };
     for row in corpus()["journals"].as_array().unwrap() {
@@ -323,7 +323,7 @@ fn journal_fx_rounding_and_failures_match_original_use_case() {
 
 #[test]
 fn invoice_lines_round_once_and_preserve_safe_integer_limits() {
-    use erpx_server_finance::public::{InvoiceLineInput, calculate_invoice_lines};
+    use erpx_finance_server::public::{InvoiceLineInput, calculate_invoice_lines};
     for row in corpus()["invoices"].as_array().unwrap() {
         let input: Vec<InvoiceLineInput> = serde_json::from_value(row["input"].clone()).unwrap();
         check(
@@ -337,7 +337,7 @@ fn invoice_lines_round_once_and_preserve_safe_integer_limits() {
 
 #[test]
 fn calculation_methods_match_typescript_oracle() {
-    use erpx_server_finance::public::{FinanceCalculation, FinanceCollation, calculate_finance};
+    use erpx_finance_server::public::{FinanceCalculation, FinanceCollation, calculate_finance};
     let collation = FinanceCollation::english().unwrap();
     for row in corpus()["calculations"].as_array().unwrap() {
         let scale = u8::try_from(row["scale"].as_u64().unwrap()).unwrap();

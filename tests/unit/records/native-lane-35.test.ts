@@ -12,8 +12,8 @@ import {
   validateCandidates,
   validateEvents,
   type NativeLane35Transport,
-} from '../../../packages/server-records/src/adapters/native-lane-35/client';
-import { ApiError } from '@erpx/server-runtime/public/http';
+} from '../../../modules/records/server/src/adapters/native-lane-35/client';
+import { ApiError } from '@erpx/platform-runtime-server/public/http';
 
 const root = resolve(__dirname, '../../..');
 const read = (p: string) => readFileSync(resolve(root, p), 'utf8');
@@ -85,8 +85,8 @@ describe('native lane 35 SQL and result oracles', () => {
   });
 
   test('replaced TypeScript adapters retain no SQL and delegate to the native client', () => {
-    const candidates = read('packages/server-records/src/adapters/work-report-candidates.ts');
-    const facts = read('packages/server-records/src/adapters/work-report-facts.ts');
+    const candidates = read('modules/records/server/src/adapters/work-report-candidates.ts');
+    const facts = read('modules/records/server/src/adapters/work-report-facts.ts');
     for (const source of [candidates, facts]) {
       expect(source).not.toMatch(/SELECT\s|INSERT\s+INTO|DELETE\s+FROM|UPDATE\s+\w+\s+SET/);
       expect(source).not.toContain('.prepare(');

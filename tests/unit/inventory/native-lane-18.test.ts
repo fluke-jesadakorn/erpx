@@ -4,11 +4,11 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
 const nativeRequestMock=vi.hoisted(()=>vi.fn());
-vi.mock('@erpx/server-runtime/public/native-http',()=>({nativeRequest:nativeRequestMock}));
+vi.mock('@erpx/platform-runtime-server/public/native-http',()=>({nativeRequest:nativeRequestMock}));
 const incomingHost = { value: 'acme.jesadakorn.com' as string | null };
 vi.mock('next/headers', () => ({ headers: async () => new Headers(incomingHost.value === null ? {} : { host: incomingHost.value }) }));
-import { PosReadInventoryFacts } from '../../../packages/server-inventory/src/adapters/pos-facts';
-import { readStockAvailability, type Lane18Actor } from '../../../packages/server-inventory/src/adapters/native-lane-18/client';
+import { PosReadInventoryFacts } from '../../../modules/inventory/server/src/adapters/pos-facts';
+import { readStockAvailability, type Lane18Actor } from '../../../modules/inventory/server/src/adapters/native-lane-18/client';
 
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 const SQL_ORACLE = 'fbb602ffe25f6c0aafacba7fb88c8eb90dad2885f3aec75ccd7f43d6b7593b10';
@@ -59,14 +59,14 @@ describe('native Inventory lane-18 stock-availability contract', () => {
   });
 
   it('retired the TypeScript SQL with no fallback', () => {
-    const source = readFileSync(resolve(process.cwd(), 'packages/server-inventory/src/adapters/pos-facts.ts'), 'utf8');
+    const source = readFileSync(resolve(process.cwd(), 'modules/inventory/server/src/adapters/pos-facts.ts'), 'utf8');
     expect(source).not.toMatch(/SELECT\s/);
     expect(source).not.toContain('all(db');
     expect(source).toContain('readStockAvailability');
   });
 
   it('pins the retired SQL, a canonical result and the final owner SELECT KPI', () => {
-    const source = readFileSync(resolve(process.cwd(), 'packages/server-inventory/src/adapters/native_lane_18/postgres.rs'), 'utf8');
+    const source = readFileSync(resolve(process.cwd(), 'modules/inventory/server/src/adapters/native_lane_18/postgres.rs'), 'utf8');
     const match = source.match(/pub const INNER_SQL: &str = r#"([\s\S]*?)"#;/);
     expect(match).not.toBeNull();
     expect(hash(match![1])).toBe(SQL_ORACLE);
@@ -81,7 +81,7 @@ describe('native Inventory lane-18 stock-availability contract', () => {
         else if (entry.name.endsWith('.ts')) total += (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length;
       }
     };
-    walk(resolve(process.cwd(), 'packages/server-inventory/src'));
+    walk(resolve(process.cwd(), 'modules/inventory/server/src'));
     expect(total).toBe(OWNER_SELECT_PIN);
   });
 

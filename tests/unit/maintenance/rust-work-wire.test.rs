@@ -1,4 +1,4 @@
-use erpx_server_maintenance::public::work_wire::*;
+use erpx_maintenance_server::public::work_wire::*;
 use serde_json::{Value, json};
 fn fixture() -> Value {
     serde_json::from_str(include_str!(

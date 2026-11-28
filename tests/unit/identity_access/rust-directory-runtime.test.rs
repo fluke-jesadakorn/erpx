@@ -1,5 +1,5 @@
 //! Directory runtime composition contract tests.
-use erpx_server_identity_access::public::directory_runtime::{
+use erpx_identity_access_server::public::directory_runtime::{
     DIRECTORY_RUNTIME_CONTRACT, DIRECTORY_RUNTIME_ROUTERS, DirectoryRuntimeComposition,
     directory_runtime_contract, validate_directory_runtime,
 };
@@ -127,7 +127,7 @@ fn composition_validation_fails_closed_with_the_exact_missing_binding() {
 
 
 mod directory_operation_vocabulary {
-    use erpx_server_identity_access::public::directory_operation::{
+    use erpx_identity_access_server::public::directory_operation::{
         DirectoryAction, DirectoryChangeInput, DirectoryInventory, PreviewEvidence, affected_objects,
         canonical, compile_preferences, compile_registry_policies, preview_token,
         validate_object_target,
@@ -336,7 +336,7 @@ fn action_kind_and_windows_policy_validation() {
 }
     #[test]
     fn compiles_registry_and_preference_policy_artifacts() {
-        let policy: erpx_server_identity_access::public::directory_operation::WindowsPolicyDefinition =
+        let policy: erpx_identity_access_server::public::directory_operation::WindowsPolicyDefinition =
             serde_json::from_value(json!({
                 "name": "Baseline",
                 "scope": "user",

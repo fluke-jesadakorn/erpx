@@ -1,11 +1,11 @@
 import {beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/commerce';
+import {saveMaster,saveOrder,orderSchema} from '@erpx/commerce-server/public/commerce';
 import {seedCustomerNote} from '../../support/helpers/customer-note-seed';
-import {getSupportTicket,supportWork,supportDetail} from '@erpx/server-support/public/support';
+import {getSupportTicket,supportWork,supportDetail} from '@erpx/support-server/public/support';
 import {seedSupportTicket} from "../../support/helpers/support-ticket-seed";
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,order:string;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();for(const [a,role] of [[f.head,'support_agent'],[f.manager,'support_manager']] as const){a.role=role;a.branchId=null;a.departmentId=null;a.assignmentId=await f.grant(a,role);}const customer=await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'Support customer'},key()),w=await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:key(),name:'Support warehouse'},key()),p=await saveMaster(f.owner,'products',null,{sku:key(),name:'Support item',price:'10'},key());order=String((await saveOrder(f.owner,null,orderSchema.parse({kind:'quote',partyId:customer.id,warehouseId:w.id,orderDate:'2026-09-20',dueDate:'2026-09-23',lines:[{productId:p.id,quantity:'1',price:'10',taxBps:0}]}),key())).id);});
@@ -14,7 +14,7 @@ async function orderTicket(overrides:Record<string,unknown>={}){return seedSuppo
 it('hands off to Support and keeps proposed resolution, independent confirmation and immutable history readable after a reload',async()=>{
  const created=await orderTicket(),id=String(created.id);
  expect((await supportWork(f.head)).find(x=>x.id===id)).toMatchObject({canAct:true,queue:'todo'});
- const {calendarData}=await import("@erpx/server-work_projection/public/calendar/index");
+ const {calendarData}=await import("@erpx/work-projection-server/public/calendar/index");
  expect((await calendarData(db,f.head,{date:'2026-09-24',view:'day',layers:'support',mode:'mine'})).items.some(x=>x.sourceId===id)).toBe(true);
  const noteParty=await db.prepare('SELECT party_id FROM commerce_orders WHERE id=?').bind(order).first<string>('party_id');if(!noteParty)throw Error('SUPPORT_NOTE_SOURCE_REQUIRED');
  const note=await seedCustomerNote(db,{companyId:f.company,customerId:noteParty,orderId:order,channel:'phone',occurredAt:Date.now(),body:'Customer confirmed the corrected installation',createdBy:f.owner.userId});
@@ -59,7 +59,7 @@ it('pins a real asset source, follows its current authority and hides unreadable
  await db.prepare('UPDATE operational_assets SET condition=?,version=version+1,updated_at=? WHERE id=?').bind('degraded',Date.now(),assetId).run();
  expect(JSON.parse(String((await getSupportTicket(f.claimant,id)).source_record_json)).version).toBe(1);
  const assigned=await seedSupportTicket(db,f.claimant,{sourceKind:'asset',sourceRecord,title:'Assigned asset issue',issue:'Assigned source-linked issue.',ownerId:f.head.userId,dueDate:'2026-10-05',status:'open',version:2,events:[{action:'report',status:'triage',ownerId:null,dueDate:null},{action:'triage'}]}),assignedId=String(assigned.id);
- const {calendarData}=await import("@erpx/server-work_projection/public/calendar/index"),calendarQuery={date:'2026-10-05',view:'day',layers:'support',mode:'mine'};
+ const {calendarData}=await import("@erpx/work-projection-server/public/calendar/index"),calendarQuery={date:'2026-10-05',view:'day',layers:'support',mode:'mine'};
  expect((await calendarData(db,f.claimant,calendarQuery)).items.some(item=>item.sourceId===assignedId)).toBe(true);
  f.claimant.modules=['support'];
  expect((await calendarData(db,f.claimant,calendarQuery)).items.some(item=>item.sourceId===assignedId)).toBe(false);

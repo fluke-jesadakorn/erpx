@@ -5,7 +5,7 @@ import {mkdir,readFile,writeFile} from "node:fs/promises";
 import {resolve} from "node:path";
 
 const sourceCommit="a5ed8737a2f05eff1ee9841fda4a094b3926d732";
-const sourcePaths=["packages/server-files/src/domain/upload-validation.ts","packages/server-files/src/domain/attachments/media-signature.ts"];
+const sourcePaths=["modules/files/server/src/domain/upload-validation.ts","modules/files/server/src/domain/attachments/media-signature.ts"];
 const sources=[];
 for(const path of sourcePaths){
   const bytes=await readFile(path),prior=execFileSync("git",["show",`${sourceCommit}:${path}`]);

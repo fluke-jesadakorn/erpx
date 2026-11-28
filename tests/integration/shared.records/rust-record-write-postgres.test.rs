@@ -4,19 +4,19 @@
 #[path = "../../support/finance/review-composition.rs"]
 mod review;
 
-use erpx_server_records::public::record_registry_http::{
+use erpx_records_server::public::record_registry_http::{
     RecordsRegistryHttpTarget, records_registry_http_router,
 };
-use erpx_server_records::public::record_write::{
+use erpx_records_server::public::record_write::{
     ArchiveRecordInput, CreateRecordInput, RecordFieldInput, ReferenceRecordInput,
     TransitionRecordInput, UpdateRecordInput,
 };
-use erpx_server_runtime::public::postgres::PgTransactionError;
-use erpx_server_shared::public::{BusinessError, Clock, CommandKey, CompanyId, HoldingId};
-use erpx_server_workflow::public::commands::CommandJson;
-use erpx_service::finance_journal_detail_http::FinanceJournalReadScopeHeaders;
-use erpx_service::records::{RecordsBackend, RecordsConfiguration, RecordsService};
-use erpx_service::records_command::RecordsCommandService;
+use erpx_platform_runtime_server::public::postgres::PgTransactionError;
+use erpx_platform_shared_server::public::{BusinessError, Clock, CommandKey, CompanyId, HoldingId};
+use erpx_workflow_server::public::commands::CommandJson;
+use erpx_platform_composition::finance_journal_detail_http::FinanceJournalReadScopeHeaders;
+use erpx_platform_composition::records::{RecordsBackend, RecordsConfiguration, RecordsService};
+use erpx_platform_composition::records_command::RecordsCommandService;
 use serde_json::json;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, Ordering};
@@ -25,7 +25,7 @@ use std::sync::atomic::{AtomicI64, Ordering};
 struct TestClock(Arc<review::account::fixture::MutableClock>);
 
 impl Clock for TestClock {
-    fn now(&self) -> erpx_server_shared::public::TimestampMillis {
+    fn now(&self) -> erpx_platform_shared_server::public::TimestampMillis {
         self.0.now()
     }
 }
@@ -211,7 +211,7 @@ async fn rejects_changed_replay_unauthorized_scope_and_invalid_section() {
             )
             .await
             .unwrap_err();
-        assert_eq!(business(denied).kind, erpx_server_shared::public::FailureKind::Forbidden);
+        assert_eq!(business(denied).kind, erpx_platform_shared_server::public::FailureKind::Forbidden);
         // The native route accepts every registered module. The shared Work
         // authorization gate rejects an unavailable module before the owner runs.
         let without_access = service
@@ -226,7 +226,7 @@ async fn rejects_changed_replay_unauthorized_scope_and_invalid_section() {
             .await
             .unwrap_err();
         let denied_module = business(without_access);
-        assert_eq!(denied_module.kind, erpx_server_shared::public::FailureKind::Forbidden);
+        assert_eq!(denied_module.kind, erpx_platform_shared_server::public::FailureKind::Forbidden);
         assert_eq!(denied_module.code, "MODULE_UNAVAILABLE");
         let denied_record_count: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM workspace_records WHERE module_id='crm' AND id='rec-crm-records:create-4'",
@@ -529,7 +529,7 @@ async fn updates_record_fields_with_version_cas_receipt_audit_outbox_and_replay(
             .unwrap_err();
         assert_eq!(
             business(denied).kind,
-            erpx_server_shared::public::FailureKind::Forbidden
+            erpx_platform_shared_server::public::FailureKind::Forbidden
         );
         let receipts: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM command_receipts WHERE command_id LIKE 'records:update-%'",
@@ -555,8 +555,8 @@ async fn archives_record_with_version_cas_receipt_audit_outbox_and_replay() {
     review::account::with_system(|system| async move {
         struct AdvancingClock(AtomicI64);
         impl Clock for AdvancingClock {
-            fn now(&self) -> erpx_server_shared::public::TimestampMillis {
-                erpx_server_shared::public::TimestampMillis::new(
+            fn now(&self) -> erpx_platform_shared_server::public::TimestampMillis {
+                erpx_platform_shared_server::public::TimestampMillis::new(
                     self.0.fetch_add(1, Ordering::Relaxed),
                 )
             }
@@ -721,7 +721,7 @@ async fn archives_record_with_version_cas_receipt_audit_outbox_and_replay() {
             .unwrap_err();
         assert_eq!(
             business(archived).kind,
-            erpx_server_shared::public::FailureKind::NotFound
+            erpx_platform_shared_server::public::FailureKind::NotFound
         );
         // A reviewer without records.write cannot archive the record.
         let denied = service
@@ -743,7 +743,7 @@ async fn archives_record_with_version_cas_receipt_audit_outbox_and_replay() {
             .unwrap_err();
         assert_eq!(
             business(denied).kind,
-            erpx_server_shared::public::FailureKind::Forbidden
+            erpx_platform_shared_server::public::FailureKind::Forbidden
         );
         let receipts: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM command_receipts WHERE command_id LIKE 'records:archive-%'",
@@ -927,7 +927,7 @@ async fn adds_record_reference_with_edge_receipt_audit_outbox_replay_and_limit()
             .unwrap_err();
         assert_eq!(
             business(missing).kind,
-            erpx_server_shared::public::FailureKind::NotFound
+            erpx_platform_shared_server::public::FailureKind::NotFound
         );
         // The 50-edge cap is enforced before another insert.
         sqlx::query(
@@ -982,7 +982,7 @@ async fn adds_record_reference_with_edge_receipt_audit_outbox_replay_and_limit()
             .unwrap_err();
         assert_eq!(
             business(denied).kind,
-            erpx_server_shared::public::FailureKind::Forbidden
+            erpx_platform_shared_server::public::FailureKind::Forbidden
         );
         let receipts: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM command_receipts WHERE command_id LIKE 'records:reference-%'",
@@ -1368,7 +1368,7 @@ async fn transitions_record_with_state_machine_review_guard_history_receipt_audi
             .unwrap_err();
         assert_eq!(
             business(no_review).kind,
-            erpx_server_shared::public::FailureKind::Forbidden
+            erpx_platform_shared_server::public::FailureKind::Forbidden
         );
         let receipts: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM command_receipts WHERE command_id IN \

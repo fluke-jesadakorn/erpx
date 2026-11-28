@@ -5,10 +5,10 @@ import { resolve } from 'node:path';
 import {
   ATTACHMENT_EVENTS_WHERE_HEAD_SQL,
   ATTACHMENT_SETS_STAR_WHERE_HEAD_SQL,
-} from '../../../packages/server-files/src/adapters/read-tail-r45-source-sql';
+} from '../../../modules/files/server/src/adapters/read-tail-r45-source-sql';
 
 const rootDir = resolve(__dirname, '../../..');
-const srcRoot = resolve(rootDir, 'packages/server-files/src');
+const srcRoot = resolve(rootDir, 'modules/files/server/src');
 const src = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
 const sha = (text: string) => createHash('sha256').update(text).digest('hex');
 

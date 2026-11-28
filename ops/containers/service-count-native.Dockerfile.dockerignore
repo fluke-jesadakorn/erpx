@@ -2,7 +2,9 @@
 !Cargo.toml
 !Cargo.lock
 !rust-toolchain.toml
-!packages/
+!modules/
+!products/
+!platform/
 !src/
 !contracts/
 !migrations/
@@ -10,10 +12,8 @@
 !scripts/
 !tests/
 !fixtures/
-packages/**/node_modules
-packages/**/.next
 src/*
-!src/composition/
+!platform/composition/
 tests/*
 !tests/support/
 scripts/*

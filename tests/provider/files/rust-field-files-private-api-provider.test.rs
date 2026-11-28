@@ -9,8 +9,8 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_identity_access::public::SystemAuthenticationSecrets;
-use erpx_service::private_development_api::{
+use erpx_identity_access_server::public::SystemAuthenticationSecrets;
+use erpx_platform_composition::private_development_api::{
     DevelopmentApiConfiguration, assemble_development_api, run_field_files_worker_file,
 };
 use sha2::{Digest, Sha256};
@@ -231,7 +231,7 @@ async fn production_files_worker_accepts_durable_databases() {
         let config_path = root.path().join("production.json");
         fs::write(&config_path, serde_json::to_vec(&doc).unwrap()).unwrap();
         fs::set_permissions(&config_path, fs::Permissions::from_mode(0o600)).unwrap();
-        let result = erpx_service::private_development_api::run_production_files_worker_file(
+        let result = erpx_platform_composition::private_development_api::run_production_files_worker_file(
             &config_path,
             tokio::time::sleep(Duration::from_secs(2)),
         )

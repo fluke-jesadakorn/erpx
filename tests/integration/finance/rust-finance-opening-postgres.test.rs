@@ -7,26 +7,26 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_commercial::public::purchases::current_package_catalogue;
-use erpx_server_finance::public::finance_opening::{
+use erpx_commercial_server::public::purchases::current_package_catalogue;
+use erpx_finance_server::public::finance_opening::{
     OpeningImportInput, OpeningInput, OpeningLine, OpeningSubledgerItem,
 };
-use erpx_server_finance::public::generic_payment::{GenericPaymentInput, prepare_generic_payment};
-use erpx_server_finance::public::service_receipt::{
+use erpx_finance_server::public::generic_payment::{GenericPaymentInput, prepare_generic_payment};
+use erpx_finance_server::public::service_receipt::{
     ServiceReceiptAllocationInput, ServiceReceiptConfirmInput,
     flush_service_receipt_confirm_effects, prepare_service_receipt_confirm,
     read_service_receipt_review,
 };
-use erpx_server_finance::public::{
+use erpx_finance_server::public::{
     FinanceActor, FinanceCollation, JournalAuthority, JournalError, JournalStatus,
     PgJournalPreparation, embedded_currency_rules, prepare_journal,
 };
-use erpx_server_identity_access::public::work_context::HoldingWorkspaceRequest;
-use erpx_server_runtime::public::postgres::{DatabasePool, PgTransactionError};
-use erpx_server_shared::public::{AssignmentId, Clock, CommandKey, CompanyId, HoldingId, UserId};
-use erpx_service::finance_journal_detail::*;
-use erpx_service::finance_journal_detail_http::*;
-use erpx_service::finance_journal_review::FinanceJournalEnvironment;
+use erpx_identity_access_server::public::work_context::HoldingWorkspaceRequest;
+use erpx_platform_runtime_server::public::postgres::{DatabasePool, PgTransactionError};
+use erpx_platform_shared_server::public::{AssignmentId, Clock, CommandKey, CompanyId, HoldingId, UserId};
+use erpx_platform_composition::finance_journal_detail::*;
+use erpx_platform_composition::finance_journal_detail_http::*;
+use erpx_platform_composition::finance_journal_review::FinanceJournalEnvironment;
 use facts::{Prepared, account, business, command, post, reverse, setup};
 use std::sync::Arc;
 use tower::ServiceExt;
@@ -47,7 +47,7 @@ fn service(p: &Prepared) -> FinanceJournalDetailService<facts::TestClock> {
 
 fn owned_maker(
     p: &Prepared,
-) -> impl FnOnce() -> Result<HoldingWorkspaceRequest, erpx_server_shared::public::BusinessError>
+) -> impl FnOnce() -> Result<HoldingWorkspaceRequest, erpx_platform_shared_server::public::BusinessError>
        + Send
        + 'static {
     let request = p.maker_selection.clone();
@@ -179,7 +179,7 @@ impl JournalAuthority for AllowJournal {
     async fn authorize(
         &mut self,
         _: &FinanceActor,
-        _: &erpx_server_finance::public::JournalDraft,
+        _: &erpx_finance_server::public::JournalDraft,
     ) -> Result<(), Self::Error> {
         Ok(())
     }
@@ -395,7 +395,7 @@ async fn opening_preview_and_import_write_journal_invoice_and_receipt() {
             )
             .await
         {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                 assert_eq!(error.code, "OPENING_BALANCE_EXISTS");
             }
             other => panic!("existing opening must conflict: {other:?}"),
@@ -438,7 +438,7 @@ async fn opening_preview_rejects_invalid_balances_and_schedules() {
             .opening_balance_preview("acme.example.test", p.maker.clone(), owned_maker(&p), unbalanced)
             .await
         {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                 assert_eq!(error.code, "UNBALANCED_OPENING_BALANCE");
             }
             other => panic!("unbalanced opening must fail: {other:?}"),
@@ -452,7 +452,7 @@ async fn opening_preview_rejects_invalid_balances_and_schedules() {
             .opening_balance_preview("acme.example.test", p.maker.clone(), owned_maker(&p), duplicate)
             .await
         {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                 assert_eq!(error.code, "DUPLICATE_OPENING_ACCOUNT");
             }
             other => panic!("duplicate account must fail: {other:?}"),
@@ -470,7 +470,7 @@ async fn opening_preview_rejects_invalid_balances_and_schedules() {
             )
             .await
         {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                 assert_eq!(error.code, "OPENING_CONTROL_SCHEDULE_REQUIRED");
             }
             other => panic!("missing schedule must fail: {other:?}"),
@@ -482,7 +482,7 @@ async fn opening_preview_rejects_invalid_balances_and_schedules() {
             .opening_balance_preview("acme.example.test", p.maker.clone(), owned_maker(&p), mismatch)
             .await
         {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                 assert_eq!(error.code, "OPENING_SUBLEDGER_MISMATCH");
             }
             other => panic!("schedule mismatch must fail: {other:?}"),
@@ -499,7 +499,7 @@ async fn opening_preview_rejects_invalid_balances_and_schedules() {
             )
             .await
         {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                 assert_eq!(error.code, "OPENING_CURRENCY_MISMATCH");
             }
             other => panic!("currency mismatch must fail: {other:?}"),
@@ -511,14 +511,14 @@ async fn opening_preview_rejects_invalid_balances_and_schedules() {
             .execute(&mut *tx)
             .await
             .unwrap();
-        match erpx_server_finance::public::finance_opening::read_opening_preview(
+        match erpx_finance_server::public::finance_opening::read_opening_preview(
             &mut tx,
             "another-company",
             &opening_input(),
         )
         .await
         {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                 assert_eq!(error.code, "CHART_NOT_FOUND");
             }
             other => panic!("foreign Company must not see the chart: {other:?}"),
@@ -561,7 +561,7 @@ async fn opening_import_rejects_stale_token_and_reused_key() {
             )
             .await
         {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                 assert_eq!(error.code, "OPENING_PREVIEW_STALE");
             }
             other => panic!("stale token must conflict: {other:?}"),
@@ -606,7 +606,7 @@ async fn opening_import_rejects_stale_token_and_reused_key() {
             )
             .await
         {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                 assert_eq!(error.code, "IDEMPOTENCY_CONFLICT");
             }
             other => panic!("changed request must conflict: {other:?}"),
@@ -751,7 +751,7 @@ async fn opening_subledger_schedules_post_and_reverse_with_independent_approval(
             .unwrap();
         assert!(matches!(
             posted,
-            erpx_server_finance::public::journal_review::JournalReviewResult::Posted { version: 2, .. }
+            erpx_finance_server::public::journal_review::JournalReviewResult::Posted { version: 2, .. }
         ));
         let aging = service(&p)
             .finance_invoice_aging(
@@ -783,7 +783,7 @@ async fn opening_subledger_schedules_post_and_reverse_with_independent_approval(
             .unwrap();
         assert!(matches!(
             reversed,
-            erpx_server_finance::public::journal_review::JournalReviewResult::Reversed { .. }
+            erpx_finance_server::public::journal_review::JournalReviewResult::Reversed { .. }
         ));
         let voided: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM finance_invoices WHERE company_id='company' AND source_id=$1 AND status='voided' AND outstanding_minor=0",

@@ -1,10 +1,10 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
-const util = new URL('../../../packages/server-talent/src/adapters/talent-read-tail-r27-sources.ts', import.meta.url);
-const privacy = new URL('../../../packages/server-talent/src/adapters/people-hire-handoff-facts.ts', import.meta.url);
-const sensitive = new URL('../../../packages/server-talent/src/adapters/attachments-sensitive-facts.ts', import.meta.url);
-const srcDir = new URL('../../../packages/server-talent/src/', import.meta.url);
+const util = new URL('../../../modules/talent/server/src/adapters/talent-read-tail-r27-sources.ts', import.meta.url);
+const privacy = new URL('../../../modules/talent/server/src/adapters/people-hire-handoff-facts.ts', import.meta.url);
+const sensitive = new URL('../../../modules/talent/server/src/adapters/attachments-sensitive-facts.ts', import.meta.url);
+const srcDir = new URL('../../../modules/talent/server/src/', import.meta.url);
 
 // Exact pre-dedupe emitted SQL (r26 baseline, BEFORE=52). Only the row source
 // and the trailing predicate are parameterized; the fixed

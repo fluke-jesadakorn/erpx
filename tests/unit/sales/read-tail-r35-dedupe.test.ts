@@ -6,7 +6,7 @@ import ts from 'typescript';
 
 vi.mock('server-only', () => ({}));
 
-const srcRoot = resolve(__dirname, '../../../packages/server-sales/src');
+const srcRoot = resolve(__dirname, '../../../modules/sales/server/src');
 const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const obligations = read('package-obligations.ts');
 const purchases = read('followup-purchases.ts');
@@ -99,8 +99,8 @@ describe('Sales read-tail r35 retirement check', () => {
     expect(head).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
     expect(obligations).toContain('LOCK TABLE sales_price_lists,sales_price_list_items,customer_followups,customer_followup_events,customer_contact_notes,customer_contact_note_history,commerce_customer_notifications,commerce_customer_notification_settings,sales_notification_execution_authorizations,sales_notification_execution_attempts,sales_notification_reconciliations,command_receipts,audit_events IN SHARE MODE');
     expect(purchases).toContain('LOCK TABLE customer_followups,customer_followup_events IN SHARE ROW EXCLUSIVE MODE');
-    expect(obligations).toContain('@erpx/server-commercial/public/package-settlement-sources');
-    expect(obligations).toContain('@erpx/server-commerce/public/sales-package-sources');
+    expect(obligations).toContain('@erpx/commercial-server/public/package-settlement-sources');
+    expect(obligations).toContain('@erpx/commerce-server/public/sales-package-sources');
     expect(native).toContain('export const SALES_RD_PRICE_LIST_ACTIVE');
     expect(native).toContain('export const SALES_RD_NOTIFICATION_RECONCILIATION_INSTALLED');
     expect((commercial.match(/SELECT/g) ?? []).length).toBe(0);

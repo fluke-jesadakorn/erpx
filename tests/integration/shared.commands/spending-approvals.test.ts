@@ -1,15 +1,15 @@
 import { beforeAll,beforeEach,expect,it,vi } from "vitest";
 import { env,applyMigrations } from "../../support/runtime-env";
 import { expenseFixture,expenseDb as db,key } from "../../support/helpers/expense-fixture";
-import { expenseRoute } from "@erpx/server-people_payroll/public/expense-routing";
-import {getExpense} from '@erpx/server-people_payroll/public/expense-read';
-import {approvalView} from '@erpx/server-workflow/public/approval-planning';
-import {saveSpendingTemplate} from '@erpx/server-people_payroll/public/spending-templates';
-import {saveEmployeeRequest,employeeRequestSchema,actOnEmployeeRequest,requestActionSchema} from '@erpx/server-records/public/employee-requests';
-import {getEmployeeRequest} from '@erpx/server-records/public/employee-requests-read';
-import {resolveFlow} from '@erpx/server-workflow/public/flow-routing';
-import { approvalAdministrationData } from "@erpx/server-workflow/public/approval-administration";
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:db,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+import { expenseRoute } from "@erpx/people-payroll-server/public/expense-routing";
+import {getExpense} from '@erpx/people-payroll-server/public/expense-read';
+import {approvalView} from '@erpx/workflow-server/public/approval-planning';
+import {saveSpendingTemplate} from '@erpx/people-payroll-server/public/spending-templates';
+import {saveEmployeeRequest,employeeRequestSchema,actOnEmployeeRequest,requestActionSchema} from '@erpx/records-server/public/employee-requests';
+import {getEmployeeRequest} from '@erpx/records-server/public/employee-requests-read';
+import {resolveFlow} from '@erpx/workflow-server/public/flow-routing';
+import { approvalAdministrationData } from "@erpx/workflow-server/public/approval-administration";
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:db,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();});
@@ -58,7 +58,7 @@ it("blocks pending decisions after a manager departure until the reporting data 
   const view=await approvalView(db,"expense",id,f.owner);expect(view.canDecide).toBe(false);expect(view.eligibleApproverIds).toEqual([]);
 });
 it("records a supplier payment request with its selected payee through posting",async()=>{
-  const {saveExpense,expenseUpdateSchema,postExpense}=await import("@erpx/server-people_payroll/public/expenses");
+  const {saveExpense,expenseUpdateSchema,postExpense}=await import("@erpx/people-payroll-server/public/expenses");
   const supplier=`supplier-${key()}`;
   await db.prepare("INSERT INTO finance_parties(id,company_id,kind,code,name,currency,created_at,updated_at) VALUES(?,?,'supplier',?,'Supplier','THB',1,1)").bind(supplier,f.company,supplier).run();
   const id=String((await saveExpense(f.claimant,null,expenseUpdateSchema.parse({expectedVersion:1,requestKind:"payment",payeePartyId:supplier,expenseDate:"2026-09-01",merchant:"Supplier",receiptReference:"Supplier payment request",businessPurpose:"Pay supplier for service",currency:"THB",amount:"100",tax:"7",categoryAccountId:f.accounts.expense}),key())).id);

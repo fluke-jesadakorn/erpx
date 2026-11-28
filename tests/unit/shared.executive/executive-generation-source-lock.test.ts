@@ -1,24 +1,24 @@
 import { describe, expect, it, vi } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { createExecutiveReportApplication } from "@erpx/server-runtime/application/executive/reports";
-import { createExecutiveGenerationApplication } from "@erpx/server-runtime/application/executive/generation";
-import { emptyDefinition } from "@erpx/server-runtime/public/rules/canvas-domain";
+import { createExecutiveReportApplication } from "@erpx/platform-runtime-server/application/executive/reports";
+import { createExecutiveGenerationApplication } from "@erpx/platform-runtime-server/application/executive/generation";
+import { emptyDefinition } from "@erpx/platform-runtime-server/public/rules/canvas-domain";
 
 const root = process.cwd();
 const read = (path: string) => readFileSync(join(root, path), "utf8");
 
-const sourceLock = "packages/server-platform_administration/src/adapters/executive-generation-source-lock.ts";
-const sourceLockPublic = "packages/server-platform_administration/src/public/executive-generation-source-lock.ts";
-const generation = "packages/server-runtime/src/adapters/executive/generation.ts";
-const registry = "packages/server-runtime/src/adapters/native_command_sql.rs";
-const platformRoute = "packages/server-platform_administration/src/adapters/platform_executive_http.rs";
+const sourceLock = "modules/platform-administration/server/src/adapters/executive-generation-source-lock.ts";
+const sourceLockPublic = "modules/platform-administration/server/src/public/executive-generation-source-lock.ts";
+const generation = "platform/runtime/server/src/adapters/executive/generation.ts";
+const registry = "platform/runtime/server/src/adapters/native_command_sql.rs";
+const platformRoute = "modules/platform-administration/server/src/adapters/platform_executive_http.rs";
 
 describe("Platform executive generation-lock read is native", () => {
   it("deletes the last platform executive SELECT and its exports", () => {
     expect(existsSync(join(root, sourceLock))).toBe(false);
     expect(existsSync(join(root, sourceLockPublic))).toBe(false);
-    expect(read("packages/server-platform_administration/package.json")).not.toContain("executive-generation-source-lock");
+    expect(read("modules/platform-administration/server/package.json")).not.toContain("executive-generation-source-lock");
   });
 
   it("switches runtime generation to the native source-lock statement", () => {
@@ -51,14 +51,14 @@ const filters = { from: "2026-01-01", to: "2026-12-31", currency: "THB" };
 
 describe("Executive report create is one scoped native statement", () => {
   it("pins the adapter and application to the atomic create kind", () => {
-    const reports = read("packages/server-runtime/src/adapters/executive/reports.ts");
+    const reports = read("platform/runtime/server/src/adapters/executive/reports.ts");
     expect(reports).toContain("nativeRuntimeStatement('executive_create_report', { companyId, now, actor: undefined })");
     expect(reports).not.toContain("'runtime_stmt_1'");
     expect(reports).not.toContain("'runtime_stmt_2'");
-    const application = read("packages/server-runtime/src/application/executive/reports.ts");
+    const application = read("platform/runtime/server/src/application/executive/reports.ts");
     expect(application).toContain("repository.stageCreateReport(");
     expect(application).not.toContain("stageCreateReportEffect");
-    const registry = read("packages/server-runtime/src/adapters/native_command_sql.rs");
+    const registry = read("platform/runtime/server/src/adapters/native_command_sql.rs");
     expect(registry).toContain('kind: "executive_create_report"');
   });
 
@@ -89,7 +89,7 @@ describe("Executive report create is one scoped native statement", () => {
 
 describe("Executive generation drain reads back the claimed lease", () => {
   it("pins the adapter to fetch the claimed job rather than returning null", () => {
-    const source = read("packages/server-runtime/src/adapters/executive/generation.ts");
+    const source = read("platform/runtime/server/src/adapters/executive/generation.ts");
     expect(source).toContain(".bind(token, value, now).first<Job>()");
     expect(source).not.toContain("return null; /* RETURNING-row projection");
   });

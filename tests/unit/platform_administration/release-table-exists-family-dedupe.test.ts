@@ -4,10 +4,10 @@ import { resolve } from 'node:path';
 
 vi.mock('server-only', () => ({}));
 
-import { productionScope } from '@erpx/catalogue/production-scope';
-import { releaseRevisionTable, releaseTableExistsSql } from '../../../packages/server-platform_administration/src/adapters/release-predicate';
+import { productionScope } from '@erpx/platform-catalogue/production-scope';
+import { releaseRevisionTable, releaseTableExistsSql } from '../../../modules/platform-administration/server/src/adapters/release-predicate';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-platform_administration/src');
+const srcRoot = resolve(__dirname, '../../../modules/platform-administration/server/src');
 const source = (relative: string) => readFileSync(resolve(srcRoot, relative), 'utf8');
 
 // Pre-dedupe renderings copied verbatim from the BEFORE=32 source. They are

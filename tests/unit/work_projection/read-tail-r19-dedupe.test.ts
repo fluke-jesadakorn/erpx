@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 
 const src = (name: string) =>
-  new URL(`../../../packages/server-work_projection/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/work-projection/server/src/adapters/${name}`, import.meta.url);
 
 const announcementImage =
   'SELECT to_jsonb(row)::text image FROM calendar_announcements row WHERE id=? AND company_id=?';
@@ -27,7 +27,7 @@ describe('work_projection read-tail r19 dedupe', () => {
 
   it('emits the original byte-identical SQL for both image callers', async () => {
     const { calendarImageSql } = await import(
-      '../../../packages/server-work_projection/src/adapters/read-tail-sql.ts'
+      '../../../modules/work-projection/server/src/adapters/read-tail-sql.ts'
     );
     expect(calendarImageSql('to_jsonb(row)::text', 'calendar_announcements')).toBe(announcementImage);
     expect(calendarImageSql(appointmentExpression, 'calendar_appointments')).toBe(appointmentImage);

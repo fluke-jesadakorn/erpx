@@ -2,14 +2,14 @@ import {seedCommerceFulfillment} from "../../support/helpers/commerce-fulfillmen
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { expenseFixture, expenseDb as db, key } from "../../support/helpers/expense-fixture";
-import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
-import {saveExpenseAccounting} from '@erpx/server-people_payroll/public/expense-workflow';
-import {postExpense} from '@erpx/server-people_payroll/public/expenses';
-import {getExpense} from '@erpx/server-people_payroll/public/expense-read';
-import {createAccount,createAccountSchema,createInvoice,invoiceSchema,postInvoice} from '@erpx/server-finance/public/finance';
-import {settleInvoice} from '@erpx/server-commerce/public/commerce';
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
-vi.mock("@erpx/feature-people_payroll/public/native-payroll-summary-owned",()=>({
+import {assignFlowPrimary,resolveFlow} from '@erpx/workflow-server/public/flow-routing';
+import {saveExpenseAccounting} from '@erpx/people-payroll-server/public/expense-workflow';
+import {postExpense} from '@erpx/people-payroll-server/public/expenses';
+import {getExpense} from '@erpx/people-payroll-server/public/expense-read';
+import {createAccount,createAccountSchema,createInvoice,invoiceSchema,postInvoice} from '@erpx/finance-server/public/finance';
+import {settleInvoice} from '@erpx/commerce-server/public/commerce';
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/people-payroll-ui/public/native-payroll-summary-owned",()=>({
   ownedPeoplePayrollWorkRows:async()=>[],
   ownedPeoplePayrollRun:async(_actor:{holdingSlug:string},_holdingSlug:string,id:string)=>({run:{id},items:[],exports:[],corrections:[],paymentBatch:null,paymentItems:[]}),
 }));
@@ -131,7 +131,7 @@ async function stockFixture() {
   const clearing=await createAccount(f.owner,createAccountSchema.parse({chartId:f.chart,code:key(),name:"Flow goods clearing",category:"liability",currency:"THB"}),key());
   await db.prepare("UPDATE commerce_settings SET inventory_account_id=?,clearing_account_id=? WHERE company_id=?").bind(String(inventory.id),String(clearing.id),f.company).run();
   await db.prepare("INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,currency,status,created_at,updated_at) VALUES(?,?,?,'5400','Stock variance','expense','THB','active',1,1)").bind(`variance-${key()}`,f.company,f.chart).run();
-  const {saveMaster}=await import("@erpx/server-commerce/public/commerce");
+  const {saveMaster}=await import("@erpx/commerce-server/public/commerce");
   const warehouse=await saveMaster(f.owner,"warehouses",null,{branchId:f.branch,code:key(),name:"Test warehouse"},key());
   const product=await saveMaster(f.owner,"products",null,{sku:key(),name:"Test product",price:"10"},key());
   return {warehouseId:String(warehouse.id),productId:String(product.id)};
@@ -142,7 +142,7 @@ async function choose(kind:"stock_count"|"order"|"invoice",id:string,stepKey:str
 }
 it("keeps an active company account eligible to submit its own draft before an HR engagement exists",async()=>{
   const externalOwner=await f.member("external-owner","holding_owner",10,f.accountsDepartment,false);
-  const {saveMaster,saveOrder,orderSchema}=await import("@erpx/server-commerce/public/commerce");
+  const {saveMaster,saveOrder,orderSchema}=await import("@erpx/commerce-server/public/commerce");
   const warehouse=await saveMaster(externalOwner,"warehouses",null,{branchId:f.branch,code:key(),name:"External owner warehouse"},key());
   const product=await saveMaster(externalOwner,"products",null,{sku:key(),name:"External owner product",price:"10"},key());
   const customer=await saveMaster(externalOwner,"parties",null,{kind:"customer",code:key(),name:"External owner customer"},key());
@@ -153,7 +153,7 @@ it("keeps an active company account eligible to submit its own draft before an H
   expect(flow.blocker).toBeNull();
 });
 it("requires stock approval before balanced GL and posts the counted stock only once",async()=>{
-  const {saveCount,transitionCount}=await import("@erpx/server-inventory/public/inventory-counts");
+  const {saveCount,transitionCount}=await import("@erpx/inventory-server/public/inventory-counts");
   const stock=await stockFixture();
   const created=await saveCount(f.owner,null,{warehouseId:stock.warehouseId,countDate:"2026-09-02",reason:"Physical count verification",lines:[{productId:stock.productId,countedQuantity:"10",unitCost:"10",allocations:[]}]},key());
   const id=String(created.id);
@@ -169,7 +169,7 @@ it("requires stock approval before balanced GL and posts the counted stock only 
   expect((await resolveFlow(db,f.manager,"stock_count",id)).current).toBeNull();
 });
 it("hands purchase receipt to accounting before drafting and posting its payable",async()=>{
-  const {saveMaster,saveOrder,orderSchema,transitionOrder,getOrder,invoiceFulfillment}=await import("@erpx/server-commerce/public/commerce");
+  const {saveMaster,saveOrder,orderSchema,transitionOrder,getOrder,invoiceFulfillment}=await import("@erpx/commerce-server/public/commerce");
   const {markFinanceJournalPosted}=await import("../../support/helpers/finance-journal-seed");
   const stock=await stockFixture();
   f.head.role="purchasing_manager";f.head.branchId=null;f.head.departmentId=null;f.head.assignmentId=await f.grant(f.head,"purchasing_manager");
@@ -197,7 +197,7 @@ it("hands purchase receipt to accounting before drafting and posting its payable
 });
 
 it("cancels an approved order independently but requires a return after stock moved",async()=>{
-  const {saveMaster,saveOrder,orderSchema,transitionOrder,getOrder}=await import("@erpx/server-commerce/public/commerce");
+  const {saveMaster,saveOrder,orderSchema,transitionOrder,getOrder}=await import("@erpx/commerce-server/public/commerce");
   const stock=await stockFixture();
   f.head.role="purchasing_manager";f.head.branchId=null;f.head.departmentId=null;f.head.assignmentId=await f.grant(f.head,"purchasing_manager");
   const party=await saveMaster(f.owner,"parties",null,{kind:"supplier",code:key(),name:"Cancellation supplier"},key());
@@ -218,7 +218,7 @@ it("cancels an approved order independently but requires a return after stock mo
 });
 
 it("enforces a versioned customer credit limit when sales approval creates exposure",async()=>{
-  const {saveMaster,saveOrder,orderSchema,transitionOrder}=await import("@erpx/server-commerce/public/commerce");
+  const {saveMaster,saveOrder,orderSchema,transitionOrder}=await import("@erpx/commerce-server/public/commerce");
   const stock=await stockFixture();
   f.head.role="sales_manager";f.head.branchId=null;f.head.departmentId=null;f.head.assignmentId=await f.grant(f.head,"sales_manager");
   const party=await saveMaster(f.owner,"parties",null,{kind:"customer",code:key(),name:"Credit customer",creditLimit:"15"},key());
@@ -231,15 +231,15 @@ it("enforces a versioned customer credit limit when sales approval creates expos
 });
 
 it("keeps batched Work equal to detail-authorized flows across roles and scopes", async () => {
-  const { otherFlowWork } = await import("@erpx/server-workflow/public/flow-work");
-  const { withPolicyReadSnapshot } = await import("@erpx/server-identity_access/public/iam-read-snapshot");
-  const { workOrderRows, getOrder } = await import("@erpx/server-commerce/public/commerce");
-  const {workInvoiceRows}=await import('@erpx/server-finance/public/finance'),{getInvoice}=await import('@erpx/server-finance/public/finance-invoice-read');
-  const { workJournalRows, journalDetail } = await import("@erpx/server-finance/public/ledger");
+  const { otherFlowWork } = await import("@erpx/workflow-server/public/flow-work");
+  const { withPolicyReadSnapshot } = await import("@erpx/identity-access-server/public/iam-read-snapshot");
+  const { workOrderRows, getOrder } = await import("@erpx/commerce-server/public/commerce");
+  const {workInvoiceRows}=await import('@erpx/finance-server/public/finance'),{getInvoice}=await import('@erpx/finance-server/public/finance-invoice-read');
+  const { workJournalRows, journalDetail } = await import("@erpx/finance-server/public/ledger");
   const party = `party-${key()}`;
   await db.prepare("INSERT INTO finance_parties(id,company_id,kind,code,name,currency,created_at,updated_at) VALUES(?,?,'supplier',?,'Work parity supplier','THB',1,1)").bind(party,f.company,party).run();
   await createInvoice(f.reviewer,invoiceSchema.parse({partyId:party,kind:"payable",invoiceNumber:key(),invoiceDate:"2026-09-01",dueDate:"2026-09-03",currency:"THB",subtotal:"100",tax:"7",taxAccountId:f.accounts.tax,debitAccountId:f.accounts.expense,creditAccountId:f.accounts.payable}),key());
-  const {saveMaster,saveOrder,orderSchema} = await import("@erpx/server-commerce/public/commerce");
+  const {saveMaster,saveOrder,orderSchema} = await import("@erpx/commerce-server/public/commerce");
   const stock = await stockFixture();
   const supplier = await saveMaster(f.owner,"parties",null,{kind:"supplier",code:key(),name:"Batch parity supplier"},key());
   await saveOrder(f.owner,null,orderSchema.parse({kind:"purchase",partyId:supplier.id,warehouseId:stock.warehouseId,orderDate:"2026-09-02",dueDate:"2026-09-03",lines:[{productId:stock.productId,quantity:"2",price:"10",taxBps:0}]}),key());

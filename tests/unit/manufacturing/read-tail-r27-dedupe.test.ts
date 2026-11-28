@@ -3,9 +3,9 @@ import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
-import { manufacturingFinanceRecordSources } from '../../../packages/server-manufacturing/src/adapters/finance-record-sources';
+import { manufacturingFinanceRecordSources } from '../../../modules/manufacturing/server/src/adapters/finance-record-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-manufacturing/src');
+const srcRoot = resolve(__dirname, '../../../modules/manufacturing/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const journalPrefix = 'SELECT posting.company_id,posting.journal_id id';
 const postingPrefix = 'SELECT posting.id posting_id,posting.company_id,posting.journal_id id';

@@ -1,6 +1,6 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_files::public::rfq_request_attachments::read_rfq_request_attachments;
+use erpx_files_server::public::rfq_request_attachments::read_rfq_request_attachments;
 
 #[tokio::test]
 async fn attachment_rows_match_records_source_filter_and_order() {

@@ -6,9 +6,9 @@ import {
   jsonbImageSql,
   posInitialPhysicalSchemaReadySql,
   mfgInitialPhysicalSchemaReadySql,
-} from '../../../packages/server-inventory/src/adapters/read-tail-sql';
+} from '../../../modules/inventory/server/src/adapters/read-tail-sql';
 
-const src = (name: string) => readFileSync(new URL(`../../../packages/server-inventory/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFileSync(new URL(`../../../modules/inventory/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 const ledgerGuard = 'NOT EXISTS(SELECT 1 FROM inventory_ledger WHERE warehouse_id=? AND product_id=? AND movement_date>?)';
 const lotBalanceGuard = 'NOT EXISTS(SELECT 1 FROM inventory_lot_balances WHERE lot_id=? AND warehouse_id=?)';

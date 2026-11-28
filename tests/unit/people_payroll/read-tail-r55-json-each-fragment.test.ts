@@ -3,10 +3,10 @@ import { readdirSync, readFileSync } from 'node:fs';
 import {
   ppRd55AttachmentPresenceV1,
   ppRd55AttachmentPresenceV2,
-} from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r55-sources';
+} from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r55-sources';
 
 const module = readFileSync(
-  new URL('../../../packages/server-people_payroll/src/adapters/pp-read-tail-r55-sources.ts', import.meta.url),
+  new URL('../../../modules/people-payroll/server/src/adapters/pp-read-tail-r55-sources.ts', import.meta.url),
   'utf8',
 );
 const fragment = ' IN(SELECT value FROM erpx_json_each(?))';
@@ -33,7 +33,7 @@ describe('People Payroll r55 json-each list predicate family', () => {
   });
 
   test('the family fold lowers the owner SELECT count below 1151', () => {
-    const root = new URL('../../../packages/server-people_payroll/src/', import.meta.url);
+    const root = new URL('../../../modules/people-payroll/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {

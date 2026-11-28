@@ -4,9 +4,9 @@ import { createHash } from 'node:crypto';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 
-const adapters = new URL('../../../packages/server-maintenance/src/adapters/', import.meta.url);
+const adapters = new URL('../../../modules/maintenance/server/src/adapters/', import.meta.url);
 const src = (name: string) => readFile(new URL(name, adapters), 'utf8');
-const srcRoot = resolve(__dirname, '../../../packages/server-maintenance/src');
+const srcRoot = resolve(__dirname, '../../../modules/maintenance/server/src');
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 
 /** Pre-r31 byte oracles: the Calendar scheduled outer read carried the inline
@@ -24,10 +24,10 @@ describe('maintenance read-tail r31 alias-row head reuse', () => {
   });
 
   it('renders the calendar head byte-identically through aliasRowsSql', async () => {
-    const { aliasRowsSql } = await import('../../../packages/server-maintenance/src/adapters/read-tail-r30-alias-rows');
-    const { maintenanceOwnerName } = await import('../../../packages/server-maintenance/src/adapters/maintenance-owner-name');
+    const { aliasRowsSql } = await import('../../../modules/maintenance/server/src/adapters/read-tail-r30-alias-rows');
+    const { maintenanceOwnerName } = await import('../../../modules/maintenance/server/src/adapters/maintenance-owner-name');
     const { calendarMaintenanceMaintenanceFacts } =
-      await import('../../../packages/server-maintenance/src/adapters/calendar-maintenance-facts');
+      await import('../../../modules/maintenance/server/src/adapters/calendar-maintenance-facts');
 
     expect(aliasRowsSql('s', '')).toBe(head);
     const owner = maintenanceOwnerName('s');

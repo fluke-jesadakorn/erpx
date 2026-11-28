@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { executiveGenerationJobsSql } from '../../../packages/server-runtime/src/adapters/read-tail-sql';
+import { executiveGenerationJobsSql } from '../../../platform/runtime/server/src/adapters/read-tail-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-runtime/src');
+const srcRoot = resolve(__dirname, '../../../platform/runtime/server/src');
 const adapterDir = resolve(srcRoot, 'adapters');
 const src = (name: string) => readFileSync(resolve(adapterDir, name), 'utf8');
 const tails = () =>

@@ -33,14 +33,14 @@ import {
   PROCUREMENT_RD_PROMISE_SCHEDULE_BY_ORDER,
   PROCUREMENT_RD_OPEN_PROMISE_LINES_BY_ORDER,
   PROCUREMENT_RD_RFQ_OFFER_LINES,
-} from '../../../packages/server-procurement/src/adapters/native-procurement-read';
-import { procurementInvoiceMatchForFinance } from '../../../packages/server-procurement/src/adapters/finance-entrypoint-queries';
-import { requestQuotation } from '../../../packages/server-procurement/src/adapters/people-app-entrypoint-facts';
-import { OperationalAttachmentProcurementFacts } from '../../../packages/server-procurement/src/adapters/attachments-operational-facts';
-import { documentPostingPreviewFacts } from '../../../packages/server-procurement/src/adapters/document-posting-preview-facts';
-import { EmployeeRequestsProcurementOwnedFacts } from '../../../packages/server-procurement/src/adapters/records-employee-requests-owned-facts';
-import { CommerceProcurementFacts } from '../../../packages/server-procurement/src/adapters/commerce-facts';
-import { nativeSupplierBillDetail, ownedSupplierBillDetail } from '../../../packages/feature-procurement/src/public/native-supplier-bill-detail-owned';
+} from '../../../modules/procurement/server/src/adapters/native-procurement-read';
+import { procurementInvoiceMatchForFinance } from '../../../modules/procurement/server/src/adapters/finance-entrypoint-queries';
+import { requestQuotation } from '../../../modules/procurement/server/src/adapters/people-app-entrypoint-facts';
+import { OperationalAttachmentProcurementFacts } from '../../../modules/procurement/server/src/adapters/attachments-operational-facts';
+import { documentPostingPreviewFacts } from '../../../modules/procurement/server/src/adapters/document-posting-preview-facts';
+import { EmployeeRequestsProcurementOwnedFacts } from '../../../modules/procurement/server/src/adapters/records-employee-requests-owned-facts';
+import { CommerceProcurementFacts } from '../../../modules/procurement/server/src/adapters/commerce-facts';
+import { nativeSupplierBillDetail, ownedSupplierBillDetail } from '../../../modules/procurement/ui/src/public/native-supplier-bill-detail-owned';
 
 const envKey = 'ERPX_NATIVE_PROCUREMENT_CONFIG';
 const original = process.env[envKey];
@@ -227,7 +227,7 @@ describe('native Procurement caller-unit read plan', () => {
     expect(JSON.stringify(body)).not.toContain('SELECT');
 
     const source = readFileSync(
-      new URL('../../../packages/server-procurement/src/adapters/supplier-bills.ts', import.meta.url),
+      new URL('../../../modules/procurement/server/src/adapters/supplier-bills.ts', import.meta.url),
       'utf8',
     );
     expect(source).not.toContain('SELECT * FROM procurement_bill_match_receipts WHERE match_id=? ORDER BY id');
@@ -250,7 +250,7 @@ describe('native Procurement caller-unit read plan', () => {
     expect(JSON.stringify(body)).not.toContain('SELECT');
 
     const source = readFileSync(
-      new URL('../../../packages/server-procurement/src/adapters/records-employee-requests-owned-facts.ts', import.meta.url),
+      new URL('../../../modules/procurement/server/src/adapters/records-employee-requests-owned-facts.ts', import.meta.url),
       'utf8',
     );
     expect(source).not.toContain("SELECT count(*) n FROM procurement_rfqs WHERE request_id=? AND status<>'cancelled'");
@@ -275,8 +275,8 @@ describe('native Procurement caller-unit read plan', () => {
 
     const literal = "SELECT l.request_item_ordinal ordinal,COALESCE(sum(l.request_quantity_milli),0) allocated_milli FROM procurement_rfq_lines l JOIN procurement_rfqs r ON r.id=l.rfq_id WHERE r.request_id=? AND r.status<>'cancelled' GROUP BY l.request_item_ordinal";
     for (const rel of [
-      '../../../packages/server-procurement/src/adapters/records-employee-requests-owned-facts.ts',
-      '../../../packages/server-procurement/src/adapters/purchase-request-progress.ts',
+      '../../../modules/procurement/server/src/adapters/records-employee-requests-owned-facts.ts',
+      '../../../modules/procurement/server/src/adapters/purchase-request-progress.ts',
     ]) {
       const source = readFileSync(new URL(rel, import.meta.url), 'utf8');
       expect(source).not.toContain(literal);
@@ -301,7 +301,7 @@ describe('native Procurement caller-unit read plan', () => {
     expect(JSON.stringify(body)).not.toContain('SELECT');
 
     const source = readFileSync(
-      new URL('../../../packages/server-procurement/src/adapters/records-employee-requests-owned-facts.ts', import.meta.url),
+      new URL('../../../modules/procurement/server/src/adapters/records-employee-requests-owned-facts.ts', import.meta.url),
       'utf8',
     );
     expect(source).not.toContain('SELECT 1 ok FROM procurement_request_orders WHERE request_id=? AND order_id=?');
@@ -326,7 +326,7 @@ describe('native Procurement caller-unit read plan', () => {
     expect(JSON.stringify(body)).not.toContain('SELECT');
 
     const source = readFileSync(
-      new URL('../../../packages/server-procurement/src/adapters/supplier-bills.ts', import.meta.url),
+      new URL('../../../modules/procurement/server/src/adapters/supplier-bills.ts', import.meta.url),
       'utf8',
     );
     expect(source).not.toContain('SELECT id FROM procurement_bill_match_lines WHERE match_id=? AND subtotal_minor<>expected_subtotal_minor LIMIT 1');
@@ -350,7 +350,7 @@ describe('native Procurement caller-unit read plan', () => {
     expect(JSON.stringify(body)).not.toContain('SELECT');
 
     const source = readFileSync(
-      new URL('../../../packages/server-procurement/src/adapters/supplier-bills.ts', import.meta.url),
+      new URL('../../../modules/procurement/server/src/adapters/supplier-bills.ts', import.meta.url),
       'utf8',
     );
     expect(source).not.toContain('SELECT br.match_id id FROM procurement_bill_match_receipts br WHERE br.fulfillment_id=? LIMIT 1');
@@ -374,7 +374,7 @@ describe('native Procurement caller-unit read plan', () => {
     expect(JSON.stringify(body)).not.toContain('SELECT');
 
     const source = readFileSync(
-      new URL('../../../packages/server-procurement/src/adapters/supplier-bills.ts', import.meta.url),
+      new URL('../../../modules/procurement/server/src/adapters/supplier-bills.ts', import.meta.url),
       'utf8',
     );
     expect(source).not.toContain("SELECT 1 FROM procurement_invoice_policies WHERE company_id=? AND matching_mode='required'");
@@ -383,7 +383,7 @@ describe('native Procurement caller-unit read plan', () => {
 
   it('plans both record-purchases existence reads and retires the TypeScript literals', async () => {
     const source = readFileSync(
-      new URL('../../../packages/server-procurement/src/adapters/record-purchases.ts', import.meta.url),
+      new URL('../../../modules/procurement/server/src/adapters/record-purchases.ts', import.meta.url),
       'utf8',
     );
 
@@ -397,7 +397,7 @@ describe('native Procurement caller-unit read plan', () => {
     // the r25 helper; the owner adapter no longer inlines the literal.
     expect(source).toContain('sourceScopeExists(bill,scope.where)');
     const r25 = readFileSync(
-      new URL('../../../packages/server-procurement/src/adapters/read-tail-r25.ts', import.meta.url),
+      new URL('../../../modules/procurement/server/src/adapters/read-tail-r25.ts', import.meta.url),
       'utf8',
     );
     expect(r25).toContain('SELECT 1 FROM ${bill ? "procurement_bill_matches" : "procurement_rfqs"} r WHERE r.id=? AND ${where}');
@@ -439,7 +439,7 @@ describe('native Procurement caller-unit read plan', () => {
     expect(JSON.stringify(body)).not.toContain('SELECT');
 
     const source = readFileSync(
-      new URL('../../../packages/server-procurement/src/adapters/supplier-bills.ts', import.meta.url),
+      new URL('../../../modules/procurement/server/src/adapters/supplier-bills.ts', import.meta.url),
       'utf8',
     );
     expect(source).not.toContain('SELECT * FROM procurement_bill_match_events WHERE match_id=? ORDER BY version DESC');
@@ -448,7 +448,7 @@ describe('native Procurement caller-unit read plan', () => {
 
   it('plans both commerce-facts bill-match reads and retires the TypeScript literals', async () => {
     const source = readFileSync(
-      new URL('../../../packages/server-procurement/src/adapters/commerce-facts.ts', import.meta.url),
+      new URL('../../../modules/procurement/server/src/adapters/commerce-facts.ts', import.meta.url),
       'utf8',
     );
     expect(source).not.toContain('SELECT l.subtotal_minor,l.tax_minor FROM procurement_bill_match_lines');
@@ -505,7 +505,7 @@ describe('native Procurement caller-unit read plan', () => {
     expect(JSON.stringify(approvedBody)).not.toContain('SELECT');
 
     const source = readFileSync(
-      new URL('../../../packages/server-procurement/src/adapters/records-employee-requests-owned-facts.ts', import.meta.url),
+      new URL('../../../modules/procurement/server/src/adapters/records-employee-requests-owned-facts.ts', import.meta.url),
       'utf8',
     );
     expect(source).not.toContain("SELECT id,order_id FROM procurement_rfqs WHERE request_id=? AND order_id=? AND status='ordered'");
@@ -536,21 +536,21 @@ describe('native Procurement caller-unit read plan', () => {
     }
 
     const progress = readFileSync(
-      new URL('../../../packages/server-procurement/src/adapters/purchase-request-progress.ts', import.meta.url),
+      new URL('../../../modules/procurement/server/src/adapters/purchase-request-progress.ts', import.meta.url),
       'utf8',
     );
     expect(progress).not.toContain("SELECT id,status,order_id FROM procurement_rfqs WHERE request_id=? AND company_id=? AND status<>'cancelled' ORDER BY updated_at DESC,id DESC");
     expect(progress).toContain('PROCUREMENT_RD_PROGRESS_REQUEST_RFQS');
 
     const rfqs = readFileSync(
-      new URL('../../../packages/server-procurement/src/adapters/rfqs.ts', import.meta.url),
+      new URL('../../../modules/procurement/server/src/adapters/rfqs.ts', import.meta.url),
       'utf8',
     );
     expect(rfqs).not.toContain('SELECT id FROM procurement_rfqs WHERE order_id=? AND company_id=?');
     expect(rfqs).toContain('PROCUREMENT_RD_RFQ_BY_ORDER');
 
     const bills = readFileSync(
-      new URL('../../../packages/server-procurement/src/adapters/supplier-bills.ts', import.meta.url),
+      new URL('../../../modules/procurement/server/src/adapters/supplier-bills.ts', import.meta.url),
       'utf8',
     );
     expect(bills).not.toContain('SELECT * FROM procurement_bill_matches WHERE invoice_id=? AND company_id=?');
@@ -580,7 +580,7 @@ describe('native Procurement caller-unit read plan', () => {
     }
 
     const promises = readFileSync(
-      new URL('../../../packages/server-procurement/src/adapters/supplier-promises.ts', import.meta.url),
+      new URL('../../../modules/procurement/server/src/adapters/supplier-promises.ts', import.meta.url),
       'utf8',
     );
     expect(promises).not.toContain('SELECT * FROM procurement_delivery_promises WHERE order_id=? ORDER BY order_version DESC');
@@ -609,7 +609,7 @@ describe('native Procurement caller-unit read plan', () => {
     expect(JSON.stringify(body)).not.toContain('SELECT');
 
     const source = readFileSync(
-      new URL('../../../packages/server-procurement/src/adapters/rfqs.ts', import.meta.url),
+      new URL('../../../modules/procurement/server/src/adapters/rfqs.ts', import.meta.url),
       'utf8',
     );
     expect(source).not.toContain('SELECT l.* FROM procurement_rfq_offer_lines l JOIN procurement_rfq_offers o ON o.id=l.offer_id WHERE o.rfq_id=?');

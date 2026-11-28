@@ -1,3 +1,4 @@
+import { workspaceSpecifierDirectory } from "../local/workspace-paths";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
@@ -105,7 +106,7 @@ function sourceImportSpecifiers(tree: ts.SourceFile): string[] {
 export function resolveImport(from: string, specifier: string, files: ReadonlySet<string>): string | undefined {
   const workspace = /^@erpx\/([^/]+)\/(.+)$/.exec(specifier);
   if (!workspace && !specifier.startsWith(".") && !specifier.startsWith("@/")) return undefined;
-  const path = workspace ? `packages/${workspace[1]}/src/${workspace[2]}` : specifier.startsWith("@/") ? `src/${specifier.slice(2)}` : relative("/", resolve("/", dirname(from), specifier)).replaceAll("\\", "/");
+  const path = workspace ? `${workspaceSpecifierDirectory(workspace[1])}/src/${workspace[2]}` : specifier.startsWith("@/") ? `src/${specifier.slice(2)}` : relative("/", resolve("/", dirname(from), specifier)).replaceAll("\\", "/");
   const stem = /\.[cm]?js$/.test(path) ? path.replace(/\.[cm]?js$/, "") : path;
   return [path, ...[".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".json"].map(extension => stem + extension), ...[".ts", ".tsx", ".js", ".mjs"].map(extension => `${path}/index${extension}`)].find(candidate => files.has(candidate));
 }
@@ -206,7 +207,7 @@ export function verificationSources(suites: readonly Suite[]) {
 
 export function validateCatalogue(catalogue: Catalogue, root = repositoryRoot): void {
   if (catalogue.version !== 1 || !Array.isArray(catalogue.modules) || !Array.isArray(catalogue.suites)) throw new Error("INVALID_TEST_MANIFEST");
-  const registered = (JSON.parse(readFileSync(resolve(root, "packages/catalogue/src/module-registry.json"), "utf8")) as { id: string }[]).map(module => module.id).sort();
+  const registered = (JSON.parse(readFileSync(resolve(root, "platform/catalogue/src/module-registry.json"), "utf8")) as { id: string }[]).map(module => module.id).sort();
   if (JSON.stringify([...catalogue.modules].sort()) !== JSON.stringify(registered)) throw new Error("TEST_MODULE_REGISTRY_MISMATCH");
   const ids = new Set<string>(), files = new Set<string>();
   const reachesDatabase = databaseFixtureTraversal(root);

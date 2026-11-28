@@ -1,14 +1,14 @@
 //! Disposable fixture authority only. This is not a production Identity,
 //! Commercial, release or foreign-source assembly.
-use erpx_server_finance::public::{FinanceActor, JournalError, journal_review::*};
-use erpx_server_runtime::public::postgres::{
+use erpx_finance_server::public::{FinanceActor, JournalError, journal_review::*};
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, Clock, CompanyId, FailureKind, HoldingId, IdentifierSource,
     RecordId, TimestampMillis, UserId,
 };
-use erpx_server_workflow::public::commands::{CommandActor, CommandField, WorkAuthority};
+use erpx_workflow_server::public::commands::{CommandActor, CommandField, WorkAuthority};
 use sqlx::{PgConnection, Row};
 use std::sync::{
     Arc,
@@ -70,7 +70,7 @@ pub async fn invoke(
         &mut ports,
         &actor,
         &JournalReviewCommand {
-            key: erpx_server_shared::public::CommandKey::new(key).unwrap(),
+            key: erpx_platform_shared_server::public::CommandKey::new(key).unwrap(),
             journal_id: RecordId::new(journal).unwrap(),
             input,
         },

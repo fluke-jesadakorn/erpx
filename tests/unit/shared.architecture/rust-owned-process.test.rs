@@ -1,4 +1,4 @@
-use erpx_server_runtime::public::owned_process::{
+use erpx_platform_runtime_server::public::owned_process::{
     OwnedProcessDirectory, OwnedProcessError, OwnedProcessLimits, OwnedProcessRequest,
     OwnedProcessRunner, apply_owned_process_resource_limits,
 };

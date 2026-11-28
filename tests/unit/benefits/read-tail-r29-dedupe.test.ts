@@ -4,7 +4,7 @@ import { createServer, type Server } from 'node:http';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 vi.mock('server-only', () => ({}));
-import { benefitExistsHead, benefitSourceProbe } from '../../../packages/server-benefits/src/adapters/benefits-read-sql';
+import { benefitExistsHead, benefitSourceProbe } from '../../../modules/benefits/server/src/adapters/benefits-read-sql';
 import {
   benefitOwnerReadConfiguration,
   createBenefitOwnerReadClient,
@@ -13,10 +13,10 @@ import {
   RD_ATTACHMENT_BENEFIT_DEPENDENTS,
   RD_ATTACHMENT_BENEFIT_ELECTIONS,
   readBenefitReadReply,
-} from '../../../packages/server-benefits/src/adapters/native-benefit-read';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+} from '../../../modules/benefits/server/src/adapters/native-benefit-read';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-benefits/src');
+const srcRoot = resolve(__dirname, '../../../modules/benefits/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const sha = (sql: string) => createHash('sha256').update(sql).digest('hex');
 
@@ -98,7 +98,7 @@ describe('benefits read-tail r29 exists-head extension dedupe', () => {
       // The only native_ token is the wave-3 doc comment naming the Rust reader
       // that succeeded the retired payroll-input SELECT; it carries no import.
       expect((src(name).match(/native_/g) ?? []).length, name).toBeLessThanOrEqual(name === 'benefits-read-sql.ts' ? 1 : 0);
-      expect(src(name), name).not.toContain('@erpx/server-benefits/adapters/benefits-native-read');
+      expect(src(name), name).not.toContain('@erpx/benefits-server/adapters/benefits-native-read');
     }
     for (const [name, count, mode] of [
       ['purchases.ts', 1, 'IN SHARE ROW EXCLUSIVE MODE'],

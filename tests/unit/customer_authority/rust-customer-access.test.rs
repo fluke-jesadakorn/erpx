@@ -2,13 +2,13 @@
 mod access_sources_cases;
 mod sales_review_counts_cases;
 
-use erpx_server_customer_authority::public::access::{
+use erpx_customer_authority_server::public::access::{
     AccessActor, AccessBindingRow, AccessChange, AccessEventRow, AccessFuture, AccessOrder,
     AccessReadRow, AccessReceipt, AccessRequest, AccessSourceRow, ChangePlan,
     CustomerAccessCommandRepository, CustomerAccessReadRepository, ReceiptSnapshot, RequestPlan,
     access_detail, access_workspace, change_access, request_access,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, RecordId, UserId,
 };
 use serde_json::Value;
@@ -483,7 +483,7 @@ fn request_commits_the_exact_source_bound_plan_and_replays() {
 fn approve_requires_an_independent_active_reviewer_and_current_source() {
     let mut fake = Fake::ready();
     let change = AccessChange {
-        action: erpx_server_customer_authority::public::access::AccessAction::Approve,
+        action: erpx_customer_authority_server::public::access::AccessAction::Approve,
         expected_version: 1,
         reason: "Independent source-bound approval".into(),
     };
@@ -564,7 +564,7 @@ fn approve_requires_an_independent_active_reviewer_and_current_source() {
 fn reject_and_revoke_preserve_cas_and_requester_or_manager_authority() {
     let mut fake = Fake::ready();
     let stale = AccessChange {
-        action: erpx_server_customer_authority::public::access::AccessAction::Reject,
+        action: erpx_customer_authority_server::public::access::AccessAction::Reject,
         expected_version: 2,
         reason: "Stale decision".into(),
     };
@@ -580,7 +580,7 @@ fn reject_and_revoke_preserve_cas_and_requester_or_manager_authority() {
     assert_eq!(error.code, "CUSTOMER_ACCESS_CHANGED");
 
     let reject = AccessChange {
-        action: erpx_server_customer_authority::public::access::AccessAction::Reject,
+        action: erpx_customer_authority_server::public::access::AccessAction::Reject,
         expected_version: 1,
         reason: "Independent rejection".into(),
     };
@@ -598,7 +598,7 @@ fn reject_and_revoke_preserve_cas_and_requester_or_manager_authority() {
 
     let mut fake = Fake::ready();
     let revoke = AccessChange {
-        action: erpx_server_customer_authority::public::access::AccessAction::Revoke,
+        action: erpx_customer_authority_server::public::access::AccessAction::Revoke,
         expected_version: 1,
         reason: "Requester withdrew access".into(),
     };

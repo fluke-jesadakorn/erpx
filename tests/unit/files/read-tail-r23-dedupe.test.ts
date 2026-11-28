@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { hospitalityOwnerProjectionSources } from '@erpx/server-commerce/public/hospitality-owner-projection-sources';
-import { COMMERCE_DELIVERY_GUARD_SQL } from '../../../packages/server-files/src/adapters/commerce-delivery-dedupe-sql';
-import { ATTACHMENT_ID_AND_HEAD_SQL } from '../../../packages/server-files/src/adapters/read-tail-r43-source-sql';
+import { hospitalityOwnerProjectionSources } from '@erpx/commerce-server/public/hospitality-owner-projection-sources';
+import { COMMERCE_DELIVERY_GUARD_SQL } from '../../../modules/files/server/src/adapters/commerce-delivery-dedupe-sql';
+import { ATTACHMENT_ID_AND_HEAD_SQL } from '../../../modules/files/server/src/adapters/read-tail-r43-source-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-files/src');
+const srcRoot = resolve(__dirname, '../../../modules/files/server/src');
 const adapterDir = resolve(srcRoot, 'adapters');
 const src = (name: string) => readFileSync(resolve(adapterDir, name), 'utf8');
 

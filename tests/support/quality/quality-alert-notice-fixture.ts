@@ -8,7 +8,7 @@
  * Tracked for removal by `migrate.quality.alert-notice-worker`: delete once the
  * integration harness seeds notices through the native worker result directly.
  */
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
 
 export async function seedQualityAlertNotices(db: SqlDatabase, now: number): Promise<void> {
   await db.prepare(`INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)

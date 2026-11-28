@@ -1,3 +1,0 @@
-export {collaborationWorkspace,collaborationExport,collaborationActionDetail,collaborationActionWork} from '@erpx/server-collaboration/adapters/collaboration-work';export type {Row,Source,Card} from '@erpx/server-collaboration/domain/collaboration-work';
-
-export {nativeFieldCollaborationCommand} from '../adapters/field-command-owner';

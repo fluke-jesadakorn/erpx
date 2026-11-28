@@ -2,13 +2,13 @@
 //! Selected IAM, Workflow ledger and browser acceptance remain separate gates.
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_collaboration::public::collaboration_work::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_collaboration_server::public::collaboration_work::*;
+use erpx_platform_runtime_server::public::postgres::{
     MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions, load_migrations,
     migrate_database,
 };
-use erpx_server_shared::public::record_source_contract::{SourceKind, SourceRecord};
-use erpx_server_shared::public::{BusinessError, CommandKey, CompanyId};
+use erpx_platform_shared_server::public::record_source_contract::{SourceKind, SourceRecord};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey, CompanyId};
 fn actor() -> AuthorizedActor {
     AuthorizedActor {
         user_id: "synthetic-reviewer".into(),
@@ -19,7 +19,7 @@ fn actor() -> AuthorizedActor {
 
 #[tokio::test]
 async fn push_preferences_preserve_enabled_and_roll_back_on_source_drift() {
-    use erpx_server_collaboration::public::web_push::{CurrentPushPreferenceAuthority, lock_push_preference_sources, parse_push_preferences, save_push_preferences};
+    use erpx_collaboration_server::public::web_push::{CurrentPushPreferenceAuthority, lock_push_preference_sources, parse_push_preferences, save_push_preferences};
     use sqlx::PgConnection;
     struct SyntheticAuthority;
     impl CurrentPushPreferenceAuthority for SyntheticAuthority {
@@ -137,7 +137,7 @@ async fn action_effects_preserve_stored_scope_and_notice_tampering_rolls_back() 
 
 #[tokio::test]
 async fn card_history_returns_versioned_events_with_scope_authority() {
-    use erpx_server_collaboration::public::collaboration_work::CardAction;
+    use erpx_collaboration_server::public::collaboration_work::CardAction;
     fixture::with_database(2, |pool| async move {
         let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
@@ -221,7 +221,7 @@ async fn card_history_statement_matches_retained_read_with_scope_guard() {
 
 async fn run_statement(
     c: &mut sqlx::PgConnection,
-    statement: &erpx_server_collaboration::public::notification_statement::NotificationStatement,
+    statement: &erpx_collaboration_server::public::notification_statement::NotificationStatement,
 ) -> Result<Vec<serde_json::Value>, PgTransactionError<BusinessError>> {
     // The bridge carries `?` binds like every caller-executed statement; the
     // TypeScript runtime numbers them, so the parity probe does the same.
@@ -245,7 +245,7 @@ async fn run_statement(
     }
     let raws: Vec<String> = query.fetch_all(&mut *c).await?;
     raws.into_iter()
-        .map(|raw| serde_json::from_str(&raw).map_err(|_| PgTransactionError::Business(BusinessError::new(erpx_server_shared::public::FailureKind::InvalidInput, "COLLABORATION_CARD_HISTORY_INVALID", "The card history could not be read."))))
+        .map(|raw| serde_json::from_str(&raw).map_err(|_| PgTransactionError::Business(BusinessError::new(erpx_platform_shared_server::public::FailureKind::InvalidInput, "COLLABORATION_CARD_HISTORY_INVALID", "The card history could not be read."))))
         .collect()
 }
 
@@ -346,7 +346,7 @@ async fn workspace_statements_match_retained_reads_with_scope_guard() {
 
 #[tokio::test]
 async fn pos_registers_statement_matches_retained_read_with_scope_guard() {
-    use erpx_server_collaboration::public::notification_statement::pos_registers_statement;
+    use erpx_collaboration_server::public::notification_statement::pos_registers_statement;
     fixture::with_database(2, |pool| async move {
         let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
@@ -397,7 +397,7 @@ async fn pos_registers_statement_matches_retained_read_with_scope_guard() {
 
 async fn run_rows_statement(
     c: &mut sqlx::PgConnection,
-    statement: &erpx_server_collaboration::public::notification_statement::NotificationStatement,
+    statement: &erpx_collaboration_server::public::notification_statement::NotificationStatement,
 ) -> Result<Vec<serde_json::Value>, PgTransactionError<BusinessError>> {
     let values: Vec<Option<String>> = statement
         .values
@@ -433,7 +433,7 @@ async fn run_rows_raw(
     }
     let raws: Vec<String> = query.fetch_all(&mut *c).await?;
     raws.into_iter()
-        .map(|raw| serde_json::from_str(&raw).map_err(|_| PgTransactionError::Business(BusinessError::new(erpx_server_shared::public::FailureKind::InvalidInput, "COLLABORATION_WORKSPACE_INVALID", "The workspace could not be read."))))
+        .map(|raw| serde_json::from_str(&raw).map_err(|_| PgTransactionError::Business(BusinessError::new(erpx_platform_shared_server::public::FailureKind::InvalidInput, "COLLABORATION_WORKSPACE_INVALID", "The workspace could not be read."))))
         .collect()
 }
 
@@ -456,13 +456,13 @@ async fn run_raw(
     }
     let raws: Vec<String> = query.fetch_all(&mut *c).await?;
     raws.into_iter()
-        .map(|raw| serde_json::from_str(&raw).map_err(|_| PgTransactionError::Business(BusinessError::new(erpx_server_shared::public::FailureKind::InvalidInput, "COLLABORATION_WORKSPACE_INVALID", "The workspace could not be read."))))
+        .map(|raw| serde_json::from_str(&raw).map_err(|_| PgTransactionError::Business(BusinessError::new(erpx_platform_shared_server::public::FailureKind::InvalidInput, "COLLABORATION_WORKSPACE_INVALID", "The workspace could not be read."))))
         .collect()
 }
 
 #[tokio::test]
 async fn brand_attachment_statements_match_retained_reads() {
-    use erpx_server_collaboration::public::notification_statement::{
+    use erpx_collaboration_server::public::notification_statement::{
         brand_attachment_image_statement, brand_organization_image_statement,
     };
     fixture::with_database(2, |pool| async move {
@@ -535,7 +535,7 @@ async fn brand_attachment_statements_match_retained_reads() {
 
 async fn run_image_text(
     c: &mut sqlx::PgConnection,
-    statement: &erpx_server_collaboration::public::notification_statement::NotificationStatement,
+    statement: &erpx_collaboration_server::public::notification_statement::NotificationStatement,
 ) -> Result<serde_json::Value, PgTransactionError<BusinessError>> {
     let values: Vec<Option<String>> = statement
         .values
@@ -569,7 +569,7 @@ async fn run_text_raw(
     let raw: String = query.fetch_one(&mut *c).await?;
     serde_json::from_str(&raw).map_err(|_| {
         PgTransactionError::Business(BusinessError::new(
-            erpx_server_shared::public::FailureKind::InvalidInput,
+            erpx_platform_shared_server::public::FailureKind::InvalidInput,
             "BRAND_ATTACHMENT_IMAGE_INVALID",
             "The Brand image could not be read.",
         ))
@@ -578,7 +578,7 @@ async fn run_text_raw(
 
 #[tokio::test]
 async fn pos_sale_statement_matches_retained_read() {
-    use erpx_server_collaboration::public::notification_statement::pos_sale_statement;
+    use erpx_collaboration_server::public::notification_statement::pos_sale_statement;
     fixture::with_database(2, |pool| async move {
         let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
@@ -610,7 +610,7 @@ async fn pos_sale_statement_matches_retained_read() {
 
 #[tokio::test]
 async fn pos_settings_statement_matches_retained_read() {
-    use erpx_server_collaboration::public::notification_statement::pos_settings_statement;
+    use erpx_collaboration_server::public::notification_statement::pos_settings_statement;
     fixture::with_database(2, |pool| async move {
         let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
@@ -636,7 +636,7 @@ async fn pos_settings_statement_matches_retained_read() {
 
 #[tokio::test]
 async fn pos_registers_front_statement_matches_retained_read() {
-    use erpx_server_collaboration::public::notification_statement::pos_registers_front_statement;
+    use erpx_collaboration_server::public::notification_statement::pos_registers_front_statement;
     fixture::with_database(2, |pool| async move {
         let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();

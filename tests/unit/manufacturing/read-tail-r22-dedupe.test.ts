@@ -7,9 +7,9 @@ import {
   MANUFACTURING_RD_ORDER_POSTINGS,
   MANUFACTURING_RD_ORDER_OPERATIONS,
   MANUFACTURING_RD_LOT_GENEALOGY,
-} from '../../../packages/server-manufacturing/src/adapters/native-manufacturing-read';
+} from '../../../modules/manufacturing/server/src/adapters/native-manufacturing-read';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-manufacturing/src');
+const srcRoot = resolve(__dirname, '../../../modules/manufacturing/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const registry = readFileSync(resolve(srcRoot, 'public/native_command.rs'), 'utf8');
 const transport = readFileSync(resolve(srcRoot, 'adapters/native-manufacturing-read.ts'), 'utf8');

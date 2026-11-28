@@ -6,14 +6,14 @@ import {
   ATTACHMENT_STAR_ID_HEAD_SQL,
   SCAN_ATTEMPTS_OR_EXISTS_HEAD_SQL,
   UPLOAD_INTENTS_EXISTS_HEAD_SQL,
-} from '../../../packages/server-files/src/adapters/read-tail-r44-source-sql';
+} from '../../../modules/files/server/src/adapters/read-tail-r44-source-sql';
 
 const rootDir = resolve(__dirname, '../../..');
-const srcRoot = resolve(rootDir, 'packages/server-files/src');
+const srcRoot = resolve(rootDir, 'modules/files/server/src');
 const BASE = 'dd8cd38740b0c70d6be208771fe5c3dc13e83850';
 const src = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
 const git = (...a: string[]) => execFileSync('git', a, { cwd: rootDir, encoding: 'utf8' });
-const before = (rel: string) => git('show', `${BASE}:packages/server-files/src/${rel}`);
+const before = (rel: string) => git('show', `${BASE}:modules/files/server/src/${rel}`);
 const count = (text: string, needle: string) => text.split(needle).length - 1;
 const norm = (text: string) => text.replace(/\s+/g, ' ').trim();
 

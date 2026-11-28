@@ -6,9 +6,9 @@ import {
   eventFactArm,
   projectReceiptEventProof,
   projectPackageActualProof,
-} from '../../../packages/server-projects/src/adapters/package-obligations';
+} from '../../../modules/projects/server/src/adapters/package-obligations';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-projects/src');
+const srcRoot = resolve(__dirname, '../../../modules/projects/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 // Verbatim pre-r36 emitted fragments captured from HEAD before the edit.

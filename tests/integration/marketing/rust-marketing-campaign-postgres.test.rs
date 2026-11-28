@@ -6,16 +6,16 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_marketing::public::campaign_attribution::{
+use erpx_marketing_server::public::campaign_attribution::{
     CandidateProvenance, MarketingAttributionMode, MarketingCampaignActor,
     MarketingCampaignEntitlement, MarketingCampaignEntitlementPort, MarketingCampaignFuture,
     PgMarketingCampaignRead, lock_campaign_attribution_sources, marketing_campaign_report,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, RecordId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, RecordId, TimestampMillis};
 use sqlx::Acquire;
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
@@ -718,17 +718,17 @@ async fn campaign_source_bounds_reject_excess_rows() {
 mod lead_candidate_commands {
     use super::fixture;
     use super::setup;
-    use erpx_server_marketing::public::lead_candidate::{
+    use erpx_marketing_server::public::lead_candidate::{
         MarketingAssetReviewInput, MarketingCampaignCreateInput, MarketingCrmHandoffPort,
         MarketingCrmLeadRequest, MarketingCrmLeadResult, MarketingLeadActionInput,
         MarketingLeadActor, MarketingLeadCandidateInput, PgMarketingLead, asset_profiles,
         create_asset, create_campaign, create_candidate, handoff_candidate, lead_candidates,
         lead_detail, record_engagement, review_asset,
     };
-    use erpx_server_runtime::public::postgres::{
+    use erpx_platform_runtime_server::public::postgres::{
         PgTransactionError, PgUnitOfWork, PgWorkFuture, TransactionOptions,
     };
-    use erpx_server_shared::public::{BusinessError, RecordId, TimestampMillis};
+    use erpx_platform_shared_server::public::{BusinessError, RecordId, TimestampMillis};
     use sqlx::PgConnection;
     use std::collections::BTreeMap;
     use std::sync::{Arc, Mutex};
@@ -801,7 +801,7 @@ mod lead_candidate_commands {
         }
     }
 
-    async fn add_iam(pool: &erpx_server_runtime::public::postgres::DatabasePool) {
+    async fn add_iam(pool: &erpx_platform_runtime_server::public::postgres::DatabasePool) {
         sqlx::raw_sql(
             "INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status,hierarchy_revision) VALUES \
              ('company','company','company','Company',NULL,'company',NULL,'active',1),\
@@ -1561,7 +1561,7 @@ mod lead_candidate_commands {
             add_iam(&pool).await;
             let actor = lead_actor("owner", "assignment-owner");
             let content =
-                erpx_server_marketing::public::lead_candidate::MarketingAssetCreateInput {
+                erpx_marketing_server::public::lead_candidate::MarketingAssetCreateInput {
                     kind: "content".into(),
                     name: "Approved content draft".into(),
                     configuration_json: "{}".into(),
@@ -1605,7 +1605,7 @@ mod lead_candidate_commands {
                 .unwrap();
             assert_eq!(replay, receipt);
 
-            let form = erpx_server_marketing::public::lead_candidate::MarketingAssetCreateInput {
+            let form = erpx_marketing_server::public::lead_candidate::MarketingAssetCreateInput {
                 kind: "form".into(),
                 name: "Consented form".into(),
                 configuration_json: "{\"consentRequired\":true}".into(),
@@ -1629,7 +1629,7 @@ mod lead_candidate_commands {
                 .await
                 .unwrap();
             let missing_consent =
-                erpx_server_marketing::public::lead_candidate::MarketingAssetCreateInput {
+                erpx_marketing_server::public::lead_candidate::MarketingAssetCreateInput {
                     kind: "form".into(),
                     name: "No consent".into(),
                     configuration_json: "{}".into(),
@@ -1677,14 +1677,14 @@ mod lead_candidate_commands {
     }
 
     async fn review_once(
-        pool: &erpx_server_runtime::public::postgres::DatabasePool,
+        pool: &erpx_platform_runtime_server::public::postgres::DatabasePool,
         actor: MarketingLeadActor,
         asset: &str,
         action: &str,
         expected_version: i64,
         key: &str,
     ) -> Result<
-        erpx_server_marketing::public::lead_candidate::MarketingCommandReceipt,
+        erpx_marketing_server::public::lead_candidate::MarketingCommandReceipt,
         PgTransactionError<BusinessError>,
     > {
         let asset = asset.to_owned();

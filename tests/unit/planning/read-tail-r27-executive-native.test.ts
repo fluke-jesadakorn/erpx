@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-planning/src');
+const srcRoot = resolve(__dirname, '../../../modules/planning/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const pub = (name: string) => readFileSync(resolve(srcRoot, 'public', name), 'utf8');
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;

@@ -6,31 +6,31 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_crm::public::accounts::{
+use erpx_crm_server::public::accounts::{
     AccountLinkFinanceActor, AccountLinkFinanceInput, PgCrmAccountCreate, link_account_finance,
 };
-use erpx_server_crm::public::activities_native::{
+use erpx_crm_server::public::activities_native::{
     ActivityActor, ActivityChangeInput, ActivityCreateInput, PgCrmActivityCommands,
     change_activity, create_activity,
 };
-use erpx_server_crm::public::activity_source::{
+use erpx_crm_server::public::activity_source::{
     CrmActivitySourceKind, CrmActivitySourceRequest, inspect_crm_activity_source, inspect_crm_activity_recipient_source,
     lock_crm_activity_sources, CrmReviewedAccountLinkRequest,
     inspect_crm_reviewed_account_link, lock_crm_reviewed_account_link_sources,
 };
-use erpx_server_crm::public::leads_native::{
+use erpx_crm_server::public::leads_native::{
     LeadActor, LeadChangeInput, LeadCreateInput, OpportunityChangeInput, PgCrmLeadCommands, apply_crm_qualification, apply_crm_qualification_retained, change_lead, create_lead,
 };
-use erpx_server_crm::public::pipeline::{
+use erpx_crm_server::public::pipeline::{
     CrmPipelineActor, CrmPipelineCustomerDirectory, CrmPipelineEntitlement,
     CrmPipelineEntitlementPort, CrmPipelineFuture, CrmPipelinePeopleDirectory, CrmPipelineQuery,
     PgCrmPipelineRead, crm_pipeline,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, RecordId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, RecordId, TimestampMillis};
 use std::collections::BTreeMap;
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
@@ -863,7 +863,7 @@ async fn activity_recipient_witness_uses_retained_lead_owner_and_selected_scope(
         source.require_current(&mut tx).await.unwrap();
         let oracle=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
             .current_dir(concat!(env!("CARGO_MANIFEST_DIR"),"/../.."))
-            .args(["--conditions=react-server","-e","import {salesRecipientEligibility} from './packages/server-sales/src/adapters/recipient.ts'; process.stdout.write(salesRecipientEligibility('l','l.owner_id'))"])
+            .args(["--conditions=react-server","-e","import {salesRecipientEligibility} from './modules/sales/server/src/adapters/recipient.ts'; process.stdout.write(salesRecipientEligibility('l','l.owner_id'))"])
             .output().unwrap();
         assert!(oracle.status.success());
         let predicate=String::from_utf8(oracle.stdout).unwrap();
@@ -1071,11 +1071,11 @@ async fn activity_reassign_stages_cas_event_and_rollback_in_original_unit() {
         assert_eq!(business(PgCrmActivityCommands::new(&mut tx).prepare_reassign(&wrong,"reassign-source","wrong",&input).await.err().unwrap()).code,"CRM_ACTIVITY_NOT_FOUND");
         let mut stale=input.clone();stale.expected_version=2;
         assert_eq!(business(PgCrmActivityCommands::new(&mut tx).prepare_reassign(&actor,"reassign-source","stale",&stale).await.err().unwrap()).code,"CONFLICT");
-        let prepared:erpx_server_crm::public::activities_native::PreparedCrmActivityReassign=PgCrmActivityCommands::new(&mut tx).prepare_reassign(&actor,"reassign-source","reassign-1",&input).await.unwrap();
+        let prepared:erpx_crm_server::public::activities_native::PreparedCrmActivityReassign=PgCrmActivityCommands::new(&mut tx).prepare_reassign(&actor,"reassign-source","reassign-1",&input).await.unwrap();
         assert_eq!((prepared.owner_id(),prepared.due_date(),prepared.expected_version()),("new-owner","2026-12-05",1));
-        let retained:erpx_server_crm::public::activities_native::RetainedCrmActivityReassign=PgCrmActivityCommands::new(&mut tx).apply_reassign(prepared,1234).await.unwrap();
+        let retained:erpx_crm_server::public::activities_native::RetainedCrmActivityReassign=PgCrmActivityCommands::new(&mut tx).apply_reassign(prepared,1234).await.unwrap();
         retained.require_current(&mut tx).await.unwrap();
-        let notification:erpx_server_crm::public::activities_native::CrmReassignNotificationFacts=retained.notification_facts();
+        let notification:erpx_crm_server::public::activities_native::CrmReassignNotificationFacts=retained.notification_facts();
         assert_eq!((notification.command_key.as_str(),notification.company_id.as_str(),notification.recipient.as_str(),notification.activity_id.as_str(),notification.version,notification.status,notification.updated_at),("reassign-1","company","new-owner","reassign-source",2,"open",1234));
         let row:(String,String,String,Option<String>,i64,i64)=sqlx::query_as("SELECT owner_id,due_date,status,outcome,version,updated_at FROM public.crm_lead_activities WHERE id='reassign-source'").fetch_one(&mut *tx).await.unwrap();
         assert_eq!(row,("new-owner".into(),"2026-12-05".into(),"open".into(),None,2,1234));
@@ -1086,7 +1086,7 @@ async fn activity_reassign_stages_cas_event_and_rollback_in_original_unit() {
         // normalization of the same raw reassign input.
         let oracle=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
             .current_dir(concat!(env!("CARGO_MANIFEST_DIR"),"/../.."))
-            .args(["--conditions=react-server","-e",r#"const m=await import('./packages/server-crm/src/domain/activities.ts'); const p=m.crmActivityChangeSchema.safeParse({action:'reassign',expectedVersion:1,ownerId:'new-owner',dueDate:'2026-12-05',reason:'  Handoff  ',unknown:'discard'}); process.stdout.write(JSON.stringify(p.success?p.data:null))"#])
+            .args(["--conditions=react-server","-e",r#"const m=await import('./modules/crm/server/src/domain/activities.ts'); const p=m.crmActivityChangeSchema.safeParse({action:'reassign',expectedVersion:1,ownerId:'new-owner',dueDate:'2026-12-05',reason:'  Handoff  ',unknown:'discard'}); process.stdout.write(JSON.stringify(p.success?p.data:null))"#])
             .output().unwrap();
         assert!(oracle.status.success(),"TS activity schema oracle failed");
         let oracle:serde_json::Value=serde_json::from_slice(&oracle.stdout).unwrap();
@@ -2249,7 +2249,7 @@ async fn lead_and_opportunity_require_exact_owner_even_for_identity_alias() {
     // obtain its actual ownership decisions. The native checks below use the
     // real migrated PostgreSQL owner rows, not this oracle repository.
     let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let module=root.join("packages/server-crm/src/application/leads.ts");
+    let module=root.join("modules/crm/server/src/application/leads.ts");
     let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const m=await import(process.argv[1]);const row={id:'lead',owner_id:'owner',status:'open',stage:'discovery',opportunity_id:'opp'};const repo={records:async()=>[row],replay:async()=>null,commit:async()=>({ok:true})};const app=m.createCRMApplication({actorId:'alias',canRead:true,canSales:true,canApprove:false,canPms:false,canSupport:false,clock:{now:()=>1},authorize:()=>{},repository:async()=>repo,activityWork:async()=>[]});const result=[];for(const run of [()=>app.changeLead('lead',{action:'disqualify',expectedVersion:1,reason:'Not ready'},'test-command'),()=>app.changeOpportunity('lead',{action:'lose',expectedVersion:1,leadVersion:2,lossReason:'other',reason:'Not ready'},'test-command')]){try{await run();result.push('allowed')}catch(e){result.push(e.code)}}process.stdout.write(JSON.stringify(result));"#;
     let oracle=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(root).args(["--conditions=react-server","-e",script]).arg(module).output().unwrap();
     assert!(oracle.status.success(),"actual CRM application oracle: {}",String::from_utf8_lossy(&oracle.stderr));
@@ -2273,7 +2273,7 @@ async fn lead_and_opportunity_require_exact_owner_even_for_identity_alias() {
 
 #[tokio::test]
 async fn sales_report_preserves_bangkok_cohort_scope_and_source_availability() {
-    use erpx_server_crm::public::sales_report::{
+    use erpx_crm_server::public::sales_report::{
         SalesReportAccess, SalesReportQuery, SalesReportScope, read_sales_report,
     };
     use serde_json::json;

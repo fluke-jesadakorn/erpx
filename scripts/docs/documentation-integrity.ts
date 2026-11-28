@@ -27,7 +27,7 @@ export function documentationFiles(root: string): string[] {
 
 /** Deleted working-tree files may remain in the index until the user stages them. */
 export function trackedTemporaryFiles(root: string): string[] {
-  return execFileSync("git", ["ls-files", "-z", "--", ".scratch", ".tmp"], { cwd: root, encoding: "utf8" })
+  return execFileSync("git", ["ls-files", "-z", "--", ".scratch", ".tmp", ":(top,glob).scratch-*", ":(top,glob).scratch-*/**"], { cwd: root, encoding: "utf8" })
     .split("\0").filter(name => name && existsSync(resolve(root, name))).sort();
 }
 

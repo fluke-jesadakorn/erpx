@@ -6,15 +6,15 @@ import {env,applyMigrations} from '../../support/runtime-env';
 import {seedExpenseCompany} from '../../../fixtures/expenses/company';
 const requestContext=vi.hoisted(()=>({headers:new Headers()}));
 vi.mock('next/headers',()=>({headers:async()=>requestContext.headers}));
-vi.mock("@erpx/server-runtime/adapters/runtime",async original=>({...await original<typeof import("@erpx/server-runtime/adapters/runtime")>(),runtimeEnv:async()=>env,holdingBindingBySlug:async(slug:string)=>{if(slug!=='test')throw Error('Original test Holding required');return {id:'h001',slug:'test',displayName:'Test'};},holdingResources:async(id:string)=>{if(id!=='h001')throw Error('Original test Holding required');return {write:env.H001_DB,files:env.H001_FILES};}}));
-import {POST} from '@erpx/feature-legal-portal/routes/api/legal-portal/[holdingSlug]/[[...path]]/route';
-import {createAuth} from '@erpx/server-identity_access/public/auth';
-import {productSsoRequest} from '@erpx/server-identity_access/public/product-sso';
-import {legalCommand,detail,hash} from '@erpx/server-legal/public/legal/service';
-import {access} from '@erpx/server-legal/public/legal/access';
-import {queueLegalAi} from '@erpx/server-legal/public/legal/jobs';
-import {queueInspection} from '@erpx/server-legal/public/legal/processing';
-import {measureReads} from '@erpx/server-runtime/public/runtime/read-metrics';
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",async original=>({...await original<typeof import("@erpx/platform-runtime-server/adapters/runtime")>(),runtimeEnv:async()=>env,holdingBindingBySlug:async(slug:string)=>{if(slug!=='test')throw Error('Original test Holding required');return {id:'h001',slug:'test',displayName:'Test'};},holdingResources:async(id:string)=>{if(id!=='h001')throw Error('Original test Holding required');return {write:env.H001_DB,files:env.H001_FILES};}}));
+import {POST} from '@erpx/product-legal-portal-ui/routes/api/legal-portal/[holdingSlug]/[[...path]]/route';
+import {createAuth} from '@erpx/identity-access-server/public/auth';
+import {productSsoRequest} from '@erpx/identity-access-server/public/product-sso';
+import {legalCommand,detail,hash} from '@erpx/legal-server/public/legal/service';
+import {access} from '@erpx/legal-server/public/legal/access';
+import {queueLegalAi} from '@erpx/legal-server/public/legal/jobs';
+import {queueInspection} from '@erpx/legal-server/public/legal/processing';
+import {measureReads} from '@erpx/platform-runtime-server/public/runtime/read-metrics';
 const holding=env.H001_DB,control=env.CONTROL_DB,issuer='https://account-dev-erpx.jesadakorn.com',portal='https://legal-portal-dev-erpx.jesadakorn.com';
 beforeAll(async()=>{await applyMigrations(control,env.CONTROL_TEST_MIGRATIONS);await applyMigrations(holding,env.STAFF_TEST_MIGRATIONS);vi.stubEnv('ERPX_ENVIRONMENT','local');vi.stubEnv('ERPX_PRODUCT_ENVIRONMENT','development');vi.stubEnv('ERPX_PRODUCT_ROUTING','enabled');vi.stubEnv('ERPX_PRODUCT_SSO','enabled');vi.stubEnv('ERPX_LEGAL_PACKAGE_ENFORCEMENT','disabled');});
 afterAll(()=>vi.unstubAllEnvs());
@@ -22,7 +22,7 @@ function request(origin:string,path:string,cookie='',method='GET',body?:unknown)
 const cookies=(response:Response)=>response.headers.getSetCookie().map(value=>value.split(';')[0]).join('; ');
 async function normalPortalAccount(){
  const userId=randomUUID(),email=userId+'@example.test',now=Date.now(),password='Fictional-Legal-Queue-Ordering-2026!';await control.prepare('INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES(?,?,?,1,?,?)').bind(userId,'Original external contract recipient',email,now,now).run();await control.prepare('INSERT INTO account(id,"accountId","providerId","userId",password,"createdAt","updatedAt",issuer) VALUES(?,?,\'credential\',?,?,?,?,\'local:credential\')').bind(randomUUID(),userId,userId,await nativeTestPasswordHash(password),now,now).run();
- const signedIn=await(await import("@erpx/server-identity_access/public/native-account-http")).nativeAccountHttp(request(issuer,'/api/auth/sign-in/email','','POST',{email,password}));expect(signedIn.status).toBe(200);const central=cookies(signedIn),start=await productSsoRequest(request(portal,'/sso/start?next='+encodeURIComponent('/legal-portal/test')),'start');expect(start.status).toBe(303);const authorizeUrl=new URL(start.headers.get('location')!),authorized=await productSsoRequest(request(issuer,authorizeUrl.pathname+authorizeUrl.search,central),'authorize');expect(authorized.status).toBe(303);const callbackUrl=new URL(authorized.headers.get('location')!),callback=await productSsoRequest(request(portal,callbackUrl.pathname+callbackUrl.search,cookies(start)),'callback');expect(callback.status).toBe(303);expect(await holding.prepare('SELECT 1 FROM assignments WHERE user_id=?').bind(userId).first()).toBeNull();expect(await control.prepare('SELECT 1 FROM platform_assignments WHERE user_id=?').bind(userId).first()).toBeNull();return {userId,email,cookie:cookies(callback)};
+ const signedIn=await(await import("@erpx/identity-access-server/public/native-account-http")).nativeAccountHttp(request(issuer,'/api/auth/sign-in/email','','POST',{email,password}));expect(signedIn.status).toBe(200);const central=cookies(signedIn),start=await productSsoRequest(request(portal,'/sso/start?next='+encodeURIComponent('/legal-portal/test')),'start');expect(start.status).toBe(303);const authorizeUrl=new URL(start.headers.get('location')!),authorized=await productSsoRequest(request(issuer,authorizeUrl.pathname+authorizeUrl.search,central),'authorize');expect(authorized.status).toBe(303);const callbackUrl=new URL(authorized.headers.get('location')!),callback=await productSsoRequest(request(portal,callbackUrl.pathname+callbackUrl.search,cookies(start)),'callback');expect(callback.status).toBe(303);expect(await holding.prepare('SELECT 1 FROM assignments WHERE user_id=?').bind(userId).first()).toBeNull();expect(await control.prepare('SELECT 1 FROM platform_assignments WHERE user_id=?').bind(userId).first()).toBeNull();return {userId,email,cookie:cookies(callback)};
 }
 
 it.each(['ai','inspection'] as const)('keeps actual disabled %s enqueue isolated from primary source writes while a normal Portal comment waits, without deadlock or retry',async kind=>{

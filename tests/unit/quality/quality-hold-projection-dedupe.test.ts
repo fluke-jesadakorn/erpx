@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { QUALITY_HOLD_SOURCE_SELECT, inventoryExecutiveOwnerProjections } from '../../../packages/server-quality/src/adapters/inventory-executive-owner-projections';
-import { inventoryQualitySnapshotSources } from '../../../packages/server-quality/src/adapters/inventory-quality-snapshot-sources';
-import { collaborationNotificationSnapshotSources } from '../../../packages/server-quality/src/adapters/collaboration-notification-snapshot-sources';
+import { QUALITY_HOLD_SOURCE_SELECT, inventoryExecutiveOwnerProjections } from '../../../modules/quality/server/src/adapters/inventory-executive-owner-projections';
+import { inventoryQualitySnapshotSources } from '../../../modules/quality/server/src/adapters/inventory-quality-snapshot-sources';
+import { collaborationNotificationSnapshotSources } from '../../../modules/quality/server/src/adapters/collaboration-notification-snapshot-sources';
 
 describe('quality hold projection dedupe', () => {
   it('owns one fixed SELECT over the full hold row', () => {

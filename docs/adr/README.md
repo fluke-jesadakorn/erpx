@@ -44,7 +44,7 @@ Reviewed 2026-10-03. Decisions retain their identifiers and original rationale; 
 
 Historical Rust terms and dated rollout evidence in older decisions apply to that archived implementation. Use [owner contracts](../contracts/next/README.md) and [catalogue workflows](../contracts/next/catalogue.md) for current coverage, not old phase or workspace counts.
 
-[Contract policy](../../CONTRACT_POLICY.md) requires a new ADR and [cutover](../../README.md#recovery) entry for a breaking interface. Unrelated documentation changes do not require schema/traceability changes. Cutover retains verified recovery refs for the removed Rust maps and plans.
+[Contract policy](../contracts/policy.md) requires a new ADR and [cutover](../../README.md#recovery) entry for a breaking interface. Unrelated documentation changes do not require schema/traceability changes. Cutover retains verified recovery refs for the removed Rust maps and plans.
 
 - [ADR-040 — Hospitality module ownership and Guest Accounts](ADR-040-hospitality-module-ownership-and-guest-accounts.md)
 
@@ -75,3 +75,5 @@ Historical Rust terms and dated rollout evidence in older decisions apply to tha
 - [ADR-053: Explicit PDF seed Key Usage prohibitions](ADR-053-explicit-pdf-seed-key-usage-prohibitions.md) — preserve explicit prohibitions and record the narrow legacy-oracle security exception.
 
 - [ADR-054: Competing delta CRLs](ADR-054-preserve-proved-revocation-across-competing-delta-crls.md) — preserve independently proved revocation and record its separate legacy-oracle exception.
+
+- [ADR-058: Module-first workspaces](ADR-058-module-first-workspaces.md)

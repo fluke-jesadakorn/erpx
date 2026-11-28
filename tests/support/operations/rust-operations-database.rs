@@ -1,6 +1,6 @@
 //! Operations-only disposable PostgreSQL lease. No uuid dependency is added;
 //! names use the process id and a monotonic nanosecond/counter token.
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabaseConfig, DatabasePool, PoolLimits, connect_pool,
 };
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row, postgres::PgConnectOptions};

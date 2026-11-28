@@ -2,12 +2,12 @@
 //! Domain validation + application state gates against an in-memory fake.
 //! No PostgreSQL, no purchase check, no HTTP. `reassign` is rejected here
 //! by design (TS-owned cross-owner eligibility join).
-use erpx_server_crm::public::activities_native::{
+use erpx_crm_server::public::activities_native::{
     ActivitiesFuture, ActivityActor, ActivityChangeInput, ActivityCreateInput, ActivityFacts,
     ActivityRepository, LeadFacts, change_activity, create_activity, validate_change,
     validate_create, prepare_activity_reassign,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind, TimestampMillis};
 use serde_json::json;
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
@@ -100,7 +100,7 @@ impl ActivityRepository for Fake {
         record_id: &'a str,
         _command_key: &'a str,
         _created_by: &'a str,
-        _plan: &'a erpx_server_crm::public::activities_native::ActivityCreatePlan,
+        _plan: &'a erpx_crm_server::public::activities_native::ActivityCreatePlan,
         _input: &'a ActivityCreateInput,
         _now: i64,
     ) -> ActivitiesFuture<'a, (), Self::Error> {
@@ -116,7 +116,7 @@ impl ActivityRepository for Fake {
         _actor_id: &'a str,
         _record: &'a ActivityFacts,
         _input: &'a ActivityChangeInput,
-        plan: &'a erpx_server_crm::public::activities_native::ActivityChangePlan,
+        plan: &'a erpx_crm_server::public::activities_native::ActivityChangePlan,
         _now: i64,
     ) -> ActivitiesFuture<'a, (), Self::Error> {
         self.updated = Some((record_id.to_owned(), plan.status.clone()));
@@ -376,7 +376,7 @@ async fn create_and_complete_round_trip_through_fake() {
 
 #[test]
 fn reassign_wire_input_matches_actual_ts_schema_order_and_normalization() {
-    use erpx_server_crm::public::activities_native::normalized_activity_reassign_input;
+    use erpx_crm_server::public::activities_native::normalized_activity_reassign_input;
     let cases=serde_json::json!([
         {"reason":"  Review handoff  ","unknown":{"nested":true},"dueDate":"2026-12-05","ownerId":"new-owner","expectedVersion":1,"action":"reassign"},
         {"action":"reassign","expectedVersion":1.0,"ownerId":"ผู้รับ😀","dueDate":"2000-02-29","reason":"\u{feff}ส่งต่อ😀\u{00a0}"},
@@ -390,14 +390,14 @@ fn reassign_wire_input_matches_actual_ts_schema_order_and_normalization() {
         {"action":"cancel","expectedVersion":1,"reason":"good"}
     ]);
     let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const m=await import(process.argv[1]);const cases=JSON.parse(process.argv[2]);process.stdout.write(JSON.stringify(cases.map(input=>{const r=m.crmActivityChangeSchema.safeParse(input);return r.success&&r.data.action==='reassign'?JSON.stringify(r.data):null})));"#;
-    let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");let module=root.join("packages/server-crm/src/domain/activities.ts");
+    let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");let module=root.join("modules/crm/server/src/domain/activities.ts");
     let output=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(root).args(["--conditions=react-server","-e",script]).arg(module).arg(cases.to_string()).output().unwrap();assert!(output.status.success(),"actual CRM TS schema unavailable");let expected:Vec<Option<String>>=serde_json::from_slice(&output.stdout).unwrap();
     for (index,value) in cases.as_array().unwrap().iter().enumerate(){let actual=serde_json::from_value::<ActivityChangeInput>(value.clone()).ok().and_then(|v|normalized_activity_reassign_input(&v).ok()).map(|v|serde_json::to_string(&v).unwrap());assert_eq!(actual,expected[index],"case {index}");}
 }
 
 #[test]
 fn reassign_utf16_normalization_matches_real_ts_zod_for_surrogates() {
-    use erpx_server_crm::public::activities_native::normalize_activity_reassign_utf16;
+    use erpx_crm_server::public::activities_native::normalize_activity_reassign_utf16;
     fn units(v:&str)->Vec<u16>{v.encode_utf16().collect()}
     let action=units("reassign");let date=units("2026-12-05");
     let cases:Vec<(Vec<u16>,i64,Vec<u16>,Vec<u16>,Vec<u16>)>=vec![
@@ -414,7 +414,7 @@ fn reassign_utf16_normalization_matches_real_ts_zod_for_surrogates() {
         (action,1,vec![97],date,vec![97;2001]),
     ];
     let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const m=await import(process.argv[1]);const cases=JSON.parse(process.argv[2]);const str=a=>String.fromCharCode(...a),units=s=>Array.from({length:s.length},(_,i)=>s.charCodeAt(i));process.stdout.write(JSON.stringify(cases.map(([action,version,owner,due,reason])=>{const r=m.crmActivityChangeSchema.safeParse({action:str(action),expectedVersion:version,ownerId:str(owner),dueDate:str(due),reason:str(reason),ignored:'strip'});return r.success&&r.data.action==='reassign'?{version:r.data.expectedVersion,owner:units(r.data.ownerId),due:units(r.data.dueDate),reason:units(r.data.reason)}:null})));"#;
-    let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");let module=root.join("packages/server-crm/src/domain/activities.ts");
+    let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");let module=root.join("modules/crm/server/src/domain/activities.ts");
     let output=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(root).args(["--conditions=react-server","-e",script]).arg(module).arg(serde_json::to_string(&cases).unwrap()).output().unwrap();assert!(output.status.success(),"actual CRM TS schema unavailable");let expected:Vec<serde_json::Value>=serde_json::from_slice(&output.stdout).unwrap();
     for (i,(action,version,owner,due,reason)) in cases.iter().enumerate(){let actual=normalize_activity_reassign_utf16(action,*version,owner,due,reason).ok().map(|v|serde_json::json!({"version":v.expected_version(),"owner":v.owner_id(),"due":v.due_date(),"reason":v.reason()})).unwrap_or(serde_json::Value::Null);assert_eq!(actual,expected[i],"case {i}");}
 }

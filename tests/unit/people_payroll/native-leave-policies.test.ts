@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
+import type { WorkContext } from '@erpx/identity-access-server/public/authorization';
 
 vi.mock('server-only', () => ({}));
 
-import { nativeActiveLeavePolicySettings, nativeLeavePolicySettingsHistory } from '../../../packages/server-people_payroll/src/adapters/native-leave-policies';
+import { nativeActiveLeavePolicySettings, nativeLeavePolicySettingsHistory } from '../../../modules/people-payroll/server/src/adapters/native-leave-policies';
 
 const config = JSON.stringify({
   privateBaseUrl: 'http://127.0.0.1:44991',

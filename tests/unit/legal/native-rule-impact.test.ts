@@ -8,7 +8,7 @@ import {
   type NativeRuleImpactActor,
   type NativeRuleImpactAuthority,
   type NativeRuleImpactRead,
-} from '../../../packages/server-legal/src/adapters/native-rule-impact/client';
+} from '../../../modules/legal/server/src/adapters/native-rule-impact/client';
 
 const ENV = 'ERPX_NATIVE_LEGAL_RULE_IMPACT_CONFIG';
 const HOLDINGS = [

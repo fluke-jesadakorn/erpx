@@ -3,18 +3,18 @@ mod fixture;
 #[path = "../../support/finance/journal-facts.rs"]
 mod journal_fixture;
 
-use erpx_server_finance::public::revenue_recognition::{
+use erpx_finance_server::public::revenue_recognition::{
     RevenueRecognitionInput, recognize_revenue,
 };
-use erpx_server_finance::public::sales_invoice_create::SalesInvoiceCommandActor;
-use erpx_server_finance::public::{
+use erpx_finance_server::public::sales_invoice_create::SalesInvoiceCommandActor;
+use erpx_finance_server::public::{
     FinanceActor, JournalDraft, JournalStatus, PgJournalStore, prepare_journal,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, Clock, CommandKey, CompanyId, HoldingId, TimestampMillis, UserId,
 };
 use serde_json::json;
@@ -39,10 +39,10 @@ async fn prepare_pg_plan(
     key: &str,
     status: JournalStatus,
 ) -> Result<
-    erpx_server_finance::public::JournalPreparation,
-    PgTransactionError<erpx_server_finance::public::JournalError>,
+    erpx_finance_server::public::JournalPreparation,
+    PgTransactionError<erpx_finance_server::public::JournalError>,
 > {
-    use erpx_server_finance::public::{
+    use erpx_finance_server::public::{
         FinanceCollation, PgJournalPreparation, embedded_currency_rules,
     };
     let actor = actor();
@@ -70,7 +70,7 @@ async fn prepare_pg_plan(
 
 #[tokio::test]
 async fn prepared_journal_cannot_cross_owner_transactions_on_the_same_backend() {
-    use erpx_server_finance::public::JournalError;
+    use erpx_finance_server::public::JournalError;
     use std::sync::Arc;
     fixture::with_database(1, |pool| async move {
         setup(&pool).await;
@@ -132,7 +132,7 @@ async fn prepared_journal_cannot_cross_owner_transactions_on_the_same_backend() 
 
 #[tokio::test]
 async fn real_journal_facts_use_company_rates_scales_and_mandatory_authority() {
-    use erpx_server_finance::public::{
+    use erpx_finance_server::public::{
         FinanceCollation, JournalError, PgJournalPreparation, embedded_currency_rules,
     };
     use std::sync::Arc;
@@ -183,7 +183,7 @@ async fn real_journal_facts_use_company_rates_scales_and_mandatory_authority() {
     }).await;
 }
 
-async fn setup(pool: &erpx_server_runtime::public::postgres::DatabasePool) {
+async fn setup(pool: &erpx_platform_runtime_server::public::postgres::DatabasePool) {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
     let files = load_migrations(root, MigrationTrack::HoldingWrite)
         .await
@@ -203,7 +203,7 @@ async fn journal_joins_owner_commit_and_rolls_back_with_source_and_receipt() {
         setup(&pool).await;
         sqlx::raw_sql("CREATE TABLE source_probe(id TEXT PRIMARY KEY); CREATE TABLE receipt_probe(id TEXT PRIMARY KEY)").execute(pool.raw()).await.unwrap();
         let uow = PgUnitOfWork::new(pool.clone());
-        let result = uow.run::<_, erpx_server_finance::public::JournalError, _>(TransactionOptions::default(), |connection| Box::pin(async move {
+        let result = uow.run::<_, erpx_finance_server::public::JournalError, _>(TransactionOptions::default(), |connection| Box::pin(async move {
             let plan = prepare_pg_plan(&mut *connection, "journal-atomic-key", JournalStatus::Posted).await?;
             sqlx::query("INSERT INTO source_probe(id) VALUES('source')").execute(&mut *connection).await?;
             PgJournalStore::new(HoldingId::new("holding").unwrap(), CompanyId::new("company").unwrap(), &mut *connection).persist(&plan).await?;
@@ -213,7 +213,7 @@ async fn journal_joins_owner_commit_and_rolls_back_with_source_and_receipt() {
         assert_eq!(result, "journal-journal-atomic-key");
         let totals: (i64, i64, i64, i64) = sqlx::query_as("SELECT sum(debit_minor)::bigint,sum(credit_minor)::bigint,sum(base_debit_minor)::bigint,sum(base_credit_minor)::bigint FROM finance_journal_lines").fetch_one(pool.raw()).await.unwrap();
         assert_eq!(totals, (3, 3, 2, 2));
-        let rollback = uow.run::<(), erpx_server_finance::public::JournalError, _>(TransactionOptions::default(), |connection| Box::pin(async move {
+        let rollback = uow.run::<(), erpx_finance_server::public::JournalError, _>(TransactionOptions::default(), |connection| Box::pin(async move {
             let plan = prepare_pg_plan(&mut *connection, "journal-rollback-key", JournalStatus::Draft).await?;
             PgJournalStore::new(HoldingId::new("holding").unwrap(), CompanyId::new("company").unwrap(), &mut *connection).persist(&plan).await?;
             sqlx::query("INSERT INTO source_probe(id) VALUES('rolled-back')").execute(&mut *connection).await?;
@@ -236,7 +236,7 @@ async fn journal_rejects_unscoped_transactions_and_changed_posting_facts() {
         drop(connection);
         let uow = PgUnitOfWork::new(pool.clone());
         for guard in ["foreign-company", "foreign-holding", "account", "period"] {
-            let result = uow.run::<(), erpx_server_finance::public::JournalError, _>(TransactionOptions::default(), move |connection| Box::pin(async move {
+            let result = uow.run::<(), erpx_finance_server::public::JournalError, _>(TransactionOptions::default(), move |connection| Box::pin(async move {
                 let plan = prepare_pg_plan(&mut *connection, "journal-guard-key", JournalStatus::Draft).await?;
                 if guard == "account" { sqlx::query("UPDATE finance_accounts SET status='inactive' WHERE id='sales'").execute(&mut *connection).await?; }
                 if guard == "period" { sqlx::query("UPDATE finance_periods SET state='closed' WHERE id='period'").execute(&mut *connection).await?; }

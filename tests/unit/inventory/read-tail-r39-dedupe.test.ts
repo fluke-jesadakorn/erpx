@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { reservedAvailabilitySumSql } from '../../../packages/server-inventory/src/adapters/read-tail-sql';
-import { productionReadProjection } from '../../../packages/server-inventory/src/adapters/production-read-projections';
+import { reservedAvailabilitySumSql } from '../../../modules/inventory/server/src/adapters/read-tail-sql';
+import { productionReadProjection } from '../../../modules/inventory/server/src/adapters/production-read-projections';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-inventory/src');
+const srcRoot = resolve(__dirname, '../../../modules/inventory/server/src');
 const adapterDir = resolve(srcRoot, 'adapters');
 const src = (name: string) => readFileSync(resolve(adapterDir, name), 'utf8');
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;

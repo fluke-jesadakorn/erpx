@@ -1,6 +1,6 @@
 //! Owner-local HTTP adapter tests for native Messaging ingress, teams/channels
 //! and the fail-closed Files port.
-use erpx_server_collaboration::public::messaging_http::{
+use erpx_collaboration_server::public::messaging_http::{
     FileQuery, HistoryQuery, MessagingAttachmentKind, MessagingAttachmentReply,
     MessagingChannelsData, MessagingFileBinding, MessagingFileContent, MessagingFileDiscardReceipt,
     MessagingFileDiscardRequest, MessagingFilesBindRequest, MessagingFilesContentRequest,
@@ -11,11 +11,11 @@ use erpx_server_collaboration::public::messaging_http::{
     create_channel, create_room, create_team, discard_file, read_file, read_history,
     read_overview, read_team_members, send_message,
 };
-use erpx_server_collaboration::public::messaging_native::{
+use erpx_collaboration_server::public::messaging_native::{
     MessageRow, Receipt as RoomReceipt, RoomView,
 };
-use erpx_server_collaboration::public::messaging_teams::{Receipt as TeamReceipt, TeamSnapshot};
-use erpx_server_runtime::public::http_support::{
+use erpx_collaboration_server::public::messaging_teams::{Receipt as TeamReceipt, TeamSnapshot};
+use erpx_platform_runtime_server::public::http_support::{
     Path, Query, Request, Response, State, StatusCode,
     body::{Body, to_bytes},
     header,

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-marketing/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/marketing/server/src/adapters/${name}`, import.meta.url);
 
 const purchased = '(SELECT 1 AS id)';
 const label = 'LBL';
@@ -15,7 +15,7 @@ const engagements =
 describe('marketing executive metric breakdown dedupe', () => {
   it('emits byte-identical candidate and engagement breakdown projections', async () => {
     const { marketingMetricBreakdownSql } = await import(
-      '../../../packages/server-marketing/src/adapters/executive-metric-breakdown-sql.ts'
+      '../../../modules/marketing/server/src/adapters/executive-metric-breakdown-sql.ts'
     );
     expect(marketingMetricBreakdownSql('candidates', purchased, label, scope)).toBe(candidates);
     expect(marketingMetricBreakdownSql('engagements', purchased, label, scope)).toBe(engagements);
@@ -44,10 +44,10 @@ describe('marketing executive metric breakdown dedupe', () => {
 
   it('emits byte-identical branch and department label projections from one helper', async () => {
     const { marketingExecutiveLabelSql } = await import(
-      '../../../packages/server-marketing/src/adapters/executive-label-sql.ts'
+      '../../../modules/marketing/server/src/adapters/executive-label-sql.ts'
     );
     const { commercialOwnerProjectionSources } = await import(
-      '@erpx/server-organization/public/commercial-owner-projection-sources'
+      '@erpx/organization-server/public/commercial-owner-projection-sources'
     );
     const nodes = commercialOwnerProjectionSources.organization_nodes;
     expect(marketingExecutiveLabelSql('branch')).toBe(

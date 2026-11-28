@@ -1,3 +1,3 @@
 // App-owned entry; shared payloads do not import another application.
-export { default } from "@erpx/feature-manufacturing/routes/holdings/[holdingSlug]/@record/production/manufacturing/[id]/page";
+export { default } from "@erpx/manufacturing-ui/routes/holdings/[holdingSlug]/@record/production/manufacturing/[id]/page";
 

@@ -1,10 +1,10 @@
 import {NextResponse} from 'next/server';
-import {deviceAccountReturn} from '@erpx/feature-identity_access/lib/device-account-return';
-import {configuredProductOrigin,configuredProductHandoff,productHostForHost} from '@erpx/feature-runtime/lib/product-hosts';
-import {holdingOrigin,holdingRoutingEnabled} from '@erpx/feature-runtime/lib/holding-hosts';
-import {isProductHostKey} from '@erpx/contracts/product-registry';
-import {sessionFromRequest} from '@erpx/server-identity_access/public/account-session';
-import {errorResponse} from '@erpx/server-runtime/public/http';
+import {deviceAccountReturn} from '@erpx/identity-access-ui/lib/device-account-return';
+import {configuredProductOrigin,configuredProductHandoff,productHostForHost} from '@erpx/platform-runtime-ui/lib/product-hosts';
+import {holdingOrigin,holdingRoutingEnabled} from '@erpx/platform-runtime-ui/lib/holding-hosts';
+import {isProductHostKey} from '@erpx/platform-contracts/product-registry';
+import {sessionFromRequest} from '@erpx/identity-access-server/public/account-session';
+import {errorResponse} from '@erpx/platform-runtime-server/public/http';
 export const dynamic='force-dynamic';
 const headers={'Cache-Control':'private, no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff'};
 /** UI navigation only. Rust verifies the Account session and the subsequent

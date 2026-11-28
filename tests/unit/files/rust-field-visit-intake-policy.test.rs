@@ -1,4 +1,4 @@
-use erpx_server_files::public::field_visit_intake::{
+use erpx_files_server::public::field_visit_intake::{
     classification, component_ref, validate_component_ref,
 };
 #[test]

@@ -1,3 +1,3 @@
 // App-owned entry; shared payloads do not import another application.
-export { generateMetadata, default } from "@erpx/workplace/routes/front-access/layout";
+export { generateMetadata, default } from "@erpx/platform-workplace/routes/front-access/layout";
 

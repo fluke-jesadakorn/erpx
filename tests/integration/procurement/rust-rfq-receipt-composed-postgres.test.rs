@@ -1,20 +1,20 @@
-#[path = "../../../src/composition/src/procurement_rfq_receipt.rs"]
+#[path = "../../../platform/composition/src/procurement_rfq_receipt.rs"]
 mod binding;
-#[path = "../../../src/composition/src/procurement_rfq_assertions.rs"]
+#[path = "../../../platform/composition/src/procurement_rfq_assertions.rs"]
 mod procurement_rfq_assertions;
 #[path = "../../support/finance/review-composition.rs"]
 mod review;
-use erpx_server_commercial::public::purchases::{
+use erpx_commercial_server::public::purchases::{
     CapabilityPurpose, PackageEnforcementMode, bind_purchase_write_sources,
     current_package_catalogue, lock_purchase_write_sources,
 };
-use erpx_server_identity_access::public::effective_authority::{
+use erpx_identity_access_server::public::effective_authority::{
     HoldingWorkSourcePreparation, WorkAuthorizationRequest,
 };
-use erpx_server_procurement::public::rfq_transition_normalization::normalize_rfq_transition;
-use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{BusinessError, Clock, FailureKind};
-use erpx_server_workflow::public::{
+use erpx_procurement_server::public::rfq_transition_normalization::normalize_rfq_transition;
+use erpx_platform_runtime_server::public::postgres::{PgTransactionError, PgWorkFuture};
+use erpx_platform_shared_server::public::{BusinessError, Clock, FailureKind};
+use erpx_workflow_server::public::{
     commands::CommandField,
     rfq_command_receipt::{RfqReceiptMatch, inspect_rfq_receipt, lock_rfq_receipts},
     source_ordered_json::{

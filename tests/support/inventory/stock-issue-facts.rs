@@ -1,7 +1,7 @@
 //! Newly leased, fully migrated databases for the Inventory sales-delivery
 //! seam. Commerce fulfillment rows are synthetic source facts, not a command
 //! receipt, purchase or authorization proof.
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
 

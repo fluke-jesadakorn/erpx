@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
-import { accountInvitationList, setInvitationListForTest } from "@erpx/server-identity_access/public/account-invitation-list";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import { accountInvitationList, setInvitationListForTest } from "@erpx/identity-access-server/public/account-invitation-list";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
 
 const actor = {
   userId: "user-1",

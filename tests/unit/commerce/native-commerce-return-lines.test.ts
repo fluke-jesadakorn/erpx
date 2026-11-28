@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { nativeCommerceReturnLineReader } from '../../../packages/feature-commerce/src/public/native-commerce-return-lines';
-import { NativeCommerceOrdersError, type NativeCommerceOrdersTransport } from '../../../packages/feature-commerce/src/public/native-commerce-orders';
+import { nativeCommerceReturnLineReader } from '../../../modules/commerce/ui/src/public/native-commerce-return-lines';
+import { NativeCommerceOrdersError, type NativeCommerceOrdersTransport } from '../../../modules/commerce/ui/src/public/native-commerce-orders';
 
 const config = JSON.stringify({
   privateBaseUrl: 'http://127.0.0.1:44993',

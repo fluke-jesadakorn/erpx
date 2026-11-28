@@ -1,8 +1,8 @@
 //! Focused application-level test for the native Support SLA policy point/work
 //! reads. Register with a `[[test]] name = "sla_policy_read"` entry in
-//! `packages/server-support/Cargo.toml` (lead-owned path). The same behaviour is
+//! `modules/support/server/Cargo.toml` (lead-owned path). The same behaviour is
 //! covered by the inline `#[cfg(test)]` modules, which run with `--lib`.
-use erpx_server_support::public::sla_policy_read::{
+use erpx_support_server::public::sla_policy_read::{
     read_policy_point, read_policy_work, SlaPolicyReadFuture, SlaPolicyReadPorts, SlaPolicyReadScope,
     SlaPolicyRow,
 };

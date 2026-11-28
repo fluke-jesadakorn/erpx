@@ -3,31 +3,31 @@
 #![allow(dead_code)]
 #[path = "../../support/finance/review-composition.rs"]
 mod review;
-use erpx_server_commercial::public::purchases::current_package_catalogue;
-use erpx_server_identity_access::public::work_context::{
+use erpx_commercial_server::public::purchases::current_package_catalogue;
+use erpx_identity_access_server::public::work_context::{
     ExpectedWorkSelection, HoldingWorkspaceRequest,
 };
-use erpx_server_runtime::public::postgres::PgTransactionError;
-use erpx_server_shared::public::{
+use erpx_platform_runtime_server::public::postgres::PgTransactionError;
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, Clock, CommandKey, CompanyId, HoldingId,
 };
-use erpx_server_support::public::sla::{
+use erpx_support_server::public::sla::{
     AlertAcknowledge, BusinessCalendar, ClockAttach, PolicyChange, PolicyCreate, SlaPolicy,
 };
-use erpx_server_support::public::sla_drain::{
+use erpx_support_server::public::sla_drain::{
     DEFAULT_INTERVAL_MS, SlaDrainSchedule, drain_support_sla as drain_owned_support_sla,
     run_sla_drain_tick,
 };
-use erpx_server_support::public::ticket::TicketChange;
-use erpx_server_workflow::public::commands::CommandJson;
-use erpx_service::support_sla_command::{SupportSlaCommand, drain_support_sla};
-use erpx_service::support_ticket_command::SupportTicketCommand;
+use erpx_support_server::public::ticket::TicketChange;
+use erpx_workflow_server::public::commands::CommandJson;
+use erpx_platform_composition::support_sla_command::{SupportSlaCommand, drain_support_sla};
+use erpx_platform_composition::support_ticket_command::SupportTicketCommand;
 use std::sync::Arc;
 
 #[derive(Clone)]
 struct TestClock(Arc<review::account::fixture::MutableClock>);
 impl Clock for TestClock {
-    fn now(&self) -> erpx_server_shared::public::TimestampMillis {
+    fn now(&self) -> erpx_platform_shared_server::public::TimestampMillis {
         self.0.now()
     }
 }
@@ -137,7 +137,7 @@ async fn support_setup(
 }
 
 async fn seed_ticket(
-    pool: &erpx_server_runtime::public::postgres::DatabasePool,
+    pool: &erpx_platform_runtime_server::public::postgres::DatabasePool,
     id: &str,
     status: &str,
 ) {
@@ -173,11 +173,11 @@ fn policy() -> SlaPolicy {
 }
 
 async fn set_ticket_clock(
-    pool: &erpx_server_runtime::public::postgres::DatabasePool,
+    pool: &erpx_platform_runtime_server::public::postgres::DatabasePool,
     id: &str,
     due_at: i64,
 ) {
-    let mut clock = erpx_server_support::public::sla::start_clock(&policy(), 0).unwrap();
+    let mut clock = erpx_support_server::public::sla::start_clock(&policy(), 0).unwrap();
     clock.started_at = Some(0);
     clock.due_at = Some(due_at);
     clock.breached_at = None;
@@ -555,8 +555,8 @@ async fn support_sla_http_route_accepts_real_session_and_rendered_context() {
         body::{Body, to_bytes},
         http::Request,
     };
-    use erpx_service::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
-    use erpx_service::support_sla_http::{SupportSlaHttpTarget, support_sla_http_router};
+    use erpx_platform_composition::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
+    use erpx_platform_composition::support_sla_http::{SupportSlaHttpTarget, support_sla_http_router};
     use tower::ServiceExt;
     review::account::with_system(|system| async move {
         let (p, sla, _) = support_setup(system).await;
@@ -648,7 +648,7 @@ async fn support_sla_http_route_accepts_real_session_and_rendered_context() {
 }
 
 async fn drain_owned_once(
-    pool: &erpx_server_runtime::public::postgres::DatabasePool,
+    pool: &erpx_platform_runtime_server::public::postgres::DatabasePool,
     company: &CompanyId,
     at: i64,
 ) -> Result<i64, PgTransactionError<BusinessError>> {

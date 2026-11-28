@@ -14,7 +14,7 @@ import {
   type NativeRecordsPageContext,
   type NativeRecordContextTransport,
   type NativeRecordDetailsInput,
-} from '../../../packages/server-records/src/public/native-record-context';
+} from '../../../modules/records/server/src/public/native-record-context';
 
 const config = (overrides: Record<string, unknown> = {}) => ({
   privateBaseUrl: 'http://127.0.0.1:44994',

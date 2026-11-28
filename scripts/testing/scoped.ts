@@ -5,7 +5,7 @@ import { vitestChildEnvironment } from './runner-environment';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, watch } from 'node:fs';
 import { resolve } from 'node:path';
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
-import { appDefinition } from '@erpx/contracts/apps';
+import { appDefinition } from '@erpx/platform-contracts/apps';
 import { verificationSources, loadCatalogue, validateCatalogue, repositoryRoot as root, type Suite } from './catalogue';
 import { dependencyClosure, workspaceInputFile, changedWorkspaceFiles, loadRevisionWorkspaceGraph, loadWorkspaceGraph, selectCandidateSuites, selectWorkspaceSuites, workspaceFingerprint } from './workspace-graph';
 import { pinnedNode } from '../local/app-task';
@@ -96,10 +96,10 @@ export async function runScoped(options:Options){
     await execute(['cargo','fmt','--all','--','--check']);
     await execute(cargoQuality);
    }
-   if(plan.changed.some(file=>isCargoInput(file)||file.startsWith('scripts/docs/export-account-contracts')||file==='scripts/docs/generate-account-contracts.ts'||file==='packages/contracts/src/account-auth.generated.ts'||file==='docs/contracts/next/account-auth.openapi.generated.json'))await execute([process.execPath,'scripts/docs/generate-account-contracts.ts','--check']);
-   if(plan.changed.some(file=>isCargoInput(file)||file.startsWith('packages/server-identity_access/resources/')||file==='scripts/docs/export-permission-contracts.rs'||file==='scripts/docs/generate-permission-contracts.ts'||file==='packages/contracts/src/permission-catalog.generated.json'))await execute([process.execPath,'scripts/docs/generate-permission-contracts.ts','--check']);
-   if(plan.changed.some(file=>isCargoInput(file)||file.startsWith('packages/server-identity_access/resources/')||file==='scripts/docs/export-work-module-contracts.rs'||file==='scripts/docs/generate-work-module-contracts.ts'||file==='packages/contracts/src/business-role-modules.generated.ts'))await execute([process.execPath,'scripts/docs/generate-work-module-contracts.ts','--check']);
-   if(plan.changed.some(file=>isCargoInput(file)||file==='scripts/docs/export-directory-source-contracts.rs'||file==='scripts/docs/generate-directory-source-contracts.ts'||file==='packages/contracts/src/directory-source-admin.generated.ts'||file==='docs/contracts/next/directory-source-admin.openapi.generated.json'))await execute([process.execPath,'scripts/docs/generate-directory-source-contracts.ts','--check']);
+   if(plan.changed.some(file=>isCargoInput(file)||file.startsWith('scripts/docs/export-account-contracts')||file==='scripts/docs/generate-account-contracts.ts'||file==='platform/contracts/src/account-auth.generated.ts'||file==='docs/contracts/next/account-auth.openapi.generated.json'))await execute([process.execPath,'scripts/docs/generate-account-contracts.ts','--check']);
+   if(plan.changed.some(file=>isCargoInput(file)||file.startsWith('modules/identity-access/server/resources/')||file==='scripts/docs/export-permission-contracts.rs'||file==='scripts/docs/generate-permission-contracts.ts'||file==='platform/contracts/src/permission-catalog.generated.json'))await execute([process.execPath,'scripts/docs/generate-permission-contracts.ts','--check']);
+   if(plan.changed.some(file=>isCargoInput(file)||file.startsWith('modules/identity-access/server/resources/')||file==='scripts/docs/export-work-module-contracts.rs'||file==='scripts/docs/generate-work-module-contracts.ts'||file==='platform/contracts/src/business-role-modules.generated.ts'))await execute([process.execPath,'scripts/docs/generate-work-module-contracts.ts','--check']);
+   if(plan.changed.some(file=>isCargoInput(file)||file==='scripts/docs/export-directory-source-contracts.rs'||file==='scripts/docs/generate-directory-source-contracts.ts'||file==='platform/contracts/src/directory-source-admin.generated.ts'||file==='docs/contracts/next/directory-source-admin.openapi.generated.json'))await execute([process.execPath,'scripts/docs/generate-directory-source-contracts.ts','--check']);
    const testFiles=[...plan.native,...plan.browser].filter(suite=>suite.framework!=='cargo').flatMap(suite=>suite.files);
    if(testFiles.length){
     const key=workspaceFingerprint(graph,[...selectedTypecheckInputs(testFiles),...verificationSources(plan.native)],['scripts/testing/selected-typecheck.ts','tests/config/tsconfig.json','tsconfig.base.json']);
@@ -126,7 +126,7 @@ async function watchScoped(options:Options){
  const relevant=(path:string)=>!watchedInputs || watchedInputs.has(path) || options.apps.some(id=>path.startsWith(appDefinition(id).directory+'/')) || /^(?:tests\/catalogue|scripts\/(?:testing|architecture|local|assets))\//.test(path);
  const run=async()=>{if(terminated||running||!pending)return;running=true;pending=false;stopping=false;try{refreshInputs();await runScoped({...options,watch:false});}catch(error){console.error(error instanceof Error?error.message:String(error));}finally{running=false;if(pending&&!terminated)void run();}};
  const changed=()=>{pending=true;if(running)cancel();if(timer)clearTimeout(timer);timer=setTimeout(()=>void run(),300);};
- const watchers=['apps','packages','src','tests','scripts','fixtures','migrations','public','docs','ops','.github'].map(directory=>watch(resolve(root,directory),{recursive:true},(_,name)=>{
+ const watchers=['apps','modules','products','platform','tests','scripts','fixtures','migrations','public','docs','ops','.github'].map(directory=>watch(resolve(root,directory),{recursive:true},(_,name)=>{
   if(!name||/(?:^|\/)(?:node_modules|\.next|\.build|\.cache|\.turbo)(?:\/|$)/.test(name)||/(?:next-env\.d\.ts|tsconfig\.tsbuildinfo|turbo\.json)$/.test(name))return;
   if(relevant(`${directory}/${name}`))changed();
  }));

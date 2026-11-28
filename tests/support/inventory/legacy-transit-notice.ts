@@ -4,14 +4,14 @@
  * Production notice generation now belongs to the native
  * `inventory_transit_notification_statement` port (server-collaboration). This
  * copy seeds the same notification for the isolated legacy-transit harness
- * without a production TS writer in packages/server-collaboration/src.
+ * without a production TS writer in modules/collaboration/server/src.
  *
  * Tracked for removal by `retire.collaboration.residual-writers`: delete once
  * the legacy-transit harness is retired or seeds through the native port.
  */
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
-import { inventoryReadProjection } from '@erpx/server-inventory/public/inventory-read-projections';
-import { inventoryNotificationAudience } from '@erpx/server-identity_access/public/inventory-authority-projections';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
+import { inventoryReadProjection } from '@erpx/inventory-server/public/inventory-read-projections';
+import { inventoryNotificationAudience } from '@erpx/identity-access-server/public/inventory-authority-projections';
 
 export function inventoryTransitSources(db: SqlDatabase) {
   return {

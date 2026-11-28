@@ -1,11 +1,11 @@
 import { seedExpenseCompany } from "../expenses/company";
-import type { SqlDatabase, FileStore } from "@erpx/server-runtime/adapters/runtime/types";
-import { setFinanceCompanyTool } from "@erpx/server-finance/public/finance-company-tools";
+import type { SqlDatabase, FileStore } from "@erpx/platform-runtime-server/adapters/runtime/types";
+import { setFinanceCompanyTool } from "@erpx/finance-server/public/finance-company-tools";
 import {
   prepareBookRule,
   decideBookRule,
   bookRuleSchema,
-} from "@erpx/server-finance/public/finance-books";
+} from "@erpx/finance-server/public/finance-books";
 import {
   prepareBudgetEdition,
   budgetEditionSchema,
@@ -16,68 +16,68 @@ import {
   decideFinancePlan,
   snapshotFinancialReport,
   exportFinancialReport,
-} from "@erpx/server-finance/public/finance-planning";
+} from "@erpx/finance-server/public/finance-planning";
 import {seedFinanceJournal} from '../../tests/support/helpers/finance-journal-seed';
-import {postInvoice,importBankStatement,createPeriod,calculateCloseReconciliations,trialBalance} from '@erpx/server-finance/public/finance';
+import {postInvoice,importBankStatement,createPeriod,calculateCloseReconciliations,trialBalance} from '@erpx/finance-server/public/finance';
 import {
   createBankCsvMapping,
   bankCsvMappingSchema,
   importMappedBankCsv,
   proposeBankMatchGroup,
   decideBankMatchGroup,
-} from "@erpx/server-finance/public/finance-bank-automation";
+} from "@erpx/finance-server/public/finance-bank-automation";
 import {
   prepareCollectionCase,
   decideCollectionCase,
   reviseCollectionCase,
-} from "@erpx/server-finance/public/finance-collections";
+} from "@erpx/finance-server/public/finance-collections";
 import {
   prepareBusinessContract,
   businessContractSchema,
   prepareRecognitionRun,
   decideBusinessContract,
   decideRecognitionRun,
-} from "@erpx/server-finance/public/finance-business-contracts";
+} from "@erpx/finance-server/public/finance-business-contracts";
 import {
   prepareBillingCorrection,
   decideBillingCorrection,
   billingCorrectionSchema,
-} from "@erpx/server-finance/public/finance-billing-corrections";
+} from "@erpx/finance-server/public/finance-billing-corrections";
 import {
   prepareInstrument,
   decideInstrument,
   prepareInstrumentRun,
   decideInstrumentRun,
   instrumentEditionSchema,
-} from "@erpx/server-finance/public/finance-instruments";
+} from "@erpx/finance-server/public/finance-instruments";
 import {
   createAsset,
   activateAsset,
   assetSchema,
-} from "@erpx/server-finance/public/finance-assets";
+} from "@erpx/finance-server/public/finance-assets";
 import {
   prepareAssetPolicy,
   decideAssetPolicy,
   prepareAssetPolicyRun,
   decideAssetPolicyRun,
-} from "@erpx/server-finance/public/finance-asset-policies";
+} from "@erpx/finance-server/public/finance-asset-policies";
 import {
   prepareAccountingProfile,
   decideAccountingProfile,
-} from "@erpx/server-finance/public/accounting-profiles";
+} from "@erpx/finance-server/public/accounting-profiles";
 import {
   prepareYearClosing,
   decideYearClosing,
-} from "@erpx/server-finance/public/finance-reporting";
+} from "@erpx/finance-server/public/finance-reporting";
 import {
   prepareGroupReportEdition,
   decideGroupReportEdition,
   groupReportEditionExport,
-} from "@erpx/server-finance/public/finance-group-editions";
+} from "@erpx/finance-server/public/finance-group-editions";
 import {
   scheduleFinanceDraft,
   drainFinanceDueDrafts,
-} from "@erpx/server-finance/public/finance-due-drafts";
+} from "@erpx/finance-server/public/finance-due-drafts";
 const key = () => crypto.randomUUID();
 type Row = Record<string, string | number | null>;
 /** Synthetic source-owned rehearsal. All amounts are stated in the companion test.

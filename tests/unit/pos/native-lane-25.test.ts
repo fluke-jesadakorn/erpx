@@ -7,7 +7,7 @@ import {
   nativePosEvidenceConfigured,
   type NativePosEvidenceActor,
   type NativePosEvidenceFilters,
-} from '../../../packages/server-pos/src/adapters/native-lane-25/client';
+} from '../../../modules/pos/server/src/adapters/native-lane-25/client';
 
 const ENV = 'ERPX_NATIVE_POS_LANE25_CONFIG';
 const previous = process.env[ENV];
@@ -199,7 +199,7 @@ describe('native POS evidence transport (lane 25)', () => {
 
   it('leaves no SELECT literal in the retired TypeScript source', () => {
     const source = readFileSync(
-      new URL('../../../packages/server-pos/src/adapters/executive-evidence-sources.ts', import.meta.url),
+      new URL('../../../modules/pos/server/src/adapters/executive-evidence-sources.ts', import.meta.url),
       'utf8',
     );
     expect(source).not.toMatch(/\bSELECT\b/);

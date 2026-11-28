@@ -6,7 +6,7 @@ import ts from 'typescript';
 
 vi.mock('server-only', () => ({}));
 
-const srcRoot = resolve(__dirname, '../../../packages/server-sales/src');
+const srcRoot = resolve(__dirname, '../../../modules/sales/server/src');
 const obligations = readFileSync(resolve(srcRoot, 'adapters/package-obligations.ts'), 'utf8');
 
 /** Load the owner-local generators by AST name and run them in isolation, the

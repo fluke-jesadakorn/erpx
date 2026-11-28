@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 
 const src = (name: string) =>
-  new URL(`../../../packages/server-work_projection/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/work-projection/server/src/adapters/${name}`, import.meta.url);
 
 const inListDefinition = '`${expression} IN (SELECT jsonb_array_elements_text(?::jsonb))`';
 const formerInListSites = [
@@ -37,7 +37,7 @@ describe('work_projection read-tail r9 dedupe', () => {
 
   it('keeps the original series SQL in Rust and leaves occurrence batches native', async () => {
     const { inList } = await import(
-      '../../../packages/server-work_projection/src/adapters/read-tail-sql.ts'
+      '../../../modules/work-projection/server/src/adapters/read-tail-sql.ts'
     );
     const rust = await readFile(src('native_lane_29/postgres.rs'), 'utf8');
     expect(inList('appointment_id')).toBe('appointment_id IN (SELECT jsonb_array_elements_text(?::jsonb))');

@@ -6,11 +6,11 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_records::public::employee_request_source::{
+use erpx_records_server::public::employee_request_source::{
     EmployeeRequestScope, PgEmployeeRequestSource, lock_employee_request_sources,
     prepare_order_handoff_source, prepare_quotation_source,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
 
@@ -22,14 +22,14 @@ fn holding_scope(company: &str) -> EmployeeRequestScope {
     }
 }
 
-fn business(error: PgTransactionError<erpx_server_shared::public::BusinessError>) -> &'static str {
+fn business(error: PgTransactionError<erpx_platform_shared_server::public::BusinessError>) -> &'static str {
     match error {
         PgTransactionError::Business(error) => {
             assert!(
-                error.kind == erpx_server_shared::public::FailureKind::NotFound
-                    || error.kind == erpx_server_shared::public::FailureKind::Forbidden
-                    || error.kind == erpx_server_shared::public::FailureKind::Conflict
-                    || error.kind == erpx_server_shared::public::FailureKind::InvalidInput,
+                error.kind == erpx_platform_shared_server::public::FailureKind::NotFound
+                    || error.kind == erpx_platform_shared_server::public::FailureKind::Forbidden
+                    || error.kind == erpx_platform_shared_server::public::FailureKind::Conflict
+                    || error.kind == erpx_platform_shared_server::public::FailureKind::InvalidInput,
                 "unexpected error kind {:?}",
                 error.kind
             );
@@ -65,7 +65,7 @@ async fn quotation(
     scope: &EmployeeRequestScope,
     actor: &str,
     id: &str,
-) -> Result<serde_json::Value, PgTransactionError<erpx_server_shared::public::BusinessError>> {
+) -> Result<serde_json::Value, PgTransactionError<erpx_platform_shared_server::public::BusinessError>> {
     let mut tx = pool
         .raw()
         .begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE")
@@ -352,17 +352,17 @@ async fn writer_first_reader_sees_the_fresh_committed_row() {
 
 #[tokio::test]
 async fn commerce_request_cte_matches_actual_typescript_direct_link_query() {
-    use erpx_server_records::public::commerce_request_links::{
+    use erpx_records_server::public::commerce_request_links::{
         inspect_commerce_request_links, lock_commerce_request_links,
     };
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let commerce = root.join("packages/server-commerce/src/adapters/commerce.ts");
+    let commerce = root.join("modules/commerce/server/src/adapters/commerce.ts");
     let records = root
-        .join("packages/server-records/src/adapters/commerce-final-owner-projection-sources.ts");
+        .join("modules/records/server/src/adapters/commerce-final-owner-projection-sources.ts");
     let procurement = root.join(
-        "packages/server-procurement/src/adapters/commerce-final-owner-projection-sources.ts",
+        "modules/procurement/server/src/adapters/commerce-final-owner-projection-sources.ts",
     );
-    let script = r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const fs=await import('node:fs/promises'),r=await import(process.argv[2]),p=await import(process.argv[3]),s=await fs.readFile(process.argv[1],'utf8');const m=s.match(/readEmployeeRequests1:\s*\(facts:[\s\S]*?\)\s*=>\s*db\.prepare\(`([^`]+)`\)\.bind\(([^)]+)\)/);if(!m||m[2].replace(/\s/g,'')!=='facts.companyId,facts.id,facts.id2')throw Error('SOURCE_BINDS_CHANGED');const app=await fs.readFile('packages/server-commerce/src/application/commerce.ts','utf8');if(!/readEmployeeRequests1\(\{\s*companyId:\s*actor\.companyId,\s*id:\s*id,\s*id2:\s*id\s*\}\)/.test(app))throw Error('CALLER_ID2_CHANGED');let sql=m[1].replace('${recordsProjectionSources.employee_requests}',r.commerceFinalOwnerProjectionSources.employee_requests).replace('${procurementProjectionSources.procurement_request_orders}',p.commerceFinalOwnerProjectionSources.procurement_request_orders);if(sql.includes('${'))throw Error('UNRESOLVED_SOURCE');let n=0;sql=sql.replace(/\?/g,()=>'$'+(++n));if(n!==3)throw Error('BINDS_CHANGED');process.stdout.write(JSON.stringify({sql,records:r.commerceFinalOwnerProjectionSources.employee_requests}));"#;
+    let script = r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const fs=await import('node:fs/promises'),r=await import(process.argv[2]),p=await import(process.argv[3]),s=await fs.readFile(process.argv[1],'utf8');const m=s.match(/readEmployeeRequests1:\s*\(facts:[\s\S]*?\)\s*=>\s*db\.prepare\(`([^`]+)`\)\.bind\(([^)]+)\)/);if(!m||m[2].replace(/\s/g,'')!=='facts.companyId,facts.id,facts.id2')throw Error('SOURCE_BINDS_CHANGED');const app=await fs.readFile('modules/commerce/server/src/application/commerce.ts','utf8');if(!/readEmployeeRequests1\(\{\s*companyId:\s*actor\.companyId,\s*id:\s*id,\s*id2:\s*id\s*\}\)/.test(app))throw Error('CALLER_ID2_CHANGED');let sql=m[1].replace('${recordsProjectionSources.employee_requests}',r.commerceFinalOwnerProjectionSources.employee_requests).replace('${procurementProjectionSources.procurement_request_orders}',p.commerceFinalOwnerProjectionSources.procurement_request_orders);if(sql.includes('${'))throw Error('UNRESOLVED_SOURCE');let n=0;sql=sql.replace(/\?/g,()=>'$'+(++n));if(n!==3)throw Error('BINDS_CHANGED');process.stdout.write(JSON.stringify({sql,records:r.commerceFinalOwnerProjectionSources.employee_requests}));"#;
     let output =
         std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
             .current_dir(root)
@@ -397,7 +397,7 @@ async fn commerce_request_cte_matches_actual_typescript_direct_link_query() {
 
 #[tokio::test]
 async fn commerce_request_source_fences_writers_shadow_rls_and_resource_limits() {
-    use erpx_server_records::public::commerce_request_links::{
+    use erpx_records_server::public::commerce_request_links::{
         inspect_commerce_request_links, lock_commerce_request_links,
     };
     fixture::with_database(2,|pool|async move{
@@ -416,12 +416,12 @@ async fn commerce_request_source_fences_writers_shadow_rls_and_resource_limits()
 
 #[tokio::test]
 async fn commerce_selected_request_matches_actual_typescript_read_and_retains_exact_row() {
-    use erpx_server_records::public::commerce_selected_request::{
+    use erpx_records_server::public::commerce_selected_request::{
         lock_commerce_selected_request, observe_commerce_selected_request,
     };
-    use erpx_server_shared::public::CompanyId;
+    use erpx_platform_shared_server::public::CompanyId;
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let ts = root.join("packages/server-records/src/adapters/employee-requests-read.ts");
+    let ts = root.join("modules/records/server/src/adapters/employee-requests-read.ts");
     let script = r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const m=await import(process.argv[1]);const db={prepare(sql){return{bind(...values){return{first:async()=>({sql,values})}}}}};const q=await m.nativeEmployeeRequestReadRepository(db).readReadEmployeeRequestRow('request-quoted','company');if(JSON.stringify(q.values)!==JSON.stringify(['request-quoted','company']))throw Error('SOURCE_BINDS_CHANGED');let n=0;process.stdout.write(q.sql.replace(/\?/g,()=>'$'+(++n)));"#;
     let oracle =
         std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
@@ -451,10 +451,10 @@ async fn commerce_selected_request_matches_actual_typescript_read_and_retains_ex
 
 #[tokio::test]
 async fn commerce_selected_request_fences_real_writer_shadow_and_rls() {
-    use erpx_server_records::public::commerce_selected_request::{
+    use erpx_records_server::public::commerce_selected_request::{
         lock_commerce_selected_request, observe_commerce_selected_request,
     };
-    use erpx_server_shared::public::CompanyId;
+    use erpx_platform_shared_server::public::CompanyId;
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
         let company=CompanyId::new("company").unwrap();
@@ -497,10 +497,10 @@ async fn commerce_selected_request_fences_real_writer_shadow_and_rls() {
 
 #[tokio::test]
 async fn commerce_selected_request_writer_first_retry_reads_committed_row_and_insert() {
-    use erpx_server_records::public::commerce_selected_request::{
+    use erpx_records_server::public::commerce_selected_request::{
         lock_commerce_selected_request, observe_commerce_selected_request,
     };
-    use erpx_server_shared::public::CompanyId;
+    use erpx_platform_shared_server::public::CompanyId;
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
         let mut writer=pool.raw().begin().await.unwrap();

@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 vi.mock('server-only', () => ({}));
-import { nativePosDayCloses } from '../../../packages/server-pos/src/adapters/native-lane-25/day-closes-client';
-import { nativePosEvidenceConfiguration } from '../../../packages/server-pos/src/adapters/native-lane-25/client';
+import { nativePosDayCloses } from '../../../modules/pos/server/src/adapters/native-lane-25/day-closes-client';
+import { nativePosEvidenceConfiguration } from '../../../modules/pos/server/src/adapters/native-lane-25/client';
 
 const ENV = 'ERPX_NATIVE_POS_LANE25_CONFIG';
 const previous = process.env[ENV];
@@ -114,7 +114,7 @@ describe('native POS day-close report transport (lane 25 wave 3)', () => {
 
   it('leaves no SELECT literal in the retired TypeScript source', () => {
     const source = readFileSync(
-      new URL('../../../packages/server-pos/src/adapters/pos.ts', import.meta.url),
+      new URL('../../../modules/pos/server/src/adapters/pos.ts', import.meta.url),
       'utf8',
     );
     expect(source).not.toContain('FROM pos_day_closes WHERE company_id=? AND (?::text IS NULL OR branch_id=?) ORDER BY business_date DESC LIMIT 90');

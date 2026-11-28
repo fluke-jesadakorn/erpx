@@ -4,7 +4,7 @@ import {
   nativePmsConfiguration,
   type NativePmsPageContext,
   type NativePmsReportData,
-} from '../../../packages/feature-pms/src/adapters/server/native-pms';
+} from '../../../modules/pms/ui/src/adapters/server/native-pms';
 
 // The TypeScript report SQL is retired. This suite now guards the native-only
 // report boundary: the full owner payload (observation clock, pace, channels

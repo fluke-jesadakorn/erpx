@@ -12,13 +12,13 @@ mod ldap;
 )]
 #[path = "../../support/rust-directory-source-change.rs"]
 mod source_selection;
-use erpx_server_commercial::public::purchases::current_package_catalogue;
-use erpx_server_identity_access::public::{
+use erpx_commercial_server::public::purchases::current_package_catalogue;
+use erpx_identity_access_server::public::{
     SystemAuthenticationSecrets, directory::*, effective_authority::HoldingWorkAuthorizer,
 };
-use erpx_server_runtime::public::postgres::DatabasePool;
-use erpx_server_shared::public::{Clock, CompanyId, HoldingId, RecordId};
-use erpx_service::{finance_journal_detail::*, finance_journal_review::*};
+use erpx_platform_runtime_server::public::postgres::DatabasePool;
+use erpx_platform_shared_server::public::{Clock, CompanyId, HoldingId, RecordId};
+use erpx_platform_composition::{finance_journal_detail::*, finance_journal_review::*};
 use facts::{Prepared, TestClock, account};
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 struct DirectoryFinance {
@@ -164,7 +164,7 @@ async fn actual_finance_workspace_uses_configured_normal_authorizer_for_stale_di
         assert_eq!(result.context.revision.get(), 7);
         assert_eq!(
             result.data.journal["id"],
-            erpx_server_finance::public::journal_detail::FinanceLedgerValue::Text(
+            erpx_finance_server::public::journal_detail::FinanceLedgerValue::Text(
                 "journal-directory-read-origin".into()
             )
         );
@@ -197,7 +197,7 @@ async fn actual_finance_post_after_stale_directory_refresh_retains_original_rece
         let before=sessions(&p.system.control).await;
         let output=review(&p,&d).review("acme.example.test",p.reviewer.clone(),
             p.reviewer_selection.clone(),facts::command("journal-directory-post-origin","directory-post-command",facts::post())).await.unwrap();
-        assert!(matches!(output,erpx_server_finance::public::journal_review::JournalReviewResult::Posted{version:2,..}));
+        assert!(matches!(output,erpx_finance_server::public::journal_review::JournalReviewResult::Posted{version:2,..}));
         assert_eq!(journal(&p.system.holdings[0],"journal-directory-post-origin").await,("posted".into(),2));
         assert_eq!(counts(&p.system.holdings[0],"directory-post-command").await,(1,1,1));
         let (actor,metadata):(String,serde_json::Value)=sqlx::query_as("SELECT actor_id,authority_json::jsonb FROM command_receipts WHERE command_id='directory-post-command'")
@@ -233,7 +233,7 @@ async fn finance_authority_withdrawal_commits_during_actual_directory_io_and_blo
         sqlx::raw_sql("INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('*','custom_finance_review',2,'[\"finance.read\",\"module.finance.read\"]','[]','[\"holding\",\"branch\",\"department\"]','synthetic-fixture',1);UPDATE iam_roles SET published_revision=2 WHERE company_id='*'AND id='custom_finance_review'")
             .execute(p.system.holdings[0].raw()).await.unwrap();
         d.server.resume.notify_one();
-        assert!(matches!(operation.await.unwrap(),Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error))if error.code=="PERMISSION_REQUIRED"));
+        assert!(matches!(operation.await.unwrap(),Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error))if error.code=="PERMISSION_REQUIRED"));
         assert_eq!(journal(&p.system.holdings[0],"journal-directory-denied-origin").await,("draft".into(),1));
         assert_eq!(counts(&p.system.holdings[0],"directory-denied-command").await,(0,0,0));
         assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*)FROM pg_stat_activity WHERE datname=current_database() AND state='idle in transaction'")

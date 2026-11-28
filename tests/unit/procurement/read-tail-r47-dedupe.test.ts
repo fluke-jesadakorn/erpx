@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
-import { procurementSettlementFactSelect } from '../../../packages/server-procurement/src/adapters/read-tail-r47';
+import { procurementSettlementFactSelect } from '../../../modules/procurement/server/src/adapters/read-tail-r47';
 
 const src = (name: string) => readFileSync(
-  new URL(`../../../packages/server-procurement/src/adapters/${name}`, import.meta.url), 'utf8',
+  new URL(`../../../modules/procurement/server/src/adapters/${name}`, import.meta.url), 'utf8',
 );
 const count = (s: string, needle: string) => s.split(needle).length - 1;
 
@@ -70,7 +70,7 @@ describe('Procurement read-tail r47 settlement-fact dedupe', () => {
   });
 
   test('worktree SELECT count is 95 - 6 + 1 = 90', () => {
-    const root = new URL('../../../packages/server-procurement/src/', import.meta.url);
+    const root = new URL('../../../modules/procurement/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {

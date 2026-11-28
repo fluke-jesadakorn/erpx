@@ -4,11 +4,11 @@ vi.mock('server-only', () => ({}));
 const fetchMock = vi.fn();
 vi.stubGlobal('fetch', fetchMock);
 const deps = vi.hoisted(() => ({ env: vi.fn(), resources: vi.fn(), plan: vi.fn() }));
-vi.mock('@erpx/server-runtime/public/runtime', () => ({
+vi.mock('@erpx/platform-runtime-server/public/runtime', () => ({
   runtimeEnv: deps.env,
   holdingResources: deps.resources,
 }));
-vi.mock('../../../packages/server-identity_access/src/adapters/native-control-read-plan', () => ({
+vi.mock('../../../modules/identity-access/server/src/adapters/native-control-read-plan', () => ({
   planIdentityControlRead: deps.plan,
   PC_CONNECTION_ROUTE: 'pc_connection_route',
 }));
@@ -17,7 +17,7 @@ import {
   nativeConnectionById,
   nativeConnectionRead,
   routedConnection,
-} from '@erpx/server-identity_access/adapters/directory-lookup';
+} from '@erpx/identity-access-server/adapters/directory-lookup';
 
 const id = '11111111-2222-4333-8444-555555555555';
 const companyId = 'acme-company';

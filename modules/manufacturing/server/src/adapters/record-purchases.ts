@@ -1,0 +1,24 @@
+import "server-only";
+import {ApiError} from "@erpx/platform-runtime-server/public/http";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
+import {assignmentReadSql} from "@erpx/identity-access-server/public/record-source-authority";
+import type {SqlDatabase} from "@erpx/platform-runtime-server/public/runtime/types";
+import {manufacturingPackageEnforcementMode,readPurchasedAccess} from "@erpx/commercial-server/public/purchase-command-boundary";
+import {purchasedCapabilityPredicate} from "@erpx/commercial-server/public/purchased-capability-sql";
+import {manufacturingPurchaseRecordRows,requireManufacturingPurchasedRead,manufacturingClockCte,type ManufacturingPurchaseTarget} from "@erpx/manufacturing-server/adapters/purchases";
+import {manufacturingSelectedAssignmentExists,manufacturingIdSelect,manufacturingNativeProductionProbe} from "./manufacturing-read-sql-fragments";
+import {manufacturingPurchaseScopedSelect} from "./manufacturing-read-tail-r24-sql";
+import {manufacturingPurchaseRecordSelect} from "./manufacturing-read-tail-r16-sql";
+const nativeIds=["manufacturing_specifications","manufacturing_orders","planning_scenarios","planning_recommendations"].map(manufacturingIdSelect).join(" UNION ALL ");
+/** Actual source policy/purchase is evaluated before each consumer's limit. */
+export async function manufacturingSourceReadScope(database:SqlDatabase,actor:WorkContext,surface:"staff"|"inbox"|"records"){
+ const mode=await manufacturingPackageEnforcementMode();if(mode!=="enforced"){if(mode==="shadow")await readPurchasedAccess(database,mode,{companyId:actor.companyId,capability:"manufacturing.execution"});return {where:"TRUE",args:[] as unknown[]};}
+ const id=surface==="staff"?"staff_notifications.record_id":surface==="inbox"?"e.source_id":"workspace_records.id",company=surface==="staff"?"staff_notifications.company_id":surface==="inbox"?"e.company_id":"workspace_records.company_id",type=surface==="staff"?"staff_notifications.record_type":"e.source_type",relevant=surface==="records"?`EXISTS(${manufacturingNativeProductionProbe(nativeIds,`native_production.id=${id}`)})`:`${type} IN ('manufacturing_spec','manufacturing_order','production_run','planning_scenario','planning_recommendation')`;
+ const history=purchasedCapabilityPredicate("production_source.company_id","manufacturing.execution","history","production_source_clock.now_ms"),basic=purchasedCapabilityPredicate("production_source.company_id","planning.basic","history","production_source_clock.now_ms"),bom=purchasedCapabilityPredicate("production_source.company_id","manufacturing.bom","history","production_source_clock.now_ms"),advanced=purchasedCapabilityPredicate("production_source.company_id","planning.advanced-mrp","history","production_source_clock.now_ms");
+ const tail=`CROSS JOIN production_source_clock WHERE production_source.id=${id} AND production_source.company_id=${company} AND (production_source.branch_id IS NULL OR ?::text IS NULL OR production_source.branch_id=?) AND ${assignmentReadSql("production_source","records.read")} AND ${manufacturingSelectedAssignmentExists("production_source.module_id")} AND ?::jsonb @> jsonb_build_array(production_source.module_id) AND CASE WHEN production_source.kind='specification' THEN ${bom} WHEN production_source.kind='order' THEN ${history} ELSE ${basic} END AND (NOT production_source.advanced OR ${advanced})`;
+ const visible=`EXISTS(WITH ${manufacturingClockCte("production_source_clock")} ${manufacturingPurchaseScopedSelect("1","production_source",tail)})`;
+ return {where:`(NOT (${relevant}) OR ${visible})`,args:[actor.departmentId,actor.branchId,actor.branchId,actor.assignmentId,actor.userId,actor.role,actor.assignmentId,JSON.stringify(actor.modules)]};
+}
+export async function requireManufacturingWorkspaceRecordRead(database:SqlDatabase,actor:WorkContext,_moduleId:string,id:string){
+ if(await manufacturingPackageEnforcementMode()==="disabled")return;const row=await database.prepare(manufacturingPurchaseRecordSelect("kind,module_id",manufacturingPurchaseRecordRows,"production_record","id=? AND company_id=?")).bind(id,actor.companyId).first<{kind:ManufacturingPurchaseTarget["kind"];module_id:"planning"|"manufacturing"}>();if(row)await requireManufacturingPurchasedRead(database,actor,{target:{kind:row.kind,id},module:row.module_id});else if(await database.prepare(manufacturingNativeProductionProbe(nativeIds,"id=?")).bind(id).first())throw new ApiError(404,"PRODUCTION_SOURCE_NOT_FOUND","The original production source is unavailable in this workspace.");
+}

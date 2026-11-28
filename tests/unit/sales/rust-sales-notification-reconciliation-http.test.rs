@@ -1,12 +1,12 @@
 //! Actual owner-local HTTP router tests for native Sales customer-notice
 //! reconciliation. The backend is a recording fake; PostgreSQL and composition
 //! behavior are proved separately.
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_sales::public::sales_notification_reconciliation::{
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_sales_server::public::sales_notification_reconciliation::{
     ReconcileHttpBackend, ReconcileHttpFuture, ReconcileHttpRequest, ReconcileHttpResponse,
     ReconcileHttpTarget, sales_notification_reconciliation_router,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Probe {

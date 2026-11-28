@@ -1,5 +1,5 @@
 import {readFile,writeFile} from 'node:fs/promises';
-const root='packages/server-inventory/src/public/';
+const root='modules/inventory/server/src/public/';
 const [eligible,quarantine,ambiguous]=await Promise.all(['service_count_outbox_eligible.sql','service_count_outbox_quarantine.sql','service_count_outbox_ambiguous.sql'].map(path=>readFile(root+path,'utf8')));
 // r43: the service-count marker guard is byte-identical in the quarantine and
 // ambiguous outbox predicates. Emit it once and interpolate it into both so

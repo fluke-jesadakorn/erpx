@@ -4,9 +4,9 @@ import { resolve } from 'node:path';
 import {
   LINK_SET_WHERE_EXISTS_SQL,
   PACKAGE_OBLIGATION_SCOPE_SQL,
-} from '../../../packages/server-files/src/adapters/read-tail-dedupe-sql';
+} from '../../../modules/files/server/src/adapters/read-tail-dedupe-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-files/src');
+const srcRoot = resolve(__dirname, '../../../modules/files/server/src');
 const adapterDir = resolve(srcRoot, 'adapters');
 const src = (name: string) => readFileSync(resolve(adapterDir, name), 'utf8');
 

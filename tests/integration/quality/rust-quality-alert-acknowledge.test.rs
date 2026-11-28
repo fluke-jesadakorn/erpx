@@ -1,16 +1,16 @@
 //! Native Quality alert acknowledgement transport and admission facts.
-use erpx_server_quality::public::quality_alerts::{
+use erpx_quality_server::public::quality_alerts::{
     QualityAlertAcknowledgeCommand, QualityAlertAcknowledgementReceipt,
     normalize_quality_alert_acknowledge,
 };
-use erpx_server_quality::public::quality_http::{
+use erpx_quality_server::public::quality_http::{
     QualityHttpBackend, QualityHttpCommandRequest, QualityHttpFuture, QualityHttpReadReply,
     QualityHttpReadRequest, QualityHttpTarget, parse_alert_acknowledge, quality_router,
 };
-use erpx_server_quality::public::quality_read::QualityCancellationReceipt;
-use erpx_server_runtime::public::http_support::serde_json::{self, Value, json};
-use erpx_server_runtime::public::http_support::{Router, serve};
-use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
+use erpx_quality_server::public::quality_read::QualityCancellationReceipt;
+use erpx_platform_runtime_server::public::http_support::serde_json::{self, Value, json};
+use erpx_platform_runtime_server::public::http_support::{Router, serve};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey, FailureKind};
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -75,7 +75,7 @@ fn acknowledgement_input_is_trimmed_and_bounded_like_the_retained_schema() {
 
     let mut command = QualityAlertAcknowledgeCommand {
         key: key("quality-alert-admission"),
-        alert_id: erpx_server_shared::public::RecordId::new("alert-a").unwrap(),
+        alert_id: erpx_platform_shared_server::public::RecordId::new("alert-a").unwrap(),
         expected_version: 1,
         reason: "  Accepted by manager  ".into(),
     };

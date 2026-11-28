@@ -3,7 +3,7 @@
 //! loop, and that the claim predicate is static and fail-closed. No database.
 #![allow(dead_code)]
 
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     CUSTOMER_NOTIFICATION_QUEUE, CUSTOMER_NOTIFICATION_RETRY, FamilyClass, NativeFamily, classify,
     owned_predicate,
 };

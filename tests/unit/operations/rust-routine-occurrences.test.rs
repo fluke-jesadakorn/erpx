@@ -1,8 +1,8 @@
 //! Native scheduled routine occurrence planning over owner-local facts.
-use erpx_server_operations::public::routine_occurrences::{
+use erpx_operations_server::public::routine_occurrences::{
     OccurrenceSourceFacts, due_at_iso, plan_occurrence,
 };
-use erpx_server_operations::public::routine_commands::{
+use erpx_operations_server::public::routine_commands::{
     RoutineScheduleRow, RoutineTemplateRow,
 };
 

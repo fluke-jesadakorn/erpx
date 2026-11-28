@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
-import { anonymousAccountAuthPath, bindingIsCurrent, safeProductReturnPath, sessionLifetime } from "@erpx/server-identity_access/domain/product-sso";
-import { productWorkspaceTarget } from "@erpx/server-identity_access/domain/product-workspace";
-import { isProductHostKey } from "@erpx/contracts/product-registry";
+import { anonymousAccountAuthPath, bindingIsCurrent, safeProductReturnPath, sessionLifetime } from "@erpx/identity-access-server/domain/product-sso";
+import { productWorkspaceTarget } from "@erpx/identity-access-server/domain/product-workspace";
+import { isProductHostKey } from "@erpx/platform-contracts/product-registry";
 it("rejects retired Work identity and never adopts its child session for Apps", () => {
   expect(isProductHostKey("work")).toBe(false);
   expect(isProductHostKey("apps")).toBe(true);
@@ -11,7 +11,7 @@ it("rejects retired Work identity and never adopts its child session for Apps", 
   expect(bindingIsCurrent({ ...binding, audience: "finance" }, "finance", "development", 1000)).toBe(true);
 });
 it('finishes the actual account provider server stream when a descendant report resolves after its Suspense fallback',async()=>{
- const {createElement,lazy,Suspense}=await import('react'),{renderToReadableStream}=await import('react-dom/server'),{ProductAccountProvider}=await import('@erpx/workplace/components/product-account-provider');
+ const {createElement,lazy,Suspense}=await import('react'),{renderToReadableStream}=await import('react-dom/server'),{ProductAccountProvider}=await import('@erpx/platform-workplace/components/product-account-provider');
  let complete!:(value:{default:()=>import('react').ReactElement})=>void;
  const pending=new Promise<{default:()=>import('react').ReactElement}>(resolve=>{complete=resolve;}),Report=lazy(()=>pending),errors:unknown[]=[];
  const stream=await renderToReadableStream(createElement(ProductAccountProvider,{user:{id:'stream-user',name:'Stream user',email:'stream@example.test'},audience:'pms',accountOrigin:'https://account-dev-erpx.jesadakorn.com',appsHref:'https://apps-dev-erpx.jesadakorn.com/',children:createElement(Suspense,{fallback:createElement('p',null,'Report loading')},createElement(Report))}),{onError:error=>{errors.push(error);}});
@@ -47,8 +47,8 @@ it("binds audience and environment to original authentication time with an absol
   expect(bindingIsCurrent({ ...binding, absoluteExpiresAt: 1001 + sessionLifetime }, "finance", "development", 1001)).toBe(false);
 });
 
-import {createProviderContextClient} from '@erpx/feature-identity_access/lib/provider-context-client';
-import {providerContextSelection,providerContextAcknowledgement,type ProviderContextSeed} from '@erpx/feature-identity_access/lib/provider-context';
+import {createProviderContextClient} from '@erpx/identity-access-ui/lib/provider-context-client';
+import {providerContextSelection,providerContextAcknowledgement,type ProviderContextSeed} from '@erpx/identity-access-ui/lib/provider-context';
 const providerSeed:ProviderContextSeed={accountKey:'a'.repeat(64),contextKey:'b'.repeat(64),revision:0,selectedId:'assigned-a',choices:[{id:'assigned-a',label:'Assigned administrator',version:'c'.repeat(64)},{id:'assigned-b',label:'Assigned auditor',version:'d'.repeat(64)}]};
 const providerAfter:ProviderContextSeed={...providerSeed,contextKey:'e'.repeat(64),selectedId:'assigned-b',revision:1};
 it('provider context starts from the exact SSR seed without a mount read or any private authority fields',()=>{
@@ -70,11 +70,11 @@ it('provider focus and peer refresh are read-only and require review before repl
  let writes=0;const client=createProviderContextClient(providerSeed,{read:async()=>providerAfter,write:async()=>{writes++;return providerAfter;},key:()=> 'key',generation:()=>0});await client.refresh();expect(client.getSnapshot()).toMatchObject({seed:providerAfter,stale:true});expect(writes).toBe(0);client.observe(providerAfter);expect(client.getSnapshot().stale).toBe(false);client.dispose();
 });
 it('provider Admin switcher renders its actual minimal SSR role seed without a mount fetch',async()=>{
- const {createElement}=await import('react'),{renderToStaticMarkup}=await import('react-dom/server'),{ProviderContextBoundary}=await import('@erpx/feature-identity_access/components/provider-context-boundary'),{ProviderContextSwitcher}=await import('@erpx/feature-identity_access/components/provider-context-switcher'),{ContextSwitchContext}=await import('@erpx/workplace/components/context-switch-context');
+ const {createElement}=await import('react'),{renderToStaticMarkup}=await import('react-dom/server'),{ProviderContextBoundary}=await import('@erpx/identity-access-ui/components/provider-context-boundary'),{ProviderContextSwitcher}=await import('@erpx/identity-access-ui/components/provider-context-switcher'),{ContextSwitchContext}=await import('@erpx/platform-workplace/components/context-switch-context');
  const html=renderToStaticMarkup(createElement(ContextSwitchContext.Provider,{value:{busy:false,switchContext:async()=>true}},createElement(ProviderContextBoundary,{initial:providerSeed,children:createElement(ProviderContextSwitcher)})));expect(html).toContain('Provider role');expect(html).toContain('Assigned administrator');expect(html).toContain('Assigned auditor');expect(html).not.toContain('modules_json');expect(html).not.toContain('sessionId');
 });
 it('provider known stale, wrong-account and unresolved selections hide dependent tools while retaining the mounted guarded draft',async()=>{
- const {providerContextBlocked}=await import('@erpx/feature-identity_access/lib/provider-context-client');expect(providerContextBlocked({stale:false,retry:false,pending:false})).toBe(false);for(const flags of [{stale:true,retry:false,pending:false},{stale:false,retry:true,pending:false},{stale:false,retry:false,pending:true}])expect(providerContextBlocked(flags)).toBe(true);
+ const {providerContextBlocked}=await import('@erpx/identity-access-ui/lib/provider-context-client');expect(providerContextBlocked({stale:false,retry:false,pending:false})).toBe(false);for(const flags of [{stale:true,retry:false,pending:false},{stale:false,retry:true,pending:false},{stale:false,retry:false,pending:true}])expect(providerContextBlocked(flags)).toBe(true);
 });
 it('provider context survives StrictMode setup cleanup reacquisition without a mount read or disabling later role selection',async()=>{
  let reads=0,writes=0;const client=createProviderContextClient(providerSeed,{read:async()=>{reads++;return providerSeed;},write:async()=>{writes++;return providerAfter;},key:()=> 'strict-role-selection',generation:()=>0});client.activate();client.dispose();client.activate();client.observe(providerSeed);expect([reads,writes]).toEqual([0,0]);await client.select('assigned-b');expect(client.getSnapshot()).toMatchObject({seed:providerAfter,pending:false,retry:false});expect(writes).toBe(1);client.dispose();

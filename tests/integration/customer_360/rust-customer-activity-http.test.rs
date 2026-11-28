@@ -1,13 +1,13 @@
 //! Actual owner-local Executive customer-activity HTTP router tests. These
 //! prove ingress facts only; Account authority, source gates, Support purchase
 //! and PostgreSQL remain separate composition responsibilities.
-use erpx_server_customer_360::public::customer_activity::ExecutiveCustomerActivityRow;
-use erpx_server_customer_360::public::customer_activity_http::{
+use erpx_customer_360_server::public::customer_activity::ExecutiveCustomerActivityRow;
+use erpx_customer_360_server::public::customer_activity_http::{
     CustomerActivityHttpBackend, CustomerActivityHttpFuture, CustomerActivityHttpReadRequest,
     CustomerActivityHttpTarget, customer_activity_http_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Noop;

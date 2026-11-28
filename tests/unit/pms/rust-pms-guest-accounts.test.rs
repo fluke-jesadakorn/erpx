@@ -3,15 +3,15 @@
 //! inferred.
 #![allow(dead_code)]
 mod domain {
-    #[path = "../../../../packages/server-pms/src/domain/guest_account.rs"]
+    #[path = "../../../../modules/pms/server/src/domain/guest_account.rs"]
     pub mod guest_account;
-    #[path = "../../../../packages/server-pms/src/domain/room_board.rs"]
+    #[path = "../../../../modules/pms/server/src/domain/room_board.rs"]
     pub mod room_board;
 }
 mod application {
-    #[path = "../../../../packages/server-pms/src/application/guest_account.rs"]
+    #[path = "../../../../modules/pms/server/src/application/guest_account.rs"]
     pub mod guest_account;
-    #[path = "../../../../packages/server-pms/src/application/room_board.rs"]
+    #[path = "../../../../modules/pms/server/src/application/room_board.rs"]
     pub mod room_board;
 }
 
@@ -26,7 +26,7 @@ use domain::guest_account::{
     PmsGuestAccountUpdateInput, PmsTransferInput, plan_guest_account, price_amounts,
 };
 use domain::room_board::{PmsBoardActor, PmsPropertyRow, PmsRecord};
-use erpx_server_shared::public::{BusinessError, CommandKey};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey};
 use serde_json::json;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -831,17 +831,17 @@ async fn application_replays_receipt_before_any_owner_load() {
 /// Native booking-refund producer: money rules, guards and effects.
 mod booking_refunds {
 
-    use erpx_server_pms::public::refund::{
+    use erpx_pms_server::public::refund::{
         PmsBoardFuture, PmsProviderReceipt, PmsProviderRefund, PmsRefundFinanceRow, PmsRefundPart,
     };
-    use erpx_server_pms::public::refund::{
+    use erpx_pms_server::public::refund::{
         PmsRefundMail, PmsRefundPayment, PmsRefundPrior, PmsRefundProvider, PmsRefundPurchaseGuard,
         PmsRefundRepository, PmsRefundRequest, PmsRefundSelection, PmsRefundSource, approve_refund,
         recover_receipt, refunds_for_finance, request_refund, retry_refund, settle_refund,
     };
-    use erpx_server_pms::public::room_board::PmsBoardActor;
-    use erpx_server_pms::public::room_board::PmsRecord;
-    use erpx_server_shared::public::BusinessError;
+    use erpx_pms_server::public::room_board::PmsBoardActor;
+    use erpx_pms_server::public::room_board::PmsRecord;
+    use erpx_platform_shared_server::public::BusinessError;
     use serde_json::json;
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
@@ -1004,7 +1004,7 @@ mod booking_refunds {
             company_id: &'a str,
         ) -> PmsBoardFuture<
             'a,
-            Option<erpx_server_pms::public::refund::PmsRefundRequestContext>,
+            Option<erpx_pms_server::public::refund::PmsRefundRequestContext>,
             Self::Error,
         > {
             Box::pin(async move {
@@ -1018,7 +1018,7 @@ mod booking_refunds {
                 if payment.company_id != company_id {
                     return Ok(None);
                 }
-                Ok(Some(erpx_server_pms::public::refund::PmsRefundRequestContext {
+                Ok(Some(erpx_pms_server::public::refund::PmsRefundRequestContext {
                     property_id: payment.property_id.clone(),
                     account_id: payment.account_id.clone(),
                     livemode: payment.livemode,
@@ -1075,11 +1075,11 @@ mod booking_refunds {
             property_id: &'a str,
         ) -> PmsBoardFuture<
             'a,
-            Option<erpx_server_pms::public::refund::PmsRefundProperty>,
+            Option<erpx_pms_server::public::refund::PmsRefundProperty>,
             Self::Error,
         > {
             Box::pin(async move {
-                Ok(Some(erpx_server_pms::public::refund::PmsRefundProperty {
+                Ok(Some(erpx_pms_server::public::refund::PmsRefundProperty {
                     id: property_id.to_owned(),
                     company_id: "co-1".into(),
                     branch_id: "branch-1".into(),
@@ -1565,11 +1565,11 @@ mod booking_refunds {
                 property_id: &'a str,
             ) -> PmsBoardFuture<
                 'a,
-                Option<erpx_server_pms::public::refund::PmsRefundProperty>,
+                Option<erpx_pms_server::public::refund::PmsRefundProperty>,
                 Self::Error,
             > {
                 Box::pin(async move {
-                    Ok(Some(erpx_server_pms::public::refund::PmsRefundProperty {
+                    Ok(Some(erpx_pms_server::public::refund::PmsRefundProperty {
                         id: property_id.to_owned(),
                         company_id: "co-1".into(),
                         branch_id: "branch-1".into(),
@@ -1605,7 +1605,7 @@ mod booking_refunds {
                 _company: &'a str,
             ) -> PmsBoardFuture<
                 'a,
-                Option<erpx_server_pms::public::refund::PmsRefundRequestContext>,
+                Option<erpx_pms_server::public::refund::PmsRefundRequestContext>,
                 Self::Error,
             > {
                 Box::pin(async { Ok(None) })

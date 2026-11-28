@@ -1,6 +1,6 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { BILLING_PLAN_NAME_LATERAL_SQL } from '../../../packages/server-billing/src/adapters/billing-read-tail-r18-sql';
+import { BILLING_PLAN_NAME_LATERAL_SQL } from '../../../modules/billing/server/src/adapters/billing-read-tail-r18-sql';
 
 const LATERAL = 'LEFT JOIN LATERAL (SELECT name FROM billing_plans WHERE id=e.plan_id ORDER BY revision DESC LIMIT 1) p ON TRUE';
 
@@ -22,7 +22,7 @@ describe('billing read-tail r18 cross-file LATERAL dedupe', () => {
   it('routes both executive readers through the shared fragment with byte-identical SQL', async () => {
     for (const file of ['executive-metric-projections.ts']) {
       const text = await readFile(
-        new URL(`../../../packages/server-billing/src/adapters/${file}`, import.meta.url),
+        new URL(`../../../modules/billing/server/src/adapters/${file}`, import.meta.url),
         'utf8',
       );
       expect(text.split("from './billing-read-tail-r33-sql'").length - 1).toBe(1);
@@ -31,14 +31,14 @@ describe('billing read-tail r18 cross-file LATERAL dedupe', () => {
     }
     // Native lane 38 wave 2: this caller no longer carries SQL text.
     const evidence = await readFile(
-      new URL('../../../packages/server-billing/src/adapters/executive-main-evidence-sources.ts', import.meta.url),
+      new URL('../../../modules/billing/server/src/adapters/executive-main-evidence-sources.ts', import.meta.url),
       'utf8',
     );
     expect(evidence).not.toContain("from './billing-read-tail-r33-sql'");
     expect(evidence).not.toContain(LATERAL);
     expect(evidence).toContain('nativeBillingCommercialSubscriptions(');
     const r33 = await readFile(
-      new URL('../../../packages/server-billing/src/adapters/billing-read-tail-r33-sql.ts', import.meta.url),
+      new URL('../../../modules/billing/server/src/adapters/billing-read-tail-r33-sql.ts', import.meta.url),
       'utf8',
     );
     expect(r33.split("from './billing-read-tail-r18-sql'").length - 1).toBe(1);
@@ -48,7 +48,7 @@ describe('billing read-tail r18 cross-file LATERAL dedupe', () => {
   it('keeps the fragment read-only and leaves advisory/FOR UPDATE reads untouched', async () => {
     expect(LATERAL).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
     const billing = await readFile(
-      new URL('../../../packages/server-billing/src/adapters/billing.ts', import.meta.url),
+      new URL('../../../modules/billing/server/src/adapters/billing.ts', import.meta.url),
       'utf8',
     );
     expect(billing).toContain("nativeBillingOwnerQuery(c,'billing_rd_advisory_xact_lock',[value0])");
@@ -56,7 +56,7 @@ describe('billing read-tail r18 cross-file LATERAL dedupe', () => {
   });
 
   it('lowers the billing owner SELECT KPI strictly below the r17 after=75 baseline', async () => {
-    const files = await tsFiles(new URL('../../../packages/server-billing/src/', import.meta.url));
+    const files = await tsFiles(new URL('../../../modules/billing/server/src/', import.meta.url));
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThanOrEqual(69);

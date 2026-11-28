@@ -1,7 +1,7 @@
 //! Test-only adoption of the eight fresh leases owned by the engineering driver.
 use super::facts::account;
-use erpx_server_identity_access::public::UnavailableInvitationCredentialAuthority;
-use erpx_server_runtime::public::postgres::{
+use erpx_identity_access_server::public::UnavailableInvitationCredentialAuthority;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, LeasedDevelopmentDatabase, MigrationTrack, PoolLimits, load_migrations,
     migrate_database,
 };

@@ -3,13 +3,13 @@
 //! Pure owner rules (source/consent/provider invalidity, lease/attempt claim
 //! decisions, queued identity binding) plus the bounded orchestration that
 //! commits a claim before I/O and marks the same attempt on failure.
-use erpx_server_sales::public::sales_notification_execution::{
+use erpx_sales_server::public::sales_notification_execution::{
     ClaimDecision, DeliveryStage, DispatchOutcome, DispatchPlan, DispatchTrace, EmailDispatchPort,
     ExecutionAttempt, ExecutionAuthorization, ExecutionFuture, NotificationExecutionUnit,
     NotificationSource, OutboundEmail, QueuedActor, authorization_current, claim_decision,
     deliver_notification, drain_notifications, invalid_reason, parse_queued_actor,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 use std::sync::{Arc, Mutex};
 
 fn source(consent: &str, order_state: &str, adapter: &str) -> NotificationSource {
@@ -248,7 +248,7 @@ impl NotificationExecutionUnit for FakeUnit {
             let mut state = self.state.lock().unwrap();
             if state.deliver_error {
                 return Err(BusinessError::new(
-                    erpx_server_shared::public::FailureKind::Conflict,
+                    erpx_platform_shared_server::public::FailureKind::Conflict,
                     "CUSTOMER_EMAIL_ATTEMPT_UNCERTAIN",
                     "declared provider uncertainty",
                 ));

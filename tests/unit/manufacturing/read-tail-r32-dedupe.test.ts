@@ -3,9 +3,9 @@ import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
-import { manufacturingMetricBreakdownSelect } from '../../../packages/server-manufacturing/src/adapters/manufacturing-read-tail-r32-sql';
+import { manufacturingMetricBreakdownSelect } from '../../../modules/manufacturing/server/src/adapters/manufacturing-read-tail-r32-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-manufacturing/src');
+const srcRoot = resolve(__dirname, '../../../modules/manufacturing/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 /** The completed-orders count and production-cost sum projections opened the

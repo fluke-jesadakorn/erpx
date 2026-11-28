@@ -1,5 +1,5 @@
 import {createHash} from 'node:crypto';
-import type {PostgresDatabase} from '@erpx/server-runtime/adapters/runtime/postgres';
+import type {PostgresDatabase} from '@erpx/platform-runtime-server/adapters/runtime/postgres';
 import type {EngineeringMoneyPeopleBrowser} from '../../finance/builders/engineering-money-people-browser';
 
 /** Fictional visibility for these owned development snapshots only. This is

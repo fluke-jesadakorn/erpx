@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import {serviceOwnership} from "@erpx/contracts/ownership";
+import {serviceOwnership} from "@erpx/platform-contracts/ownership";
 
 const root=path.resolve(import.meta.dirname,"../..");
 function files(directory:string):string[]{if(!fs.existsSync(directory))return [];return fs.readdirSync(directory,{withFileTypes:true}).flatMap(entry=>entry.isDirectory()?files(path.join(directory,entry.name)):[path.join(directory,entry.name)]).filter(file=>/\.(ts|tsx)$/.test(file));}

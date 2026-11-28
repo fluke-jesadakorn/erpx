@@ -9,8 +9,9 @@
       "id": "current-erpx-owned-source",
       "paths": [
         "apps/",
-        "packages/",
-        "src/",
+        "modules/",
+        "products/",
+        "platform/",
         "scripts/",
         "tests/",
         "docs/"
@@ -58,10 +59,10 @@
     {
       "id": "dingbat-to-unicode-mapping",
       "paths": [
-        "packages/server-legal/src/adapters/document_docx/dingbats.rs"
+        "modules/legal/server/src/adapters/document_docx/dingbats.rs"
       ],
       "noticeFiles": [
-        "packages/server-legal/licenses/dingbat-to-unicode-BSD-2-Clause.txt"
+        "modules/legal/server/licenses/dingbat-to-unicode-BSD-2-Clause.txt"
       ],
       "declaredLicense": "BSD-2-Clause",
       "reviewStatus": "notice-reviewed",
@@ -73,12 +74,12 @@
     {
       "id": "icu4x-compiled-collation",
       "paths": [
-        "packages/server-commercial/src/domain/collation.rs",
-        "packages/server-finance/src/domain/company_money.rs",
-        "packages/server-people_payroll/src/domain/payroll_accounting_collation.rs"
+        "modules/commercial/server/src/domain/collation.rs",
+        "modules/finance/server/src/domain/company_money.rs",
+        "modules/people-payroll/server/src/domain/payroll_accounting_collation.rs"
       ],
       "noticeFiles": [
-        "packages/server-commercial/licenses/ICU4X-Unicode-3.0.txt"
+        "modules/commercial/server/licenses/ICU4X-Unicode-3.0.txt"
       ],
       "declaredLicense": "Unicode-3.0",
       "reviewStatus": "notice-reviewed",
@@ -132,12 +133,12 @@
     {
       "id": "ryu-js-number-formatting",
       "paths": [
-        "packages/server-workflow/",
+        "modules/workflow/server/",
         "Cargo.lock",
-        "packages/server-people_payroll/src/domain/payroll_accounting_operand.rs"
+        "modules/people-payroll/server/src/domain/payroll_accounting_operand.rs"
       ],
       "noticeFiles": [
-        "packages/server-workflow/licenses/ryu-js-1.0.3-Apache-2.0.txt"
+        "modules/workflow/server/licenses/ryu-js-1.0.3-Apache-2.0.txt"
       ],
       "reviewStatus": "notice-reviewed",
       "declaredLicense": "Apache-2.0",
@@ -152,7 +153,7 @@
         "scripts/testing/fixtures/fetch-legal-worker-models.ts"
       ],
       "noticeFiles": [
-        "packages/server-legal/licenses/tesseract-tessdata-fast-Apache-2.0.txt"
+        "modules/legal/server/licenses/tesseract-tessdata-fast-Apache-2.0.txt"
       ],
       "reviewStatus": "notice-reviewed",
       "declaredLicense": "Apache-2.0",
@@ -163,14 +164,14 @@
     {
       "id": "directory-ldap-protocol",
       "paths": [
-        "packages/server-identity_access/licenses/ldap3_proto-0.8.1-MPL-2.0.txt",
-        "packages/server-identity_access/licenses/ldap3_lber-0.8.1-MIT.txt"
+        "modules/identity-access/server/licenses/ldap3_proto-0.8.1-MPL-2.0.txt",
+        "modules/identity-access/server/licenses/ldap3_lber-0.8.1-MIT.txt"
       ],
       "noticeFiles": [
-        "packages/server-identity_access/licenses/DIRECTORY-LDAP-NOTICE.md",
-        "packages/server-identity_access/licenses/directory-ldap-provenance.json",
-        "packages/server-identity_access/licenses/ldap3_proto-0.8.1-MPL-2.0.txt",
-        "packages/server-identity_access/licenses/ldap3_lber-0.8.1-MIT.txt"
+        "modules/identity-access/server/licenses/DIRECTORY-LDAP-NOTICE.md",
+        "modules/identity-access/server/licenses/directory-ldap-provenance.json",
+        "modules/identity-access/server/licenses/ldap3_proto-0.8.1-MPL-2.0.txt",
+        "modules/identity-access/server/licenses/ldap3_lber-0.8.1-MIT.txt"
       ],
       "declaredLicense": "MPL-2.0 AND MIT",
       "reviewStatus": "notice-reviewed",

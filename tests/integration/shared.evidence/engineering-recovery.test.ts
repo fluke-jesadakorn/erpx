@@ -9,23 +9,23 @@ import { promisify } from "node:util";
 import { executeOwnedProcess } from '../../support/owned-process';
 import { env, applyMigrations } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import { executeCommand } from "@erpx/server-workflow/public/commands";
-import {snapshotMoney} from '@erpx/server-finance/public/company-money';
-import { legalCommand, detail } from "@erpx/server-legal/public/legal/service";
-import { uploadDocument, documentAccess, documentBytes } from "@erpx/server-legal/public/legal/documents";
-import { queueInspection } from "@erpx/server-legal/public/legal/processing";
-import { LocalFileStore } from "@erpx/server-runtime/adapters/runtime/filesystem";
+import { executeCommand } from "@erpx/workflow-server/public/commands";
+import {snapshotMoney} from '@erpx/finance-server/public/company-money';
+import { legalCommand, detail } from "@erpx/legal-server/public/legal/service";
+import { uploadDocument, documentAccess, documentBytes } from "@erpx/legal-server/public/legal/documents";
+import { queueInspection } from "@erpx/legal-server/public/legal/processing";
+import { LocalFileStore } from "@erpx/platform-runtime-server/adapters/runtime/filesystem";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import {seedFinanceExpansionRehearsal} from "../../../fixtures/finance/expansion";
-import {exportFinancialReport} from "@erpx/server-finance/public/finance-planning";
-import {groupReportEditionExport} from "@erpx/server-finance/public/finance-group-editions";
-import {pmsCommand,loadPms} from "../../../packages/server-pms/src/public/pms";
-import {pmsAccountKeys,records,record,type Config} from "@erpx/server-pms/public/rules/pms";
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({runtimeEnv:async()=>env,holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES})}));
+import {exportFinancialReport} from "@erpx/finance-server/public/finance-planning";
+import {groupReportEditionExport} from "@erpx/finance-server/public/finance-group-editions";
+import {pmsCommand,loadPms} from "../../../modules/pms/server/src/public/pms";
+import {pmsAccountKeys,records,record,type Config} from "@erpx/pms-server/public/rules/pms";
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({runtimeEnv:async()=>env,holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES})}));
 // Immutable Legal recovery uses a declared scanner fixture. Compiled browser UAT
 // exercises the actual scanner/OCR binaries before production acceptance.
-vi.mock("@erpx/server-files/public/attachments/scanner",()=>({attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:"recovery scanner fixture",definitionUpdatedAt:Date.now(),error:null}),scanAttachmentBytes:async()=>({clean:true,signature:null,engine:"recovery scanner fixture",definitionUpdatedAt:Date.now()})}));
-vi.mock("@erpx/server-files/public/attachments/preview",()=>({attachmentPreviewReadiness:async()=>({ready:true,error:null}),detectedAttachmentMediaType:(_bytes:Uint8Array,type:string)=>type,sanitizedAttachmentPreview:async()=>null}));
+vi.mock("@erpx/files-server/public/attachments/scanner",()=>({attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:"recovery scanner fixture",definitionUpdatedAt:Date.now(),error:null}),scanAttachmentBytes:async()=>({clean:true,signature:null,engine:"recovery scanner fixture",definitionUpdatedAt:Date.now()})}));
+vi.mock("@erpx/files-server/public/attachments/preview",()=>({attachmentPreviewReadiness:async()=>({ready:true,error:null}),detectedAttachmentMediaType:(_bytes:Uint8Array,type:string)=>type,sanitizedAttachmentPreview:async()=>null}));
 
 const execute = promisify(execFile);
 const hash = (bytes:string|Buffer) => createHash("sha256").update(bytes).digest("hex");

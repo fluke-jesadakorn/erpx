@@ -1,4 +1,4 @@
-use erpx_server_workflow::public::stock_count_flow::*;
+use erpx_workflow_server::public::stock_count_flow::*;
 fn participant(id: &str) -> StockCountParticipant {
     StockCountParticipant {
         user_id: id.into(),
@@ -161,7 +161,7 @@ fn normalized_assignment_retains_javascript_utf16_trim_and_integral_numbers() {
 #[test]
 fn assignment_lengths_count_codepoints_and_keep_original_utf16() {
     for generic in [false,true] {
-        let normalizer:fn(&str)->Result<erpx_server_workflow::public::commands::CommandJson,erpx_server_shared::public::BusinessError>=if generic {normalize_generic_stock_count_assignment} else {normalize_stock_count_assignment};
+        let normalizer:fn(&str)->Result<erpx_workflow_server::public::commands::CommandJson,erpx_platform_shared_server::public::BusinessError>=if generic {normalize_generic_stock_count_assignment} else {normalize_stock_count_assignment};
         let raw=|step:&str,user:&str,reason:&str| serde_json::json!({"stepKey":step,"userId":user,"expectedVersion":0,"recordVersion":1,"reason":reason}).to_string();
         assert!(normalizer(&raw(&"😀".repeat(100),&"😀".repeat(180),&"😀".repeat(2000))).is_ok());
         assert!(normalizer(&raw(&"😀".repeat(101),"user","reason")).is_err());

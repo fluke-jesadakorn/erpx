@@ -2,10 +2,10 @@ import { describe, expect, test } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { ATTACHMENT_REFERENCE_HEAD_SQL } from '../../../packages/server-files/src/adapters/read-tail-r34-source-sql';
-import { STORAGE_LEDGER_OBJECT_KEY_HEAD_SQL } from '../../../packages/server-files/src/adapters/read-tail-r41-source-sql';
+import { ATTACHMENT_REFERENCE_HEAD_SQL } from '../../../modules/files/server/src/adapters/read-tail-r34-source-sql';
+import { STORAGE_LEDGER_OBJECT_KEY_HEAD_SQL } from '../../../modules/files/server/src/adapters/read-tail-r41-source-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-files/src');
+const srcRoot = resolve(__dirname, '../../../modules/files/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const literalSelectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
 const selectCount = (text: string) => (text.match(/SELECT\s/g) ?? []).length;
@@ -53,8 +53,8 @@ describe('Files read-tail r34 parameterized family', () => {
   });
 
   test('advisory locks, native writes and r1-r33 helpers stay untouched', () => {
-    const svcHeadSrc = git('show', 'HEAD:packages/server-files/src/adapters/attachments/service.ts');
-    const msgHeadSrc = git('show', 'HEAD:packages/server-files/src/adapters/messaging-upload-rollback.ts');
+    const svcHeadSrc = git('show', 'HEAD:modules/files/server/src/adapters/attachments/service.ts');
+    const msgHeadSrc = git('show', 'HEAD:modules/files/server/src/adapters/messaging-upload-rollback.ts');
     const svc = src('attachments/service.ts');
     const msg = src('messaging-upload-rollback.ts');
     for (const [before, after, needle] of [
@@ -75,7 +75,7 @@ describe('Files read-tail r34 parameterized family', () => {
       'read-tail-r28-source-sql.ts', 'read-tail-r29-source-sql.ts', 'read-tail-r30-source-sql.ts',
       'read-tail-r31-source-sql.ts', 'read-tail-r32-source-sql.ts', 'read-tail-r33-source-sql.ts',
     ]) {
-      const p = `packages/server-files/src/adapters/${h}`;
+      const p = `modules/files/server/src/adapters/${h}`;
       expect(git('rev-parse', `HEAD:${p}`).trim()).toBe(git('hash-object', p).trim());
     }
   });

@@ -4,17 +4,17 @@
 #![allow(dead_code)]
 #[path = "../../support/operations/rust-operations-database.rs"]
 mod fixture;
-use erpx_server_operations::public::routine_commands::{
+use erpx_operations_server::public::routine_commands::{
     PgRoutineCommands, RoutineCommandRepository, RunRoutineTemplateCommand, run_template,
 };
-use erpx_server_operations::public::staff_tasks::{
+use erpx_operations_server::public::staff_tasks::{
     PgStaffTaskSources, PgStaffTasks, ProjectFact, RouteFact, StaffFact, StaffTaskFactDelegates,
     StaffTaskFuture, TaskScope, notify_staff_task_approval,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 
 fn business(error: PgTransactionError<BusinessError>) -> BusinessError {
     match error {
@@ -48,8 +48,8 @@ async fn serializable(pool: &DatabasePool) -> sqlx::Transaction<'static, sqlx::P
     tx
 }
 
-fn actor() -> erpx_server_operations::public::staff_tasks::StaffTaskActor {
-    erpx_server_operations::public::staff_tasks::StaffTaskActor {
+fn actor() -> erpx_operations_server::public::staff_tasks::StaffTaskActor {
+    erpx_operations_server::public::staff_tasks::StaffTaskActor {
         user_id: "runner".into(),
         assignment_id: "assignment-runner".into(),
         company_id: "company".into(),
@@ -144,7 +144,7 @@ impl StaffTaskFactDelegates for Sources {
         &'a mut self,
         unit: Option<&'a mut sqlx::PgConnection>,
         key: &'a str,
-        task: &'a erpx_server_operations::public::staff_tasks::TaskRow,
+        task: &'a erpx_operations_server::public::staff_tasks::TaskRow,
         phase: &'a str,
         _route: &'a RouteFact,
         version: i64,
@@ -278,7 +278,7 @@ async fn creates_replays_and_conflicts_one_manual_routine_run() {
         };
         assert_eq!(
             first,
-            erpx_server_operations::public::staff_tasks::TaskReceipt::new(
+            erpx_operations_server::public::staff_tasks::TaskReceipt::new(
                 "task-run-key-start",
                 "start_approval",
                 1

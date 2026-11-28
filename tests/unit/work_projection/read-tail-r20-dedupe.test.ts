@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 
 const src = (name: string) =>
-  new URL(`../../../packages/server-work_projection/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/work-projection/server/src/adapters/${name}`, import.meta.url);
 
 const norm = (sql: string) => sql.replace(/\s*,\s*/g, ',').replace(/\s+/g, ' ').trim();
 
@@ -57,7 +57,7 @@ describe('work_projection read-tail r20 dedupe', () => {
 
   it('emits the original SQL for both parameterized callers', async () => {
     const { appointmentAttendeeSeriesSql } = await import(
-      '../../../packages/server-work_projection/src/adapters/read-tail-sql.ts'
+      '../../../modules/work-projection/server/src/adapters/read-tail-sql.ts'
     );
     expect(norm(appointmentAttendeeSeriesSql(availabilityColumns, availabilityWhere))).toBe(
       norm(original.availability),

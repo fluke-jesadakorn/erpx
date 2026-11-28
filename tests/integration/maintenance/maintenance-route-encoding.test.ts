@@ -2,21 +2,21 @@ import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { isValidElement, type ReactElement } from "react";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseFixture, expenseDb as db, key } from "../../support/helpers/expense-fixture";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import MaintenancePage from "@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/maintenance/[id]/screen";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import MaintenancePage from "@erpx/platform-workplace/routes/holdings/[holdingSlug]/_presenters/maintenance/[id]/screen";
 
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: db, files: env.H001_FILES }), runtimeEnv: async () => env }));
-vi.mock("@erpx/server-identity_access/public/authorization", () => ({ requireWorkContext: async () => actor, publicScope: () => ({ kind: "holding", holdingSlug: "test" }) }));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({ holdingResources: async () => ({ write: db, files: env.H001_FILES }), runtimeEnv: async () => env }));
+vi.mock("@erpx/identity-access-server/public/authorization", () => ({ requireWorkContext: async () => actor, publicScope: () => ({ kind: "holding", holdingSlug: "test" }) }));
 // This suite owns presenter route decoding and current Company/branch source
 // guards. It binds the page's native detail boundary to the owner read over the
 // same disposable database; native HTTP reads are gated by
 // maintenance.rust-maintenance-read-postgres.integration and the browser journey.
-vi.mock("@erpx/feature-assets/public/native-assets", async importOriginal => {
-  const actual = await importOriginal<typeof import("@erpx/feature-assets/public/native-assets")>();
-  const { maintenanceDetail } = await import("@erpx/server-maintenance/public/asset-maintenance");
+vi.mock("@erpx/assets-ui/public/native-assets", async importOriginal => {
+  const actual = await importOriginal<typeof import("@erpx/assets-ui/public/native-assets")>();
+  const { maintenanceDetail } = await import("@erpx/maintenance-server/public/asset-maintenance");
   return { ...actual, ownedMaintenanceDetail: (actor: WorkContext, _holdingSlug: string, id: string) => maintenanceDetail(actor, id) };
 });
-vi.mock("@erpx/server-work_projection/public/page-error", () => ({ pageError: (error: unknown) => { throw error; } }));
+vi.mock("@erpx/work-projection-server/public/page-error", () => ({ pageError: (error: unknown) => { throw error; } }));
 // Owner rows the native Assets register command persists; the TypeScript writer
 // is retired and the native Rust suites own command behavior.
 async function seedAsset(actor:{companyId:string;userId:string},input:{branchId:string;departmentId?:string|null;code:string;name:string;category:string;currency?:string;costMinor?:number;acquiredDate:string;warrantyEnd?:string|null}){

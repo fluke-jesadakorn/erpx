@@ -4,13 +4,13 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 import {
   legalLawStateGuardSql,
-} from '../../../packages/server-legal/src/adapters/legal-read-tail-r51-sources';
+} from '../../../modules/legal/server/src/adapters/legal-read-tail-r51-sources';
 import {
   legalPointByIdSql,
-} from '../../../packages/server-legal/src/adapters/legal-read-tail-r32-sources';
+} from '../../../modules/legal/server/src/adapters/legal-read-tail-r32-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-legal/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-legal/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/legal/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/legal/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 /** Independent pre-r51 oracles: the exact inline SQL removed from law-corpus. */
 const sourceGuardSql = `SELECT 1 FROM legal_law_sources WHERE id=? AND rule_id=? AND company_id=? AND state='active'`;

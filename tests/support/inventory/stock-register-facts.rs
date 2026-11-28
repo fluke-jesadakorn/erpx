@@ -1,6 +1,6 @@
 //! Newly leased, fully migrated databases for the Inventory stock-register
 //! read. These rows are owner facts, never actor grants.
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
 

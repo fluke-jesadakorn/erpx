@@ -1,7 +1,7 @@
 //! Proves the Inventory read fences cover every reservation source behind
 //! inventory_active_reservations. A blocked UPDATE is used instead of a data
 //! assertion because relation-level lock waiting is the actual guard.
-use erpx_server_runtime::public::postgres::DatabasePool;
+use erpx_platform_runtime_server::public::postgres::DatabasePool;
 use sqlx::AssertSqlSafe;
 
 const RESERVATION_SOURCES: [&str; 4] = [

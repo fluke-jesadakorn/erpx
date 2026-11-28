@@ -8,17 +8,17 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_people_payroll::public::workforce::{
+use erpx_people_payroll_server::public::workforce::{
     CompensationMoneyPort, CompensationMoneyRequest, NoPersonAccountLinkPort, PgWorkforceCommand,
     PgWorkforceReader, StaffPlacementPort, StaffPlacementRequest, WorkforceCommandActor,
     create_compensation, create_engagement, create_person_record, person_detail, save_person,
     set_person_status, transition_compensation, transition_engagement,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, CommandKey, CompanyId, HoldingId, TimestampMillis,
 };
 use serde_json::json;
@@ -93,7 +93,7 @@ impl StaffPlacementPort for RecordingPlacement {
         &'a mut self,
         _connection: &'a mut PgConnection,
         request: &'a StaffPlacementRequest<'a>,
-    ) -> erpx_server_people_payroll::public::workforce::WorkforceCommandFuture<'a, (), BusinessError>
+    ) -> erpx_people_payroll_server::public::workforce::WorkforceCommandFuture<'a, (), BusinessError>
     {
         Box::pin(async move {
             self.log
@@ -115,7 +115,7 @@ impl CompensationMoneyPort for RecordingMoney {
         &'a mut self,
         _connection: &'a mut PgConnection,
         request: &'a CompensationMoneyRequest<'a>,
-    ) -> erpx_server_people_payroll::public::workforce::WorkforceCommandFuture<'a, (), BusinessError>
+    ) -> erpx_people_payroll_server::public::workforce::WorkforceCommandFuture<'a, (), BusinessError>
     {
         Box::pin(async move {
             self.log

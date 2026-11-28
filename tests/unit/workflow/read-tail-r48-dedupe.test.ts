@@ -4,18 +4,18 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 // r42/r44 cut the local revision/batch reads onto native kinds; mock the bridge so
 // the retained guard oracles stay deterministic without executing SQL.
-vi.mock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+vi.mock('../../../modules/workflow/server/src/adapters/native-workflow-read', () => ({
   nativeWorkflowReadAll: vi.fn(async () => []),
   nativeWorkflowReadFirst: vi.fn(async () => null),
 }));
-import { jsonEachApproverPoolSql, approverUnionProjectionSql } from '../../../packages/server-workflow/src/adapters/json-each-sources';
-import { participantSql } from '../../../packages/server-workflow/src/adapters/approval-participant-projection';
-import { nativeApprovalPlanningPorts } from '../../../packages/server-workflow/src/adapters/approval-planning';
-import { nativeFlowPlanningPorts } from '../../../packages/server-workflow/src/adapters/flow-planning-ports';
-import { workApprovalSettlementSources } from '../../../packages/server-workflow/src/adapters/work-package-obligation-sources';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import { jsonEachApproverPoolSql, approverUnionProjectionSql } from '../../../modules/workflow/server/src/adapters/json-each-sources';
+import { participantSql } from '../../../modules/workflow/server/src/adapters/approval-participant-projection';
+import { nativeApprovalPlanningPorts } from '../../../modules/workflow/server/src/adapters/approval-planning';
+import { nativeFlowPlanningPorts } from '../../../modules/workflow/server/src/adapters/flow-planning-ports';
+import { workApprovalSettlementSources } from '../../../modules/workflow/server/src/adapters/work-package-obligation-sources';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-workflow/src');
+const srcRoot = resolve(__dirname, '../../../modules/workflow/server/src');
 // Guards are built synchronously; no DB execution occurs.
 const db = { batch: () => { throw new Error('unexpected batch'); } } as unknown as SqlDatabase;
 const approval = nativeApprovalPlanningPorts(db).repository as unknown as {
@@ -108,12 +108,12 @@ describe('task settlement source dedupe (r48)', () => {
 describe('r48 source retirement pins', () => {
   it('keeps one template literal per deduped family and no writes or locks', async () => {
     const [union, planning, participant, routing, settlement, shared] = await Promise.all([
-      readFile(new URL('../../../packages/server-workflow/src/adapters/json-each-sources.ts', import.meta.url), 'utf8'),
-      readFile(new URL('../../../packages/server-workflow/src/adapters/approval-planning.ts', import.meta.url), 'utf8'),
-      readFile(new URL('../../../packages/server-workflow/src/adapters/approval-participant-projection.ts', import.meta.url), 'utf8'),
-      readFile(new URL('../../../packages/server-workflow/src/adapters/flow-planning-ports.ts', import.meta.url), 'utf8'),
-      readFile(new URL('../../../packages/server-workflow/src/adapters/work-package-obligation-sources.ts', import.meta.url), 'utf8'),
-      readFile(new URL('../../../packages/server-workflow/src/adapters/closed-projection-sources.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/workflow/server/src/adapters/json-each-sources.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/workflow/server/src/adapters/approval-planning.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/workflow/server/src/adapters/approval-participant-projection.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/workflow/server/src/adapters/flow-planning-ports.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/workflow/server/src/adapters/work-package-obligation-sources.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/workflow/server/src/adapters/closed-projection-sources.ts', import.meta.url), 'utf8'),
     ]);
     expect(union.match(/export const jsonEachApproverPoolSql/g) ?? []).toHaveLength(1);
     expect(union.match(/export const approverUnionProjectionSql/g) ?? []).toHaveLength(1);

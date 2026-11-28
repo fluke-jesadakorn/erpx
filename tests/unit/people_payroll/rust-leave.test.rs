@@ -5,7 +5,7 @@
 //! review and the scheduled accrual plan. PostgreSQL transaction behaviour and
 //! the composed Organization/Workflow/Files ports are proven by the sibling
 //! integration target.
-use erpx_server_people_payroll::public::leave::{
+use erpx_people_payroll_server::public::leave::{
     LeaveAccrualDue, LeaveAccrualWrite, LeaveApprovalInstance, LeaveApprovalPort,
     LeaveApprovalView, LeaveBalance, LeaveBalanceWrite, LeaveCancelWrite, LeaveCancellationInsert,
     LeaveCancellationWrite, LeaveCommandFuture, LeaveCommandRepository, LeaveDecisionFact,
@@ -15,8 +15,8 @@ use erpx_server_people_payroll::public::leave::{
     NoLeaveApprovalPort, NoLeaveEvidencePort, StoredLeaveReceipt, create_leave, decide_leave,
     decide_leave_cancellation, run_leave_accruals, save_or_submit_leave, transition_leave,
 };
-use erpx_server_people_payroll::public::workforce::WorkforceCommandActor;
-use erpx_server_shared::public::{
+use erpx_people_payroll_server::public::workforce::WorkforceCommandActor;
+use erpx_platform_shared_server::public::{
     BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, TimestampMillis,
 };
 use serde_json::{Value, json};
@@ -473,7 +473,7 @@ impl Default for FakeEvidence {
     }
 }
 
-impl erpx_server_people_payroll::public::leave::LeaveEvidencePort for FakeEvidence {
+impl erpx_people_payroll_server::public::leave::LeaveEvidencePort for FakeEvidence {
     fn manifest<'a>(
         &'a mut self,
         _: Option<&'a mut PgConnection>,
@@ -489,12 +489,12 @@ impl erpx_server_people_payroll::public::leave::LeaveEvidencePort for FakeEviden
         _: &'a str,
     ) -> LeaveCommandFuture<
         'a,
-        erpx_server_people_payroll::public::leave::LeaveEvidenceRequirement,
+        erpx_people_payroll_server::public::leave::LeaveEvidenceRequirement,
         BusinessError,
     > {
         Box::pin(async move {
             Ok(
-                erpx_server_people_payroll::public::leave::LeaveEvidenceRequirement {
+                erpx_people_payroll_server::public::leave::LeaveEvidenceRequirement {
                     count: self.available,
                     set_ids: Vec::new(),
                 },
@@ -866,7 +866,7 @@ async fn accrual_drain_inserts_each_period_once_per_plan() {
 
 #[tokio::test]
 async fn input_shapes_are_strict() {
-    use erpx_server_people_payroll::public::leave::{
+    use erpx_people_payroll_server::public::leave::{
         LeaveCreateInput, LeaveDecisionInput, LeaveDraftInput, LeaveLifecycleInput,
     };
     assert!(
@@ -895,7 +895,7 @@ async fn input_shapes_are_strict() {
 
 #[tokio::test]
 async fn self_service_create_maps_save_only_and_units_without_a_days_field() {
-    use erpx_server_people_payroll::public::leave::LeaveCreateInput;
+    use erpx_people_payroll_server::public::leave::LeaveCreateInput;
     let draft = LeaveCreateInput::parse(&json!({
         "leaveTypeId": "type",
         "startDate": "2026-03-02",

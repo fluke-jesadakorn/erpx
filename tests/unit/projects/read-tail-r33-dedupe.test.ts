@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { projectOwnerOrMemberSql } from '../../../packages/server-projects/src/adapters/project-read-projections';
-import { projectPointReadHead } from '../../../packages/server-projects/src/adapters/read-tail-r33';
+import { projectOwnerOrMemberSql } from '../../../modules/projects/server/src/adapters/project-read-projections';
+import { projectPointReadHead } from '../../../modules/projects/server/src/adapters/read-tail-r33';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-projects/src');
+const srcRoot = resolve(__dirname, '../../../modules/projects/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 // Verbatim pre-dedupe inline point reads from HEAD before the r33 edit.
@@ -54,7 +54,7 @@ describe('Projects read-tail r33 point-read head and owner-or-member dedupe', ()
     expect(projectOwnerOrMemberSql('p')).toBe(
       `(iam_same_person(p.owner_user_id,?,p.company_id) OR EXISTS(SELECT 1 FROM staff_project_members member WHERE member.project_id=p.id AND iam_same_person(member.user_id,?,p.company_id)))`);
     const evidence = src('executive-main-evidence-sources.ts');
-    expect(evidence).toContain('import { projectOwnerOrMemberSql } from "@erpx/server-projects/adapters/project-read-projections";');
+    expect(evidence).toContain('import { projectOwnerOrMemberSql } from "@erpx/projects-server/adapters/project-read-projections";');
     expect(evidence).toContain('AND ${projectOwnerOrMemberSql(\'p\')}`');
     expect(evidence).not.toContain('SELECT 1 FROM staff_project_members member WHERE member.project_id=p.id AND iam_same_person(member.user_id,?,p.company_id)');
     expect(evidence).toContain('p.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.department_id=?)');

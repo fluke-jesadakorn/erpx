@@ -2,13 +2,13 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { identitySnapshotSources as peoplepayrollSnapshotSources } from '@erpx/server-people_payroll/public/identity-snapshot-sources';
+import { identitySnapshotSources as peoplepayrollSnapshotSources } from '@erpx/people-payroll-server/public/identity-snapshot-sources';
 import {
   assignmentCompanyProbeSql, payrollOwnerVersionProbeSql, umGroupProbeSql, protectedPersonOwnerSql,
-} from '../../../packages/server-identity_access/src/adapters/read-tail-family-r30';
+} from '../../../modules/identity-access/server/src/adapters/read-tail-family-r30';
 
 const peoplepayrollSources = peoplepayrollSnapshotSources();
-const srcRoot = resolve(__dirname, '../../../packages/server-identity_access/src');
+const srcRoot = resolve(__dirname, '../../../modules/identity-access/server/src');
 const read = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
 const hash = (rel: string) => createHash('sha256').update(read(rel)).digest('hex');
 const calls = (rel: string, name: string) => (read(rel).match(new RegExp(`\\b${name}\\b`, 'g')) ?? []).length;

@@ -6,14 +6,14 @@
 #![allow(dead_code)]
 #[path = "../../support/rust-postgres.rs"]
 mod holding_fixture;
-use erpx_server_manage_erpx::public::onboarding::{
+use erpx_manage_erpx_server::public::onboarding::{
     OnboardingActor, OnboardingView, read_onboarding_view,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabaseConfig, DatabasePool, MigrationTrack, PgTransactionError, PoolLimits, connect_pool,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind, UserId};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind, UserId};
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row, postgres::PgConnectOptions};
 use std::{
     future::Future,
@@ -230,7 +230,7 @@ fn onboarding_view_is_owner_scoped_strictly_validated_and_persisted() {
         assert_eq!(slot.branch_name, "Main");
         assert_eq!(
             slot.state,
-            erpx_server_manage_erpx::public::onboarding::CompanySlotState::Provisioning
+            erpx_manage_erpx_server::public::onboarding::CompanySlotState::Provisioning
         );
 
         let closed = read(&pool, &actor("owner"), false).await.unwrap();
@@ -260,7 +260,7 @@ fn onboarding_view_is_owner_scoped_strictly_validated_and_persisted() {
         let active = read(&pool, &actor("owner"), true).await.unwrap();
         assert_eq!(
             active.slot.unwrap().state,
-            erpx_server_manage_erpx::public::onboarding::CompanySlotState::Active
+            erpx_manage_erpx_server::public::onboarding::CompanySlotState::Active
         );
 
         sqlx::query(
@@ -325,7 +325,7 @@ fn onboarding_view_is_owner_scoped_strictly_validated_and_persisted() {
 
 #[tokio::test]
 async fn beta_policy_held_lock_rejects_weak_and_released_fences() {
-    use erpx_server_manage_erpx::public::{
+    use erpx_manage_erpx_server::public::{
         lock_beta_policy_sources, require_beta_policy_sources_held,
     };
     holding_fixture::with_database(2, |pool| async move {
@@ -342,7 +342,7 @@ async fn beta_policy_held_lock_rejects_weak_and_released_fences() {
 
 #[tokio::test]
 async fn beta_policy_authority_boundary_checks_canonical_source_and_unit() {
-    use erpx_server_manage_erpx::public::{
+    use erpx_manage_erpx_server::public::{
         inspect_beta_policy_authority_boundary, lock_beta_policy_sources,
     };
     holding_fixture::with_database(2, |pool| async move {
@@ -430,7 +430,7 @@ async fn beta_policy_authority_boundary_checks_canonical_source_and_unit() {
 // bootstrap receipt/audit/outbox, idempotent replay, waitlist/slug failures and
 // the fail-closed transaction requirement.
 
-use erpx_server_manage_erpx::public::onboarding_command::{
+use erpx_manage_erpx_server::public::onboarding_command::{
     OnboardingCommandActor, OnboardingCommandLimits, OnboardingCommandReceipt,
     OnboardingCommandResource, OnboardingCommandState, OnboardingReservation,
     PgOnboardingBootstrap, PgOnboardingControl, activate_onboarding, onboard_company,

@@ -1,6 +1,6 @@
 {
   "sourceCommit": "a5ed8737a2f05eff1ee9841fda4a094b3926d732",
-  "path": "packages/server-identity_access/src/domain/iam-service.ts",
+  "path": "modules/identity-access/server/src/domain/iam-service.ts",
   "sourceSha256": "c5535f3b8b24cbd516cbde66226eb2f007770f4cd97cba3b96cb9a3ac0fcd309",
   "zod": "4.6.7",
   "zodChecksSha256": "bc42543274218aa7ef72192b3218d2a4a399e53df8de240a04d9ff275096f563",

@@ -2,12 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import ts from 'typescript';
-import { crmMarketingCandidateSources } from '../../../packages/server-marketing/src/adapters/crm-purchase-sources';
-import { marketingPurchaseRowsSql } from '../../../packages/server-marketing/src/adapters/marketing-purchase-rows-sql';
-import { marketingSelectHeadSql } from '../../../packages/server-marketing/src/adapters/select-head-sql';
+import { crmMarketingCandidateSources } from '../../../modules/marketing/server/src/adapters/crm-purchase-sources';
+import { marketingPurchaseRowsSql } from '../../../modules/marketing/server/src/adapters/marketing-purchase-rows-sql';
+import { marketingSelectHeadSql } from '../../../modules/marketing/server/src/adapters/select-head-sql';
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-marketing/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/marketing/server/src/adapters/${name}`, import.meta.url);
 const src = (name: string) => readFile(adapter(name), 'utf8');
 
 // Byte oracles frozen at HEAD 9e26b1a5f659765f1e822aad018b400d15b0cbfa (task
@@ -65,7 +65,7 @@ async function ownerSelectTokens(): Promise<number> {
       else if (entry.name.endsWith('.ts')) total += selectTokens(await readFile(path, 'utf8'));
     }
   };
-  await walk(resolve('packages/server-marketing/src'));
+  await walk(resolve('modules/marketing/server/src'));
   return total;
 }
 

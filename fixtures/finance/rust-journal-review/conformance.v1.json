@@ -3,51 +3,51 @@
   "sourceCommit": "a5ed8737a2f05eff1ee9841fda4a094b3926d732",
   "sources": [
     {
-      "path": "packages/server-finance/src/application/journal-review.ts",
+      "path": "modules/finance/server/src/application/journal-review.ts",
       "sha256": "a1645272b534e214d59fad2a8dee8e2049f0f16b96392296c94649bee6e357a1"
     },
     {
-      "path": "packages/server-finance/src/domain/finance-policy.ts",
+      "path": "modules/finance/server/src/domain/finance-policy.ts",
       "sha256": "96331eb867f351f214fe028f88d488d42d18f8447b9eb92a077efffe0f12e61f"
     },
     {
-      "path": "packages/server-finance/src/adapters/journal-reversal-money.ts",
+      "path": "modules/finance/server/src/adapters/journal-reversal-money.ts",
       "sha256": "9cd408217b8dac99a11c39a34839659f4c5c48548d17a1963184c4a767b77eaf"
     },
     {
-      "path": "packages/server-finance/src/adapters/finance.ts",
+      "path": "modules/finance/server/src/adapters/finance.ts",
       "sha256": "61d42f897538a8fb5c8e1fcde9c308452583987115fb623e67fab751fbc88a91"
     },
     {
-      "path": "packages/server-finance/src/adapters/document-purchases.ts",
+      "path": "modules/finance/server/src/adapters/document-purchases.ts",
       "sha256": "463fb9a8bc4c18d3be25d05f9819cb29490a7afe16e53414f6947e89a3e63d50"
     },
     {
-      "path": "packages/server-finance/src/adapters/finance-transactions.ts",
+      "path": "modules/finance/server/src/adapters/finance-transactions.ts",
       "sha256": "44546a7ac2e812eab42814ef7f48c3d28473f50d31e22b2555217ed89683f996"
     },
     {
-      "path": "packages/feature-identity_access/src/lib/permissions.ts",
+      "path": "modules/identity-access/ui/src/lib/permissions.ts",
       "sha256": "f52ef9d2872df236f22d40e30d6de6a2314c72837e2757c757181c019eddd124"
     },
     {
-      "path": "packages/feature-identity_access/src/lib/iam.ts",
+      "path": "modules/identity-access/ui/src/lib/iam.ts",
       "sha256": "98cb87c49eb7e74c47c18f9d1184d41dcaae5b4ca0ef346ac008b98800616762"
     },
     {
-      "path": "packages/feature-identity_access/src/lib/business-roles.ts",
+      "path": "modules/identity-access/ui/src/lib/business-roles.ts",
       "sha256": "8758596273e2c051d0ed68afea55356e19dacda71f332b097265bf002ee1aff8"
     },
     {
-      "path": "packages/catalogue/src/module-registry.ts",
+      "path": "platform/catalogue/src/module-registry.ts",
       "sha256": "c04e6842bfc7a9cbf5278b76f0972f10a07d2c38bca1f16bc7e2d3f4f946a121"
     },
     {
-      "path": "packages/catalogue/src/module-registry.json",
+      "path": "platform/catalogue/src/module-registry.json",
       "sha256": "52a5bafca4de85e61a2fc16c8b832eda82e0b84a7448061aa120af8567ce4644"
     },
     {
-      "path": "packages/feature-finance/src/lib/finance-money.ts",
+      "path": "modules/finance/ui/src/lib/finance-money.ts",
       "sha256": "c36415b741869d868e321634749ddd97854ccf81dfb32740a0c41789488651b8"
     }
   ],

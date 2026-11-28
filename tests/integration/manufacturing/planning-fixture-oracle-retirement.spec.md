@@ -8,8 +8,8 @@ This verification performed no source change and did not mutate the ledger or pu
 - Task `retire.planning.fixture-oracle`, goal `G4`, owner `planning`, workstream `S08`, plan `docs/production-plan.md#rust-migration-current`.
 - Claim held for this verification: `runId=run-20261123-e`, `agentId=worker-planF`, `generation=155`, lease expires `2026-11-23T14:55:01.903Z`. No claim was modified.
 - HEAD read and used for every check: `ab4d98bb1ba585d092a103a4891bff0ca79df385` on `codex/rust-backend-migration`; `executionPlan.revision=6051`; `rust-migration-work.ts validate` → `{"valid":true}`.
-- Working tree carries unrelated dirty WIP from other owners. `git status --short -- packages/server-planning tests/support/planning tests/integration/manufacturing` is empty — no concurrent WIP in the claimed paths.
-- Crate correction: the Cargo package is `erpx-server-planning`. `cargo check -p planning` is invalid (`package ID specification planning did not match any packages`); use `cargo check -p erpx-server-planning --offline`.
+- Working tree carries unrelated dirty WIP from other owners. `git status --short -- modules/planning/server tests/support/planning tests/integration/manufacturing` is empty — no concurrent WIP in the claimed paths.
+- Crate correction: the Cargo package is `erpx-server-planning`. `cargo check -p planning` is invalid (`package ID specification planning did not match any packages`); use `cargo check -p erpx-planning-server --offline`.
 
 ## Precondition verdict
 
@@ -33,8 +33,8 @@ Consequence: deleting the legacy tree today would neither prove a native-seeded 
 ## Checks performed at `ab4d98bb1b`
 
 - `bun scripts/testing/rust-migration-work.ts validate` → `{"valid":true}`.
-- `cargo check -p erpx-server-planning --offline` → **passed** (`Finished dev profile` after a file-lock wait).
-- `bunx tsc --noEmit -p packages/server-planning/tsconfig.json` → **passed** (exit 0).
+- `cargo check -p erpx-planning-server --offline` → **passed** (`Finished dev profile` after a file-lock wait).
+- `bunx tsc --noEmit -p modules/planning/server/tsconfig.json` → **passed** (exit 0).
 - `cargo check -p planning --offline` → fails as invalid package name (see crate correction above).
 - `bun run test:integration -- --suite=manufacturing.production.integration` → **fails before execution** on `TEST_INVENTORY_MISMATCH` (11 files: finance 2, pos 2, work_projection 3, workflow 2, shared.runtime 1, unit/work_projection 2 — all other owners' WIP).
 - `bun run structure:check` → fails on the same pre-existing 11-file catalogue mismatch; this spec's `.spec.md` is not discovered as a test and is not in the mismatch list.

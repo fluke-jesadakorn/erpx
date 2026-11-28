@@ -7,7 +7,7 @@ import {
   nativeAttachmentDescriptor,
   nativeMaintenanceLane36Configured,
   requireAttachmentDescriptor,
-} from '../../../packages/server-maintenance/src/adapters/native-lane-36/client';
+} from '../../../modules/maintenance/server/src/adapters/native-lane-36/client';
 
 const ENV = 'ERPX_NATIVE_MAINTENANCE_LANE36_CONFIG';
 /** Exact development configuration pin: three registered Holdings. */

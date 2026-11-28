@@ -2,20 +2,20 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { legalPointByIdKeyAndCompanySql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r53-sources';
-import { legalPointByIdSql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r32-sources';
-import { legalPointByIdAndKeySql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r34-sources';
-import { legalByIdAndItemSql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r27-sources';
-import { legalByIdAndCompanySql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r28-sources';
+import { legalPointByIdKeyAndCompanySql } from '../../../modules/legal/server/src/adapters/legal-read-tail-r53-sources';
+import { legalPointByIdSql } from '../../../modules/legal/server/src/adapters/legal-read-tail-r32-sources';
+import { legalPointByIdAndKeySql } from '../../../modules/legal/server/src/adapters/legal-read-tail-r34-sources';
+import { legalByIdAndItemSql } from '../../../modules/legal/server/src/adapters/legal-read-tail-r27-sources';
+import { legalByIdAndCompanySql } from '../../../modules/legal/server/src/adapters/legal-read-tail-r28-sources';
 import {
   legalDocumentsItemPairSql,
   legalDocumentByIdSql,
   legalFilesAdvisoryLockSql,
   legalCompanyAdvisoryLockSql,
-} from '../../../packages/server-legal/src/adapters/legal-read-tail-r9-sources';
+} from '../../../modules/legal/server/src/adapters/legal-read-tail-r9-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-legal/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-legal/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/legal/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/legal/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 /** Independent pre-r53 byte oracles captured from the removed inline holders. */
 const applicabilitySql = 'SELECT id,version,state,created_by FROM legal_law_applicability WHERE id=? AND rule_id=? AND company_id=?';

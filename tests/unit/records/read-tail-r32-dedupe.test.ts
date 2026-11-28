@@ -5,7 +5,7 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { projectionColumnHeadSql } from '../../../packages/server-records/src/adapters/read-tail-r32-sql';
+import { projectionColumnHeadSql } from '../../../modules/records/server/src/adapters/read-tail-r32-sql';
 import {
   requestAiProjectionHead,
   requestAiProposalProjection,
@@ -13,14 +13,14 @@ import {
   requestAiUsageProjection,
   requestAiUsageProjectionSql,
   recordsRequestUsageSql,
-} from '../../../packages/server-records/src/adapters/ai-usage-projection';
+} from '../../../modules/records/server/src/adapters/ai-usage-projection';
 import {
   employeeRequestColumnsSql,
   employeeRequestSelectHead,
-} from '../../../packages/server-records/src/adapters/read-tail-employee-request-columns';
-import { betaManagementRequestSources } from '../../../packages/server-records/src/adapters/beta-management-sources';
+} from '../../../modules/records/server/src/adapters/read-tail-employee-request-columns';
+import { betaManagementRequestSources } from '../../../modules/records/server/src/adapters/beta-management-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-records/src');
+const srcRoot = resolve(__dirname, '../../../modules/records/server/src');
 const read = (p: string) => readFileSync(resolve(srcRoot, p), 'utf8');
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 const readOnly = (sql: string) => {
@@ -149,7 +149,7 @@ describe('Records read-tail r32 shared column-projection head', () => {
     expect(legal).toContain('LOCK TABLE approval_instances,approval_steps,approval_decisions IN SHARE ROW EXCLUSIVE MODE');
     expect(read('public/native-record-registry.ts')).not.toMatch(/SELECT /);
     expect(read('public/native-record-context.ts')).not.toMatch(/SELECT /);
-    expect(records).toContain("import {withExpenseWorkspaceRecordRead} from '@erpx/server-people_payroll/public/record-purchases';");
+    expect(records).toContain("import {withExpenseWorkspaceRecordRead} from '@erpx/people-payroll-server/public/record-purchases';");
   });
 });
 

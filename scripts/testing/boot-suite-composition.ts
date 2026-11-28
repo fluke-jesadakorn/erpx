@@ -15,7 +15,7 @@
  *     .scratch/dev/v4.json/v5.json shape) on a free loopback port >= 3310
  *     and boots ./target/debug/erpx-server (rebuilt with
  *     --features private-development-api only when older than
- *     src/composition/src/collaboration.rs) as
+ *     platform/composition/src/collaboration.rs) as
  *     `private-api --development-config <tmp>`, waits for /api/health 200
  *     (60s), then probes POST
  *     /api/v1/holdings/acme/collaboration/notification-statement expecting
@@ -50,7 +50,7 @@ const FIRST_PROBE_PORT = 3310;
 const HEALTH_TIMEOUT_MS = 60_000;
 const MIGRATION_LOCK_KEY = 714928001;
 const BINARY = join(root, 'target/debug/erpx-server');
-const BUILD_SENTINEL = join(root, 'src/composition/src/collaboration.rs');
+const BUILD_SENTINEL = join(root, 'platform/composition/src/collaboration.rs');
 const ACCOUNT_HOST = 'account-dev-erpx.jesadakorn.com';
 const HOLDING_HOSTS: Record<string, { slug: string; host: string }> = {
   h001: { slug: 'acme', host: 'acme.jesadakorn.com' },
@@ -169,7 +169,7 @@ function migrationFiles(track: 'control' | 'holding-write'): { name: string; sql
 }
 
 /** Applies reviewed migration bytes exactly like migrate_database in
- *  packages/server-runtime/src/adapters/postgres/migrations.rs: one advisory
+ *  platform/runtime/server/src/adapters/postgres/migrations.rs: one advisory
  *  lock, erpx_migrations receipts, whole-file single transactions, then the
  *  HoldingWrite work-cache coverage call. */
 async function migrateDatabase(url: string, track: 'control' | 'holding-write'): Promise<void> {
@@ -302,8 +302,8 @@ async function ensureBinary(): Promise<void> {
   }
   // At most one cargo build per run; the heavy-build queue stays untouched otherwise.
   const log = join(root, '.scratch/dev', `boot-suite-composition.build.${process.pid}.log`);
-  console.log(`BOOT_SUITE_BUILD_START:cargo build -p erpx-service --features private-development-api --bin erpx-server (log ${log})`);
-  const child = spawn('cargo', ['build', '-p', 'erpx-service', '--features', 'private-development-api', '--bin', 'erpx-server'], {
+  console.log(`BOOT_SUITE_BUILD_START:cargo build -p erpx-platform-composition --features private-development-api --bin erpx-server (log ${log})`);
+  const child = spawn('cargo', ['build', '-p', 'erpx-platform-composition', '--features', 'private-development-api', '--bin', 'erpx-server'], {
     cwd: root,
     env: process.env,
     stdio: ['ignore', 'pipe', 'pipe'],

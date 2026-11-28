@@ -2,9 +2,9 @@ import { describe, expect, test, vi } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
-import { ecommerceScopeRow, ecommerceReleaseGate } from '../../../packages/server-ecommerce/src/adapters/read-tail-sql';
+import { ecommerceScopeRow, ecommerceReleaseGate } from '../../../modules/ecommerce/server/src/adapters/read-tail-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-ecommerce/src');
+const srcRoot = resolve(__dirname, '../../../modules/ecommerce/server/src');
 const read = (path: string) => readFileSync(resolve(srcRoot, path), 'utf8');
 const po = read('adapters/package-obligations.ts');
 const ap = read('adapters/attachment-purchases.ts');

@@ -1,11 +1,11 @@
 //! Native CRM pipeline read policy, page, forecast and directory tests.
 //! These are owner unit facts, not HTTP, PostgreSQL, command or browser proof.
-use erpx_server_crm::public::pipeline::{
+use erpx_crm_server::public::pipeline::{
     CrmForecastSourceRow, CrmPipelineActor, CrmPipelineCustomerDirectory, CrmPipelineEntitlement,
     CrmPipelineEntitlementPort, CrmPipelineFuture, CrmPipelinePeopleDirectory, CrmPipelineQuery,
     CrmPipelineRepository, CrmPipelineRow, crm_pipeline, validate_forecast,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, CompanyId, FailureKind, RecordId, TimestampMillis,
 };
 use std::collections::BTreeMap;
@@ -105,7 +105,7 @@ impl CrmPipelineRepository for Repo {
         _department_id: Option<&'a str>,
         search: &'a str,
         stage: Option<&'a str>,
-        _cursor: Option<&'a erpx_server_crm::public::pipeline::CrmPipelineCursor>,
+        _cursor: Option<&'a erpx_crm_server::public::pipeline::CrmPipelineCursor>,
         _limit: usize,
     ) -> CrmPipelineFuture<'a, Vec<CrmPipelineRow>, Self::Error> {
         self.page_calls += 1;
@@ -566,7 +566,7 @@ async fn page_and_forecast_serialize_exact_owner_keys() {
     assert!(page.can_create);
     assert_eq!(
         page.purchase,
-        Some(erpx_server_crm::public::pipeline::CrmPurchaseControls {
+        Some(erpx_crm_server::public::pipeline::CrmPurchaseControls {
             new_work: true,
             settle_existing: true,
             history: true,

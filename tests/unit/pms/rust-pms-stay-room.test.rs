@@ -11,7 +11,7 @@ use domain::stay_room::{
     PmsStayRoomActor, PmsStayRoomCommand, PmsStayRoomEntitlement, PmsStayRoomFacts,
     PmsStayRoomOperation, plan_stay_room,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use serde_json::json;
 
 fn actor() -> PmsBoardActor {

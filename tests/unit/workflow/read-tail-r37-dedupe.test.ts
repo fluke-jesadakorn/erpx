@@ -4,16 +4,16 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 // r44 moved the batch approval-history read onto the mounted native read; the
 // r37 generator assertions below still cover the retained json_each bind span.
-vi.mock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+vi.mock('../../../modules/workflow/server/src/adapters/native-workflow-read', () => ({
   nativeWorkflowReadAll: vi.fn(async () => []),
   nativeWorkflowReadFirst: vi.fn(async () => null),
 }));
-import { nativeWorkflowReadAll } from '../../../packages/server-workflow/src/adapters/native-workflow-read';
-import { jsonEachSql, jsonEachApproverPoolSql } from '../../../packages/server-workflow/src/adapters/json-each-sources';
-import { expenseApprovalReadBatch } from '../../../packages/server-workflow/src/adapters/approval-planning';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import { nativeWorkflowReadAll } from '../../../modules/workflow/server/src/adapters/native-workflow-read';
+import { jsonEachSql, jsonEachApproverPoolSql } from '../../../modules/workflow/server/src/adapters/json-each-sources';
+import { expenseApprovalReadBatch } from '../../../modules/workflow/server/src/adapters/approval-planning';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-workflow/src');
+const srcRoot = resolve(__dirname, '../../../modules/workflow/server/src');
 const valueSql = (expr: string) => `SELECT value FROM erpx_json_each(${expr})`;
 
 describe('erpx_json_each value generator family (r37)', () => {
@@ -52,14 +52,14 @@ describe('erpx_json_each value generator family (r37)', () => {
     expect(vi.mocked(nativeWorkflowReadAll)).toHaveBeenCalledWith(
       'wf_native_approval_view_history_batch', ['["e1"]', 'c1'], 'c1', db,
     );
-    const registry = await readFile(new URL('../../../packages/server-workflow/src/domain/workflow_wave3.rs', import.meta.url), 'utf8');
+    const registry = await readFile(new URL('../../../modules/workflow/server/src/domain/workflow_wave3.rs', import.meta.url), 'utf8');
     expect(registry).toContain('i.record_id IN(SELECT value FROM erpx_json_each(?)) AND i.company_id=?');
   });
 
   it('keeps one generator definition and no inline value projections in callers', async () => {
     const [shared, planning] = await Promise.all([
-      readFile(new URL('../../../packages/server-workflow/src/adapters/json-each-sources.ts', import.meta.url), 'utf8'),
-      readFile(new URL('../../../packages/server-workflow/src/adapters/approval-planning.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/workflow/server/src/adapters/json-each-sources.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/workflow/server/src/adapters/approval-planning.ts', import.meta.url), 'utf8'),
     ]);
     expect(shared.match(/export const jsonEachSql/g) ?? []).toHaveLength(1);
     expect(planning).not.toContain('SELECT value FROM erpx_json_each');

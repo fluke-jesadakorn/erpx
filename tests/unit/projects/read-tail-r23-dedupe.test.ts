@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { assignmentReadSql } from '@erpx/server-identity_access/public/record-source-authority';
-import { projectAssignmentScopeSql } from '../../../packages/server-projects/src/adapters/package-obligations';
-import { projectAssignmentAuthorityReadSql } from '../../../packages/server-projects/src/adapters/read-tail-r23';
+import { assignmentReadSql } from '@erpx/identity-access-server/public/record-source-authority';
+import { projectAssignmentScopeSql } from '../../../modules/projects/server/src/adapters/package-obligations';
+import { projectAssignmentAuthorityReadSql } from '../../../modules/projects/server/src/adapters/read-tail-r23';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-projects/src');
+const srcRoot = resolve(__dirname, '../../../modules/projects/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 // Verbatim pre-dedupe literals captured from HEAD before the r23 edits. These

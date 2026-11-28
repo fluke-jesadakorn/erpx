@@ -1,7 +1,7 @@
 import {describe,it,expect,vi,beforeEach,afterEach} from 'vitest';
 vi.mock('server-only',()=>({}));
-import {posStartupInventoryState} from '../../../packages/server-inventory/src/adapters/pos-startup-sources';
-import {INVENTORY_RD_POS_STARTUP_INVENTORY_STATE} from '../../../packages/server-inventory/src/adapters/native-inventory-read';
+import {posStartupInventoryState} from '../../../modules/inventory/server/src/adapters/pos-startup-sources';
+import {INVENTORY_RD_POS_STARTUP_INVENTORY_STATE} from '../../../modules/inventory/server/src/adapters/native-inventory-read';
 
 describe('native Inventory pos-startup posting-state caller-unit read',()=>{
   const envKey='ERPX_NATIVE_INVENTORY_CONFIG';

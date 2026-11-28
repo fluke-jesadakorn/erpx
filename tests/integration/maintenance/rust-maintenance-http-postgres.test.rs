@@ -7,12 +7,12 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_maintenance::public::http::{
+use erpx_maintenance_server::public::http::{
     MaintenanceHttpTarget, maintenance_router,
 };
-use erpx_server_shared::public::{CompanyId, HoldingId};
-use erpx_service::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
-use erpx_service::maintenance::{
+use erpx_platform_shared_server::public::{CompanyId, HoldingId};
+use erpx_platform_composition::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
+use erpx_platform_composition::maintenance::{
     MaintenanceBackend, MaintenanceConfiguration, MaintenanceService,
 };
 use std::sync::Arc;

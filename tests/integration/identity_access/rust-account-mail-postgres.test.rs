@@ -10,8 +10,8 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
-use erpx_server_identity_access::public::{account_mail::*, *};
-use erpx_server_runtime::public::postgres::DatabasePool;
+use erpx_identity_access_server::public::{account_mail::*, *};
+use erpx_platform_runtime_server::public::postgres::DatabasePool;
 use std::{
     collections::{BTreeMap, VecDeque},
     sync::{

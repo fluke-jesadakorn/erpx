@@ -1,17 +1,17 @@
 import {existsSync,readFileSync} from 'node:fs';
 import {afterEach,describe,expect,it,vi} from 'vitest';
-import {ApiError} from '@erpx/server-runtime/public/http';
-import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
+import {ApiError} from '@erpx/platform-runtime-server/public/http';
+import type {WorkContext} from '@erpx/identity-access-server/public/authorization';
 import {
   createNativeHandbookClient,
   type HandbookTransport,
-} from '../../../packages/feature-collaboration/src/adapters/server/native-handbook';
+} from '../../../modules/collaboration/ui/src/adapters/server/native-handbook';
 import {
   createNativeHandbookReads,
   handbookReads,
   nativeHandbookAvailable,
   nativeHandbookReads,
-} from '../../../packages/feature-collaboration/src/adapters/server/native-handbook-page';
+} from '../../../modules/collaboration/ui/src/adapters/server/native-handbook-page';
 
 const headerState=vi.hoisted(()=>{const holder={current:new Headers()};return {holder,headers:vi.fn(async()=>holder.current)};});
 vi.mock('next/headers',()=>({headers:headerState.headers}));
@@ -45,7 +45,7 @@ function transport(body:unknown,status=200){
 }
 describe('native collaboration handbook transport',()=>{
   it('has no shared Next handbook route left as a TypeScript fallback',()=>{
-    expect(existsSync(new URL('../../../packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/handbook/[[...path]]/route.ts',import.meta.url))).toBe(false);
+    expect(existsSync(new URL('../../../products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/handbook/[[...path]]/route.ts',import.meta.url))).toBe(false);
   });
   it('reads the list through the exact registered Host and forwards the selected context',async()=>{
     const fake=transport({access:{editor:true},articles:[],hasMore:false});
@@ -172,7 +172,7 @@ describe('native collaboration handbook page reads',()=>{
     await expect(nativePage(options).reads.handbookEditorOptions(pageActor)).resolves.toEqual(options);
   });
   it('keeps the native owner wire fields identical to the retired TypeScript read shape',()=>{
-    const wire=readFileSync(new URL('../../../packages/server-collaboration/src/adapters/handbook.rs',import.meta.url),'utf8');
+    const wire=readFileSync(new URL('../../../modules/collaboration/server/src/adapters/handbook.rs',import.meta.url),'utf8');
     for(const field of ['id','page_key','version','archived','revision','title','category','excerpt','published_at','draft_revision','published_revision','body','created_by','created_at','published_by','user_id','granted_at'])
       expect(wire,`native handbook wire is missing ${field}`).toContain(`pub ${field}:`);
   });
@@ -201,14 +201,14 @@ describe('native collaboration handbook page reads',()=>{
   });
   it('routes every Handbook SSR reader through the strict selector',()=>{
     for(const path of [
-      'packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/handbook/[id]/screen.tsx',
-      'packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/knowledge/screen.tsx',
-      'packages/workplace/src/routes/holdings/[holdingSlug]/knowledge/handbook/drafts/_screen.tsx',
-      'packages/workplace/src/routes/holdings/[holdingSlug]/knowledge/handbook/editors/_screen.tsx',
-      'packages/workplace/src/routes/holdings/[holdingSlug]/knowledge/handbook/published/_screen.tsx',
+      'platform/workplace/src/routes/holdings/[holdingSlug]/_presenters/handbook/[id]/screen.tsx',
+      'platform/workplace/src/routes/holdings/[holdingSlug]/_presenters/knowledge/screen.tsx',
+      'platform/workplace/src/routes/holdings/[holdingSlug]/knowledge/handbook/drafts/_screen.tsx',
+      'platform/workplace/src/routes/holdings/[holdingSlug]/knowledge/handbook/editors/_screen.tsx',
+      'platform/workplace/src/routes/holdings/[holdingSlug]/knowledge/handbook/published/_screen.tsx',
     ]){
       const source=readFileSync(new URL(`../../../${path}`,import.meta.url),'utf8');
-      expect(source).toContain('@erpx/feature-collaboration/lib/native-handbook-page');
+      expect(source).toContain('@erpx/collaboration-ui/lib/native-handbook-page');
       expect(source).toMatch(/handbookReads\(\s*actor\s*,\s*holdingSlug\s*\)/);
       expect(source).not.toContain('collaborationPresentationQueries');
     }
@@ -236,9 +236,9 @@ const repoFile=(path:string)=>new URL(`../../../${path}`,import.meta.url);
 const repoSource=(path:string)=>readFileSync(repoFile(path),'utf8');
 describe('collaboration Next API route retirement',()=>{
  const retired=[
-  'packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/handbook/[[...path]]/route.ts',
-  'packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/stories/[id]/archive/route.ts',
-  'packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/executive/connections/route.ts',
+  'products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/handbook/[[...path]]/route.ts',
+  'products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/stories/[id]/archive/route.ts',
+  'products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/executive/connections/route.ts',
   'apps/compat/src/app/api/v1/holdings/[holdingSlug]/handbook/[[...path]]/route.ts',
   'apps/compat/src/app/api/v1/holdings/[holdingSlug]/stories/[id]/archive/route.ts',
   'apps/compat/src/app/api/v1/holdings/[holdingSlug]/executive/connections/route.ts',
@@ -250,7 +250,7 @@ describe('collaboration Next API route retirement',()=>{
   for(const path of retired)expect(existsSync(repoFile(path)),path).toBe(false);
  });
  it('keeps the stories list/create route',()=>{
-  expect(existsSync(repoFile('packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/stories/route.ts'))).toBe(true);
+  expect(existsSync(repoFile('products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/stories/route.ts'))).toBe(true);
  });
  it('keeps the checked-in development-gateway entries for all three capabilities',()=>{
   const gateway=JSON.parse(repoSource('scripts/local/native-api-paths.json')) as {holdingPrefixes:string[];holdingPaths:{method:string;path:string}[]};
@@ -259,7 +259,7 @@ describe('collaboration Next API route retirement',()=>{
   for(const method of ['GET','POST'])expect(gateway.holdingPaths).toContainEqual({method,path:'executive/connections'});
  });
  it('pins the exact native route strings and transport methods',()=>{
-  const handbook=repoSource('packages/server-collaboration/src/adapters/handbook_http.rs');
+  const handbook=repoSource('modules/collaboration/server/src/adapters/handbook_http.rs');
   for(const path of [
    '/api/v1/holdings/{holding_slug}/handbook',
    '/api/v1/holdings/{holding_slug}/handbook/editors',
@@ -267,33 +267,33 @@ describe('collaboration Next API route retirement',()=>{
    '/api/v1/holdings/{holding_slug}/handbook/{record_id}/actions',
   ])expect(handbook,`native handbook route ${path}`).toContain(`"${path}"`);
   expect(handbook).toContain('get(read_list).post(create_article)');
-  const social=repoSource('packages/server-collaboration/src/adapters/social_http.rs');
+  const social=repoSource('modules/collaboration/server/src/adapters/social_http.rs');
   expect(social).toContain('"/api/v1/holdings/{holding_slug}/stories/{story_id}/archive"');
   expect(social).toContain('post(archive_story)');
   expect(social).toContain('"social.story.archive"');
-  const executive=repoSource('packages/server-runtime/src/adapters/executive_connections_http.rs');
+  const executive=repoSource('platform/runtime/server/src/adapters/executive_connections_http.rs');
   expect(executive.split('"/api/v1/holdings/{holding_slug}/executive/connections"')).toHaveLength(3);
   expect(executive).toContain('get(read_connections)');
   expect(executive).toContain('post(command_connections)');
  });
  it('pins native SQL execution and the owner data/error envelope',()=>{
-  const handbook=repoSource('packages/server-collaboration/src/adapters/handbook.rs');
+  const handbook=repoSource('modules/collaboration/server/src/adapters/handbook.rs');
   expect(handbook).toContain('INSERT INTO handbook_articles');
   expect(handbook).toContain('UPDATE handbook_articles');
   expect(handbook).toContain('INSERT INTO handbook_revisions');
-  const social=repoSource('packages/server-collaboration/src/adapters/social.rs');
+  const social=repoSource('modules/collaboration/server/src/adapters/social.rs');
   expect(social).toContain("UPDATE social_stories SET state='archived'");
   expect(social).toContain('INSERT INTO command_receipts');
-  const tokens=repoSource('packages/server-runtime/src/adapters/executive_connections_postgres.rs');
+  const tokens=repoSource('platform/runtime/server/src/adapters/executive_connections_postgres.rs');
   expect(tokens).toContain('INSERT INTO executive_external_tokens');
   expect(tokens).toContain('UPDATE executive_external_tokens SET revoked_at=');
-  const ingress=repoSource('packages/server-collaboration/src/adapters/http_ingress.rs');
+  const ingress=repoSource('modules/collaboration/server/src/adapters/http_ingress.rs');
   expect(ingress).toContain('Json(json!({ "data": body }))');
   expect(ingress).toContain('Json(json!({"error":{"code":error.code,"message":error.message}}))');
-  const executive=repoSource('packages/server-runtime/src/adapters/executive_connections_http.rs');
+  const executive=repoSource('platform/runtime/server/src/adapters/executive_connections_http.rs');
   expect(executive).toContain('Json(json!({"data": data}))');
   expect(executive).toContain('Json(json!({"error":{"code":error.code,"message":error.message}}))');
-  expect(repoSource('packages/server-collaboration/src/adapters/social_http.rs')).toContain('Ok(receipt) => bounded(receipt)');
+  expect(repoSource('modules/collaboration/server/src/adapters/social_http.rs')).toContain('Ok(receipt) => bounded(receipt)');
  });
  it('keeps native transport coverage for handbook, story archive and executive connections',()=>{
   for(const url of [
@@ -302,7 +302,7 @@ describe('collaboration Next API route retirement',()=>{
    '/api/v1/holdings/acme/handbook/editors',
   ])expect(repoSource('tests/unit/collaboration/native-handbook-transport.test.ts'),`handbook transport ${url}`).toContain(url);
   expect(repoSource('tests/integration/collaboration/rust-social-postgres.test.rs')).toContain('story_publish_and_archive_round_trip_with_replay_and_author_guard');
-  expect(repoSource('packages/server-runtime/src/public/executive/native-connections.ts')).toContain('/api/v1/holdings/${encodeURIComponent(slug)}/executive/connections');
+  expect(repoSource('platform/runtime/server/src/public/executive/native-connections.ts')).toContain('/api/v1/holdings/${encodeURIComponent(slug)}/executive/connections');
   expect(repoSource('tests/integration/shared.executive/executive-mcp.test.ts')).toContain('ERPX_NATIVE_EXECUTIVE_CONNECTIONS_CONFIG');
  });
 });

@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import type { SqlDatabase } from "@erpx/platform-runtime-server/public/runtime/types";
 
 const calls: { kind: string; values: unknown[] }[] = [];
-vi.mock("@erpx/server-finance/adapters/supplier-payment-purchases", () => ({
+vi.mock("@erpx/finance-server/adapters/supplier-payment-purchases", () => ({
   supplierPaymentSourceOptions: vi.fn(async () => ({ sourceOnly: false })),
 }));
-vi.mock("../../../packages/server-finance/src/adapters/native-finance-read", () => {
+vi.mock("../../../modules/finance/server/src/adapters/native-finance-read", () => {
   const record = (kind: string, values: readonly unknown[]) => {
     calls.push({ kind, values: [...values] });
   };
@@ -33,7 +33,7 @@ vi.mock("../../../packages/server-finance/src/adapters/native-finance-read", () 
 });
 
 const { supplierPaymentRepository } = await import(
-  "@erpx/server-finance/adapters/supplier-payment-repository"
+  "@erpx/finance-server/adapters/supplier-payment-repository"
 );
 
 const actor = { companyId: "c-1", userId: "u-1" } as WorkContext;

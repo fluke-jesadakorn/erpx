@@ -1,13 +1,13 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { createElement, type ComponentProps } from "react";
-import type { Dialog } from "@erpx/ui/components/dialog";
+import type { Dialog } from "@erpx/platform-ui/components/dialog";
 import { renderToStaticMarkup } from "react-dom/server";
-import { createMentionRecordRead, mentionRecordEndpoint } from "@erpx/feature-records/lib/mention-read";
-import { SocialTextBody } from "@erpx/feature-collaboration/components/social-text-body";
+import { createMentionRecordRead, mentionRecordEndpoint } from "@erpx/records-ui/lib/mention-read";
+import { SocialTextBody } from "@erpx/collaboration-ui/components/social-text-body";
 
 const observedMention = vi.hoisted(() => ({ dialogs: [] as ComponentProps<typeof Dialog>[] }));
-vi.mock("@erpx/ui/components/dialog", async importOriginal => {
-  const actual = await importOriginal<typeof import("@erpx/ui/components/dialog")>();
+vi.mock("@erpx/platform-ui/components/dialog", async importOriginal => {
+  const actual = await importOriginal<typeof import("@erpx/platform-ui/components/dialog")>();
   const { createElement } = await import("react");
   return { ...actual, Dialog: function ObservedDialog(props: ComponentProps<typeof actual.Dialog>) {
     observedMention.dialogs.push(props);

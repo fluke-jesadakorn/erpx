@@ -1,9 +1,9 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { manufacturingAccountingProfileSelect } from '../../../packages/server-manufacturing/src/adapters/manufacturing-read-tail-r19-sql';
+import { manufacturingAccountingProfileSelect } from '../../../modules/manufacturing/server/src/adapters/manufacturing-read-tail-r19-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-manufacturing/src');
+const srcRoot = resolve(__dirname, '../../../modules/manufacturing/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 /** The four pre-dedupe accounting-profile reader literals, captured verbatim

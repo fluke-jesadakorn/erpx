@@ -1,10 +1,10 @@
 //! Disposable Files database facts only; no Person/owner grant or fake policy.
-use erpx_server_files::public::attachment_scan::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_files_server::public::attachment_scan::*;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgUnitOfWork, TransactionOptions, load_migrations,
     migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, Clock, CompanyId, HoldingId, IdentifierSource, RecordId, TimestampMillis,
 };
 use sha2::{Digest, Sha256};

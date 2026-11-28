@@ -25,8 +25,8 @@ const PORT = 44892;
 const TOKEN_PARENT = 'p'.repeat(64);
 const TOKEN_CHILD = 'c'.repeat(64);
 
-const { migrateDatabase } = await import('@erpx/server-runtime/public/runtime/migrations');
-const { PostgresDatabase } = await import('@erpx/server-runtime/adapters/runtime/postgres');
+const { migrateDatabase } = await import('@erpx/platform-runtime-server/public/runtime/migrations');
+const { PostgresDatabase } = await import('@erpx/platform-runtime-server/adapters/runtime/postgres');
 const admin = new Client({ connectionString: ADMIN });
 const step = (msg: string) => console.log(`[e2e] ${msg}`);
 let child: ChildProcess | undefined;

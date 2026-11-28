@@ -1,10 +1,10 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { commerceOrdersReadSql } from '../../../packages/server-commerce/src/adapters/read-tail-r21-dedupe-sql';
+import { commerceOrdersReadSql } from '../../../modules/commerce/server/src/adapters/read-tail-r21-dedupe-sql';
 
 const root = resolve(import.meta.dirname ?? process.cwd(), '../../..');
-const adapters = resolve(root, 'packages/server-commerce/src/adapters');
+const adapters = resolve(root, 'modules/commerce/server/src/adapters');
 const read = (name: string) => readFileSync(resolve(adapters, name), 'utf8');
 const norm = (src: string) => src.replace(/\s+/g, ' ');
 const q = (s: string) => (s.includes("'") ? `"${s.replaceAll('"', '\\"')}"` : `'${s}'`);
@@ -96,7 +96,7 @@ describe('Commerce read-tail r21 protected families and retirement', () => {
   });
 
   test('pins the owner TypeScript SELECT KPI at 338 (before 339)', () => {
-    const src = resolve(root, 'packages/server-commerce/src');
+    const src = resolve(root, 'modules/commerce/server/src');
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {

@@ -1,6 +1,6 @@
 import type { seedExpenseCompany } from "../../expenses/company";
-import { directoryPerson, directoryUpdateSchema, saveDirectoryPerson } from "@erpx/server-people_payroll/public/people-directory";
-import {positionSchema} from '@erpx/server-organization/public/organization';
+import { directoryPerson, directoryUpdateSchema, saveDirectoryPerson } from "@erpx/people-payroll-server/public/people-directory";
+import {positionSchema} from '@erpx/organization-server/public/organization';
 import {savePosition} from '../../../tests/support/helpers/organization-positions';
 
 type Fixture = Awaited<ReturnType<typeof seedExpenseCompany>>;

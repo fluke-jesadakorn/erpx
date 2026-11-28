@@ -1,16 +1,16 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_legal::public::{
+use erpx_legal_server::public::{
     LegalProcessingActor, LegalProcessingCursor, LegalProcessingDocument, LegalProcessingJob,
     LegalProcessingKind, LegalProcessingLease, LegalProcessingQueueAuthority,
     LegalProcessingReceipt, LegalProcessingSourceRequest, PgLegalProcessingBridge,
     PgLegalProcessingRepository, load_current_legal_processing_source,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, IdentifierSource,
     RecordId, TimestampMillis,
 };
@@ -41,7 +41,7 @@ fn actor() -> LegalProcessingActor {
     LegalProcessingActor {
         holding_id: HoldingId::new("holding-a").unwrap(),
         company_id: CompanyId::new("company-a").unwrap(),
-        user_id: erpx_server_shared::public::UserId::new("requester").unwrap(),
+        user_id: erpx_platform_shared_server::public::UserId::new("requester").unwrap(),
         selection_revision: "selection-current".into(),
     }
 }

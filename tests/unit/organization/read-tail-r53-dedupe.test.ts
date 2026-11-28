@@ -1,16 +1,16 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
-import { nodeExistsGuard } from '../../../packages/server-organization/src/adapters/organization-read-tail-sources-r50';
+import { nodeExistsGuard } from '../../../modules/organization/server/src/adapters/organization-read-tail-sources-r50';
 
-vi.mock('@erpx/server-workflow/public/command-assertions', () => ({
+vi.mock('@erpx/workflow-server/public/command-assertions', () => ({
   assertion: (db: unknown, commandId: string, step: string, query: string, args: (string | number | null)[]) => ({
     commandId, step, query, args,
   }),
 }));
 
-import { peopleHirePlacementFacts } from '../../../packages/server-organization/src/adapters/people-hire-placement-facts';
-import { peopleDirectoryOrganizationFacts } from '../../../packages/server-organization/src/adapters/people-directory-facts';
+import { peopleHirePlacementFacts } from '../../../modules/organization/server/src/adapters/people-hire-placement-facts';
+import { peopleDirectoryOrganizationFacts } from '../../../modules/organization/server/src/adapters/people-directory-facts';
 
 const db = {} as never;
 type Captured = { commandId: string; step: string; query: string; args: (string | number | null)[] };
@@ -40,7 +40,7 @@ describe('Organization read-tail r53 retirement', () => {
 
   test('retirement:ts-statements drops 224 -> 196', () => {
     // Wave 2 moved three node-reference reads to the native owner (six lane-23 reads total); the absolute pin reflects the current owner source.
-    const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+    const srcRoot = resolve(__dirname, '../../../modules/organization/server/src');
     let space = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {

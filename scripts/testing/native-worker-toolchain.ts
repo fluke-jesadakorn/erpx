@@ -16,8 +16,8 @@ export function nativeWorkerMode(input: readonly string[]): NativeWorkerMode {
 }
 export function nativeWorkerArguments(mode: NativeWorkerMode): string[] {
   if (['probe','export-env','inspect-linked'].includes(mode)) return [];
-  if (mode === 'build') return ['build', '--locked', '-p', 'erpx-server-files', '--features', 'preview-provider', '--bin', 'erpx-render-preview'];
-  return [mode, '--locked', '-p', 'erpx-service', '--all-targets', '--features', 'files-scan-worker,contracts', ...(mode === 'clippy' ? ['--', '-D', 'warnings'] : [])];
+  if (mode === 'build') return ['build', '--locked', '-p', 'erpx-files-server', '--features', 'preview-provider', '--bin', 'erpx-render-preview'];
+  return [mode, '--locked', '-p', 'erpx-platform-composition', '--all-targets', '--features', 'files-scan-worker,contracts', ...(mode === 'clippy' ? ['--', '-D', 'warnings'] : [])];
 }
 const childVariables = new Set(['PATH', 'HOME', 'USERPROFILE', 'TMPDIR', 'TMP', 'TEMP', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TZ', 'CARGO_HOME', 'RUSTUP_HOME', 'RUSTUP_TOOLCHAIN', 'CARGO_TARGET_DIR', 'CARGO_BUILD_TARGET', 'CC', 'CXX', 'AR', 'CFLAGS', 'CXXFLAGS', 'LDFLAGS', 'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'all_proxy', 'no_proxy', 'SSL_CERT_FILE', 'SSL_CERT_DIR', 'CURL_CA_BUNDLE']);
 export function nativeBuildEnvironment(environment: NodeJS.ProcessEnv, prefix: string): NodeJS.ProcessEnv {

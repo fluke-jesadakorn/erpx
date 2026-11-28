@@ -3,10 +3,10 @@
 mod facts;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_quality::public::initial_count_history::*;
-use erpx_server_quality::public::inventory_consumption::*;
-use erpx_server_runtime::public::postgres::{PgUnitOfWork, TransactionOptions};
-use erpx_server_shared::public::BusinessError;
+use erpx_quality_server::public::initial_count_history::*;
+use erpx_quality_server::public::inventory_consumption::*;
+use erpx_platform_runtime_server::public::postgres::{PgUnitOfWork, TransactionOptions};
+use erpx_platform_shared_server::public::BusinessError;
 use facts::*;
 use std::sync::Arc;
 fn request() -> ConsumptionHoldRequest {
@@ -19,7 +19,7 @@ fn request() -> ConsumptionHoldRequest {
     }
 }
 async fn read(
-    pool: &erpx_server_runtime::public::postgres::DatabasePool,
+    pool: &erpx_platform_runtime_server::public::postgres::DatabasePool,
 ) -> Result<CurrentConsumptionHolds, Error> {
     PgUnitOfWork::new(pool.clone())
         .run(TransactionOptions::default(), |c| {

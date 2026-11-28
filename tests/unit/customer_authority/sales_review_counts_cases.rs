@@ -3,12 +3,12 @@
 //! These cases run inside the registered `customer_access` Cargo target, so no
 //! Cargo.toml change is needed. They exercise the public owner port and router
 //! with a fake source/backend: no SQL string restatement, no server and no TS.
-use erpx_server_customer_authority::public::sales_review_counts::{
+use erpx_customer_authority_server::public::sales_review_counts::{
     ReviewCount, SalesReviewCountsBackend, SalesReviewCountsQuery, SalesReviewCountsRequest,
     SalesReviewCountsSource, ReviewCountsFuture, REVIEW_KINDS, sales_customer_review_counts,
     sales_review_counts_router, validate_counts,
 };
-use erpx_server_shared::public::FailureKind;
+use erpx_platform_shared_server::public::FailureKind;
 use std::sync::Arc;
 
 #[derive(Default)]
@@ -57,8 +57,8 @@ fn counts() -> Vec<ReviewCount> {
         .collect()
 }
 
-fn target() -> erpx_server_customer_authority::public::sales_review_counts::SalesReviewCountsTarget {
-    erpx_server_customer_authority::public::sales_review_counts::SalesReviewCountsTarget {
+fn target() -> erpx_customer_authority_server::public::sales_review_counts::SalesReviewCountsTarget {
+    erpx_customer_authority_server::public::sales_review_counts::SalesReviewCountsTarget {
         host: "acme.example.test".into(),
         holding_slug: "acme".into(),
         origin: "https://acme.example.test".into(),

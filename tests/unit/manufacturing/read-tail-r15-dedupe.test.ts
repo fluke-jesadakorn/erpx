@@ -1,8 +1,8 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { manufacturingOrderJoinSelect } from '../../../packages/server-manufacturing/src/adapters/manufacturing-read-tail-r15-sql';
+import { manufacturingOrderJoinSelect } from '../../../modules/manufacturing/server/src/adapters/manufacturing-read-tail-r15-sql';
 
-const src = (name: string) => readFile(new URL(`../../../packages/server-manufacturing/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFile(new URL(`../../../modules/manufacturing/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 /** Native commerce output-product join, expanded exactly as the call sites pass it. */
 const JP = 'JOIN commerce_products p ON p.id=s.output_product_id';
@@ -55,7 +55,7 @@ describe('manufacturing read-tail r15 parameterized family dedupe', () => {
   });
 
   it('lowers the manufacturing owner SELECT KPI strictly below the recorded BEFORE=99 baseline', async () => {
-    const files = await tsFiles(new URL('../../../packages/server-manufacturing/src/', import.meta.url));
+    const files = await tsFiles(new URL('../../../modules/manufacturing/server/src/', import.meta.url));
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThan(99);

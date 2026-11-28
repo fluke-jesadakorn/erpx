@@ -1,9 +1,9 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 vi.mock('server-only', () => ({}));
-vi.mock('@erpx/feature-runtime/adapters/server/native-executive-evidence', () => ({
+vi.mock('@erpx/platform-runtime-ui/adapters/server/native-executive-evidence', () => ({
   recordExecutiveEvidenceAccess: vi.fn(async () => ({ success: true })),
 }));
-import { nativeTalentEvidenceRow } from '../../../packages/server-runtime/src/adapters/executive/talent-evidence';
+import { nativeTalentEvidenceRow } from '../../../platform/runtime/server/src/adapters/executive/talent-evidence';
 
 const ENV = 'ERPX_NATIVE_TALENT_EVIDENCE_CONFIG';
 const config = JSON.stringify({

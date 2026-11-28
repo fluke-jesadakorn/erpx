@@ -14,15 +14,15 @@ mod projection_fixture;
 #[allow(dead_code)]
 #[path="../../support/runtime/private-session-config.rs"]
 mod runtime_configuration;
-use erpx_server_shared::public::{Clock, CompanyId, HoldingId};
-use erpx_service::field_collaboration_command::*;
+use erpx_platform_shared_server::public::{Clock, CompanyId, HoldingId};
+use erpx_platform_composition::field_collaboration_command::*;
 use serde_json::json;
 use std::sync::Arc;
 
 #[tokio::test]
 async fn native_service_commercial_authority_retains_holding_account_and_mfa() {
-    use erpx_server_identity_access::public::{platform_commercial_authority::*,account_security::*,*};
-    use erpx_server_runtime::public::postgres::PgTransactionError;
+    use erpx_identity_access_server::public::{platform_commercial_authority::*,account_security::*,*};
+    use erpx_platform_runtime_server::public::postgres::PgTransactionError;
     facts::account::with_system(|system|async move{
         let db=system.control.raw();let now=system.scenario.clock.now().get();
         let policy=facts::account::fixture::account::policy();
@@ -87,7 +87,7 @@ UPDATE active_work_contexts SET assignment_version=4,revision=9 WHERE user_id='f
         expected.assignment_version = 4; expected.revision = 9;
         let target = FieldCollaborationTarget {
             holding: HoldingId::new("h001").unwrap(), company: CompanyId::new("company").unwrap(), clock: clock.clone(),
-            catalogue: Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap()),
+            catalogue: Arc::new(erpx_commercial_server::public::purchases::current_package_catalogue().unwrap()),
         };
         let create = FieldCollaborationInput { key: "native-field-card-create".into(), operation: "collaboration.action.create".into(), id: None, body: serde_json::to_vec(&json!({"sourceType":"field_service_order","sourceId":"reserve-order","title":"Review visit evidence","ownerId":"fixture-a","dueAt":clock.now().get()+60000,"reason":"Review the actual source"})).unwrap() };
         for _ in 0..2 {
@@ -99,7 +99,7 @@ UPDATE active_work_contexts SET assignment_version=4,revision=9 WHERE user_id='f
         let denied = FieldCollaborationInput { key: "native-field-card-cancel-denied".into(), operation: "collaboration.action.cancel".into(), id: Some("action-card-native-field-card-create".into()), body: serde_json::to_vec(&json!({"action":"cancel","expectedVersion":1,"reason":"Reviewer required"})).unwrap() };
         let selection = p.selection.clone();
         let result = execute_selected_field_collaboration(&p.review.authorizer, "acme.example.test", p.review.maker.clone(), move || Ok(selection), target.clone(), denied).await;
-        assert!(matches!(result, Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e)) if e.code == "ACTION_CARD_REVIEW_REQUIRED"));
+        assert!(matches!(result, Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e)) if e.code == "ACTION_CARD_REVIEW_REQUIRED"));
         let complete = FieldCollaborationInput { key: "native-field-card-complete".into(), operation: "collaboration.action.complete".into(), id: Some("action-card-native-field-card-create".into()), body: serde_json::to_vec(&json!({"action":"complete","expectedVersion":1,"evidence":"The visit evidence was reviewed","reason":"Completed source review"})).unwrap() };
         for _ in 0..2 {
             let selection = p.selection.clone();
@@ -153,7 +153,7 @@ UPDATE active_work_contexts SET assignment_version=5,revision=10 WHERE user_id='
             let cookie=format!("__Host-erpx-product={}",child.token.expose());
             let mut api_config=runtime_configuration::document(&p.review.system.control,&p.review.system.holdings).await;
             api_config["fieldServiceReads"]=json!([{"holdingId":"h001","companyId":"company"}]);api_config["fieldServiceSourceRecordReads"]=json!([{"holdingId":"h001","mode":"enforced"}]);
-            let runtime=erpx_service::private_development_api::assemble_development_api(erpx_service::private_development_api::DevelopmentApiConfiguration::parse(&api_config.to_string()).unwrap(),clock.clone(),Arc::new(erpx_server_identity_access::public::SystemAuthenticationSecrets)).await.unwrap();
+            let runtime=erpx_platform_composition::private_development_api::assemble_development_api(erpx_platform_composition::private_development_api::DevelopmentApiConfiguration::parse(&api_config.to_string()).unwrap(),clock.clone(),Arc::new(erpx_identity_access_server::public::SystemAuthenticationSecrets)).await.unwrap();
             let router=runtime.router();
             let path="/api/v1/holdings/acme/field-service/collaboration";
             let request=|method:&str,cookie:&str,revision:&str,origin:&str,body:String|axum::http::Request::builder().method(method).uri(path).header("host","acme.example.test").header("origin",origin).header("cookie",cookie).header("x-erpx-context-company","company").header("x-erpx-context-assignment","field-fixture-a").header("x-erpx-context-revision",revision).header("x-erpx-context-assignment-version","5").header("idempotency-key","http-field-card-create").body(axum::body::Body::from(body)).unwrap();
@@ -207,9 +207,9 @@ UPDATE active_work_contexts SET assignment_version=5,revision=10 WHERE user_id='
             // Existing database writer fence rejects a generic Support edit. No guard is disabled.
             let mut tx=db.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
             let company=CompanyId::new("company").unwrap();
-            let read=erpx_server_support::public::field_ticket_read::read_field_ticket(&mut tx,&company,"ticket-reserve-order",Some("branch"),None).await.unwrap().unwrap();
+            let read=erpx_support_server::public::field_ticket_read::read_field_ticket(&mut tx,&company,"ticket-reserve-order",Some("branch"),None).await.unwrap().unwrap();
             assert!(read.require_reader("fixture-a",false,true).is_ok());assert!(read.require_reader("unrelated",false,true).is_err());assert!(read.require_reader("unrelated",true,false).is_ok());
-            assert!(erpx_server_support::public::field_ticket_read::read_field_ticket(&mut tx,&company,"ticket-reserve-order",Some("another-branch"),None).await.unwrap().is_none());
+            assert!(erpx_support_server::public::field_ticket_read::read_field_ticket(&mut tx,&company,"ticket-reserve-order",Some("another-branch"),None).await.unwrap().is_none());
             let denied=sqlx::query("UPDATE support_tickets SET title='Injected stale title' WHERE id='ticket-reserve-order'").execute(&mut *tx).await.unwrap_err();assert!(denied.to_string().contains("SERVICE_CASE_MANAGED_BY_ORDER"));tx.rollback().await.unwrap();
             let mut another=db.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *another).await.unwrap();assert!(read.require_current(&mut another).await.is_err());another.rollback().await.unwrap();
             let counts:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id='http-field-card-create'),(SELECT count(*) FROM audit_events WHERE command_id='http-field-card-create'),(SELECT count(*) FROM outbox_events WHERE command_id='http-field-card-create')").fetch_one(db).await.unwrap();assert_eq!(counts,(1,1,1));
@@ -218,19 +218,19 @@ UPDATE active_work_contexts SET assignment_version=5,revision=10 WHERE user_id='
         // Actual native policy/open/lifecycle composition. Historical Field
         // source rows remain explicit fixture prerequisites, not browser acceptance.
         {
-            use erpx_service::field_operations_command::{execute_selected_field_operations,FieldOperationsTransition,execute_selected_field_operations_setup,FieldOperationsSetup};
+            use erpx_platform_composition::field_operations_command::{execute_selected_field_operations,FieldOperationsTransition,execute_selected_field_operations_setup,FieldOperationsSetup};
             facts::setup_agreement_review_facts(&p,clock.now().get()).await;
             sqlx::raw_sql(r#"UPDATE assignments SET role='native_collaboration_reviewer',modules_json='["field_service","operations"]',version=4 WHERE id='agreement-reviewer-b';UPDATE active_work_contexts SET assignment_id='agreement-reviewer-b',assignment_version=4,revision=8 WHERE user_id='fixture-b';"#).execute(db).await.unwrap();
-            let mut reviewer=p.review.reviewer_selection.clone();let expected=reviewer.expected.as_mut().unwrap();expected.assignment_id=erpx_server_shared::public::AssignmentId::new("agreement-reviewer-b").unwrap();expected.assignment_version=4;expected.revision=8;
+            let mut reviewer=p.review.reviewer_selection.clone();let expected=reviewer.expected.as_mut().unwrap();expected.assignment_id=erpx_platform_shared_server::public::AssignmentId::new("agreement-reviewer-b").unwrap();expected.assignment_version=4;expected.revision=8;
 
             let draft=FieldOperationsSetup{key:"ops-field-policy-draft".into(),id:None,body:json!({"entity":"policy","area":"service","name":"Native Field exception policy","sourceKinds":["field_service_order","field_service_order"],"targetMinutes":60})};
             for _ in 0..2{let selected=p.selection.clone();let result=execute_selected_field_operations_setup(&p.review.authorizer,"acme.example.test",p.review.maker.clone(),move||Ok(selected),target.clone(),draft.clone()).await.unwrap();assert_eq!(result,json!({"id":"queue-policy-ops-field-policy-draft","version":1,"status":"draft"}));}
             let publish=FieldOperationsSetup{key:"ops-field-policy-publish".into(),id:Some("queue-policy-ops-field-policy-draft".into()),body:json!({"entity":"policy","action":"publish","expectedVersion":1,"reason":"Independent actual policy review"})};
-            let selected=p.selection.clone();let mut own=publish.clone();own.key="ops-field-policy-self-review".into();let denied=execute_selected_field_operations_setup(&p.review.authorizer,"acme.example.test",p.review.maker.clone(),move||Ok(selected),target.clone(),own).await;assert!(matches!(denied,Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e))if e.code=="CONFLICT"));
+            let selected=p.selection.clone();let mut own=publish.clone();own.key="ops-field-policy-self-review".into();let denied=execute_selected_field_operations_setup(&p.review.authorizer,"acme.example.test",p.review.maker.clone(),move||Ok(selected),target.clone(),own).await;assert!(matches!(denied,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e))if e.code=="CONFLICT"));
             for _ in 0..2{let selected=reviewer.clone();let result=execute_selected_field_operations_setup(&p.review.authorizer,"acme.example.test",p.review.reviewer.clone(),move||Ok(selected),target.clone(),publish.clone()).await.unwrap();assert_eq!(result,json!({"id":"queue-policy-ops-field-policy-draft","version":2,"status":"published"}));}
             let selected=p.selection.clone();let result=execute_selected_field_operations_setup(&p.review.authorizer,"acme.example.test",p.review.maker.clone(),move||Ok(selected),target.clone(),draft).await.unwrap();assert_eq!(result["status"],"draft");assert_eq!(result["version"],1);
             let open=FieldOperationsSetup{key:"ops-field-open".into(),id:None,body:json!({"entity":"exception","source":{"kind":"field_service_order","id":"reserve-order","version":1},"policyId":"queue-policy-ops-field-policy-draft","policyVersion":2,"title":"Native Field operational exception","issue":"Visit needs independent review","priority":"high","ownerId":"fixture-a"})};
-            let selected=p.selection.clone();let mut future=open.clone();future.key="ops-field-open-future".into();let denied=execute_selected_field_operations_setup(&p.review.authorizer,"acme.example.test",p.review.maker.clone(),move||Ok(selected),target.clone(),future).await;assert!(matches!(denied,Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e))if e.code=="OPERATIONS_RECIPIENT_UNAVAILABLE"));
+            let selected=p.selection.clone();let mut future=open.clone();future.key="ops-field-open-future".into();let denied=execute_selected_field_operations_setup(&p.review.authorizer,"acme.example.test",p.review.maker.clone(),move||Ok(selected),target.clone(),future).await;assert!(matches!(denied,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e))if e.code=="OPERATIONS_RECIPIENT_UNAVAILABLE"));
             sqlx::query("UPDATE hr_engagements SET start_date='2020-01-01' WHERE id='field-engagement'").execute(db).await.unwrap();
             for _ in 0..2{let selected=p.selection.clone();let result=execute_selected_field_operations_setup(&p.review.authorizer,"acme.example.test",p.review.maker.clone(),move||Ok(selected),target.clone(),open.clone()).await.unwrap();assert_eq!(result,json!({"id":"operations-exception-ops-field-open","version":1,"status":"open"}));}
             let facts:(i64,i64,String,String)=sqlx::query_as("SELECT due_at,source_version,source_kinds_json,source_reference_json FROM operations_exceptions e JOIN operations_queue_policies p ON p.id=e.policy_id WHERE e.id='operations-exception-ops-field-open'").fetch_one(db).await.unwrap();assert_eq!(facts.0,clock.now().get()+60*60000);assert_eq!(facts.1,1);assert_eq!(facts.2,"[\"field_service_order\"]");let source:serde_json::Value=serde_json::from_str(&facts.3).unwrap();assert_eq!(source["id"],"reserve-order");assert_eq!(source["companyId"],"company");assert_eq!(source["branchId"],"branch");
@@ -240,22 +240,22 @@ UPDATE active_work_contexts SET assignment_version=5,revision=10 WHERE user_id='
             // Existing Field/Collaboration fixture intentionally starts in 2100.
             // Keep that rule and prove Operations rejects it before using dated facts.
             let selected=p.selection.clone();let future=execute_selected_field_operations(&p.review.authorizer,"acme.example.test",p.review.maker.clone(),move||Ok(selected),target.clone(),run("acknowledge","ops-field-future-worker",1)).await;
-            assert!(matches!(future,Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e))if e.code=="OPERATIONS_RECIPIENT_UNAVAILABLE"));
+            assert!(matches!(future,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e))if e.code=="OPERATIONS_RECIPIENT_UNAVAILABLE"));
             sqlx::query("UPDATE hr_engagements SET start_date='2020-01-01' WHERE id='field-engagement'").execute(db).await.unwrap();
             for _ in 0..2{let selected=p.selection.clone();let receipt=execute_selected_field_operations(&p.review.authorizer,"acme.example.test",p.review.maker.clone(),move||Ok(selected),target.clone(),run("acknowledge","ops-field-ack",1)).await.unwrap();assert_eq!(receipt,json!({"id":"operations-exception-ops-field-open","version":2,"status":"acknowledged"}));}
             // Collaboration deliberately accepts undated engagements; Operations
             // must independently reject an employment which ended before today.
             sqlx::query("UPDATE hr_engagements SET end_date=start_date WHERE person_id='field-person'").execute(db).await.unwrap();
             let selected=p.selection.clone();let denied=execute_selected_field_operations(&p.review.authorizer,"acme.example.test",p.review.maker.clone(),move||Ok(selected),target.clone(),run("start","ops-field-expired-worker",2)).await;
-            assert!(matches!(denied,Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e))if e.code=="OPERATIONS_RECIPIENT_UNAVAILABLE"));
+            assert!(matches!(denied,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e))if e.code=="OPERATIONS_RECIPIENT_UNAVAILABLE"));
             sqlx::query("UPDATE hr_engagements SET end_date=NULL WHERE person_id='field-person'").execute(db).await.unwrap();
             for (action,key,version,status) in [("start","ops-field-start",2,"in_progress"),("resolve","ops-field-resolve",3,"awaiting_review")]{for _ in 0..2{let selected=p.selection.clone();let receipt=execute_selected_field_operations(&p.review.authorizer,"acme.example.test",p.review.maker.clone(),move||Ok(selected),target.clone(),run(action,key,version)).await.unwrap();assert_eq!(receipt,json!({"id":"operations-exception-ops-field-open","version":version+1,"status":status}));}}
             for (proof,selection,allowed) in [(p.review.maker.clone(),p.selection.clone(),false),(p.review.reviewer.clone(),reviewer.clone(),true)]{
-                let reply=erpx_service::field_operations_command::read_selected_field_operations_workspace(&p.review.authorizer,"acme.example.test",proof,move||Ok(selection),target.clone()).await.unwrap();
+                let reply=erpx_platform_composition::field_operations_command::read_selected_field_operations_workspace(&p.review.authorizer,"acme.example.test",proof,move||Ok(selection),target.clone()).await.unwrap();
                 let work=&reply["data"]["work"][0];assert_eq!(work["status"],"awaiting_review");assert_eq!(work["canAct"],allowed);assert_eq!(work["queue"],if allowed{"todo"}else{"waiting"});
             }
             let selected=p.selection.clone();let denied=execute_selected_field_operations(&p.review.authorizer,"acme.example.test",p.review.maker.clone(),move||Ok(selected),target.clone(),run("approve","ops-field-self-review",4)).await;
-            assert!(matches!(denied,Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e))if e.code=="OPERATIONS_INDEPENDENT_REVIEW"));
+            assert!(matches!(denied,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e))if e.code=="OPERATIONS_INDEPENDENT_REVIEW"));
             for _ in 0..2{let selected=reviewer.clone();let receipt=execute_selected_field_operations(&p.review.authorizer,"acme.example.test",p.review.reviewer.clone(),move||Ok(selected),target.clone(),run("approve","ops-field-approve",4)).await.unwrap();assert_eq!(receipt,json!({"id":"operations-exception-ops-field-open","version":5,"status":"resolved"}));}
             for _ in 0..2{let selected=p.selection.clone();let receipt=execute_selected_field_operations(&p.review.authorizer,"acme.example.test",p.review.maker.clone(),move||Ok(selected),target.clone(),run("close","ops-field-close",5)).await.unwrap();assert_eq!(receipt,json!({"id":"operations-exception-ops-field-open","version":6,"status":"closed"}));}
             let effects:(i64,i64,i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id LIKE 'ops-field-%'),(SELECT count(*) FROM audit_events WHERE command_id LIKE 'ops-field-%'),(SELECT count(*) FROM outbox_events WHERE command_id LIKE 'ops-field-%'),(SELECT count(*) FROM operations_exception_events WHERE exception_id='operations-exception-ops-field-open'),(SELECT count(*) FROM staff_notifications WHERE record_id='operations-exception-ops-field-open'),(SELECT count(*) FROM command_receipts WHERE command_id IN ('ops-field-self-review','ops-field-expired-worker','ops-field-future-worker','ops-field-open-future','ops-field-policy-self-review'))").fetch_one(db).await.unwrap();assert_eq!(effects,(8,8,8,6,6,0));
@@ -267,7 +267,7 @@ UPDATE active_work_contexts SET assignment_version=5,revision=10 WHERE user_id='
                 let cookie=format!("__Host-erpx-product={}",child.token.expose());
                 let mut api_config=runtime_configuration::document(&p.review.system.control,&p.review.system.holdings).await;
             api_config["fieldServiceReads"]=json!([{"holdingId":"h001","companyId":"company"}]);api_config["fieldServiceSourceRecordReads"]=json!([{"holdingId":"h001","mode":"enforced"}]);
-            let runtime=erpx_service::private_development_api::assemble_development_api(erpx_service::private_development_api::DevelopmentApiConfiguration::parse(&api_config.to_string()).unwrap(),clock.clone(),Arc::new(erpx_server_identity_access::public::SystemAuthenticationSecrets)).await.unwrap();
+            let runtime=erpx_platform_composition::private_development_api::assemble_development_api(erpx_platform_composition::private_development_api::DevelopmentApiConfiguration::parse(&api_config.to_string()).unwrap(),clock.clone(),Arc::new(erpx_identity_access_server::public::SystemAuthenticationSecrets)).await.unwrap();
             let router=runtime.router();
                 let request=|method:&str,cookie:&str,revision:&str,origin:&str,body:&str|axum::http::Request::builder().method(method).uri("/api/v1/holdings/acme/field-service/operations/operations-exception-ops-field-open").header("host","acme.example.test").header("cookie",cookie).header("origin",origin).header("content-type","application/json").header("x-erpx-context-company","company").header("x-erpx-context-assignment","field-fixture-a").header("x-erpx-context-revision",revision).header("x-erpx-context-assignment-version","5").header("idempotency-key","ops-field-http-reopen").body(axum::body::Body::from(body.to_owned())).unwrap();
                 let response=router.clone().oneshot(request("GET",&cookie,"10","https://acme.example.test","")).await.unwrap();assert_eq!(response.status(),axum::http::StatusCode::OK);
@@ -286,7 +286,7 @@ UPDATE active_work_contexts SET assignment_version=5,revision=10 WHERE user_id='
                 // Existing mixed policy belongs to the remaining Operations consumers.
                 // Native Field publication must neither replace nor retire it.
                 sqlx::raw_sql(r#"INSERT INTO operations_queue_policies(id,company_id,area,name,revision,source_kinds_json,target_minutes,status,created_by,reviewed_by,version,created_at,updated_at)VALUES('mixed-existing','company','mixed_queue','Existing mixed owner policy',1,'["field_service_order","support_ticket"]',60,'published','fixture-a','fixture-b',2,0,0);"#).execute(db).await.unwrap();
-                for command in [FieldOperationsSetup{key:"ops-field-mixed-native-draft".into(),id:None,body:json!({"entity":"policy","area":"mixed_queue","name":"Do not replace mixed policy","sourceKinds":["field_service_order"],"targetMinutes":30})},FieldOperationsSetup{key:"ops-field-mixed-native-retire".into(),id:Some("mixed-existing".into()),body:json!({"entity":"policy","action":"retire","expectedVersion":2,"reason":"Do not retire mixed policy"})}]{let selected=p.selection.clone();let result=execute_selected_field_operations_setup(&p.review.authorizer,"acme.example.test",p.review.maker.clone(),move||Ok(selected),target.clone(),command).await;assert!(matches!(result,Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e))if e.code=="OPERATIONS_POLICY_SHARED_AREA"));}
+                for command in [FieldOperationsSetup{key:"ops-field-mixed-native-draft".into(),id:None,body:json!({"entity":"policy","area":"mixed_queue","name":"Do not replace mixed policy","sourceKinds":["field_service_order"],"targetMinutes":30})},FieldOperationsSetup{key:"ops-field-mixed-native-retire".into(),id:Some("mixed-existing".into()),body:json!({"entity":"policy","action":"retire","expectedVersion":2,"reason":"Do not retire mixed policy"})}]{let selected=p.selection.clone();let result=execute_selected_field_operations_setup(&p.review.authorizer,"acme.example.test",p.review.maker.clone(),move||Ok(selected),target.clone(),command).await;assert!(matches!(result,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e))if e.code=="OPERATIONS_POLICY_SHARED_AREA"));}
                 let preserved:(String,i64,String)=sqlx::query_as("SELECT status,version,source_kinds_json FROM operations_queue_policies WHERE id='mixed-existing'").fetch_one(db).await.unwrap();assert_eq!(preserved,("published".into(),2,"[\"field_service_order\",\"support_ticket\"]".into()));
                 let legacy_policies:Vec<String>=sqlx::query_scalar("SELECT id FROM operations_queue_policies WHERE company_id='company' AND NOT (jsonb_typeof(source_kinds_json::jsonb)='array' AND source_kinds_json::jsonb<>'[]'::jsonb AND source_kinds_json::jsonb <@ '[\"field_service_order\"]'::jsonb) ORDER BY id").fetch_all(db).await.unwrap();assert_eq!(legacy_policies,vec!["mixed-existing"]);
                 let legacy_exceptions:i64=sqlx::query_scalar("SELECT count(*) FROM operations_exceptions WHERE company_id='company' AND source_kind<>'field_service_order'").fetch_one(db).await.unwrap();assert_eq!(legacy_exceptions,0);
@@ -310,8 +310,8 @@ INSERT INTO pms_records(id,property_id,kind,data_json,updated_at)VALUES('recursi
             sqlx::query("INSERT INTO support_tickets(id,company_id,branch_id,title,issue,status,source_kind,source_record_json,created_by,created_at,updated_at)VALUES($1,'company','branch','Typed source case','Historical source fixture','triage',$2,$3,'fixture-a',0,0)").bind(format!("recursive-ticket-{id}")).bind(kind).bind(json!({"kind":kind,"id":source,"version":1}).to_string()).execute(db).await.unwrap();
         }
         for id in ["asset","sale","room"]{
-            let selection=p.selection.clone();let denied=erpx_service::field_support_read::read_selected_field_support(&p.review.authorizer,"acme.example.test",p.review.maker.clone(),move||Ok(selection),target.clone(),format!("recursive-ticket-{id}")).await;
-            assert!(matches!(denied,Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e))if e.kind==erpx_server_shared::public::FailureKind::NotFound));
+            let selection=p.selection.clone();let denied=erpx_platform_composition::field_support_read::read_selected_field_support(&p.review.authorizer,"acme.example.test",p.review.maker.clone(),move||Ok(selection),target.clone(),format!("recursive-ticket-{id}")).await;
+            assert!(matches!(denied,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e))if e.kind==erpx_platform_shared_server::public::FailureKind::NotFound));
         }
         sqlx::raw_sql(r#"
 INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status)VALUES('*','native_recursive_reader','Synthetic recursive source reader',false,1,'active');
@@ -321,7 +321,7 @@ UPDATE active_work_contexts SET assignment_id='field-fixture-a',assignment_versi
 "#).execute(db).await.unwrap();
         let mut recursive_selection=p.selection.clone();let expected=recursive_selection.expected.as_mut().unwrap();expected.assignment_version=6;expected.revision=11;
         // Personal permissions alone do not replace any owning purchase.
-        for id in ["asset","sale","room"]{let selection=recursive_selection.clone();let denied=erpx_service::field_support_read::read_selected_field_support(&p.review.authorizer,"acme.example.test",p.review.maker.clone(),move||Ok(selection),target.clone(),format!("recursive-ticket-{id}")).await;assert!(matches!(denied,Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e))if e.kind==erpx_server_shared::public::FailureKind::NotFound));}
+        for id in ["asset","sale","room"]{let selection=recursive_selection.clone();let denied=erpx_platform_composition::field_support_read::read_selected_field_support(&p.review.authorizer,"acme.example.test",p.review.maker.clone(),move||Ok(selection),target.clone(),format!("recursive-ticket-{id}")).await;assert!(matches!(denied,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e))if e.kind==erpx_platform_shared_server::public::FailureKind::NotFound));}
         for package in ["assets","pos","pms"]{
             let mut tx=db.begin().await.unwrap();
             sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,version,reason,evidence,updated_at)VALUES('company',$1,1,'active',0,1,'Synthetic recursive source purchase','Synthetic public fixture',$2)").bind(package).bind(clock.now().get()).execute(&mut *tx).await.unwrap();
@@ -330,29 +330,29 @@ UPDATE active_work_contexts SET assignment_id='field-fixture-a',assignment_versi
         // Historical stored origin v1 does not require the parent to stay at v1.
         sqlx::query("UPDATE operational_assets SET version=2,name='Current source asset' WHERE id='recursive-asset'").execute(db).await.unwrap();
         for id in ["asset","sale","room","refund-own"]{
-            let selection=recursive_selection.clone();let read=erpx_service::field_support_read::read_selected_field_support(&p.review.authorizer,"acme.example.test",p.review.maker.clone(),move||Ok(selection),target.clone(),format!("recursive-ticket-{id}")).await.unwrap();assert_eq!(read.data["row"]["id"],format!("recursive-ticket-{id}"));assert_eq!(read.data["managedInFieldService"],false);assert_eq!(read.data["canManage"],false);
+            let selection=recursive_selection.clone();let read=erpx_platform_composition::field_support_read::read_selected_field_support(&p.review.authorizer,"acme.example.test",p.review.maker.clone(),move||Ok(selection),target.clone(),format!("recursive-ticket-{id}")).await.unwrap();assert_eq!(read.data["row"]["id"],format!("recursive-ticket-{id}"));assert_eq!(read.data["managedInFieldService"],false);assert_eq!(read.data["canManage"],false);
         }
         sqlx::query("UPDATE pms_records SET data_json=jsonb_set(data_json::jsonb,'{state}','null'::jsonb)::text,version=2 WHERE id='recursive-room'").execute(db).await.unwrap();
-        let selection=recursive_selection.clone();erpx_service::field_support_read::read_selected_field_support(&p.review.authorizer,"acme.example.test",p.review.maker.clone(),move||Ok(selection),target.clone(),"recursive-ticket-room".into()).await.unwrap();
+        let selection=recursive_selection.clone();erpx_platform_composition::field_support_read::read_selected_field_support(&p.review.authorizer,"acme.example.test",p.review.maker.clone(),move||Ok(selection),target.clone(),"recursive-ticket-room".into()).await.unwrap();
         for id in ["refund-other","foreign"]{
-            let selection=recursive_selection.clone();let denied=erpx_service::field_support_read::read_selected_field_support(&p.review.authorizer,"acme.example.test",p.review.maker.clone(),move||Ok(selection),target.clone(),format!("recursive-ticket-{id}")).await;assert!(matches!(denied,Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e))if e.kind==erpx_server_shared::public::FailureKind::NotFound));
+            let selection=recursive_selection.clone();let denied=erpx_platform_composition::field_support_read::read_selected_field_support(&p.review.authorizer,"acme.example.test",p.review.maker.clone(),move||Ok(selection),target.clone(),format!("recursive-ticket-{id}")).await;assert!(matches!(denied,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e))if e.kind==erpx_platform_shared_server::public::FailureKind::NotFound));
         }
         // Retained owning facts cannot be reused in another unit or after a
         // source/branch mutation. Roll back all intentional fixture tampering.
         let company=CompanyId::new("company").unwrap();let mut tx=db.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
-        let source=erpx_server_assets::public::record_source::read_record_source(&mut tx,&company,"recursive-asset").await.unwrap().unwrap();sqlx::query("UPDATE operational_assets SET name='Changed inside consumer unit' WHERE id='recursive-asset'").execute(&mut *tx).await.unwrap();assert!(source.require_current(&mut tx).await.is_err());tx.rollback().await.unwrap();
+        let source=erpx_assets_server::public::record_source::read_record_source(&mut tx,&company,"recursive-asset").await.unwrap().unwrap();sqlx::query("UPDATE operational_assets SET name='Changed inside consumer unit' WHERE id='recursive-asset'").execute(&mut *tx).await.unwrap();assert!(source.require_current(&mut tx).await.is_err());tx.rollback().await.unwrap();
         let mut another=db.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *another).await.unwrap();assert!(source.require_current(&mut another).await.is_err());
-        let pms=erpx_server_pms::public::record_source::read_record_source(&mut another,&company,"recursive-room").await.unwrap().unwrap();assert_eq!(pms.data().status,"open");
-        let branch=erpx_server_organization::public::pms_source_branch::read_pms_source_branch(&mut another,&company,"branch").await.unwrap().unwrap();sqlx::query("UPDATE organization_nodes SET status='suspended' WHERE id='branch'").execute(&mut *another).await.unwrap();assert!(branch.require_current(&mut another).await.is_err());another.rollback().await.unwrap();
+        let pms=erpx_pms_server::public::record_source::read_record_source(&mut another,&company,"recursive-room").await.unwrap().unwrap();assert_eq!(pms.data().status,"open");
+        let branch=erpx_organization_server::public::pms_source_branch::read_pms_source_branch(&mut another,&company,"branch").await.unwrap().unwrap();sqlx::query("UPDATE organization_nodes SET status='suspended' WHERE id='branch'").execute(&mut *another).await.unwrap();assert!(branch.require_current(&mut another).await.is_err());another.rollback().await.unwrap();
         // Distinct leased read DB and the actual command events above. This
         // proves projection/claim ownership, not whole Field browser acceptance.
         let write=db.clone();let now=clock.now().get()+10_000;
         projection_fixture::with_database(2,move|read|async move{
-            use erpx_server_runtime::public::postgres::{load_migrations,migrate_database,MigrationTrack};
-            use erpx_server_workflow::public::service_count_outbox::{claim,project,complete,fail,eligible};
+            use erpx_platform_runtime_server::public::postgres::{load_migrations,migrate_database,MigrationTrack};
+            use erpx_workflow_server::public::service_count_outbox::{claim,project,complete,fail,eligible};
             let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
             let files=load_migrations(&root,MigrationTrack::HoldingRead).await.unwrap();migrate_database(&read,MigrationTrack::HoldingRead,&files).await.unwrap();
-            let quarantine=format!("({}) OR ({}) OR ({})",erpx_server_field_service::public::field_outbox::QUARANTINE,erpx_server_operations::public::field_outbox::QUARANTINE,erpx_server_collaboration::public::field_outbox::QUARANTINE);
+            let quarantine=format!("({}) OR ({}) OR ({})",erpx_field_service_server::public::field_outbox::QUARANTINE,erpx_operations_server::public::field_outbox::QUARANTINE,erpx_collaboration_server::public::field_outbox::QUARANTINE);
             let mut q=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT count(*) FROM outbox_events e WHERE ");q.push(&quarantine);
             let owned:i64=q.build_query_scalar().fetch_one(&write).await.unwrap();assert!(owned>=12);
             let mut legacy=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT count(*) FROM outbox_events e WHERE e.command_id LIKE 'ops-field-%' AND NOT (");legacy.push(&quarantine).push(")");
@@ -360,7 +360,7 @@ UPDATE active_work_contexts SET assignment_id='field-fixture-a',assignment_versi
             // Omitting launcher filters cannot transfer native jobs back to TS.
             let direct=sqlx::query("UPDATE outbox_events SET lease_token='legacy-unfiltered' WHERE command_id='ops-field-open'").execute(&write).await.unwrap_err();assert_eq!(direct.as_database_error().and_then(|e|e.code()).as_deref(),Some("23514"));assert_eq!(direct.as_database_error().and_then(|e|e.constraint()),Some("native_outbox_runtime_required"));
             let mut c=write.acquire().await.unwrap();let first=claim(&mut c,&quarantine,"field-first",now).await.unwrap().unwrap();
-            let native_evidence=format!("(({}) OR ({}) OR ({})) AND ({})",erpx_server_field_service::public::field_outbox::ELIGIBLE,erpx_server_operations::public::field_outbox::ELIGIBLE,erpx_server_collaboration::public::field_outbox::ELIGIBLE,erpx_server_workflow::public::field_outbox::COMMAND_EVIDENCE);
+            let native_evidence=format!("(({}) OR ({}) OR ({})) AND ({})",erpx_field_service_server::public::field_outbox::ELIGIBLE,erpx_operations_server::public::field_outbox::ELIGIBLE,erpx_collaboration_server::public::field_outbox::ELIGIBLE,erpx_workflow_server::public::field_outbox::COMMAND_EVIDENCE);
             assert!(eligible(&mut c,&native_evidence,&first).await.unwrap());
             let leaked:Option<String>=sqlx::query_scalar("SELECT nullif(current_setting('erpx.outbox_runtime',true),'')").fetch_one(&mut *c).await.unwrap();assert_eq!(leaked,None);
 
@@ -368,12 +368,12 @@ UPDATE active_work_contexts SET assignment_id='field-fixture-a',assignment_versi
             // Crash after read commit, before write acknowledgement. The new
             // worker reclaims exactly the expired lease, with one read receipt.
             if let Some(early)=claim(&mut c,&quarantine,"field-early",now+1).await.unwrap(){assert_ne!(early.id,first.id);assert!(fail(&mut c,&early,now+1,"TEST_RETRY").await.unwrap());}
-            assert!(erpx_service::field_dependency_worker::run_once(&write,read.raw(),"field-recovery",now+90_001).await.unwrap());
+            assert!(erpx_platform_composition::field_dependency_worker::run_once(&write,read.raw(),"field-recovery",now+90_001).await.unwrap());
             assert!(!complete(&mut c,&first,now+90_002).await.unwrap());
             let receipts:i64=sqlx::query_scalar("SELECT count(*) FROM projection_receipts WHERE event_id=$1").bind(&first.id).fetch_one(read.raw()).await.unwrap();assert_eq!(receipts,1);
             drop(c);
             let mut drained=1;
-            while erpx_service::field_dependency_worker::run_once(&write,read.raw(),"field-drain",now+90_002).await.unwrap(){drained+=1;assert!(drained<=owned+1);}
+            while erpx_platform_composition::field_dependency_worker::run_once(&write,read.raw(),"field-drain",now+90_002).await.unwrap(){drained+=1;assert!(drained<=owned+1);}
             assert_eq!(drained,owned);
             let mut processed=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT count(*) FROM outbox_events e WHERE e.processed_at IS NOT NULL AND (");processed.push(&quarantine).push(")");assert_eq!(processed.build_query_scalar::<i64>().fetch_one(&write).await.unwrap(),owned);
             let receipt_count:i64=sqlx::query_scalar("SELECT count(*) FROM projection_receipts").fetch_one(read.raw()).await.unwrap();assert_eq!(receipt_count,owned);
@@ -382,7 +382,7 @@ UPDATE active_work_contexts SET assignment_id='field-fixture-a',assignment_versi
             // or handed to TS. Other owners' events are still claimable there.
             sqlx::query("INSERT INTO outbox_events(id,command_id,event_type,aggregate_type,aggregate_id,aggregate_version,payload_json,created_at)VALUES('field-unknown','field-unknown','field.order.unrecognized','field_order','missing',1,'{}',1),('other-owner','other-owner','support.ticket.create','support_ticket','other',1,'{}',1)").execute(&write).await.unwrap();
             let mut time=now+100_000;
-            for _ in 0..6{assert!(erpx_service::field_dependency_worker::run_once(&write,read.raw(),"field-invalid",time).await.unwrap());time+=60_001;}
+            for _ in 0..6{assert!(erpx_platform_composition::field_dependency_worker::run_once(&write,read.raw(),"field-invalid",time).await.unwrap());time+=60_001;}
             let row:(Option<i64>,Option<i64>,Option<String>)=sqlx::query_as("SELECT processed_at,dead_letter_at,last_error FROM outbox_events WHERE id='field-unknown'").fetch_one(&write).await.unwrap();assert_eq!(row.0,None);assert!(row.1.is_some());assert_eq!(row.2.as_deref(),Some("SOURCE_INVALID"));
             let mut q=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT e.id FROM outbox_events e WHERE e.processed_at IS NULL AND e.dead_letter_at IS NULL AND NOT (");q.push(&quarantine).push(") ORDER BY e.id");
             let legacy:Vec<String>=q.build_query_scalar().fetch_all(&write).await.unwrap();assert!(legacy.iter().any(|v|v=="other-owner"));assert!(!legacy.iter().any(|v|v=="field-unknown"));
@@ -393,14 +393,14 @@ UPDATE active_work_contexts SET assignment_id='field-fixture-a',assignment_versi
 #[tokio::test]
 async fn native_field_push_cursor_fence_recovery_and_ack_are_partitioned() {
     use tower::ServiceExt;
-    use erpx_server_collaboration::public::web_push::{claim, fanout, settle, subscriptions};
+    use erpx_collaboration_server::public::web_push::{claim, fanout, settle, subscriptions};
     facts::account::with_system(|system| async move {
         let p=facts::setup_workspace(system).await;
         let db=p.pool().raw();
         let central=facts::account::login(&p.review.system,"a@example.test",None).await;
         let child=facts::account::child(&p.review.system,&central,facts::account::ACME).await;
         let now=p.review.system.scenario.clock.now().get();
-        use erpx_server_identity_access::public::push_session::{current_account,current_company};
+        use erpx_identity_access_server::public::push_session::{current_account,current_company};
         let mut control=p.review.system.control.raw().begin().await.unwrap();
         assert!(current_account(&mut control,&child.result.session_id,"fixture-a",facts::account::ACME,"development",now).await.unwrap());
         assert!(!current_account(&mut control,&child.result.session_id,"fixture-a",facts::account::ACME,"production",now).await.unwrap());
@@ -435,7 +435,7 @@ INSERT INTO inbox_deliveries(id,event_id,company_id,user_id,delivered_at)VALUES(
         assert_eq!(error.as_database_error().unwrap().constraint(),Some("native_field_push_runtime_required"));
         #[cfg(feature="field-push-worker")]
         {
-            use erpx_service::field_push_worker::{FieldPushTarget,PushTurn,run_once};
+            use erpx_platform_composition::field_push_worker::{FieldPushTarget,PushTurn,run_once};
             let target=FieldPushTarget{control:p.review.system.control.raw().clone(),holding:db.clone(),audience:facts::account::ACME.into(),origin:"https://acme.example.test".into()};
             assert_eq!(run_once(&target,None,p.review.system.scenario.clock.as_ref()).await.unwrap(),PushTurn::Disabled);
             let untouched:(i32,Option<String>)=sqlx::query_as("SELECT attempts,lease_token FROM push_delivery_jobs WHERE subscription_id='native-push'").fetch_one(db).await.unwrap();assert_eq!(untouched,(0,None));
@@ -443,16 +443,16 @@ INSERT INTO inbox_deliveries(id,event_id,company_id,user_id,delivered_at)VALUES(
         let mut tx=db.begin().await.unwrap();
         let (id,attempts)=claim(&mut tx,"claim-1",40).await.unwrap().unwrap();assert_eq!(attempts,1);tx.commit().await.unwrap();
         let mut tx=db.begin().await.unwrap();
-        let row=erpx_server_collaboration::public::web_push::delivery(&mut tx,&id,"claim-1",41).await.unwrap().unwrap();assert!(row.visible);assert!(row.preferences.permits("work"));assert_eq!(row.subscription.inbox_path,"/work/inbox");
+        let row=erpx_collaboration_server::public::web_push::delivery(&mut tx,&id,"claim-1",41).await.unwrap().unwrap();assert!(row.visible);assert!(row.preferences.permits("work"));assert_eq!(row.subscription.inbox_path,"/work/inbox");
         // Acknowledgements are owned native commands, including in this queue
         // regression. Direct legacy updates remain fenced by the real schema.
         let mut document=runtime_configuration::document(&p.review.system.control,&p.review.system.holdings).await;
         document["fieldServiceReads"]=json!([{"holdingId":"h001","companyId":"company"}]);document["fieldServiceSourceRecordReads"]=json!([{"holdingId":"h001","mode":"enforced"}]);
-        let runtime=erpx_service::private_development_api::assemble_development_api(erpx_service::private_development_api::DevelopmentApiConfiguration::parse(&document.to_string()).unwrap(),p.review.system.scenario.clock.clone(),Arc::new(erpx_server_identity_access::public::SystemAuthenticationSecrets)).await.unwrap();
+        let runtime=erpx_platform_composition::private_development_api::assemble_development_api(erpx_platform_composition::private_development_api::DevelopmentApiConfiguration::parse(&document.to_string()).unwrap(),p.review.system.scenario.clock.clone(),Arc::new(erpx_identity_access_server::public::SystemAuthenticationSecrets)).await.unwrap();
         let cookie=format!("__Host-erpx-product={}",child.token.expose());
         for (read,key) in [(true,"native-push-notice-read"),(false,"native-push-notice-unread")] {
          let response=runtime.router().oneshot(axum::http::Request::builder().method("POST").uri("/api/v1/holdings/acme/field-service/inbox/native-push-delivery/state").header("host","acme.example.test").header("origin","https://acme.example.test").header("cookie",&cookie).header("x-erpx-context-company","company").header("x-erpx-context-assignment","field-fixture-a").header("x-erpx-context-assignment-version","3").header("x-erpx-context-revision","1").header("idempotency-key",key).body(axum::body::Body::from(json!({"read":read}).to_string())).unwrap()).await.unwrap();let status=response.status();let bytes=axum::body::to_bytes(response.into_body(),65536).await.unwrap();assert_eq!(status,200,"{}",String::from_utf8_lossy(&bytes));
-         assert_eq!(erpx_server_collaboration::public::web_push::delivery(&mut tx,&id,"claim-1",41).await.unwrap().unwrap().visible,!read);
+         assert_eq!(erpx_collaboration_server::public::web_push::delivery(&mut tx,&id,"claim-1",41).await.unwrap().unwrap().visible,!read);
         }
         tx.rollback().await.unwrap();runtime.close().await;
         let mut tx=db.begin().await.unwrap();assert!(claim(&mut tx,"claim-2",41).await.unwrap().is_none());tx.commit().await.unwrap();
@@ -465,8 +465,8 @@ INSERT INTO inbox_deliveries(id,event_id,company_id,user_id,delivered_at)VALUES(
         let result:(String,i32,i64)=sqlx::query_as("SELECT status,attempts,sent_at FROM push_delivery_jobs WHERE id=$1").bind(id).fetch_one(db).await.unwrap();assert_eq!(result,("sent".into(),3,40001));
         #[cfg(feature="field-push-worker")]
         {
-            use erpx_service::field_push_worker::{FieldPushTarget,PushTurn,run_once};
-            use erpx_server_collaboration::public::web_push::NativePushProvider;
+            use erpx_platform_composition::field_push_worker::{FieldPushTarget,PushTurn,run_once};
+            use erpx_collaboration_server::public::web_push::NativePushProvider;
             let target=FieldPushTarget{control:p.review.system.control.raw().clone(),holding:db.clone(),audience:facts::account::ACME.into(),origin:"https://acme.example.test".into()};
             let fixture:serde_json::Value=serde_json::from_str(include_str!("../../../fixtures/collaboration/web-push/native-provider.v1.json")).unwrap();
             let provider=NativePushProvider::new("BP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8","yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw","mailto:synthetic@example.test",fixture["dataKey"].as_str().unwrap()).unwrap();
@@ -511,8 +511,8 @@ async fn selected_field_customer_http_keeps_creation_receipt_and_current_confirm
   sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,ends_at,version,reason,evidence,updated_at)VALUES('company','service',1,'active',0,$1,1,'Synthetic Service-only startup','Synthetic public source',$2)").bind(clock.now().get()+120000).bind(clock.now().get()).execute(&mut *grant).await.unwrap();
   sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at)SELECT 'native-customer-service-grant',company_id,package_id,'fixture-a','native-customer-service-grant',NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),$1 FROM company_package_grants WHERE company_id='company' AND package_id='service'").bind(clock.now().get()).execute(&mut *grant).await.unwrap();grant.commit().await.unwrap();
   let cookie=format!("__Host-erpx-product={}",child.token.expose());
-  use erpx_service::private_development_api::{DevelopmentApiConfiguration,assemble_development_api};
-  use erpx_server_identity_access::public::SystemAuthenticationSecrets;
+  use erpx_platform_composition::private_development_api::{DevelopmentApiConfiguration,assemble_development_api};
+  use erpx_identity_access_server::public::SystemAuthenticationSecrets;
   let mut document=runtime_configuration::document(&p.system.control,&p.system.holdings).await;
   document["fieldServiceReads"]=json!([{"holdingId":"h001","companyId":"company"}]);
   document["fieldServiceSourceRecordReads"]=json!([{"holdingId":"h001","mode":"enforced"}]);
@@ -574,9 +574,9 @@ async fn selected_field_customer_http_keeps_creation_receipt_and_current_confirm
   let error=sqlx::query("UPDATE outbox_events SET attempts=99 WHERE command_id='native-customer-http'").execute(db).await.unwrap_err();assert_eq!(error.as_database_error().unwrap().constraint(),Some("native_outbox_runtime_required"));
   let write=db.clone();let now=p.system.scenario.clock.now().get();
   projection_fixture::with_database(2,move|read|async move{
-   use erpx_server_runtime::public::postgres::{load_migrations,migrate_database,MigrationTrack};
+   use erpx_platform_runtime_server::public::postgres::{load_migrations,migrate_database,MigrationTrack};
    let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let files=load_migrations(&root,MigrationTrack::HoldingRead).await.unwrap();migrate_database(&read,MigrationTrack::HoldingRead,&files).await.unwrap();
-   for _ in 0..2{assert!(erpx_service::field_dependency_worker::run_once(&write,read.raw(),"native-customer-worker",now).await.unwrap());}
+   for _ in 0..2{assert!(erpx_platform_composition::field_dependency_worker::run_once(&write,read.raw(),"native-customer-worker",now).await.unwrap());}
    let receipt:i64=sqlx::query_scalar("SELECT count(*) FROM projection_receipts WHERE event_id=(SELECT last_event_id FROM projection_checkpoints WHERE projector='work-items')").fetch_one(read.raw()).await.unwrap();assert_eq!(receipt,1);
   }).await;
   let published:bool=sqlx::query_scalar("SELECT processed_at IS NOT NULL FROM outbox_events WHERE command_id='native-customer-http'").fetch_one(db).await.unwrap();assert!(published);
@@ -598,8 +598,8 @@ async fn scheduled_field_reservation_alerts_keep_original_phase_identity_and_rol
  facts::account::with_system(|system|async move{
   let p=facts::setup_workspace(system).await;let db=p.pool().raw();let now=p.review.system.scenario.clock.now().get();
   sqlx::query("UPDATE field_service_part_reservations SET expires_at=$1,created_by='fixture-b' WHERE id='reserved-part'").bind(now+1000).execute(db).await.unwrap();
-  assert_eq!(erpx_service::field_reservation_alerts::run_once(db,now).await.unwrap(),(2,0));
-  assert_eq!(erpx_service::field_reservation_alerts::run_once(db,now).await.unwrap(),(0,0));
+  assert_eq!(erpx_platform_composition::field_reservation_alerts::run_once(db,now).await.unwrap(),(2,0));
+  assert_eq!(erpx_platform_composition::field_reservation_alerts::run_once(db,now).await.unwrap(),(0,0));
   let old:(String,i64)=sqlx::query_as("SELECT id,created_at FROM staff_notifications WHERE id LIKE 'inventory-reservation-expiring-%' AND user_id='fixture-a'").fetch_one(db).await.unwrap();assert_eq!(old.1,now);
   let recipients:Vec<(String,String)>=sqlx::query_as("SELECT user_id,record_type FROM staff_notifications WHERE id LIKE 'inventory-reservation-expiring-%' ORDER BY user_id").fetch_all(db).await.unwrap();assert_eq!(recipients,vec![("fixture-a".into(),"field_service_order".into()),("fixture-b".into(),"field_service_order".into())]);
   let expected_id:String=sqlx::query_scalar("SELECT 'inventory-reservation-expiring-'||md5('field:reserved-part:'||$1::bigint::text||':fixture-a')").bind(now+1000).fetch_one(db).await.unwrap();assert_eq!(old.0,expected_id);
@@ -611,21 +611,21 @@ async fn scheduled_field_reservation_alerts_keep_original_phase_identity_and_rol
   p.review.system.scenario.clock.advance(1);
   let central=facts::account::login(&p.review.system,"a@example.test",None).await;let child=facts::account::child(&p.review.system,&central,facts::account::ACME).await;let cookie=format!("__Host-erpx-product={}",child.token.expose());
   let mut document=runtime_configuration::document(&p.review.system.control,&p.review.system.holdings).await;document["fieldServiceReads"]=json!([{"holdingId":"h001","companyId":"company"}]);document["fieldServiceSourceRecordReads"]=json!([{"holdingId":"h001","mode":"enforced"}]);
-  let runtime=erpx_service::private_development_api::assemble_development_api(erpx_service::private_development_api::DevelopmentApiConfiguration::parse(&document.to_string()).unwrap(),p.review.system.scenario.clock.clone(),Arc::new(erpx_server_identity_access::public::SystemAuthenticationSecrets)).await.unwrap();
+  let runtime=erpx_platform_composition::private_development_api::assemble_development_api(erpx_platform_composition::private_development_api::DevelopmentApiConfiguration::parse(&document.to_string()).unwrap(),p.review.system.scenario.clock.clone(),Arc::new(erpx_identity_access_server::public::SystemAuthenticationSecrets)).await.unwrap();
   let selected=runtime.router().oneshot(axum::http::Request::builder().method("POST").uri("/api/v1/holdings/acme/field-service/work-roles").header("host","acme.example.test").header("origin","https://acme.example.test").header("cookie",&cookie).header("x-erpx-context-company","company").body(axum::body::Body::from(r#"{"assignmentId":"field-fixture-a","assignmentVersion":3,"revision":0}"#)).unwrap()).await.unwrap();assert_eq!(selected.status(),200);
   let response=runtime.router().oneshot(axum::http::Request::builder().method("POST").uri(format!("/api/v1/holdings/acme/field-service/inbox/{}/state",old.0)).header("host","acme.example.test").header("origin","https://acme.example.test").header("cookie",&cookie).header("idempotency-key","native-reservation-notice-state").header("x-erpx-context-company","company").header("x-erpx-context-assignment","field-fixture-a").header("x-erpx-context-assignment-version","3").header("x-erpx-context-revision","1").body(axum::body::Body::from(r#"{"read":true,"archived":true}"#)).unwrap()).await.unwrap();let status=response.status();let bytes=axum::body::to_bytes(response.into_body(),65536).await.unwrap();assert_eq!(status,200,"{}",String::from_utf8_lossy(&bytes));runtime.close().await;
 
-  assert_eq!(erpx_service::field_reservation_alerts::run_once(db,now+2).await.unwrap(),(0,0));
+  assert_eq!(erpx_platform_composition::field_reservation_alerts::run_once(db,now+2).await.unwrap(),(0,0));
   let preserved:(Option<i64>,Option<i64>)=sqlx::query_as("SELECT read_at,archived_at FROM inbox_deliveries WHERE id=$1").bind(&old.0).fetch_one(db).await.unwrap();assert_eq!(preserved,(Some(now+1),Some(now+1)));
   sqlx::raw_sql("CREATE FUNCTION field_alert_fault() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.id LIKE 'inventory-reservation-expired-%' THEN UPDATE field_service_part_reservations SET released_milli=quantity_milli-consumed_milli WHERE id='reserved-part'; END IF; RETURN NULL; END $$; CREATE CONSTRAINT TRIGGER field_alert_fault AFTER INSERT ON staff_notifications DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION field_alert_fault()").execute(db).await.unwrap();
-  let result=erpx_service::field_reservation_alerts::run_once(db,now+1001).await;
-  assert!(matches!(result,Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e))if e.code=="FIELD_RESERVATION_ALERT_SOURCE_CHANGED"));
+  let result=erpx_platform_composition::field_reservation_alerts::run_once(db,now+1001).await;
+  assert!(matches!(result,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e))if e.code=="FIELD_RESERVATION_ALERT_SOURCE_CHANGED"));
   let effects:(i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM staff_notifications WHERE id LIKE 'inventory-reservation-expired-%'),(SELECT released_milli FROM field_service_part_reservations WHERE id='reserved-part')").fetch_one(db).await.unwrap();assert_eq!(effects,(0,0));
   sqlx::raw_sql("DROP TRIGGER field_alert_fault ON staff_notifications; DROP FUNCTION field_alert_fault()").execute(db).await.unwrap();
-  assert_eq!(erpx_service::field_reservation_alerts::run_once(db,now+1001).await.unwrap(),(0,2));
-  assert_eq!(erpx_service::field_reservation_alerts::run_once(db,now+1002).await.unwrap(),(0,0));
+  assert_eq!(erpx_platform_composition::field_reservation_alerts::run_once(db,now+1001).await.unwrap(),(0,2));
+  assert_eq!(erpx_platform_composition::field_reservation_alerts::run_once(db,now+1002).await.unwrap(),(0,0));
   sqlx::query("UPDATE field_service_part_reservations SET released_milli=quantity_milli-consumed_milli,expires_at=$1 WHERE id='reserved-part'").bind(now-1).execute(db).await.unwrap();
-  assert_eq!(erpx_service::field_reservation_alerts::run_once(db,now+1003).await.unwrap(),(0,0));
+  assert_eq!(erpx_platform_composition::field_reservation_alerts::run_once(db,now+1003).await.unwrap(),(0,0));
   sqlx::query("UPDATE field_service_part_reservations SET released_milli=0 WHERE id='reserved-part'").execute(db).await.unwrap();
   // A coherent historical terminal fixture, including the required source
   // event and Support projection; this is scheduled eligibility, not a native
@@ -633,15 +633,15 @@ async fn scheduled_field_reservation_alerts_keep_original_phase_identity_and_rol
   let mut terminal=db.begin().await.unwrap();
   sqlx::query("INSERT INTO field_service_order_events(id,order_id,version,action,actor_id,reason,status,technician_id,scheduled_at,details_json,created_at) SELECT 'synthetic-terminal-alert',id,version+1,'complete',technician_id,'Synthetic terminal source','completed',technician_id,scheduled_at,'{}',$1 FROM field_service_orders WHERE id='issue-order'").bind(now+1003).execute(&mut *terminal).await.unwrap();
   sqlx::query("UPDATE field_service_orders SET status='completed',version=version+1,visit_completed_at=$1,completion_evidence='Synthetic completed',customer_confirmation='Synthetic confirmed',labor_minutes=0 WHERE id='issue-order'").bind(now+1003).execute(&mut *terminal).await.unwrap();terminal.commit().await.unwrap();
-  assert_eq!(erpx_service::field_reservation_alerts::run_once(db,now+1003).await.unwrap(),(0,0));
+  assert_eq!(erpx_platform_composition::field_reservation_alerts::run_once(db,now+1003).await.unwrap(),(0,0));
  }).await;
 }
 
 #[tokio::test]
 async fn native_account_role_selection_preserves_live_context_and_fences_atomic_preferences_audit() {
-    use erpx_server_identity_access::public::work_context::HoldingWorkContextInspector;
-    use erpx_server_shared::public::AssignmentId;
-    use erpx_service::native_work_roles::{execute, WorkRoleAction};
+    use erpx_identity_access_server::public::work_context::HoldingWorkContextInspector;
+    use erpx_platform_shared_server::public::AssignmentId;
+    use erpx_platform_composition::native_work_roles::{execute, WorkRoleAction};
     facts::account::with_system(|system| async move {
         let p = facts::review::setup_service_customer_without_finance_references(system).await;
         let db = p.system.holdings[0].raw();
@@ -717,7 +717,7 @@ async fn native_role_http_uses_normal_child_session_and_current_company_in_the_a
   let cookie=format!("__Host-erpx-product={}",child.token.expose());
   let mut document=runtime_configuration::document(&p.system.control,&p.system.holdings).await;
   document["fieldServiceReads"]=json!([{"holdingId":"h001","companyId":"company"}]);
-  let runtime=erpx_service::private_development_api::assemble_development_api(erpx_service::private_development_api::DevelopmentApiConfiguration::parse(&document.to_string()).unwrap(),clock.clone(),Arc::new(erpx_server_identity_access::public::SystemAuthenticationSecrets)).await.unwrap();
+  let runtime=erpx_platform_composition::private_development_api::assemble_development_api(erpx_platform_composition::private_development_api::DevelopmentApiConfiguration::parse(&document.to_string()).unwrap(),clock.clone(),Arc::new(erpx_identity_access_server::public::SystemAuthenticationSecrets)).await.unwrap();
   let router=runtime.router();let path="/api/v1/holdings/acme/field-service/work-roles";
   let company_request=||axum::http::Request::builder().uri("/api/v1/holdings/acme/field-service/work-roles/companies").header("host","acme.example.test").header("cookie",&cookie).header("x-erpx-context-company","untrusted-foreign-company").body(axum::body::Body::empty()).unwrap();
   let company_reply=router.clone().oneshot(company_request()).await.unwrap();assert_eq!(company_reply.status(),200);
@@ -807,7 +807,7 @@ async fn native_field_inbox_candidates_keep_source_visibility_and_seek_past_hidd
   let mut document=runtime_configuration::document(&p.review.system.control,&p.review.system.holdings).await;
   document["fieldServiceReads"]=json!([{"holdingId":"h001","companyId":"company"}]);
   document["fieldServiceSourceRecordReads"]=json!([{"holdingId":"h001","mode":"enforced"}]);
-  let runtime=erpx_service::private_development_api::assemble_development_api(erpx_service::private_development_api::DevelopmentApiConfiguration::parse(&document.to_string()).unwrap(),clock.clone(),Arc::new(erpx_server_identity_access::public::SystemAuthenticationSecrets)).await.unwrap();let router=runtime.router();
+  let runtime=erpx_platform_composition::private_development_api::assemble_development_api(erpx_platform_composition::private_development_api::DevelopmentApiConfiguration::parse(&document.to_string()).unwrap(),clock.clone(),Arc::new(erpx_identity_access_server::public::SystemAuthenticationSecrets)).await.unwrap();let router=runtime.router();
   let selected=router.clone().oneshot(axum::http::Request::builder().method("POST").uri("/api/v1/holdings/acme/field-service/work-roles").header("host","acme.example.test").header("origin","https://acme.example.test").header("cookie",&cookie).header("x-erpx-context-company","company").body(axum::body::Body::from(r#"{"assignmentId":"field-fixture-a","assignmentVersion":4,"revision":0}"#)).unwrap()).await.unwrap();assert_eq!(selected.status(),200);
   // Historical source versions do not replace current source visibility. Long
   // native notice ids must remain usable as seek cursors.
@@ -877,9 +877,9 @@ async fn native_field_inbox_candidates_keep_source_visibility_and_seek_past_hidd
   let projected_ids:Vec<String>=sqlx::query_scalar("SELECT id FROM outbox_events WHERE command_id LIKE 'native-inbox-%'").fetch_all(p.pool().raw()).await.unwrap();
   let projected_write=p.pool().raw().clone();
   projection_fixture::with_database(2,move|read|async move{
-   use erpx_server_runtime::public::postgres::{load_migrations,migrate_database,MigrationTrack};
+   use erpx_platform_runtime_server::public::postgres::{load_migrations,migrate_database,MigrationTrack};
    let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let files=load_migrations(&root,MigrationTrack::HoldingRead).await.unwrap();migrate_database(&read,MigrationTrack::HoldingRead,&files).await.unwrap();
-   for _ in 0..5{assert!(erpx_service::field_dependency_worker::run_once(&projected_write,read.raw(),"native-inbox-project",now).await.unwrap());}
+   for _ in 0..5{assert!(erpx_platform_composition::field_dependency_worker::run_once(&projected_write,read.raw(),"native-inbox-project",now).await.unwrap());}
    let projected:i64=sqlx::query_scalar("SELECT count(*) FROM projection_receipts WHERE event_id=ANY($1)").bind(&projected_ids).fetch_one(read.raw()).await.unwrap();assert_eq!(projected,5);
   }).await;
   // Support visibility belongs to Support, including a reader with neither a
@@ -939,9 +939,9 @@ async fn selected_native_service_startup_customer_agreement_needs_no_finance_led
 
   let mut document=runtime_configuration::document(&p.system.control,&p.system.holdings).await;
   document["fieldServiceReads"]=json!([{"holdingId":"h001","companyId":"company"},{"holdingId":"h001","companyId":"startup-company-two"}]);document["fieldServiceWorkspaceReads"]=json!(["h001"]);document["fieldServiceWorkReads"]=json!(["h001"]);document["fieldServiceSourceRecordReads"]=json!([{"holdingId":"h001","mode":"enforced"}]);document["fieldServiceStockSetups"]=json!(["h001"]);document["fieldServiceAgreementCreates"]=json!(["h001"]);document["fieldServiceAgreementReviews"]=json!(["h001"]);document["fieldServiceRequests"]=json!(["h001"]);for flag in ["fieldServiceDetailReads","fieldServiceVisits","fieldServiceVisitCompletions","fieldServiceBillingReleases","fieldServiceOrderCancellations"]{document[flag]=json!(["h001"]);}
-  let mut duplicate=document.clone();duplicate["fieldServiceReads"].as_array_mut().unwrap().push(json!({"holdingId":"h001","companyId":"company"}));assert!(erpx_service::private_development_api::DevelopmentApiConfiguration::parse(&duplicate.to_string()).is_err(),"Duplicate Holding/Company targets remain invalid");
-  let mut issue_scope=document.clone();issue_scope["fieldServiceIssues"]=json!(["h001"]);issue_scope["fieldServiceReservations"]=json!(["h001"]);issue_scope["financeJournalReads"]=json!([{"holdingId":"h001","companyId":"company"}]);assert!(erpx_service::private_development_api::DevelopmentApiConfiguration::parse(&issue_scope.to_string()).is_err(),"Every Company with enabled parts effects needs its Finance target");issue_scope["financeJournalReads"].as_array_mut().unwrap().push(json!({"holdingId":"h001","companyId":"startup-company-two"}));assert!(erpx_service::private_development_api::DevelopmentApiConfiguration::parse(&issue_scope.to_string()).is_ok());
-  let runtime=erpx_service::private_development_api::assemble_development_api(erpx_service::private_development_api::DevelopmentApiConfiguration::parse(&document.to_string()).unwrap(),clock.clone(),Arc::new(erpx_server_identity_access::public::SystemAuthenticationSecrets)).await.unwrap();let router=runtime.router();
+  let mut duplicate=document.clone();duplicate["fieldServiceReads"].as_array_mut().unwrap().push(json!({"holdingId":"h001","companyId":"company"}));assert!(erpx_platform_composition::private_development_api::DevelopmentApiConfiguration::parse(&duplicate.to_string()).is_err(),"Duplicate Holding/Company targets remain invalid");
+  let mut issue_scope=document.clone();issue_scope["fieldServiceIssues"]=json!(["h001"]);issue_scope["fieldServiceReservations"]=json!(["h001"]);issue_scope["financeJournalReads"]=json!([{"holdingId":"h001","companyId":"company"}]);assert!(erpx_platform_composition::private_development_api::DevelopmentApiConfiguration::parse(&issue_scope.to_string()).is_err(),"Every Company with enabled parts effects needs its Finance target");issue_scope["financeJournalReads"].as_array_mut().unwrap().push(json!({"holdingId":"h001","companyId":"startup-company-two"}));assert!(erpx_platform_composition::private_development_api::DevelopmentApiConfiguration::parse(&issue_scope.to_string()).is_ok());
+  let runtime=erpx_platform_composition::private_development_api::assemble_development_api(erpx_platform_composition::private_development_api::DevelopmentApiConfiguration::parse(&document.to_string()).unwrap(),clock.clone(),Arc::new(erpx_identity_access_server::public::SystemAuthenticationSecrets)).await.unwrap();let router=runtime.router();
   let mut cookies=Vec::new();
   for(email,assignment)in[("a@example.test","finance-fixture-a"),("b@example.test","finance-fixture-b")]{
    let central=facts::account::login(&p.system,email,None).await;let child=facts::account::child(&p.system,&central,facts::account::ACME).await;let cookie=format!("__Host-erpx-product={}",child.token.expose());
@@ -1160,15 +1160,15 @@ async fn selected_native_service_startup_customer_agreement_needs_no_finance_led
 #[tokio::test]
 async fn native_service_package_obligations_cover_both_catalogue_packages_without_writes(){
  facts::account::with_system(|system|async move{
-  use erpx_service::field_service_package_settlement::*;
-  use erpx_server_assets::public::field_service_workspace::read_service_asset_settlement;
+  use erpx_platform_composition::field_service_package_settlement::*;
+  use erpx_assets_server::public::field_service_workspace::read_service_asset_settlement;
   let p=facts::setup_workspace(system).await;
   let company=CompanyId::new("company").unwrap();
   let now=p.review.system.scenario.clock.now().get();
-  let actor=erpx_server_finance::public::FinanceActor{
+  let actor=erpx_finance_server::public::FinanceActor{
    holding_id:HoldingId::new("h001").unwrap(),company_id:company.clone(),
-   user_id:erpx_server_shared::public::UserId::new("fixture-a").unwrap(),
-   assignment_id:erpx_server_shared::public::AssignmentId::new("field-fixture-a").unwrap(),
+   user_id:erpx_platform_shared_server::public::UserId::new("fixture-a").unwrap(),
+   assignment_id:erpx_platform_shared_server::public::AssignmentId::new("field-fixture-a").unwrap(),
   };
   let mut tx=p.pool().raw().begin().await.unwrap();
   sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
@@ -1227,7 +1227,7 @@ async fn native_service_package_obligations_cover_both_catalogue_packages_withou
 #[tokio::test]
 async fn native_service_package_obligations_preserve_raw_history_scope_and_unit(){
  facts::account::with_system(|system|async move{
-  use erpx_service::field_service_package_settlement::*;
+  use erpx_platform_composition::field_service_package_settlement::*;
   let p=facts::setup_workspace(system).await;let company=CompanyId::new("company").unwrap();let now=p.review.system.scenario.clock.now().get();
   let mut tx=p.pool().raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
   lock_field_package_obligation_sources(&mut tx).await.unwrap();
@@ -1260,7 +1260,7 @@ async fn native_service_package_obligations_preserve_raw_history_scope_and_unit(
   let inactive=Box::pin(read_field_package_obligations(&mut tx,&company,"service",1,now)).await.unwrap();assert_eq!(inactive.observation(),base.observation());
   // Unregistered snapshots never open a settlement scope.
   let unregistered=Box::pin(read_field_package_obligations(&mut tx,&company,"service",2,now)).await;
-  assert!(matches!(unregistered,Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e)) if e.code=="SERVICE_PACKAGE_OBLIGATION_SCOPE_REQUIRED"));
+  assert!(matches!(unregistered,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e)) if e.code=="SERVICE_PACKAGE_OBLIGATION_SCOPE_REQUIRED"));
   tx.rollback().await.unwrap();
   let mut other=p.pool().raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();lock_field_package_obligation_sources(&mut other).await.unwrap();assert!(base.require_current(&mut other).await.is_err());other.rollback().await.unwrap();
  }).await;
@@ -1269,10 +1269,10 @@ async fn native_service_package_obligations_preserve_raw_history_scope_and_unit(
 #[tokio::test]
 async fn native_service_asset_settlement_preserves_customer_equipment(){
  facts::account::with_system(|system|async move{
-  use erpx_service::field_service_package_settlement::*;
-  use erpx_server_assets::public::field_service_workspace::*;
+  use erpx_platform_composition::field_service_package_settlement::*;
+  use erpx_assets_server::public::field_service_workspace::*;
   let p=facts::setup_without_finance_history_covered(system).await;let company=CompanyId::new("company").unwrap();let now=p.review.system.scenario.clock.now().get();let mut tx=p.pool().raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
-  erpx_server_finance::public::field_service_workspace::lock_service_workspace_customers(&mut tx).await.unwrap();erpx_server_inventory::public::field_service_consumption_finance::lock_consumption_finance_sources(&mut tx).await.unwrap();lock_service_asset_settlement(&mut tx).await.unwrap();erpx_server_organization::public::field_service_workspace::lock_service_workspace_locations(&mut tx).await.unwrap();erpx_server_field_service::public::package_settlement::lock_service_package_settlement(&mut tx).await.unwrap();
+  erpx_finance_server::public::field_service_workspace::lock_service_workspace_customers(&mut tx).await.unwrap();erpx_inventory_server::public::field_service_consumption_finance::lock_consumption_finance_sources(&mut tx).await.unwrap();lock_service_asset_settlement(&mut tx).await.unwrap();erpx_organization_server::public::field_service_workspace::lock_service_workspace_locations(&mut tx).await.unwrap();erpx_field_service_server::public::package_settlement::lock_service_package_settlement(&mut tx).await.unwrap();
   let field=Box::pin(read_field_package_obligations(&mut tx,&company,"service",1,now)).await.unwrap();let sources=field.asset_sources();assert!(!sources.is_empty());
   let before:serde_json::Value=sqlx::query_scalar("SELECT to_jsonb(a) FROM operational_assets a WHERE id=$1").bind(&sources[0].asset_id).fetch_one(&mut *tx).await.unwrap();
   let assets=read_service_asset_settlement(&mut tx,&company,&sources).await.unwrap();assert!(assets.facts().is_empty());assets.require_current(&mut tx).await.unwrap();
@@ -1289,7 +1289,7 @@ async fn native_service_asset_settlement_preserves_customer_equipment(){
 #[tokio::test]
 async fn native_service_inventory_settlement_disposes_no_unrelated_stock(){
  facts::account::with_system(|system|async move{
-  use erpx_service::field_service_package_settlement::*;
+  use erpx_platform_composition::field_service_package_settlement::*;
   let p=facts::setup_workspace(system).await;let company=CompanyId::new("company").unwrap();let now=p.review.system.scenario.clock.now().get();
   let mut tx=p.pool().raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_field_package_obligation_sources(&mut tx).await.unwrap();
   let field=Box::pin(read_field_package_obligations(&mut tx,&company,"service-parts-assets",1,now)).await.unwrap();let before=read_service_inventory_package_obligations(&mut tx,&company,&field).await.unwrap();assert_eq!(before.observation().outstanding,1);before.require_current(&mut tx,&field).await.unwrap();tx.rollback().await.unwrap();
@@ -1300,7 +1300,7 @@ async fn native_service_inventory_settlement_disposes_no_unrelated_stock(){
   let field=Box::pin(read_field_package_obligations(&mut tx,&company,"service-parts-assets",1,now)).await.unwrap();let after=read_service_inventory_package_obligations(&mut tx,&company,&field).await.unwrap();assert_eq!(after.observation().outstanding,0);assert_eq!(field.observation().outstanding,0);after.require_current(&mut tx,&field).await.unwrap();
   let base=Box::pin(read_field_package_obligations(&mut tx,&company,"service",1,now)).await.unwrap();assert!(base.observation().outstanding>0);
   let stock:(i64,i64)=sqlx::query_as("SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='product'").fetch_one(&mut *tx).await.unwrap();assert_eq!(stock,(2000,400));
-  let actor=erpx_server_finance::public::FinanceActor{holding_id:HoldingId::new("h001").unwrap(),company_id:company.clone(),user_id:erpx_server_shared::public::UserId::new("fixture-a").unwrap(),assignment_id:erpx_server_shared::public::AssignmentId::new("field-fixture-a").unwrap()};
+  let actor=erpx_finance_server::public::FinanceActor{holding_id:HoldingId::new("h001").unwrap(),company_id:company.clone(),user_id:erpx_platform_shared_server::public::UserId::new("fixture-a").unwrap(),assignment_id:erpx_platform_shared_server::public::AssignmentId::new("field-fixture-a").unwrap()};
   // Technical raw reads confer no Finance or Commercial permission. The real
   // issuer scope is used here; consuming grant authority is a separate gate.
   let finance=read_service_finance_package_obligations(&mut tx,&actor,&field).await.unwrap();assert_eq!(finance.observation().outstanding,2);finance.require_current(&mut tx,&field).await.unwrap();
@@ -1314,10 +1314,10 @@ mod service_invoice_posting_cases {
 use serde_json::json;
 use super::facts::*;
 use axum::{body::{Body,to_bytes},http::{Request,StatusCode}};
-use erpx_server_identity_access::public::{SystemAuthenticationSecrets,AuthenticationSecrets,SecretPurpose};
-use erpx_server_runtime::public::postgres::PgTransactionError;
+use erpx_identity_access_server::public::{SystemAuthenticationSecrets,AuthenticationSecrets,SecretPurpose};
+use erpx_platform_runtime_server::public::postgres::PgTransactionError;
 
-use erpx_service::private_development_api::{assemble_development_api,DevelopmentApiConfiguration};
+use erpx_platform_composition::private_development_api::{assemble_development_api,DevelopmentApiConfiguration};
 use std::sync::{Arc,atomic::Ordering};
 use tower::ServiceExt;
 use super::runtime_configuration as private_configuration;
@@ -1417,16 +1417,16 @@ fn payment_files_provider_paths() -> PaymentFilesProviderPaths {
 
 #[cfg(feature="files-scan-worker")]
 async fn actual_payment_proof(
-    p:&Parts,device:erpx_server_identity_access::public::DeviceProof,
-    selected:erpx_server_identity_access::public::work_context::HoldingWorkspaceRequest,
-    config:erpx_service::finance_journal_create::FinanceJournalCreateConfiguration,
+    p:&Parts,device:erpx_identity_access_server::public::DeviceProof,
+    selected:erpx_identity_access_server::public::work_context::HoldingWorkspaceRequest,
+    config:erpx_platform_composition::finance_journal_create::FinanceJournalCreateConfiguration,
     cookie:&str,router:axum::Router,clock:Arc<review::TestClock>,payment:&str,directory:tempfile::TempDir,
-)->(String,String,erpx_server_files::public::attachment_scan::LocalSanitizationStore,tempfile::TempDir,erpx_service::field_files_cleanup_worker::FieldFilesCleanupWorker<review::TestClock>) {
- use erpx_server_files::public::{field_visit_intake::*,field_visit_upload::*,attachment_scan::*,preview::PreviewToolConfiguration,malware_scanner::ClamAvConfig};
- use erpx_server_identity_access::public::effective_authority::WorkAuthorizationRequest;
- use erpx_service::{finance_service_receipt_files::{FinancePaymentIntakeSources,FinancePaymentIntakeAuthority},files_scan_native::*,files_system_scan::DevelopmentFilesScanConfiguration};
- use erpx_server_runtime::public::postgres::LeasedDevelopmentDatabase;
- use erpx_server_shared::public::{HoldingId,CompanyId,Clock,BusinessError};
+)->(String,String,erpx_files_server::public::attachment_scan::LocalSanitizationStore,tempfile::TempDir,erpx_platform_composition::field_files_cleanup_worker::FieldFilesCleanupWorker<review::TestClock>) {
+ use erpx_files_server::public::{field_visit_intake::*,field_visit_upload::*,attachment_scan::*,preview::PreviewToolConfiguration,malware_scanner::ClamAvConfig};
+ use erpx_identity_access_server::public::effective_authority::WorkAuthorizationRequest;
+ use erpx_platform_composition::{finance_service_receipt_files::{FinancePaymentIntakeSources,FinancePaymentIntakeAuthority},files_scan_native::*,files_system_scan::DevelopmentFilesScanConfiguration};
+ use erpx_platform_runtime_server::public::postgres::LeasedDevelopmentDatabase;
+ use erpx_platform_shared_server::public::{HoldingId,CompanyId,Clock,BusinessError};
  use std::{collections::BTreeMap,time::Duration};
  let provider=payment_files_provider_paths();
  let root=directory.path().join("objects");let temporary=directory.path().join("compute");
@@ -1441,8 +1441,8 @@ async fn actual_payment_proof(
  },clock.clone()).await.expect("actual Files providers"));
  use axum::{body::{Body,to_bytes},http::{Request,StatusCode}};
  use tower::ServiceExt;
- use erpx_service::{field_upload_http::*,field_attachment_intake_http::{FieldIntakeTarget,FieldIntakePolicy,FieldIntakeMode},field_service_reservation_read_http::FieldServiceReadScopeHeaders};
- let intake=FieldIntakeTarget{host:"acme.example.test".into(),holding_slug:"acme".into(),holding:HoldingId::new("h001").unwrap(),company:CompanyId::new("company").unwrap().into(),companies:None,authorizer:p.review.authorizer.clone(),catalogue:Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap()),clock:clock.clone(),policy:FieldIntakePolicy{mode:FieldIntakeMode::Enabled,uploads_frozen:false},readiness:worker.clone()};
+ use erpx_platform_composition::{field_upload_http::*,field_attachment_intake_http::{FieldIntakeTarget,FieldIntakePolicy,FieldIntakeMode},field_service_reservation_read_http::FieldServiceReadScopeHeaders};
+ let intake=FieldIntakeTarget{host:"acme.example.test".into(),holding_slug:"acme".into(),holding:HoldingId::new("h001").unwrap(),company:CompanyId::new("company").unwrap().into(),companies:None,authorizer:p.review.authorizer.clone(),catalogue:Arc::new(erpx_commercial_server::public::purchases::current_package_catalogue().unwrap()),clock:clock.clone(),policy:FieldIntakePolicy{mode:FieldIntakeMode::Enabled,uploads_frozen:false},readiness:worker.clone()};
 
  let old_router=field_upload_router(Arc::new(account::fixture::account::policy()),account::fixture::account::holding_registry(),Arc::new(FieldServiceReadScopeHeaders),vec![FieldUploadTarget{intake:Arc::new(intake),pool:p.pool().raw().clone(),writer:LocalFieldQuarantineWriter::open(&root,1).unwrap(),store:LocalSanitizationStore::open(&root,1).unwrap()}]).unwrap();
  let req=|method:&str,path:&str,key:&str,body:Vec<u8>|{
@@ -1454,7 +1454,7 @@ async fn actual_payment_proof(
  let create=|input:FieldSetRequest,key:&str|{
   let selected=selected.clone();let device=device.clone();let config=config.clone();let clock=clock.clone();let worker=worker.clone();let key=key.to_owned();
   p.review.authorizer.execute_with_sources_deferred("acme.example.test",device,move||Ok(selected),WorkAuthorizationRequest{permission:"module.finance.read".into(),module:Some("finance".into()),destination:"finance/payments".into(),api:true},FinancePaymentIntakeSources,move|c,current|{let(config,clock,worker,input,key)=(config.clone(),clock.clone(),worker.clone(),input.clone(),key.clone());Box::pin(async move {
-   erpx_service::finance_field_files_intake_command::create_finance_payment_proof_set(c,current,&config,clock.as_ref(),&input,&key,&FieldIntakeAvailability{uploads_frozen:false,scanner_ready:false,preview_ready:false},worker.as_ref()).await
+   erpx_platform_composition::finance_field_files_intake_command::create_finance_payment_proof_set(c,current,&config,clock.as_ref(),&input,&key,&FieldIntakeAvailability{uploads_frozen:false,scanner_ready:false,preview_ready:false},worker.as_ref()).await
   })})
  };
  let mut wrong_owner=request.clone();wrong_owner.target_type="field_service_visit".into();wrong_owner.component_kind="record".into();wrong_owner.purpose_key="site_photo".into();assert!(matches!(create(wrong_owner,"native-proof-owner-mismatch").await,Err(PgTransactionError::Business(e)) if e.code=="ATTACHMENT_POLICY_UNKNOWN"));
@@ -1469,7 +1469,7 @@ async fn actual_payment_proof(
  let set=created.data["id"].as_str().unwrap().to_owned();
  struct Quota;
  impl FieldStorageQuota for Quota {
-  fn storage_limit<'a>(&'a self,c:&'a mut sqlx::PgConnection,company:&'a str)->erpx_server_runtime::public::postgres::PgWorkFuture<'a,Option<i64>,BusinessError>{Box::pin(async move {erpx_server_manage_erpx::public::company_storage_limit(c,&CompanyId::new(company)?).await})}
+  fn storage_limit<'a>(&'a self,c:&'a mut sqlx::PgConnection,company:&'a str)->erpx_platform_runtime_server::public::postgres::PgWorkFuture<'a,Option<i64>,BusinessError>{Box::pin(async move {erpx_manage_erpx_server::public::company_storage_limit(c,&CompanyId::new(company)?).await})}
  }
  let bytes=include_bytes!("../../../fixtures/files/preview/png-alpha.input").to_vec();
  let file=FieldFileReservation {filename:"native-payment-proof.png".into(),media_type:"image/png".into(),bytes:bytes.len() as i64,caption:None,supersedes_link_id:None};
@@ -1535,8 +1535,8 @@ async fn actual_payment_proof(
  let r=router.clone().oneshot(req("GET",&content_path,"ignored",vec![])).await.unwrap();assert_eq!(r.status(),StatusCode::OK);assert_eq!(r.headers()["content-type"],"image/png");assert_eq!(to_bytes(r.into_body(),10485760).await.unwrap().as_ref(),bytes.as_slice());
  drop(router);
  worker.shutdown_and_drain().await;Arc::try_unwrap(worker).ok().expect("owned worker clones released").close().await;
- let transactions=erpx_service::files_system_scan::assemble_development_files_scan(db(),clock.clone()).await.unwrap();
- let cleanup=erpx_service::field_files_cleanup_worker::FieldFilesCleanupWorker::new(transactions,LocalFieldQuarantineWriter::open(&root,1).unwrap(),clock);
+ let transactions=erpx_platform_composition::files_system_scan::assemble_development_files_scan(db(),clock.clone()).await.unwrap();
+ let cleanup=erpx_platform_composition::field_files_cleanup_worker::FieldFilesCleanupWorker::new(transactions,LocalFieldQuarantineWriter::open(&root,1).unwrap(),clock);
  (set,link,store,directory,cleanup)
 }
 
@@ -1547,14 +1547,14 @@ async fn actual_payment_proof(
 async fn inject_receipt_fixture_change(p:&Parts,payment:&str,sql:&str){
     let mut tx=p.pool().raw().begin().await.unwrap();
     sqlx::query(sqlx::AssertSqlSafe(sql)).bind(payment).execute(&mut *tx).await.unwrap();
-    sqlx::query(include_str!("../../../packages/server-finance/src/adapters/native_service_receipt_marker.sql")).bind(payment).bind("company").bind(Vec::<String>::new()).execute(&mut *tx).await.unwrap();
+    sqlx::query(include_str!("../../../modules/finance/server/src/adapters/native_service_receipt_marker.sql")).bind(payment).bind("company").bind(Vec::<String>::new()).execute(&mut *tx).await.unwrap();
     tx.commit().await.unwrap();
 }
 
 #[test]
 fn receipt_files_owner_boundary_keeps_visit_policy_closed() {
- use erpx_server_files::public::{field_visit_intake::*,field_visit_upload::*};
- assert!(!erpx_server_files::public::field_visit_link::valid_field_purpose("finance_payment","action","payment_proof"));
+ use erpx_files_server::public::{field_visit_intake::*,field_visit_upload::*};
+ assert!(!erpx_files_server::public::field_visit_link::valid_field_purpose("finance_payment","action","payment_proof"));
  assert!(owner_classification(IntakeOwner::FieldVisit,"finance_payment","action","payment_proof").is_err());
  assert!(owner_classification(IntakeOwner::FinancePayment,"field_service_visit","record","site_photo").is_err());
  let request=FieldFileReservation{filename:"evidence.pdf".into(),media_type:"application/pdf".into(),bytes:42,caption:None,supersedes_link_id:None};
@@ -1564,7 +1564,7 @@ fn receipt_files_owner_boundary_keeps_visit_policy_closed() {
 
 #[test]
 fn receipt_confirm_wire_preserves_trimmed_utf16_nested_identity_and_defaults() {
-    use erpx_service::finance_service_receipt_confirm::normalize_service_receipt_confirm as parse;
+    use erpx_platform_composition::finance_service_receipt_confirm::normalize_service_receipt_confirm as parse;
     let body=br#"{"proof":"  bank \ud800  ","bankReference":"  confirmed  ","bankVersion":1.0,"bankTransactionId":"bank","periodId":"period","expectedVersion":3,"allocations":[{"amount":"100.00","invoiceId":"invoice","ignored":true}],"ignored":true}"#;
     let first=parse(body).unwrap();let second=parse(String::from_utf8(body.to_vec()).unwrap().replace("\\ud800","\\ufffd").as_bytes()).unwrap();
     assert_eq!(first.input().proof,second.input().proof);assert_ne!(first.normalized(),second.normalized());assert_eq!(first.input().bank_reference,"confirmed");assert!(!first.input().proof.starts_with(' '));assert!(first.input().attachment_set_ids.is_empty());
@@ -1575,7 +1575,7 @@ fn receipt_confirm_wire_preserves_trimmed_utf16_nested_identity_and_defaults() {
 
 #[test]
 fn receipt_bank_wire_retains_nested_utf16_and_validates_calendar_types() {
-    use erpx_service::finance_service_receipt_bank::normalize_service_receipt_bank as parse;
+    use erpx_platform_composition::finance_service_receipt_bank::normalize_service_receipt_bank as parse;
     let body=br#"{"settlementPaymentId":"pay-r","bankAccount":"bank","statementNumber":"S","statementDate":"2026-11-01","opening":"0","closing":"100","sourceHash":"synthetic-hash","rows":[{"externalId":"row","transactionDate":"2026-11-01","description":"\ud800","amount":"100","currency":"THB","ignored":true}]}"#;
     let first=parse(body).unwrap();let replacement=String::from_utf8(body.to_vec()).unwrap().replace("\\ud800","\\ufffd");let second=parse(replacement.as_bytes()).unwrap();
     assert_eq!(first.input().rows[0].description,second.input().rows[0].description);assert_ne!(first.normalized(),second.normalized());assert_eq!(first.input().settlement_payment_id,"pay-r");assert!(parse(&serde_json::to_vec(first.input()).unwrap()).is_ok());
@@ -1584,7 +1584,7 @@ fn receipt_bank_wire_retains_nested_utf16_and_validates_calendar_types() {
 
 #[test]
 fn receipt_create_wire_retains_schema_order_utf16_and_optional_setup() {
-    use erpx_service::finance_service_receipt_create::normalize_service_receipt_create as parse;
+    use erpx_platform_composition::finance_service_receipt_create::normalize_service_receipt_create as parse;
     let raw=parse(br#"{"amount":"100","currency":"thb","paymentDate":"2026-11-01","paymentNumber":"\ud800","kind":"receipt","settlementInvoiceId":"field-invoice","ignored":true}"#).unwrap();
     let replaced=parse(br#"{"kind":"receipt","paymentNumber":"\ufffd","paymentDate":"2026-11-01","currency":"thb","amount":"100","settlementInvoiceId":"field-invoice"}"#).unwrap();
     assert_eq!(raw.input().payment_number,replaced.input().payment_number);assert_ne!(raw.normalized(),replaced.normalized());assert_eq!(raw.input().currency,"thb");assert_eq!(raw.input().bank_account,"");
@@ -1595,7 +1595,7 @@ fn receipt_create_wire_retains_schema_order_utf16_and_optional_setup() {
 
 #[test]
 fn receipt_review_wire_preserves_utf16_identity_and_original_proof_policy() {
-    use erpx_service::finance_service_receipt_review::normalize_service_receipt_decision as parse;
+    use erpx_platform_composition::finance_service_receipt_review::normalize_service_receipt_decision as parse;
     let raw=parse(br#"{"unknown":true,"proof":"  bank \ud800  ","expectedVersion":2.0}"#,true).unwrap();
     let replaced=parse(br#"{"expectedVersion":2,"proof":"  bank \ufffd  "}"#,true).unwrap();
     assert_eq!(raw.input().expected_version,2);
@@ -1633,17 +1633,17 @@ async fn fully_covered_field_invoice_uses_native_independent_confirmation(){Box:
 
 #[tokio::test]
 async fn service_invoice_post_production_requires_current_company_release_before_source_lookup() {
-    use erpx_service::finance_journal_create::FinanceJournalCreateConfiguration;
-    use erpx_service::finance_journal_review::FinanceJournalEnvironment;
-    use erpx_service::finance_service_invoice_post::execute_service_invoice_post;
-    use erpx_server_workflow::public::commands::WorkflowRequest;
+    use erpx_platform_composition::finance_journal_create::FinanceJournalCreateConfiguration;
+    use erpx_platform_composition::finance_journal_review::FinanceJournalEnvironment;
+    use erpx_platform_composition::finance_service_invoice_post::execute_service_invoice_post;
+    use erpx_workflow_server::public::commands::WorkflowRequest;
     account::with_system(|system| async move {
         let p=setup(system).await;
         let db=p.pool().raw();
         let accepted:i64=sqlx::query_scalar("SELECT count(*) FROM company_release_acceptances WHERE company_id='company'").fetch_one(db).await.unwrap();
         assert_eq!(accepted,0);
-        let config=FinanceJournalCreateConfiguration::new(FinanceJournalEnvironment::Production,erpx_server_shared::public::HoldingId::new("h001").unwrap(),erpx_server_shared::public::CompanyId::new("company").unwrap(),Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap())).unwrap();
-        let input=erpx_server_finance::public::service_invoice_posting::normalize_service_invoice_post(br#"{"periodId":"period","entryDate":"2026-01-10","expectedVersion":1}"#).unwrap();
+        let config=FinanceJournalCreateConfiguration::new(FinanceJournalEnvironment::Production,erpx_platform_shared_server::public::HoldingId::new("h001").unwrap(),erpx_platform_shared_server::public::CompanyId::new("company").unwrap(),Arc::new(erpx_commercial_server::public::purchases::current_package_catalogue().unwrap())).unwrap();
+        let input=erpx_finance_server::public::service_invoice_posting::normalize_service_invoice_post(br#"{"periodId":"period","entryDate":"2026-01-10","expectedVersion":1}"#).unwrap();
         let selection=p.review.maker_selection.clone();
         let result=execute_service_invoice_post(&p.review.authorizer,"acme.example.test",p.review.maker.clone(),move||Ok(selection),config,p.review.system.scenario.clock.clone(),move||Ok(WorkflowRequest{key:"production-release-missing".into(),operation:"finance.invoice.post".into(),record_id:"unresolved-source".into(),input:input.clone()})).await;
         assert!(matches!(&result,Err(PgTransactionError::Business(e)) if e.code=="FINANCE_PRODUCTION_RELEASE_REQUIRED"),"{result:?}");
@@ -1910,11 +1910,11 @@ async fn fully_covered_field_invoice_retains_actual_visit_files(){Box::pin(recei
 pub(super) async fn no_charge_response(router:axum::Router,request:Request<Body>,expected:StatusCode)->serde_json::Value{
     let label=format!("{} {}",request.method(),request.uri());let response=tokio::spawn(async move{router.oneshot(request).await}).await.unwrap().unwrap();let status=response.status();let bytes=to_bytes(response.into_body(),2*1024*1024).await.unwrap();assert_eq!(status,expected,"{label}: {}",String::from_utf8_lossy(&bytes));serde_json::from_slice(&bytes).unwrap()
 }
-async fn native_service_commercial_withdrawal(p:&Parts,runtime:&erpx_service::private_development_api::DevelopmentApiRuntime){
-    use erpx_server_shared::public::Clock;
-    use erpx_server_identity_access::public::{platform_commercial_authority::*,account_security::*,*};
-    use erpx_server_commercial::public::{purchases::*,package_review::*};
-    use erpx_service::field_service_package_settlement::{preview_service_package_batch,apply_service_package_batch};
+async fn native_service_commercial_withdrawal(p:&Parts,runtime:&erpx_platform_composition::private_development_api::DevelopmentApiRuntime){
+    use erpx_platform_shared_server::public::Clock;
+    use erpx_identity_access_server::public::{platform_commercial_authority::*,account_security::*,*};
+    use erpx_commercial_server::public::{purchases::*,package_review::*};
+    use erpx_platform_composition::field_service_package_settlement::{preview_service_package_batch,apply_service_package_batch};
     let system=&p.review.system;let db=system.control.raw();let clock=system.scenario.clock.as_ref();let now=clock.now().get();
     let policy=account::fixture::account::policy();let registry=account::fixture::account::holding_registry();
     // Operator/role publication is explicit fixture data. Sign-in, SSO, MFA,
@@ -1941,7 +1941,7 @@ async fn native_service_commercial_withdrawal(p:&Parts,runtime:&erpx_service::pr
     let envelope:String=sqlx::query_scalar("SELECT secret FROM iam_mfa WHERE user_id='fixture-a'").fetch_one(db).await.unwrap();
     let code=keys.open("fixture-a",&envelope).unwrap().code(now/30000).unwrap();
     let verified=no_charge_response(commercial.clone(),request("POST","/api/v1/account/iam/mfa/verify","",json!({"code":code})),StatusCode::OK).await;assert!(verified["data"]["verifiedUntil"].as_i64().unwrap()>now);
-    let holding=erpx_server_shared::public::HoldingId::new("h001").unwrap();let company=erpx_server_shared::public::CompanyId::new("company").unwrap();
+    let holding=erpx_platform_shared_server::public::HoldingId::new("h001").unwrap();let company=erpx_platform_shared_server::public::CompanyId::new("company").unwrap();
     let signer=Arc::new(PackageLifecycleReviewSigner::new("fixture-only-secret-32-characters-minimum").unwrap());
     for state in ["draining","inactive"]{
         let catalogue=current_package_catalogue().unwrap();
@@ -1955,7 +1955,7 @@ async fn native_service_commercial_withdrawal(p:&Parts,runtime:&erpx_service::pr
         let mut unit=p.pool().raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unit).await.unwrap();
         let preview=Box::pin(preview_service_package_batch(&mut unit,&mut control,&read_authority,clock,holding.clone(),&input,&signer)).await.unwrap();
         let forbidden=Box::pin(apply_service_package_batch(&mut unit,&mut control,&read_authority,clock,holding.clone(),&input,&signer,&preview.review.token)).await;
-        assert!(matches!(forbidden,Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e))if e.code=="PLATFORM_COMMERCIAL_REQUIRED"));unit.rollback().await.unwrap();control.rollback().await.unwrap();
+        assert!(matches!(forbidden,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e))if e.code=="PLATFORM_COMMERCIAL_REQUIRED"));unit.rollback().await.unwrap();control.rollback().await.unwrap();
         let view=no_charge_response(commercial.clone(),request("GET","/api/v1/platform/commercial/packages?holdingId=h001&companyId=company","",json!(null)),StatusCode::OK).await;
         assert_eq!(view["data"]["companyId"],"company");assert_eq!(view["data"]["revision"],input.expected_revision);assert_eq!(view["data"]["billingMode"],"sandbox");
         let mut wire=input.clone();for change in &mut wire.changes{change.grant.reason=format!("\u{feff}  {}  \u{202f}",change.grant.reason);change.grant.evidence=format!("  {}  ",change.grant.evidence);}
@@ -1979,7 +1979,7 @@ async fn native_service_commercial_withdrawal(p:&Parts,runtime:&erpx_service::pr
         let counts:(i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM company_package_change_sets WHERE id=$1),(SELECT count(*) FROM company_package_review_evidence WHERE change_set_id=$1 AND actor_id='fixture-a' AND assignment_id='native-service-settlement')").bind(&input.idempotency_key).fetch_one(p.pool().raw()).await.unwrap();assert_eq!(counts,(1,1));
     }
 }
-async fn no_charge_native_invoice(runtime:&erpx_service::private_development_api::DevelopmentApiRuntime,field:&str,reviewer:&str,suffix:&str,now:i64)->String{
+async fn no_charge_native_invoice(runtime:&erpx_platform_composition::private_development_api::DevelopmentApiRuntime,field:&str,reviewer:&str,suffix:&str,now:i64)->String{
     let request=json!({"entity":"request","agreementId":"agreement","agreementVersion":2,"title":"Actual covered routing review","issue":"Inspect covered equipment","site":"Customer site","technicianId":"fixture-a","scheduledAt":now+60000});
     let created=send(&runtime.router(),field,&format!("{suffix}-request"),&request.to_string()).await;assert_eq!(created.0,StatusCode::OK,"{}",created.1);let order=created.1["data"]["id"].as_str().unwrap();
     for (action,version) in [("dispatch",1),("start",2),("complete",3)]{
@@ -1988,7 +1988,7 @@ async fn no_charge_native_invoice(runtime:&erpx_service::private_development_api
     }
     let released=send_as(&runtime.router(),reviewer,"agreement-reviewer-b",&format!("{suffix}-billing"),&json!({"id":order,"action":"release-billing","expectedVersion":4,"reason":"Independent covered billing release"}).to_string()).await;assert_eq!(released.0,StatusCode::OK,"{}",released.1);format!("field-invoice-{suffix}-billing")
 }
-async fn no_charge_native_routing(p:&Parts,runtime:&erpx_service::private_development_api::DevelopmentApiRuntime,now:i64,field:&str,reviewer:&str,cookie_c:&str)->String{
+async fn no_charge_native_routing(p:&Parts,runtime:&erpx_platform_composition::private_development_api::DevelopmentApiRuntime,now:i64,field:&str,reviewer:&str,cookie_c:&str)->String{
     let system=&p.review.system;let db=p.pool().raw();
     let original_grants:serde_json::Value=sqlx::query_scalar("SELECT COALESCE(jsonb_agg(to_jsonb(g) ORDER BY package_id),'[]'::jsonb) FROM company_package_grants g WHERE company_id='company'").fetch_one(db).await.unwrap();
     // Authority/roster facts only. All responsibilities/defaults, invoices and
@@ -2062,7 +2062,7 @@ async fn no_charge_native_routing(p:&Parts,runtime:&erpx_service::private_develo
 
 // Reference/IAM fixtures only; the second Company's order, billing and
 // confirmation below are actual native commands, with normal Account/SSO.
-async fn no_charge_second_company(p:&Parts,runtime:&erpx_service::private_development_api::DevelopmentApiRuntime,now:i64)->(Request<Body>,String){
+async fn no_charge_second_company(p:&Parts,runtime:&erpx_platform_composition::private_development_api::DevelopmentApiRuntime,now:i64)->(Request<Body>,String){
     let system=&p.review.system;let db=p.pool().raw();
     sqlx::raw_sql(r#"INSERT INTO "user" SELECT(jsonb_populate_record(NULL::"user",to_jsonb(u)||jsonb_build_object('id','c2-'||id,'email','c2-'||email))).* FROM "user" u WHERE id IN('fixture-a','fixture-b','fixture-c');
     INSERT INTO account SELECT(jsonb_populate_record(NULL::account,to_jsonb(a)||jsonb_build_object('id','c2-'||id,'accountId','c2-'||"accountId",'userId','c2-'||"userId"))).* FROM account a WHERE id IN('fixture-a','fixture-b','fixture-c')"#).execute(system.control.raw()).await.unwrap();
@@ -2095,7 +2095,7 @@ async fn no_charge_second_company(p:&Parts,runtime:&erpx_service::private_develo
     crate::facts::seed_initial_service_purchases(p,"company-two",true).await.unwrap();
     let grants_before:serde_json::Value=sqlx::query_scalar("SELECT jsonb_agg(to_jsonb(g) ORDER BY package_id) FROM company_package_grants g WHERE company_id='company-two'").fetch_one(p.pool().raw()).await.unwrap();
     let duplicate=crate::facts::seed_initial_service_purchases(p,"company-two",true).await;
-    assert!(matches!(duplicate,Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e))if e.code=="STALE_PACKAGE_GRANT"));
+    assert!(matches!(duplicate,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e))if e.code=="STALE_PACKAGE_GRANT"));
     let grants_after:serde_json::Value=sqlx::query_scalar("SELECT jsonb_agg(to_jsonb(g) ORDER BY package_id) FROM company_package_grants g WHERE company_id='company-two'").fetch_one(p.pool().raw()).await.unwrap();assert_eq!(grants_before,grants_after);
     // A single-Company Field composition suffices to create this independent
     // source. Finance on the candidate above mounts both declared Companies.
@@ -2127,19 +2127,19 @@ async fn no_charge_second_company(p:&Parts,runtime:&erpx_service::private_develo
     (request,invoice.into())
 }
 
-async fn no_charge_real_parts_journal(p:&Parts,runtime:&erpx_service::private_development_api::DevelopmentApiRuntime,now:i64,cookie_d:&str,field_cookie:&str){
+async fn no_charge_real_parts_journal(p:&Parts,runtime:&erpx_platform_composition::private_development_api::DevelopmentApiRuntime,now:i64,cookie_d:&str,field_cookie:&str){
     let system=&p.review.system;let db=p.pool().raw();
     eprintln!("native Field cost: issue original spare");
     // This is a separate native Parts application operation, not a nested
     // No-Charge owner transaction. Schedule its owned command as the runtime
     // would, avoiding a debug-only nested cohort/Parts poll stack.
-    let parts=erpx_service::field_service_parts::FieldServicePartsAdministration::new(
+    let parts=erpx_platform_composition::field_service_parts::FieldServicePartsAdministration::new(
         p.review.authorizer.clone(),
-        erpx_service::field_service_parts::FieldServicePartsConfiguration::new(
-            erpx_service::field_service_parts::FieldServicePartsEnvironment::Development,
-            erpx_server_shared::public::HoldingId::new("h001").unwrap(),
-            erpx_server_shared::public::CompanyId::new("company").unwrap(),
-            erpx_server_commercial::public::purchases::PackageEnforcementMode::Enforced,
+        erpx_platform_composition::field_service_parts::FieldServicePartsConfiguration::new(
+            erpx_platform_composition::field_service_parts::FieldServicePartsEnvironment::Development,
+            erpx_platform_shared_server::public::HoldingId::new("h001").unwrap(),
+            erpx_platform_shared_server::public::CompanyId::new("company").unwrap(),
+            erpx_commercial_server::public::purchases::PackageEnforcementMode::Enforced,
         ).unwrap(),
         Arc::new(crate::facts::WriteClock(std::sync::atomic::AtomicI64::new(now))),
         system.scenario.clock.clone(),
@@ -2189,8 +2189,8 @@ async fn no_charge_real_parts_journal(p:&Parts,runtime:&erpx_service::private_de
     let cost:(String,i64,i64)=sqlx::query_as("SELECT j.status,sum(l.debit_minor)::bigint,sum(l.credit_minor)::bigint FROM finance_journals j JOIN finance_journal_lines l ON l.journal_id=j.id WHERE j.id=$1 GROUP BY j.status").bind(&journal).fetch_one(db).await.unwrap();assert_eq!(cost,("posted".into(),600,600));
     let stock:(i64,i64)=sqlx::query_as("SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='product'").fetch_one(db).await.unwrap();assert_eq!(stock,(0,0));
     let mut settlement=db.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *settlement).await.unwrap();
-    erpx_server_inventory::public::field_service_consumption_finance::lock_consumption_finance_sources(&mut settlement).await.unwrap();
-    let raw=erpx_server_inventory::public::field_service_consumption_finance::read_service_settlement_consumptions(&mut settlement,&erpx_server_shared::public::CompanyId::new("company").unwrap(),&["issue-order".into()]).await.unwrap();
+    erpx_inventory_server::public::field_service_consumption_finance::lock_consumption_finance_sources(&mut settlement).await.unwrap();
+    let raw=erpx_inventory_server::public::field_service_consumption_finance::read_service_settlement_consumptions(&mut settlement,&erpx_platform_shared_server::public::CompanyId::new("company").unwrap(),&["issue-order".into()]).await.unwrap();
     assert_eq!(raw.data().len(),1);assert_eq!(raw.data()[0].id,"operational-part-no-charge-original-spare");assert_eq!(raw.data()[0].journal_id,journal);assert_eq!((raw.data()[0].quantity_milli,raw.data()[0].value_minor),(3000,600));raw.require_current(&mut settlement).await.unwrap();settlement.rollback().await.unwrap();
 
     let eligible:Vec<(String,bool)>=sqlx::query_as("SELECT command_id,erpx_native_field_journal_outbox_eligible(e) FROM outbox_events e WHERE command_id IN('no-charge-cost-assign','no-charge-cost-post') ORDER BY command_id").fetch_all(db).await.unwrap();
@@ -2226,8 +2226,8 @@ async fn no_charge_real_parts_journal(p:&Parts,runtime:&erpx_service::private_de
     let sessions:Vec<String>=sqlx::query_scalar("SELECT session_id FROM active_work_contexts WHERE user_id='fixture-d' AND company_id='company' AND assignment_id='finance-fixture-d'").fetch_all(db).await.unwrap();assert_eq!(sessions.len(),1);
     sqlx::query("INSERT INTO push_preferences(company_id,user_id,enabled,updated_at)VALUES('company','fixture-d',true,0) ON CONFLICT(company_id,user_id)DO UPDATE SET enabled=true").execute(db).await.unwrap();
     sqlx::query("INSERT INTO push_subscriptions(id,company_id,user_id,session_id,origin,inbox_path,endpoint_hash,sealed_subscription,created_at,updated_at,scan_at,cursor_at,cursor_id)VALUES('journal-native-push','company','fixture-d',$1,'https://acme.example.test','/work/inbox','synthetic-journal-endpoint','synthetic-journal-sealed',0,0,9999999999999,9999999999999,'legacy-ahead')").bind(&sessions[0]).execute(db).await.unwrap();
-    let mut tx=db.begin().await.unwrap();let subscriptions=erpx_server_collaboration::public::web_push::subscriptions(&mut tx).await.unwrap();let subscription=subscriptions.iter().find(|s|s.id=="journal-native-push").unwrap();
-    assert!(erpx_server_collaboration::public::web_push::fanout(&mut tx,subscription,now).await.unwrap()>=1);assert_eq!(erpx_server_collaboration::public::web_push::fanout(&mut tx,subscription,now+1).await.unwrap(),0);tx.commit().await.unwrap();
+    let mut tx=db.begin().await.unwrap();let subscriptions=erpx_collaboration_server::public::web_push::subscriptions(&mut tx).await.unwrap();let subscription=subscriptions.iter().find(|s|s.id=="journal-native-push").unwrap();
+    assert!(erpx_collaboration_server::public::web_push::fanout(&mut tx,subscription,now).await.unwrap()>=1);assert_eq!(erpx_collaboration_server::public::web_push::fanout(&mut tx,subscription,now+1).await.unwrap(),0);tx.commit().await.unwrap();
     let jobs:i64=sqlx::query_scalar("SELECT count(*) FROM push_delivery_jobs WHERE subscription_id='journal-native-push' AND inbox_delivery_id='field-journal-flow-notice-no-charge-cost-assign'").fetch_one(db).await.unwrap();assert_eq!(jobs,1);
     let cursor:i64=sqlx::query_scalar("SELECT cursor_at FROM push_subscriptions WHERE id='journal-native-push'").fetch_one(db).await.unwrap();assert_eq!(cursor,9999999999999);
     let claim=sqlx::query("UPDATE push_delivery_jobs SET attempts=99 WHERE subscription_id='journal-native-push'").execute(db).await.unwrap_err();assert_eq!(claim.as_database_error().and_then(|e|e.constraint()),Some("native_field_push_runtime_required"));
@@ -2250,11 +2250,11 @@ fn covered_visit_request(method:&str,path:&str,cookie:&str,key:&str,bytes:Vec<u8
     Request::builder().method(method).uri(path).header("host","acme.example.test").header("origin","https://acme.example.test").header("cookie",cookie).header("content-type",if method=="PUT"{"image/png"}else{"application/json"}).header("x-erpx-context-company","company").header("x-erpx-context-assignment","field-fixture-a").header("x-erpx-context-assignment-version","3").header("x-erpx-context-revision","8").header("idempotency-key",key).body(Body::from(bytes)).unwrap()
 }
 #[cfg(feature="files-scan-worker")]
-async fn no_charge_visit_evidence(p:&Parts,runtime:&erpx_service::private_development_api::DevelopmentApiRuntime,directory:&tempfile::TempDir,cookie:&str,finance_cookie:&str)->CoveredVisitEvidence{
-    use erpx_service::{files_scan_native::*,files_system_scan::DevelopmentFilesScanConfiguration};
-    use erpx_server_runtime::public::postgres::LeasedDevelopmentDatabase;
-    use erpx_server_files::public::{attachment_scan::*,preview::PreviewToolConfiguration,malware_scanner::ClamAvConfig};
-    use erpx_server_shared::public::{HoldingId,CompanyId};
+async fn no_charge_visit_evidence(p:&Parts,runtime:&erpx_platform_composition::private_development_api::DevelopmentApiRuntime,directory:&tempfile::TempDir,cookie:&str,finance_cookie:&str)->CoveredVisitEvidence{
+    use erpx_platform_composition::{files_scan_native::*,files_system_scan::DevelopmentFilesScanConfiguration};
+    use erpx_platform_runtime_server::public::postgres::LeasedDevelopmentDatabase;
+    use erpx_files_server::public::{attachment_scan::*,preview::PreviewToolConfiguration,malware_scanner::ClamAvConfig};
+    use erpx_platform_shared_server::public::{HoldingId,CompanyId};
     use std::{collections::BTreeMap,path::{Path,PathBuf},time::Duration};
     let doc=private_configuration::document(&p.review.system.control,&p.review.system.holdings).await;
     let lease=|d:&serde_json::Value|LeasedDevelopmentDatabase::parse(d["url"].as_str().unwrap(),d["leaseToken"].as_str().unwrap()).unwrap();
@@ -2283,9 +2283,9 @@ async fn no_charge_visit_evidence(p:&Parts,runtime:&erpx_service::private_develo
     CoveredVisitEvidence{set:set.into(),link,source,bytes}
 }
 #[cfg(feature="files-scan-worker")]
-async fn no_charge_journal_evidence<C:erpx_server_shared::public::Clock+Send+Sync+'static>(p:&Parts,runtime:&erpx_service::private_development_api::DevelopmentApiRuntime,worker:&erpx_service::files_scan_native::NativeFilesScanWorker<C>,cookie:&str){
-    use erpx_server_shared::public::Clock;
-    use erpx_server_files::public::attachment_scan::AttachmentScanRunOutcome;
+async fn no_charge_journal_evidence<C:erpx_platform_shared_server::public::Clock+Send+Sync+'static>(p:&Parts,runtime:&erpx_platform_composition::private_development_api::DevelopmentApiRuntime,worker:&erpx_platform_composition::files_scan_native::NativeFilesScanWorker<C>,cookie:&str){
+    use erpx_platform_shared_server::public::Clock;
+    use erpx_files_server::public::attachment_scan::AttachmentScanRunOutcome;
     let db=p.pool().raw();
 
     let (journal,version):(String,i64)=sqlx::query_as("SELECT j.id,j.version FROM finance_journals j JOIN operational_inventory_consumptions c ON c.journal_id=j.id WHERE c.id='operational-part-no-charge-original-spare' AND j.company_id='company'").fetch_one(db).await.unwrap();
@@ -2328,8 +2328,8 @@ async fn no_charge_journal_evidence<C:erpx_server_shared::public::Clock+Send+Syn
     let current:(String,i64,i64,i64)=sqlx::query_as("SELECT j.status,j.version,sum(l.debit_minor)::bigint,sum(l.credit_minor)::bigint FROM finance_journals j JOIN finance_journal_lines l ON l.journal_id=j.id WHERE j.id=$1 GROUP BY j.id").bind(&journal).fetch_one(db).await.unwrap();assert_eq!(current,("posted".into(),version+1,600,600));
     let denied=sqlx::query("SELECT erpx_files_assert_legacy_writer('set',$1)").bind(set).execute(db).await.unwrap_err();assert_eq!(denied.as_database_error().and_then(|e|e.constraint()),Some("field_file_native_writer"));
     let cleanup:bool=sqlx::query_scalar("SELECT erpx_files_legacy_cleanup_set_allowed($1)").bind(set).fetch_one(db).await.unwrap();assert!(!cleanup);
-    let eligible=erpx_server_files::public::field_outbox::ELIGIBLE;
-    let mut query=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT command_id,erpx_native_outbox_owned(e),(");query.push(eligible).push(") FROM outbox_events e WHERE command_id IN(").push_bind(erpx_server_files::public::field_visit_intake::field_set_command_id("company","fixture-d","covered-journal-set")).push(",'covered-journal-bind') ORDER BY command_id");let events:Vec<(String,bool,bool)>=query.build_query_as().fetch_all(db).await.unwrap();assert_eq!(events.len(),2);for(command,owned,eligible)in events{assert!(owned&&eligible,"native journal Files event: {command}");}
+    let eligible=erpx_files_server::public::field_outbox::ELIGIBLE;
+    let mut query=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT command_id,erpx_native_outbox_owned(e),(");query.push(eligible).push(") FROM outbox_events e WHERE command_id IN(").push_bind(erpx_files_server::public::field_visit_intake::field_set_command_id("company","fixture-d","covered-journal-set")).push(",'covered-journal-bind') ORDER BY command_id");let events:Vec<(String,bool,bool)>=query.build_query_as().fetch_all(db).await.unwrap();assert_eq!(events.len(),2);for(command,owned,eligible)in events{assert!(owned&&eligible,"native journal Files event: {command}");}
     // Retain the original Finance journal legal-hold/private-byte assertion
     // on the real scanned native source rather than a generic TS attachment.
     let held_source:String=sqlx::query_scalar("SELECT attachment_id FROM attachment_links WHERE id=$1").bind(link).fetch_one(db).await.unwrap();
@@ -2339,7 +2339,7 @@ async fn no_charge_journal_evidence<C:erpx_server_shared::public::Clock+Send+Syn
     let response=runtime.router().oneshot(request("GET",&path,"",vec![])).await.unwrap();let status=response.status();let actual=to_bytes(response.into_body(),2*1024*1024).await.unwrap();assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&actual));assert_eq!(actual.as_ref(),bytes.as_slice());
 }
 #[cfg(feature="files-scan-worker")]
-async fn no_charge_visit_history(p:&Parts,runtime:&erpx_service::private_development_api::DevelopmentApiRuntime,cookie:&str,file:CoveredVisitEvidence,version:i64){
+async fn no_charge_visit_history(p:&Parts,runtime:&erpx_platform_composition::private_development_api::DevelopmentApiRuntime,cookie:&str,file:CoveredVisitEvidence,version:i64){
     let path=format!("/api/v1/holdings/acme/field-service/attachment-links/{}/content?variant=original",file.link);
     let router=runtime.router();let request=covered_visit_request("GET",&path,cookie,"ignored",vec![]);
     let response=tokio::spawn(async move{router.oneshot(request).await}).await.unwrap().unwrap();assert_eq!(response.status(),StatusCode::OK);assert_eq!(response.headers()["content-type"],"image/png");assert_eq!(to_bytes(response.into_body(),10485760).await.unwrap().as_ref(),file.bytes.as_slice());
@@ -2360,7 +2360,7 @@ async fn no_charge_visit_history(p:&Parts,runtime:&erpx_service::private_develop
     let order:(String,i64)=sqlx::query_as("SELECT status,version FROM field_service_orders WHERE id='issue-order'").fetch_one(p.pool().raw()).await.unwrap();assert_eq!(order,("billed".into(),version));
 }
 
-async fn native_no_charge_case(p:&Parts,runtime:&erpx_service::private_development_api::DevelopmentApiRuntime,now:i64,original_finance:&str,field_cookie:&str,release_cookie:&str,visit_directory:Option<&tempfile::TempDir>){
+async fn native_no_charge_case(p:&Parts,runtime:&erpx_platform_composition::private_development_api::DevelopmentApiRuntime,now:i64,original_finance:&str,field_cookie:&str,release_cookie:&str,visit_directory:Option<&tempfile::TempDir>){
     let system=&p.review.system;let db=p.pool().raw();
     sqlx::query("INSERT INTO \"user\"(id,name,email,\"emailVerified\",\"createdAt\",\"updatedAt\")VALUES('fixture-c','Independent No Charge C','c@example.test',1,$1,$1)").bind(now).execute(system.control.raw()).await.unwrap();
     sqlx::query("INSERT INTO account(id,\"accountId\",\"providerId\",issuer,\"userId\",password,\"createdAt\",\"updatedAt\") SELECT 'fixture-c','fixture-c','credential','local:credential','fixture-c',password,$1,$1 FROM account WHERE id='fixture-a'").bind(now).execute(system.control.raw()).await.unwrap();
@@ -2502,14 +2502,14 @@ async fn native_no_charge_case(p:&Parts,runtime:&erpx_service::private_developme
     // All five raw owner observations must see the actual completed native
     // visit, reviewed stock cost and zero-demand confirmations before withdrawal.
     {
-        use erpx_service::field_service_package_settlement::*;
+        use erpx_platform_composition::field_service_package_settlement::*;
         let mut tx=db.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_field_package_obligation_sources(&mut tx).await.unwrap();
-        let company=erpx_server_shared::public::CompanyId::new("company").unwrap();let field=Box::pin(read_field_package_obligations(&mut tx,&company,"service",1,now)).await.unwrap();
+        let company=erpx_platform_shared_server::public::CompanyId::new("company").unwrap();let field=Box::pin(read_field_package_obligations(&mut tx,&company,"service",1,now)).await.unwrap();
         assert_eq!(field.observation().outstanding,0);
         let support=read_service_support_package_obligations(&mut tx,&company,&field).await.unwrap();assert_eq!(support.observation().outstanding,0);
         let inventory=read_service_inventory_package_obligations(&mut tx,&company,&field).await.unwrap();assert_eq!(inventory.observation().outstanding,0);
-        let assets=erpx_server_assets::public::field_service_workspace::read_service_asset_settlement(&mut tx,&company,&field.asset_sources()).await.unwrap();assert!(assets.facts().is_empty());
-        let actor=erpx_server_finance::public::FinanceActor{holding_id:erpx_server_shared::public::HoldingId::new("h001").unwrap(),company_id:company.clone(),user_id:erpx_server_shared::public::UserId::new("fixture-d").unwrap(),assignment_id:erpx_server_shared::public::AssignmentId::new("finance-fixture-d").unwrap()};
+        let assets=erpx_assets_server::public::field_service_workspace::read_service_asset_settlement(&mut tx,&company,&field.asset_sources()).await.unwrap();assert!(assets.facts().is_empty());
+        let actor=erpx_finance_server::public::FinanceActor{holding_id:erpx_platform_shared_server::public::HoldingId::new("h001").unwrap(),company_id:company.clone(),user_id:erpx_platform_shared_server::public::UserId::new("fixture-d").unwrap(),assignment_id:erpx_platform_shared_server::public::AssignmentId::new("finance-fixture-d").unwrap()};
         // The real consuming batch reuses this prepared query enough to choose
         // a generic plan. Qualify that path directly after the planner OOM;
         // never force custom plans in the production adapter to hide it.
@@ -2524,10 +2524,10 @@ async fn native_no_charge_case(p:&Parts,runtime:&erpx_service::private_developme
     // command effect, rejected afterwards. A separate Platform identity
     // avoids the withdrawal fixture rows owned later in this case.
     {
-        use erpx_server_shared::public::Clock;
-        use erpx_server_identity_access::public::account_security::*;
-        use erpx_server_commercial::public::purchases::*;
-        use erpx_service::field_service_package_settlement::{read_field_package_obligations,lock_field_package_obligation_sources};
+        use erpx_platform_shared_server::public::Clock;
+        use erpx_identity_access_server::public::account_security::*;
+        use erpx_commercial_server::public::purchases::*;
+        use erpx_platform_composition::field_service_package_settlement::{read_field_package_obligations,lock_field_package_obligation_sources};
         let system=&p.review.system;let control_raw=system.control.raw();let clock=system.scenario.clock.as_ref();
         sqlx::raw_sql("INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status)VALUES('platform','platform_field_settlement_preview','Settlement denial reviewer',false,1,'active');INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('platform','platform_field_settlement_preview',1,'[\"platform.commercial.read\",\"platform.commercial.manage\"]','[]','[\"platform\"]','fixture',0);INSERT INTO iam_members(company_id,user_id,principal_id,status,login_policy,version)VALUES('platform','fixture-b','local:fixture-b','active','local',1)").execute(control_raw).await.unwrap();
         sqlx::query("INSERT INTO platform_assignments(id,user_id,role,modules_json,valid_from,valid_until)VALUES('native-service-settlement-preview','fixture-b','platform_field_settlement_preview','[]',$1,$2)").bind(clock.now().get()-1000).bind(clock.now().get()+3_600_000).execute(control_raw).await.unwrap();
@@ -2538,7 +2538,7 @@ async fn native_no_charge_case(p:&Parts,runtime:&erpx_service::private_developme
         let envelope:String=sqlx::query_scalar("SELECT secret FROM iam_mfa WHERE user_id='fixture-b'").fetch_one(control_raw).await.unwrap();
         let code=keys.open("fixture-b",&envelope).unwrap().code(clock.now().get()/30000).unwrap();
         let verified=no_charge_response(runtime.router(),Request::builder().method("POST").uri("/api/v1/account/iam/mfa/verify").header("host","acme.example.test").header("origin","https://acme.example.test").header("cookie",&commercial_cookie_b).header("content-type","application/json").header("idempotency-key","native-obligated-mfa-verify").body(Body::from(json!({"code":code}).to_string())).unwrap(),StatusCode::OK).await;assert!(verified["data"]["verifiedUntil"].as_i64().unwrap()>clock.now().get());
-        let holding=erpx_server_shared::public::HoldingId::new("h001").unwrap();let company=erpx_server_shared::public::CompanyId::new("company").unwrap();
+        let holding=erpx_platform_shared_server::public::HoldingId::new("h001").unwrap();let company=erpx_platform_shared_server::public::CompanyId::new("company").unwrap();
         let catalogue=current_package_catalogue().unwrap();
         let commercial_post=|method:&str,uri:String,cookie:&str,key:&str,body:Vec<u8>|Request::builder().method(method).uri(uri).header("host","acme.example.test").header("origin","https://acme.example.test").header("cookie",cookie).header("content-type","application/json").header("idempotency-key",key).body(Body::from(body)).unwrap();
         let read_batch=||async{
@@ -2598,26 +2598,26 @@ async fn native_no_charge_case(p:&Parts,runtime:&erpx_service::private_developme
     // Count actual native application callbacks, without a new metrics harness.
     // Replayed decisions must not hide a re-execution of the selected unit.
     let callbacks=Arc::new(std::sync::atomic::AtomicUsize::new(0));
-    let device=erpx_server_identity_access::public::DeviceProof{active:Some(SystemAuthenticationSecrets.digest(SecretPurpose::Session,&child.token)),..Default::default()};
-    let mut selected=p.review.reviewer_selection.clone();selected.expected.as_mut().unwrap().assignment_id=erpx_server_shared::public::AssignmentId::new("finance-fixture-c").unwrap();selected.expected.as_mut().unwrap().revision=1;
-    let config=erpx_service::finance_journal_create::FinanceJournalCreateConfiguration::new(erpx_service::finance_journal_review::FinanceJournalEnvironment::Development,erpx_server_shared::public::HoldingId::new("h001").unwrap(),erpx_server_shared::public::CompanyId::new("company").unwrap(),Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap())).unwrap();
-    let logical=erpx_server_finance::public::service_no_charge::normalize_service_no_charge(&json!({"expectedVersion":1,"contextKey":current["noCharge"]["contextKey"],"reason":"Independent covered service fulfillment"}).to_string().into_bytes()).unwrap().normalized().clone();
-    let replay_native=||{let selected=selected.clone();let callbacks=callbacks.clone();let logical=logical.clone();erpx_service::finance_service_no_charge::execute_service_no_charge(&p.review.authorizer,"acme.example.test",device.clone(),move||Ok(selected),config.clone(),p.review.system.scenario.clock.clone(),move||{callbacks.fetch_add(1,Ordering::SeqCst);Ok(erpx_server_workflow::public::commands::WorkflowRequest{key:"native-no-charge".into(),operation:"finance.service-no-charge.confirm".into(),record_id:"field-invoice-included-billing".into(),input:logical.clone()})})};
+    let device=erpx_identity_access_server::public::DeviceProof{active:Some(SystemAuthenticationSecrets.digest(SecretPurpose::Session,&child.token)),..Default::default()};
+    let mut selected=p.review.reviewer_selection.clone();selected.expected.as_mut().unwrap().assignment_id=erpx_platform_shared_server::public::AssignmentId::new("finance-fixture-c").unwrap();selected.expected.as_mut().unwrap().revision=1;
+    let config=erpx_platform_composition::finance_journal_create::FinanceJournalCreateConfiguration::new(erpx_platform_composition::finance_journal_review::FinanceJournalEnvironment::Development,erpx_platform_shared_server::public::HoldingId::new("h001").unwrap(),erpx_platform_shared_server::public::CompanyId::new("company").unwrap(),Arc::new(erpx_commercial_server::public::purchases::current_package_catalogue().unwrap())).unwrap();
+    let logical=erpx_finance_server::public::service_no_charge::normalize_service_no_charge(&json!({"expectedVersion":1,"contextKey":current["noCharge"]["contextKey"],"reason":"Independent covered service fulfillment"}).to_string().into_bytes()).unwrap().normalized().clone();
+    let replay_native=||{let selected=selected.clone();let callbacks=callbacks.clone();let logical=logical.clone();erpx_platform_composition::finance_service_no_charge::execute_service_no_charge(&p.review.authorizer,"acme.example.test",device.clone(),move||Ok(selected),config.clone(),p.review.system.scenario.clock.clone(),move||{callbacks.fetch_add(1,Ordering::SeqCst);Ok(erpx_workflow_server::public::commands::WorkflowRequest{key:"native-no-charge".into(),operation:"finance.service-no-charge.confirm".into(),record_id:"field-invoice-included-billing".into(),input:logical.clone()})})};
     let (first,second)=tokio::join!(replay_native(),replay_native());let first=first.unwrap();assert_eq!(first,second.unwrap());assert_eq!(callbacks.load(Ordering::SeqCst),2,"two concurrent replay calls must execute their native callback once each");assert_eq!(serde_json::from_str::<serde_json::Value>(first.as_str()).unwrap(),result["data"]);
     let event=sqlx::query_scalar::<_,bool>("SELECT erpx_native_outbox_owned(e) FROM outbox_events e WHERE command_id='native-no-charge'").fetch_one(db).await.unwrap();assert!(event);
-    let eligible=sqlx::query_scalar::<_,bool>(sqlx::AssertSqlSafe(format!("SELECT EXISTS(SELECT 1 FROM outbox_events e WHERE command_id='native-no-charge' AND ({}))",erpx_server_finance::public::field_outbox::ELIGIBLE))).fetch_one(db).await.unwrap();assert!(eligible);
+    let eligible=sqlx::query_scalar::<_,bool>(sqlx::AssertSqlSafe(format!("SELECT EXISTS(SELECT 1 FROM outbox_events e WHERE command_id='native-no-charge' AND ({}))",erpx_finance_server::public::field_outbox::ELIGIBLE))).fetch_one(db).await.unwrap();assert!(eligible);
     let denied=sqlx::query("UPDATE outbox_events SET attempts=99 WHERE command_id='native-no-charge'").execute(db).await.unwrap_err();assert_eq!(denied.as_database_error().and_then(|e|e.constraint()),Some("native_outbox_runtime_required"));
     let mut malformed=db.begin().await.unwrap();
     sqlx::query("INSERT INTO outbox_events(id,command_id,event_type,aggregate_type,aggregate_id,aggregate_version,payload_json,created_at)SELECT 'no-charge-malformed',command_id,'unrelated.event','unrelated','other-record',aggregate_version,payload_json,created_at FROM outbox_events WHERE command_id='native-no-charge'").execute(&mut *malformed).await.unwrap();
     let quarantine:bool=sqlx::query_scalar("SELECT erpx_native_outbox_owned(e) FROM outbox_events e WHERE id='no-charge-malformed'").fetch_one(&mut *malformed).await.unwrap();assert!(quarantine);
     let claim=sqlx::query("UPDATE outbox_events SET attempts=99 WHERE id='no-charge-malformed'").execute(&mut *malformed).await.unwrap_err();assert_eq!(claim.as_database_error().and_then(|e|e.constraint()),Some("native_outbox_runtime_required"));malformed.rollback().await.unwrap();
     let mut cost_commands=vec!["no-charge-cost-assign".to_owned(),"no-charge-cost-post".into(),"no-charge-cost-read".into()];
-    if visit_directory.is_some(){cost_commands.push(erpx_server_files::public::field_visit_intake::field_set_command_id("company","fixture-d","covered-journal-set"));cost_commands.push("covered-journal-bind".into());}
+    if visit_directory.is_some(){cost_commands.push(erpx_files_server::public::field_visit_intake::field_set_command_id("company","fixture-d","covered-journal-set"));cost_commands.push("covered-journal-bind".into());}
     let expected_cost_events=cost_commands.len();
     let write=db.clone();crate::projection_fixture::with_database(2,move|read|async move{
-        use erpx_server_runtime::public::postgres::{load_migrations,migrate_database,MigrationTrack};
+        use erpx_platform_runtime_server::public::postgres::{load_migrations,migrate_database,MigrationTrack};
         let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let files=load_migrations(&root,MigrationTrack::HoldingRead).await.unwrap();migrate_database(&read,MigrationTrack::HoldingRead,&files).await.unwrap();
-        let mut attempts=0;while erpx_service::field_dependency_worker::run_once(&write,read.raw(),"native-no-charge-worker",now).await.unwrap(){attempts+=1;assert!(attempts<60);}
+        let mut attempts=0;while erpx_platform_composition::field_dependency_worker::run_once(&write,read.raw(),"native-no-charge-worker",now).await.unwrap(){attempts+=1;assert!(attempts<60);}
         let cost_events:Vec<(String,String,Option<i64>)>=sqlx::query_as("SELECT id,command_id,processed_at FROM outbox_events WHERE command_id=ANY($1) ORDER BY command_id").bind(&cost_commands).fetch_all(&write).await.unwrap();
         assert_eq!(cost_events.len(),expected_cost_events);
         for (event,command,processed) in cost_events{
@@ -2635,13 +2635,13 @@ async fn native_no_charge_case(p:&Parts,runtime:&erpx_service::private_developme
 /// over the committed native invoice and payment lifecycle. These witnesses
 /// prove source predicates only, not current IAM or purchase admission.
 async fn assert_committed_field_finance_history_oracle(db:&sqlx::PgPool,receipt_id:&str,secondary_book:bool){
-    use erpx_server_finance::public::attachment_target_source::*;
-    use erpx_server_finance::public::field_history_candidates::*;
-    use erpx_server_finance::public::field_history_money_lines::*;
-    use erpx_server_field_service::public::finance_lineage::*;
-    use erpx_server_inventory::public::field_history_consumption::*;
-    use erpx_server_workflow::public::record_origin::*;
-    use erpx_service::field_finance_history::{inspect_field_finance_history,FieldFinanceHistoryPhase};
+    use erpx_finance_server::public::attachment_target_source::*;
+    use erpx_finance_server::public::field_history_candidates::*;
+    use erpx_finance_server::public::field_history_money_lines::*;
+    use erpx_field_service_server::public::finance_lineage::*;
+    use erpx_inventory_server::public::field_history_consumption::*;
+    use erpx_workflow_server::public::record_origin::*;
+    use erpx_platform_composition::field_finance_history::{inspect_field_finance_history,FieldFinanceHistoryPhase};
     // Oracles are the owner's fixed Rust SQL contract; no TypeScript source
     // import and no Node runtime are needed for the retired literals.
     let payment_source=field_finance_source("payment");let journal_source=field_finance_source("journal");let parts_source=field_finance_source("partsJournal");
@@ -2659,7 +2659,7 @@ async fn assert_committed_field_finance_history_oracle(db:&sqlx::PgPool,receipt_
     lock_canonical_finance_attachment_targets(&mut tx).await.unwrap();lock_canonical_finance_history_book_roots(&mut tx).await.unwrap();lock_field_history_finance_candidate_sources(&mut tx).await.unwrap();lock_field_history_money_line_sources(&mut tx).await.unwrap();lock_field_history_receipt_join_sources(&mut tx).await.unwrap();lock_field_history_consumption_join_sources(&mut tx).await.unwrap();lock_field_history_join_sources(&mut tx).await.unwrap();
     let workflow=inspect_field_history_receipt_join(&mut tx).await.unwrap();let inventory=inspect_field_history_consumption_join(&mut tx).await.unwrap();let field=inspect_field_history_join(&mut tx).await.unwrap();
     for (kind,id,company,expected) in cases {
-        let company=erpx_server_shared::public::CompanyId::new(company).unwrap();
+        let company=erpx_platform_shared_server::public::CompanyId::new(company).unwrap();
         let target=observe_canonical_finance_attachment_target(&mut tx,kind,&company,&id).await.unwrap();
         let roots=if kind==FinanceAttachmentTargetKind::Journal {Some(inspect_canonical_finance_history_journal_roots(&mut tx,&target).await.unwrap())}else{None};
         let finance=inspect_field_history_finance_candidates(&mut tx,&target,roots.as_ref()).await.unwrap();let money=inspect_field_history_money_lines(&mut tx,&finance).await.unwrap();
@@ -2680,7 +2680,7 @@ async fn assert_committed_field_finance_history_oracle(db:&sqlx::PgPool,receipt_
 }
 
 async fn receipt_workspace_case(secondary_book: bool, http_confirmation: bool, foreign_billing: bool, actual_files: bool,zero_demand:bool) {
-    use erpx_server_shared::public::Clock;
+    use erpx_platform_shared_server::public::Clock;
     account::with_system(move |system| Box::pin(async move {
         let now=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
         system.scenario.clock.0.store(now,Ordering::SeqCst);
@@ -2800,7 +2800,7 @@ async fn receipt_workspace_case(secondary_book: bool, http_confirmation: bool, f
             sqlx::query("INSERT INTO push_preferences(company_id,user_id,enabled,updated_at)VALUES('company',$1,true,0) ON CONFLICT(company_id,user_id)DO UPDATE SET enabled=true").bind(target).execute(db).await.unwrap();
             sqlx::query("INSERT INTO push_subscriptions(id,company_id,user_id,session_id,origin,inbox_path,endpoint_hash,sealed_subscription,created_at,updated_at,scan_at,cursor_at,cursor_id)VALUES('invoice-native-push','company',$1,$2,'https://acme.example.test','/work/inbox','synthetic-invoice-endpoint','synthetic-invoice-sealed',0,0,9999999999999,9999999999999,'legacy-ahead')").bind(target).bind(&recipient.result.session_id).execute(db).await.unwrap();
             // Four existing native Field notices remain in this fixture; the new invoice adds one.
-            let mut tx=db.begin().await.unwrap();let subscriptions=erpx_server_collaboration::public::web_push::subscriptions(&mut tx).await.unwrap();let subscription=subscriptions.iter().find(|s|s.id=="invoice-native-push").unwrap();assert_eq!(erpx_server_collaboration::public::web_push::fanout(&mut tx,subscription,now).await.unwrap(),5);assert_eq!(erpx_server_collaboration::public::web_push::fanout(&mut tx,subscription,now+1).await.unwrap(),0);tx.commit().await.unwrap();
+            let mut tx=db.begin().await.unwrap();let subscriptions=erpx_collaboration_server::public::web_push::subscriptions(&mut tx).await.unwrap();let subscription=subscriptions.iter().find(|s|s.id=="invoice-native-push").unwrap();assert_eq!(erpx_collaboration_server::public::web_push::fanout(&mut tx,subscription,now).await.unwrap(),5);assert_eq!(erpx_collaboration_server::public::web_push::fanout(&mut tx,subscription,now+1).await.unwrap(),0);tx.commit().await.unwrap();
             let cursor:i64=sqlx::query_scalar("SELECT cursor_at FROM push_subscriptions WHERE id='invoice-native-push'").fetch_one(db).await.unwrap();assert_eq!(cursor,9999999999999);
             let jobs:i64=sqlx::query_scalar("SELECT count(*) FROM push_delivery_jobs WHERE subscription_id='invoice-native-push' AND inbox_delivery_id='invoice-flow-notice-native-invoice-flow'").fetch_one(db).await.unwrap();assert_eq!(jobs,1);
             let failure=sqlx::query("UPDATE push_delivery_jobs SET attempts=99 WHERE subscription_id='invoice-native-push'").execute(db).await.unwrap_err();assert_eq!(failure.as_database_error().and_then(|e|e.constraint()),Some("native_field_push_runtime_required"));
@@ -2815,23 +2815,23 @@ async fn receipt_workspace_case(secondary_book: bool, http_confirmation: bool, f
         let selected=runtime.router().oneshot(Request::builder().method("POST").uri("/api/v1/holdings/acme/field-service/work-roles").header("host","acme.example.test").header("origin","https://acme.example.test").header("cookie",&poster_cookie).header("x-erpx-context-company","company").body(Body::from(r#"{"assignmentId":"finance-fixture-a","assignmentVersion":3,"revision":0}"#)).unwrap()).await.unwrap();
         let status=selected.status();let bytes=to_bytes(selected.into_body(),65536).await.unwrap();assert_eq!(status,200,"{}",String::from_utf8_lossy(&bytes));
         sqlx::query("UPDATE finance_periods SET start_date='2026-01-01',end_date='2026-12-31' WHERE company_id='company' AND id='period'").execute(db).await.unwrap();
-        use erpx_server_identity_access::public::{AuthenticationSecrets,SecretPurpose};
-        let proof=erpx_server_identity_access::public::DeviceProof {active:Some(SystemAuthenticationSecrets.digest(SecretPurpose::Session,&poster.token)),..Default::default()};
+        use erpx_identity_access_server::public::{AuthenticationSecrets,SecretPurpose};
+        let proof=erpx_identity_access_server::public::DeviceProof {active:Some(SystemAuthenticationSecrets.digest(SecretPurpose::Session,&poster.token)),..Default::default()};
         let mut selection=p.review.maker_selection.clone();selection.expected.as_mut().unwrap().revision=1;
         let clock=system.scenario.clock.clone();
-        let post_config=erpx_service::finance_journal_create::FinanceJournalCreateConfiguration::new(erpx_service::finance_journal_review::FinanceJournalEnvironment::Development,erpx_server_shared::public::HoldingId::new("h001").unwrap(),erpx_server_shared::public::CompanyId::new("company").unwrap(),Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap())).unwrap();
-        let input=erpx_server_finance::public::service_invoice_posting::normalize_service_invoice_post(&serde_json::to_vec(&serde_json::json!({"periodId":"period","entryDate":body["data"]["invoice"]["invoice_date"],"expectedVersion":1})).unwrap()).unwrap();
+        let post_config=erpx_platform_composition::finance_journal_create::FinanceJournalCreateConfiguration::new(erpx_platform_composition::finance_journal_review::FinanceJournalEnvironment::Development,erpx_platform_shared_server::public::HoldingId::new("h001").unwrap(),erpx_platform_shared_server::public::CompanyId::new("company").unwrap(),Arc::new(erpx_commercial_server::public::purchases::current_package_catalogue().unwrap())).unwrap();
+        let input=erpx_finance_server::public::service_invoice_posting::normalize_service_invoice_post(&serde_json::to_vec(&serde_json::json!({"periodId":"period","entryDate":body["data"]["invoice"]["invoice_date"],"expectedVersion":1})).unwrap()).unwrap();
         // Production may not post this real Field invoice without the current
         // Company's accepted release. The following development path remains
         // the positive control and uses the same invoice, actor and inputs.
         let accepted:i64=sqlx::query_scalar("SELECT count(*) FROM company_release_acceptances WHERE company_id='company'").fetch_one(db).await.unwrap();assert_eq!(accepted,0);
-        let production_config=erpx_service::finance_journal_create::FinanceJournalCreateConfiguration::new(erpx_service::finance_journal_review::FinanceJournalEnvironment::Production,erpx_server_shared::public::HoldingId::new("h001").unwrap(),erpx_server_shared::public::CompanyId::new("company").unwrap(),Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap())).unwrap();
+        let production_config=erpx_platform_composition::finance_journal_create::FinanceJournalCreateConfiguration::new(erpx_platform_composition::finance_journal_review::FinanceJournalEnvironment::Production,erpx_platform_shared_server::public::HoldingId::new("h001").unwrap(),erpx_platform_shared_server::public::CompanyId::new("company").unwrap(),Arc::new(erpx_commercial_server::public::purchases::current_package_catalogue().unwrap())).unwrap();
         let production_selection=selection.clone();let production_input=input.clone();
-        let denied=erpx_service::finance_service_invoice_post::execute_service_invoice_post(&p.review.authorizer,"acme.example.test",proof.clone(),move||Ok(production_selection),production_config,clock.clone(),move||Ok(erpx_server_workflow::public::commands::WorkflowRequest{key:"production-denied-field-invoice-post".into(),operation:"finance.invoice.post".into(),record_id:"field-invoice-included-billing".into(),input:production_input.clone()})).await;
+        let denied=erpx_platform_composition::finance_service_invoice_post::execute_service_invoice_post(&p.review.authorizer,"acme.example.test",proof.clone(),move||Ok(production_selection),production_config,clock.clone(),move||Ok(erpx_workflow_server::public::commands::WorkflowRequest{key:"production-denied-field-invoice-post".into(),operation:"finance.invoice.post".into(),record_id:"field-invoice-included-billing".into(),input:production_input.clone()})).await;
         assert!(matches!(&denied,Err(PgTransactionError::Business(e)) if e.code=="FINANCE_PRODUCTION_RELEASE_REQUIRED"),"{denied:?}");
         let no_effects:(String,i64,i64,i64,i64,i64,i64)=sqlx::query_as("SELECT status,version::bigint,(SELECT count(*) FROM finance_journals WHERE id='journal-production-denied-field-invoice-post'),(SELECT count(*) FROM money_transaction_snapshots WHERE source_type='finance_invoice' AND source_id='field-invoice-included-billing' AND amount_kind='total'),(SELECT count(*) FROM command_receipts WHERE command_id='production-denied-field-invoice-post'),(SELECT count(*) FROM audit_events WHERE command_id='production-denied-field-invoice-post'),(SELECT count(*) FROM outbox_events WHERE command_id='production-denied-field-invoice-post') FROM finance_invoices WHERE id='field-invoice-included-billing' AND company_id='company'").fetch_one(db).await.unwrap();
         assert_eq!(no_effects,("draft".into(),1,0,0,0,0,0));
-        let post=||{let selection=selection.clone();let input=input.clone();erpx_service::finance_service_invoice_post::execute_service_invoice_post(&p.review.authorizer,"acme.example.test",proof.clone(),move||Ok(selection),post_config.clone(),clock.clone(),move||Ok(erpx_server_workflow::public::commands::WorkflowRequest{key:"native-field-invoice-post".into(),operation:"finance.invoice.post".into(),record_id:"field-invoice-included-billing".into(),input:input.clone()}))};
+        let post=||{let selection=selection.clone();let input=input.clone();erpx_platform_composition::finance_service_invoice_post::execute_service_invoice_post(&p.review.authorizer,"acme.example.test",proof.clone(),move||Ok(selection),post_config.clone(),clock.clone(),move||Ok(erpx_workflow_server::public::commands::WorkflowRequest{key:"native-field-invoice-post".into(),operation:"finance.invoice.post".into(),record_id:"field-invoice-included-billing".into(),input:input.clone()}))};
         let legacy=sqlx::query("UPDATE finance_invoices SET status='posted',version=version+1 WHERE id='field-invoice-included-billing'").execute(db).await.unwrap_err();assert_eq!(legacy.as_database_error().and_then(|e|e.constraint()),Some("native_service_invoice_post_required"));
         let alias=sqlx::query("UPDATE finance_invoices SET source_type='standalone' WHERE id='field-invoice-included-billing'").execute(db).await.unwrap_err();assert_eq!(alias.as_database_error().and_then(|e|e.constraint()),Some("native_service_invoice_post_required"));
         // A late source drift after invoice/journal/Money writes must roll back
@@ -2861,7 +2861,7 @@ async fn receipt_workspace_case(secondary_book: bool, http_confirmation: bool, f
         assert_eq!(http_body["data"],serde_json::from_str::<serde_json::Value>(posted_result.as_str()).unwrap());
         let replay=post().await.unwrap();assert_eq!(replay,posted_result);
         let mut changed_input:serde_json::Value=serde_json::from_str(input.as_str()).unwrap();changed_input["expectedVersion"]=serde_json::json!(2);
-        let selected=selection.clone();let conflict=erpx_service::finance_service_invoice_post::execute_service_invoice_post(&p.review.authorizer,"acme.example.test",proof.clone(),move||Ok(selected),post_config.clone(),clock.clone(),move||Ok(erpx_server_workflow::public::commands::WorkflowRequest{key:"native-field-invoice-post".into(),operation:"finance.invoice.post".into(),record_id:"field-invoice-included-billing".into(),input:erpx_server_workflow::public::commands::CommandJson::from_serializable(&changed_input).unwrap()})).await;
+        let selected=selection.clone();let conflict=erpx_platform_composition::finance_service_invoice_post::execute_service_invoice_post(&p.review.authorizer,"acme.example.test",proof.clone(),move||Ok(selected),post_config.clone(),clock.clone(),move||Ok(erpx_workflow_server::public::commands::WorkflowRequest{key:"native-field-invoice-post".into(),operation:"finance.invoice.post".into(),record_id:"field-invoice-included-billing".into(),input:erpx_workflow_server::public::commands::CommandJson::from_serializable(&changed_input).unwrap()})).await;
         assert!(matches!(conflict,Err(PgTransactionError::Business(e)) if e.code=="IDEMPOTENCY_CONFLICT"));
         let effects:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id='native-field-invoice-post'),(SELECT count(*) FROM audit_events WHERE command_id='native-field-invoice-post'),(SELECT count(*) FROM outbox_events WHERE command_id='native-field-invoice-post')").fetch_one(db).await.unwrap();assert_eq!(effects,(1,1,1));
         let posted:(String,i64,String,String)=sqlx::query_as("SELECT i.status,i.version::bigint,j.status,s.carried_source_type FROM finance_invoices i JOIN finance_journals j ON j.id=i.journal_id JOIN money_transaction_snapshots s ON s.company_id=i.company_id AND s.source_type='finance_invoice' AND s.source_id=i.id AND s.amount_kind='total' WHERE i.id='field-invoice-included-billing'").fetch_one(db).await.unwrap();
@@ -2869,9 +2869,9 @@ async fn receipt_workspace_case(secondary_book: bool, http_confirmation: bool, f
         let claim=sqlx::query("UPDATE outbox_events SET attempts=99 WHERE command_id='native-field-invoice-post'").execute(db).await.unwrap_err();assert_eq!(claim.as_database_error().and_then(|e|e.constraint()),Some("native_outbox_runtime_required"));
         let write=db.clone();
         crate::projection_fixture::with_database(2,move|read|async move{
-            use erpx_server_runtime::public::postgres::{load_migrations,migrate_database,MigrationTrack};
+            use erpx_platform_runtime_server::public::postgres::{load_migrations,migrate_database,MigrationTrack};
             let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let files=load_migrations(&root,MigrationTrack::HoldingRead).await.unwrap();migrate_database(&read,MigrationTrack::HoldingRead,&files).await.unwrap();
-            let mut attempts=0;while erpx_service::field_dependency_worker::run_once(&write,read.raw(),"native-invoice-worker",now).await.unwrap(){attempts+=1;assert!(attempts<20);}
+            let mut attempts=0;while erpx_platform_composition::field_dependency_worker::run_once(&write,read.raw(),"native-invoice-worker",now).await.unwrap(){attempts+=1;assert!(attempts<20);}
             let events:Vec<String>=sqlx::query_scalar("SELECT id FROM outbox_events WHERE command_id IN('native-field-invoice-post','native-invoice-flow','native-invoice-flow-read') ORDER BY id").fetch_all(&write).await.unwrap();assert_eq!(events.len(),if actual_files{3}else{1});
             for event in &events {
                 let receipts:i64=sqlx::query_scalar("SELECT count(*) FROM projection_receipts WHERE event_id=$1").bind(event).fetch_one(read.raw()).await.unwrap();assert_eq!(receipts,1,"native invoice post/Flow must project before acknowledgement: {event}");
@@ -2881,8 +2881,8 @@ async fn receipt_workspace_case(secondary_book: bool, http_confirmation: bool, f
         }).await;
         let acknowledged:bool=sqlx::query_scalar("SELECT processed_at IS NOT NULL FROM outbox_events WHERE command_id='native-field-invoice-post'").fetch_one(db).await.unwrap();assert!(acknowledged);
         sqlx::query("INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,currency,is_control,control_kind,created_at,updated_at) VALUES('receipt-bank','company','chart','130','Receipt bank','asset','THB',1,'bank',0,0)").execute(db).await.unwrap();
-        let receipt_input=erpx_server_finance::public::service_receipt::ServiceReceiptCreateInput{kind:"receipt".into(),party_id:"customer".into(),payment_number:"FS-RECEIPT-NATIVE".into(),payment_date:"2026-11-01".into(),currency:currency.into(),amount:"100.00".into(),bank_account:"receipt-bank".into(),settlement_invoice_id:"field-invoice-included-billing".into()};
-        let receipt_create=|input:erpx_server_finance::public::service_receipt::ServiceReceiptCreateInput|{let selected=selection.clone();erpx_service::finance_service_receipt_create::execute_service_receipt_create(&p.review.authorizer,"acme.example.test",proof.clone(),move||Ok(selected),post_config.clone(),clock.clone(),move||Ok(("native-field-receipt-create".into(),erpx_service::finance_service_receipt_create::normalize_service_receipt_create(&serde_json::to_vec(&input).unwrap())?)))};
+        let receipt_input=erpx_finance_server::public::service_receipt::ServiceReceiptCreateInput{kind:"receipt".into(),party_id:"customer".into(),payment_number:"FS-RECEIPT-NATIVE".into(),payment_date:"2026-11-01".into(),currency:currency.into(),amount:"100.00".into(),bank_account:"receipt-bank".into(),settlement_invoice_id:"field-invoice-included-billing".into()};
+        let receipt_create=|input:erpx_finance_server::public::service_receipt::ServiceReceiptCreateInput|{let selected=selection.clone();erpx_platform_composition::finance_service_receipt_create::execute_service_receipt_create(&p.review.authorizer,"acme.example.test",proof.clone(),move||Ok(selected),post_config.clone(),clock.clone(),move||Ok(("native-field-receipt-create".into(),erpx_platform_composition::finance_service_receipt_create::normalize_service_receipt_create(&serde_json::to_vec(&input).unwrap())?)))};
         sqlx::raw_sql("CREATE FUNCTION native_receipt_create_fault() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE finance_accounts SET status='inactive' WHERE id='receipt-bank'; RETURN NULL; END $$;CREATE CONSTRAINT TRIGGER native_receipt_create_fault AFTER INSERT ON command_receipts DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.command_id='native-field-receipt-create') EXECUTE FUNCTION native_receipt_create_fault()").execute(db).await.unwrap();
         assert!(receipt_create(receipt_input.clone()).await.is_err());
         let rollback:(i64,i64,String)=sqlx::query_as("SELECT (SELECT count(*) FROM finance_payments WHERE payment_number='FS-RECEIPT-NATIVE'),(SELECT count(*) FROM command_receipts WHERE command_id='native-field-receipt-create'),(SELECT status FROM finance_accounts WHERE id='receipt-bank')").fetch_one(db).await.unwrap();assert_eq!(rollback,(0,0,"active".into()));
@@ -2892,7 +2892,7 @@ async fn receipt_workspace_case(secondary_book: bool, http_confirmation: bool, f
         let receipt_body:serde_json::Value=serde_json::from_str(created.as_str()).unwrap();let receipt_id=receipt_body["id"].as_str().unwrap();assert!(receipt_id.starts_with("pay-"));assert_eq!(receipt_body["status"],"draft");assert_eq!(receipt_body["settlementInvoiceId"],"field-invoice-included-billing");
         let saved:(String,i64,i64,i64)=sqlx::query_as("SELECT p.status,p.amount_minor,(SELECT count(*) FROM money_transaction_snapshots m WHERE m.source_type='finance_payment' AND m.source_id=p.id AND m.amount_kind='requested'),(SELECT count(*) FROM outbox_events WHERE command_id='native-field-receipt-create') FROM finance_payments p WHERE p.id=$1").bind(receipt_id).fetch_one(db).await.unwrap();assert_eq!(saved,("draft".into(),10000,1,1));
         let mut changed=receipt_input.clone();changed.amount="99.00".into();assert!(matches!(receipt_create(changed).await,Err(PgTransactionError::Business(e)) if e.code=="IDEMPOTENCY_CONFLICT"));
-        use erpx_service::finance_service_receipt_review::{execute_service_receipt_review,ServiceReceiptDecisionInput,normalize_service_receipt_decision};
+        use erpx_platform_composition::finance_service_receipt_review::{execute_service_receipt_review,ServiceReceiptDecisionInput,normalize_service_receipt_decision};
         let approve_receipt=|as_reviewer:bool,key:&str,version:i64|{let selected=if as_reviewer{p.review.reviewer_selection.clone()}else{selection.clone()};let device=if as_reviewer{p.review.reviewer.clone()}else{proof.clone()};let id=receipt_id.to_owned();let key=key.to_owned();execute_service_receipt_review(&p.review.authorizer,"acme.example.test",device,move||Ok(selected),post_config.clone(),clock.clone(),true,move||Ok((key.clone(),id.clone(),normalize_service_receipt_decision(&serde_json::to_vec(&ServiceReceiptDecisionInput{expected_version:version,proof:"Actual independent receipt review".into()}).unwrap(),true)?)))};
         sqlx::query("INSERT INTO finance_parties SELECT (jsonb_populate_record(NULL::finance_parties,to_jsonb(p)||jsonb_build_object('id','receipt-other-customer','code','RECEIPT-OTHER-CUSTOMER'))).* FROM finance_parties p WHERE id='customer'").execute(db).await.unwrap();
         inject_receipt_fixture_change(&p,receipt_id,"UPDATE finance_payments SET party_id='receipt-other-customer' WHERE id=$1").await;
@@ -2903,7 +2903,7 @@ async fn receipt_workspace_case(secondary_book: bool, http_confirmation: bool, f
         assert!(approve_receipt(true,"native-receipt-approve",1).await.is_err());
         let rollback:(String,i64,i64,i64)=sqlx::query_as("SELECT p.status,p.version,(SELECT count(*) FROM command_receipts WHERE command_id='native-receipt-approve'),(SELECT count(*) FROM decision_evidence WHERE command_id='native-receipt-approve') FROM finance_payments p WHERE id=$1").bind(receipt_id).fetch_one(db).await.unwrap();assert_eq!(rollback,("draft".into(),1,0,0));
         sqlx::raw_sql("DROP TRIGGER native_receipt_review_fault ON decision_evidence;DROP FUNCTION native_receipt_review_fault()").execute(db).await.unwrap();
-        let receipt_http=|cookie:&str,selected:&erpx_server_identity_access::public::work_context::HoldingWorkspaceRequest,action:&str,key:&str,body:&str| {
+        let receipt_http=|cookie:&str,selected:&erpx_identity_access_server::public::work_context::HoldingWorkspaceRequest,action:&str,key:&str,body:&str| {
             let expected=selected.expected.as_ref().unwrap();
             Request::builder().method("POST").uri(format!("/api/v1/holdings/acme/finance/payments/{receipt_id}/{action}")).header("host","acme.example.test").header("origin","https://acme.example.test").header("cookie",cookie).header("idempotency-key",key).header("x-erpx-context-company","company").header("x-erpx-context-revision",expected.revision.to_string()).header("x-erpx-context-assignment",expected.assignment_id.as_str()).header("x-erpx-context-assignment-version",expected.assignment_version.to_string()).body(Body::from(body.to_owned())).unwrap()
         };
@@ -2923,7 +2923,7 @@ async fn receipt_workspace_case(secondary_book: bool, http_confirmation: bool, f
         sqlx::query("INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind)VALUES('finance-fixture-c','fixture-c','native_receipt_treasury','[\"finance\"]','company',$1,$2,3,'holding')").bind(now-1000).bind(now+3_600_000).execute(db).await.unwrap();
         let central=account::login(system,"c@example.test",None).await;let treasury=account::child(system,&central,account::ACME).await;let cookie_c=format!("__Host-erpx-product={}",treasury.token.expose());
         let role=runtime.router().oneshot(Request::builder().method("POST").uri("/api/v1/holdings/acme/field-service/work-roles").header("host","acme.example.test").header("origin","https://acme.example.test").header("cookie",&cookie_c).header("x-erpx-context-company","company").body(Body::from(r#"{"assignmentId":"finance-fixture-c","assignmentVersion":3,"revision":0}"#)).unwrap()).await.unwrap();let status=role.status();let bytes=to_bytes(role.into_body(),65536).await.unwrap();assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&bytes));
-        let device_c=erpx_server_identity_access::public::DeviceProof{active:Some(SystemAuthenticationSecrets.digest(SecretPurpose::Session,&treasury.token)),..Default::default()};let mut selection_c=selection.clone();selection_c.expected.as_mut().unwrap().assignment_id=erpx_server_shared::public::AssignmentId::new("finance-fixture-c").unwrap();
+        let device_c=erpx_identity_access_server::public::DeviceProof{active:Some(SystemAuthenticationSecrets.digest(SecretPurpose::Session,&treasury.token)),..Default::default()};let mut selection_c=selection.clone();selection_c.expected.as_mut().unwrap().assignment_id=erpx_platform_shared_server::public::AssignmentId::new("finance-fixture-c").unwrap();
         let release=||{let selected=selection_c.clone();let id=receipt_id.to_owned();execute_service_receipt_review(&p.review.authorizer,"acme.example.test",device_c.clone(),move||Ok(selected),post_config.clone(),clock.clone(),false,move||Ok(("native-receipt-release".into(),id.clone(),normalize_service_receipt_decision(&serde_json::to_vec(&ServiceReceiptDecisionInput{expected_version:2,proof:"Actual third-person bank release".into()}).unwrap(),false)?)))};
         let http_release=runtime.router().oneshot(receipt_http(&cookie_c,&selection_c,"release","native-receipt-release",r#"{"expectedVersion":2,"proof":"Actual third-person bank release"}"#)).await.unwrap();let status=http_release.status();let bytes=to_bytes(http_release.into_body(),65536).await.unwrap();assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&bytes));let http_release:serde_json::Value=serde_json::from_slice(&bytes).unwrap();
         let released=release().await.unwrap();assert_eq!(release().await.unwrap(),released);assert_eq!(http_release["data"],serde_json::from_str::<serde_json::Value>(released.as_str()).unwrap());
@@ -2931,9 +2931,9 @@ async fn receipt_workspace_case(secondary_book: bool, http_confirmation: bool, f
 
         let legacy_write=sqlx::query("UPDATE finance_payments SET updated_at=updated_at+1 WHERE id=$1").bind(receipt_id).execute(db).await.unwrap_err();assert_eq!(legacy_write.as_database_error().and_then(|e|e.constraint()),Some("native_service_payment_write_required"));
         let legacy_invoice=sqlx::query("UPDATE finance_invoices SET updated_at=updated_at+1 WHERE id='field-invoice-included-billing'").execute(db).await.unwrap_err();assert_eq!(legacy_invoice.as_database_error().and_then(|e|e.constraint()),Some("native_service_invoice_effect_required"));
-        use erpx_server_finance::public::service_receipt::{ServiceReceiptBankInput,ServiceReceiptBankRow};
+        use erpx_finance_server::public::service_receipt::{ServiceReceiptBankInput,ServiceReceiptBankRow};
         let bank_input=ServiceReceiptBankInput{settlement_payment_id:receipt_id.into(),bank_account:"receipt-bank".into(),statement_number:"NATIVE-FIELD-RECEIPT-STATEMENT".into(),statement_date:"2026-11-01".into(),opening:"0".into(),closing:"100.00".into(),closing_fx_rate:None,source_hash:"explicit-synthetic-source".into(),rows:vec![ServiceReceiptBankRow{external_id:"NATIVE-FIELD-RECEIPT-ROW".into(),transaction_date:"2026-11-01".into(),description:Some("Actual controlled receipt evidence".into()),amount:"100.00".into(),currency:currency.into()}]};
-        let bank_import=|key:&str,input:ServiceReceiptBankInput|{let selected=selection_c.clone();let key=key.to_owned();erpx_service::finance_service_receipt_bank::execute_service_receipt_bank(&p.review.authorizer,"acme.example.test",device_c.clone(),move||Ok(selected),post_config.clone(),clock.clone(),move||Ok((key.clone(),erpx_service::finance_service_receipt_bank::normalize_service_receipt_bank(&serde_json::to_vec(&input).unwrap())?)))};
+        let bank_import=|key:&str,input:ServiceReceiptBankInput|{let selected=selection_c.clone();let key=key.to_owned();erpx_platform_composition::finance_service_receipt_bank::execute_service_receipt_bank(&p.review.authorizer,"acme.example.test",device_c.clone(),move||Ok(selected),post_config.clone(),clock.clone(),move||Ok((key.clone(),erpx_platform_composition::finance_service_receipt_bank::normalize_service_receipt_bank(&serde_json::to_vec(&input).unwrap())?)))};
         let mut mismatch=bank_input.clone();mismatch.rows[0].amount="99.00".into();assert!(matches!(bank_import("native-receipt-wrong-bank",mismatch).await,Err(PgTransactionError::Business(e)) if e.code=="SERVICE_PAYMENT_BANK_SOURCE_INVALID"));
         sqlx::raw_sql("CREATE FUNCTION native_receipt_bank_fault() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE finance_accounts SET name='Deferred bank drift' WHERE id=NEW.bank_account; RETURN NULL; END $$;CREATE CONSTRAINT TRIGGER native_receipt_bank_fault AFTER INSERT ON finance_bank_statements DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.id='statement-native-receipt-bank') EXECUTE FUNCTION native_receipt_bank_fault()").execute(db).await.unwrap();
         assert!(bank_import("native-receipt-bank",bank_input.clone()).await.is_err());
@@ -2947,7 +2947,7 @@ async fn receipt_workspace_case(secondary_book: bool, http_confirmation: bool, f
         assert!(matches!(bank_import("native-receipt-duplicate-bank",bank_input.clone()).await,Err(PgTransactionError::Business(e)) if e.code=="SERVICE_PAYMENT_SOURCE_CHANGED"));
         let read_receipt=||{
             let mut selected=selection_c.clone();selected.mutation=false;let config=post_config.clone();let clock=clock.clone();let id=receipt_id.to_owned();
-            p.review.authorizer.execute_with_sources_deferred("acme.example.test",device_c.clone(),move||Ok(selected),erpx_server_identity_access::public::effective_authority::WorkAuthorizationRequest{permission:"finance.read".into(),module:Some("finance".into()),destination:"finance/payments".into(),api:true},erpx_service::finance_service_receipt_files::FinancePaymentIntakeSources,move|c,current|{let(config,clock,id)=(config.clone(),clock.clone(),id.clone());Box::pin(async move{erpx_service::finance_service_receipt_files::read_finance_service_receipt_workspace(c,current,&config,clock.as_ref(),&id).await})})
+            p.review.authorizer.execute_with_sources_deferred("acme.example.test",device_c.clone(),move||Ok(selected),erpx_identity_access_server::public::effective_authority::WorkAuthorizationRequest{permission:"finance.read".into(),module:Some("finance".into()),destination:"finance/payments".into(),api:true},erpx_platform_composition::finance_service_receipt_files::FinancePaymentIntakeSources,move|c,current|{let(config,clock,id)=(config.clone(),clock.clone(),id.clone());Box::pin(async move{erpx_platform_composition::finance_service_receipt_files::read_finance_service_receipt_workspace(c,current,&config,clock.as_ref(),&id).await})})
         };
         let(workspace,source_only,purchases)=read_receipt().await.expect("native released receipt workspace");assert_eq!(workspace["payment"]["id"],receipt_id);assert_eq!(workspace["payment"]["status"],"released");assert_eq!(workspace["payment"]["version"],3);assert_eq!(workspace["payment"]["settlement_invoice_id"],"field-invoice-included-billing");assert!(workspace["payment"]["party_name"].is_string());assert_eq!(workspace["allocations"],serde_json::json!([]));assert_eq!(workspace["bankTransactions"][0]["id"],"bankrow-native-receipt-bank-0");assert_eq!(workspace["bankTransactions"].as_array().unwrap().len(),1);assert_eq!(workspace["invoices"][0]["id"],"field-invoice-included-billing");assert!(workspace["invoices"][0].get("due_date").is_none());assert_eq!(workspace["sourcePurchase"]["capability"],"finance.service-invoice");assert_eq!(workspace["sourcePurchase"]["settleExisting"],true);assert_eq!(workspace["sourcePurchase"]["history"],true);
         let get_receipt=||{
@@ -2970,7 +2970,7 @@ async fn receipt_workspace_case(secondary_book: bool, http_confirmation: bool, f
         assert!(matches!(bank_import("native-receipt-bank",bank_input.clone()).await,Err(PgTransactionError::Business(e)) if e.code=="SERVICE_PAYMENT_SOURCE_CHANGED"));
         inject_receipt_fixture_change(&p,receipt_id,"DELETE FROM finance_allocations WHERE id='receipt-mixed-fixture' AND payment_id=$1").await;
         assert_eq!(bank_import("native-receipt-bank",bank_input.clone()).await.unwrap(),imported);
-        use erpx_server_finance::public::service_receipt::{ServiceReceiptConfirmInput,ServiceReceiptAllocationInput};
+        use erpx_finance_server::public::service_receipt::{ServiceReceiptConfirmInput,ServiceReceiptAllocationInput};
         if secondary_book {
             // Actual approved book source, then genuine native settlement; no synthetic posted journal.
             sqlx::raw_sql("INSERT INTO finance_charts(id,company_id,name,base_currency,created_by,created_at,updated_at) VALUES('receipt-secondary','company','Receipt secondary','THB','fixture',0,0);INSERT INTO finance_accounts SELECT (jsonb_populate_record(NULL::finance_accounts,to_jsonb(a)||jsonb_build_object('id','receipt-secondary-'||a.id,'chart_id','receipt-secondary'))).* FROM finance_accounts a WHERE a.company_id='company' AND a.chart_id='chart';INSERT INTO finance_book_rules(id,company_id,primary_chart_id,secondary_chart_id,effective_date,prepared_by,reason,opening_json,opening_hash,created_at) VALUES('receipt-book-rule','company','chart','receipt-secondary','2020-01-01','author','Synthetic reviewed rule','{}','synthetic-hash',0);INSERT INTO finance_book_account_mappings(rule_id,primary_account_id,secondary_account_id) SELECT 'receipt-book-rule',a.id,'receipt-secondary-'||a.id FROM finance_accounts a WHERE a.company_id='company' AND a.chart_id='chart';UPDATE finance_book_rules SET status='approved',reviewed_by='reviewer' WHERE id='receipt-book-rule'").execute(db).await.unwrap();
@@ -2994,7 +2994,7 @@ async fn receipt_workspace_case(secondary_book: bool, http_confirmation: bool, f
             "receipt-proof-set".to_owned()
         };
         let confirm_input=ServiceReceiptConfirmInput{expected_version:3,period_id:"period".into(),bank_transaction_id:"bankrow-native-receipt-bank-0".into(),bank_version:1,bank_reference:"Actual bank receipt confirmation".into(),proof:"Independent Treasury confirmed bank statement".into(),fx_rate:None,fx_gain_account_id:None,fx_loss_account_id:None,allocations:vec![ServiceReceiptAllocationInput{invoice_id:"field-invoice-included-billing".into(),amount:"100.00".into()}],attachment_set_ids:vec![proof_set_id.clone()]};
-        let confirm=|input:ServiceReceiptConfirmInput|{let selected=selection_c.clone();let id=receipt_id.to_owned();erpx_service::finance_service_receipt_confirm::execute_service_receipt_confirm(&p.review.authorizer,"acme.example.test",device_c.clone(),move||Ok(selected),post_config.clone(),clock.clone(),erpx_server_files::public::payment_proof_binding::PaymentProofBindingFeatures{enabled:true,read_only:false,uploads_frozen:false},move||Ok(("native-receipt-confirm".into(),id.clone(),erpx_service::finance_service_receipt_confirm::normalize_service_receipt_confirm(&serde_json::to_vec(&input).unwrap())?)))};
+        let confirm=|input:ServiceReceiptConfirmInput|{let selected=selection_c.clone();let id=receipt_id.to_owned();erpx_platform_composition::finance_service_receipt_confirm::execute_service_receipt_confirm(&p.review.authorizer,"acme.example.test",device_c.clone(),move||Ok(selected),post_config.clone(),clock.clone(),erpx_files_server::public::payment_proof_binding::PaymentProofBindingFeatures{enabled:true,read_only:false,uploads_frozen:false},move||Ok(("native-receipt-confirm".into(),id.clone(),erpx_platform_composition::finance_service_receipt_confirm::normalize_service_receipt_confirm(&serde_json::to_vec(&input).unwrap())?)))};
         // This profile deliberately has no Files providers. HTTP must not
         // enable attachment binding from the body or fall back to TS.
         if !actual_files {
@@ -3051,10 +3051,10 @@ async fn receipt_workspace_case(secondary_book: bool, http_confirmation: bool, f
             // native business writes and actual scanned private evidence.
             let grants:Vec<String>=sqlx::query_scalar("SELECT package_id FROM company_package_grants WHERE company_id='company' ORDER BY package_id").fetch_all(db).await.unwrap();assert_eq!(grants,vec!["service"]);
             {
-                use erpx_service::field_service_package_settlement::*;
+                use erpx_platform_composition::field_service_package_settlement::*;
                 let mut tx=db.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_field_package_obligation_sources(&mut tx).await.unwrap();
-                let company=erpx_server_shared::public::CompanyId::new("company").unwrap();let field=Box::pin(read_field_package_obligations(&mut tx,&company,"service",1,clock.now().get())).await.unwrap();assert!(field.observation().outstanding>0);
-                let actor=erpx_server_finance::public::FinanceActor{holding_id:erpx_server_shared::public::HoldingId::new("h001").unwrap(),company_id:company,user_id:erpx_server_shared::public::UserId::new("fixture-c").unwrap(),assignment_id:erpx_server_shared::public::AssignmentId::new("finance-fixture-c").unwrap()};
+                let company=erpx_platform_shared_server::public::CompanyId::new("company").unwrap();let field=Box::pin(read_field_package_obligations(&mut tx,&company,"service",1,clock.now().get())).await.unwrap();assert!(field.observation().outstanding>0);
+                let actor=erpx_finance_server::public::FinanceActor{holding_id:erpx_platform_shared_server::public::HoldingId::new("h001").unwrap(),company_id:company,user_id:erpx_platform_shared_server::public::UserId::new("fixture-c").unwrap(),assignment_id:erpx_platform_shared_server::public::AssignmentId::new("finance-fixture-c").unwrap()};
                 let finance=Box::pin(read_service_finance_package_obligations(&mut tx,&actor,&field)).await.unwrap();assert_eq!(finance.observation().outstanding,0);finance.require_current(&mut tx,&field).await.unwrap();field.require_current(&mut tx).await.unwrap();tx.rollback().await.unwrap();
             }
             sqlx::query("UPDATE attachments SET legal_hold=1 WHERE id=(SELECT attachment_id FROM attachment_links WHERE id=$1)").bind(link).execute(db).await.unwrap();
@@ -3095,7 +3095,7 @@ async fn receipt_workspace_case(secondary_book: bool, http_confirmation: bool, f
         if actual_files {assert_eq!(flow_events.len(),2);assert!(flow_events.iter().all(|(_,owned)|*owned));}
         for (id,_) in &flow_events {
             let mut predicate=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT ((");
-            predicate.push(erpx_server_finance::public::field_outbox::ELIGIBLE).push(") OR ((").push(erpx_server_collaboration::public::field_outbox::ELIGIBLE).push(") AND (").push(erpx_server_workflow::public::field_outbox::COMMAND_EVIDENCE).push("))) FROM outbox_events e WHERE e.id=").push_bind(id);
+            predicate.push(erpx_finance_server::public::field_outbox::ELIGIBLE).push(") OR ((").push(erpx_collaboration_server::public::field_outbox::ELIGIBLE).push(") AND (").push(erpx_workflow_server::public::field_outbox::COMMAND_EVIDENCE).push("))) FROM outbox_events e WHERE e.id=").push_bind(id);
             let eligible:bool=predicate.build_query_scalar().fetch_one(db).await.unwrap();
             assert!(eligible,"native invoice Flow event must retain complete projection evidence: {id}");
         }
@@ -3108,9 +3108,9 @@ async fn receipt_workspace_case(secondary_book: bool, http_confirmation: bool, f
         }
         let write=db.clone();let expected_events=event_ids.clone();let record=receipt_id.to_owned();
         crate::projection_fixture::with_database(2,move|read|async move{
-            use erpx_server_runtime::public::postgres::{load_migrations,migrate_database,MigrationTrack};
+            use erpx_platform_runtime_server::public::postgres::{load_migrations,migrate_database,MigrationTrack};
             let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let files=load_migrations(&root,MigrationTrack::HoldingRead).await.unwrap();migrate_database(&read,MigrationTrack::HoldingRead,&files).await.unwrap();
-            let mut attempts=0;while erpx_service::field_dependency_worker::run_once(&write,read.raw(),"native-receipt-worker",now).await.unwrap(){attempts+=1;assert!(attempts<50);}
+            let mut attempts=0;while erpx_platform_composition::field_dependency_worker::run_once(&write,read.raw(),"native-receipt-worker",now).await.unwrap(){attempts+=1;assert!(attempts<50);}
             let pending:Vec<(String,String,i64,i64,Option<String>)>=sqlx::query_as("SELECT command_id,event_type,next_attempt_at,attempts,last_error FROM outbox_events WHERE id=ANY($1) AND processed_at IS NULL").bind(&expected_events).fetch_all(&write).await.unwrap();
             assert!(pending.is_empty(),"native invoice/receipt projection pending at {now}: {pending:?}");
             let receipts:i64=sqlx::query_scalar("SELECT count(*) FROM projection_receipts WHERE event_id=ANY($1)").bind(&expected_events).fetch_one(read.raw()).await.unwrap();assert_eq!(receipts,expected_events.len() as i64);
@@ -3170,7 +3170,7 @@ async fn receipt_workspace_case(secondary_book: bool, http_confirmation: bool, f
         assert_eq!(post().await.unwrap(),posted_result); // Historical replay precedes fresh postable-state checks.
         let until:i64=sqlx::query_scalar("SELECT valid_until FROM assignments WHERE id='finance-fixture-a'").fetch_one(db).await.unwrap();
         sqlx::query("UPDATE assignments SET valid_until=$1 WHERE id='finance-fixture-a'").bind(now-1).execute(db).await.unwrap();
-        let denied=post().await;assert!(matches!(denied,Err(PgTransactionError::Business(e)) if matches!(e.kind,erpx_server_shared::public::FailureKind::Forbidden|erpx_server_shared::public::FailureKind::Conflict|erpx_server_shared::public::FailureKind::Unauthenticated)));
+        let denied=post().await;assert!(matches!(denied,Err(PgTransactionError::Business(e)) if matches!(e.kind,erpx_platform_shared_server::public::FailureKind::Forbidden|erpx_platform_shared_server::public::FailureKind::Conflict|erpx_platform_shared_server::public::FailureKind::Unauthenticated)));
         sqlx::query("UPDATE assignments SET valid_until=$1 WHERE id='finance-fixture-a'").bind(until).execute(db).await.unwrap();
         assert_eq!(post().await.unwrap(),posted_result);
         let final_effects:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id='native-field-invoice-post'),(SELECT count(*) FROM audit_events WHERE command_id='native-field-invoice-post'),(SELECT count(*) FROM outbox_events WHERE command_id='native-field-invoice-post')").fetch_one(db).await.unwrap();assert_eq!(final_effects,(1,1,1));
@@ -3191,7 +3191,7 @@ async fn receipt_workspace_case(secondary_book: bool, http_confirmation: bool, f
 
 #[test]
 fn native_service_invoice_flow_wire_preserves_original_schema_and_utf16() {
-    use erpx_service::finance_service_invoice_flow_command::normalize_service_invoice_flow_assignment as normalize;
+    use erpx_platform_composition::finance_service_invoice_flow_command::normalize_service_invoice_flow_assignment as normalize;
     let input=br#"{"kind":"stock_count","stepKey":"draft","userId":"\ud800","expectedVersion":1e0,"recordVersion":1,"reason":"\ufeff  Keep original \u00a0","ignored":true}"#;
     let normalized=normalize(input).unwrap();
     assert_eq!(normalized.property("kind").unwrap().unwrap().string_utf16_units().unwrap(),Some("invoice".encode_utf16().collect()));
@@ -3213,12 +3213,12 @@ fn native_service_invoice_flow_wire_preserves_original_schema_and_utf16() {
 async fn service_prerequisite_commands_apply_replay_and_rollback_actual_owners() {
     use crate::facts::account;
     use crate::service_posting_fixture::service_posting_finance_fixture;
-    use erpx_server_runtime::public::postgres::PgTransactionError;
-    use erpx_server_shared::public::FailureKind;
-    use erpx_server_workflow::public::commands::CommandJson;
-    use erpx_server_identity_access::public::effective_authority::WorkAuthorizationRequest;
-    use erpx_service::service_parts_posting_setup::ServicePostingEnvironment;
-    use erpx_service::service_parts_prerequisite_setup::{
+    use erpx_platform_runtime_server::public::postgres::PgTransactionError;
+    use erpx_platform_shared_server::public::FailureKind;
+    use erpx_workflow_server::public::commands::CommandJson;
+    use erpx_identity_access_server::public::effective_authority::WorkAuthorizationRequest;
+    use erpx_platform_composition::service_parts_posting_setup::ServicePostingEnvironment;
+    use erpx_platform_composition::service_parts_prerequisite_setup::{
         ServicePrerequisiteSources, ServicePrerequisiteWriteSources, execute_service_prerequisite,
         normalize_service_prerequisite, read_service_prerequisites,
     };
@@ -3229,7 +3229,7 @@ async fn service_prerequisite_commands_apply_replay_and_rollback_actual_owners()
         let view=read().await.unwrap();assert!(view.can_create_chart);
         let chart_body=format!(r#"{{"expectedVersion":0,"contextKey":"{}","input":{{"name":"New synthetic chart","baseCurrency":"thb"}}}}"#,view.context_key.unwrap());
         let chart=normalize_service_prerequisite(&CommandJson::parse(&chart_body).unwrap(),"chart").unwrap();
-        let run=|key:&str,input:erpx_service::service_parts_prerequisite_setup::NormalizedPrerequisiteCommand|{let c=clock.clone();let key=key.to_owned();let variant=input.input.variant();p.authorizer.execute_with_sources("acme.example.test",p.maker.clone(),p.maker_selection.clone(),access(),ServicePrerequisiteWriteSources(variant),move|db,current|{let c=c.clone();let key=key.clone();let input=input.clone();Box::pin(async move{execute_service_prerequisite(db,current,c.as_ref(),&key,&input).await})})};
+        let run=|key:&str,input:erpx_platform_composition::service_parts_prerequisite_setup::NormalizedPrerequisiteCommand|{let c=clock.clone();let key=key.to_owned();let variant=input.input.variant();p.authorizer.execute_with_sources("acme.example.test",p.maker.clone(),p.maker_selection.clone(),access(),ServicePrerequisiteWriteSources(variant),move|db,current|{let c=c.clone();let key=key.clone();let input=input.clone();Box::pin(async move{execute_service_prerequisite(db,current,c.as_ref(),&key,&input).await})})};
         let created=run("prereq-chart",chart.clone()).await.unwrap();assert!(!created.replayed);let chart_value:serde_json::Value=serde_json::from_str(created.result.as_str()).unwrap();let chart_id=chart_value["id"].as_str().unwrap().to_owned();assert_eq!(chart_value["baseCurrency"],"THB");assert_eq!(chart_value["accountingBasis"],"IFRS");assert!(run("prereq-chart",chart.clone()).await.unwrap().replayed);
         let changed=normalize_service_prerequisite(&CommandJson::parse(&chart_body.replace("New synthetic chart","Changed chart")).unwrap(),"chart").unwrap();assert!(matches!(run("prereq-chart",changed).await,Err(PgTransactionError::Business(e)) if e.code=="IDEMPOTENCY_CONFLICT"));
         let view=read().await.unwrap();let account_body=format!(r#"{{"expectedVersion":0,"contextKey":"{}","input":{{"chartId":"{}","code":"121","name":"Synthetic bank","category":"asset","controlKind":"bank"}}}}"#,view.context_key.unwrap(),chart_id);
@@ -3267,9 +3267,9 @@ async fn service_prerequisite_commands_apply_replay_and_rollback_actual_owners()
         let owned:bool=sqlx::query_scalar("SELECT erpx_native_outbox_owned(e) FROM outbox_events e WHERE id='unmarked-prerequisite-event'").fetch_one(p.system.holdings[0].raw()).await.unwrap();assert!(!owned);
         let write=p.system.holdings[0].raw().clone();let ids:Vec<String>=events.into_iter().map(|(id,_)|id).collect();let now=clock.now().get();
         crate::projection_fixture::with_database(2,move|read|async move{
-            use erpx_server_runtime::public::postgres::{load_migrations,migrate_database,MigrationTrack};
+            use erpx_platform_runtime_server::public::postgres::{load_migrations,migrate_database,MigrationTrack};
             let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let files=load_migrations(&root,MigrationTrack::HoldingRead).await.unwrap();migrate_database(&read,MigrationTrack::HoldingRead,&files).await.unwrap();
-            let mut turns=0;while erpx_service::field_dependency_worker::run_once(&write,read.raw(),"native-prerequisite-worker",now).await.unwrap(){turns+=1;assert!(turns<20);}
+            let mut turns=0;while erpx_platform_composition::field_dependency_worker::run_once(&write,read.raw(),"native-prerequisite-worker",now).await.unwrap(){turns+=1;assert!(turns<20);}
             for id in &ids {
                 let receipt:i64=sqlx::query_scalar("SELECT count(*) FROM projection_receipts WHERE event_id=$1").bind(id).fetch_one(read.raw()).await.unwrap();assert_eq!(receipt,1,"native prerequisite projection: {id}");
             }
@@ -3289,7 +3289,7 @@ async fn service_prerequisite_commands_apply_replay_and_rollback_actual_owners()
 #[tokio::test]
 async fn retired_generic_field_records_preserve_history_and_block_all_writers() {
     projection_fixture::with_database(2,|pool|async move{
-        use erpx_server_runtime::public::postgres::{load_migrations,migrate_database,MigrationTrack};
+        use erpx_platform_runtime_server::public::postgres::{load_migrations,migrate_database,MigrationTrack};
         let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
         let files=load_migrations(&root,MigrationTrack::HoldingWrite).await.unwrap();
         let current=files.iter().position(|file|file.name()=="1095_native_service_prerequisite_jobs.sql").unwrap();
@@ -3323,8 +3323,8 @@ async fn retired_generic_field_records_preserve_history_and_block_all_writers() 
 /// fully_covered_field_invoice_uses_native_independent_confirmation above.
 #[tokio::test]
 async fn populated_1054_no_charge_upgrade_keeps_original_money_flow_and_receipts() {
-    use erpx_server_runtime::public::postgres::{load_migrations,migrate_database,MigrationTrack,PgTransactionError};
-    use erpx_server_finance::public::service_no_charge::*;
+    use erpx_platform_runtime_server::public::postgres::{load_migrations,migrate_database,MigrationTrack,PgTransactionError};
+    use erpx_finance_server::public::service_no_charge::*;
     projection_fixture::with_database(2,|pool|async move{
         let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
         let mut files=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();files.retain(|file|file.name()<"1056");
@@ -3358,7 +3358,7 @@ INSERT INTO flow_events(id,command_id,company_id,kind,record_id,step_key,action,
         let error=lock_service_no_charge_sources(&mut missing).await.unwrap_err();assert!(matches!(error,PgTransactionError::Business(e)if e.code=="SERVICE_NO_CHARGE_SCHEMA_REQUIRED"));missing.rollback().await.unwrap();
         assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM command_receipts WHERE command_id='unavailable-new-operation'").fetch_one(pool.raw()).await.unwrap(),0);
         let shapes:Vec<(String,Vec<String>)>=sqlx::query_as("SELECT t.tablename::text,array_agg(c.column_name::text ORDER BY c.ordinal_position) FROM pg_tables t JOIN information_schema.columns c ON c.table_schema=t.schemaname AND c.table_name=t.tablename WHERE t.schemaname='public' AND t.tablename<>'erpx_migrations' GROUP BY t.tablename ORDER BY t.tablename").fetch_all(pool.raw()).await.unwrap();
-        async fn snapshot(pool:&erpx_server_runtime::public::postgres::DatabasePool,shapes:&[(String,Vec<String>)])->Vec<(String,i64,String)>{let mut result=Vec::new();for(table,columns)in shapes{assert!(std::iter::once(table).chain(columns).all(|v|!v.is_empty()&&v.bytes().all(|b|b.is_ascii_lowercase()||b.is_ascii_digit()||b==b'_')));let columns=columns.iter().map(|v|format!("\"{v}\"")).collect::<Vec<_>>().join(",");let query=format!("SELECT count(*)::bigint,md5(coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text) FROM(SELECT {columns} FROM \"{table}\")t");let(count,digest):(i64,String)=sqlx::query_as(sqlx::AssertSqlSafe(query)).fetch_one(pool.raw()).await.unwrap();result.push((table.clone(),count,digest));}result}
+        async fn snapshot(pool:&erpx_platform_runtime_server::public::postgres::DatabasePool,shapes:&[(String,Vec<String>)])->Vec<(String,i64,String)>{let mut result=Vec::new();for(table,columns)in shapes{assert!(std::iter::once(table).chain(columns).all(|v|!v.is_empty()&&v.bytes().all(|b|b.is_ascii_lowercase()||b.is_ascii_digit()||b==b'_')));let columns=columns.iter().map(|v|format!("\"{v}\"")).collect::<Vec<_>>().join(",");let query=format!("SELECT count(*)::bigint,md5(coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text) FROM(SELECT {columns} FROM \"{table}\")t");let(count,digest):(i64,String)=sqlx::query_as(sqlx::AssertSqlSafe(query)).fetch_one(pool.raw()).await.unwrap();result.push((table.clone(),count,digest));}result}
         let before=snapshot(&pool,&shapes).await;
         let baselines:Vec<serde_json::Value>=sqlx::query_scalar("SELECT to_jsonb(b) FROM work_cache_revision_baselines b ORDER BY table_name").fetch_all(pool.raw()).await.unwrap();
         let receipts:Vec<(String,String)>=sqlx::query_as("SELECT name,checksum FROM erpx_migrations ORDER BY name").fetch_all(pool.raw()).await.unwrap();
@@ -3372,9 +3372,9 @@ INSERT INTO flow_events(id,command_id,company_id,kind,record_id,step_key,action,
         // Native Finance consumes the preserved original Money/invoice, not a
         // TS source read. This owner witness is not an authorization grant.
         let mut read=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *read).await.unwrap();
-        let actor=erpx_server_finance::public::FinanceActor{user_id:erpx_server_shared::public::UserId::new("manager").unwrap(),holding_id:HoldingId::new("h001").unwrap(),company_id:CompanyId::new("company").unwrap(),assignment_id:erpx_server_shared::public::AssignmentId::new("finance-manager").unwrap()};
+        let actor=erpx_finance_server::public::FinanceActor{user_id:erpx_platform_shared_server::public::UserId::new("manager").unwrap(),holding_id:HoldingId::new("h001").unwrap(),company_id:CompanyId::new("company").unwrap(),assignment_id:erpx_platform_shared_server::public::AssignmentId::new("finance-manager").unwrap()};
         let original=read_optional_service_no_charge(&mut read,&actor,"field-invoice-covered-release").await.unwrap().expect("historical zero source remains readable");assert_eq!(original.version().unwrap(),1);assert!(!original.confirmed());
-        let command_actor=erpx_server_workflow::public::commands::CommandActor{user_id:actor.user_id.clone(),assignment_id:actor.assignment_id.clone(),company_id:actor.company_id.clone(),role:"finance_approver".into(),branch_id:erpx_server_workflow::public::commands::CommandField::Null,department_id:erpx_server_workflow::public::commands::CommandField::Null,authority:erpx_server_workflow::public::commands::CommandField::Omitted,iam:erpx_server_workflow::public::commands::CommandField::Omitted,assignment_scope_kind:"holding".into(),assignment_scope_node_id:None};
+        let command_actor=erpx_workflow_server::public::commands::CommandActor{user_id:actor.user_id.clone(),assignment_id:actor.assignment_id.clone(),company_id:actor.company_id.clone(),role:"finance_approver".into(),branch_id:erpx_workflow_server::public::commands::CommandField::Null,department_id:erpx_workflow_server::public::commands::CommandField::Null,authority:erpx_workflow_server::public::commands::CommandField::Omitted,iam:erpx_workflow_server::public::commands::CommandField::Omitted,assignment_scope_kind:"holding".into(),assignment_scope_node_id:None};
         // Owner review policy only; actual selected IAM/Flow authority is
         // exercised by the existing normal-authentication confirmation cases.
         let key=original.context_key(&command_actor).unwrap();original.require_decision(1,&key,&command_actor,true).unwrap();
@@ -3401,8 +3401,8 @@ INSERT INTO field_service_order_events(id,order_id,version,action,actor_id,reaso
 async fn native_field_executive_evidence_keeps_cursor_audit_and_source_rollback() {
     use service_invoice_posting_cases::no_charge_response;
     use axum::{body::Body,http::{Request,StatusCode}};
-    use erpx_service::private_development_api::{assemble_development_api,DevelopmentApiConfiguration};
-    use erpx_server_identity_access::public::SystemAuthenticationSecrets;
+    use erpx_platform_composition::private_development_api::{assemble_development_api,DevelopmentApiConfiguration};
+    use erpx_identity_access_server::public::SystemAuthenticationSecrets;
     facts::account::with_system(|system|async move{
         let now=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;system.scenario.clock.0.store(now,std::sync::atomic::Ordering::SeqCst);
         let p=facts::setup_workspace(system).await;let system=&p.review.system;let db=p.pool().raw();
@@ -3465,16 +3465,16 @@ async fn native_field_executive_evidence_keeps_cursor_audit_and_source_rollback(
 mod quality_lock_auth;
 #[derive(Clone)]
 struct QualityLockOrderSources;
-impl erpx_server_identity_access::public::effective_authority::HoldingWorkSourcePreparation for QualityLockOrderSources {
-    fn prepare<'c>(&'c self,c:&'c mut sqlx::PgConnection)->erpx_server_runtime::public::postgres::PgWorkFuture<'c,(),erpx_server_shared::public::BusinessError> {
+impl erpx_identity_access_server::public::effective_authority::HoldingWorkSourcePreparation for QualityLockOrderSources {
+    fn prepare<'c>(&'c self,c:&'c mut sqlx::PgConnection)->erpx_platform_runtime_server::public::postgres::PgWorkFuture<'c,(),erpx_platform_shared_server::public::BusinessError> {
         Box::pin(async move {
-            erpx_server_commercial::public::purchases::lock_commercial_authority_sources(c).await?;
-            erpx_server_commerce::public::quality_return_origin::lock_quality_return_commerce(c).await?;
-            erpx_server_inventory::public::quality_fulfillment_allocation::lock_quality_fulfillment_allocations(c).await?;
-            erpx_server_inventory::public::quality_disposition_count::lock_quality_disposition_count_sources(c).await?;
-            erpx_server_quality::public::quality_http::lock_quality_cancellation_writes(c).await?;
-            erpx_server_quality::public::quality_http::lock_quality_read_sources(c).await?;
-            erpx_server_collaboration::public::quality_notification::lock_quality_notifications(c).await?;
+            erpx_commercial_server::public::purchases::lock_commercial_authority_sources(c).await?;
+            erpx_commerce_server::public::quality_return_origin::lock_quality_return_commerce(c).await?;
+            erpx_inventory_server::public::quality_fulfillment_allocation::lock_quality_fulfillment_allocations(c).await?;
+            erpx_inventory_server::public::quality_disposition_count::lock_quality_disposition_count_sources(c).await?;
+            erpx_quality_server::public::quality_http::lock_quality_cancellation_writes(c).await?;
+            erpx_quality_server::public::quality_http::lock_quality_read_sources(c).await?;
+            erpx_collaboration_server::public::quality_notification::lock_quality_notifications(c).await?;
             Ok(())
         })
     }
@@ -3488,9 +3488,9 @@ async fn ts_quality_writer_locks(c:&mut sqlx::PgConnection) {
 }
 #[tokio::test]
 async fn quality_authorizer_and_ts_style_writer_lock_order_complete_both_directions() {
-    use erpx_server_quality::public::quality_http::prepare_quality_cancellation;
-    use erpx_server_quality::public::quality_read::{CancellationAction,QualityCancellationCommand};
-    use erpx_server_shared::public::{CommandKey,RecordId,UserId};
+    use erpx_quality_server::public::quality_http::prepare_quality_cancellation;
+    use erpx_quality_server::public::quality_read::{CancellationAction,QualityCancellationCommand};
+    use erpx_platform_shared_server::public::{CommandKey,RecordId,UserId};
     use sqlx::Connection;
     use std::time::Duration;
     projection_fixture::with_database(2,|control|async move {
@@ -3535,15 +3535,15 @@ async fn quality_authorizer_and_ts_style_writer_lock_order_complete_both_directi
 
 #[tokio::test]
 async fn field_inbox_source_preparation_shares_purchase_fence_with_and_without_count() {
-    use erpx_server_identity_access::public::effective_authority::HoldingWorkSourcePreparation;
-    use erpx_service::field_inbox_read::InboxSources;
+    use erpx_identity_access_server::public::effective_authority::HoldingWorkSourcePreparation;
+    use erpx_platform_composition::field_inbox_read::InboxSources;
     use std::time::Duration;
     facts::account::with_system(|system| async move {
         let p = facts::setup_workspace(system).await;
         let db = p.pool().raw();
         for with_count in [false, true] {
-            let count = with_count.then(|| erpx_service::service_initial_physical_stock::ServiceInitialPhysicalStockEnvironment::new(
-                erpx_server_pms::public::initial_count_modules::InitialCountModuleMode::Development,
+            let count = with_count.then(|| erpx_platform_composition::service_initial_physical_stock::ServiceInitialPhysicalStockEnvironment::new(
+                erpx_pms_server::public::initial_count_modules::InitialCountModuleMode::Development,
                 "synthetic-field-inbox".into(), None,
             ));
             let sources = InboxSources { initial_count: count };
@@ -3554,7 +3554,7 @@ async fn field_inbox_source_preparation_shares_purchase_fence_with_and_without_c
             let mut rejected = db.begin().await.unwrap();
             sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *rejected).await.unwrap();
             let conflict=tokio::time::timeout(Duration::from_secs(5),sources.prepare(&mut rejected)).await.unwrap();
-            assert!(matches!(conflict, Err(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03")));
+            assert!(matches!(conflict, Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03")));
             rejected.rollback().await.unwrap();
             existing_writer.rollback().await.unwrap();
             let mut first = db.begin().await.unwrap();
@@ -3614,7 +3614,7 @@ async fn field_inbox_source_preparation_shares_purchase_fence_with_and_without_c
             committed.unwrap();
             let mut fresh=db.begin().await.unwrap();
             sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *fresh).await.unwrap();
-            let preparation=erpx_server_commercial::public::purchases::lock_purchase_read_sources(&mut fresh).await.unwrap();
+            let preparation=erpx_commercial_server::public::purchases::lock_purchase_read_sources(&mut fresh).await.unwrap();
             let _locks=preparation.bind().await.unwrap();
             let visible:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM company_package_grants WHERE company_id='fence-company' AND package_id=$1 AND state='active')").bind(package).fetch_one(&mut *fresh).await.unwrap(); assert!(visible);
             fresh.rollback().await.unwrap();
@@ -3624,7 +3624,7 @@ async fn field_inbox_source_preparation_shares_purchase_fence_with_and_without_c
 
 #[tokio::test]
 async fn field_reservation_alert_source_refuses_lost_savepoint_locks() {
- use erpx_server_field_service::public::reservation_alerts::*;
+ use erpx_field_service_server::public::reservation_alerts::*;
  facts::account::with_system(|system|async move{
   let p=facts::setup_workspace(system).await;let db=p.pool().raw();let now=p.review.system.scenario.clock.now().get();
   let mut tx=db.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
@@ -3638,10 +3638,10 @@ async fn field_reservation_alert_source_refuses_lost_savepoint_locks() {
 #[tokio::test]
 async fn native_social_page_admits_only_the_exact_paid_source_thread_under_current_iam() {
     use axum::{body::Body, http::Request};
-    use erpx_server_collaboration::public::social_http::social_router;
-    use erpx_server_identity_access::public::work_context::HoldingWorkContextInspector;
-    use erpx_service::collaboration::{SocialBackend, SocialConfiguration, SocialService, social_target};
-    use erpx_service::finance_journal_detail_http::FinanceJournalReadScopeHeaders;
+    use erpx_collaboration_server::public::social_http::social_router;
+    use erpx_identity_access_server::public::work_context::HoldingWorkContextInspector;
+    use erpx_platform_composition::collaboration::{SocialBackend, SocialConfiguration, SocialService, social_target};
+    use erpx_platform_composition::finance_journal_detail_http::FinanceJournalReadScopeHeaders;
     use tower::ServiceExt;
 
     facts::account::with_system(|system| async move {

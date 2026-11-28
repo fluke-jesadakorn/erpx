@@ -1,0 +1,109 @@
+import{taskWorkState,canAttachTask}from '@erpx/operations-server/public/staff-task-read';
+export{taskWorkState,canAttachTask};
+import{nativeTaskReadRepository,taskSelect,taskAccess}from '@erpx/operations-server/adapters/staff-task-read';
+
+import { nativeOperationsReadAll, OPERATIONS_RD_TASK_DETAIL_ATTACHMENTS } from './native-operations-read';
+
+import { getProject } from "@erpx/projects-server/public/staff-projects";
+import type { SqlDatabase, SqlStatement } from "@erpx/platform-runtime-server/public/runtime/types";
+import {readablePost} from '@erpx/collaboration-server/public/social-source';
+import { taskSourceStatements, type TaskSource } from "@erpx/collaboration-server/public/social-task";
+import { z } from "zod";
+import {assertion} from "@erpx/workflow-server/public/command-assertions";
+import {operationsOwnerVersionExists} from './identity-policy-version-guard';
+import {approvalView,closeApprovals,taskRoute} from '@erpx/workflow-server/public/approval-planning';
+
+import { activeStaff, staffGuard, notification, type StaffActor } from "@erpx/operations-server/public/staff-policy";
+import { holdingResources as nativeHoldingResources } from '../../../../../platform/runtime/server/src/public/runtime';
+import { policyRead as nativePolicyRead, policyNow as nativePolicyNow } from '@erpx/identity-access-server/public/iam-read-snapshot';
+import { replayCommand as nativeReplayCommand, executeCommand as nativeExecuteCommand } from '@erpx/workflow-server/public/commands';
+import { ApiError as NativeApiError } from '@erpx/platform-runtime-server/public/http';
+import { taskFieldsSchema, taskSchema, type TaskRow, type TaskDetail, canConfigureTask as purecanConfigureTask, type TaskWorkState } from '@erpx/operations-server/domain/staff-tasks';
+import { createStaffTasksApplication, type StaffTasksRepository } from '@erpx/operations-server/application/staff-tasks';
+import { BusinessRuleError } from '@erpx/platform-shared-server/index';
+import { StaffTasksIdentityAccessFacts } from '@erpx/identity-access-server/public/operations-staff-tasks-facts';
+import { StaffTasksProjectsFacts } from '@erpx/projects-server/public/operations-staff-tasks-facts';
+import { StaffTasksPeoplePayrollFacts } from '@erpx/people-payroll-server/public/operations-staff-tasks-facts';
+export { taskFieldsSchema } from '@erpx/operations-server/domain/staff-tasks';
+export { taskSchema } from '@erpx/operations-server/domain/staff-tasks';
+export { projectSchema } from '@erpx/operations-server/domain/staff-tasks';
+export { taskActionSchema } from '@erpx/operations-server/domain/staff-tasks';
+export { taskDelegationSchema } from '@erpx/operations-server/domain/staff-tasks';
+export { taskDelegationRevokeSchema } from '@erpx/operations-server/domain/staff-tasks';
+export type { TaskRow } from '@erpx/operations-server/domain/staff-tasks';
+export type { TaskDetail } from '@erpx/operations-server/domain/staff-tasks';
+export type { ProjectRow } from '@erpx/operations-server/domain/staff-tasks';
+export type { TaskWorkState } from '@erpx/operations-server/domain/staff-tasks';
+
+import {projectTaskPurchaseAccess,projectTaskReadScope,projectTaskWorkState} from '@erpx/projects-server/public/task-purchases';
+import {workTaskPurchaseAccess,workTaskReadScope,workTaskWorkState,withWorkTaskPurchasedCommand} from '@erpx/operations-server/adapters/work-task-purchases';
+function application(provided?: SqlDatabase, projectReadWhere='TRUE',workReadArgs:(string|number|null)[]=[]) {
+    let database = provided!;
+    const repository: StaffTasksRepository<SqlStatement> = { readListTasksRows(companyId: string, userId: string, userId2: string, userId3: string, userId4: string, userId5: string, userId6: string, userId7: string, userId8: string, value: string | null, value2: string | null) {
+            return database.prepare(`${taskSelect()} WHERE t.company_id=? AND ${taskAccess()} AND (${projectReadWhere}) AND (?::text IS NULL OR t.project_id=?) ORDER BY t.updated_at DESC,t.id LIMIT 250`)
+                .bind(companyId, userId, userId2, userId3, userId4, userId5, userId6, userId7, userId8,...workReadArgs, value, value2)
+                .all<TaskRow>();
+        },
+        readGetTaskRow(...args){return nativeTaskReadRepository(database,projectReadWhere,workReadArgs).readGetTaskRow(...args);},
+        guard3(...args){return nativeTaskReadRepository(database,projectReadWhere,workReadArgs).guard3(...args);},
+        guard11(...args) { return StaffTasksIdentityAccessFacts(database).guard11(...args); },
+        guard12(key: string, value: "task-version", id: string, version: number, states: string[]) {
+            return assertion(database, key, value, operationsOwnerVersionExists('staff_tasks',` AND state IN (${states.map(() => "?").join(",")})`,'id=? AND version=?'), [id, version, ...states]);
+        },
+        guard13(...args) { return StaffTasksProjectsFacts(database).guard13(...args); },
+        stageSaveTaskEffect() { throw new Error("NATIVE_STAFF_WORK_REQUIRED"); },
+        stageSaveTaskEffect2() { throw new Error("NATIVE_STAFF_WORK_REQUIRED"); },
+        readTaskDetailAttachments(id: string) {
+            return nativeOperationsReadAll<TaskDetail["attachments"][number]>(
+                OPERATIONS_RD_TASK_DETAIL_ATTACHMENTS,
+                [id],
+                database,
+            );
+        },
+        readTaskDetailDelegationHistory(...args) { return StaffTasksPeoplePayrollFacts(database).readTaskDetailDelegationHistory(...args); },
+        };
+    return createStaffTasksApplication({ repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, commands: { replay: (...args) => nativeReplayCommand(database, ...args), commit: (...args) => nativeExecuteCommand(database, ...args) }, prepare: async (holding) => {
+            if (!provided)
+                database = (await nativeHoldingResources(holding)).write;
+        }, production: process.env.NODE_ENV === 'production', batch: effects => database.batch(effects), policyRead: (key, read) => nativePolicyRead(database, key, read), policyNow: nativePolicyNow, getProject: (...args) => fromNative(() => getProject(database, ...args)), readablePost: (...args) => fromNative(() => readablePost(database, ...args)), taskSourceStatements: (...args) => fromNative(() => taskSourceStatements(database, ...args)), approvalView: (...args) => fromNative(() => approvalView(database, ...args)), closeApprovals: (...args) => closeApprovals(database, ...args), taskRoute: (...args) => fromNative(() => taskRoute(database, ...args)), activeStaff: (...args) => fromNative(() => activeStaff(database, ...args)), staffGuard: (...args) => staffGuard(database, ...args), notification: (...args) => notification(database, ...args) });
+}
+async function fromNative<Result>(run: () => Promise<Result> | Result): Promise<Result> {
+    try {
+        return await run();
+    }
+    catch (error) {
+        if (error instanceof NativeApiError)
+            throw new BusinessRuleError(error.status, error.code, error.message);
+        throw error;
+    }
+}
+async function invoke<Result>(run: () => Promise<Result>) {
+    try {
+        return await run();
+    }
+    catch (error) {
+        if (error instanceof BusinessRuleError)
+            throw new NativeApiError(error.status, error.code, error.message);
+        throw error;
+    }
+}
+function invokeSync<Result>(run: () => Result) {
+    try {
+        return run();
+    }
+    catch (error) {
+        if (error instanceof BusinessRuleError)
+            throw new NativeApiError(error.status, error.code, error.message);
+        throw error;
+    }
+}
+export async function listTasks(db: SqlDatabase, actor: StaffActor, projectId?: string) { const project=await projectTaskReadScope(db,actor),work=await workTaskReadScope(db,actor);return invoke(() => application(db,`(${project.where}) AND (${work.where})`,work.args).listTasks(actor, projectId)); }
+
+export function canConfigureTask(actor: StaffActor, task: TaskRow) { return invokeSync(() => purecanConfigureTask(actor, task)); }
+export function taskVersionGuard(db: SqlDatabase, key: string, id: string, version: number, states: string[]) { return invokeSync(() => application(db).taskVersionGuard(key, id, version, states)); }
+export async function validateTaskConfiguration(db: SqlDatabase, actor: StaffActor, input: z.infer<typeof taskFieldsSchema>, creator = actor.userId, serviceTask = false) { return invoke(() => application(db).validateTaskConfiguration(actor, input, creator, serviceTask)); }
+export function configGuards(db: SqlDatabase, key: string, actor: StaffActor, input: z.infer<typeof taskFieldsSchema>) { return invokeSync(() => application(db).configGuards(key, actor, input)); }
+
+export async function taskDetail(db: SqlDatabase, actor: StaffActor, id: string): Promise<TaskDetail> { await projectTaskPurchaseAccess(db,actor,id);await workTaskPurchaseAccess(db,actor,id);const project=await projectTaskReadScope(db,actor),work=await workTaskReadScope(db,actor),detail=await invoke(() => application(db,`(${project.where}) AND (${work.where})`,work.args).taskDetail(actor, id));return {...detail,...await workTaskWorkState(db,actor,id,await projectTaskWorkState(db,actor,id,detail))}; }
+
+export { getProject, listProjects } from "@erpx/projects-server/public/staff-projects";

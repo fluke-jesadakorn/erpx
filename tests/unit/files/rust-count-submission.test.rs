@@ -1,4 +1,4 @@
-use erpx_server_files::public::count_submission::*;
+use erpx_files_server::public::count_submission::*;
 fn set(target: &str, purpose: &str) -> CountBindingSet {
     CountBindingSet {
         id: "set".into(),

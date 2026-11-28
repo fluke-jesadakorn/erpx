@@ -10,7 +10,7 @@ import {
   nativeDirectoryOperationsRetry,
   nativeDirectoryOperationsReview,
   nativeDirectoryOperationsSubmit,
-} from '@erpx/server-identity_access/adapters/native-directory-operations';
+} from '@erpx/identity-access-server/adapters/native-directory-operations';
 
 /**
  * Native Directory automation client parity.

@@ -21,7 +21,7 @@ test('Account client edits preserve the profile draft through twenty measured HM
   await expect(field('Display name')).toBeEditable({timeout:90_000});
   const authenticatedRouteAppearanceMs=performance.now()-started,draft='Synthetic unsaved Account HMR draft';
   await field('Display name').fill(draft);await hmrReady();
-  await measureWorkspaceHmr({page,info,fixture,app:'account',source:'packages/feature-identity_access/src/components/account-profile-fields.tsx',needle:'"Display name"',label:'Display name',locator:field,authenticatedRouteAppearanceMs,errors,scope:'Account desktop client HMR; sampled process-tree RSS; excludes fixture preparation',assertState:async label=>{
+  await measureWorkspaceHmr({page,info,fixture,app:'account',source:'modules/identity-access/ui/src/components/account-profile-fields.tsx',needle:'"Display name"',label:'Display name',locator:field,authenticatedRouteAppearanceMs,errors,scope:'Account desktop client HMR; sampled process-tree RSS; excludes fixture preparation',assertState:async label=>{
     await expect(field(label)).toHaveValue(draft);
     expect(new URL(page.url()).searchParams.get('workspaceHmr')).toBe('preserved');
   }});
@@ -42,7 +42,7 @@ test('Apps server component edits preserve the session through twenty measured H
   await hmrReady();
   const initial=(await context.cookies()).find(cookie=>cookie.name==='__Host-erpx-product'&&cookie.domain==='apps-dev-erpx.jesadakorn.com');
   expect(initial).toBeTruthy();
-  await measureWorkspaceHmr({page,info,fixture,app:'apps',source:'packages/workplace/src/entries/workspace.tsx',needle:'"Choose a workspace"',label:'Choose a workspace',locator:heading,authenticatedRouteAppearanceMs,errors,scope:'Apps desktop server component HMR; sampled process-tree RSS; excludes fixture preparation',assertState:async()=>{
+  await measureWorkspaceHmr({page,info,fixture,app:'apps',source:'platform/workplace/src/entries/workspace.tsx',needle:'"Choose a workspace"',label:'Choose a workspace',locator:heading,authenticatedRouteAppearanceMs,errors,scope:'Apps desktop server component HMR; sampled process-tree RSS; excludes fixture preparation',assertState:async()=>{
     expect(new URL(page.url()).origin).toBe(origin);
     expect(new URL(page.url()).searchParams.get('workspaceHmr')).toBe('preserved');
     await expect(page.getByRole('link',{name:'Account',exact:true})).toBeVisible();
@@ -65,7 +65,7 @@ test('Admin server component edits preserve the session through twenty measured 
   await hmrReady();
   const initial=(await context.cookies()).find(cookie=>cookie.name==='__Host-erpx-product'&&cookie.domain==='admin-dev-erpx.jesadakorn.com');
   expect(initial).toBeTruthy();
-  await measureWorkspaceHmr({page,info,fixture,app:'admin',source:'packages/workplace/src/entries/workspace.tsx',needle:'"Choose a workspace"',label:'Choose a workspace',locator:heading,authenticatedRouteAppearanceMs,errors,scope:'Admin desktop server component HMR; sampled process-tree RSS; excludes fixture preparation',assertState:async()=>{
+  await measureWorkspaceHmr({page,info,fixture,app:'admin',source:'platform/workplace/src/entries/workspace.tsx',needle:'"Choose a workspace"',label:'Choose a workspace',locator:heading,authenticatedRouteAppearanceMs,errors,scope:'Admin desktop server component HMR; sampled process-tree RSS; excludes fixture preparation',assertState:async()=>{
     expect(new URL(page.url()).origin).toBe(origin);
     expect(new URL(page.url()).searchParams.get('workspaceHmr')).toBe('preserved');
     await expect(page.getByRole('link',{name:'Account',exact:true})).toBeVisible();

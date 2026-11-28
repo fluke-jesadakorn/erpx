@@ -1,0 +1,6 @@
+export {supportTicketPortalSelectionSchema,supportTicketPortalPrepareSchema,supportTicketPortalDecisionSchema,supportTicketPortalResponseSchema,supportTicketPortalAcknowledgementSchema} from '@erpx/support-server/domain/ticket-portal';
+export type {SupportTicketPortalSelection,SupportTicketPortalPrepareInput,SupportTicketPortalDecisionInput,SupportTicketPortalResponseInput,SupportTicketPortalAcknowledgementInput,SupportTicketPortalResponse,SupportTicketPortalBinding,SupportTicketPortalWorkspace,SupportTicketPortalProjection,SupportTicketPortalPrepareResult,SupportTicketPortalDecisionResult,SupportTicketPortalResponseResult,SupportTicketPortalAcknowledgementResult} from '@erpx/support-server/domain/ticket-portal';
+export {supportTicketPortalWorkspace} from '@erpx/support-server/adapters/ticket-portal';
+export {supportTicketPortalPreview} from '@erpx/support-server/adapters/ticket-portal-customer';
+export {supportTicketPortalPreviewRequest} from '@erpx/support-server/adapters/ticket-portal-request';
+export {supportTicketPortalAvailable} from '@erpx/support-server/adapters/ticket-portal-availability';

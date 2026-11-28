@@ -8,7 +8,7 @@ import {
   nativeBenefitsLane32Configuration,
   readBenefitPayrollInputsReply,
   type PayrollInputArgs,
-} from '../../../packages/server-benefits/src/adapters/native-lane-32/client';
+} from '../../../modules/benefits/server/src/adapters/native-lane-32/client';
 
 const configRaw = JSON.stringify({
   privateBaseUrl: 'http://127.0.0.1:44994',
@@ -136,9 +136,9 @@ describe('native lane-32 SQL/result oracle and TS cutover', () => {
 
   it('removes the retired SQL from every switched owner file', async () => {
     const files = [
-      '../../../packages/server-benefits/src/adapters/benefits-read-sql.ts',
-      '../../../packages/server-benefits/src/adapters/payroll-owner-facts.ts',
-      '../../../packages/server-benefits/src/adapters/payroll-source-facts.ts',
+      '../../../modules/benefits/server/src/adapters/benefits-read-sql.ts',
+      '../../../modules/benefits/server/src/adapters/payroll-owner-facts.ts',
+      '../../../modules/benefits/server/src/adapters/payroll-source-facts.ts',
     ];
     for (const file of files) {
       const source = await readFile(new URL(file, import.meta.url), 'utf8');
@@ -146,7 +146,7 @@ describe('native lane-32 SQL/result oracle and TS cutover', () => {
       expect(source).not.toContain('plan_name FROM benefit_payroll_inputs');
     }
     const owner = await readFile(
-      new URL('../../../packages/server-benefits/src/adapters/payroll-owner-facts.ts', import.meta.url),
+      new URL('../../../modules/benefits/server/src/adapters/payroll-owner-facts.ts', import.meta.url),
       'utf8',
     );
     expect(owner).toContain("from './native-lane-32/client'");
@@ -156,15 +156,15 @@ describe('native lane-32 SQL/result oracle and TS cutover', () => {
   it('routes both live call sites through the native client with no local SQL', async () => {
     const read = vi.fn(async () => ({ results: [row] }));
     vi.resetModules();
-    vi.doMock('../../../packages/server-benefits/src/adapters/native-lane-32/client', () => ({
+    vi.doMock('../../../modules/benefits/server/src/adapters/native-lane-32/client', () => ({
       benefitPayrollInputs: read,
     }));
     try {
       const { payrollBenefitOwnerFacts } = await import(
-        '../../../packages/server-benefits/src/adapters/payroll-owner-facts'
+        '../../../modules/benefits/server/src/adapters/payroll-owner-facts'
       );
       const { payrollBenefitSources } = await import(
-        '../../../packages/server-benefits/src/adapters/payroll-source-facts'
+        '../../../modules/benefits/server/src/adapters/payroll-source-facts'
       );
       const prepare = vi.fn();
       const db = { prepare } as never;
@@ -179,7 +179,7 @@ describe('native lane-32 SQL/result oracle and TS cutover', () => {
       expect(read).toHaveBeenCalledWith(db, expected, undefined);
       expect(prepare).not.toHaveBeenCalled();
     } finally {
-      vi.doUnmock('../../../packages/server-benefits/src/adapters/native-lane-32/client');
+      vi.doUnmock('../../../modules/benefits/server/src/adapters/native-lane-32/client');
       vi.resetModules();
     }
   });

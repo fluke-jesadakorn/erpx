@@ -8,9 +8,9 @@ import {
   PP_RD28_PENDING_TIME_COUNT_SQL,
   ppRd28PersonLegalNamesSql,
   ppRd28SourceExistsByIdSql,
-} from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r28-sources';
+} from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r28-sources';
 
-const src = (name: string) => readFileSync(new URL(`../../../packages/server-people_payroll/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFileSync(new URL(`../../../modules/people-payroll/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const readOnly = (literal: string) => {
   expect(literal).toContain('SELECT ');
   expect(literal).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
@@ -99,7 +99,7 @@ describe('People Payroll read-tail r28 parameterized family dedupe', () => {
   });
 
   test('worktree SELECT count is strictly lower than the recorded 1432 r27 baseline', () => {
-    const root = new URL('../../../packages/server-people_payroll/src/', import.meta.url);
+    const root = new URL('../../../modules/people-payroll/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {

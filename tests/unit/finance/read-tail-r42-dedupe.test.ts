@@ -13,9 +13,9 @@ import {
   financeReferenceListSql,
   intercompanyPairPointSql,
   payrollPostPeriodSql,
-} from '../../../packages/server-finance/src/adapters/finance-read-tail-r42-sql';
+} from '../../../modules/finance/server/src/adapters/finance-read-tail-r42-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-finance/src');
+const srcRoot = resolve(__dirname, '../../../modules/finance/server/src');
 const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const readRepo = (path: string) => readFileSync(resolve(__dirname, '../../..', path), 'utf8');
 const helper = read('finance-read-tail-r42-sql.ts');
@@ -122,7 +122,7 @@ describe('Finance read-tail r42 byte-identical NEW families', () => {
     expect(read('commerce-facts.ts')).toContain('FOR UPDATE');
     expect(read('finance-tax-register.ts')).toContain('SELECT');
     expect(read('finance.ts')).toContain('assertion(write, id, "credited-payment-source"');
-    expect(readRepo('packages/server-collaboration/src/adapters/native-finance-billing-corrections.ts')).toContain('Native-owned finance billing correction statements.');
+    expect(readRepo('modules/collaboration/server/src/adapters/native-finance-billing-corrections.ts')).toContain('Native-owned finance billing correction statements.');
     expect(read('finance-read-tail-r15-sql.ts')).toContain('CHART_BASE_CURRENCY_BY_ID_SQL');
     expect(read('finance-read-tail-r32-sql.ts')).toContain('ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL');
     expect(read('finance-read-tail-r38-sql.ts')).toContain('ACCRUAL_SCHEDULE_POINT_SQL');

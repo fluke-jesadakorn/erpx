@@ -6,7 +6,7 @@
 mod http;
 use axum::http::{StatusCode, header};
 use axum::{body::Body, http::Request};
-use erpx_server_identity_access::public::account_auth_router;
+use erpx_identity_access_server::public::account_auth_router;
 use http::revocation as fixture;
 use http::*;
 use serde_json::json;

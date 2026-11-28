@@ -1,8 +1,8 @@
 //! Owner lock segment only; no global Portal or purchase authority.
 #![allow(dead_code)]
 #[path = "../../support/rust-postgres.rs"] mod fixture;
-use erpx_server_inventory::public::portal_commerce_locks::lock_portal_inventory_sources;
-use erpx_server_runtime::public::postgres::{MigrationTrack,load_migrations,migrate_database};
+use erpx_inventory_server::public::portal_commerce_locks::lock_portal_inventory_sources;
+use erpx_platform_runtime_server::public::postgres::{MigrationTrack,load_migrations,migrate_database};
 use sqlx::Connection;
 #[tokio::test]
 async fn fence_waits_for_real_writer_before_snapshot(){fixture::with_database(4,|pool|async move{

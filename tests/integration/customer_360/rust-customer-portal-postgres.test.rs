@@ -2,12 +2,12 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_customer_360::public::customer_portal::{
+use erpx_customer_360_server::public::customer_portal::{
     PgCustomerPortal, PortalAction, PortalCommandFacts, PortalCommandInput, PortalCustomerActor,
     PortalPurchaseScope,
 };
-use erpx_server_customer_360::public::portal_action_source::{lock_portal_action_sources,read_portal_action_source};
-use erpx_server_runtime::public::postgres::{load_migrations, migrate_database, MigrationTrack, PgTransactionError};
+use erpx_customer_360_server::public::portal_action_source::{lock_portal_action_sources,read_portal_action_source};
+use erpx_platform_runtime_server::public::postgres::{load_migrations, migrate_database, MigrationTrack, PgTransactionError};
 use sqlx::Connection;
 
 #[tokio::test]

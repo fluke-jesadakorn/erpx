@@ -1,5 +1,5 @@
 //! Native CRM lead / opportunity command validation facts.
-use erpx_server_crm::public::leads_native::{
+use erpx_crm_server::public::leads_native::{
     LeadActor, LeadChangeInput, LeadCreateInput, LeadCreateReceipt, OpportunityChangeInput,
     canonical_lead_create_input, canonical_lead_qualify_input, lead_record_id,
     validate_lead_change, validate_lead_create, validate_opportunity_change,
@@ -187,7 +187,7 @@ async fn lead_create_rejects_empty_title() {
 
 #[test]
 fn native_action_slice_fails_closed_for_cross_owner_work() {
-    use erpx_server_crm::public::leads_native::{
+    use erpx_crm_server::public::leads_native::{
         NATIVE_LEAD_ACTIONS, NATIVE_OPPORTUNITY_ACTIONS, native_lead_action,
         native_opportunity_action,
     };

@@ -1,4 +1,4 @@
-use erpx_server_platform_administration::public::legal_release::*;
+use erpx_platform_administration_server::public::legal_release::*;
 use sha2::{Digest, Sha256};
 fn facts() -> LegalReleaseFacts {
     let catalogue = current_legal_release_catalogue().unwrap();
@@ -168,7 +168,7 @@ fn engineering_context_rechecks_real_files_and_exact_local_configuration() {
 #[cfg(unix)]
 #[test]
 fn native_roster_snapshot_rechecks_private_file_seal_and_exact_run_directory() {
-    use erpx_server_platform_administration::public::native_roster_snapshot::capture_native_roster_snapshot;
+    use erpx_platform_administration_server::public::native_roster_snapshot::capture_native_roster_snapshot;
     use std::os::unix::fs::{PermissionsExt, symlink};
     let _temporary = tempfile::tempdir().unwrap();let root = _temporary.path().canonicalize().unwrap();
     let run = "0123456789ab";
@@ -254,7 +254,7 @@ fn native_roster_snapshot_rechecks_private_file_seal_and_exact_run_directory() {
 #[cfg(unix)]
 #[test]
 fn native_roster_snapshot_rejects_replaced_directory_even_with_identical_bytes() {
-    use erpx_server_platform_administration::public::native_roster_snapshot::capture_native_roster_snapshot;
+    use erpx_platform_administration_server::public::native_roster_snapshot::capture_native_roster_snapshot;
     use std::os::unix::fs::{PermissionsExt, symlink};
     let _temporary = tempfile::tempdir().unwrap();let root = _temporary.path().canonicalize().unwrap();
     let run = "0123456789ab";
@@ -301,7 +301,7 @@ fn native_roster_snapshot_rejects_replaced_directory_even_with_identical_bytes()
 #[cfg(unix)]
 #[test]
 fn attested_roster_capture_binds_declared_lease_to_exact_private_file() {
-    use erpx_server_platform_administration::public::native_roster_snapshot::capture_attested_native_roster_snapshot;
+    use erpx_platform_administration_server::public::native_roster_snapshot::capture_attested_native_roster_snapshot;
     use std::os::unix::fs::PermissionsExt;
     let _temporary = tempfile::tempdir().unwrap();let root = _temporary.path().canonicalize().unwrap();
     let run = "0123456789ab";

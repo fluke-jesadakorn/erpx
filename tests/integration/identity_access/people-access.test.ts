@@ -1,13 +1,13 @@
 import { beforeAll, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import { peopleRelationshipsSnapshot, peopleAccessSnapshot } from "@erpx/server-identity_access/public/people-access";
-import { loadIamAuthority } from "@erpx/server-identity_access/public/iam-store";
-import { holdingPeopleDirectory } from "@erpx/server-organization/public/holding-people-directory";
-import { directoryPerson } from "@erpx/server-people_payroll/public/people-directory";
-import { peopleDirectoryPage } from "@erpx/server-people_payroll/public/people-directory-page";
-import type { IamActor } from "@erpx/server-identity_access/public/iam-context";
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({runtimeEnv:async()=>env,holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),holdingBindingBySlug:async()=>({id:"h001",slug:"test",displayName:"Test"})}));
+import { peopleRelationshipsSnapshot, peopleAccessSnapshot } from "@erpx/identity-access-server/public/people-access";
+import { loadIamAuthority } from "@erpx/identity-access-server/public/iam-store";
+import { holdingPeopleDirectory } from "@erpx/organization-server/public/holding-people-directory";
+import { directoryPerson } from "@erpx/people-payroll-server/public/people-directory";
+import { peopleDirectoryPage } from "@erpx/people-payroll-server/public/people-directory-page";
+import type { IamActor } from "@erpx/identity-access-server/public/iam-context";
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({runtimeEnv:async()=>env,holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),holdingBindingBySlug:async()=>({id:"h001",slug:"test",displayName:"Test"})}));
 const db=env.H001_DB,key=()=>crypto.randomUUID();
 beforeAll(async()=>{await applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS);await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 /**

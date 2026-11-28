@@ -1,14 +1,14 @@
 //! Owner-local HTTP adapter tests for the native POS cash-movement command.
 //! The exact owner dispatch is exercised without opening a socket; mounting the
 //! router into the shared composition backend remains an integration step.
-use erpx_server_pos::public::cash_movement_http::{
+use erpx_pos_server::public::cash_movement_http::{
     CashMovementHttpBackend, CashMovementHttpFuture, CashMovementHttpRequest,
     CashMovementHttpResponse, CashMovementHttpState, CashMovementHttpTarget, cash_movement_router,
 };
-use erpx_server_runtime::public::http_support::{
+use erpx_platform_runtime_server::public::http_support::{
     HeaderMap, HeaderValue, StatusCode, body::to_bytes, header, serde_json,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Noop;

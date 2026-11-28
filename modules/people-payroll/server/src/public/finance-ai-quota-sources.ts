@@ -1,0 +1,1 @@
+export {financeAiExpenseUsageSql,financeAiExpenseMonthlyReservationsSql,financeAiExpenseDatedReservationsSql,financeAiExpenseDailyReservationsSql} from '@erpx/people-payroll-server/adapters/finance-ai-quota-sources';

@@ -8,7 +8,7 @@ import {
   nativeSalesPricingFailure,
   NativeSalesPricingError,
   type NativeSalesPricingPageContext,
-} from '../../../packages/feature-sales/src/public/native-sales-pricing';
+} from '../../../modules/sales/ui/src/public/native-sales-pricing';
 
 const config = (overrides: Record<string, unknown> = {}) =>
   JSON.stringify({

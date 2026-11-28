@@ -8,10 +8,10 @@ import {
   lane3Config,
   nativeCurrentInvoiceLines,
   nativeLane3Configured,
-} from "../../../packages/server-finance/src/adapters/native-lane-3/client";
-import type { Lane3Actor } from "../../../packages/server-finance/src/adapters/native-lane-3/client";
-import { nativeSetupCounts } from "../../../packages/server-finance/src/adapters/native-lane-3/setup-client";
-import { nativeStarterProbes } from "../../../packages/server-finance/src/adapters/native-lane-3/starter-client";
+} from "../../../modules/finance/server/src/adapters/native-lane-3/client";
+import type { Lane3Actor } from "../../../modules/finance/server/src/adapters/native-lane-3/client";
+import { nativeSetupCounts } from "../../../modules/finance/server/src/adapters/native-lane-3/setup-client";
+import { nativeStarterProbes } from "../../../modules/finance/server/src/adapters/native-lane-3/starter-client";
 import { readFile } from "node:fs/promises";
 
 const KEY = "ERPX_NATIVE_LANE3_READ_CONFIG";
@@ -288,7 +288,7 @@ describe("native Finance lane 3 setup reference counts", () => {
 
   it("deletes the migrated SQL from the finance workspace adapter", async () => {
     const source = await readFile(
-      new URL("../../../packages/server-finance/src/adapters/finance-workspace.ts", import.meta.url),
+      new URL("../../../modules/finance/server/src/adapters/finance-workspace.ts", import.meta.url),
       "utf8",
     );
     for (const sql of SETUP_SQL) expect(source).not.toContain(sql);

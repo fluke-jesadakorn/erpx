@@ -1,0 +1,1613 @@
+//! Native HTTP ingress for Social posts, topics, comments, reactions and
+//! follows.
+//!
+//! Transport facts only: exact registered Holding host/slug, browser origin,
+//! one idempotency key, bounded JSON and error mapping. Session resolution,
+//! current Company membership/editor authority and the serializable owner unit
+//! belong to the composition backend, which must implement
+//! [`SocialHttpBackend`]. The router never mints an actor, Company or permission.
+use crate::adapters::http_ingress::{
+    bounded, command_key, content_invalid, error_response, json_body, unique_header, valid_origin,
+};
+use crate::adapters::social::{FeedFilter, FeedPost};
+use crate::adapters::social_http_wire::decode_social_command;
+use crate::domain::social::{Change, FeedCursor, Receipt};
+use erpx_platform_runtime_server::public::http_support::{
+    HeaderMap, IntoResponse, Json, Path, Query, Request, Response, Router, State, StatusCode,
+    header,
+    routing::{get, post},
+};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey, FailureKind};
+use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
+use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Arc};
+
+const DEFAULT_PAGE: usize = 50;
+
+pub type SocialHttpFuture<'a, T> =
+    Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SocialFeedData {
+    pub items: Vec<FeedPost>,
+    #[serde(rename = "nextCursor")]
+    pub next_cursor: Option<String>,
+    #[serde(rename = "hasMore")]
+    pub has_more: bool,
+}
+
+impl SocialFeedData {
+    pub fn new(items: Vec<FeedPost>, has_more: bool) -> Self {
+        let next_cursor = if has_more {
+            items.last().map(|post| {
+                FeedCursor {
+                    at: post.created_at,
+                    id: post.id.clone(),
+                }
+                .encode()
+            })
+        } else {
+            None
+        };
+        Self {
+            items,
+            next_cursor,
+            has_more,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SocialThreadData {
+    pub posts: Vec<FeedPost>,
+}
+
+/// Audience options for the social composer. The cross-owner rows stay opaque
+/// JSON so the composition owner can project them without duplicating types.
+#[derive(Clone, Debug, Serialize)]
+pub struct SocialAudienceOptionsData {
+    pub branches: Vec<Value>,
+    pub audiences: Vec<Value>,
+    pub projects: Vec<Value>,
+}
+
+/// Purchase/context presentation carried by the page. `context` is the stable
+/// home cache token; `purchase` is omitted until a purchase gate is bound.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SocialPresentationData {
+    pub context: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub purchase: Option<Value>,
+}
+
+/// Complete SSR page payload. Every field the Social home/document presenters
+/// read is present; consumers never reconstruct a value from a partial native
+/// projection merged over the retained TypeScript payload.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SocialPageData {
+    pub posts: Vec<Value>,
+    pub milestones: Vec<Value>,
+    pub options: SocialAudienceOptionsData,
+    pub source_only: bool,
+    pub moderate: bool,
+    pub presentation: Option<SocialPresentationData>,
+    pub initial_day: Option<Value>,
+    pub post: Option<Value>,
+}
+
+/// One bounded comment page. Item fields stay snake_case because the existing
+/// conversation client renders them directly.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SocialCommentsData {
+    pub items: Vec<crate::adapters::social::CommentPageRow>,
+    pub next_cursor: Option<String>,
+    pub has_more: bool,
+}
+
+impl SocialCommentsData {
+    pub fn new(
+        items: Vec<crate::adapters::social::CommentPageRow>,
+        next: Option<FeedCursor>,
+    ) -> Self {
+        let has_more = next.is_some();
+        Self {
+            items,
+            next_cursor: next.map(|cursor| cursor.encode()),
+            has_more,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub enum SocialReadKind {
+    Feed {
+        filter: FeedFilter,
+        cursor: Option<FeedCursor>,
+        limit: usize,
+    },
+    Thread {
+        post_id: String,
+    },
+}
+
+pub struct SocialHttpReadRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub kind: SocialReadKind,
+}
+
+pub struct SocialHttpCommandRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub change: Change,
+    pub input: Value,
+    pub key: CommandKey,
+}
+
+/// One paged comment read for a retained post.
+pub struct SocialHttpCommentsRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub post_id: &'a str,
+    pub cursor: Option<FeedCursor>,
+    pub limit: usize,
+}
+
+/// One author-only revision-history read.
+pub struct SocialHttpRevisionsRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub post_id: &'a str,
+}
+
+/// One aggregate SSR page read. The owner returns every field in one reply so
+/// the Next transport cannot accidentally render a half-native page.
+pub struct SocialHttpPageRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub post_id: Option<&'a str>,
+    pub tag: Option<&'a str>,
+    pub skip_day: bool,
+    pub skip_milestones: bool,
+    pub source_only: bool,
+}
+
+/// Account-scoped admission for a proposed role, before selection.
+pub struct SocialHttpSourceEntryRequest<'a> {
+    pub host: &'a str,
+    pub headers: &'a HeaderMap,
+    pub post_id: &'a str,
+    pub company_id: &'a str,
+    pub assignment_id: &'a str,
+    pub assignment_version: i64,
+}
+
+#[derive(Serialize)]
+pub struct SocialSourceEntryData {
+    pub eligible: bool,
+}
+
+pub enum SocialHttpReadReply {
+    Feed(Box<SocialFeedData>),
+    Thread(Box<SocialThreadData>),
+}
+
+/// Composition-owned session, scope and owner-unit adapter. The router never
+/// resolves a session or invents Company/member authority.
+pub trait SocialHttpBackend: Send + Sync {
+    fn read<'a>(
+        &'a self,
+        request: SocialHttpReadRequest<'a>,
+    ) -> SocialHttpFuture<'a, SocialHttpReadReply>;
+    fn command<'a>(
+        &'a self,
+        request: SocialHttpCommandRequest<'a>,
+    ) -> SocialHttpFuture<'a, Receipt>;
+
+    /// Paged comments. Composition overrides this once its owner unit is
+    /// bound; the default fails closed instead of inventing rows.
+    fn comments_page<'a>(
+        &'a self,
+        _request: SocialHttpCommentsRequest<'a>,
+    ) -> SocialHttpFuture<'a, SocialCommentsData> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "SOCIAL_COMMENTS_PORT_UNAVAILABLE",
+                "The native Social comment reader is unavailable.",
+            ))
+        })
+    }
+
+    /// Author-only revision history, with the same fail-closed default.
+    fn revisions<'a>(
+        &'a self,
+        _request: SocialHttpRevisionsRequest<'a>,
+    ) -> SocialHttpFuture<'a, Vec<crate::adapters::social::RevisionRow>> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "SOCIAL_REVISIONS_PORT_UNAVAILABLE",
+                "The native Social revision reader is unavailable.",
+            ))
+        })
+    }
+
+    fn source_entry<'a>(
+        &'a self,
+        _request: SocialHttpSourceEntryRequest<'a>,
+    ) -> SocialHttpFuture<'a, SocialSourceEntryData> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "SOCIAL_SOURCE_ENTRY_UNAVAILABLE",
+                "Social role admission is unavailable.",
+            ))
+        })
+    }
+
+    /// Aggregate SSR page read. Composition binds the cross-owner audience,
+    /// presentation and moderation ports; until then the default fails closed
+    /// instead of returning an empty or partial page.
+    fn page<'a>(
+        &'a self,
+        _request: SocialHttpPageRequest<'a>,
+    ) -> SocialHttpFuture<'a, SocialPageData> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "SOCIAL_PAGE_PORT_UNAVAILABLE",
+                "The native Social page reader is unavailable.",
+            ))
+        })
+    }
+}
+
+#[derive(Clone)]
+pub struct SocialHttpTarget {
+    pub host: String,
+    pub holding_slug: String,
+    /// Exact browser origin for this registered Holding, for example
+    /// `https://acme.jesadakorn.com`.
+    pub origin: String,
+    pub backend: Arc<dyn SocialHttpBackend>,
+}
+
+pub struct SocialHttpState {
+    targets: BTreeMap<(String, String), SocialHttpTarget>,
+}
+
+impl SocialHttpState {
+    /// Validate exact distinct registered Holding targets.
+    pub fn new(targets: Vec<SocialHttpTarget>) -> Result<Self, BusinessError> {
+        let mut configured = BTreeMap::new();
+        for target in targets {
+            if target.host.is_empty()
+                || target.holding_slug.is_empty()
+                || !valid_origin(&target.host, &target.origin)
+                || configured
+                    .insert((target.host.clone(), target.holding_slug.clone()), target)
+                    .is_some()
+            {
+                return Err(BusinessError::invalid(
+                    "SOCIAL_HTTP_CONFIGURATION_INVALID",
+                    "Use exact distinct registered Holding targets.",
+                ));
+            }
+        }
+        Ok(Self {
+            targets: configured,
+        })
+    }
+}
+
+#[derive(Deserialize)]
+pub struct FeedQuery {
+    #[serde(default)]
+    pub filter: Option<String>,
+    #[serde(default)]
+    pub cursor: Option<String>,
+    #[serde(default)]
+    pub limit: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct ThreadQuery {
+    #[serde(default)]
+    pub limit: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct CommentsQuery {
+    #[serde(default)]
+    pub cursor: Option<String>,
+    #[serde(default)]
+    pub limit: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SocialPageQuery {
+    #[serde(default, alias = "post_id")]
+    pub post_id: Option<String>,
+    #[serde(default)]
+    pub tag: Option<String>,
+    #[serde(default, alias = "skip_day")]
+    pub skip_day: Option<String>,
+    #[serde(default, alias = "skip_milestones")]
+    pub skip_milestones: Option<String>,
+    #[serde(default, alias = "source_only")]
+    pub source_only: Option<String>,
+}
+
+fn missing() -> BusinessError {
+    BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.")
+}
+
+pub fn social_router(targets: Vec<SocialHttpTarget>) -> Result<Router, BusinessError> {
+    let state = SocialHttpState::new(targets)?;
+    Ok(Router::new()
+        .route(
+            "/api/v1/holdings/{holding_slug}/feed",
+            get(read_feed).post(create_post),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/feed/{post_id}",
+            get(read_thread),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/feed/{post_id}/comments",
+            get(read_post_comments).post(create_comment),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/posts/{post_id}/comments",
+            get(read_post_comments).post(create_comment),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/feed/{post_id}/revisions",
+            get(read_post_revisions),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/feed/{post_id}/comments/{comment_id}/actions",
+            post(comment_action),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/feed/{post_id}/reactions",
+            post(set_reaction),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/feed/{post_id}/follows",
+            post(set_post_follow),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/topics/{tag}/follows",
+            post(set_topic_follow),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/feed/{post_id}/reports",
+            post(report_post),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/feed/{post_id}/actions",
+            post(post_action),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/feed/handovers",
+            post(publish_handover),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/feed/drafts",
+            post(save_draft),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/feed/drafts/{draft_id}/publish",
+            post(publish_draft),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/feed/{post_id}/comment-uploads",
+            post(create_comment_upload),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/feed/comment-uploads/{draft_id}/cancel",
+            post(cancel_comment_upload),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/feed/{post_id}/edit-uploads",
+            post(create_edit_upload),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/feed/edit-uploads/{draft_id}/cancel",
+            post(cancel_edit_upload),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/stories",
+            post(create_story),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/stories/{story_id}/archive",
+            post(archive_story),
+        )
+        .route("/api/v1/holdings/{holding_slug}/page", get(read_page))
+        .route(
+            "/api/v1/holdings/{holding_slug}/posts/{post_id}/source-entry",
+            get(read_source_entry),
+        )
+        .with_state(Arc::new(state)))
+}
+
+fn target<'a>(
+    state: &'a SocialHttpState,
+    headers: &HeaderMap,
+    slug: &str,
+) -> Result<&'a SocialHttpTarget, BusinessError> {
+    let host = unique_header(headers, header::HOST)?
+        .filter(|value| !value.is_empty())
+        .ok_or_else(missing)?;
+    state
+        .targets
+        .get(&(host.to_owned(), slug.to_owned()))
+        .ok_or_else(missing)
+}
+
+fn check_origin(target: &SocialHttpTarget, headers: &HeaderMap) -> Result<(), BusinessError> {
+    match unique_header(headers, header::ORIGIN)? {
+        Some(value) if value == target.origin => Ok(()),
+        _ => Err(BusinessError::new(
+            FailureKind::Forbidden,
+            "ORIGIN_FORBIDDEN",
+            "Use the application origin.",
+        )),
+    }
+}
+
+fn read_limit(value: Option<&str>) -> Result<usize, BusinessError> {
+    match value {
+        None => Ok(DEFAULT_PAGE),
+        Some(raw) => raw
+            .parse::<usize>()
+            .ok()
+            .filter(|value| (1..=100).contains(value))
+            .ok_or_else(|| {
+                BusinessError::invalid("SOCIAL_LIMIT_INVALID", "Choose a smaller page.")
+            }),
+    }
+}
+
+fn cursor(value: Option<&str>) -> Result<Option<FeedCursor>, BusinessError> {
+    value.map(FeedCursor::decode).transpose()
+}
+
+/// SSR page flags are transported as `1`/`true` and default to false. An
+/// unknown value is rejected instead of silently widening the page read.
+fn page_flag(value: Option<&str>, name: &'static str) -> Result<bool, BusinessError> {
+    match value {
+        None => Ok(false),
+        Some("1" | "true") => Ok(true),
+        Some("0" | "false" | "") => Ok(false),
+        Some(_) => Err(BusinessError::invalid(name, "Choose a valid page flag.")),
+    }
+}
+
+pub async fn read_feed(
+    State(state): State<Arc<SocialHttpState>>,
+    Path(slug): Path<String>,
+    Query(query): Query<FeedQuery>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let public = headers
+        .get("x-erpx-api-transport")
+        .is_some_and(|value| value == "public");
+    let result = async {
+        let target = target(&state, &headers, &slug)?;
+        let filter =
+            FeedFilter::parse(query.filter.as_deref().unwrap_or("all")).map_err(|error| {
+                if public {
+                    BusinessError::invalid("INVALID_FILTER", "Choose a valid feed filter.")
+                } else {
+                    error
+                }
+            })?;
+        target
+            .backend
+            .read(SocialHttpReadRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                kind: SocialReadKind::Feed {
+                    filter,
+                    cursor: cursor(query.cursor.as_deref())?,
+                    limit: read_limit(if public { None } else { query.limit.as_deref() })?,
+                },
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(SocialHttpReadReply::Feed(reply)) if public => (
+            [(header::CACHE_CONTROL, "private, no-store")],
+            Json(json!({"data": reply.items, "hasMore": reply.has_more, "nextCursor": reply.next_cursor})),
+        ).into_response(),
+        Ok(SocialHttpReadReply::Feed(reply)) => bounded(*reply),
+        Ok(_) => error_response(BusinessError::invalid(
+            "SOCIAL_HTTP_RESPONSE_INVALID",
+            "The native Social reader returned the wrong shape.",
+        )),
+        Err(error) => error_response(error),
+    }
+}
+
+pub async fn read_thread(
+    State(state): State<Arc<SocialHttpState>>,
+    Path((slug, post_id)): Path<(String, String)>,
+    Query(query): Query<ThreadQuery>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let result = async {
+        let target = target(&state, &headers, &slug)?;
+        let _ = read_limit(query.limit.as_deref())?;
+        target
+            .backend
+            .read(SocialHttpReadRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                kind: SocialReadKind::Thread { post_id },
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(SocialHttpReadReply::Thread(reply)) => bounded(*reply),
+        Ok(_) => error_response(BusinessError::invalid(
+            "SOCIAL_HTTP_RESPONSE_INVALID",
+            "The native Social reader returned the wrong shape.",
+        )),
+        Err(error) => error_response(error),
+    }
+}
+
+pub async fn read_post_comments(
+    State(state): State<Arc<SocialHttpState>>,
+    Path((slug, post_id)): Path<(String, String)>,
+    Query(query): Query<CommentsQuery>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let conversation = request.uri().path().split('/').nth(5) == Some("posts");
+    let result = async {
+        let target = target(&state, &headers, &slug)?;
+        let cursor = cursor(query.cursor.as_deref())?;
+        let limit = read_limit(if conversation {
+            None
+        } else {
+            query.limit.as_deref()
+        })?;
+        target
+            .backend
+            .comments_page(SocialHttpCommentsRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                post_id: &post_id,
+                cursor,
+                limit,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(reply) if conversation => {
+            let items = reply
+                .items
+                .into_iter()
+                .map(|row| {
+                    let rich_content = row.rich_content.clone();
+                    let mut item = json!(row);
+                    if let Some(fields) = item.as_object_mut() {
+                        fields.remove("rich_content_json");
+                        fields.insert("richContent".into(), rich_content.unwrap_or(Value::Null));
+                    }
+                    item
+                })
+                .collect::<Vec<_>>();
+            bounded(
+                json!({"items": items, "hasMore": reply.has_more, "nextCursor": reply.next_cursor}),
+            )
+        }
+        Ok(reply) => bounded(reply),
+        Err(error) => error_response(error),
+    }
+}
+
+pub async fn read_post_revisions(
+    State(state): State<Arc<SocialHttpState>>,
+    Path((slug, post_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let result = async {
+        let target = target(&state, &headers, &slug)?;
+        target
+            .backend
+            .revisions(SocialHttpRevisionsRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                post_id: &post_id,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(rows) => bounded(rows),
+        Err(error) => error_response(error),
+    }
+}
+
+/// Aggregate SSR page read. Every field is produced by one owner call so the
+/// Next transport never assembles a partial native page from retained state.
+pub async fn read_page(
+    State(state): State<Arc<SocialHttpState>>,
+    Path(slug): Path<String>,
+    Query(query): Query<SocialPageQuery>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let result = async {
+        let target = target(&state, &headers, &slug)?;
+        let skip_day = page_flag(query.skip_day.as_deref(), "SOCIAL_SKIP_DAY_INVALID")?;
+        let skip_milestones = page_flag(
+            query.skip_milestones.as_deref(),
+            "SOCIAL_SKIP_MILESTONES_INVALID",
+        )?;
+        let source_only = page_flag(query.source_only.as_deref(), "SOCIAL_SOURCE_ONLY_INVALID")?;
+        target
+            .backend
+            .page(SocialHttpPageRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                post_id: query.post_id.as_deref(),
+                tag: query.tag.as_deref(),
+                skip_day,
+                skip_milestones,
+                source_only,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(page) => bounded(page),
+        Err(error) => error_response(error),
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SourceEntryQuery {
+    company_id: String,
+    assignment_id: String,
+    assignment_version: i64,
+}
+
+async fn read_source_entry(
+    State(state): State<Arc<SocialHttpState>>,
+    Path((slug, post_id)): Path<(String, String)>,
+    Query(query): Query<SourceEntryQuery>,
+    request: Request,
+) -> Response {
+    let headers = request.headers();
+    let result = async {
+        let target = target(&state, headers, &slug)?;
+        if !(1..=9_007_199_254_740_991).contains(&query.assignment_version) {
+            return Err(BusinessError::invalid(
+                "SOCIAL_SOURCE_ENTRY_VERSION_INVALID",
+                "The proposed assignment version is invalid.",
+            ));
+        }
+        target.backend.source_entry(SocialHttpSourceEntryRequest {
+            host: &target.host,
+            headers,
+            post_id: &post_id,
+            company_id: &query.company_id,
+            assignment_id: &query.assignment_id,
+            assignment_version: query.assignment_version,
+        }).await
+    }.await;
+    match result {
+        Ok(data) => bounded(data),
+        Err(error) => error_response(error),
+    }
+}
+
+struct PreparedSocialCommand {
+    target: SocialHttpTarget,
+    change: Change,
+    input: Value,
+    key: CommandKey,
+}
+
+async fn prepare_command(
+    state: Arc<SocialHttpState>,
+    slug: String,
+    request: Request,
+    operation: &str,
+    post_id: Option<String>,
+    comment_id: Option<String>,
+) -> Result<PreparedSocialCommand, BusinessError> {
+    let target = target(&state, request.headers(), &slug)?.clone();
+    check_origin(&target, request.headers())?;
+    let headers = request.headers().clone();
+    let key = command_key(&headers)?;
+    let raw = json_body(request).await?;
+    if !raw.is_object() {
+        return Err(content_invalid());
+    }
+    let decoded =
+        decode_social_command(operation, post_id.as_deref(), comment_id.as_deref(), &raw)?;
+    Ok(PreparedSocialCommand {
+        target,
+        change: decoded.change,
+        input: decoded.input,
+        key,
+    })
+}
+
+async fn execute_command(prepared: PreparedSocialCommand, headers: HeaderMap) -> Response {
+    let PreparedSocialCommand {
+        target,
+        change,
+        input,
+        key,
+    } = prepared;
+    match target
+        .backend
+        .command(SocialHttpCommandRequest {
+            host: &target.host,
+            holding_slug: &target.holding_slug,
+            headers: &headers,
+            change,
+            input,
+            key,
+        })
+        .await
+    {
+        Ok(receipt) => bounded(receipt),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn command_response(
+    prepared: Result<PreparedSocialCommand, BusinessError>,
+    headers: HeaderMap,
+) -> Response {
+    match prepared {
+        Ok(command) => execute_command(command, headers).await,
+        Err(error) => error_response(error),
+    }
+}
+
+pub async fn create_post(
+    State(state): State<Arc<SocialHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let public = headers
+        .get("x-erpx-api-transport")
+        .is_some_and(|value| value == "public");
+    let prepared = prepare_command(state, slug, request, "social.post.publish", None, None).await;
+    let mut response = command_response(prepared, headers).await;
+    if public && response.status() == StatusCode::OK {
+        *response.status_mut() = StatusCode::CREATED;
+    }
+    response
+}
+
+pub async fn create_story(
+    State(state): State<Arc<SocialHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let prepared = prepare_command(state, slug, request, "social.story.publish", None, None).await;
+    command_response(prepared, headers).await
+}
+
+pub async fn archive_story(
+    State(state): State<Arc<SocialHttpState>>,
+    Path((slug, story_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let prepared = prepare_command(
+        state,
+        slug,
+        request,
+        "social.story.archive",
+        Some(story_id),
+        None,
+    )
+    .await;
+    command_response(prepared, headers).await
+}
+
+pub async fn create_comment(
+    State(state): State<Arc<SocialHttpState>>,
+    Path((slug, post_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let conversation = request.uri().path().split('/').nth(5) == Some("posts");
+    let prepared = prepare_command(
+        state,
+        slug,
+        request,
+        "social.comment.publish",
+        Some(post_id),
+        None,
+    )
+    .await;
+    let mut response = command_response(prepared, headers).await;
+    if conversation && response.status() == StatusCode::OK {
+        *response.status_mut() = StatusCode::CREATED;
+    }
+    response
+}
+
+pub async fn comment_action(
+    State(state): State<Arc<SocialHttpState>>,
+    Path((slug, post_id, comment_id)): Path<(String, String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let prepared = async {
+        let target = target(&state, &headers, &slug)?.clone();
+        check_origin(&target, &headers)?;
+        let key = command_key(&headers)?;
+        let raw = json_body(request).await?;
+        let action = raw
+            .get("action")
+            .and_then(Value::as_str)
+            .ok_or_else(content_invalid)?;
+        let operation = match action {
+            "edit" => "social.comment.edit",
+            "remove" => "social.comment.remove",
+            _ => return Err(content_invalid()),
+        };
+        let decoded = decode_social_command(operation, Some(&post_id), Some(&comment_id), &raw)?;
+        Ok(PreparedSocialCommand {
+            target,
+            change: decoded.change,
+            input: decoded.input,
+            key,
+        })
+    }
+    .await;
+    command_response(prepared, headers).await
+}
+
+pub async fn set_reaction(
+    State(state): State<Arc<SocialHttpState>>,
+    Path((slug, post_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let prepared = prepare_command(
+        state,
+        slug,
+        request,
+        "social.post.appreciate",
+        Some(post_id),
+        None,
+    )
+    .await;
+    command_response(prepared, headers).await
+}
+
+pub async fn set_post_follow(
+    State(state): State<Arc<SocialHttpState>>,
+    Path((slug, post_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let prepared = prepare_command(
+        state,
+        slug,
+        request,
+        "social.post.follow",
+        Some(post_id),
+        None,
+    )
+    .await;
+    command_response(prepared, headers).await
+}
+
+pub async fn set_topic_follow(
+    State(state): State<Arc<SocialHttpState>>,
+    Path((slug, tag)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let prepared =
+        prepare_command(state, slug, request, "social.topic.follow", Some(tag), None).await;
+    command_response(prepared, headers).await
+}
+
+pub async fn report_post(
+    State(state): State<Arc<SocialHttpState>>,
+    Path((slug, post_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let prepared = prepare_command(
+        state,
+        slug,
+        request,
+        "social.post.report",
+        Some(post_id),
+        None,
+    )
+    .await;
+    command_response(prepared, headers).await
+}
+
+pub async fn post_action(
+    State(state): State<Arc<SocialHttpState>>,
+    Path((slug, post_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let prepared = async {
+        let target = target(&state, &headers, &slug)?.clone();
+        check_origin(&target, &headers)?;
+        let key = command_key(&headers)?;
+        let raw = json_body(request).await?;
+        let action = raw
+            .get("action")
+            .and_then(Value::as_str)
+            .ok_or_else(content_invalid)?;
+        let operation = match action {
+            "edit" => "social.post.edit",
+            "retract" => "social.post.retract",
+            "hide" => "social.post.hide",
+            _ => return Err(content_invalid()),
+        };
+        let decoded = decode_social_command(operation, Some(&post_id), None, &raw)?;
+        Ok(PreparedSocialCommand {
+            target,
+            change: decoded.change,
+            input: decoded.input,
+            key,
+        })
+    }
+    .await;
+    command_response(prepared, headers).await
+}
+
+pub async fn save_draft(
+    State(state): State<Arc<SocialHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let prepared = prepare_command(state, slug, request, "social.draft.save", None, None).await;
+    command_response(prepared, headers).await
+}
+
+pub async fn publish_handover(
+    State(state): State<Arc<SocialHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let prepared =
+        prepare_command(state, slug, request, "social.handover.publish", None, None).await;
+    command_response(prepared, headers).await
+}
+
+pub async fn create_comment_upload(
+    State(state): State<Arc<SocialHttpState>>,
+    Path((slug, post_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let prepared = prepare_command(
+        state,
+        slug,
+        request,
+        "social.comment.upload.create",
+        Some(post_id),
+        None,
+    )
+    .await;
+    command_response(prepared, headers).await
+}
+
+pub async fn cancel_comment_upload(
+    State(state): State<Arc<SocialHttpState>>,
+    Path((slug, draft_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let prepared = prepare_command(
+        state,
+        slug,
+        request,
+        "social.comment.upload.cancel",
+        Some(draft_id),
+        None,
+    )
+    .await;
+    command_response(prepared, headers).await
+}
+
+pub async fn create_edit_upload(
+    State(state): State<Arc<SocialHttpState>>,
+    Path((slug, post_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let prepared = prepare_command(
+        state,
+        slug,
+        request,
+        "social.post.edit-upload.create",
+        Some(post_id),
+        None,
+    )
+    .await;
+    command_response(prepared, headers).await
+}
+
+pub async fn cancel_edit_upload(
+    State(state): State<Arc<SocialHttpState>>,
+    Path((slug, draft_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let prepared = prepare_command(
+        state,
+        slug,
+        request,
+        "social.post.edit-upload.cancel",
+        Some(draft_id),
+        None,
+    )
+    .await;
+    command_response(prepared, headers).await
+}
+
+pub async fn publish_draft(
+    State(state): State<Arc<SocialHttpState>>,
+    Path((slug, draft_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let prepared = prepare_command(
+        state,
+        slug,
+        request,
+        "social.draft.publish",
+        Some(draft_id),
+        None,
+    )
+    .await;
+    command_response(prepared, headers).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::adapters::social::FeedComment;
+    use erpx_platform_runtime_server::public::http_support::{
+        StatusCode,
+        body::{Body, to_bytes},
+    };
+    use std::sync::Mutex;
+
+    #[derive(Default)]
+    struct FakeBackend {
+        reads: Mutex<Vec<(String, String, &'static str)>>,
+        commands: Mutex<Vec<(String, String, Change)>>,
+        pages: Mutex<Vec<(String, String, bool, bool, bool)>>,
+        failure: Option<BusinessError>,
+    }
+
+    impl FakeBackend {
+        fn failing(kind: FailureKind, code: &'static str) -> Self {
+            Self {
+                failure: Some(BusinessError::new(kind, code, "denied")),
+                ..Self::default()
+            }
+        }
+    }
+
+    fn post_row(id: &str) -> FeedPost {
+        FeedPost {
+            id: id.into(),
+            kind: "team".into(),
+            author_id: "user".into(),
+            author_name: "User".into(),
+            body: "Body".into(),
+            audience: "Holding",
+            branch_id: None,
+            linked_record: None,
+            version: 1,
+            created_at: 10,
+            appreciation_count: 0,
+            comment_count: 0,
+            appreciated: false,
+            followed: false,
+            topics: vec![],
+            comments: vec![FeedComment {
+                id: "comment-1".into(),
+                post_id: id.into(),
+                author_id: "user".into(),
+                author_name: "User".into(),
+                body: "Reply".into(),
+                created_at: 11,
+            }],
+        }
+    }
+
+    impl SocialHttpBackend for FakeBackend {
+        fn read<'a>(
+            &'a self,
+            request: SocialHttpReadRequest<'a>,
+        ) -> SocialHttpFuture<'a, SocialHttpReadReply> {
+            let kind = match &request.kind {
+                SocialReadKind::Feed { .. } => "feed",
+                SocialReadKind::Thread { .. } => "thread",
+            };
+            self.reads.lock().unwrap().push((
+                request.host.into(),
+                request.holding_slug.into(),
+                kind,
+            ));
+            Box::pin(async move {
+                if let Some(error) = &self.failure {
+                    return Err(error.clone());
+                }
+                match request.kind {
+                    SocialReadKind::Feed { .. } => Ok(SocialHttpReadReply::Feed(Box::new(
+                        SocialFeedData::new(vec![post_row("post-1")], true),
+                    ))),
+                    SocialReadKind::Thread { post_id } => {
+                        Ok(SocialHttpReadReply::Thread(Box::new(SocialThreadData {
+                            posts: vec![post_row(&post_id)],
+                        })))
+                    }
+                }
+            })
+        }
+
+        fn command<'a>(
+            &'a self,
+            request: SocialHttpCommandRequest<'a>,
+        ) -> SocialHttpFuture<'a, Receipt> {
+            self.commands.lock().unwrap().push((
+                request.host.into(),
+                request.holding_slug.into(),
+                request.change.clone(),
+            ));
+            Box::pin(async move {
+                if let Some(error) = &self.failure {
+                    return Err(error.clone());
+                }
+                Ok(Receipt {
+                    id: "post-key".into(),
+                    version: 1,
+                    status: "published",
+                })
+            })
+        }
+
+        fn page<'a>(
+            &'a self,
+            request: SocialHttpPageRequest<'a>,
+        ) -> SocialHttpFuture<'a, SocialPageData> {
+            self.pages.lock().unwrap().push((
+                request.host.into(),
+                request.holding_slug.into(),
+                request.skip_day,
+                request.skip_milestones,
+                request.source_only,
+            ));
+            Box::pin(async move {
+                if let Some(error) = &self.failure {
+                    return Err(error.clone());
+                }
+                Ok(SocialPageData {
+                    posts: vec![serde_json::json!({"id": "post-1", "version": 1})],
+                    milestones: vec![],
+                    options: SocialAudienceOptionsData {
+                        branches: vec![],
+                        audiences: vec![],
+                        projects: vec![],
+                    },
+                    source_only: request.source_only,
+                    moderate: false,
+                    presentation: Some(SocialPresentationData {
+                        context: "home-token".into(),
+                        purchase: None,
+                    }),
+                    initial_day: None,
+                    post: None,
+                })
+            })
+        }
+    }
+
+    fn make_target(backend: Arc<FakeBackend>) -> SocialHttpTarget {
+        SocialHttpTarget {
+            host: "acme.example.test".into(),
+            holding_slug: "acme".into(),
+            origin: "https://acme.example.test".into(),
+            backend,
+        }
+    }
+
+    fn http_state(target: SocialHttpTarget) -> Arc<SocialHttpState> {
+        Arc::new(SocialHttpState {
+            targets: BTreeMap::from([((target.host.clone(), target.holding_slug.clone()), target)]),
+        })
+    }
+
+    fn query(filter: Option<&str>) -> FeedQuery {
+        FeedQuery {
+            filter: filter.map(str::to_owned),
+            cursor: None,
+            limit: None,
+        }
+    }
+
+    fn post_request(body: &str, origin: Option<&str>, key: Option<&str>) -> Request {
+        let mut builder = Request::builder()
+            .method("POST")
+            .header("host", "acme.example.test")
+            .header("content-type", "application/json");
+        if let Some(origin) = origin {
+            builder = builder.header("origin", origin);
+        }
+        if let Some(key) = key {
+            builder = builder.header("idempotency-key", key);
+        }
+        builder.body(Body::from(body.to_owned())).unwrap()
+    }
+
+    fn get_request() -> Request {
+        Request::builder()
+            .method("GET")
+            .header("host", "acme.example.test")
+            .body(Body::empty())
+            .unwrap()
+    }
+
+    async fn body(response: Response) -> (StatusCode, Value) {
+        let status = response.status();
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        (status, serde_json::from_slice(&bytes).unwrap())
+    }
+
+    #[test]
+    fn router_rejects_ambiguous_or_unregistered_targets() {
+        let backend = Arc::new(FakeBackend::default());
+        let mut target = make_target(backend.clone());
+        target.origin = "http://acme.example.test".into();
+        assert!(social_router(vec![target]).is_err());
+        assert!(social_router(vec![make_target(backend.clone()), make_target(backend)]).is_err());
+        assert!(social_router(vec![make_target(Arc::new(FakeBackend::default()))]).is_ok());
+    }
+
+    #[tokio::test]
+    async fn feed_reads_bind_the_exact_host_and_holding() {
+        let backend = Arc::new(FakeBackend::default());
+        let state = http_state(make_target(backend.clone()));
+        let response = read_feed(
+            State(state.clone()),
+            Path("acme".into()),
+            Query(query(Some("following"))),
+            get_request(),
+        )
+        .await;
+        let (status, value) = body(response).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(value["data"]["items"][0]["id"], "post-1");
+        assert_eq!(value["data"]["nextCursor"], "10:post-1");
+        assert_eq!(value["data"]["hasMore"], true);
+        assert_eq!(
+            backend.reads.lock().unwrap().as_slice(),
+            [("acme.example.test".into(), "acme".into(), "feed".into())]
+        );
+        let response = read_feed(
+            State(state.clone()),
+            Path("other".into()),
+            Query(query(None)),
+            get_request(),
+        )
+        .await;
+        assert_eq!(body(response).await.0, StatusCode::NOT_FOUND);
+        let response = read_feed(
+            State(state.clone()),
+            Path("acme".into()),
+            Query(query(Some("bogus"))),
+            get_request(),
+        )
+        .await;
+        assert_eq!(body(response).await.0, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(backend.reads.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn public_feed_preserves_the_existing_list_and_created_response() {
+        let state = http_state(make_target(Arc::new(FakeBackend::default())));
+        let mut request = get_request();
+        request
+            .headers_mut()
+            .insert("x-erpx-api-transport", "public".parse().unwrap());
+        let (status, value) = body(
+            read_feed(
+                State(state.clone()),
+                Path("acme".into()),
+                Query(query(None)),
+                request,
+            )
+            .await,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(value["data"][0]["id"], "post-1");
+        assert_eq!(value["nextCursor"], "10:post-1");
+        assert_eq!(value["hasMore"], true);
+        let mut request = post_request(
+            r#"{"body":"Hello","audience":"holding"}"#,
+            Some("https://acme.example.test"),
+            Some("social-key-0001"),
+        );
+        request
+            .headers_mut()
+            .insert("x-erpx-api-transport", "public".parse().unwrap());
+        assert_eq!(
+            body(create_post(State(state), Path("acme".into()), request).await)
+                .await
+                .0,
+            StatusCode::CREATED
+        );
+    }
+
+    #[tokio::test]
+    async fn commands_require_origin_and_a_bounded_key_before_the_owner() {
+        let backend = Arc::new(FakeBackend::default());
+        let state = http_state(make_target(backend.clone()));
+        let payload = r#"{"body":"Hello","audience":"holding"}"#;
+        for request in [
+            post_request(payload, None, Some("social-key-0001")),
+            post_request(payload, Some("https://evil.test"), Some("social-key-0001")),
+            post_request(payload, Some("https://acme.example.test"), None),
+            post_request(payload, Some("https://acme.example.test"), Some("short")),
+        ] {
+            let response = create_post(State(state.clone()), Path("acme".into()), request).await;
+            assert!(matches!(
+                body(response).await.0,
+                StatusCode::FORBIDDEN | StatusCode::UNPROCESSABLE_ENTITY
+            ));
+        }
+        assert!(backend.commands.lock().unwrap().is_empty());
+        let response = create_post(
+            State(state),
+            Path("acme".into()),
+            post_request(
+                payload,
+                Some("https://acme.example.test"),
+                Some("social-key-0001"),
+            ),
+        )
+        .await;
+        let (status, value) = body(response).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(value["data"]["id"], "post-key");
+        assert_eq!(
+            backend.commands.lock().unwrap()[0].2,
+            Change::PublishPost {
+                body: "Hello".into(),
+                audience: crate::domain::social::Audience::Holding,
+                tags: vec![],
+                mentions: vec![],
+                linked_record: None,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn comment_actions_follow_the_path_action_and_owner_failures_pass_through() {
+        let backend = Arc::new(FakeBackend::default());
+        let state = http_state(make_target(backend.clone()));
+        let response = comment_action(
+            State(state.clone()),
+            Path(("acme".into(), "post-1".into(), "comment-1".into())),
+            post_request(
+                r#"{"action":"remove","expectedVersion":2}"#,
+                Some("https://acme.example.test"),
+                Some("social-key-0002"),
+            ),
+        )
+        .await;
+        assert_eq!(body(response).await.0, StatusCode::OK);
+        assert!(matches!(
+            backend.commands.lock().unwrap()[0].2,
+            Change::TombstoneComment {
+                expected_version: 2,
+                ..
+            }
+        ));
+        let response = comment_action(
+            State(state),
+            Path(("acme".into(), "post-1".into(), "comment-1".into())),
+            post_request(
+                r#"{"action":"unknown","expectedVersion":2}"#,
+                Some("https://acme.example.test"),
+                Some("social-key-0003"),
+            ),
+        )
+        .await;
+        assert_eq!(body(response).await.0, StatusCode::UNPROCESSABLE_ENTITY);
+
+        let denied = Arc::new(FakeBackend::failing(
+            FailureKind::Forbidden,
+            "COMMENT_AUTHOR_REQUIRED",
+        ));
+        let response = set_reaction(
+            State(http_state(make_target(denied))),
+            Path(("acme".into(), "post-1".into())),
+            post_request(
+                r#"{"active":true}"#,
+                Some("https://acme.example.test"),
+                Some("social-key-0004"),
+            ),
+        )
+        .await;
+        let (status, value) = body(response).await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        assert_eq!(value["error"]["code"], "COMMENT_AUTHOR_REQUIRED");
+    }
+
+    #[tokio::test]
+    async fn responses_are_private_and_thread_reads_select_the_path_post() {
+        let backend = Arc::new(FakeBackend::default());
+        let state = http_state(make_target(backend.clone()));
+        let response = read_thread(
+            State(state),
+            Path(("acme".into(), "post-9".into())),
+            Query(ThreadQuery { limit: None }),
+            get_request(),
+        )
+        .await;
+        assert_eq!(
+            response.headers()[header::CACHE_CONTROL],
+            "private, no-store"
+        );
+        let (status, value) = body(response).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(value["data"]["posts"][0]["id"], "post-9");
+        assert_eq!(backend.reads.lock().unwrap()[0].2, "thread");
+    }
+
+    fn page_query(
+        post_id: Option<&str>,
+        tag: Option<&str>,
+        skip_day: Option<&str>,
+        skip_milestones: Option<&str>,
+        source_only: Option<&str>,
+    ) -> SocialPageQuery {
+        SocialPageQuery {
+            post_id: post_id.map(str::to_owned),
+            tag: tag.map(str::to_owned),
+            skip_day: skip_day.map(str::to_owned),
+            skip_milestones: skip_milestones.map(str::to_owned),
+            source_only: source_only.map(str::to_owned),
+        }
+    }
+
+    #[tokio::test]
+    async fn page_read_returns_full_payload_and_forwards_every_flag() {
+        let backend = Arc::new(FakeBackend::default());
+        let state = http_state(make_target(backend.clone()));
+        let response = read_page(
+            State(state.clone()),
+            Path("acme".into()),
+            Query(page_query(
+                Some("post-1"),
+                Some("tag"),
+                Some("1"),
+                Some("true"),
+                Some("0"),
+            )),
+            get_request(),
+        )
+        .await;
+        let (status, value) = body(response).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(value["data"]["posts"][0]["id"], "post-1");
+        assert_eq!(value["data"]["options"]["branches"], serde_json::json!([]));
+        assert_eq!(value["data"]["sourceOnly"], false);
+        assert_eq!(value["data"]["moderate"], false);
+        assert_eq!(value["data"]["presentation"]["context"], "home-token");
+        assert!(value["data"]["presentation"].get("purchase").is_none());
+        assert_eq!(value["data"]["initialDay"], serde_json::Value::Null);
+        assert_eq!(
+            backend.pages.lock().unwrap().as_slice(),
+            [("acme.example.test".into(), "acme".into(), true, true, false)]
+        );
+
+        let response = read_page(
+            State(state),
+            Path("other".into()),
+            Query(page_query(None, None, None, None, None)),
+            get_request(),
+        )
+        .await;
+        assert_eq!(body(response).await.0, StatusCode::NOT_FOUND);
+
+        let response = read_page(
+            State(http_state(make_target(backend))),
+            Path("acme".into()),
+            Query(page_query(None, None, Some("bogus"), None, None)),
+            get_request(),
+        )
+        .await;
+        let (status, value) = body(response).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(value["error"]["code"], "SOCIAL_SKIP_DAY_INVALID");
+    }
+
+    #[tokio::test]
+    async fn page_default_backend_fails_closed() {
+        // A backend that only implements the required read/command ports (the
+        // page method keeps its fail-closed default) must not serve a page.
+        #[derive(Default)]
+        struct MinimalBackend;
+        impl SocialHttpBackend for MinimalBackend {
+            fn read<'a>(
+                &'a self,
+                _request: SocialHttpReadRequest<'a>,
+            ) -> SocialHttpFuture<'a, SocialHttpReadReply> {
+                Box::pin(async { Err(BusinessError::new(FailureKind::Unavailable, "NO", "no")) })
+            }
+            fn command<'a>(
+                &'a self,
+                _request: SocialHttpCommandRequest<'a>,
+            ) -> SocialHttpFuture<'a, Receipt> {
+                Box::pin(async { Err(BusinessError::new(FailureKind::Unavailable, "NO", "no")) })
+            }
+        }
+        let state = http_state(SocialHttpTarget {
+            host: "acme.example.test".into(),
+            holding_slug: "acme".into(),
+            origin: "https://acme.example.test".into(),
+            backend: Arc::new(MinimalBackend),
+        });
+        let response = read_page(
+            State(state),
+            Path("acme".into()),
+            Query(page_query(None, None, None, None, None)),
+            get_request(),
+        )
+        .await;
+        let (status, value) = body(response).await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(value["error"]["code"], "SOCIAL_PAGE_PORT_UNAVAILABLE");
+    }
+}

@@ -2,9 +2,9 @@ import { describe, it, expect, vi } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
-import { INVENTORY_RD_LANDED_COST_DETAIL_LINES } from '../../../packages/server-inventory/src/adapters/native-inventory-read';
+import { INVENTORY_RD_LANDED_COST_DETAIL_LINES } from '../../../modules/inventory/server/src/adapters/native-inventory-read';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-inventory/src');
+const srcRoot = resolve(__dirname, '../../../modules/inventory/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, name), 'utf8');
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
 

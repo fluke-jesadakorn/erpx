@@ -1,0 +1,1 @@
+export { projectCustomerPortalAccess, lockCustomerPortalBinding, customerPortalIdentityExists, readCustomerPortalBindingScope, prepareCustomerPortalEvidenceChange } from "@erpx/customer-authority-server/adapters/portal-access";

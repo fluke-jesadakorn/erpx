@@ -5,16 +5,16 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_brand::public::branding::*;
-use erpx_server_brand::public::identity::{
+use erpx_brand_server::public::branding::*;
+use erpx_brand_server::public::identity::{
     ActiveBrandIdentity, BrandIdentity, IdentitySection, VisualSection,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{AssignmentId, BusinessError, CompanyId, FailureKind, UserId};
-use erpx_server_workflow::public::commands::{CommandActor, CommandField, CommandJson, WorkAuthority};
+use erpx_platform_shared_server::public::{AssignmentId, BusinessError, CompanyId, FailureKind, UserId};
+use erpx_workflow_server::public::commands::{CommandActor, CommandField, CommandJson, WorkAuthority};
 use serde_json::{Value, json};
 use sqlx::AssertSqlSafe;
 

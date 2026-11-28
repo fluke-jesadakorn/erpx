@@ -1,10 +1,10 @@
 //! Actual owner-local HTTP router tests for the native Projects WBS read.
-use erpx_server_projects::public::project_wbs_http::{
+use erpx_projects_server::public::project_wbs_http::{
     ProjectWbsHttpBackend, ProjectWbsHttpFuture, ProjectWbsHttpRequest, ProjectWbsHttpResponse,
     ProjectWbsHttpTarget, projects_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Noop;

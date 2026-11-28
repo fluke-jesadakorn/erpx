@@ -3,16 +3,16 @@ import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
 import {
   OPERATIONS_RD_ATTACHMENT_OWNER_SCOPE,
   nativeOperationsReadFirst,
-} from '../../../packages/server-operations/src/adapters/native-operations-read';
+} from '../../../modules/operations/server/src/adapters/native-operations-read';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-operations/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-operations/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/operations/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/operations/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const registry = () => src('native_operations_read_sql.rs');
-const facade = () => readFile(new URL('../../../packages/server-operations/src/public/native_operations_read.rs', import.meta.url), 'utf8');
+const facade = () => readFile(new URL('../../../modules/operations/server/src/public/native_operations_read.rs', import.meta.url), 'utf8');
 const sha = (sql: string) => createHash('sha256').update(sql).digest('hex');
 
 /** Pre-r62 byte oracle: the exact retired inline staff_task scope literal. */

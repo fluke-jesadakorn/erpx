@@ -22,27 +22,27 @@ const native = vi.hoisted(() => {
   return { statement, statementFn: vi.fn(() => statement), bind: statement.bind, all: statement.all };
 });
 
-vi.mock('@erpx/feature-marketing/adapters/server/native-marketing-command', () => ({
+vi.mock('@erpx/marketing-ui/adapters/server/native-marketing-command', () => ({
   nativeMarketingStatement: native.statementFn,
   nativeCampaignCostLink: vi.fn(),
 }));
-vi.mock('@erpx/feature-marketing/adapters/server/native-marketing-wave2', () => ({
+vi.mock('@erpx/marketing-ui/adapters/server/native-marketing-wave2', () => ({
   nativeCreateCampaign: vi.fn(),
 }));
-vi.mock('@erpx/server-marketing/adapters/purchases', () => ({
+vi.mock('@erpx/marketing-server/adapters/purchases', () => ({
   requireMarketingPurchasedRead: vi.fn(async () => undefined),
   marketingFinanceHistory: vi.fn(async () => []),
   withMarketingPurchasedCommand: vi.fn(),
 }));
-vi.mock('@erpx/server-identity_access/public/iam-permissions', () => ({
+vi.mock('@erpx/identity-access-server/public/iam-permissions', () => ({
   requirePermission: vi.fn(),
 }));
-vi.mock('@erpx/catalogue/module-access', () => ({ hasModuleAccess: vi.fn(() => true) }));
-vi.mock('../../../packages/server-runtime/src/public/runtime', () => ({
+vi.mock('@erpx/platform-catalogue/module-access', () => ({ hasModuleAccess: vi.fn(() => true) }));
+vi.mock('../../../platform/runtime/server/src/public/runtime', () => ({
   holdingResources: vi.fn(async () => ({ write: {} })),
 }));
 
-const { marketingCampaigns } = await import('@erpx/server-marketing/adapters/campaigns');
+const { marketingCampaigns } = await import('@erpx/marketing-server/adapters/campaigns');
 
 const actor = {
   userId: 'user', holdingId: 'h001', holdingSlug: 'acme', companyId: 'company',
@@ -66,7 +66,7 @@ describe('Marketing owner-local campaign read tail', () => {
 
   it('keeps one fixed owner projection for the campaign and campaign-cost reads', async () => {
     const { readFile } = await import('node:fs/promises');
-    const base = new URL('../../../packages/server-marketing/src/adapters/', import.meta.url);
+    const base = new URL('../../../modules/marketing/server/src/adapters/', import.meta.url);
     const hospitality = await readFile(new URL('hospitality-owner-projection-sources.ts', base), 'utf8');
     const lastAudit = await readFile(new URL('last-audit-owner-projection-sources.ts', base), 'utf8');
     const head = await readFile(new URL('owner-projection-source.ts', base), 'utf8');
@@ -86,7 +86,7 @@ describe('Marketing owner-local campaign read tail', () => {
 
   it('keeps one fixed owner predicate for attachment owner version guards', async () => {
     const { readFile } = await import('node:fs/promises');
-    const base = new URL('../../../packages/server-marketing/src/adapters/', import.meta.url);
+    const base = new URL('../../../modules/marketing/server/src/adapters/', import.meta.url);
     const guard = await readFile(new URL('attachment-owner-version-guard.ts', base), 'utf8');
     const service = await readFile(new URL('attachments-service-facts.ts', base), 'utf8');
     const operational = await readFile(new URL('attachments-operational-facts.ts', base), 'utf8');
@@ -111,7 +111,7 @@ describe('Marketing owner-local campaign read tail', () => {
 
   it('keeps one fixed owner projection for the public-submission receipt witness', async () => {
     const { readFile } = await import('node:fs/promises');
-    const base = new URL('../../../packages/server-marketing/src/adapters/', import.meta.url);
+    const base = new URL('../../../modules/marketing/server/src/adapters/', import.meta.url);
     const sources = await readFile(new URL('crm-purchase-sources.ts', base), 'utf8');
     const purchases = await readFile(new URL('purchases.ts', base), 'utf8');
     const form = await readFile(new URL('public-form.ts', base), 'utf8');
@@ -135,7 +135,7 @@ describe('Marketing owner-local campaign read tail', () => {
 
   it('keeps one fixed owner projection for attachment source-witness reads', async () => {
     const { readFile } = await import('node:fs/promises');
-    const base = new URL('../../../packages/server-marketing/src/adapters/', import.meta.url);
+    const base = new URL('../../../modules/marketing/server/src/adapters/', import.meta.url);
     const witness = await readFile(new URL('attachment-source-witness.ts', base), 'utf8');
     const purchases = await readFile(new URL('attachment-purchases.ts', base), 'utf8');
     const read = await readFile(new URL('attachment-read.ts', base), 'utf8');
@@ -145,7 +145,7 @@ describe('Marketing owner-local campaign read tail', () => {
     // head; this wrapper only delegates with the qualifier flag.
     const head = await readFile(new URL('owner-point-read-sql.ts', base), 'utf8');
     const { marketingOwnerPointReadSql } = await import(
-      '../../../packages/server-marketing/src/adapters/owner-point-read-sql'
+      '../../../modules/marketing/server/src/adapters/owner-point-read-sql'
     );
     expect(marketingOwnerPointReadSql('${projection}', '${table} source', true)).toBe(predicate);
     expect(head.match(/SELECT /g) ?? []).toHaveLength(0);
@@ -164,7 +164,7 @@ describe('Marketing owner-local campaign read tail', () => {
 
   it('keeps one fixed owner projection for public-form content reads', async () => {
     const { readFile } = await import('node:fs/promises');
-    const base = new URL('../../../packages/server-marketing/src/adapters/', import.meta.url);
+    const base = new URL('../../../modules/marketing/server/src/adapters/', import.meta.url);
     const helper = await readFile(new URL('public-form-content-source.ts', base), 'utf8');
     const head = await readFile(new URL('form-asset-read-head.ts', base), 'utf8');
     const form = await readFile(new URL('public-form.ts', base), 'utf8');
@@ -189,7 +189,7 @@ describe('Marketing owner-local campaign read tail', () => {
 
   it('routes campaign existence reads through the native owner read port', async () => {
     const { readFile } = await import('node:fs/promises');
-    const base = new URL('../../../packages/server-marketing/src/adapters/', import.meta.url);
+    const base = new URL('../../../modules/marketing/server/src/adapters/', import.meta.url);
     await expect(readFile(new URL('campaign-existence.ts', base), 'utf8')).rejects.toThrow();
     const submission = await readFile(new URL('public-submission.ts', base), 'utf8');
     const campaigns = await readFile(new URL('campaigns.ts', base), 'utf8');
@@ -210,7 +210,7 @@ describe('Marketing owner-local campaign read tail', () => {
 
   it('keeps one fixed owner projection for executive evidence row reads', async () => {
     const { readFile } = await import('node:fs/promises');
-    const base = new URL('../../../packages/server-marketing/src/adapters/', import.meta.url);
+    const base = new URL('../../../modules/marketing/server/src/adapters/', import.meta.url);
     const helper = await readFile(new URL('executive-evidence-rows.ts', base), 'utf8');
     const evidence = await readFile(new URL('executive-evidence-sources.ts', base), 'utf8');
     const workspace = await readFile(new URL('marketing.ts', base), 'utf8');
@@ -241,7 +241,7 @@ describe('Marketing owner-local campaign read tail', () => {
 
   it('routes workspace candidate row reads through the native lane-40 owner', async () => {
     const { readFile } = await import('node:fs/promises');
-    const base = new URL('../../../packages/server-marketing/src/adapters/', import.meta.url);
+    const base = new URL('../../../modules/marketing/server/src/adapters/', import.meta.url);
     const workspace = await readFile(new URL('marketing.ts', base), 'utf8');
     const client = await readFile(new URL('native-lane-40/client.ts', base), 'utf8');
 
@@ -257,7 +257,7 @@ describe('Marketing owner-local campaign read tail', () => {
 
   it('keeps one fixed owner projection for campaign-cost analytics rows', async () => {
     const { readFile } = await import('node:fs/promises');
-    const base = new URL('../../../packages/server-marketing/src/adapters/', import.meta.url);
+    const base = new URL('../../../modules/marketing/server/src/adapters/', import.meta.url);
     const helper = await readFile(new URL('analytics-cost-rows.ts', base), 'utf8');
     const head = await readFile(new URL('analytics-null-scope-rows.ts', base), 'utf8');
     const analytics = await readFile(new URL('analytics-sources.ts', base), 'utf8');
@@ -284,7 +284,7 @@ describe('Marketing owner-local campaign read tail', () => {
 
   it('keeps one fixed owner guard for attachment reviewer checks', async () => {
     const { readFile } = await import('node:fs/promises');
-    const base = new URL('../../../packages/server-marketing/src/adapters/', import.meta.url);
+    const base = new URL('../../../modules/marketing/server/src/adapters/', import.meta.url);
     const helper = await readFile(new URL('attachment-reviewer-guard.ts', base), 'utf8');
     const purchases = await readFile(new URL('attachment-purchases.ts', base), 'utf8');
 
@@ -311,7 +311,7 @@ describe('Marketing owner-local campaign read tail', () => {
 
   it('keeps one fixed owner predicate for record-scope authority witnesses', async () => {
     const { readFile } = await import('node:fs/promises');
-    const base = new URL('../../../packages/server-marketing/src/adapters/', import.meta.url);
+    const base = new URL('../../../modules/marketing/server/src/adapters/', import.meta.url);
     const helper = await readFile(new URL('record-scope-authority.ts', base), 'utf8');
     const recordPurchases = await readFile(new URL('record-purchases.ts', base), 'utf8');
     const analytics = await readFile(new URL('analytics-sources.ts', base), 'utf8');

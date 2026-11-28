@@ -7,13 +7,13 @@ mod facts;
 mod fence;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_inventory::public::stock_register::{
+use erpx_inventory_server::public::stock_register::{
     lock_stock_register_sources, read_stock_register,
 };
-use erpx_server_runtime::public::postgres::{PgUnitOfWork, TransactionOptions};
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_runtime_server::public::postgres::{PgUnitOfWork, TransactionOptions};
+use erpx_platform_shared_server::public::BusinessError;
 
-type Error = erpx_server_runtime::public::postgres::PgTransactionError<BusinessError>;
+type Error = erpx_platform_runtime_server::public::postgres::PgTransactionError<BusinessError>;
 
 #[tokio::test]
 async fn register_reads_company_scope_lots_counts_and_reconciles_tracked_stock() {
@@ -190,7 +190,7 @@ async fn register_requires_a_serializable_owner_transaction() {
         let result = read_stock_register(&mut c, "company", None).await;
         assert!(matches!(
             result,
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(_))
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Persistence(_))
         ));
     })
     .await;
@@ -210,7 +210,7 @@ async fn register_rolls_back_with_the_enclosing_unit() {
                         .execute(&mut *c)
                         .await?;
                     Err(BusinessError::new(
-                        erpx_server_shared::public::FailureKind::Conflict,
+                        erpx_platform_shared_server::public::FailureKind::Conflict,
                         "FIXTURE_ABORT",
                         "Rollback after verifying the register read.",
                     )
@@ -220,7 +220,7 @@ async fn register_rolls_back_with_the_enclosing_unit() {
             .await;
         assert!(matches!(
             result,
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(_))
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(_))
         ));
         let quantity: i64 = sqlx::query_scalar(
             "SELECT quantity_milli FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='product'",
@@ -239,28 +239,28 @@ mod transfer_landed_reorder_pg {
     //! current-version guards, stock/lot valuation, immutable evidence and
     //! independent reorder approval are checked against actual owner rows.
     use super::fixture;
-    use erpx_server_inventory::public::landed_costs::{
+    use erpx_inventory_server::public::landed_costs::{
         LandedCostAction, LandedCostActionInput, LandedCostCreateInput, apply_landed_cost_create,
         apply_landed_cost_transition, landed_cost_credit_account, lock_landed_cost_sources,
         plan_create, plan_transition as plan_landed_transition, read_landed_cost_create_source,
         read_landed_cost_transition_source,
     };
-    use erpx_server_inventory::public::reorder_policies::{
+    use erpx_inventory_server::public::reorder_policies::{
         ReorderAction, ReorderActionInput, ReorderSaveInput, apply_reorder_save,
         apply_reorder_transition, lock_reorder_sources, plan_save as plan_reorder_save,
         plan_transition as plan_reorder_transition, read_reorder_save_source,
         read_reorder_transition_source,
     };
-    use erpx_server_inventory::public::transfers::{
+    use erpx_inventory_server::public::transfers::{
         TransferAction, TransferActionInput, TransferLineInput, TransferLotAllocationInput,
         TransferSaveInput, apply_transfer_save, apply_transfer_transition, lock_transfer_sources,
         plan_save, plan_transition, read_transfer_save_source, read_transfer_transition_source,
     };
-    use erpx_server_runtime::public::postgres::{PgUnitOfWork, TransactionOptions};
-    use erpx_server_shared::public::BusinessError;
+    use erpx_platform_runtime_server::public::postgres::{PgUnitOfWork, TransactionOptions};
+    use erpx_platform_shared_server::public::BusinessError;
     use sqlx::Row;
 
-    type Error = erpx_server_runtime::public::postgres::PgTransactionError<BusinessError>;
+    type Error = erpx_platform_runtime_server::public::postgres::PgTransactionError<BusinessError>;
 
     fn transfer_input(product: &str, quantity: &str) -> TransferSaveInput {
         TransferSaveInput {
@@ -477,7 +477,7 @@ mod transfer_landed_reorder_pg {
         .await;
     }
 
-    async fn seed_purchase_receipt(pool: &erpx_server_runtime::public::postgres::DatabasePool) {
+    async fn seed_purchase_receipt(pool: &erpx_platform_runtime_server::public::postgres::DatabasePool) {
         let mut c = pool.raw().begin().await.unwrap();
         sqlx::raw_sql(
             "INSERT INTO finance_parties(id,company_id,kind,code,name,currency,created_at,updated_at)VALUES('supplier','company','supplier','SUP-1','Supplier','THB',0,0);\
@@ -521,7 +521,7 @@ mod transfer_landed_reorder_pg {
                         )
                         .await?;
                         let source =
-                            erpx_server_inventory::public::landed_costs::LandedCostCreateSource {
+                            erpx_inventory_server::public::landed_costs::LandedCostCreateSource {
                                 credit_account_exists: credit,
                                 ..source
                             };
@@ -743,7 +743,7 @@ mod transfer_landed_reorder_pg {
                     })
                 })
                 .await;
-            let self_review = match self_review.unwrap_err() { erpx_server_runtime::public::postgres::PgTransactionError::Business(error) => error, other => panic!("unexpected self-review error: {other:?}") }; assert_eq!(self_review.code, "REORDER_PROPOSAL_MISSING");
+            let self_review = match self_review.unwrap_err() { erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error) => error, other => panic!("unexpected self-review error: {other:?}") }; assert_eq!(self_review.code, "REORDER_PROPOSAL_MISSING");
             let row = sqlx::query("SELECT current_reorder_point_milli,version FROM inventory_reorder_policies WHERE id='reorder-command'")
                 .fetch_one(pool.raw())
                 .await

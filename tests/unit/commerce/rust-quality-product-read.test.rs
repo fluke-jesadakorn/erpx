@@ -1,11 +1,11 @@
 //! Native Quality active-product read: parity and fail-closed coverage for the
 //! owner-local successor of `adapters/quality-product.ts`.
 
-use erpx_server_commerce::public::quality_product_read::{
+use erpx_commerce_server::public::quality_product_read::{
     QualityProductFacts, QualityProductRead, QualityProductReadFuture, QualityProductReadTarget,
     quality_product_read_router,
 };
-use erpx_server_runtime::public::http_support::serve;
+use erpx_platform_runtime_server::public::http_support::serve;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 

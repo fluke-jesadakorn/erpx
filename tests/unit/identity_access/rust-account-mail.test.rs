@@ -4,7 +4,7 @@
 )]
 #[path = "../../support/rust-account.rs"]
 mod fixture;
-use erpx_server_identity_access::public::{account_mail::*, *};
+use erpx_identity_access_server::public::{account_mail::*, *};
 
 #[test]
 fn delivery_requires_an_unconsumed_current_credential_recipient_and_exact_proof_window() {

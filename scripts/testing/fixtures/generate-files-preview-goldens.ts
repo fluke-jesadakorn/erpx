@@ -5,11 +5,11 @@ import { PDFDocument, rgb } from 'pdf-lib';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { resolve, join } from 'node:path';
-import { sanitizedAttachmentPreview, detectedAttachmentMediaType } from '@erpx/server-files/public/attachments/preview';
+import { sanitizedAttachmentPreview, detectedAttachmentMediaType } from '@erpx/files-server/public/attachments/preview';
 
 if(process.version!=="v26.11.1")throw new Error("PINNED_FILES_PREVIEW_ORACLE_NODE_REQUIRED");
 const sourceCommit="a5ed8737a2f05eff1ee9841fda4a094b3926d732";
-const sourcePath="packages/server-files/src/adapters/attachments/preview.ts";
+const sourcePath="modules/files/server/src/adapters/attachments/preview.ts";
 const currentSource=await readFile(sourcePath);
 if(!currentSource.equals(execFileSync("git",["show",`${sourceCommit}:${sourcePath}`])))throw new Error("FILES_PREVIEW_B0_SOURCE_CHANGED");
 const write=process.argv.slice(2).includes("--write");

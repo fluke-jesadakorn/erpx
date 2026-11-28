@@ -1,9 +1,9 @@
-use erpx_server_legal::public::{
+use erpx_legal_server::public::{
     LegalProcessingActor, LegalProcessingCommandPorts, LegalProcessingDocument, LegalProcessingJob,
     LegalProcessingKind, LegalProcessingLease, LegalProcessingQueueAuthority,
     LegalProcessingReceipt, PreparedLegalProcessingQueue, queue_legal_processing,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, RecordId, TimestampMillis,
     UserId,
 };

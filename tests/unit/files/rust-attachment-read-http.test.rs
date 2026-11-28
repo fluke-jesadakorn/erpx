@@ -1,15 +1,15 @@
 //! Actual owner-local HTTP router tests for the native Files attachment read.
-use erpx_server_files::public::attachment_http::{
+use erpx_files_server::public::attachment_http::{
     AttachmentCommandHttpWithdrawRequest, AttachmentReadHttpBackend, AttachmentReadHttpFuture,
     AttachmentReadHttpListRequest, AttachmentReadHttpReply, AttachmentReadHttpStatusRequest,
     AttachmentReadHttpTarget, attachment_read_router,
 };
-use erpx_server_files::public::portal_attachment_http::{
+use erpx_files_server::public::portal_attachment_http::{
     PortalAttachmentHttpBackend, PortalAttachmentHttpFuture, PortalAttachmentHttpReply,
     PortalAttachmentHttpTarget, PortalAttachmentHttpWithdrawRequest, portal_attachment_http_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Probe {

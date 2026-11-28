@@ -1,6 +1,6 @@
 //! Native Work Projection report HTTP ingress on registered Holding targets.
-use erpx_server_runtime::public::http_support::{HeaderMap, StatusCode};
-use erpx_server_work_projection::public::work_report_read_http::{
+use erpx_platform_runtime_server::public::http_support::{HeaderMap, StatusCode};
+use erpx_work_projection_server::public::work_report_read_http::{
     WorkReportHttpBackend, WorkReportHttpFuture, WorkReportHttpRequest, WorkReportHttpProjection,
     WorkReportHttpResponse, WorkReportHttpState, WorkReportHttpTarget, parse_work_report_projection,
     work_report_router,

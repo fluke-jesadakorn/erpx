@@ -2,7 +2,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
 import {
   OPERATIONS_RD_HANDOVER_RECOVERY_RECEIPT,
   OPERATIONS_RD_WORKFLOW_DOCUMENT_DETAIL,
@@ -10,10 +10,10 @@ import {
   OPERATIONS_RD_WORK_TASK_REPLAY_RECEIPT,
   nativeOperationsReadFirst,
   nativeOperationsReadAll,
-} from '../../../packages/server-operations/src/adapters/native-operations-read';
+} from '../../../modules/operations/server/src/adapters/native-operations-read';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-operations/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-operations/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/operations/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/operations/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const registry = () => src('native_operations_read_sql.rs');
 
 const plans = [
@@ -70,7 +70,7 @@ const plans = [
 describe('operations read-tail r51 native read plans', () => {
   it('pins the four TS read-kind ids and their Rust registry/facade declarations', async () => {
     const native = await registry();
-    const facade = await readFile(new URL('../../../packages/server-operations/src/public/native_operations_read.rs', import.meta.url), 'utf8');
+    const facade = await readFile(new URL('../../../modules/operations/server/src/public/native_operations_read.rs', import.meta.url), 'utf8');
     for (const plan of plans) {
       expect(plan.ts).toBe(plan.id);
       expect(native).toContain(`"${plan.id}"`);

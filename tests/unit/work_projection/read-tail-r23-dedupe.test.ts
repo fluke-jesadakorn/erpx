@@ -5,7 +5,7 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
 const src = (name: string) =>
-  new URL(`../../../packages/server-work_projection/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/work-projection/server/src/adapters/${name}`, import.meta.url);
 
 const original = {
   series: 'SELECT * FROM calendar_series WHERE company_id=? AND appointment_id IN (SELECT jsonb_array_elements_text(?::jsonb))',
@@ -76,7 +76,7 @@ describe('work_projection read-tail r23 dedupe', () => {
     const count = Number(
       execFileSync(
         'git',
-        ['grep', '-I', '-o', '-E', 'SELECT', '--', ':(glob)packages/server-work_projection/src/**/*.ts'],
+        ['grep', '-I', '-o', '-E', 'SELECT', '--', ':(glob)modules/work-projection/server/src/**/*.ts'],
         { encoding: 'utf8' },
       )
         .trim()
@@ -99,7 +99,7 @@ const retiredSql = {
 } as const;
 
 const rustSrc = () =>
-  new URL('../../../packages/server-work_projection/src/adapters/calendar_read.rs', import.meta.url);
+  new URL('../../../modules/work-projection/server/src/adapters/calendar_read.rs', import.meta.url);
 
 type Capture = { path: string; kind: string; values: unknown[]; companyId: string };
 
@@ -168,7 +168,7 @@ describe('work_projection native read r34 cutover', () => {
 
   it('posts the exact kind, positional binds and company scope for all four wrappers', async () => {
     const { nativeCalendarRead } = await import(
-      '../../../packages/feature-work_projection/src/lib/native-calendar-read.ts'
+      '../../../modules/work-projection/ui/src/lib/native-calendar-read.ts'
     );
     const auth = {
       command_id: 'cmd-1', appointment_id: 'ap-1', recipient_id: 'u-1', company_id: 'co-1',
@@ -219,7 +219,7 @@ describe('work_projection native read r34 cutover', () => {
 
   it('fails closed on null and on a malformed authorization row', async () => {
     const { nativeCalendarRead, NativeCalendarReadError } = await import(
-      '../../../packages/feature-work_projection/src/lib/native-calendar-read.ts'
+      '../../../modules/work-projection/ui/src/lib/native-calendar-read.ts'
     );
     const empty = await captureNativeRead(null, () =>
       nativeCalendarRead.read67({ value1: 'ap-1', value2: 'co-1', value3: 'u-1' }));
@@ -236,7 +236,7 @@ describe('work_projection native read r34 cutover', () => {
     const count = Number(
       execFileSync(
         'git',
-        ['grep', '-I', '-o', '-E', 'SELECT', '--', ':(glob)packages/server-work_projection/src/**/*.ts'],
+        ['grep', '-I', '-o', '-E', 'SELECT', '--', ':(glob)modules/work-projection/server/src/**/*.ts'],
         { encoding: 'utf8' },
       )
         .trim()

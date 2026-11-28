@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 #[path = "../../support/rust-postgres.rs"] mod fixture;
-use erpx_server_files::public::portal_support_evidence::{PortalSupportEvidenceError,prepare_portal_support_evidence,bind_portal_support_evidence};
-use erpx_server_runtime::public::postgres::{DatabasePool,MigrationTrack,PgTransactionError,load_migrations,migrate_database};
-use erpx_server_shared::public::CompanyId;
+use erpx_files_server::public::portal_support_evidence::{PortalSupportEvidenceError,prepare_portal_support_evidence,bind_portal_support_evidence};
+use erpx_platform_runtime_server::public::postgres::{DatabasePool,MigrationTrack,PgTransactionError,load_migrations,migrate_database};
+use erpx_platform_shared_server::public::CompanyId;
 use sqlx::Connection;
 use sha2::{Digest,Sha256};
 async fn setup(pool: &DatabasePool) {

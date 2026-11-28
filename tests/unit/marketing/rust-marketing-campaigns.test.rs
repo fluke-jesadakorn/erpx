@@ -1,13 +1,13 @@
 //! Native Marketing campaign/attribution policy, row, bound and ordering
 //! tests. These are owner unit facts, not HTTP, PostgreSQL, command or browser
 //! proof.
-use erpx_server_marketing::public::campaign_attribution::{
+use erpx_marketing_server::public::campaign_attribution::{
     ATTRIBUTION_LIMIT, CAMPAIGN_LIMIT, CandidateProvenance, MarketingAttributionMode,
     MarketingAttributionRow, MarketingCampaignActor, MarketingCampaignEntitlement,
     MarketingCampaignEntitlementPort, MarketingCampaignFuture, MarketingCampaignRepository,
     MarketingCampaignRow, marketing_campaign_report,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, CompanyId, FailureKind, RecordId, TimestampMillis,
 };
 use std::collections::BTreeMap;
@@ -258,7 +258,7 @@ async fn run(
     repo: &mut Repo,
     packages: &mut Packages,
 ) -> Result<
-    erpx_server_marketing::public::campaign_attribution::MarketingCampaignReport,
+    erpx_marketing_server::public::campaign_attribution::MarketingCampaignReport,
     BusinessError,
 > {
     let mode = if packages.entitlement.enforced {
@@ -351,7 +351,7 @@ async fn enabled_package_projects_current_purchase_controls() {
     assert_eq!(
         report.purchase,
         Some(
-            erpx_server_marketing::public::campaign_attribution::MarketingCampaignPurchaseControls {
+            erpx_marketing_server::public::campaign_attribution::MarketingCampaignPurchaseControls {
                 new_work: true,
                 settle_existing: false,
                 history: true,
@@ -677,7 +677,7 @@ async fn repository_business_failure_propagates_unchanged() {
 #[tokio::test]
 async fn purchase_control_shape_is_exact_camel_case() {
     let controls =
-        erpx_server_marketing::public::campaign_attribution::MarketingCampaignPurchaseControls {
+        erpx_marketing_server::public::campaign_attribution::MarketingCampaignPurchaseControls {
             new_work: true,
             settle_existing: true,
             history: false,
@@ -700,11 +700,11 @@ async fn purchase_control_shape_is_exact_camel_case() {
 
 mod lead_candidate_facts {
     use super::NOW;
-    use erpx_server_marketing::public::lead_candidate::{
+    use erpx_marketing_server::public::lead_candidate::{
         MarketingCampaignCreateInput, MarketingLeadActionInput, MarketingLeadActor,
         MarketingLeadCandidateInput, MarketingLeadCandidateRow, crm_request,
     };
-    use erpx_server_shared::public::RecordId;
+    use erpx_platform_shared_server::public::RecordId;
     use std::collections::BTreeMap;
 
     fn actor() -> MarketingLeadActor {
@@ -828,7 +828,7 @@ mod lead_candidate_facts {
         };
         assert_eq!(
             action.validate(NOW.get()).unwrap(),
-            erpx_server_marketing::public::lead_candidate::MarketingLeadAction::Handoff
+            erpx_marketing_server::public::lead_candidate::MarketingLeadAction::Handoff
         );
         let mut missing_detail = action.clone();
         missing_detail.action = "record-engagement".into();
@@ -849,11 +849,11 @@ mod lead_candidate_facts {
 
 mod asset_review_facts {
     use super::NOW;
-    use erpx_server_marketing::public::lead_candidate::{
+    use erpx_marketing_server::public::lead_candidate::{
         MarketingAssetAction, MarketingAssetReviewInput, MarketingAssetReviewRow,
         MarketingLeadActor,
     };
-    use erpx_server_shared::public::RecordId;
+    use erpx_platform_shared_server::public::RecordId;
 
     fn actor(user: &str) -> MarketingLeadActor {
         MarketingLeadActor {
@@ -1016,7 +1016,7 @@ mod asset_review_facts {
 
 #[test]
 fn asset_request_and_legacy_fingerprint_differences_are_explicit() {
-    use erpx_server_marketing::public::lead_candidate::MarketingAssetCreateInput;
+    use erpx_marketing_server::public::lead_candidate::MarketingAssetCreateInput;
     let node = std::env::var("ERPX_NODE_BIN").expect("pinned Node required");
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let out = std::process::Command::new(node)
@@ -1101,8 +1101,8 @@ fn asset_request_and_legacy_fingerprint_differences_are_explicit() {
 
 #[test]
 fn asset_normalization_matches_actual_typescript_source_order() {
-    use erpx_server_marketing::public::asset_normalization::normalize_asset_input;
-    use erpx_server_workflow::public::source_ordered_json::SourceOrderedJson;
+    use erpx_marketing_server::public::asset_normalization::normalize_asset_input;
+    use erpx_workflow_server::public::source_ordered_json::SourceOrderedJson;
     use std::io::Write;
     let mut cases=vec![r#"{"preview":{"2":2,"1":1,"z":"\ud800"},"extra":true,"configuration":{"z":1,"a":2},"name":"  Draft  ","kind":"content"}"#.to_owned(),r#"{"kind":"form","name":" OK ","configuration":{"consentRequired":true,"contentAssetId":"x"},"preview":{}}"#.into(),r#"{"kind":"form","name":" OK ","configuration":{"consentRequired":false,"mediaPublicationId":"x"},"preview":{}}"#.into(),r#"{"kind":"content","name":7,"configuration":{},"preview":{}}"#.into(),r#"{"kind":"content","name":"😀","configuration":[],"preview":{}}"#.into(),format!("{{\"kind\":\"content\",\"name\":\"  Big  \",\"configuration\":{{\"data\":\"{}\"}},\"preview\":{{}}}}","x".repeat(2*1024*1024+20))];
     for name in ["😀a".to_owned(), "😀".repeat(160), "😀".repeat(161), "\u{feff}ab\u{a0}".to_owned()] {
@@ -1118,7 +1118,7 @@ fn asset_normalization_matches_actual_typescript_source_order() {
         r#"{"kind":"form","name":"OK","configuration":{"consentRequired":true,"contentAssetId":"x","contentVersion":1.5},"preview":{}}"#,
         r#"{"kind":"form","name":"OK","configuration":{"consentRequired":true,"contentAssetId":"x","contentVersion":9007199254740992},"preview":{}}"#,
     ].into_iter().map(str::to_owned));
-    let script = r#"const {readFileSync}=require('node:fs');const {assetSchema}=require('./packages/server-marketing/src/domain/asset.ts');const {marketingPresentationReferences}=require('./packages/server-marketing/src/domain/presentation.ts');const cases=JSON.parse(readFileSync(0,'utf8'));process.stdout.write(JSON.stringify(cases.map(raw=>{try{const x=assetSchema.parse(JSON.parse(raw));if(x.kind==='form'){marketingPresentationReferences(x.configuration);if(x.configuration.consentRequired!==true)return {error:'MARKETING_CONSENT_REQUIRED',message:'Lead capture forms must require consent before they can be saved.'};}return {json:JSON.stringify(x)};}catch(e){return {error:e.code??'VALIDATION_FAILED',message:e.issues?.[0]?.message??e.message}}})));"#;
+    let script = r#"const {readFileSync}=require('node:fs');const {assetSchema}=require('./modules/marketing/server/src/domain/asset.ts');const {marketingPresentationReferences}=require('./modules/marketing/server/src/domain/presentation.ts');const cases=JSON.parse(readFileSync(0,'utf8'));process.stdout.write(JSON.stringify(cases.map(raw=>{try{const x=assetSchema.parse(JSON.parse(raw));if(x.kind==='form'){marketingPresentationReferences(x.configuration);if(x.configuration.consentRequired!==true)return {error:'MARKETING_CONSENT_REQUIRED',message:'Lead capture forms must require consent before they can be saved.'};}return {json:JSON.stringify(x)};}catch(e){return {error:e.code??'VALIDATION_FAILED',message:e.issues?.[0]?.message??e.message}}})));"#;
     let mut child = std::process::Command::new(std::env::var("ERPX_NODE_BIN").unwrap())
         .current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
         .args(["--conditions=react-server", "--import=tsx", "-e", script])

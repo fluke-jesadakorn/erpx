@@ -11,10 +11,10 @@ import {
   releaseRevisionReadSql,
   releaseRevisionShareLockSql,
   releaseRevisionTable,
-} from '../../../packages/server-platform_administration/src/adapters/release-predicate';
-import { productionScope, legalProductionScope } from '@erpx/catalogue/production-scope';
+} from '../../../modules/platform-administration/server/src/adapters/release-predicate';
+import { productionScope, legalProductionScope } from '@erpx/platform-catalogue/production-scope';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-platform_administration/src');
+const srcRoot = resolve(__dirname, '../../../modules/platform-administration/server/src');
 const source = (relative: string) => readFileSync(resolve(srcRoot, relative), 'utf8');
 const sha = (value: string) => createHash('sha256').update(value).digest('hex');
 

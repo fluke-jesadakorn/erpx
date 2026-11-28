@@ -1,5 +1,5 @@
-use erpx_server_shared::public::AssignmentId;
-use erpx_server_work_projection::public::work_role_store::*;
+use erpx_platform_shared_server::public::AssignmentId;
+use erpx_work_projection_server::public::work_role_store::*;
 fn role(id: &str, version: i64) -> WorkRoleReference {
     WorkRoleReference {
         id: AssignmentId::new(id).unwrap(),
@@ -119,7 +119,7 @@ fn listing_role_options_restores_a_saved_role_but_never_auto_selects_a_fresh_rol
 
 #[test]
 fn workspace_preferences_preserve_exact_holding_and_nested_scope_selectors(){
- use erpx_server_work_projection::public::workspace_preference::*;
+ use erpx_work_projection_server::public::workspace_preference::*;
  assert_eq!(workspace_preference_scope("/holdings/acme/home","acme").unwrap(),WorkspacePreferenceScope{branch_slug:None,department_slug:None});
  assert_eq!(workspace_preference_scope("/holdings/acme/branches/bangkok/departments/engineering/home","acme").unwrap(),WorkspacePreferenceScope{branch_slug:Some("bangkok".into()),department_slug:Some("engineering".into())});
  assert_eq!(workspace_preference_scope("/holdings/acme/departments/accounting/home","acme").unwrap().department_slug.as_deref(),Some("accounting"));
@@ -128,7 +128,7 @@ fn workspace_preferences_preserve_exact_holding_and_nested_scope_selectors(){
 
 #[test]
 fn workspace_branch_only_scope_and_rejections_are_exact(){
- use erpx_server_work_projection::public::workspace_preference::*;
+ use erpx_work_projection_server::public::workspace_preference::*;
  assert_eq!(workspace_preference_scope("/holdings/acme/branches/bangkok/home","acme").unwrap(),WorkspacePreferenceScope{branch_slug:Some("bangkok".into()),department_slug:None});
  // A 128-character slug is the longest accepted selector; 129 is rejected.
  let longest="a".repeat(128);

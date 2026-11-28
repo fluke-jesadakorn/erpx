@@ -2,9 +2,9 @@
 //! complete proof of all deadlock interleavings.
 #![allow(dead_code)]
 #[path = "../../support/rust-postgres.rs"] mod fixture;
-#[path = "../../../src/composition/src/customer_portal_locks.rs"] mod locks;
-use erpx_server_commercial::public::purchases::PackageEnforcementMode;
-use erpx_server_runtime::public::postgres::{MigrationTrack,load_migrations,migrate_database};
+#[path = "../../../platform/composition/src/customer_portal_locks.rs"] mod locks;
+use erpx_commercial_server::public::purchases::PackageEnforcementMode;
+use erpx_platform_runtime_server::public::postgres::{MigrationTrack,load_migrations,migrate_database};
 use sqlx::Connection;
 #[tokio::test]
 async fn enabled_chain_orders_locks_before_snapshot_disabled_takes_none(){

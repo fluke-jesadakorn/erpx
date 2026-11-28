@@ -9,7 +9,7 @@ import {
   nativeManufacturingLane28StockHistory,
   nativeManufacturingLane28PostingReferences,
   nativeManufacturingLane28Configured,
-} from '../../../packages/server-manufacturing/src/adapters/native-lane-28/client';
+} from '../../../modules/manufacturing/server/src/adapters/native-lane-28/client';
 
 const host = 'acme.example.test';
 const origin = `https://${host}`;
@@ -222,13 +222,13 @@ describe('native lane-28 stock-history SQL oracle', () => {
 
   it('pins the Rust owner constants and leaves no SQL in the replaced adapter', async () => {
     const domain = await readFile(
-      new URL('../../../packages/server-manufacturing/src/adapters/native_lane_28/domain.rs', import.meta.url),
+      new URL('../../../modules/manufacturing/server/src/adapters/native_lane_28/domain.rs', import.meta.url),
       'utf8',
     );
     expect(domain).toContain('f0c4bf5922861bd1152a965183c89f9175125d30af2eab2c3c600ebd02c289cf');
     expect(domain).toContain('0x374c62bc1d3d2304');
     const adapter = await readFile(
-      new URL('../../../packages/server-manufacturing/src/adapters/initial-physical-stock-sources.ts', import.meta.url),
+      new URL('../../../modules/manufacturing/server/src/adapters/initial-physical-stock-sources.ts', import.meta.url),
       'utf8',
     );
     expect(adapter).not.toMatch(/SELECT|prepare\([^']|manufacturingExistsSelect/);

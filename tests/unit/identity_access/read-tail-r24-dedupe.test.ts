@@ -1,14 +1,14 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { overrideAuthorityProbe } from '../../../packages/server-identity_access/src/adapters/workflow-approvals-facts';
-import { identityVerifiedContextProjections as organizationFinalOwnerProjections } from '@erpx/server-organization/public/identity-access-verified-context-projections';
-import { identitySnapshotSources as peoplepayrollSnapshotSources } from '@erpx/server-people_payroll/public/identity-snapshot-sources';
+import { overrideAuthorityProbe } from '../../../modules/identity-access/server/src/adapters/workflow-approvals-facts';
+import { identityVerifiedContextProjections as organizationFinalOwnerProjections } from '@erpx/organization-server/public/identity-access-verified-context-projections';
+import { identitySnapshotSources as peoplepayrollSnapshotSources } from '@erpx/people-payroll-server/public/identity-snapshot-sources';
 
 const organizationFinalSources = organizationFinalOwnerProjections();
 const peoplepayrollSources = peoplepayrollSnapshotSources();
 
-const srcRoot = resolve(__dirname, '../../../packages/server-identity_access/src');
+const srcRoot = resolve(__dirname, '../../../modules/identity-access/server/src');
 const read = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
 const factsSrc = read('adapters/workflow-approvals-facts.ts');
 

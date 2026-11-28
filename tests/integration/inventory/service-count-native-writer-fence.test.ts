@@ -1,10 +1,10 @@
 import {beforeAll,beforeEach,afterEach,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from '../../support/runtime-env';
 import {expenseDb as db,expenseFixture,key} from '../../support/helpers/expense-fixture';
-import {saveCount,transitionCount} from '@erpx/server-inventory/public/inventory-counts';
-import {serviceCountPersistedMarker,serviceCountWriterOwner,serviceCountWriterOwnerInDatabase} from '@erpx/server-inventory/adapters/service-initial-physical-stock-count-source';
-import {withCountPurchasedCommand} from '@erpx/server-inventory/adapters/count-purchases';
-vi.mock('@erpx/server-runtime/adapters/runtime',()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+import {saveCount,transitionCount} from '@erpx/inventory-server/public/inventory-counts';
+import {serviceCountPersistedMarker,serviceCountWriterOwner,serviceCountWriterOwnerInDatabase} from '@erpx/inventory-server/adapters/service-initial-physical-stock-count-source';
+import {withCountPurchasedCommand} from '@erpx/inventory-server/adapters/count-purchases';
+vi.mock('@erpx/platform-runtime-server/adapters/runtime',()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();});

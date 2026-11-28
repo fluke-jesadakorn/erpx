@@ -3,12 +3,12 @@
 //! The tests pin the exact retired wire payload, the authority/package gate and
 //! the real owner SQL shape. They exercise the public owner port without a
 //! socket; mounting the router into composition is the lead's integration step.
-use erpx_server_pos::public::native_room_charges::{
+use erpx_pos_server::public::native_room_charges::{
     ActorDecision, Bind, PackageDecision, PosRoomChargeReader, ROOM_CHARGE_SQL, ROW_KEYS,
     RoomChargeFuture, RoomChargeQuery, RoomChargeRow, read, render, valid_row, validate,
 };
-use erpx_server_runtime::public::http_support::serde_json::Value;
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_runtime_server::public::http_support::serde_json::Value;
+use erpx_platform_shared_server::public::BusinessError;
 use std::task::{Context, Poll, Waker};
 
 fn block_on<F: std::future::Future>(future: F) -> F::Output {

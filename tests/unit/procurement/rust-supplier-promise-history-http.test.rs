@@ -1,12 +1,12 @@
 //! Actual owner-local HTTP router tests for native Procurement supplier
 //! promise history.
-use erpx_server_procurement::public::supplier_promise_history_http::{
+use erpx_procurement_server::public::supplier_promise_history_http::{
     SupplierPromiseHistoryHttpBackend, SupplierPromiseHistoryHttpFuture,
     SupplierPromiseHistoryHttpRequest, SupplierPromiseHistoryHttpResponse,
     SupplierPromiseHistoryHttpTarget, supplier_promise_history_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Noop;

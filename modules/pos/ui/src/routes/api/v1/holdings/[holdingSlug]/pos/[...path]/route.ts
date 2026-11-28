@@ -1,0 +1,97 @@
+import {canonicalDestinationLinks} from "@erpx/work-projection-ui/lib/destination-links";
+import { adminCompanyHandoff } from "@erpx/platform-runtime-ui/lib/application-origins";
+import { nativeRoomChargeQueue } from "@erpx/pos-server/adapters/native_room_charges/client";
+import { z } from 'zod';
+import { requireWorkContext } from "@erpx/identity-access-server/public/authorization";
+import { requestPublicOrigin } from "@erpx/manage-erpx-server/public/public-origin";
+import { ApiError, errorResponse } from "@erpx/platform-runtime-server/public/http";
+import { holdingResources } from "../../../../../../../../../../../platform/runtime/server/src/public/runtime";
+import { PostgresDatabase } from "@erpx/platform-runtime-server/public/runtime/postgres";
+import {posCommand} from '@erpx/pos-server/public/pos-core';
+import {requirePosPurchased} from '@erpx/pos-server/public/purchase-boundary';
+import {NATIVE_POS_COMMANDS,NATIVE_POS_DAY_COMMANDS,nativePosCashActor,nativePosCashAvailable,nativePosCommandScope,nativePosDayCommandScope,nativePosWorkflowOperation,nativePosCashConfiguration,createNativePosCashClient,nativePosCashFailure} from '@erpx/pos-ui/adapters/server/native-pos-cash';
+import {finishPosOAuth,oauthUrl} from '@erpx/pos-server/public/pos-stripe';
+import { posDayReport } from "@erpx/pos-server/public/pos-daily";
+import { nativePosCustomerSearch } from "../../../../../../../../../server/src/public/native-customer-search";
+import { posProductImage,uploadPosProductImage } from "@erpx/pos-server/public/pos-images";
+type Context={params:Promise<{holdingSlug:string;path:string[]}>};
+export async function POST(request:Request,{params}:Context){
+ try{
+  if(request.headers.get('origin')!==requestPublicOrigin(request))throw new ApiError(403,'ORIGIN_FORBIDDEN','Use the application origin.');
+  const {holdingSlug,path}=await params,actor=await requireWorkContext(holdingSlug),key=request.headers.get('Idempotency-Key');if(!key)throw new ApiError(422,'COMMAND_KEY_REQUIRED','Idempotency-Key is required.');
+  if(path.length!==2)throw new ApiError(404,'NOT_FOUND','Unknown POS action.');
+  if(path.join('/')==='images/upload')return Response.json(canonicalDestinationLinks({data:await uploadPosProductImage(request,actor)}),{headers:{'Cache-Control':'private, no-store'}});
+  const operation=path.join("."),raw=await request.text(),db=(await holdingResources(actor.holdingId)).write as PostgresDatabase;
+  if((NATIVE_POS_COMMANDS.has(operation)||NATIVE_POS_DAY_COMMANDS.has(operation)||operation==='cash.create')&&!nativePosCashAvailable())
+   throw new ApiError(503,'NATIVE_POS_COMMAND_REQUIRED','This POS operation requires the native owner service.');
+  if(NATIVE_POS_DAY_COMMANDS.has(operation)){
+   try{
+    const dayScope=nativePosDayCommandScope(operation)!;
+    await requirePosPurchased(db,actor,dayScope.capability,dayScope.purpose);
+    const native=createNativePosCashClient(nativePosCashConfiguration(process.env.ERPX_NATIVE_POS_CASH_CONFIG!));
+    const data=await native.day(request.headers,nativePosCashActor(actor),operation,key,raw);
+    return Response.json(canonicalDestinationLinks({data}),{headers:{'Cache-Control':'private, no-store'}});
+   }catch(error){
+    const failure=nativePosCashFailure(error);
+    if(failure)throw new ApiError(failure.status,failure.code,failure.message);
+    throw error;
+   }
+  }
+  if(operation==='cash.create'){
+   try{
+    // Retained package preflight; the composition backend must repeat this
+    // purchase admission inside the native owner transaction.
+    await requirePosPurchased(db,actor,'pos.shifts','settle-existing');
+    const native=createNativePosCashClient(nativePosCashConfiguration(process.env.ERPX_NATIVE_POS_CASH_CONFIG!));
+    const data=await native.cash(request.headers,nativePosCashActor(actor),key,raw);
+    return Response.json(canonicalDestinationLinks({data}),{headers:{'Cache-Control':'private, no-store'}});
+   }catch(error){
+    const failure=nativePosCashFailure(error);
+    if(failure)throw new ApiError(failure.status,failure.code,failure.message);
+    throw error;
+   }
+  }
+  const nativeScope=nativePosCommandScope(operation);
+  if(nativePosCashAvailable()&&!nativeScope&&nativePosWorkflowOperation(operation))
+   throw new ApiError(503,'NATIVE_POS_COMMAND_UNAVAILABLE','This POS operation has no native port yet. Use an unconfigured retained environment or mount the owner port.');
+  if(nativeScope){
+   try{
+    // Retained package preflight; the composition backend must repeat every
+    // purchase scope and current authority check inside the native owner unit.
+    await requirePosPurchased(db,actor,nativeScope.capability,nativeScope.purpose);
+    const native=createNativePosCashClient(nativePosCashConfiguration(process.env.ERPX_NATIVE_POS_CASH_CONFIG!));
+    const data=await native.command(request.headers,nativePosCashActor(actor),operation,key,raw);
+    return Response.json(canonicalDestinationLinks({data}),{headers:{'Cache-Control':'private, no-store'}});
+   }catch(error){
+    const failure=nativePosCashFailure(error);
+    if(failure)throw new ApiError(failure.status,failure.code,failure.message);
+    throw error;
+   }
+  }
+  const input=JSON.parse(raw);
+  const data=await posCommand(db,actor,operation,input,key);
+  if(operation==='connection.oauth')data.url=oauthUrl(String(data.id),holdingSlug,Boolean(data.livemode));
+  return Response.json(canonicalDestinationLinks({data}),{headers:{'Cache-Control':'private, no-store'}});
+ }catch(error){if(error instanceof z.ZodError)return errorResponse(new ApiError(422,'VALIDATION_FAILED',error.issues[0]?.message??'Invalid input.'));if(error instanceof SyntaxError)return errorResponse(new ApiError(422,'INVALID_JSON','Invalid JSON.'));return errorResponse(error);}
+}
+export async function GET(request:Request,{params}:Context){
+ try{
+  const {holdingSlug,path}=await params;
+  if(path.join('/')==='room-charge-reversals') return Response.json(canonicalDestinationLinks({data:await nativeRoomChargeQueue(await requireWorkContext(holdingSlug),new URL(request.url).searchParams.get('property')??undefined)}),{headers:{'Cache-Control':'private, no-store'}});
+  if(path[0]==='images'&&path.length===2)return posProductImage(await requireWorkContext(holdingSlug),path[1],new URL(request.url).searchParams.get('original')==='1');
+  if(path.join('/')==='customers/search'){
+   const actor=await requireWorkContext(holdingSlug);
+   const data=await nativePosCustomerSearch(actor,new URL(request.url).searchParams.get('q')??'');
+   return Response.json(canonicalDestinationLinks({data}),{headers:{'Cache-Control':'private, no-store'}});
+  }
+  if(path.join('/')==='day/report'){
+   const actor=await requireWorkContext(holdingSlug),db=(await holdingResources(actor.holdingId)).write,url=new URL(request.url);
+   const data=await posDayReport(db,actor,z.string().min(1).parse(actor.branchId??url.searchParams.get('branch')),z.iso.date().parse(url.searchParams.get('date')));
+   return Response.json(canonicalDestinationLinks({data}),{headers:{'Cache-Control':'private, no-store'}});
+  }
+  if(path.join('/')!=='connect/callback')throw new ApiError(404,'NOT_FOUND','Not found.');
+  const actor=await requireWorkContext(holdingSlug),url=new URL(request.url);if(url.searchParams.has('error'))throw new ApiError(422,'STRIPE_CONNECT_CANCELLED','Connection was cancelled. Start again from POS settings.');
+  await finishPosOAuth(actor,z.string().uuid().parse(url.searchParams.get('state')),z.string().min(1).parse(url.searchParams.get('code')));
+  return Response.redirect(adminCompanyHandoff(actor.companyId, `/holdings/${holdingSlug}/settings/stripe`,requestPublicOrigin(request)),303);
+ }catch(error){return errorResponse(error);}
+}

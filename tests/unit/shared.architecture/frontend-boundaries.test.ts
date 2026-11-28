@@ -6,8 +6,8 @@ import os from "node:os";
 import path from "node:path";
 
 const root = process.cwd();
-const domain = "packages/feature-finance/src/domain/command-policy.ts";
-const application = "packages/feature-finance/src/application/submit.ts";
+const domain = "modules/finance/ui/src/domain/command-policy.ts";
+const application = "modules/finance/ui/src/application/submit.ts";
 const rules = (source: string, text: string) => inspectSource(root, source, text).map(issue => issue.rule);
 
 describe("frontend portable interaction boundaries", () => {
@@ -19,9 +19,9 @@ describe("frontend portable interaction boundaries", () => {
 
   it("rejects server-owner dependencies even when they are type-only or dynamically loaded", () => {
     for (const text of [
-      'import type { Actor } from "@erpx/server-finance/public/finance";',
-      'type Actor = import("@erpx/server-finance/public/finance").Actor;',
-      'const backend = () => import("@erpx/server-finance/public/finance");',
+      'import type { Actor } from "@erpx/finance-server/public/finance";',
+      'type Actor = import("@erpx/finance-server/public/finance").Actor;',
+      'const backend = () => import("@erpx/finance-server/public/finance");',
     ]) expect(rules(application, text)).toContain("frontend-core-server-dependency");
   });
 
@@ -38,7 +38,7 @@ describe("frontend portable interaction boundaries", () => {
   });
 
   it("recognizes explicit frontend public facades while preserving core direction", () => {
-    expect(rules("packages/feature-finance/src/components/editor.tsx", 'import { financeCommandFetch } from "@erpx/feature-finance/public/client";')).toEqual([]);
+    expect(rules("modules/finance/ui/src/components/editor.tsx", 'import { financeCommandFetch } from "@erpx/finance-ui/public/client";')).toEqual([]);
     expect(rules(application, 'import type { FinanceCommandIdentity } from "../public/contracts";')).toEqual([]);
     expect(rules(domain, 'import { run } from "../application/submit";')).toContain("core-dependency-direction");
   });
@@ -46,7 +46,7 @@ describe("frontend portable interaction boundaries", () => {
   it("follows type-only public reexports so they cannot hide React dependencies", () => {
     const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "erpx-frontend-boundaries-"));
     try {
-      const source = path.join(temporary, "packages/feature-finance/src");
+      const source = path.join(temporary, "modules/finance/ui/src");
       fs.mkdirSync(path.join(source, "domain"), { recursive: true });
       fs.mkdirSync(path.join(source, "public"), { recursive: true });
       fs.writeFileSync(path.join(source, "domain/policy.ts"), 'type Label = import("../public/contracts").Label;');

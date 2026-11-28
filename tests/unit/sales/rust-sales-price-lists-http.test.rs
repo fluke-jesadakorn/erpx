@@ -1,12 +1,12 @@
 //! Actual owner-local HTTP router tests for the native Sales price-list
 //! lifecycle. The backend is a recording fake; the shared composition backend
 //! and PostgreSQL HTTP path are separate concerns.
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_sales::public::sales_price_lists_http::{
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_sales_server::public::sales_price_lists_http::{
     PriceListHttpBackend, PriceListHttpCommand, PriceListHttpFuture, PriceListHttpRequest,
     PriceListHttpResponse, PriceListHttpTarget, sales_price_lists_router,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Noop;

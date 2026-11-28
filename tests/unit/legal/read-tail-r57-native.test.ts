@@ -1,7 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
+import type { WorkContext } from '@erpx/identity-access-server/public/authorization';
 
 vi.mock('server-only', () => ({}));
 
@@ -30,8 +30,8 @@ const native = {
   notice: NOTICE,
 };
 
-const srcRoot = resolve(__dirname, '../../../packages/server-legal/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-legal/src/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/legal/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/legal/server/src/${name}`, import.meta.url), 'utf8');
 
 let savedConfig: string | undefined;
 let savedFetch: typeof globalThis.fetch;
@@ -56,7 +56,7 @@ function begin(): void {
 
 describe('legal read-tail r57 native laws cutover', () => {
   it('parity: lawCorpusView returns the exact native projection and shape', async () => {
-    const { lawCorpusView } = await import('@erpx/server-legal/public/legal/law-corpus');
+    const { lawCorpusView } = await import('@erpx/legal-server/public/legal/law-corpus');
     begin();
     const calls = capture();
     const out = await lawCorpusView({} as never, actor);
@@ -67,7 +67,7 @@ describe('legal read-tail r57 native laws cutover', () => {
   });
 
   it('bind: company/branch/department/user and the optional ruleId reach the native laws read', async () => {
-    const { nativeLegalAuxiliaryRead } = await import('../../../packages/server-legal/src/adapters/native-legal-auxiliary');
+    const { nativeLegalAuxiliaryRead } = await import('../../../modules/legal/server/src/adapters/native-legal-auxiliary');
     begin();
     const calls = capture();
     await nativeLegalAuxiliaryRead(actor, 'laws', 'rule/one');
@@ -89,7 +89,7 @@ describe('legal read-tail r57 native laws cutover', () => {
   });
 
   it('fails closed before transport and passes native errors through unchanged', async () => {
-    const { lawCorpusView } = await import('@erpx/server-legal/public/legal/law-corpus');
+    const { lawCorpusView } = await import('@erpx/legal-server/public/legal/law-corpus');
     begin();
     capture();
     const denied = { ...actor, permissions: [] } as unknown as WorkContext;

@@ -3,27 +3,27 @@
   "sourceCommit": "a5ed8737a2f05eff1ee9841fda4a094b3926d732",
   "sources": [
     {
-      "path": "packages/server-commercial/src/domain/packages.ts",
+      "path": "modules/commercial/server/src/domain/packages.ts",
       "sha256": "8c845b72f2907f609fc1fb807726bdaa55400bd10206248c843cd03e540714dc"
     },
     {
-      "path": "packages/contracts/src/product-registry.ts",
+      "path": "platform/contracts/src/product-registry.ts",
       "sha256": "020644bf57514d35941bdf4f95471521127bbc760972aa84e2e4934afb41b57c"
     },
     {
-      "path": "packages/server-commercial/src/application/package-grants.ts",
+      "path": "modules/commercial/server/src/application/package-grants.ts",
       "sha256": "6daaee559cb6f31cf5bfd46f15d621eff6daccf2ea3b5977542c0b258b709c2c"
     },
     {
-      "path": "packages/server-commercial/src/domain/package-dependencies.ts",
+      "path": "modules/commercial/server/src/domain/package-dependencies.ts",
       "sha256": "bc8f806521b0223ab2fa8f3cf5bc3631e73718c48d43a9dbaa3156a9586ec3e5"
     },
     {
-      "path": "packages/server-commercial/src/application/package-grant-batches.ts",
+      "path": "modules/commercial/server/src/application/package-grant-batches.ts",
       "sha256": "300d2a925ace0359ed4a8697e6ca16f4a94c2d39b5dd8d7c859e7b25a7515775"
     },
     {
-      "path": "packages/server-commercial/src/adapters/package-grants.ts",
+      "path": "modules/commercial/server/src/adapters/package-grants.ts",
       "sha256": "1942a720f44774ade9108c878e6f4b911749ad16a6adef30d7c0bcdeb8a04859"
     }
   ],

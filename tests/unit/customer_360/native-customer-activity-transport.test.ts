@@ -3,7 +3,7 @@ vi.mock('server-only', () => ({}));
 import {
   createNativeCustomerActivityClient,
   nativeCustomerActivityConfiguration,
-} from '../../../packages/server-customer_360/src/adapters/native-executive-customer-activity';
+} from '../../../modules/customer-360/server/src/adapters/native-executive-customer-activity';
 
 const config = (overrides: Record<string, unknown> = {}) =>
   JSON.stringify({

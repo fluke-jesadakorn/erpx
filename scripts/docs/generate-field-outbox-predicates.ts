@@ -10,6 +10,6 @@ for(const owner of ['field_service','operations','collaboration','files','financ
 // The migration is immutable after delivery. Fail on later owner-policy drift;
 // a changed runtime ownership policy needs a new reviewed migration.
 const migration=await readFile('migrations/postgres/holding-write/1097_native_field_journal_flow.sql','utf8');
-for(const path of ['packages/server-inventory/src/public/service_count_outbox_quarantine.sql',...['field_service','operations','collaboration','files','finance'].map(owner=>`packages/server-${owner}/src/public/field_outbox_quarantine.sql`)]){
+for(const path of ['modules/inventory/server/src/public/service_count_outbox_quarantine.sql',...['field_service','operations','collaboration','files','finance'].map(owner=>`packages/server-${owner}/src/public/field_outbox_quarantine.sql`)]){
  if(!migration.includes('('+((await readFile(path,'utf8')).trim())+')'))throw Error('NATIVE_OUTBOX_DATABASE_POLICY_DRIFT');
 }

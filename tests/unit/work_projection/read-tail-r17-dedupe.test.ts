@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 
 const src = (name: string) =>
-  new URL(`../../../packages/server-work_projection/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/work-projection/server/src/adapters/${name}`, import.meta.url);
 
 const original = {
   pageLayout: 'SELECT request_hash,result_json FROM page_layout_receipts WHERE id=?',
@@ -23,7 +23,7 @@ describe('work_projection read-tail r17 dedupe', () => {
 
   it('emits the original byte-identical SQL for both receipt callers', async () => {
     const { receiptByIdSql } = await import(
-      '../../../packages/server-work_projection/src/adapters/read-tail-sql.ts'
+      '../../../modules/work-projection/server/src/adapters/read-tail-sql.ts'
     );
     expect(receiptByIdSql('request_hash,result_json', 'page_layout_receipts')).toBe(original.pageLayout);
     expect(receiptByIdSql('user_id,surface,context_key,request_hash,result_json', 'quick_access_preference_receipts')).toBe(original.quickAccess);

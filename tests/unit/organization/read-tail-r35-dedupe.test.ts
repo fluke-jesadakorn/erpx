@@ -1,9 +1,9 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { ownerProjection } from '../../../packages/server-organization/src/adapters/organization-column-alias-families-r35';
+import { ownerProjection } from '../../../modules/organization/server/src/adapters/organization-column-alias-families-r35';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+const srcRoot = resolve(__dirname, '../../../modules/organization/server/src');
 const adapters = resolve(srcRoot, 'adapters');
 const read = (name: string) => readFileSync(resolve(adapters, name), 'utf8');
 const helper = read('organization-column-alias-families-r35.ts');
@@ -64,7 +64,7 @@ describe('Organization read-tail r35 bare owner projection family', () => {
   });
 
   test('remaining spaced JOIN constants stay byte-identical and are not merged', async () => {
-    const spaced = await import('../../../packages/server-organization/src/adapters/organization-nodes-spaced-projections');
+    const spaced = await import('../../../modules/organization/server/src/adapters/organization-nodes-spaced-projections');
     expect(spaced.ORG_NODES_SPACED_CLAUSE('JOIN', 'c')).toBe(spaced.ORG_NODES_SPACED_C_JOIN);
     expect(spaced.ORG_NODES_SPACED_CLAUSE('JOIN', 'n')).toBe(spaced.ORG_NODES_SPACED_N_JOIN);
     expect(spaced.ORG_NODES_SPACED_CLAUSE('JOIN', 'b')).toBe(spaced.ORG_NODES_SPACED_B_JOIN);
@@ -86,11 +86,11 @@ describe('Organization read-tail r35 bare owner projection family', () => {
     }
     for (const src of [finalRoot, lastAudit, org, platform, talent]) expect(src.split('ownerProjection(').length - 1).toBeGreaterThanOrEqual(1);
 
-    const { ORG_NODES_SOURCE, ORG_POSITIONS_SOURCE } = await import('../../../packages/server-organization/src/adapters/org-sources');
-    const { finalRootOwnerProjectionSources } = await import('../../../packages/server-organization/src/adapters/final-root-owner-projection-sources');
-    const { lastAuditOwnerProjectionSources } = await import('../../../packages/server-organization/src/adapters/last-audit-owner-projection-sources');
-    const { platformOwnerProjectionSources } = await import('../../../packages/server-organization/src/adapters/platform-owner-projection-sources');
-    const { talentSettlementPlacements } = await import('../../../packages/server-organization/src/adapters/talent-settlement-sources');
+    const { ORG_NODES_SOURCE, ORG_POSITIONS_SOURCE } = await import('../../../modules/organization/server/src/adapters/org-sources');
+    const { finalRootOwnerProjectionSources } = await import('../../../modules/organization/server/src/adapters/final-root-owner-projection-sources');
+    const { lastAuditOwnerProjectionSources } = await import('../../../modules/organization/server/src/adapters/last-audit-owner-projection-sources');
+    const { platformOwnerProjectionSources } = await import('../../../modules/organization/server/src/adapters/platform-owner-projection-sources');
+    const { talentSettlementPlacements } = await import('../../../modules/organization/server/src/adapters/talent-settlement-sources');
     expect(ORG_NODES_SOURCE).toBe(ownerProjection('"id","kind","slug","display_name","parent_id","company_id","branch_id","status","hierarchy_revision"','organization_nodes'));
     expect(ORG_POSITIONS_SOURCE).toBe(ownerProjection('"id","company_id","branch_id","department_id","title","level_id","reports_to_position_id","is_ceo","active","version","created_by","created_at","updated_at","requirements","roster_required"','organization_positions'));
     expect(finalRootOwnerProjectionSources.department_heads).toBe(ownerProjection('"department_id","company_id","person_id","version","updated_by","updated_at"','department_heads'));

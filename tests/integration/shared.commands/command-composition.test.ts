@@ -1,8 +1,8 @@
 import { beforeAll, beforeEach, expect, it } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {executeCommand} from "@erpx/server-workflow/public/commands";
+import {assertion} from "@erpx/workflow-server/public/command-assertions";
+import {executeCommand} from "@erpx/workflow-server/public/commands";
 
 const db = env.H001_DB;
 let f: Awaited<ReturnType<typeof seedExpenseCompany>>;

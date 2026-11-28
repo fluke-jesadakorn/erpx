@@ -4,7 +4,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { connect } from 'node:net';
 import { randomBytes } from 'node:crypto';
 import { resolve } from 'node:path';
-import { appDefinition } from '@erpx/contracts/apps';
+import { appDefinition } from '@erpx/platform-contracts/apps';
 import { hasPortListener } from './port-listeners';
 import {prepareContributorActionKeys} from './contributor-action-keys';
 

@@ -8,7 +8,7 @@ import {
   createNativeCustomerPortalClient,
   nativeCustomerPortalConfiguration,
   NativeCustomerPortalError,
-} from '../../../packages/server-customer_360/src/adapters/native-customer-portal';
+} from '../../../modules/customer-360/server/src/adapters/native-customer-portal';
 import {
   RD_COMPANY_SCOPE,
   RD_COMPANY_SCOPE_PORTAL_RELEASE,
@@ -19,7 +19,7 @@ import {
   RD_PORTAL_ACTION_BY_KEY,
   nativeC360ReadConfiguration,
   nativeC360ReadStatement,
-} from '../../../packages/server-customer_360/src/adapters/native-customer-360-read';
+} from '../../../modules/customer-360/server/src/adapters/native-customer-360-read';
 
 const config = (overrides: Record<string, unknown> = {}) =>
   JSON.stringify({
@@ -185,7 +185,7 @@ describe('native customer-portal transport', () => {
   });
 });
 
-const c360SrcRoot = resolve(__dirname, '../../../packages/server-customer_360/src');
+const c360SrcRoot = resolve(__dirname, '../../../modules/customer-360/server/src');
 const c360Src = (name: string) => readFileSync(resolve(c360SrcRoot, 'adapters', name), 'utf8');
 const c360Sha = (s: string) => createHash('sha256').update(s).digest('hex');
 const c360ReadOnly = (sql: string) => {
@@ -267,8 +267,8 @@ describe('Customer 360 obligation-fact query-head family', () => {
     };
     expect(pkg.exports['./adapters/final-root-owner-projection-sources']).toBeUndefined();
     expect(pkg.exports['./public/final-root-owner-projection-sources']).toBeUndefined();
-    const removed = '@erpx/server-customer_360/public/final-root-owner-projection-sources';
-    const removedAdapter = '@erpx/server-customer_360/adapters/final-root-owner-projection-sources';
+    const removed = '@erpx/customer-360-server/public/final-root-owner-projection-sources';
+    const removedAdapter = '@erpx/customer-360-server/adapters/final-root-owner-projection-sources';
     const files: string[] = [];
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {

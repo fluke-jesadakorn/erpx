@@ -4,9 +4,9 @@ import { resolve } from 'node:path';
 
 vi.mock('server-only', () => ({}));
 
-import { latestReleaseRowSql, releaseAcceptanceRowSql } from '../../../packages/server-platform_administration/src/adapters/release-predicate';
+import { latestReleaseRowSql, releaseAcceptanceRowSql } from '../../../modules/platform-administration/server/src/adapters/release-predicate';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-platform_administration/src');
+const srcRoot = resolve(__dirname, '../../../modules/platform-administration/server/src');
 const source = (relative: string) => readFileSync(resolve(srcRoot, relative), 'utf8');
 
 // Pre-change renderings copied verbatim from the BEFORE=33 source. They are

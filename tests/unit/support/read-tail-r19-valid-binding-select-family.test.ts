@@ -5,17 +5,17 @@ import { beforeAll, describe, expect, test, vi } from 'vitest';
 const { fragments } = vi.hoisted(() => ({ fragments: { valid: '' } }));
 
 vi.mock('server-only', () => ({}));
-vi.mock('@erpx/server-support/adapters/native-support-read', async (importOriginal) => {
-    const original = await importOriginal<typeof import('../../../packages/server-support/src/adapters/native-support-read')>();
+vi.mock('@erpx/support-server/adapters/native-support-read', async (importOriginal) => {
+    const original = await importOriginal<typeof import('../../../modules/support/server/src/adapters/native-support-read')>();
     return {
         ...original,
         nativeSupportReadFragment: async () => fragments.valid,
     };
 });
 
-import { portalValidBindingRead } from '@erpx/server-support/adapters/ticket-portal-sources';
+import { portalValidBindingRead } from '@erpx/support-server/adapters/ticket-portal-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-support/src');
+const srcRoot = resolve(__dirname, '../../../modules/support/server/src');
 const src = (p: string) => readFileSync(resolve(srcRoot, p), 'utf8');
 const sources = src('adapters/ticket-portal-sources.ts');
 const staff = src('adapters/ticket-portal.ts');

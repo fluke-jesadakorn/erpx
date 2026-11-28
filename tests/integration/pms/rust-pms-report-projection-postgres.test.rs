@@ -4,12 +4,12 @@
 #![allow(dead_code)]
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_pms::public::report::*;
-use erpx_server_pms::public::room_board::PmsBoardActor;
-use erpx_server_runtime::public::postgres::{
+use erpx_pms_server::public::report::*;
+use erpx_pms_server::public::room_board::PmsBoardActor;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 
 async fn migrate(pool: &DatabasePool) {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
@@ -786,12 +786,12 @@ async fn unbounded_ranges_and_pages_are_rejected_before_any_owner_read() {
 /// enforced before any owner read; `view=` and `{report}` dispatch to the same
 /// two owner use cases.
 mod transport {
-    use erpx_server_pms::public::report::{
+    use erpx_pms_server::public::report::{
         PmsReportEntriesRequest, PmsReportHttpBackend, PmsReportHttpFuture, PmsReportHttpResponse,
         PmsReportHttpTarget, PmsReportRangeRequest, pms_report_router,
     };
-    use erpx_server_runtime::public::http_support::{Router, Value, json, serve};
-    use erpx_server_shared::public::{BusinessError, FailureKind};
+    use erpx_platform_runtime_server::public::http_support::{Router, Value, json, serve};
+    use erpx_platform_shared_server::public::{BusinessError, FailureKind};
     use std::sync::{
         Arc, Mutex,
         atomic::{AtomicUsize, Ordering},

@@ -2,9 +2,9 @@ import { describe, expect, test, vi } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
-import { qualitySourceArmHead } from '../../../packages/server-quality/src/adapters/quality-source-arm-head';
+import { qualitySourceArmHead } from '../../../modules/quality/server/src/adapters/quality-source-arm-head';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-quality/src');
+const srcRoot = resolve(__dirname, '../../../modules/quality/server/src');
 const read = (path: string) => readFileSync(resolve(srcRoot, path), 'utf8');
 
 // Pre-dedupe UNION ALL arms copied byte-for-byte from HEAD (r19 source). The

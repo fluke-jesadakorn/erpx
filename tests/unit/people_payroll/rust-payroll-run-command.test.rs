@@ -1,14 +1,14 @@
 //! Native payroll run command policy and calculation tests.
 //! PostgreSQL transaction behaviour and the composed Finance journal port are
 //! proven by sibling integration targets; these are owner unit facts.
-use erpx_server_benefits::public::payroll_source::BenefitPayrollInputRow;
-use erpx_server_people_payroll::public::payroll_run::{
+use erpx_benefits_server::public::payroll_source::BenefitPayrollInputRow;
+use erpx_people_payroll_server::public::payroll_run::{
     CreatePayrollRunInput, PayrollCalculationInput, PayrollCommandActor, PayrollCompensation,
     PayrollCostAssignment, PayrollEngagement, PayrollPayee, PayrollRun, PayrollTimeEntry,
     PostPayrollInput, ThaiPayrollCalculation, ThaiPayrollRules, calculate_payroll_item,
     calculate_thai_payroll, cancellable, decimal_to_minor, require_calculation_ready,
 };
-use erpx_server_shared::public::{CompanyId, HoldingId, TimestampMillis};
+use erpx_platform_shared_server::public::{CompanyId, HoldingId, TimestampMillis};
 use serde_json::json;
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
@@ -138,7 +138,7 @@ fn calculation_retains_components_and_readiness_prerequisites() {
     let run = run();
     require_calculation_ready(
         &run,
-        &erpx_server_people_payroll::public::payroll_run::PayrollCalculationContext {
+        &erpx_people_payroll_server::public::payroll_run::PayrollCalculationContext {
             inputs: vec![input.clone()],
         },
     )

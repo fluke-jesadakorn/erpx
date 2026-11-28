@@ -1,4 +1,4 @@
-use erpx_server_field_service::public::reservation_read::{
+use erpx_field_service_server::public::reservation_read::{
     FieldServiceAgreementCreateInput, FieldServiceAgreementReviewAction,
     FieldServiceAgreementReviewEntity, FieldServiceAgreementReviewEvent,
     FieldServiceAgreementReviewInput, FieldServiceBillingAction, FieldServiceBillingInput,
@@ -13,51 +13,51 @@ use erpx_server_field_service::public::reservation_read::{
     FieldServiceScheduleInput, FieldServiceStockSnapshot, FieldServiceVisitEvent,
     FieldServiceVisitStepAction, FieldServiceVisitStepInput,
 };
-use erpx_server_field_service::public::visit::FieldServiceBillingRelease;
-use erpx_server_field_service::public::work::FieldServiceWorkItem;
-use erpx_server_finance::public::field_service_agreement_money::AgreementMoneyEvidence;
-use erpx_server_finance::public::{
+use erpx_field_service_server::public::visit::FieldServiceBillingRelease;
+use erpx_field_service_server::public::work::FieldServiceWorkItem;
+use erpx_finance_server::public::field_service_agreement_money::AgreementMoneyEvidence;
+use erpx_finance_server::public::{
     ServiceCustomerInput, ServiceCustomerParty, ServiceCustomerResult,
     field_service_customer::{ServiceCustomerCurrency, ServiceCustomerReference},
 };
-use erpx_server_identity_access::public::account_companies::AccountCompanyChoice;
-use erpx_server_identity_access::public::account_work_roles::{
+use erpx_identity_access_server::public::account_companies::AccountCompanyChoice;
+use erpx_identity_access_server::public::account_work_roles::{
     AccountWorkSelection, AccountWorkspaceChoice,
 };
-use erpx_server_work_projection::public::account_workspace_preferences::{
+use erpx_work_projection_server::public::account_workspace_preferences::{
     AccountCompanyPreference, AccountWorkspacePreference,
 };
-use erpx_service::field_service_detail::{
+use erpx_platform_composition::field_service_detail::{
     FieldServiceDetailSpares, FieldServiceOrderDetail, FieldServiceOrderDetailResponse,
 };
-use erpx_service::field_service_reservation_read::{
+use erpx_platform_composition::field_service_reservation_read::{
     FieldServiceAgreementCreateReadResponse, FieldServiceAgreementReviewReadResponse,
     FieldServiceBillingReadResponse, FieldServiceIssueReadResponse,
     FieldServiceOrderCreateReadResponse, FieldServiceRenderedContext,
     FieldServiceRequestReadResponse, FieldServiceReservationReadResponse,
     FieldServiceVisitReadResponse,
 };
-use erpx_service::field_service_source_record::{
+use erpx_platform_composition::field_service_source_record::{
     FieldServiceSourceRecord, FieldServiceSourceRecordResponse,
 };
-use erpx_service::field_service_workspace::{
+use erpx_platform_composition::field_service_workspace::{
     FieldServiceWorkResponse, FieldServiceWorkspace, FieldServiceWorkspaceResponse,
     FieldServiceWorkspaceScope,
 };
-use erpx_service::native_account_preferences::NativeAccountPreferences;
-use erpx_service::native_work_roles::{
+use erpx_platform_composition::native_account_preferences::NativeAccountPreferences;
+use erpx_platform_composition::native_work_roles::{
     NativeAccountCompanies, NativeIamPresentation, NativeWorkPresentation, NativeWorkRoleOption,
     NativeWorkRoleState,
 };
-use erpx_service::service_customer_preparation::{
+use erpx_platform_composition::service_customer_preparation::{
     ServiceCustomerConfirmation, ServiceCustomerConfirmationResponse,
     ServiceCustomerCreateResponse, ServiceCustomerPreparation, ServiceCustomerReadResponse,
 };
-use erpx_service::service_parts_posting_setup::{
+use erpx_platform_composition::service_parts_posting_setup::{
     ServicePostingCommandResponse, ServicePostingReadResponse, ServicePostingResult,
     ServicePostingView,
 };
-use erpx_service::service_parts_prerequisite_setup::{
+use erpx_platform_composition::service_parts_prerequisite_setup::{
     ServicePrerequisiteAccountInput, ServicePrerequisiteAccountRequest,
     ServicePrerequisiteAccountResponse, ServicePrerequisiteAccountResult,
     ServicePrerequisiteChartInput, ServicePrerequisiteChartRequest,
@@ -67,7 +67,7 @@ use erpx_service::service_parts_prerequisite_setup::{
     ServicePrerequisiteRateInput, ServicePrerequisiteRateRequest, ServicePrerequisiteRateResponse,
     ServicePrerequisiteRateResult, ServicePrerequisitesReadResponse, ServicePrerequisitesView,
 };
-use erpx_service::service_stock_setup::{
+use erpx_platform_composition::service_stock_setup::{
     ServiceStockBranch, ServiceStockMasterResponse, ServiceStockMasterResult,
     ServiceStockProductInput, ServiceStockReadResponse, ServiceStockWarehouseInput,
     ServiceStockWorkspace,

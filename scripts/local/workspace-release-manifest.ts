@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { lstat, readFile, readdir, realpath } from 'node:fs/promises';
 import { isAbsolute, join, resolve, sep } from 'node:path';
-import { appDefinitions } from '@erpx/contracts/apps';
+import { appDefinitions } from '@erpx/platform-contracts/apps';
 import { verifyAppArtifact } from './app-artifact-cache';
 
 export const oasisDemoApps = ['account', 'apps', 'sales'] as const;

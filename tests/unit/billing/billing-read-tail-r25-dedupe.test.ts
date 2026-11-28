@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
-const src = (name: string) => readFile(new URL(`../../../packages/server-billing/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFile(new URL(`../../../modules/billing/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 /** r37 retires the shared TypeScript advisory-lock text file: both texts are
  * now allow-listed Billing owner kinds, executed on the caller's PoolClient. */

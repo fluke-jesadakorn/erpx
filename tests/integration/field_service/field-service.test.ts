@@ -1,7 +1,7 @@
 import {withNativeFieldFixture,type NativeFieldFixture} from '../../support/files/field-files-native-parity';
 import {historicalServiceCount} from '../../support/field_service/legacy-count-oracle';
 import {attachmentToolEnvironment} from '../../../scripts/testing/runtime-tooling';
-import { packageGrantStore, readCompanyPackageGrants } from "@erpx/server-commercial/public/package-grants";
+import { packageGrantStore, readCompanyPackageGrants } from "@erpx/commercial-server/public/package-grants";
 
 
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
@@ -11,12 +11,12 @@ import {
   key,
 } from "../../support/helpers/expense-fixture";
 import {createHash} from 'node:crypto';
-import type {PostgresDatabase} from '@erpx/server-runtime/adapters/runtime/postgres';
-import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
-import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
+import type {PostgresDatabase} from '@erpx/platform-runtime-server/adapters/runtime/postgres';
+import {assignFlowPrimary,resolveFlow} from '@erpx/workflow-server/public/flow-routing';
+import type {SqlDatabase} from "@erpx/platform-runtime-server/public/runtime/types";
 let serviceDatabase:SqlDatabase|undefined;
 let db:PostgresDatabase=expenseDb;
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({
   holdingResources: async () => ({ write: serviceDatabase??env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));
@@ -283,7 +283,7 @@ afterEach(() => { serviceDatabase=undefined;vi.unstubAllEnvs(); vi.restoreAllMoc
 
 
 // Additive Service-only native authority fixture; all prior assertions stay byte exact.
-type ServicePartsFixtureActor=import("@erpx/server-identity_access/public/authorization").WorkContext;
+type ServicePartsFixtureActor=import("@erpx/identity-access-server/public/authorization").WorkContext;
 async function zeroLedgerServicePartsCompany() {
   // Seed organization and actual native worker/assignment authority only.
   // This Company has NEVER had a chart/account/period/quote/settings row.
@@ -303,12 +303,12 @@ async function zeroLedgerServicePartsCompany() {
     ]);
     const scope:ServicePartsFixtureActor['scope']=scopeKind==='department'?{kind:'department',holdingId:'h001',holdingSlug:'service-parts-test',holdingName:'Test',companyId:company,branchId:branch,departmentId:department,departmentSlug:department,departmentName:'Native Service parts team'}:scopeKind==='branch'?{kind:'branch',holdingId:'h001',holdingSlug:'service-parts-test',holdingName:'Test',companyId:company,branchId:branch,branchSlug:branch,branchName:'Native service branch'}:{kind:'holding',holdingId:'h001',holdingSlug:'service-parts-test',holdingName:'Test',companyId:company};
     const context:ServicePartsFixtureActor={userId,assignmentId,role,companyId:company,branchId:scopeKind==='holding'?null:branch,departmentId:scopeKind==='department'?department:null,holdingId:'h001',holdingSlug:'service-parts-test',holdingName:'Test',name,email:`${name}@example.test`,assignmentScope:scopeKind,inherited:false,modules:['field_service'],assignments:[],workspaces:[],scope};
-    const {loadIamAuthority}=await import('@erpx/server-identity_access/public/iam-store');
+    const {loadIamAuthority}=await import('@erpx/identity-access-server/public/iam-store');
     context.iam=await loadIamAuthority(db,company,userId,role);
     return context;
   }
   const owner=await actor('owner','holding_owner'),reviewer=await actor('reviewer','finance_preparer'),manager=await actor('manager','finance_approver'),serviceReviewer=await actor('service-reviewer','holding_owner'),technician=await actor('technician','employee');
-  const {positionSchema}=await import('@erpx/server-organization/public/organization');const {savePosition}=await import('../../support/helpers/organization-positions');const {installStaffLevels}=await import('../../support/helpers/organization-levels');
+  const {positionSchema}=await import('@erpx/organization-server/public/organization');const {savePosition}=await import('../../support/helpers/organization-positions');const {installStaffLevels}=await import('../../support/helpers/organization-levels');
   await installStaffLevels(db,owner,key());
   const ceo=String((await savePosition(db,owner,null,positionSchema.parse({title:'Fixture accountable owner',levelId:`org-level-${company}-1`,branchId:null,departmentId:null,isCeo:true,reportsToPositionId:null,expectedVersion:0,reason:'Native organizational authority fixture'}),key())).id);
   for(const [member,rank] of [[owner,1],[reviewer,5],[manager,4],[serviceReviewer,3],[technician,4]] as const){
@@ -323,22 +323,22 @@ async function zeroLedgerServicePartsCompany() {
   const store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-Service-parts-provider'}),obligations:async()=>{throw Error('Service parts fixture cannot withdraw');}});
   async function purchase(){for(const packageId of ['service','service-parts-assets']){if(await db.prepare("SELECT state FROM company_package_grants WHERE company_id=? AND package_id=?").bind(company,packageId).first<string>('state')==='active')continue;await store.apply({expectedVersion:0,idempotencyKey:key(),grant:{companyId:company,packageId,packageVersion:1,state:'active',startsAt:0,endsAt:null,version:1,reason:'Declared native Service-only parts startup',evidence:'test:Service-parts-fresh-Company'}});}}
   vi.stubEnv('ERPX_SERVICE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_SUPPORT_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
-  for(const person of [owner,reviewer,manager,serviceReviewer,technician]){const {loadIamAuthority}=await import('@erpx/server-identity_access/public/iam-store');person.iam=await loadIamAuthority(db,company,person.userId,person.role);}
+  for(const person of [owner,reviewer,manager,serviceReviewer,technician]){const {loadIamAuthority}=await import('@erpx/identity-access-server/public/iam-store');person.iam=await loadIamAuthority(db,company,person.userId,person.role);}
   return {company,branch,department,owner,reviewer,manager,serviceReviewer,technician,counts,purchase,store,actor};
 }
 
 type PartsCompany=Awaited<ReturnType<typeof zeroLedgerServicePartsCompany>>;
 type PartsCommand<T>=(actor:ServicePartsFixtureActor,body:unknown,command:string)=>Promise<T>;
 type PartsPorts={
- finance:{servicePartsPrerequisites:(actor:ServicePartsFixtureActor)=>Promise<import('@erpx/feature-field_service/lib/parts-setup-command').ServicePartsPrerequisitesView>;createServicePartsChart:PartsCommand<{id:string}>;createServicePartsAccount:PartsCommand<{id:string}>;createServicePartsPeriod:PartsCommand<{id:string}>;confirmServicePartsRate:PartsCommand<{id:string;currency:string;effectiveDate:string;currencyPerUsd:string;confirmedAt:number}>};
- setup:{servicePartsPostingSetup:(actor:ServicePartsFixtureActor)=>Promise<import('@erpx/feature-field_service/lib/parts-setup-command').ServicePartsView['mapping']>;initializeServicePartsPostingSetup:PartsCommand<{id:string;status:'configured'|'confirmed-existing';version:1}>;confirmExistingServicePartsPostingSetup:PartsCommand<{id:string;status:'configured'|'confirmed-existing';version:1}>};
+ finance:{servicePartsPrerequisites:(actor:ServicePartsFixtureActor)=>Promise<import('@erpx/field-service-ui/lib/parts-setup-command').ServicePartsPrerequisitesView>;createServicePartsChart:PartsCommand<{id:string}>;createServicePartsAccount:PartsCommand<{id:string}>;createServicePartsPeriod:PartsCommand<{id:string}>;confirmServicePartsRate:PartsCommand<{id:string;currency:string;effectiveDate:string;currencyPerUsd:string;confirmedAt:number}>};
+ setup:{servicePartsPostingSetup:(actor:ServicePartsFixtureActor)=>Promise<import('@erpx/field-service-ui/lib/parts-setup-command').ServicePartsView['mapping']>;initializeServicePartsPostingSetup:PartsCommand<{id:string;status:'configured'|'confirmed-existing';version:1}>;confirmExistingServicePartsPostingSetup:PartsCommand<{id:string;status:'configured'|'confirmed-existing';version:1}>};
  masters:{createServiceInitialPhysicalStockProduct:PartsCommand<{id:string;version:1}>;createServiceInitialPhysicalStockWarehouse:PartsCommand<{id:string;version:1}>};
 };
 async function withMixedPartsFixture<T>(run:(z:PartsCompany,ports:PartsPorts,native:NativeFieldFixture)=>Promise<T>,profile?:'parts'|'agreement'|'service'|'service-finance'|'files-history'):Promise<T>{
  const saved={db,serviceDatabase};let company:PartsCompany|undefined;
  try{return await withNativeFieldFixture(async native=>{
   if(!company)throw new Error('MIXED_PARTS_COMPANY_MISSING');const z=company,base='/api/v1/holdings/acme/field-service/parts-setup';
-  const {loadIamAuthority}=await import('@erpx/server-identity_access/public/iam-store');for(const actor of [z.owner,z.reviewer,z.manager,z.serviceReviewer,z.technician])actor.iam=await loadIamAuthority(db,z.company,actor.userId,actor.role);
+  const {loadIamAuthority}=await import('@erpx/identity-access-server/public/iam-store');for(const actor of [z.owner,z.reviewer,z.manager,z.serviceReviewer,z.technician])actor.iam=await loadIamAuthority(db,z.company,actor.userId,actor.role);
   const labels=new Map([[z.owner.userId,'owner'],[z.reviewer.userId,'reviewer'],[z.manager.userId,'manager'],[z.serviceReviewer.userId,'serviceReviewer'],[z.technician.userId,'technician']]);
   async function call<T>(actor:ServicePartsFixtureActor,method:string,path:string,body?:unknown,command?:string):Promise<T>{const label=labels.get(actor.userId);if(!label)throw new Error('MIXED_PARTS_ACTOR_MISSING');const response=await native.requestAs<T>(label,method,base+path,body,command);if(response.status!==200)throw Object.assign(new Error(response.json?.error?.message??'Native parts operation failed'),{status:response.status,code:response.json?.error?.code});return response.json.data;}
   const finance={servicePartsPrerequisites:(actor:ServicePartsFixtureActor)=>call(actor,'GET','/prerequisites'),createServicePartsChart:(actor:ServicePartsFixtureActor,body:unknown,command:string)=>call(actor,'POST','/charts',body,command),createServicePartsAccount:(actor:ServicePartsFixtureActor,body:unknown,command:string)=>call(actor,'POST','/accounts',body,command),createServicePartsPeriod:(actor:ServicePartsFixtureActor,body:unknown,command:string)=>call(actor,'POST','/periods',body,command),confirmServicePartsRate:(actor:ServicePartsFixtureActor,body:unknown,command:string)=>call(actor,'POST','/rates',body,command)} as PartsPorts['finance'];
@@ -363,14 +363,14 @@ expect(await finance.servicePartsPrerequisites(z.reviewer)).toMatchObject({avail
 }
 it('HISTORICAL COMPATIBILITY: Service-only fresh parts setup independently posts the first physical spare with exact stock/journal evidence',async()=>{
  await withMixedPartsFixture(async(z,ports)=>{
- const s=await zeroLedgerServicePartsSource({z,ports}),initial=await historicalServiceCount(),counts=await import('@erpx/server-inventory/public/inventory-counts'),before=await s.snapshot();
+ const s=await zeroLedgerServicePartsSource({z,ports}),initial=await historicalServiceCount(),counts=await import('@erpx/inventory-server/public/inventory-counts'),before=await s.snapshot();
  expect(counts.canPrepareCounts(s.z.owner)).toBe(true);expect(counts.canApproveCounts(s.z.manager)).toBe(true);await expect(counts.saveCount(s.z.owner,null,s.input,key())).rejects.toMatchObject({status:403,code:'PACKAGE_REQUIRED'});expect(await s.snapshot()).toEqual(before);
  const selection={warehouseId:s.warehouse.id,productId:s.product.id,countDate:s.input.countDate},seed=await initial.serviceInitialPhysicalStockCountWorkspace(s.z.owner,selection);expect(seed).toMatchObject({available:true,canPrepare:true,readiness:{schemaAvailable:true,postingConfigured:true,varianceAccountAvailable:true,postingPeriodAvailable:true}});if(!seed.contextKey)throw Error('Actual Service first Count context required');const command=key(),body={expectedVersion:0 as const,contextKey:seed.contextKey,input:s.input},created=await initial.prepareServiceInitialPhysicalStockCount(s.z.owner,body,command),id=String(created.id);expect(created).toEqual({id:`count-${command}`,status:'draft',version:1});expect(await initial.prepareServiceInitialPhysicalStockCount(s.z.owner,body,command)).toEqual(created);
  const {enableAttachmentV2ForTest,seedAttachmentSet}=await import('../../support/helpers/attachment-v2');enableAttachmentV2ForTest();const sheet=await seedAttachmentSet(db,s.z.owner,{targetType:'stock_count',targetId:id,componentKind:'action',componentRef:'submit',purposeKey:'count_sheet',expectedTargetVersion:1});await initial.transitionServiceInitialPhysicalStockCount(s.z.owner,id,'submit',{expectedVersion:1,attachmentSetIds:[sheet.setId]},key());
  for(const [step,version] of [['submitted',2],['approved',3]] as const){const flow=await initial.serviceInitialPhysicalStockCountFlow(s.z.owner,id);await initial.assignServiceInitialPhysicalStockCountFlow(s.z.owner,id,{stepKey:step,userId:s.z.manager.userId,expectedVersion:flow.version,recordVersion:version,reason:'Original Company Flow authority chooses independent real Stock reviewer',saveDefault:false},key());if(step==='submitted')await initial.transitionServiceInitialPhysicalStockCount(s.z.manager,id,'approve',{expectedVersion:2,attachmentSetIds:[],reason:'Independently verify the actual physical spare quantity and unit cost'},key());}
  const postKey=key(),postBody={expectedVersion:3,attachmentSetIds:[],reason:'Current-period physical variance, not opening equity or a purchase'},posted=await initial.transitionServiceInitialPhysicalStockCount(s.z.manager,id,'post',postBody,postKey);expect(posted).toMatchObject({id,status:'posted',version:4});expect(await initial.transitionServiceInitialPhysicalStockCount(s.z.manager,id,'post',postBody,postKey)).toEqual(posted);const detail=await initial.serviceInitialPhysicalStockCountWorkspace(s.z.reviewer,{countId:id}),journal=detail.record?.journalId;if(!journal)throw Error('Actual Count posted journal required');expect(detail.record).toMatchObject({id,sourceKind:'service-initial-physical-stock-count',status:'posted',version:4});
  expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(s.warehouse.id,s.product.id).first()).toEqual({quantity_milli:2000,value_minor:1200});expect(await db.prepare('SELECT source_type,source_id,status,is_opening FROM finance_journals WHERE id=? AND company_id=?').bind(journal,s.z.company).first()).toEqual({source_type:'stock_count',source_id:id,status:'posted',is_opening:0});expect((await db.prepare('SELECT account_id,debit_minor,credit_minor FROM finance_journal_lines WHERE journal_id=?').bind(journal).all()).results).toEqual(expect.arrayContaining([{account_id:s.accounts.inventory,debit_minor:1200,credit_minor:0},{account_id:s.accounts.variance,debit_minor:0,credit_minor:1200}]));
- const {journalDetail,ledgerWorkspace}=await import('@erpx/server-finance/public/ledger');expect((await journalDetail(s.z.reviewer,journal)).journal.id).toBe(journal);await expect(ledgerWorkspace(s.z.reviewer,s.chart.id)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
+ const {journalDetail,ledgerWorkspace}=await import('@erpx/finance-server/public/ledger');expect((await journalDetail(s.z.reviewer,journal)).journal.id).toBe(journal);await expect(ledgerWorkspace(s.z.reviewer,s.chart.id)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
  // Spare consumption, reviewed cost posting and billing release now execute
  // through native service_only_visit and fully_covered native invoice flows;
  // the TS Field command producers are retired (no legacy invoice producer).
@@ -399,8 +399,8 @@ it('HISTORICAL COMPATIBILITY: Service confirms an unchanged historical Supply ma
  // The separate browser fixture uses this same owner path on a distinct lease.
  await withMixedPartsFixture(async z=>{const {seedHistoricalSupplyMapping}=await import('../../support/field_service/historical-supply-parts');const prepared=await seedHistoricalSupplyMapping(db,z);expect(prepared.mappingCommandId).toBeTruthy();expect(prepared.mappingImage).toBeTruthy();});
  await withMixedPartsFixture(async(z,ports)=>{
- const finance=await import('@erpx/server-finance/public/finance'),money=await import('@erpx/server-finance/public/company-money'),supply=await import('@erpx/server-commerce/public/posting-setup'),commerce=await import('@erpx/server-commerce/public/commerce'),inventory=await import('@erpx/server-inventory/public/inventory-counts'),setup=ports.setup,initial=await historicalServiceCount(),masters=ports.masters;
- const {packageGrantRevision,readCompanyPackageHistoryRights}=await import('@erpx/server-commercial/public/package-grants'),{withOwnerPackageObligations,ownerPackageObligations,readOwnerPackageObligations}=await import('@erpx/server-commercial/public/owner-package-obligations');
+ const finance=await import('@erpx/finance-server/public/finance'),money=await import('@erpx/finance-server/public/company-money'),supply=await import('@erpx/commerce-server/public/posting-setup'),commerce=await import('@erpx/commerce-server/public/commerce'),inventory=await import('@erpx/inventory-server/public/inventory-counts'),setup=ports.setup,initial=await historicalServiceCount(),masters=ports.masters;
+ const {packageGrantRevision,readCompanyPackageHistoryRights}=await import('@erpx/commercial-server/public/package-grants'),{withOwnerPackageObligations,ownerPackageObligations,readOwnerPackageObligations}=await import('@erpx/commercial-server/public/owner-package-obligations');
  // Explicit historical fixture scope: this Company really bought Supply first.
  // Its old owner creates all business rows; it ends through actual owner-registry
  // review before Service confirmation. This is not a never-Supply Company claim.
@@ -458,7 +458,7 @@ it('Service mapping rolls a deferred actual Finance reference change back before
 it('HISTORICAL COMPATIBILITY: Service product entry uses the actual current Finance or Stock assignment and named Count source without generic package authority',async()=>{
  await withMixedPartsFixture(async(z,ports)=>{
  const fixture=await zeroLedgerServicePartsSource({z,ports});
- const setup=await import('@erpx/server-commerce/public/service-parts-posting-setup'),counts=await historicalServiceCount();
+ const setup=await import('@erpx/commerce-server/public/service-parts-posting-setup'),counts=await historicalServiceCount();
  async function scope(actor:ServicePartsFixtureActor){const version=await db.prepare('SELECT version FROM assignments WHERE id=? AND company_id=? AND user_id=?').bind(actor.assignmentId,actor.companyId,actor.userId).first<number>('version');if(!version)throw Error('Original native assignment version required');return {companyId:actor.companyId,branchId:actor.branchId,departmentId:actor.departmentId,userId:actor.userId,assignmentId:actor.assignmentId,assignmentVersion:version,role:actor.role,sessionId:'isolated-native-entry-session'};}
  const finance=await scope(z.reviewer),stock=await scope(z.owner),employee=await scope(z.technician);
  expect(await setup.servicePartsPostingSetupProductEntry(db,finance)).toMatchObject({revision:expect.stringMatching(/^[a-f0-9]{64}$/),purchasePurpose:'history'});
@@ -491,7 +491,7 @@ it('Service exact mapping replay rolls a late current mapping drift back without
 },120000);
 
 it('Service fresh mapping preserves independently approved Sales defaults including omitted VAT and rejects late edition changes',async()=>{
- const sales=await import('@erpx/server-finance/public/sales'),{commerceFinanceJoinedFacts}=await import('@erpx/server-finance/public/commerce-joined-facts');
+ const sales=await import('@erpx/finance-server/public/sales'),{commerceFinanceJoinedFacts}=await import('@erpx/finance-server/public/commerce-joined-facts');
  for(const withVat of [true,false]){
   await withMixedPartsFixture(async(z,ports)=>{const service=ports.finance,setup=ports.setup;await z.purchase();
   const envelope=async()=>{const view=await service.servicePartsPrerequisites(z.reviewer);expect(view.available).toBe(true);if(!view.contextKey)throw Error('Actual current Service Finance reference context required');return {expectedVersion:0 as const,contextKey:view.contextKey};};

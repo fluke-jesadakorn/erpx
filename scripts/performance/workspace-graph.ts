@@ -15,7 +15,7 @@ const runtime=await runtimeSourceFingerprint(root),verification=await verificati
 const old=execFileSync('git',['show',`${sha}:scripts/testing/workspace-graph.ts`],{cwd:root,encoding:'utf8',maxBuffer:8*1024*1024});
 const graphModule=resolve(root,'scripts/testing/workspace-graph.ts'),entry=resolve(directory,'entry.ts');
 await writeFile(entry,`import {loadWorkspaceGraph,appRuntimeFingerprint} from ${JSON.stringify(graphModule)};
-import {appIds} from '@erpx/contracts/apps';import{createHash}from'node:crypto';
+import {appIds} from '@erpx/platform-contracts/apps';import{createHash}from'node:crypto';
 const started=performance.now(),graph=loadWorkspaceGraph(process.cwd(),{cacheRoot:${JSON.stringify(resolve(directory,'cache'))}}),milliseconds=performance.now()-started,rssAfterLoadBytes=process.memoryUsage().rss;
 const hash=createHash('sha256');for(const[file,source]of [...graph.files].sort(([a],[b])=>a.localeCompare(b)))hash.update(file).update('\\0').update(source).update('\\0');
 console.log(JSON.stringify({milliseconds,rssAfterLoadBytes,files:graph.files.size,inputs:hash.digest('hex'),cache:graph.sourceCache??null,runtime:Object.fromEntries(appIds.map(id=>[id,appRuntimeFingerprint(graph,id)]))}));

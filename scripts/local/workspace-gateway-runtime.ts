@@ -9,11 +9,11 @@ import { execFileSync } from "node:child_process";
 import { recoverGatewayApps, inspectProcessIdentity, assertRetiredLeasePortsAvailable, linuxInitStartTime, type ProcessIdentity, type PidNamespace } from "./app-process-leases";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import {readContributorActionKey, type ContributorActionApp} from "./contributor-action-keys";
-import { appDefinitions, appDirectory, appForHost, unregisteredDevelopmentProductHost } from "@erpx/contracts/apps";
-import {holdingRoutingEnabled,holdingHostForHost,holdingPathMatches,contributorExactOrigin,contributorOriginProfile,originProfile} from '@erpx/feature-runtime/lib/holding-hosts';
+import { appDefinitions, appDirectory, appForHost, unregisteredDevelopmentProductHost } from "@erpx/platform-contracts/apps";
+import {holdingRoutingEnabled,holdingHostForHost,holdingPathMatches,contributorExactOrigin,contributorOriginProfile,originProfile} from '@erpx/platform-runtime-ui/lib/holding-hosts';
 import {holdingGatewayApp,holdingGatewayLocation} from './holding-gateway';
 import { consoleWorkspaceCutoverBlockers } from "./console-workspace-cutover";
-import {consoleRetirementResult,developmentConsoleRetired} from '@erpx/contracts/console-retirement';
+import {consoleRetirementResult,developmentConsoleRetired} from '@erpx/platform-contracts/console-retirement';
 import { nativeApiBase, nativeApiError, nativeApiPath, nativeQualityUnavailable, proxyNativeApi } from "./native-api-proxy";
 import { holdingNativeCutoverPath, isHoldingQualityPath, normalizeHoldingNativePath, respondToHoldingQualityMethod, respondToShellPreferenceMethod, shellPreferenceRoute } from "./native-cutover-routes";
 

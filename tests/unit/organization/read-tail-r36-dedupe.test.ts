@@ -1,9 +1,9 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { activeNodeByIdCompanyKind } from '../../../packages/server-organization/src/adapters/organization-column-alias-families-r36';
+import { activeNodeByIdCompanyKind } from '../../../modules/organization/server/src/adapters/organization-column-alias-families-r36';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+const srcRoot = resolve(__dirname, '../../../modules/organization/server/src');
 const adapters = resolve(srcRoot, 'adapters');
 const read = (name: string) => readFileSync(resolve(adapters, name), 'utf8');
 const helper = read('organization-column-alias-families-r36.ts');
@@ -56,12 +56,12 @@ describe('Organization read-tail r36 active-node-by-kind family', () => {
     expect(pms).toContain(`${BRANCH} FOR SHARE`);
     expect(tail.split('activeNodeByIdCompanyKind(').length - 1).toBeGreaterThanOrEqual(1);
     expect(front.split('activeNodeByIdCompanyKind(').length - 1).toBeGreaterThanOrEqual(1);
-    const { NODE_BRANCH_ACTIVE } = await import('../../../packages/server-organization/src/adapters/organization-read-tail-sources');
+    const { NODE_BRANCH_ACTIVE } = await import('../../../modules/organization/server/src/adapters/organization-read-tail-sources');
     expect(NODE_BRANCH_ACTIVE).toBe(activeNodeByIdCompanyKind('1', 'branch'));
   });
 
   test('spaced JOIN constants and native-read-tail guarantees are retained', async () => {
-    const spaced = await import('../../../packages/server-organization/src/adapters/organization-nodes-spaced-projections');
+    const spaced = await import('../../../modules/organization/server/src/adapters/organization-nodes-spaced-projections');
     expect(spaced.ORG_NODES_SPACED_CLAUSE('JOIN', 'c')).toBe(spaced.ORG_NODES_SPACED_C_JOIN);
     expect(spaced.ORG_NODES_SPACED_CLAUSE('JOIN', 'n')).toBe(spaced.ORG_NODES_SPACED_N_JOIN);
     expect(spaced.ORG_NODES_SPACED_CLAUSE('JOIN', 'b')).toBe(spaced.ORG_NODES_SPACED_B_JOIN);

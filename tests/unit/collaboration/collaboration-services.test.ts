@@ -2,14 +2,14 @@ import {existsSync,readFileSync} from 'node:fs';
 import {createServer} from 'node:http';
 import {resolve} from 'node:path';
 import {afterEach,describe,expect,test,vi} from 'vitest';
-import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import {BusinessRuleError} from "@erpx/server-shared/index";
-import {createSocialSourceApplication,type SocialSourcePorts,type SocialSourceRepository} from "@erpx/server-collaboration/application/social-source";
-import {createSocialTextApplication,type SocialTextPorts,type SocialTextRepository} from "@erpx/server-collaboration/application/social-text";
-import {createStaffNotificationApplication,type StaffNotificationPorts} from "@erpx/server-collaboration/application/staff-notifications";
-import type {PostRow} from "@erpx/server-collaboration/domain/social-source";
-import type {Mention} from "@erpx/server-collaboration/domain/social-text";
-import type {StaffNotification} from "@erpx/server-collaboration/domain/staff-notifications";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
+import {BusinessRuleError} from "@erpx/platform-shared-server/index";
+import {createSocialSourceApplication,type SocialSourcePorts,type SocialSourceRepository} from "@erpx/collaboration-server/application/social-source";
+import {createSocialTextApplication,type SocialTextPorts,type SocialTextRepository} from "@erpx/collaboration-server/application/social-text";
+import {createStaffNotificationApplication,type StaffNotificationPorts} from "@erpx/collaboration-server/application/staff-notifications";
+import type {PostRow} from "@erpx/collaboration-server/domain/social-source";
+import type {Mention} from "@erpx/collaboration-server/domain/social-text";
+import type {StaffNotification} from "@erpx/collaboration-server/domain/staff-notifications";
 const actor:WorkContext={userId:'owner',name:'Owner',email:'owner@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['collaboration'],assignments:[],workspaces:[]};
 function repository<R extends object>(facts:Partial<R>,calls:string[]):R{return new Proxy(facts,{get(target,key){if(key==='then')return undefined;if(key in target)return target[key as keyof R];if(typeof key==='string'&&/^(prepare|guard)/.test(key))return (...args:unknown[])=>{calls.push(key+':'+JSON.stringify(args));return key;};return ()=>{throw Error('Unexpected fact '+String(key));};}})as R;}
 const post:PostRow={id:'post',kind:'team',company_id:'company',branch_id:null,department_id:null,author_id:'owner',author_name:'Owner',body:'Reviewed source',mentions_json:'[]',content_json:null,rich_content_json:null,audience_kind:'company',audience_id:null,purpose:'update',edited_at:null,retracted_at:null,version:3,state:'published',linked_module:null,created_at:1};
@@ -41,13 +41,13 @@ describe('Notification projections recheck current source authorization',()=>{
  test('unexpected authentication or persistence failures remain failures',async()=>{const f=notifications({readablePost:async()=>{throw new BusinessRuleError(401,'LOGIN_REQUIRED','Sign in');}});await expect(f.app.visibleNotifications(actor,[notice])).rejects.toMatchObject({status:401});});
 });
 
-import {createSocialHomeApplication,type SocialHomePorts,type SocialHomeRepository} from "@erpx/server-collaboration/application/social-home";
-import {audienceScope,selectedAudience,type PostDraft,postDraftSchema} from "@erpx/server-collaboration/domain/social-home";
-import {createSocialAiApplication,type SocialAiPorts,type SocialAiRepository} from "@erpx/server-collaboration/application/social-ai";
-import {createMessagingFileApplication,type MessagingFilePorts} from "@erpx/server-collaboration/application/messaging-files";
-import {createInboxApplication,type InboxPorts,type InboxRepository} from "@erpx/server-collaboration/application/inbox";
-import type {Candidate} from "@erpx/server-collaboration/domain/inbox";
-import {pushOriginAllowed,quietDelayMs,validatePushSubscription,preferenceInput} from "@erpx/server-collaboration/domain/web-push";
+import {createSocialHomeApplication,type SocialHomePorts,type SocialHomeRepository} from "@erpx/collaboration-server/application/social-home";
+import {audienceScope,selectedAudience,type PostDraft,postDraftSchema} from "@erpx/collaboration-server/domain/social-home";
+import {createSocialAiApplication,type SocialAiPorts,type SocialAiRepository} from "@erpx/collaboration-server/application/social-ai";
+import {createMessagingFileApplication,type MessagingFilePorts} from "@erpx/collaboration-server/application/messaging-files";
+import {createInboxApplication,type InboxPorts,type InboxRepository} from "@erpx/collaboration-server/application/inbox";
+import type {Candidate} from "@erpx/collaboration-server/domain/inbox";
+import {pushOriginAllowed,quietDelayMs,validatePushSubscription,preferenceInput} from "@erpx/collaboration-server/domain/web-push";
 const draft:PostDraft={id:'draft',author_id:actor.userId,company_id:actor.companyId,branch_id:null,audience_kind:'company',audience_id:null,participants_json:'[]',sources_json:'[]',purpose:'update',body:'Draft text',department_id:null,version:1,published_post_id:null,mentions_json:'[]',content_json:null,rich_content_json:null,comment_parent_post_id:null,published_comment_id:null,cancelled_at:null,edit_post_id:null,edit_post_version:null,edit_saved_version:null};
 function home(facts:Partial<SocialHomeRepository<string>>={}){const calls:string[]=[],ports=repository<SocialHomePorts<string>>({repository:repository<SocialHomeRepository<string>>({draft:async()=>({...draft}),commentDraftExists:async()=>null,richDraftExists:async()=>null,publishDraft:async()=>({...draft}),...facts},calls),clock:{now:()=>42},identifiers:{next:()=> 'id'},readablePost:async()=>({...post}),sourceGuard:()=> 'source',validateMentions:async()=>[],commands:{async replay<Result>():Promise<Result|null>{calls.push('replay');return null;},async commit<Result>(_actor:Pick<WorkContext,"userId"|"assignmentId"|"role"|"companyId"|"branchId"|"departmentId"|"iam"|"authority">,_key:string,operation:string,_input:unknown,_id:string,_version:number,result:Result,effects:string[]){calls.push('commit:'+operation+':'+effects.join(','));return result;}}},calls);return {calls,ports,app:createSocialHomeApplication<string>(ports)};}
 const aiResult={summary:'Reviewed source',title:null,description:null,assigneeUserId:null,reviewerUserId:null,dueAt:null,missing:[],citations:['post']};
@@ -89,10 +89,10 @@ describe('Private message intake guards precede owner file creation',()=>{
  test('lost response replay returns the original receipt before creating any new file set',async()=>{const f=messageFile();f.ports.commands.replay=async<Result>()=>({id:'original'} as Result);expect(await f.app.uploadMessagingFile(actor,'room',{id:'10000000-0000-4000-8000-000000000001',name:'image.png',type:'image/png'})).toEqual({id:'original'});expect(f.calls).toEqual([]);});
 });
 
-import {createSocialTaskApplication,type SocialTaskPorts} from "@erpx/server-collaboration/application/social-task";
-import {createSocialAgentApplication,type SocialAgentPorts} from "@erpx/server-collaboration/application/social-agent";
-import {createCurrentPushSessionCleanup,createWebPushApplication,type CurrentPushSessionCleanupPorts,type WebPushPorts} from "@erpx/server-collaboration/application/web-push";
-import {createMessagingApplication,type MessagingPorts,type MessagingRepository} from "@erpx/server-collaboration/application/messaging";
+import {createSocialTaskApplication,type SocialTaskPorts} from "@erpx/collaboration-server/application/social-task";
+import {createSocialAgentApplication,type SocialAgentPorts} from "@erpx/collaboration-server/application/social-agent";
+import {createCurrentPushSessionCleanup,createWebPushApplication,type CurrentPushSessionCleanupPorts,type WebPushPorts} from "@erpx/collaboration-server/application/web-push";
+import {createMessagingApplication,type MessagingPorts,type MessagingRepository} from "@erpx/collaboration-server/application/messaging";
 const emptyCalls:string[]=[];
 function linkedTask(){const calls:string[]=[],ports:SocialTaskPorts<string>={clock:{now:()=>42},repository:{taskOrigin:async()=>null,aiProvider:async()=>null,guardAiDraft:()=> 'draft',bindTaskOrigin:async()=> 'origin'},sources:{read:async()=>({...post}),snapshot:async()=>({post:{...post},hash:'digest'}),guard:(_key,_post,user)=>{calls.push(user);return 'guard:'+user;}},providerGuard:()=> 'provider'};return {calls,ports,app:createSocialTaskApplication<string>(ports)};}
 describe('Conversation to Operations task handoff',()=>{
@@ -162,11 +162,11 @@ describe('Social AI owner phase callbacks',()=>{
  test('a refused final owner phase invokes only original failure cleanup after the provider has been billed',async()=>{const f=ai(),phases:string[]=[];f.ports.writePhase=async(_a,phase,prepare)=>{phases.push(phase.phase);if(phase.phase==='finish')throw new BusinessRuleError(403,'CURRENT_AUTHORITY_CHANGED','Original authority changed');return f.ports.batch(await prepare());};await expect(f.app.createAiDraft(actor,'post',{kind:'summary',commentIds:[]},{},async()=>({result:aiResult,inputTokens:1,outputTokens:1}))).rejects.toMatchObject({code:'AI_UNAVAILABLE'});expect(phases).toEqual(['reserve','finish','failure']);expect(f.calls.at(-1)).toBe('batch:fail-draft,fail-usage');});
 });
 
-import {createMessagingCommands,validMessagingReceipt,validMessagingUpload} from '@erpx/feature-collaboration/lib/messaging-command';
+import {createMessagingCommands,validMessagingReceipt,validMessagingUpload} from '@erpx/collaboration-ui/lib/messaging-command';
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {MessagingInbox} from '@erpx/feature-collaboration/components/messaging/inbox';
-vi.mock("@erpx/feature-shared/lib/destination-router",()=>({useRouter:()=>({push:vi.fn()})}));
+import {MessagingInbox} from '@erpx/collaboration-ui/components/messaging/inbox';
+vi.mock("@erpx/platform-shared-ui/lib/destination-router",()=>({useRouter:()=>({push:vi.fn()})}));
 vi.mock('next/navigation',()=>({usePathname:()=>'/holdings/test/inbox/messages',useSearchParams:()=>new URLSearchParams(),useRouter:()=>({push:vi.fn(),replace:vi.fn()})}));
 describe('Messages captured command and initial owner content',()=>{
  test('does not acknowledge another message and retries the exact original body/key before a newer draft',async()=>{
@@ -198,10 +198,10 @@ describe('Messages captured command and initial owner content',()=>{
  });
 });
 
-import {createSocialCommands,createSocialImageCommands,validSocialReceipt,validSocialImageReceipt,type SocialAttempt} from '@erpx/feature-collaboration/lib/social-command';
-import {SocialHome} from '@erpx/feature-collaboration/components/social-home';
-import {SocialCommandProvider,useSocialRenderedContext} from '@erpx/feature-collaboration/components/social-command-context';
-import type {HomePost} from '@erpx/server-collaboration/public/social-home';
+import {createSocialCommands,createSocialImageCommands,validSocialReceipt,validSocialImageReceipt,type SocialAttempt} from '@erpx/collaboration-ui/lib/social-command';
+import {SocialHome} from '@erpx/collaboration-ui/components/social-home';
+import {SocialCommandProvider,useSocialRenderedContext} from '@erpx/collaboration-ui/components/social-command-context';
+import type {HomePost} from '@erpx/collaboration-server/public/social-home';
 const socialUrl='/api/v1/holdings/test/posts/post';
 function submittedSocial(url=socialUrl,input:unknown={action:'edit',expectedVersion:3,body:'Original'}):SocialAttempt{return {url,body:JSON.stringify(input),key:'key',context:'original'};}
 describe('Social captured acknowledgement and current initial content',()=>{
@@ -242,7 +242,7 @@ test('keeps the shared Social command context free of DOM and preserves each act
 // the original visibility application and named owner destination read as ports.
 // This is a projection/wiring test, not a native authorization assertion.
 async function initialCountProjectionEntry(surface:'list'|'notifications'|'inbox',items:object[],destinations:(db:unknown,actor:WorkContext,ids:readonly string[])=>Promise<Record<string,string>>){
- const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),name=surface==='list'?'listStaffNotifications':surface==='notifications'?'notificationsPage':'inboxPage',helper=surface==='inbox'?'projectInitialCountInbox':'projectInitialCountNotifications',file=surface==='inbox'?'inbox':'staff-notifications',source=await readFile(new URL(`../../../packages/server-collaboration/src/adapters/${file}.ts`,import.meta.url),'utf8'),tree=ts.createSourceFile(file+'.ts',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TS),functions=tree.statements.filter((node):node is import('typescript').FunctionDeclaration=>ts.isFunctionDeclaration(node)&&[name,helper].includes(node.name?.text??''));
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),name=surface==='list'?'listStaffNotifications':surface==='notifications'?'notificationsPage':'inboxPage',helper=surface==='inbox'?'projectInitialCountInbox':'projectInitialCountNotifications',file=surface==='inbox'?'inbox':'staff-notifications',source=await readFile(new URL(`../../../modules/collaboration/server/src/adapters/${file}.ts`,import.meta.url),'utf8'),tree=ts.createSourceFile(file+'.ts',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TS),functions=tree.statements.filter((node):node is import('typescript').FunctionDeclaration=>ts.isFunctionDeclaration(node)&&[name,helper].includes(node.name?.text??''));
  expect(functions.some(node=>node.name?.text===name)).toBe(true);const code=ts.transpileModule(functions.map(node=>node.getText(tree)).join('\n'),{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,page={items,nextCursor:'retained-cursor',hasMore:true},application=()=>({listStaffNotifications:async()=>items,notificationsPage:async()=>page,inboxPage:async()=>page}),exposed=async(run:()=>Promise<unknown>)=>run();
  return new Function('exports','initialPhysicalStockCountDestinations','application','exposed',`${code}\nreturn ${name};`)({},destinations,application,exposed) as (db:unknown,actor:WorkContext,query?:object)=>Promise<unknown>;
 }
@@ -258,7 +258,7 @@ test('final Inbox projection propagates an unexpected named owner read failure i
 
 // UI acknowledgement identity must be checked against the original request,
 // not merely accepted because another command returned a plausible receipt.
-import { matchesCollaborationReceipt } from "@erpx/feature-collaboration/lib/collaboration-work-read-model";
+import { matchesCollaborationReceipt } from "@erpx/collaboration-ui/lib/collaboration-work-read-model";
 describe("collaboration acknowledgement identity", () => {
   test("creation and retry require the original idempotency key", () => {
     const body = JSON.stringify({sourceType:"field_service_order",sourceId:"order"});
@@ -297,7 +297,7 @@ describe('Native Field notification consumers',()=>{
  });
 });
 
-import {mergeCollaborationReadModels,validFieldCollaborationReadModel,type CollaborationWorkReadModel} from '@erpx/feature-collaboration/lib/collaboration-work-read-model';
+import {mergeCollaborationReadModels,validFieldCollaborationReadModel,type CollaborationWorkReadModel} from '@erpx/collaboration-ui/lib/collaboration-work-read-model';
 describe('Collaboration consumer partition composition',()=>{
  const legacy:CollaborationWorkReadModel={relations:[{id:'legacy',source_type:'support_ticket',target_type:'support_ticket'}],cards:[],people:[{id:'person',name:'Current'}],sourceTypes:['support_ticket'],canWrite:true,canReview:false};
  const native:CollaborationWorkReadModel={relations:[{id:'native',source_type:'field_service_order',target_type:'support_ticket',source_id:'order',target_id:'ticket',version:1}],cards:[],people:[{id:'person',name:'Current'}],sourceTypes:['field_service_order','support_ticket'],cardSourceTypes:['field_service_order'],fieldOnlyRelations:true,canWrite:true,canReview:true};
@@ -314,13 +314,13 @@ describe('native Field Inbox transport',()=>{
  const incoming=()=>new Headers({host:'acme.example.test',cookie:'__Host-erpx-product=opaque',authorization:'never-forward','x-forwarded-host':'foreign.example.test','x-erpx-context-assignment':'forged'});
  const body=()=>{const id='n'.repeat(201),href='/field-service/native-order';return{context:{holdingId:nativeActor.holdingId,userId:nativeActor.userId,companyId:nativeActor.companyId,assignmentId:nativeActor.assignmentId,assignmentVersion:3,revision:7,role:nativeActor.role,branchId:null,departmentId:null,modules:['field_service'],permissions:['records.read'],expiresAt:Date.now()+60000},data:[{id,event_id:'event',company_id:nativeActor.companyId,user_id:nativeActor.userId,delivered_at:20,read_at:null,archived_at:null,source_type:'field_service_order',source_id:'native-order',source_version:1,category:'work',preview:'Review dispatch',secret:'not-a-read-model',native_field_item:{id,eventId:'event',category:'work',message:'Review dispatch',href,createdAt:20,readAt:null,archivedAt:null,sourceType:'field_service_order',sourceId:'native-order',source:{kind:'field_service_order',id:'native-order',href,label:'Field service order'},secret:'never-forward'}}]};};
  test('forwards opaque proof and captured context, strips extra fields and preserves long delivery ids',async()=>{
-  const {createNativeFieldInboxReader}=await import('../../../packages/server-collaboration/src/adapters/native-field-inbox');
-  const send=vi.fn(async(_input:Parameters<typeof import('@erpx/native-sdk/field-service-parts').nativeFieldInboxCandidatesRequest>[0])=>{void _input;return{status:200,body:body()};});
+  const {createNativeFieldInboxReader}=await import('../../../modules/collaboration/server/src/adapters/native-field-inbox');
+  const send=vi.fn(async(_input:Parameters<typeof import('@erpx/platform-native-sdk/field-service-parts').nativeFieldInboxCandidatesRequest>[0])=>{void _input;return{status:200,body:body()};});
   const rows=await createNativeFieldInboxReader(config,send)(incoming(),nativeActor,{all:false,search:'dispatch',limit:100});expect(rows[0].id).toHaveLength(201);expect(rows[0]).not.toHaveProperty('secret');expect(rows[0].native_field_item).not.toHaveProperty('secret');
   const call=send.mock.calls[0][0];expect(call.headers.get('cookie')).toBe('__Host-erpx-product=opaque');expect(call.headers.get('x-erpx-context-assignment')).toBe(nativeActor.assignmentId);expect(call.headers.get('x-erpx-context-revision')).toBe('7');expect(call.headers.has('authorization')).toBe(false);expect(call.headers.has('x-forwarded-host')).toBe(false);expect(call.query.search).toBe('dispatch');
  });
  test('maps a native source-qualified Field cost journal without a Records reference or permission',async()=>{
-  const {createNativeFieldInboxReader}=await import('../../../packages/server-collaboration/src/adapters/native-field-inbox');
+  const {createNativeFieldInboxReader}=await import('../../../modules/collaboration/server/src/adapters/native-field-inbox');
   const financeActor={...nativeActor,modules:['finance'],iam:{permissions:['finance.read','module.finance.read']}} as WorkContext;
   const response=body();response.context.modules=['finance'];response.context.permissions=[...financeActor.iam!.permissions];
   const row=response.data[0];row.source_type='journal';row.source_id='field-cost';
@@ -331,14 +331,14 @@ describe('native Field Inbox transport',()=>{
   await expect(createNativeFieldInboxReader(config,async()=>({status:200,body:response}))(incoming(),financeActor,{all:true,limit:100,search:''})).rejects.toMatchObject({code:'NATIVE_FIELD_INBOX_RESPONSE_INVALID'});
  });
  test('fails closed on stale identities, spoofed item/source mapping, duplicate deliveries and native errors',async()=>{
-  const {createNativeFieldInboxReader}=await import('../../../packages/server-collaboration/src/adapters/native-field-inbox');
+  const {createNativeFieldInboxReader}=await import('../../../modules/collaboration/server/src/adapters/native-field-inbox');
   for(const mutate of [(b:ReturnType<typeof body>)=>{b.context.companyId='foreign';},(b:ReturnType<typeof body>)=>{b.context.revision++;},(b:ReturnType<typeof body>)=>{b.data[0].native_field_item.message='forged';},(b:ReturnType<typeof body>)=>{b.data[0].native_field_item.source.href='/other';},(b:ReturnType<typeof body>)=>{b.data.push(b.data[0]);}]){const b=body();mutate(b);await expect(createNativeFieldInboxReader(config,async()=>({status:200,body:b}))(incoming(),nativeActor,{all:false,search:'',limit:100})).rejects.toMatchObject({status:expect.any(Number)});}
   const send=vi.fn(async()=>({status:200,body:body()})),h=incoming();h.set('origin','https://foreign.example.test');await expect(createNativeFieldInboxReader(config,send)(h,nativeActor,{all:false,search:'',limit:100})).rejects.toMatchObject({code:'ORIGIN_FORBIDDEN'});expect(send).not.toHaveBeenCalled();
   await expect(createNativeFieldInboxReader(config,async()=>({status:409,body:{error:{code:'WORK_CONTEXT_CHANGED'}}}))(incoming(),nativeActor,{all:false,search:'',limit:100})).rejects.toMatchObject({code:'WORK_CONTEXT_CHANGED',status:409});
  });
  test('forwards one immutable native state body/key and rejects wrong receipts or stale Work context',async()=>{
-  const {createNativeFieldInboxState}=await import('../../../packages/server-collaboration/src/adapters/native-field-inbox');
-  const source=body(),data={id:source.data[0].id,readAt:123,archivedAt:null,secret:'not-for-client'},send=vi.fn(async(_input:Parameters<typeof import('@erpx/native-sdk/field-service-parts').nativeFieldInboxStateRequest>[0])=>{void _input;return{status:200,body:{context:source.context,data}};});
+  const {createNativeFieldInboxState}=await import('../../../modules/collaboration/server/src/adapters/native-field-inbox');
+  const source=body(),data={id:source.data[0].id,readAt:123,archivedAt:null,secret:'not-for-client'},send=vi.fn(async(_input:Parameters<typeof import('@erpx/platform-native-sdk/field-service-parts').nativeFieldInboxStateRequest>[0])=>{void _input;return{status:200,body:{context:source.context,data}};});
   const h=incoming();h.set('origin','https://acme.example.test');const command=createNativeFieldInboxState(config,send),raw='{"read":true}';
   expect(await command(h,nativeActor,data.id,raw,'native-inbox-key')).toEqual({id:data.id,readAt:123,archivedAt:null});expect(send.mock.calls[0][0].body).toBe(raw);expect(send.mock.calls[0][0].headers.get('idempotency-key')).toBe('native-inbox-key');expect(send.mock.calls[0][0].headers.has('authorization')).toBe(false);
   await expect(command(incoming(),nativeActor,data.id,raw,'native-inbox-key')).rejects.toMatchObject({code:'ORIGIN_FORBIDDEN'});
@@ -347,7 +347,7 @@ describe('native Field Inbox transport',()=>{
  });
 
  test('maps native Field-linked owner notices without a legacy lookup or a Field grant for Support',async()=>{
-  const {createNativeFieldInboxReader}=await import('../../../packages/server-collaboration/src/adapters/native-field-inbox');
+  const {createNativeFieldInboxReader}=await import('../../../modules/collaboration/server/src/adapters/native-field-inbox');
   const linked={...nativeActor,modules:['field_service','operations','collaboration']};
   for(const kind of ['operational_exception','collaboration_action','support_ticket','stock_count','invoice']){const scoped=['support_ticket','stock_count','invoice'].includes(kind)?{...nativeActor,modules:[],iam:{...nativeActor.iam!,permissions:[kind==='support_ticket'?'support.read':kind==='invoice'?'finance.read':'inventory.read']}}:linked;const b=body(),r=b.data[0],href=kind==='operational_exception'?'/operations/native-order':kind==='support_ticket'?'/field-service/support/native-order':kind==='invoice'?'/finance/invoices/native-order':kind==='stock_count'?'/services/field-service/settings/initial-stock/native-order':'/collaboration';const reply={context:{...b.context,modules:scoped.modules,permissions:scoped.iam!.permissions},data:[{...r,source_type:kind,native_field_item:{...r.native_field_item,sourceType:kind,href,source:null}}]};
    const rows=await createNativeFieldInboxReader(config,async()=>({status:200,body:reply}))(incoming(),scoped,{all:true,search:'',limit:100});expect(rows[0].source_type).toBe(kind);expect(rows[0].native_field_item?.href).toBe(href);expect(rows[0].native_field_item).not.toHaveProperty('source');}
@@ -370,7 +370,7 @@ test('forwards the current SSR session only to the matching native Holding',asyn
  vi.resetModules();
  vi.doMock('next/headers',()=>({headers:async()=>new Headers({host,cookie:'session=fixture'})}));
  try {
-  const {nativeNotificationStatement}=await import('../../../packages/server-collaboration/src/adapters/native-notification-statement');
+  const {nativeNotificationStatement}=await import('../../../modules/collaboration/server/src/adapters/native-notification-statement');
   const statement={bind:vi.fn()};
   const db={prepare:()=>statement} as unknown as Parameters<typeof nativeNotificationStatement>[0];
   const input={companyId:actor.companyId,userId:actor.userId,recordType:'pos_register',recordId:'registers',recordVersion:1,message:'Fixture'};
@@ -393,7 +393,7 @@ test('a direct server read outside a request scope yields no native overlay inst
  vi.resetModules();
  vi.doMock('next/headers',()=>({headers:async()=>{throw new Error('`headers()` was called outside a request scope.');}}));
  try{
-  const {nativeFieldInboxCandidates}=await import('../../../packages/server-collaboration/src/adapters/native-field-inbox');
+  const {nativeFieldInboxCandidates}=await import('../../../modules/collaboration/server/src/adapters/native-field-inbox');
   await expect(nativeFieldInboxCandidates(fieldActor,{all:true,search:'',limit:100})).resolves.toEqual([]);
  }finally{
   vi.doUnmock('next/headers');
@@ -408,7 +408,7 @@ test('a non-scope header failure is not swallowed as an absent overlay',async()=
  vi.resetModules();
  vi.doMock('next/headers',()=>({headers:async()=>{throw new Error('unexpected storage failure');}}));
  try{
-  const {nativeFieldInboxCandidates}=await import('../../../packages/server-collaboration/src/adapters/native-field-inbox');
+  const {nativeFieldInboxCandidates}=await import('../../../modules/collaboration/server/src/adapters/native-field-inbox');
   await expect(nativeFieldInboxCandidates(fieldActor,{all:true,search:'',limit:100})).rejects.toThrow('unexpected storage failure');
  }finally{
   vi.doUnmock('next/headers');
@@ -424,7 +424,7 @@ describe('Native social revision read transport',()=>{
 
  test('reads the author-only revision history without a command key',async()=>{
   process.env.ERPX_NATIVE_COLLABORATION_CONFIG=configuration;
-  const {nativePostRevisions}=await import('@erpx/server-collaboration/public/native-social-page');
+  const {nativePostRevisions}=await import('@erpx/collaboration-server/public/native-social-page');
   const calls:string[]=[];
   vi.stubGlobal('fetch',vi.fn(async(url:string)=>{calls.push(url);return Response.json({data:[{prior_version:2,action:'edit',body:'Earlier',created_at:9}]});}));
   expect(await nativePostRevisions(session(),'acme','post-1')).toEqual([{prior_version:2,action:'edit',body:'Earlier',created_at:9}]);
@@ -432,7 +432,7 @@ describe('Native social revision read transport',()=>{
  });
 
  test('fails closed without configuration and maps the owner read port denial',async()=>{
-  const {nativePostRevisions}=await import('@erpx/server-collaboration/public/native-social-page');
+  const {nativePostRevisions}=await import('@erpx/collaboration-server/public/native-social-page');
   delete process.env.ERPX_NATIVE_COLLABORATION_CONFIG;
   await expect(nativePostRevisions(session(),'acme','post-1')).rejects.toMatchObject({code:'NATIVE_COLLABORATION_UNAVAILABLE'});
   process.env.ERPX_NATIVE_COLLABORATION_CONFIG=configuration;
@@ -444,7 +444,7 @@ describe('Native social revision read transport',()=>{
 describe('Apps API v1 native route cutover',()=>{
  const root=resolve(process.cwd());
  const read=(path:string)=>readFileSync(resolve(root,path),'utf8');
- const routes='packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/';
+ const routes='products/apps/ui/src/routes/api/v1/holdings/[holdingSlug]/';
  afterEach(()=>{vi.unstubAllGlobals();delete process.env.ERPX_NATIVE_COLLABORATION_CONFIG;});
 
  test('Feed list and comments use Rust ingress and collaboration/stories retain their declarations',()=>{
@@ -466,11 +466,11 @@ describe('Apps API v1 native route cutover',()=>{
  });
 
  test('native routers are mounted and their owners execute SQL in Rust',()=>{
-  const social=read('packages/server-collaboration/src/adapters/social_http.rs');
-  const work=read('packages/server-collaboration/src/adapters/collaboration_work_http.rs');
-  const feedSql=read('packages/server-collaboration/src/adapters/social.rs');
-  const workSql=read('packages/server-collaboration/src/adapters/collaboration_work_pg.rs');
-  const mount=read('src/composition/src/private_development_api.rs');
+  const social=read('modules/collaboration/server/src/adapters/social_http.rs');
+  const work=read('modules/collaboration/server/src/adapters/collaboration_work_http.rs');
+  const feedSql=read('modules/collaboration/server/src/adapters/social.rs');
+  const workSql=read('modules/collaboration/server/src/adapters/collaboration_work_pg.rs');
+  const mount=read('platform/composition/src/private_development_api.rs');
   expect(social).toContain('"/api/v1/holdings/{holding_slug}/feed"');
   expect(social).toContain('"/api/v1/holdings/{holding_slug}/stories"');
   expect(work).toContain('"/api/v1/holdings/{holding_slug}/collaboration"');
@@ -484,7 +484,7 @@ describe('Apps API v1 native route cutover',()=>{
   process.env.ERPX_NATIVE_COLLABORATION_CONFIG=JSON.stringify({privateBaseUrl:'http://127.0.0.1:3105',timeoutMs:1000});
   const calls:{url:string;init:RequestInit}[]=[];
   vi.stubGlobal('fetch',vi.fn(async(url:string,init:RequestInit)=>{calls.push({url,init});return Response.json({data:{access:{canWrite:true,canReview:false},relations:[],cards:[],people:[],sourceTypes:['support_ticket']}});}));
-  const {nativeCollaborationWorkspace,nativeCollaborationCommand}=await import('@erpx/server-collaboration/public/native-collaboration-page');
+  const {nativeCollaborationWorkspace,nativeCollaborationCommand}=await import('@erpx/collaboration-server/public/native-collaboration-page');
   const req=new Request('https://acme.jesadakorn.com/collaboration',{headers:{cookie:'session',origin:'https://acme.jesadakorn.com'}});
   expect(await nativeCollaborationWorkspace(req,'acme')).toMatchObject({access:{canWrite:true},sourceTypes:['support_ticket']});
   expect(calls[0]!.url).toBe('http://127.0.0.1:3105/api/v1/holdings/acme/collaboration');
@@ -516,11 +516,11 @@ describe('Native aggregate Social page request', () => {
    authority: { sessionId: 'fictional-session', revision: 4, assignmentVersion: 7 },
    scope: { ...actor.scope, kind: 'department' as const, branchId: 'branch-id', branchSlug: 'phuket', departmentId: 'department-id', departmentSlug: 'showroom', departmentName: 'Showroom' },
   };
-  const transport = await import('@erpx/server-runtime/public/native-http');
+  const transport = await import('@erpx/platform-runtime-server/public/native-http');
   const request = vi.spyOn(transport, 'nativeRequest').mockResolvedValue(Response.json({ data: {
    posts: [], milestones: [], options: { branches: [], audiences: [], projects: [] }, moderate: false, post: null,
   } }));
-  const { nativeSocialPageDataSSR } = await import('@erpx/server-collaboration/public/native-social-page');
+  const { nativeSocialPageDataSSR } = await import('@erpx/collaboration-server/public/native-social-page');
   await expect(nativeSocialPageDataSSR(selected, { tag: 'ครัว', skipDay: true, skipMilestones: true }, incoming)).resolves.toMatchObject({ posts: [], moderate: false });
   const [url, init] = request.mock.calls[0]!;
   expect(new URL(url).searchParams.get('tag')).toBe('ครัว');
@@ -540,13 +540,13 @@ describe('Native aggregate Social page request', () => {
 
  test('uses the native source-only decision for a direct thread without requesting the mode', async () => {
   vi.stubEnv('ERPX_NATIVE_COLLABORATION_CONFIG', JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:3105', timeoutMs: 1000 }));
-  const transport = await import('@erpx/server-runtime/public/native-http');
+  const transport = await import('@erpx/platform-runtime-server/public/native-http');
   const post = { id: 'hotel-post', body: 'Hotel handoff' };
   const options = { branches: [], audiences: [], projects: [] };
   const request = vi.spyOn(transport, 'nativeRequest').mockResolvedValue(Response.json({ data: {
    posts: [post], milestones: [], options, moderate: false, sourceOnly: true, post,
   } }));
-  const { nativeSocialPageDataSSR } = await import('@erpx/server-collaboration/public/native-social-page');
+  const { nativeSocialPageDataSSR } = await import('@erpx/collaboration-server/public/native-social-page');
   const selected = { ...actor, authority: { sessionId: 'fictional-session', revision: 4, assignmentVersion: 7 } };
   const incoming = new Headers({ host: 'holding.example.test', cookie: 'session=fictional' });
   await expect(nativeSocialPageDataSSR(selected, { postId: post.id }, incoming))
@@ -558,11 +558,11 @@ describe('Native aggregate Social page request', () => {
 
  test('checks a proposed source role using the signed Account and its exact version without a selected role', async () => {
   vi.stubEnv('ERPX_NATIVE_COLLABORATION_CONFIG', JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:3105', timeoutMs: 1000 }));
-  const transport = await import('@erpx/server-runtime/public/native-http');
+  const transport = await import('@erpx/platform-runtime-server/public/native-http');
   const request = vi.spyOn(transport, 'nativeRequest')
    .mockResolvedValueOnce(Response.json({data:{eligible:true}}))
    .mockResolvedValueOnce(Response.json({data:{eligible:false}}));
-  const { nativeSocialSourceEntry } = await import('@erpx/server-collaboration/public/native-social-page');
+  const { nativeSocialSourceEntry } = await import('@erpx/collaboration-server/public/native-social-page');
   const access = {
    scope: { kind: 'department' as const, holdingId: actor.holdingId, holdingSlug: 'holding', holdingName: 'Holding', companyId: 'company',
     branchId: 'branch-id', branchSlug: 'phuket', departmentId: 'department-id', departmentSlug: 'showroom', departmentName: 'Showroom' },
@@ -583,9 +583,9 @@ describe('Native aggregate Social page request', () => {
  test('refuses to infer Company or role from the incoming headers when the rendered authority is missing', async () => {
   vi.stubEnv('ERPX_NATIVE_COLLABORATION_CONFIG', JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:3105', timeoutMs: 1000 }));
   const incoming = new Headers({ host: 'holding.example.test', 'x-erpx-context-company': 'stale-company' });
-  const transport = await import('@erpx/server-runtime/public/native-http');
+  const transport = await import('@erpx/platform-runtime-server/public/native-http');
   const request = vi.spyOn(transport, 'nativeRequest');
-  const { nativeSocialPageDataSSR } = await import('@erpx/server-collaboration/public/native-social-page');
+  const { nativeSocialPageDataSSR } = await import('@erpx/collaboration-server/public/native-social-page');
   await expect(nativeSocialPageDataSSR(actor, {}, incoming)).rejects.toMatchObject({ code: 'NATIVE_COLLABORATION_CONTEXT_CHANGED', status: 403 });
   expect(request).not.toHaveBeenCalled();
  });

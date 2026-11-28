@@ -2,16 +2,16 @@
 //! historical Job data is not a create/dispatch/start migration acceptance.
 #[path = "../finance/review-composition.rs"]
 pub mod review;
-use erpx_server_commercial::public::purchases::PackageEnforcementMode;
-use erpx_server_identity_access::public::work_context::{
+use erpx_commercial_server::public::purchases::PackageEnforcementMode;
+use erpx_identity_access_server::public::work_context::{
     ExpectedWorkSelection, HoldingWorkspaceRequest,
 };
-use erpx_server_runtime::public::postgres::DatabasePool;
-use erpx_server_shared::public::{
+use erpx_platform_runtime_server::public::postgres::DatabasePool;
+use erpx_platform_shared_server::public::{
     AssignmentId, Clock, CommandKey, CompanyId, HoldingId, RecordId, TimestampMillis,
 };
-use erpx_server_workflow::public::commands::CommandOutcome;
-use erpx_service::field_service_parts::{
+use erpx_workflow_server::public::commands::CommandOutcome;
+use erpx_platform_composition::field_service_parts::{
     FieldServicePartsAdministration, FieldServicePartsAdministrationError,
     FieldServicePartsConfiguration, FieldServicePartsEnvironment,
 };
@@ -285,32 +285,32 @@ pub async fn setup_agreement_review_facts(p: &Parts, now: i64) {
 
 // Synthetic startup policy belongs only to this owned leased test fixture.
 // Actual lifecycle preview/apply uses native Platform/MFA authority instead.
-struct InitialServiceFixturePolicy { company: erpx_server_shared::public::CompanyId }
-type GrantError=erpx_server_runtime::public::postgres::PgTransactionError<erpx_server_shared::public::BusinessError>;
-impl erpx_server_commercial::public::purchases::PgPackageGrantPolicy for InitialServiceFixturePolicy {
- async fn prepare_sources(&mut self,c:&mut sqlx::PgConnection,input:&erpx_server_commercial::public::purchases::GrantChange)->Result<(),GrantError>{
+struct InitialServiceFixturePolicy { company: erpx_platform_shared_server::public::CompanyId }
+type GrantError=erpx_platform_runtime_server::public::postgres::PgTransactionError<erpx_platform_shared_server::public::BusinessError>;
+impl erpx_commercial_server::public::purchases::PgPackageGrantPolicy for InitialServiceFixturePolicy {
+ async fn prepare_sources(&mut self,c:&mut sqlx::PgConnection,input:&erpx_commercial_server::public::purchases::GrantChange)->Result<(),GrantError>{
   let g=&input.grant;
   assert!(g.company_id==self.company.as_str()&&matches!(g.package_id.as_str(),"service"|"service-parts-assets")&&g.package_version==1&&g.version==1&&g.state=="active"&&g.starts_at==0&&g.ends_at.is_none()&&input.expected_version==0,"only explicit fresh synthetic Service purchases");
-  erpx_server_commercial::public::purchases::lock_commercial_authority_sources(c).await?;
-  erpx_server_organization::public::lock_hierarchy_sources(c).await?;Ok(())
+  erpx_commercial_server::public::purchases::lock_commercial_authority_sources(c).await?;
+  erpx_organization_server::public::lock_hierarchy_sources(c).await?;Ok(())
  }
- async fn authorize(&mut self,c:&mut sqlx::PgConnection,h:&erpx_server_shared::public::HoldingId,co:&erpx_server_shared::public::CompanyId)->Result<erpx_server_shared::public::UserId,GrantError>{
+ async fn authorize(&mut self,c:&mut sqlx::PgConnection,h:&erpx_platform_shared_server::public::HoldingId,co:&erpx_platform_shared_server::public::CompanyId)->Result<erpx_platform_shared_server::public::UserId,GrantError>{
   assert_eq!(h.as_str(),"h001");assert_eq!(co,&self.company);
   let exists:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM organization_nodes WHERE id=$1 AND company_id=$1 AND kind='company' AND status='active')").bind(co.as_str()).fetch_one(c).await?;assert!(exists,"owned active synthetic Company required");
-  Ok(erpx_server_shared::public::UserId::new("isolated-Service-parts-provider")?)
+  Ok(erpx_platform_shared_server::public::UserId::new("isolated-Service-parts-provider")?)
  }
- async fn obligations(&mut self,_:&mut sqlx::PgConnection,_:&erpx_server_shared::public::CompanyId,_:&str)->Result<i64,GrantError>{
-  Err(erpx_server_shared::public::BusinessError::invalid("FIXTURE_WITHDRAWAL_FORBIDDEN","The startup fixture cannot withdraw a purchase.").into())
+ async fn obligations(&mut self,_:&mut sqlx::PgConnection,_:&erpx_platform_shared_server::public::CompanyId,_:&str)->Result<i64,GrantError>{
+  Err(erpx_platform_shared_server::public::BusinessError::invalid("FIXTURE_WITHDRAWAL_FORBIDDEN","The startup fixture cannot withdraw a purchase.").into())
  }
 }
 pub async fn seed_initial_service_purchases(p:&Parts,company:&str,include_parts:bool)->Result<(),GrantError>{
- use erpx_server_commercial::public::purchases::*;
- let co=erpx_server_shared::public::CompanyId::new(company).unwrap();
+ use erpx_commercial_server::public::purchases::*;
+ let co=erpx_platform_shared_server::public::CompanyId::new(company).unwrap();
  let mut unit=p.pool().raw().begin().await?;sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unit).await?;
  let catalogue=current_package_catalogue()?;let mut policy=InitialServiceFixturePolicy{company:co.clone()};
  for package in ["service","service-parts-assets"].into_iter().filter(|p|include_parts||*p=="service"){
   let input=GrantChange{expected_version:0,idempotency_key:format!("fixture-service-{}",uuid::Uuid::new_v4()),grant:CompanyPackageGrant{company_id:company.into(),package_id:package.into(),package_version:1,state:"active".into(),starts_at:0,ends_at:None,version:1,reason:"Declared native Service-only parts startup".into(),evidence:"test:Service-parts-fresh-Company".into()}};
-  PgPackageGrantCommands::new(erpx_server_shared::public::HoldingId::new("h001").unwrap(),co.clone(),&mut unit,&catalogue,&mut policy,p.review.system.scenario.clock.as_ref()).apply(&input).await?;
+  PgPackageGrantCommands::new(erpx_platform_shared_server::public::HoldingId::new("h001").unwrap(),co.clone(),&mut unit,&catalogue,&mut policy,p.review.system.scenario.clock.as_ref()).apply(&input).await?;
  }
  unit.commit().await?;Ok(())
 }

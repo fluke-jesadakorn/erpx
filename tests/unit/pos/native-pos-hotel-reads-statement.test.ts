@@ -4,7 +4,7 @@ vi.mock('server-only', () => ({}));
 import {
   nativePosRegisterPropertyStatement,
   nativePosFulfillmentPropertyStatement,
-} from '../../../packages/server-pos/src/adapters/native-pos-hotel-reads';
+} from '../../../modules/pos/server/src/adapters/native-pos-hotel-reads';
 
 const config = () => JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:44997', timeoutMs: 1000 });
 const previous = process.env.ERPX_NATIVE_POS_OWNER_CONFIG;
@@ -89,7 +89,7 @@ describe('native POS hotel day-assertion property bridge (round 32)', () => {
   });
 
   it('keeps no retired hotel property SQL literal in the TS adapters', () => {
-    const core = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-core.ts', import.meta.url), 'utf8');
+    const core = readFileSync(new URL('../../../modules/pos/server/src/adapters/pos-core.ts', import.meta.url), 'utf8');
     for (const item of cases) expect(core).not.toContain(item.sql);
     expect(core.match(/nativePos(RegisterProperty|FulfillmentProperty)Statement\(db/g)).toHaveLength(2);
   });

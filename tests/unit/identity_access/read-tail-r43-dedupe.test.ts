@@ -8,9 +8,9 @@ import {
   PC_DIAGNOSIS_PLATFORM_ASSIGNMENTS,
   planIdentityControlRead,
   setIdentityControlReadForTest,
-} from '../../../packages/server-identity_access/src/adapters/native-control-read-plan';
+} from '../../../modules/identity-access/server/src/adapters/native-control-read-plan';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-identity_access/src');
+const srcRoot = resolve(__dirname, '../../../modules/identity-access/server/src');
 const read = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 const placeholders = (s: string) => (s.match(/\?/g) ?? []).length;

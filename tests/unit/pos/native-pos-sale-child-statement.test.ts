@@ -15,7 +15,7 @@ import {
   nativePosOpenPaymentIdStatement,
   nativePosDayPlannerLinesStatement,
   nativePosDayPlannerPaymentsStatement,
-} from '../../../packages/server-pos/src/adapters/native-pos-sale-child';
+} from '../../../modules/pos/server/src/adapters/native-pos-sale-child';
 
 const config = () => JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:44994', timeoutMs: 1000 });
 const previous = process.env.ERPX_NATIVE_POS_OWNER_CONFIG;
@@ -171,10 +171,10 @@ describe('native POS sale-child detail read bridge', () => {
   });
 
   it('keeps no retired sale-child SQL literal in the TS adapters', () => {
-    const pos = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos.ts', import.meta.url), 'utf8');
-    const core = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-core.ts', import.meta.url), 'utf8');
-    const daily = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-daily.ts', import.meta.url), 'utf8');
-    const stripe = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-stripe.ts', import.meta.url), 'utf8');
+    const pos = readFileSync(new URL('../../../modules/pos/server/src/adapters/pos.ts', import.meta.url), 'utf8');
+    const core = readFileSync(new URL('../../../modules/pos/server/src/adapters/pos-core.ts', import.meta.url), 'utf8');
+    const daily = readFileSync(new URL('../../../modules/pos/server/src/adapters/pos-daily.ts', import.meta.url), 'utf8');
+    const stripe = readFileSync(new URL('../../../modules/pos/server/src/adapters/pos-stripe.ts', import.meta.url), 'utf8');
     for (const item of cases) {
       expect(pos).not.toContain(item.sql);
       expect(core).not.toContain(item.sql);
@@ -182,15 +182,15 @@ describe('native POS sale-child detail read bridge', () => {
       expect(stripe).not.toContain(item.sql);
     }
     expect(stripe).toContain('nativePosSucceededPaymentTotalStatement(db, facts.id)');
-    expect(readFileSync(new URL('../../../packages/server-pos/src/application/pos-stripe.ts', import.meta.url), 'utf8')).toContain("num(paid!, 'amount')");
+    expect(readFileSync(new URL('../../../modules/pos/server/src/application/pos-stripe.ts', import.meta.url), 'utf8')).toContain("num(paid!, 'amount')");
     expect(pos.match(/nativePosSale(Lines|Payments)Statement\(db/g)).toHaveLength(2);
     expect(core.match(/nativePos(LinesBySale|SucceededPaymentTotal|PendingPaymentId|RefundablePayments|PaymentIdBySale|FulfilledLines|FirstPaymentId|LinesTotal|OpenPaymentId)Statement\(db/g)).toHaveLength(9);
     expect(daily.match(/nativePosDayPlanner(Lines|Payments)Statement\(db/g)).toHaveLength(2);
   });
 
   it('mounts both day-planner kinds in the Rust registry with byte parity and pins r36 KPIs', () => {
-    const registry = readFileSync(new URL('../../../packages/server-pos/src/adapters/sale_child_reads.rs', import.meta.url), 'utf8');
-    const owner = readFileSync(new URL('../../../packages/server-pos/src/adapters/owner_writes.rs', import.meta.url), 'utf8');
+    const registry = readFileSync(new URL('../../../modules/pos/server/src/adapters/sale_child_reads.rs', import.meta.url), 'utf8');
+    const owner = readFileSync(new URL('../../../modules/pos/server/src/adapters/owner_writes.rs', import.meta.url), 'utf8');
     expect(registry).toContain('assert_eq!(KINDS.len(), 13)');
     expect(registry).toContain('assert_eq!(EXPECTED.len(), 13)');
     expect(owner).toContain('assert_eq!(KINDS.len(), 203)');
@@ -205,9 +205,9 @@ describe('native POS sale-child detail read bridge', () => {
   });
 
   it('keeps lock and PMS-fragment reads inline; refund-payment tail, document and reversal reads are native', () => {
-    const pos = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos.ts', import.meta.url), 'utf8');
-    const core = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-core.ts', import.meta.url), 'utf8');
-    const daily = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-daily.ts', import.meta.url), 'utf8');
+    const pos = readFileSync(new URL('../../../modules/pos/server/src/adapters/pos.ts', import.meta.url), 'utf8');
+    const core = readFileSync(new URL('../../../modules/pos/server/src/adapters/pos-core.ts', import.meta.url), 'utf8');
+    const daily = readFileSync(new URL('../../../modules/pos/server/src/adapters/pos-daily.ts', import.meta.url), 'utf8');
     expect(daily).toContain('${pmsProjectionSources.pms_sources}');
     expect(daily).toContain('SELECT * FROM pos_day_closes WHERE id=? FOR UPDATE');
     expect(pos).toContain('${pmsProjectionSources.pms_sources}');

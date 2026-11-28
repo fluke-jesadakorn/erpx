@@ -1,4 +1,4 @@
-use erpx_server_organization::public::journal_flow_department::team_name_from_department;
+use erpx_organization_server::public::journal_flow_department::team_name_from_department;
 
 #[test]
 fn only_missing_department_uses_company() {

@@ -1,5 +1,5 @@
 import {describe,it,expect,vi} from 'vitest';
-import {boundedJsonBody} from '../../../packages/workplace/src/lib/bounded-json-body';
+import {boundedJsonBody} from '../../../platform/workplace/src/lib/bounded-json-body';
 
 describe('bounded JSON ingress',()=>{
  it('returns parsed data and the original bytes without normalizing unknown fields',async()=>{

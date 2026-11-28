@@ -2,11 +2,11 @@ import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
-import { inventoryLedgerProjectionSql } from '../../../packages/server-inventory/src/adapters/inventory-read-projections';
-import { commercialOwnerProjectionSources } from '../../../packages/server-inventory/src/adapters/commercial-owner-projection-sources';
-import { hospitalityOwnerProjectionSources } from '../../../packages/server-inventory/src/adapters/hospitality-owner-projection-sources';
+import { inventoryLedgerProjectionSql } from '../../../modules/inventory/server/src/adapters/inventory-read-projections';
+import { commercialOwnerProjectionSources } from '../../../modules/inventory/server/src/adapters/commercial-owner-projection-sources';
+import { hospitalityOwnerProjectionSources } from '../../../modules/inventory/server/src/adapters/hospitality-owner-projection-sources';
 
-const src = (file: string) => readFileSync(resolve(__dirname, '../../../packages/server-inventory/src/adapters', file), 'utf8');
+const src = (file: string) => readFileSync(resolve(__dirname, '../../../modules/inventory/server/src/adapters', file), 'utf8');
 
 describe('inventory owner projection dedupe', () => {
   it('exposes one canonical ledger fixed SQL and shares it with every native join source', () => {

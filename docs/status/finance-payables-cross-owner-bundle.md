@@ -24,7 +24,7 @@ Still open for `finance/payables`:
 Finance's native source boundary intentionally rejects non-standalone payables:
 
 ```rust
-// packages/server-finance/src/adapters/supplier_bill.rs
+// modules/finance/server/src/adapters/supplier_bill.rs
 // only `kind='payable'` invoices with `source_type='standalone'` are writable here,
 // so matched supplier bills and expense claims keep their existing owners.
 ```
@@ -41,10 +41,10 @@ owner port; it must not query or write those source tables directly.
 Owner: Commerce (Common)
 Writer files:
 
-- `packages/server-commerce/src/public/finance_owned_snapshot.rs` (new public port; exact owned columns from `finance-owned-snapshot-sources.ts`).
-- `packages/server-commerce/src/application/finance_owned_snapshot.rs` (read/lock the exact fulfillment, order, lines, settings, warehouse, goods valuation).
-- `packages/server-commerce/src/adapters/finance_owned_snapshot_postgres.rs`.
-- `packages/server-commerce/Cargo.toml` / `src/public/mod.rs` exports.
+- `modules/commerce/server/src/public/finance_owned_snapshot.rs` (new public port; exact owned columns from `finance-owned-snapshot-sources.ts`).
+- `modules/commerce/server/src/application/finance_owned_snapshot.rs` (read/lock the exact fulfillment, order, lines, settings, warehouse, goods valuation).
+- `modules/commerce/server/src/adapters/finance_owned_snapshot_postgres.rs`.
+- `modules/commerce/server/Cargo.toml` / `src/public/mod.rs` exports.
 
 Contract:
 
@@ -59,10 +59,10 @@ Contract:
 Owner: Procurement (Common)
 Writer files:
 
-- `packages/server-procurement/src/public/finance_owned_bill_match.rs` (new).
-- `packages/server-procurement/src/application/finance_owned_bill_match.rs`.
-- `packages/server-procurement/src/adapters/finance_owned_bill_match_postgres.rs`.
-- `packages/server-procurement/Cargo.toml` / `src/public/mod.rs` exports.
+- `modules/procurement/server/src/public/finance_owned_bill_match.rs` (new).
+- `modules/procurement/server/src/application/finance_owned_bill_match.rs`.
+- `modules/procurement/server/src/adapters/finance_owned_bill_match_postgres.rs`.
+- `modules/procurement/server/Cargo.toml` / `src/public/mod.rs` exports.
 
 Contract:
 
@@ -75,10 +75,10 @@ Contract:
 Owner: People Payroll (Common/Distribute boundary)
 Writer files:
 
-- `packages/server-people_payroll/src/public/finance_owned_expense_claim.rs` (new).
-- `packages/server-people_payroll/src/application/finance_owned_expense_claim.rs`.
-- `packages/server-people_payroll/src/adapters/finance_owned_expense_claim_postgres.rs`.
-- `packages/server-people_payroll/Cargo.toml` / `src/public/mod.rs` exports.
+- `modules/people-payroll/server/src/public/finance_owned_expense_claim.rs` (new).
+- `modules/people-payroll/server/src/application/finance_owned_expense_claim.rs`.
+- `modules/people-payroll/server/src/adapters/finance_owned_expense_claim_postgres.rs`.
+- `modules/people-payroll/server/Cargo.toml` / `src/public/mod.rs` exports.
 
 Contract:
 
@@ -158,7 +158,7 @@ and matched void from this certification.
   payable draft through its owner port.
 
 - Retained command: `postInvoice` in
-  `packages/server-finance/src/adapters/finance.ts`, reached through the
+  `modules/finance/server/src/adapters/finance.ts`, reached through the
   `payables/:id/post` route legacy branch. Removal condition: the native
   Commerce goods-carrying/FX port.
 - Process waiver: the user directed continued execution without a 6-subagent

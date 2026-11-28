@@ -1,7 +1,7 @@
 //! Native PMS room-board policy and application facts. No database, browser,
 //! command, purchase or Workflow acceptance is inferred.
-use erpx_server_pms::public::room_board::*;
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_pms_server::public::room_board::*;
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::{
     collections::BTreeSet,
     sync::{Arc, Mutex},

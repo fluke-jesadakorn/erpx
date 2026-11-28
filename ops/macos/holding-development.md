@@ -1,6 +1,6 @@
 # Holding development routing
 
-The exact registrations in `packages/contracts/src/holding-hosts.ts` are `acme.jesadakorn.com` (h001), `northstar.jesadakorn.com` (h002), and `admin.jesadakorn.com` (h003). Account uses `account-dev-erpx.jesadakorn.com`. The future production name for h003 is `admin.erpx.com`.
+The exact registrations in `platform/contracts/src/holding-hosts.ts` are `acme.jesadakorn.com` (h001), `northstar.jesadakorn.com` (h002), and `admin.jesadakorn.com` (h003). Account uses `account-dev-erpx.jesadakorn.com`. The future production name for h003 is `admin.erpx.com`.
 
 The h003 cutover retained its Holding binding and Company IDs. The gateway serves a generic 404 at the old `erpx-internal.jesadakorn.com` hostname. Leave its existing tunnel rule as a tombstone.
 

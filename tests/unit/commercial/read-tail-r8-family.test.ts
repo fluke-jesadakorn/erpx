@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { companyScopedStarSql } from '../../../packages/server-commercial/src/adapters/commercial-read-tail-r8-sources';
+import { companyScopedStarSql } from '../../../modules/commercial/server/src/adapters/commercial-read-tail-r8-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-commercial/src');
+const srcRoot = resolve(__dirname, '../../../modules/commercial/server/src');
 const adapters = (name: string) => readFileSync(
-  new URL(`../../../packages/server-commercial/src/adapters/${name}`, import.meta.url), 'utf8',
+  new URL(`../../../modules/commercial/server/src/adapters/${name}`, import.meta.url), 'utf8',
 );
 
 // Pre-dedupe literals copied verbatim from HEAD; byte-identity oracles only.

@@ -1,9 +1,9 @@
-use erpx_server_commercial::public::capability_decision::*;
-use erpx_server_commercial::public::purchases::{
+use erpx_commercial_server::public::capability_decision::*;
+use erpx_commercial_server::public::purchases::{
     CapabilityPurpose, CompanyPackageGrant, CompanyPackageHistoryRight, CompanyPurchaseFacts,
     PackageDecisionCode, PackageEnforcementMode, current_package_catalogue,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind, TimestampMillis};
 
 fn now(value: i64) -> TimestampMillis {
     TimestampMillis::new(value)

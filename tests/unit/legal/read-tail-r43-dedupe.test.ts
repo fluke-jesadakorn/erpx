@@ -2,10 +2,10 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { legalEnvelopeSignerReadHead } from '../../../packages/server-legal/src/adapters/legal-read-tail-r43-sources';
+import { legalEnvelopeSignerReadHead } from '../../../modules/legal/server/src/adapters/legal-read-tail-r43-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-legal/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-legal/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/legal/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/legal/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 const HEAD = 'FROM legal_envelopes e JOIN legal_signers s ON s.envelope_id=e.id WHERE ';
 

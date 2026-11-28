@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-marketing/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/marketing/server/src/adapters/${name}`, import.meta.url);
 
 const form =
   "SELECT company_id,status,configuration_json,to_jsonb(form)::text image FROM marketing_assets form WHERE id=? AND kind='form'";
@@ -17,7 +17,7 @@ const receipt = `SELECT jsonb_build_array(to_jsonb(receipt),to_jsonb(candidate),
 describe('marketing public-form image point-read dedupe', () => {
   it('emits byte-identical image point reads for all three variants', async () => {
     const { publicFormImageSql } = await import(
-      '../../../packages/server-marketing/src/adapters/public-form-image-sql.ts'
+      '../../../modules/marketing/server/src/adapters/public-form-image-sql.ts'
     );
     expect(publicFormImageSql('form')).toBe(form);
     expect(publicFormImageSql('content')).toBe(content);

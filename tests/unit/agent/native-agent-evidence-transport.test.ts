@@ -9,7 +9,7 @@ import {
   type NativeAgentPageContext,
   type NativeAgentSession,
   type NativeAgentEvidenceTransport,
-} from '@erpx/server-agent/public/native-agent-evidence';
+} from '@erpx/agent-server/public/native-agent-evidence';
 
 const digest = 'a'.repeat(64);
 const actor: NativeAgentPageContext = {

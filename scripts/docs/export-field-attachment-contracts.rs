@@ -1,9 +1,9 @@
-use erpx_service::field_attachment::{
+use erpx_platform_composition::field_attachment::{
     FieldAttachmentBindInput, FieldAttachmentBindResponse, FieldAttachmentBindResult,
     FieldAttachmentManifestItem, FieldAttachmentScan, FieldAttachmentStatus,
     FieldAttachmentStatusResponse, FieldAttachmentWithdrawInput,
 };
-use erpx_service::field_service_reservation_read::FieldServiceRenderedContext;
+use erpx_platform_composition::field_service_reservation_read::FieldServiceRenderedContext;
 use ts_rs::{Config, TS};
 #[utoipa::path(get,path="/api/v1/holdings/{holding_slug}/attachment-links/{link_id}/status",params(("holding_slug"=String,Path),("link_id"=String,Path)),responses((status=200,body=FieldAttachmentStatusResponse,description="Current authorized attachment status")))]
 fn status() {}

@@ -1,6 +1,6 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_organization::public::rfq_request_scope::*;
+use erpx_organization_server::public::rfq_request_scope::*;
 
 #[tokio::test]
 async fn active_nodes_and_null_branch_match_the_source_predicates() {

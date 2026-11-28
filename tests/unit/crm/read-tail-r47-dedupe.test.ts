@@ -1,16 +1,16 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { crmClockCteSql } from '../../../packages/server-crm/src/adapters/purchases';
-import { crmOwnedSourceRowSql } from '../../../packages/server-crm/src/adapters/read-tail-r34-sql';
-import { crmSingleKeySourceSql } from '../../../packages/server-crm/src/adapters/read-tail-r37-sql';
-import { crmSelectBodySql } from '../../../packages/server-crm/src/adapters/read-tail-r46-sql';
+import { crmClockCteSql } from '../../../modules/crm/server/src/adapters/purchases';
+import { crmOwnedSourceRowSql } from '../../../modules/crm/server/src/adapters/read-tail-r34-sql';
+import { crmSingleKeySourceSql } from '../../../modules/crm/server/src/adapters/read-tail-r37-sql';
+import { crmSelectBodySql } from '../../../modules/crm/server/src/adapters/read-tail-r46-sql';
 import {
   crmMaterializedScopeSql,
   crmOwnedListSql,
-} from '../../../packages/server-crm/src/adapters/read-tail-r47-sql';
+} from '../../../modules/crm/server/src/adapters/read-tail-r47-sql';
 
-const owner = resolve(__dirname, '../../../packages/server-crm/src');
+const owner = resolve(__dirname, '../../../modules/crm/server/src');
 const src = (name: string) => readFileSync(resolve(owner, 'adapters', name), 'utf8');
 const totalSelects = () => {
   let total = 0;
@@ -111,8 +111,8 @@ describe('crm read-tail r47 byte-identical MATERIALIZED and owned-source heads',
       'LOCK TABLE crm_accounts,crm_contacts,crm_guest_links,crm_guest_sharing_events,crm_leads,crm_opportunities,crm_case_events,crm_lead_activities,crm_lead_activity_events IN SHARE MODE',
     );
     expect(src('purchases.ts')).toContain('SELECT 1 FROM command_receipts WHERE command_id=?');
-    expect(src('purchases.ts')).toContain('@erpx/server-pms/public/crm-purchase-sources');
-    expect(src('marketing-package-obligations.ts')).toContain('@erpx/server-marketing/public/package-obligations');
+    expect(src('purchases.ts')).toContain('@erpx/pms-server/public/crm-purchase-sources');
+    expect(src('marketing-package-obligations.ts')).toContain('@erpx/marketing-server/public/package-obligations');
   });
 
   test.each([

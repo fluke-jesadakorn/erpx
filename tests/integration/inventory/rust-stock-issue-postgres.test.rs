@@ -8,12 +8,12 @@ mod facts;
 mod fence;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_inventory::public::stock_issue::*;
-use erpx_server_commerce::public::sales_reservation_source::{SalesReservationScope, SalesReservationSource, lock_sales_reservation_source};
-use erpx_server_finance::public::commerce_reservation_party::observe_commerce_reservation_party;
-use erpx_server_inventory::public::sales_reservation::{lock_sales_reservation_sources, lock_sales_reservations};
-use erpx_server_runtime::public::postgres::{PgTransactionError, PgUnitOfWork, TransactionOptions};
-use erpx_server_shared::public::BusinessError;
+use erpx_inventory_server::public::stock_issue::*;
+use erpx_commerce_server::public::sales_reservation_source::{SalesReservationScope, SalesReservationSource, lock_sales_reservation_source};
+use erpx_finance_server::public::commerce_reservation_party::observe_commerce_reservation_party;
+use erpx_inventory_server::public::sales_reservation::{lock_sales_reservation_sources, lock_sales_reservations};
+use erpx_platform_runtime_server::public::postgres::{PgTransactionError, PgUnitOfWork, TransactionOptions};
+use erpx_platform_shared_server::public::BusinessError;
 use sqlx::AssertSqlSafe;
 
 type Error = PgTransactionError<BusinessError>;
@@ -923,7 +923,7 @@ async fn issue_rolls_back_with_the_enclosing_unit() {
                     apply_stock_issue(c, &plan, "delivery-key", "command-key", "issuer", 100)
                         .await?;
                     Err(BusinessError::new(
-                        erpx_server_shared::public::FailureKind::Conflict,
+                        erpx_platform_shared_server::public::FailureKind::Conflict,
                         "FIXTURE_ABORT",
                         "Rollback after verifying the delivery effects.",
                     )

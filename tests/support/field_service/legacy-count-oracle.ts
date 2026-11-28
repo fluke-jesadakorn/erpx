@@ -1,7 +1,7 @@
-import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
-import type {InitialPhysicalStockCountAction,InitialPhysicalStockCountRecord,InitialPhysicalStockCountView} from '@erpx/server-inventory/domain/initial-physical-stock-count';
-import type {FlowView} from '@erpx/feature-shared/lib/flow';
+import type {WorkContext} from '@erpx/identity-access-server/public/authorization';
+import type {SqlDatabase} from '@erpx/platform-runtime-server/public/runtime/types';
+import type {InitialPhysicalStockCountAction,InitialPhysicalStockCountRecord,InitialPhysicalStockCountView} from '@erpx/inventory-server/domain/initial-physical-stock-count';
+import type {FlowView} from '@erpx/platform-shared-ui/lib/flow';
 
 type HistoricalRecord=Omit<InitialPhysicalStockCountRecord,'sourceKind'>&{sourceKind:'service-initial-physical-stock-count'};
 type HistoricalView=Omit<InitialPhysicalStockCountView,'record'|'unavailableReason'|'readiness'>&{

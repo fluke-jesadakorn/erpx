@@ -2,7 +2,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_runtime::public::{
+use erpx_platform_runtime_server::public::{
     EmbeddedMigrationInventory, MigrationInventory, MigrationInventoryReader, foundation_router,
     foundation_router_with_inventory, inspect_migration, validate_foundation_address,
 };
@@ -66,7 +66,7 @@ async fn missing_business_routes_return_generic_404_without_claiming_an_alias() 
 fn inventory_covers_the_owner_registry_and_does_not_claim_migration() {
     let (inventory, readiness) = inspect_migration(&EmbeddedMigrationInventory).unwrap();
     let owners: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../packages/contracts/src/ownership.json"
+        "../../../platform/contracts/src/ownership.json"
     ))
     .unwrap();
     let mut expected: Vec<_> = owners["owners"]
@@ -182,7 +182,7 @@ fn foundation_refuses_reserved_installed_or_public_listeners() {
 
 #[test]
 fn native_engineering_roster_matches_actual_typescript_on_json_values() {
-    use erpx_server_runtime::public::native_engineering_roster::validate_native_engineering_roster;
+    use erpx_platform_runtime_server::public::native_engineering_roster::validate_native_engineering_roster;
     use std::io::Write;
     let bindings = [
         "CONTROL_DB",

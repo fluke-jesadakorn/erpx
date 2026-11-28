@@ -5,9 +5,9 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { projectionColumnHeadSql } from '../../../packages/server-records/src/adapters/read-tail-r32-sql';
+import { projectionColumnHeadSql } from '../../../modules/records/server/src/adapters/read-tail-r32-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-records/src');
+const srcRoot = resolve(__dirname, '../../../modules/records/server/src');
 const records = readFileSync(resolve(srcRoot, 'adapters/records.ts'), 'utf8');
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 const readOnly = (sql: string) => {
@@ -86,9 +86,9 @@ describe('Records read-tail r27 search references head', () => {
     expect(records).toContain('const recordRowSelectSql ='); // r12
     expect(records).not.toContain('const referenceEdgesSql ='); // r14 retired
     expect(records).not.toContain('const recordContextDetailSql ='); // r15 retired
-    expect(records).toContain("import {withExpenseWorkspaceRecordRead} from '@erpx/server-people_payroll/public/record-purchases';");
-    expect(records).toContain('financeWorkspaceSearchScope} from "@erpx/server-finance/public/document-purchases"');
-    expect(records).toContain("import { RecordsIdentityAccessOwnedFacts } from '@erpx/server-identity_access/public/records-records-owned-facts';");
+    expect(records).toContain("import {withExpenseWorkspaceRecordRead} from '@erpx/people-payroll-server/public/record-purchases';");
+    expect(records).toContain('financeWorkspaceSearchScope} from "@erpx/finance-server/public/document-purchases"');
+    expect(records).toContain("import { RecordsIdentityAccessOwnedFacts } from '@erpx/identity-access-server/public/records-records-owned-facts';");
     const legal = readFileSync(resolve(srcRoot, 'adapters/legal-attachment-read-sources.ts'), 'utf8');
     expect(legal).toContain('LOCK TABLE employee_requests,employee_request_events IN SHARE ROW EXCLUSIVE MODE');
     expect(legal).toContain('LOCK TABLE approval_instances,approval_steps,approval_decisions IN SHARE ROW EXCLUSIVE MODE');

@@ -5,7 +5,7 @@ import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {createRequire} from 'node:module';
 const baseline='a5ed8737a2f05eff1ee9841fda4a094b3926d732';
-const path='packages/server-identity_access/src/domain/iam-service.ts';
+const path='modules/identity-access/server/src/domain/iam-service.ts';
 const bytes=await readFile(path);if(!bytes.equals(execFileSync('git',['show',`${baseline}:${path}`])))throw Error('B0_REVIEW_SCHEMA_CHANGED');
 const require=createRequire(import.meta.url);const zodPath=require.resolve('zod/package.json');const zod=JSON.parse(await readFile(zodPath,'utf8')) as {version:string};if(zod.version!=='4.6.7')throw Error('PINNED_ZOD_REQUIRED');
 const checks=await readFile(resolve(zodPath,'../v4/core/checks.js'));

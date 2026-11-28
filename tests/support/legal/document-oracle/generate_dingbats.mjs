@@ -24,7 +24,7 @@ pub(super) fn lookup(font: &str, code: u32) -> Option<char> {
         .and_then(|index| char::from_u32(MAP[index].2))
 }
 `;
-fs.writeFileSync('packages/server-legal/src/adapters/document_docx/dingbats.rs',text);
+fs.writeFileSync('modules/legal/server/src/adapters/document_docx/dingbats.rs',text);
 const license=new URL(import.meta.resolve('dingbat-to-unicode/LICENSE'));
-fs.copyFileSync(license,'packages/server-legal/licenses/dingbat-to-unicode-BSD-2-Clause.txt');
+fs.copyFileSync(license,'modules/legal/server/licenses/dingbat-to-unicode-BSD-2-Clause.txt');
 console.log(`Imported ${rows.length} attributed mapping entries`);

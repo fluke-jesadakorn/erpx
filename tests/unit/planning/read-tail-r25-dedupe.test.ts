@@ -2,9 +2,9 @@ import { describe, expect, test } from 'vitest';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { planningScopedBranchList } from '../../../packages/server-planning/src/adapters/planning-scoped-list-sql';
+import { planningScopedBranchList } from '../../../modules/planning/server/src/adapters/planning-scoped-list-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-planning/src');
+const srcRoot = resolve(__dirname, '../../../modules/planning/server/src');
 /** Pre-r28 byte oracle for the retired builder; no longer a live query source. */
 const planningSelectColumnsFrom = (columns: string, rest: string) =>
   `SELECT ${columns} FROM ${rest}`;

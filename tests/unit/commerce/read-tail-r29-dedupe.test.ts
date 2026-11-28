@@ -3,8 +3,8 @@ import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
 
 const root = resolve(import.meta.dirname ?? process.cwd(), '../../..');
-const adapters = resolve(root, 'packages/server-commerce/src/adapters');
-const src = resolve(root, 'packages/server-commerce/src');
+const adapters = resolve(root, 'modules/commerce/server/src/adapters');
+const src = resolve(root, 'modules/commerce/server/src');
 const read = (file: string) => readFileSync(resolve(adapters, file), 'utf8');
 
 const count = (dir: string, pattern: RegExp): number => {

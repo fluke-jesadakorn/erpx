@@ -1,14 +1,14 @@
 //! Owner-local HTTP ingress tests for the native Procurement supplier promise
 //! command and its bounded detail read. These prove transport facts only;
 //! composition, Account session and PostgreSQL remain separate.
-use erpx_server_procurement::public::supplier_promise_command_http::{
+use erpx_procurement_server::public::supplier_promise_command_http::{
     SupplierPromiseCommandHttpBackend, SupplierPromiseCommandHttpFuture,
     SupplierPromiseCommandHttpRequest, SupplierPromiseCommandHttpResponse,
     SupplierPromiseCommandHttpTarget, SupplierPromiseDetailHttpRequest,
     SupplierPromiseDetailHttpResponse, supplier_promise_command_http_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 

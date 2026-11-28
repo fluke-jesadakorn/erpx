@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
-import { ppRdRound2dExistsById } from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-round2d-sources';
-import { ppRd57PeopleIdGuard } from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r57-sources';
-import { ppRd64TimeEntryIdGuard } from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r64-sources';
+import { ppRdRound2dExistsById } from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-round2d-sources';
+import { ppRd57PeopleIdGuard } from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r57-sources';
+import { ppRd64TimeEntryIdGuard } from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r64-sources';
 
 const src = (name: string) => readFileSync(
-  new URL(`../../../packages/server-people_payroll/src/adapters/${name}`, import.meta.url), 'utf8',
+  new URL(`../../../modules/people-payroll/server/src/adapters/${name}`, import.meta.url), 'utf8',
 );
 
 describe('People Payroll round-2d cross-builder id-exists family', () => {
@@ -39,7 +39,7 @@ describe('People Payroll round-2d cross-builder id-exists family', () => {
   });
 
   test('the fold lowers the owner SELECT count below 1146', () => {
-    const root = new URL('../../../packages/server-people_payroll/src/', import.meta.url);
+    const root = new URL('../../../modules/people-payroll/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {

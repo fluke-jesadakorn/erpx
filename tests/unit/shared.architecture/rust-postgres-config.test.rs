@@ -1,4 +1,4 @@
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabaseBinding, DatabaseConfig, DatabaseManifest, MigrationFile, MigrationTrack,
     load_migrations,
 };
@@ -105,7 +105,7 @@ fn validated_manifest_cannot_deserialize_around_its_constructor_checks() {
 
 #[test]
 fn disposable_worker_endpoint_requires_exact_local_token_and_rejects_ambient_production_shapes() {
-    use erpx_server_runtime::public::postgres::LeasedDevelopmentDatabase;
+    use erpx_platform_runtime_server::public::postgres::LeasedDevelopmentDatabase;
     let token = "00000000000000000000000000000000";
     let allowed =
         format!("postgres://erpx_test_admin:private@127.0.0.1:5432/erpx_dev_rust_{token}");

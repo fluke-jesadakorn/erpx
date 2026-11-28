@@ -2,10 +2,10 @@ import { createHash } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import type { PostgresDatabase } from '@erpx/server-runtime/public/runtime/postgres';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
-import { featureSpecs } from '@erpx/feature-legal/lib/legal/features';
-import contract from '../../../packages/server-legal/src/adapters/package-obligation-plan-sources.json' with {
+import type { PostgresDatabase } from '@erpx/platform-runtime-server/public/runtime/postgres';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
+import { featureSpecs } from '@erpx/legal-ui/lib/legal/features';
+import contract from '../../../modules/legal/server/src/adapters/package-obligation-plan-sources.json' with {
   type: 'json',
 };
 
@@ -65,7 +65,7 @@ const input = (now: number) => ({
 describe('native Legal package-obligation cutover', () => {
   it('returns the owner contract and binds only the Company and clock', async () => {
     const { nativeLegalPackageObligationPlan } = await import(
-      '../../../packages/server-legal/src/adapters/native-legal-package-obligations'
+      '../../../modules/legal/server/src/adapters/native-legal-package-obligations'
     );
     const plan = await nativeLegalPackageObligationPlan('company-a', 123);
     expect(plan).toEqual({ sql: contract.sql, values: ['company-a', 123] });
@@ -107,7 +107,7 @@ describe('native Legal package-obligation cutover', () => {
     const { database, calls } = fake(facts);
     const db = owner(database);
     const { withLegalPackageObligations, legalPackageObligations } = await import(
-      '../../../packages/server-legal/src/public/package-obligations'
+      '../../../modules/legal/server/src/public/package-obligations'
     );
     const result = await withLegalPackageObligations(db, 'company-a', transaction =>
       legalPackageObligations(db, transaction, input(123)),
@@ -139,7 +139,7 @@ describe('native Legal package-obligation cutover', () => {
 
   it('fails closed on an invalid scope', async () => {
     const { nativeLegalPackageObligationPlan } = await import(
-      '../../../packages/server-legal/src/adapters/native-legal-package-obligations'
+      '../../../modules/legal/server/src/adapters/native-legal-package-obligations'
     );
     for (const [company, now] of [
       ['', 1],
@@ -157,7 +157,7 @@ describe('native Legal package-obligation cutover', () => {
     const { database } = fake([]);
     const db = owner(database);
     const { legalPackageObligations } = await import(
-      '../../../packages/server-legal/src/public/package-obligations'
+      '../../../modules/legal/server/src/public/package-obligations'
     );
     await expect(legalPackageObligations(db, database, input(123))).rejects.toThrow(
       'LEGAL_PACKAGE_OBLIGATION_SOURCE_REQUIRED',
@@ -168,14 +168,14 @@ describe('native Legal package-obligation cutover', () => {
     const [plan, sources] = await Promise.all([
       readFile(
         new URL(
-          '../../../packages/server-legal/src/adapters/native_read_plan.rs',
+          '../../../modules/legal/server/src/adapters/native_read_plan.rs',
           import.meta.url,
         ),
         'utf8',
       ),
       readFile(
         new URL(
-          '../../../packages/server-legal/src/adapters/package-obligation-plan-sources.json',
+          '../../../modules/legal/server/src/adapters/package-obligation-plan-sources.json',
           import.meta.url,
         ),
         'utf8',
@@ -204,12 +204,12 @@ describe('native Legal package-obligation cutover', () => {
   it('retirement:ts-statements is BEFORE=41 -> AFTER=38', async () => {
     const [adapter, client] = await Promise.all([
       readFile(
-        new URL('../../../packages/server-legal/src/adapters/package-obligations.ts', import.meta.url),
+        new URL('../../../modules/legal/server/src/adapters/package-obligations.ts', import.meta.url),
         'utf8',
       ),
       readFile(
         new URL(
-          '../../../packages/server-legal/src/adapters/native-legal-package-obligations.ts',
+          '../../../modules/legal/server/src/adapters/native-legal-package-obligations.ts',
           import.meta.url,
         ),
         'utf8',
@@ -226,7 +226,7 @@ describe('native Legal package-obligation cutover', () => {
           total += ((await readFile(path, 'utf8')).match(/SELECT /g) ?? []).length;
       }
     };
-    await walk(resolve(__dirname, '../../../packages/server-legal/src'));
+    await walk(resolve(__dirname, '../../../modules/legal/server/src'));
     expect(total).toBeLessThan(41);
     expect(total).toBe(35);
   });

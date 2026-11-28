@@ -1,14 +1,14 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_organization::public::staff_department_route::{
+use erpx_organization_server::public::staff_department_route::{
     DepartmentPersonFact, DepartmentRouteCheckFact, DepartmentRouteFact, DepartmentRouteStepFact,
     staff_department_route,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::FailureKind;
+use erpx_platform_shared_server::public::FailureKind;
 use serde_json::{Value, json};
 
 async fn setup(pool: &DatabasePool) {

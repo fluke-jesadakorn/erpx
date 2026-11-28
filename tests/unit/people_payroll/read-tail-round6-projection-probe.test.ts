@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
-import { ppRdRound6ProjectionByTwoPred } from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-round6-sources';
+import { ppRdRound6ProjectionByTwoPred } from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-round6-sources';
 
 const src = (name: string) => readFileSync(
-  new URL(`../../../packages/server-people_payroll/src/adapters/${name}`, import.meta.url), 'utf8',
+  new URL(`../../../modules/people-payroll/server/src/adapters/${name}`, import.meta.url), 'utf8',
 );
 
 describe('People Payroll round-6 projection-over-source probe family', () => {
@@ -32,7 +32,7 @@ describe('People Payroll round-6 projection-over-source probe family', () => {
   });
 
   test('the fold lowers the owner SELECT count below 1141', () => {
-    const root = new URL('../../../packages/server-people_payroll/src/', import.meta.url);
+    const root = new URL('../../../modules/people-payroll/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {

@@ -10,11 +10,11 @@ mounts and cuts over.
 
 | Layer | File | Responsibility |
 | --- | --- | --- |
-| domain | `packages/server-manufacturing/src/domain/production_profiles.rs` | frozen SQL, bounded company scope, complete `AccountingProfileRow` DTO |
-| application | `packages/server-manufacturing/src/application/production_profiles.rs` | read-only query, validation, `AccountingProfilesRead` owner port, handler |
-| adapter (SQL) | `packages/server-manufacturing/src/adapters/production_profiles_postgres.rs` | **real sqlx execution** via `PgUnitOfWork` on `DatabasePool`; nine-column row mapping |
-| adapter (HTTP) | `packages/server-manufacturing/src/adapters/production_profiles_http.rs` | exact Holding-target axum ingress, no SQL/fallback in the handler |
-| public | `packages/server-manufacturing/src/public/production_profiles.rs`, `public/production_profiles_http.rs` | stable owner surface for composition |
+| domain | `modules/manufacturing/server/src/domain/production_profiles.rs` | frozen SQL, bounded company scope, complete `AccountingProfileRow` DTO |
+| application | `modules/manufacturing/server/src/application/production_profiles.rs` | read-only query, validation, `AccountingProfilesRead` owner port, handler |
+| adapter (SQL) | `modules/manufacturing/server/src/adapters/production_profiles_postgres.rs` | **real sqlx execution** via `PgUnitOfWork` on `DatabasePool`; nine-column row mapping |
+| adapter (HTTP) | `modules/manufacturing/server/src/adapters/production_profiles_http.rs` | exact Holding-target axum ingress, no SQL/fallback in the handler |
+| public | `modules/manufacturing/server/src/public/production_profiles.rs`, `public/production_profiles_http.rs` | stable owner surface for composition |
 
 SQL execution proof: `PgProductionProfilesRead::profiles` in
 `adapters/production_profiles_postgres.rs` calls
@@ -47,10 +47,10 @@ asserted in the domain and integration tests. A wrapper
 The lead's dispatch froze `cargo`/`tsc`/build for this iteration, so no checks
 were run. The lead must run, in order:
 
-1. `cargo check -p erpx-server-manufacturing --locked`
-2. `cargo test -p erpx-server-manufacturing --lib --locked` (new in-crate tests)
+1. `cargo check -p erpx-manufacturing-server --locked`
+2. `cargo test -p erpx-manufacturing-server --lib --locked` (new in-crate tests)
 3. after adding the `[[test]]` entry below:
-   `cargo test -p erpx-server-manufacturing --test manufacturing_production_profiles_http --locked`
+   `cargo test -p erpx-manufacturing-server --test manufacturing_production_profiles_http --locked`
 4. a scoped Postgres parity test against `erpx_dev_*` (not added here:
    `tests/integration/manufacturing/**` is outside the worker's allowed paths).
 
@@ -61,33 +61,33 @@ were run. The lead must run, in order:
 - Route: `GET /api/v1/holdings/{holding_slug}/production/accounting-profiles`.
 - Target identity: exact registered `(host, holding_slug)` pair; Host header must
   match. Company scope comes from the single `x-erpx-context-company` header.
-- Composition should add a small module under `src/composition/src/` that builds
+- Composition should add a small module under `platform/composition/src/` that builds
   the router from the owner `DatabasePool` and the registered Holding targets,
   alongside the existing Manufacturing routers (`manufacturing_read.rs`,
   `manufacturing_wave3.rs`, `native_lane_28` mounts). No composition or root
   manifest was touched by this worker.
-- Test registration needed in `packages/server-manufacturing/Cargo.toml`
+- Test registration needed in `modules/manufacturing/server/Cargo.toml`
   (`autotests = false`):
   `[[test]] name = "manufacturing_production_profiles_http" path = "../../tests/unit/manufacturing/rust-production-profiles-http.test.rs"`
 
 ## Route-deletion packet (lead-owned)
 
 1. Native route becomes authoritative for the accounting-profiles projection.
-2. Consumer move: `packages/server-planning/src/application/scenarios.ts:79,92`
+2. Consumer move: `modules/planning/server/src/application/scenarios.ts:79,92`
    (`r.accountingProfiles(a.companyId)` → strict native client transport; no
    local SQL, no 503 fallback).
 3. TS authority to delete after the consumer switch:
-   - `packages/server-manufacturing/src/adapters/production-command-sources.ts:78`
+   - `modules/manufacturing/server/src/adapters/production-command-sources.ts:78`
      (`accountingProfiles` method).
-   - `packages/server-manufacturing/src/adapters/native-manufacturing-read.ts`
+   - `modules/manufacturing/server/src/adapters/native-manufacturing-read.ts`
      (`MANUFACTURING_RD_ACCOUNTING_PROFILES` constant line 30, registry line 64,
      `nativeManufacturingReadAll` / `nativeManufacturingReadFirst` lines 176–194
      once no other kind uses them).
-   - `packages/server-manufacturing/src/public/native_command.rs`:
+   - `modules/manufacturing/server/src/public/native_command.rs`:
      `RD_ACCOUNTING_PROFILES` line 58, `PLAN_ACCOUNTING_PROFILES` lines 339–354
      and its `PLANS` entry line 370 (remove this one kind only, not the registry).
 4. Shared route handler to retire once no non-backend consumer needs the
-   production GET: `packages/feature-manufacturing/src/routes/api/v1/holdings/[holdingSlug]/production/route.ts:14-34`
+   production GET: `modules/manufacturing/ui/src/routes/api/v1/holdings/[holdingSlug]/production/route.ts:14-34`
    (the `GET` export). `POST` is unaffected.
 5. App re-exports of that shared handler (delete with step 4):
    - `apps/manufacturing/src/app/api/v1/holdings/[holdingSlug]/production/route.ts:2`

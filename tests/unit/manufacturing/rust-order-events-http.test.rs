@@ -4,14 +4,14 @@
 //! the frozen `RD_ORDER_EVENTS` plan with only the bind marker changed.
 //!
 //! Lead integration needs one owner Cargo `[[test]]` entry for this file
-//! (`autotests = false` in `packages/server-manufacturing/Cargo.toml`).
+//! (`autotests = false` in `modules/manufacturing/server/Cargo.toml`).
 
-use erpx_server_manufacturing::public::native_command::PLAN_ORDER_EVENTS;
-use erpx_server_manufacturing::public::order_events::{
+use erpx_manufacturing_server::public::native_command::PLAN_ORDER_EVENTS;
+use erpx_manufacturing_server::public::order_events::{
     ORDER_EVENTS_SQL, OrderEventRow, OrderEventsRead, OrderEventsReadFuture, OrderEventsTarget,
     router_with_reader,
 };
-use erpx_server_runtime::public::http_support::serve;
+use erpx_platform_runtime_server::public::http_support::serve;
 use std::sync::Arc;
 
 #[derive(Clone)]

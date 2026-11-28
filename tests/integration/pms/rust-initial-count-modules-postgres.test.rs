@@ -1,11 +1,11 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_platform_administration::public::legal_release::EngineeringReadConfiguration;
-use erpx_server_pms::public::initial_count_modules::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_administration_server::public::legal_release::EngineeringReadConfiguration;
+use erpx_pms_server::public::initial_count_modules::*;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::CompanyId;
+use erpx_platform_shared_server::public::CompanyId;
 use sha2::{Digest, Sha256};
 use std::{fs, time::Duration};
 fn company() -> CompanyId {
@@ -125,7 +125,7 @@ where
     F: FnOnce(DatabasePool, String) -> Fut + Send + 'static,
     Fut: std::future::Future<Output = ()> + Send + 'static,
 {
-    use erpx_server_runtime::public::postgres::{DatabaseConfig, PoolLimits, connect_pool};
+    use erpx_platform_runtime_server::public::postgres::{DatabaseConfig, PoolLimits, connect_pool};
     use sqlx::{AssertSqlSafe, Connection, PgConnection, Row, postgres::PgConnectOptions};
     use std::str::FromStr;
     let options = PgConnectOptions::from_str(
@@ -241,7 +241,7 @@ async fn browser_database_cleanup_covers_initialization_and_body_panics() {
 async fn real_browser_identity_and_attestation_admit_only_current_enabled_engineering() {
     assert!(with_browser_database(InjectFailure::None,|p,run|async move{
     setup(&p).await;let (_tmp,config,artifact,fingerprint,manifest)=sealed_attestation(&run);
-    assert!(erpx_server_platform_administration::public::legal_release::engineering_attestation_matches(&config,&artifact));
+    assert!(erpx_platform_administration_server::public::legal_release::engineering_attestation_matches(&config,&artifact));
     let mut tx=p.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_initial_count_module_sources(&mut tx,InitialCountModuleMode::Production).await.unwrap();
     let missing=read_initial_count_modules(&mut tx,&company(),InitialCountModuleMode::Production,&artifact,Some(&config)).await.unwrap();assert!(!missing.allowed());
     sqlx::query("INSERT INTO engineering_verification_contexts(company_id,run_id,source_fingerprint,software_version,release_manifest_sha256,enabled,expires_at,reason,created_at) VALUES('company',$1,$2,$3,$4,true,floor(extract(epoch FROM clock_timestamp())*1000)::bigint+10000,'synthetic verified fixture',4000000000000000)").bind(&run).bind(&fingerprint).bind(&artifact).bind(&manifest).execute(&mut *tx).await.unwrap();
@@ -256,7 +256,7 @@ async fn real_browser_identity_and_attestation_admit_only_current_enabled_engine
 
 #[tokio::test]
 async fn scheduled_inventory_rollout_source_matches_actual_ts_predicate() {
-    use erpx_server_pms::public::scheduled_inventory_rollouts::*;
+    use erpx_pms_server::public::scheduled_inventory_rollouts::*;
     fixture::with_database(2,|p|async move {
   setup(&p).await;
   let mut unlocked=p.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unlocked).await.unwrap();assert!(inspect_scheduled_inventory_rollouts(&mut unlocked).await.is_err());unlocked.rollback().await.unwrap();

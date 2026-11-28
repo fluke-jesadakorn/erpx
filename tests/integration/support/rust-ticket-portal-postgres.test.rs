@@ -7,8 +7,8 @@
 #[path = "../../support/finance/review-composition.rs"]
 mod review;
 
-use erpx_server_shared::public::Clock;
-use erpx_server_support::public::ticket_portal::{
+use erpx_platform_shared_server::public::Clock;
+use erpx_support_server::public::ticket_portal::{
     PgTicketPortal, PortalActor, PortalCustomer, acknowledge, decide, prepare, respond,
 };
 use serde_json::json;

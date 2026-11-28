@@ -8,11 +8,11 @@ pub struct JournalFacts {
     pub calls: Vec<&'static str>,
 }
 
-use erpx_server_finance::public::{
+use erpx_finance_server::public::{
     FinanceActor, FunctionalFxEvidence, JournalChart, JournalDraft, JournalError,
     JournalPreparationPorts,
 };
-use erpx_server_shared::public::{CompanyId, FailureKind, TimestampMillis};
+use erpx_platform_shared_server::public::{CompanyId, FailureKind, TimestampMillis};
 
 impl JournalFacts {
     fn scoped(&self, company: &CompanyId) {
@@ -24,7 +24,7 @@ impl JournalPreparationPorts for JournalFacts {
     type Error = JournalError;
     async fn transaction_witness(
         &mut self,
-    ) -> Result<Option<erpx_server_finance::public::JournalTransactionWitness>, Self::Error> {
+    ) -> Result<Option<erpx_finance_server::public::JournalTransactionWitness>, Self::Error> {
         self.calls.push("transaction");
         Ok(None)
     }
@@ -117,20 +117,20 @@ impl JournalPreparationPorts for JournalFacts {
     }
     fn now(&mut self) -> TimestampMillis {
         self.calls.push("clock");
-        erpx_server_shared::public::Clock::now(&FixedClock)
+        erpx_platform_shared_server::public::Clock::now(&FixedClock)
     }
 }
 
 pub struct FixedClock;
-impl erpx_server_shared::public::Clock for FixedClock {
+impl erpx_platform_shared_server::public::Clock for FixedClock {
     fn now(&self) -> TimestampMillis {
         TimestampMillis::new(100)
     }
 }
 
 // Test-only authority; production composition has no permissive implementation.
-impl erpx_server_finance::public::JournalAuthority for JournalFacts {
-    type Error = erpx_server_runtime::public::postgres::PgTransactionError<JournalError>;
+impl erpx_finance_server::public::JournalAuthority for JournalFacts {
+    type Error = erpx_platform_runtime_server::public::postgres::PgTransactionError<JournalError>;
     async fn authorize(
         &mut self,
         actor: &FinanceActor,
@@ -138,6 +138,6 @@ impl erpx_server_finance::public::JournalAuthority for JournalFacts {
     ) -> Result<(), Self::Error> {
         JournalPreparationPorts::authorize(self, actor, draft)
             .await
-            .map_err(erpx_server_runtime::public::postgres::PgTransactionError::Business)
+            .map_err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business)
     }
 }

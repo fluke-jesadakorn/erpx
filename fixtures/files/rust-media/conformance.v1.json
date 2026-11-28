@@ -3,11 +3,11 @@
   "sourceCommit": "a5ed8737a2f05eff1ee9841fda4a094b3926d732",
   "sources": [
     {
-      "path": "packages/server-files/src/domain/upload-validation.ts",
+      "path": "modules/files/server/src/domain/upload-validation.ts",
       "sha256": "ed6b91d66115f92b8dcc0b13c747fc4199f1f1c900801b5f3eaceec51fb55f5d"
     },
     {
-      "path": "packages/server-files/src/domain/attachments/media-signature.ts",
+      "path": "modules/files/server/src/domain/attachments/media-signature.ts",
       "sha256": "46755effc675348d77fa2e7e076f6f7298c36929fb3bf819af6d4fbdbf878183"
     }
   ],

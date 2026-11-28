@@ -1,1 +1,0 @@
-export {remainingOperationalAttachmentPolicies,authorizeRemainingOperationalAttachmentTarget,remainingOperationalAttachmentTargetVersionGuard,remainingOperationalAttachmentRecordVersionStep} from "@erpx/server-files/adapters/attachments/remaining-operational-policy";

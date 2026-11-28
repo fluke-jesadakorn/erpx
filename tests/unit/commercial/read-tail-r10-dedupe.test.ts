@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { packageSourceProbe } from '../../../packages/server-commercial/src/adapters/commercial-read-tail-r10-sources';
+import { packageSourceProbe } from '../../../modules/commercial/server/src/adapters/commercial-read-tail-r10-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-commercial/src');
+const srcRoot = resolve(__dirname, '../../../modules/commercial/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 // Pre-dedupe oracles copied verbatim from HEAD (r9 baseline, BEFORE=28). The

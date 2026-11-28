@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
-import { ppRd54RunEvidenceGuard } from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r54-sources';
+import { ppRd54RunEvidenceGuard } from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r54-sources';
 
-const src = (name: string) => readFileSync(new URL(`../../../packages/server-people_payroll/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFileSync(new URL(`../../../modules/people-payroll/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const readOnly = (literal: string) => {
   expect(literal).toContain('SELECT ');
   expect(literal).toMatch(/^EXISTS\(/);
@@ -111,7 +111,7 @@ describe('People Payroll read-tail r54 dedupe', () => {
   });
 
   test('retirement:ts-statements stays strictly below the recorded BEFORE=1217', () => {
-    const root = new URL('../../../packages/server-people_payroll/src/', import.meta.url);
+    const root = new URL('../../../modules/people-payroll/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {

@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { marketingProjectionSourceSql } from '../../../packages/server-marketing/src/adapters/owner-projection-source';
-import { marketingOwnerPointReadSql } from '../../../packages/server-marketing/src/adapters/owner-point-read-sql';
+import { marketingProjectionSourceSql } from '../../../modules/marketing/server/src/adapters/owner-projection-source';
+import { marketingOwnerPointReadSql } from '../../../modules/marketing/server/src/adapters/owner-point-read-sql';
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-marketing/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/marketing/server/src/adapters/${name}`, import.meta.url);
 const src = (name: string) => readFile(adapter(name), 'utf8');
-const srcRoot = resolve('packages/server-marketing/src');
+const srcRoot = resolve('modules/marketing/server/src');
 
 // Byte oracles captured from the eight original emitters before dedupe.
 const projection = {
@@ -65,13 +65,13 @@ describe('marketing projection-source and point-read head dedupe (r40)', () => {
     ).toBe(projection.touches);
 
     const { marketingCampaignProjection } = await import(
-      '../../../packages/server-marketing/src/adapters/hospitality-owner-projection-sources'
+      '../../../modules/marketing/server/src/adapters/hospitality-owner-projection-sources'
     );
     const { marketingCampaignCostProjection } = await import(
-      '../../../packages/server-marketing/src/adapters/last-audit-owner-projection-sources'
+      '../../../modules/marketing/server/src/adapters/last-audit-owner-projection-sources'
     );
     const { commercialOwnerProjectionSources } = await import(
-      '../../../packages/server-marketing/src/adapters/commercial-owner-projection-sources'
+      '../../../modules/marketing/server/src/adapters/commercial-owner-projection-sources'
     );
     expect(marketingCampaignProjection).toBe(projection.campaigns);
     expect(marketingCampaignCostProjection).toBe(projection.costs);

@@ -3,15 +3,15 @@ import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {describe,expect,it,vi} from 'vitest';
 vi.mock('server-only',()=>({}));
-import {initialPhysicalStockFinanceJournalFilter} from '../../../packages/server-finance/src/adapters/document-purchases';
-import {rootOwnerExistsSql} from '../../../packages/server-finance/src/adapters/finance-read-tail-r19-sql';
-import {inventoryFinanceRecordSources} from '@erpx/server-inventory/public/finance-record-sources';
-import {serviceInitialStockJournalPredicate} from '@erpx/server-finance/adapters/service-initial-stock-journal-sources';
-import {posInitialStockJournalPredicate} from '@erpx/server-finance/adapters/pos-initial-stock-journal-sources';
-import {manufacturingInitialStockJournalPredicate} from '@erpx/server-finance/adapters/manufacturing-initial-stock-journal-sources';
-import {assignmentReadSql} from '@erpx/server-identity_access/public/record-source-authority';
+import {initialPhysicalStockFinanceJournalFilter} from '../../../modules/finance/server/src/adapters/document-purchases';
+import {rootOwnerExistsSql} from '../../../modules/finance/server/src/adapters/finance-read-tail-r19-sql';
+import {inventoryFinanceRecordSources} from '@erpx/inventory-server/public/finance-record-sources';
+import {serviceInitialStockJournalPredicate} from '@erpx/finance-server/adapters/service-initial-stock-journal-sources';
+import {posInitialStockJournalPredicate} from '@erpx/finance-server/adapters/pos-initial-stock-journal-sources';
+import {manufacturingInitialStockJournalPredicate} from '@erpx/finance-server/adapters/manufacturing-initial-stock-journal-sources';
+import {assignmentReadSql} from '@erpx/identity-access-server/public/record-source-authority';
 
-const policyPath=join(process.cwd(),'packages/server-finance/src/adapters/records_search_policy.rs');
+const policyPath=join(process.cwd(),'modules/finance/server/src/adapters/records_search_policy.rs');
 const policy=()=>readFileSync(policyPath,'utf8');
 function pinned(name:string){
  const match=policy().match(new RegExp(`const ${name}: &str = r##"([\\s\\S]*?)"##;`));
@@ -29,7 +29,7 @@ const initialPredicate=()=>{
 describe('native initial-stock journal filter',()=>{
  it('stays byte-identical to the Finance owner predicate',()=>{
   const generated=initialPhysicalStockFinanceJournalFilter('j','now_ms');
-  const embedded=readFileSync(join(process.cwd(),'packages/server-finance/src/adapters/initial_stock_journal_filter.sql'),'utf8').trimEnd();
+  const embedded=readFileSync(join(process.cwd(),'modules/finance/server/src/adapters/initial_stock_journal_filter.sql'),'utf8').trimEnd();
   expect(embedded).toBe(generated);
  });
  it('pins the exact native initial-source predicate',()=>{

@@ -6,11 +6,11 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_collaboration::public::pms_social_event::{
+use erpx_collaboration_server::public::pms_social_event::{
     PmsSocialNotice, PmsSocialPost, pms_social_lock, pms_social_notify, pms_social_publish,
     pms_social_received, pms_social_version,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
 use sqlx::Connection;

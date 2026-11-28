@@ -1,6 +1,6 @@
 //! Explicit provider lane: frozen host tool/language receipt, never daily unit
 //! acceptance and never a claim that English OCR proves Thai OCR readiness.
-use erpx_server_legal::public::{
+use erpx_legal_server::public::{
     BoundedDocumentExtractor, DocumentExtractionFailure as Failure, DocumentExtractionInput,
     DocumentExtractionSource, DocumentExtractor, DocumentProcessLimits, DocumentToolConfiguration,
     ExtractionStatus, LegalDocumentMediaType,
@@ -87,7 +87,7 @@ async fn real_native_provider_matches_frozen_b0_text_pages_and_refusal() {
 #[tokio::test]
 async fn explicit_english_profile_proves_bounded_functional_probes_without_claiming_thai_readiness()
 {
-    use erpx_server_shared::public::{Clock, TimestampMillis};
+    use erpx_platform_shared_server::public::{Clock, TimestampMillis};
     struct Fixed;
     impl Clock for Fixed {
         fn now(&self) -> TimestampMillis {

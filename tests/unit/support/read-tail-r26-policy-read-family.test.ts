@@ -1,11 +1,11 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
 
 vi.mock('server-only', () => ({}));
 
-const srcRoot = resolve(__dirname, '../../../packages/server-support/src');
+const srcRoot = resolve(__dirname, '../../../modules/support/server/src');
 const src = (p: string) => readFileSync(resolve(srcRoot, p), 'utf8');
 const sla = src('adapters/support-sla.ts');
 const support = src('adapters/support.ts');
@@ -75,7 +75,7 @@ describe('Support SLA policy native read port (r28)', () => {
         const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => ok(beforeApproved, ['company']));
         try {
             const { nativeSupportReadAll, SUPPORT_RD_SLA_POLICY_APPROVED } =
-                await import('@erpx/server-support/adapters/native-support-read');
+                await import('@erpx/support-server/adapters/native-support-read');
             await expect(nativeSupportReadAll(SUPPORT_RD_SLA_POLICY_APPROVED, ['company'], db)
                 .then((result: { results: unknown[] }) => result.results)).resolves.toEqual([{ id: 'policy-1' }]);
             expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({

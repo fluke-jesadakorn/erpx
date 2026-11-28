@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { benefitAttachmentPeopleSources as people } from '@erpx/server-people_payroll/public/benefits-owner-facts';
-import { nativeSourceArm, nativeSourcesProbe } from '../../../packages/server-benefits/src/adapters/record-purchases';
+import { benefitAttachmentPeopleSources as people } from '@erpx/people-payroll-server/public/benefits-owner-facts';
+import { nativeSourceArm, nativeSourcesProbe } from '../../../modules/benefits/server/src/adapters/record-purchases';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-benefits/src');
+const srcRoot = resolve(__dirname, '../../../modules/benefits/server/src');
 const src = readFileSync(resolve(srcRoot, 'adapters/record-purchases.ts'), 'utf8');
 
 // Pre-dedupe literals, copied from HEAD, used only as the byte-identity oracle.

@@ -3,19 +3,19 @@
 //! Only disposable leased development databases are used. The record authority
 //! is a test port: production authority is owned by composition and the owning
 //! business owner, never by this crate or a request DTO.
-use erpx_server_files::public::attachment_read::{
+use erpx_files_server::public::attachment_read::{
     AttachmentListFilter, AttachmentReadPorts, AttachmentReader, AttachmentTargetAuthority,
     AttachmentTargetScope, PostgresAttachmentRead, attachment_link_status, list_attachment_sets,
 };
-use erpx_server_files::public::attachment_read::{
+use erpx_files_server::public::attachment_read::{
     inspect_attachment_ownership, lock_attachment_ownership_sources,
     revalidate_attachment_ownership,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, PgWorkFuture,
     TransactionOptions, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, FailureKind};
 use sqlx::{Acquire, PgConnection};
 use std::sync::{
     Arc,
@@ -29,7 +29,7 @@ type Error = PgTransactionError<BusinessError>;
 
 #[tokio::test]
 async fn quality_inspection_descriptors_retain_exact_ids_and_revocation_in_one_unit() {
-    use erpx_server_files::public::quality_inspection_descriptors::{inspect_quality_inspection_descriptors, lock_quality_inspection_descriptors};
+    use erpx_files_server::public::quality_inspection_descriptors::{inspect_quality_inspection_descriptors, lock_quality_inspection_descriptors};
     fixture::with_database(3, |pool| async move {
         migrate(&pool).await;
         seed(&pool, "quality-visible", "company", "hold-visible", "manual", "draft", "draft", "actor", "available", 1000).await;
@@ -75,7 +75,7 @@ async fn quality_inspection_descriptors_retain_exact_ids_and_revocation_in_one_u
 
 #[tokio::test]
 async fn quality_inspection_descriptor_locks_serialize_actual_revocation_both_orders() {
-    use erpx_server_files::public::quality_inspection_descriptors::{inspect_quality_inspection_descriptors, lock_quality_inspection_descriptors};
+    use erpx_files_server::public::quality_inspection_descriptors::{inspect_quality_inspection_descriptors, lock_quality_inspection_descriptors};
     fixture::with_database(3, |pool| async move {
         migrate(&pool).await;
         seed(&pool, "quality-writer-first", "company", "hold-writer", "manual", "draft", "draft", "actor", "available", 1000).await;
@@ -153,7 +153,7 @@ async fn wait_for_blocker(pool: &DatabasePool, waiting: i32, blocker: i32) {
 
 #[tokio::test]
 async fn field_attachment_ancestry_retains_scoped_link_and_global_source_candidates() {
-    use erpx_server_files::public::field_attachment_ancestry::{inspect_field_attachment_ancestry,lock_field_attachment_ancestry};
+    use erpx_files_server::public::field_attachment_ancestry::{inspect_field_attachment_ancestry,lock_field_attachment_ancestry};
     fixture::with_database(2, |pool| async move {
         migrate(&pool).await;
         seed(&pool,"ancestry","company","asset-ancestry","manual","draft","draft","actor","available",1000).await;
@@ -174,10 +174,10 @@ async fn field_attachment_ancestry_retains_scoped_link_and_global_source_candida
         assert!(inspect_field_attachment_ancestry(&mut tx,&foreign,"link-ancestry").await.unwrap().is_none());
         assert!(inspect_field_attachment_ancestry(&mut tx,&company,"missing").await.unwrap().is_none());
         let witness=inspect_field_attachment_ancestry(&mut tx,&company,"link-ancestry").await.unwrap().unwrap();
-        let relation=erpx_server_workflow::public::record_origin::FieldPaymentTargets::relation_identifier(&witness);
+        let relation=erpx_workflow_server::public::record_origin::FieldPaymentTargets::relation_identifier(&witness);
         let nonce=relation.strip_prefix("pg_temp.\"erpx_files_ancestry_").and_then(|v|v.strip_suffix('"')).unwrap();
         assert_eq!(nonce.len(),32);assert!(nonce.bytes().all(|b|b.is_ascii_digit() || (b'a'..=b'f').contains(&b)));
-        erpx_server_workflow::public::record_origin::FieldPaymentTargets::require_current(&witness,&mut tx).await.unwrap();
+        erpx_workflow_server::public::record_origin::FieldPaymentTargets::require_current(&witness,&mut tx).await.unwrap();
         witness.require_current(&mut tx).await.unwrap();
         let routing=witness.field_visit_routing(&mut tx).await.unwrap();assert!(!routing.direct_set && !routing.direct && !routing.source);
         sqlx::query("SAVEPOINT field_visit_paths").execute(&mut *tx).await.unwrap();
@@ -230,7 +230,7 @@ async fn field_attachment_ancestry_retains_scoped_link_and_global_source_candida
         // semantics even if the text bytes themselves are unchanged.
         sqlx::query("SAVEPOINT ancestry_collation").execute(&mut *tx).await.unwrap();
         sqlx::query("CREATE COLLATION fixture_ancestry_nondeterministic (provider=icu, locale='und-u-ks-level2', deterministic=false)").execute(&mut *tx).await.unwrap();
-        let relation=erpx_server_workflow::public::record_origin::FieldPaymentTargets::relation_identifier(&witness);
+        let relation=erpx_workflow_server::public::record_origin::FieldPaymentTargets::relation_identifier(&witness);
         let ddl=format!("ALTER TABLE {} ALTER COLUMN target TYPE text COLLATE fixture_ancestry_nondeterministic",relation);sqlx::query(sqlx::AssertSqlSafe(ddl)).execute(&mut *tx).await.unwrap();
         assert!(witness.require_current(&mut tx).await.is_err());
         sqlx::query("ROLLBACK TO SAVEPOINT ancestry_collation").execute(&mut *tx).await.unwrap();witness.require_current(&mut tx).await.unwrap();
@@ -294,7 +294,7 @@ async fn field_attachment_ancestry_retains_scoped_link_and_global_source_candida
 
 #[tokio::test]
 async fn ancestry_nowait_and_writer_wait_cover_both_lock_orders() {
-    use erpx_server_files::public::field_attachment_ancestry::lock_field_attachment_ancestry;
+    use erpx_files_server::public::field_attachment_ancestry::lock_field_attachment_ancestry;
     fixture::with_database(3, |pool| async move {
         migrate(&pool).await;
         seed(&pool,"ancestry-race","company","asset-race","manual","draft","draft","actor","available",1000).await;
@@ -331,7 +331,7 @@ async fn ancestry_nowait_and_writer_wait_cover_both_lock_orders() {
         let mut fresh=pool.raw().begin().await.unwrap();
         sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *fresh).await.unwrap();
         lock_field_attachment_ancestry(&mut fresh).await.unwrap();
-        let witness=erpx_server_files::public::field_attachment_ancestry::inspect_field_attachment_ancestry(&mut fresh,&CompanyId::new("company").unwrap(),"link-ancestry-race").await.unwrap().unwrap();
+        let witness=erpx_files_server::public::field_attachment_ancestry::inspect_field_attachment_ancestry(&mut fresh,&CompanyId::new("company").unwrap(),"link-ancestry-race").await.unwrap().unwrap();
         let mut found=false;let mut index=0;
         while let Some(row)=witness.candidate(&mut fresh,index).await.unwrap(){if row.path=="direct-set" && row.target.as_deref()==Some("writer-after-reader"){found=true;}index+=1;}
         assert!(found,"fresh witness must read the committed writer target");witness.require_current(&mut fresh).await.unwrap();fresh.rollback().await.unwrap();
@@ -340,8 +340,8 @@ async fn ancestry_nowait_and_writer_wait_cover_both_lock_orders() {
 
 #[tokio::test]
 async fn files_ancestry_feeds_every_workflow_payment_receipt_path_in_one_unit() {
-    use erpx_server_files::public::field_attachment_ancestry::{inspect_field_attachment_ancestry,lock_field_attachment_ancestry};
-    use erpx_server_workflow::public::record_origin::{inspect_field_payment_receipt_batch,lock_payment_origin_candidate_sources};
+    use erpx_files_server::public::field_attachment_ancestry::{inspect_field_attachment_ancestry,lock_field_attachment_ancestry};
+    use erpx_workflow_server::public::record_origin::{inspect_field_payment_receipt_batch,lock_payment_origin_candidate_sources};
     fixture::with_database(2, |pool| async move {
         migrate(&pool).await;
         for (prefix,company) in [("batch-root","company"),("batch-source-set","foreign"),("batch-link","foreign"),("batch-link-set","foreign")] {
@@ -388,7 +388,7 @@ async fn ownership_source_locks_serialize_both_writer_orders() {
             sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *t).await.unwrap();
             lock_attachment_ownership_sources(&mut t).await.unwrap();
             let witness = inspect_attachment_ownership(&mut t, &CompanyId::new("company").unwrap(), "link-race").await.unwrap().unwrap();
-            assert_eq!(witness.kind(), erpx_server_files::public::attachment_read::AttachmentOwnerKind::FieldVisit);
+            assert_eq!(witness.kind(), erpx_files_server::public::attachment_read::AttachmentOwnerKind::FieldVisit);
             revalidate_attachment_ownership(&mut t, &witness).await.unwrap();
             t.commit().await.unwrap();
         });
@@ -424,7 +424,7 @@ async fn ownership_source_locks_serialize_both_writer_orders() {
         lock_attachment_ownership_sources(&mut fresh).await.unwrap();
         assert!(revalidate_attachment_ownership(&mut fresh, &witness).await.is_err());
         let after = inspect_attachment_ownership(&mut fresh, &CompanyId::new("company").unwrap(), "link-race").await.unwrap().unwrap();
-        assert_eq!(after.kind(), erpx_server_files::public::attachment_read::AttachmentOwnerKind::FieldVisit);
+        assert_eq!(after.kind(), erpx_files_server::public::attachment_read::AttachmentOwnerKind::FieldVisit);
         revalidate_attachment_ownership(&mut fresh, &after).await.unwrap();
         fresh.rollback().await.unwrap();
     }).await;
@@ -486,7 +486,7 @@ async fn ownership_witness_is_company_scoped_transaction_bound_and_rechecks_sour
             .unwrap();
         assert_eq!(
             witness.kind(),
-            erpx_server_files::public::attachment_read::AttachmentOwnerKind::Other
+            erpx_files_server::public::attachment_read::AttachmentOwnerKind::Other
         );
         revalidate_attachment_ownership(&mut tx, &witness)
             .await
@@ -523,12 +523,12 @@ async fn ownership_witness_is_company_scoped_transaction_bound_and_rechecks_sour
             .unwrap();
         assert_eq!(
             field.kind(),
-            erpx_server_files::public::attachment_read::AttachmentOwnerKind::FieldVisit
+            erpx_files_server::public::attachment_read::AttachmentOwnerKind::FieldVisit
         );
         revalidate_attachment_ownership(&mut tx, &field)
             .await
             .unwrap();
-        assert!(erpx_server_files::public::attachment_read::stock_count_attachment_target(&mut tx, &field).await.unwrap().is_none());
+        assert!(erpx_files_server::public::attachment_read::stock_count_attachment_target(&mut tx, &field).await.unwrap().is_none());
         assert!(
             revalidate_attachment_ownership(&mut tx, &witness)
                 .await
@@ -538,7 +538,7 @@ async fn ownership_witness_is_company_scoped_transaction_bound_and_rechecks_sour
             .execute(&mut *tx).await.unwrap();
         assert!(revalidate_attachment_ownership(&mut tx, &field).await.is_err());
         let invalid = inspect_attachment_ownership(&mut tx, &company, "link-ownership").await.unwrap().unwrap();
-        assert_eq!(invalid.kind(), erpx_server_files::public::attachment_read::AttachmentOwnerKind::FieldVisit);
+        assert_eq!(invalid.kind(), erpx_files_server::public::attachment_read::AttachmentOwnerKind::FieldVisit);
         revalidate_attachment_ownership(&mut tx, &invalid).await.unwrap();
         sqlx::query("UPDATE attachment_links SET attachment_id='source-foreign-source' WHERE id='link-ownership'").execute(&mut *tx).await.unwrap();
         assert!(revalidate_attachment_ownership(&mut tx, &invalid).await.is_err());
@@ -555,15 +555,15 @@ async fn ownership_witness_is_company_scoped_transaction_bound_and_rechecks_sour
         lock_attachment_ownership_sources(&mut tx).await.unwrap();
         assert!(inspect_attachment_ownership(&mut tx, &foreign, "link-ownership").await.unwrap().is_none());
         let count = inspect_attachment_ownership(&mut tx, &company, "link-ownership").await.unwrap().unwrap();
-        let target = erpx_server_files::public::attachment_read::stock_count_attachment_target(&mut tx, &count).await.unwrap().unwrap();
+        let target = erpx_files_server::public::attachment_read::stock_count_attachment_target(&mut tx, &count).await.unwrap().unwrap();
         assert_eq!((&target.target_id, target.purpose_key.as_str(), target.component_kind.as_str(), target.component_ref.as_deref()), (&long_target, "count_sheet", "action", Some("submit")));
         sqlx::query("UPDATE attachment_sets SET component_ref='different' WHERE id='set-ownership'").execute(&mut *tx).await.unwrap();
-        assert!(erpx_server_files::public::attachment_read::stock_count_attachment_target(&mut tx, &count).await.is_err());
+        assert!(erpx_files_server::public::attachment_read::stock_count_attachment_target(&mut tx, &count).await.is_err());
         tx.rollback().await.unwrap();
         let mut tx = c.begin().await.unwrap();
         sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
         lock_attachment_ownership_sources(&mut tx).await.unwrap();
-        assert!(erpx_server_files::public::attachment_read::stock_count_attachment_target(&mut tx, &count).await.is_err());
+        assert!(erpx_files_server::public::attachment_read::stock_count_attachment_target(&mut tx, &count).await.is_err());
         tx.rollback().await.unwrap();
     })
     .await;
@@ -611,7 +611,7 @@ impl AttachmentTargetAuthority for Authority {
         &'a self,
         _: &'a mut PgConnection,
         reader: &'a AttachmentReader,
-        target: &'a erpx_server_files::public::attachment_read::AttachmentTarget<'a>,
+        target: &'a erpx_files_server::public::attachment_read::AttachmentTarget<'a>,
     ) -> PgWorkFuture<'a, AttachmentTargetScope, BusinessError> {
         Box::pin(async move {
             self.0.calls.fetch_add(1, Ordering::SeqCst);
@@ -1117,7 +1117,7 @@ async fn oversized_list_fails_closed_instead_of_truncating_owner_evidence() {
 
 #[tokio::test]
 async fn finance_target_metadata_is_bound_to_actual_files_witness() {
-    use erpx_server_files::public::attachment_read::finance_attachment_target;
+    use erpx_files_server::public::attachment_read::finance_attachment_target;
     fixture::with_database(2, |pool| async move {
         migrate(&pool).await;
         seed(&pool,"finance-target","company","asset-1","manual","draft","draft","actor","available",1000).await;
@@ -1139,7 +1139,7 @@ async fn finance_target_metadata_is_bound_to_actual_files_witness() {
 
 #[tokio::test]
 async fn field_visit_link_requires_and_retains_all_owner_locks() {
-    use erpx_server_files::public::field_visit_link::{lock_field_visit_link_sources,read_field_visit_link,require_field_visit_link_sources_held};
+    use erpx_files_server::public::field_visit_link::{lock_field_visit_link_sources,read_field_visit_link,require_field_visit_link_sources_held};
     fixture::with_database(2, |pool| async move {
         migrate(&pool).await;
         seed(&pool,"field-lock","company","visit-1","site_photo","draft","draft","actor","available",1000).await;
@@ -1164,7 +1164,7 @@ async fn field_visit_link_requires_and_retains_all_owner_locks() {
 
 #[tokio::test]
 async fn retained_field_withdrawal_checks_deferred_drift_replay_and_existing_event() {
-    use erpx_server_files::public::field_visit_link::{lock_field_visit_link_sources,read_field_visit_link};
+    use erpx_files_server::public::field_visit_link::{lock_field_visit_link_sources,read_field_visit_link};
     use sha2::{Digest,Sha256};
     fixture::with_database(2, |pool| async move {
         migrate(&pool).await;
@@ -1192,7 +1192,7 @@ async fn retained_field_withdrawal_checks_deferred_drift_replay_and_existing_eve
 
 #[tokio::test]
 async fn retained_status_access_checks_same_unit_exact_event_and_absent_attachment() {
-    use erpx_server_files::public::field_visit_link::{lock_field_visit_link_sources,read_field_visit_link,write_status_access_retained};
+    use erpx_files_server::public::field_visit_link::{lock_field_visit_link_sources,read_field_visit_link,write_status_access_retained};
     fixture::with_database(2, |pool| async move {
         migrate(&pool).await;
         seed(&pool,"status-retained","company","visit-1","site_photo","draft","draft","actor","available",1000).await;
@@ -1202,7 +1202,7 @@ async fn retained_status_access_checks_same_unit_exact_event_and_absent_attachme
         let mut tampered=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tampered).await.unwrap();lock_field_visit_link_sources(&mut tampered).await.unwrap();
         let source=read_field_visit_link(&mut tampered,&company,"link-status-retained").await.unwrap();
         let error=write_status_access_retained(&mut tampered,&company,source.source(),"actor",1019).await;
-        assert!(matches!(error,Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e)) if e.code=="ATTACHMENT_LINK_LOCKED"));
+        assert!(matches!(error,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(ref e)) if e.code=="ATTACHMENT_LINK_LOCKED"));
         tampered.rollback().await.unwrap();let count:i64=sqlx::query_scalar("SELECT count(*) FROM attachment_access_events WHERE link_id='link-status-retained'").fetch_one(pool.raw()).await.unwrap();assert_eq!(count,0);
         sqlx::raw_sql("DROP TRIGGER status_access_reason_tamper ON attachment_access_events; DROP FUNCTION status_access_reason_tamper()").execute(pool.raw()).await.unwrap();
         let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_field_visit_link_sources(&mut tx).await.unwrap();
@@ -1221,8 +1221,8 @@ async fn retained_status_access_checks_same_unit_exact_event_and_absent_attachme
 
 #[tokio::test]
 async fn no_temp_files_workflow_routing_uses_public_sources_without_temp_relations() {
-    use erpx_server_files::public::field_attachment_routing::{inspect_field_attachment_routing,lock_field_attachment_routing_sources};
-    use erpx_server_workflow::public::record_origin::{inspect_field_payment_routing,lock_field_payment_routing_sources};
+    use erpx_files_server::public::field_attachment_routing::{inspect_field_attachment_routing,lock_field_attachment_routing_sources};
+    use erpx_workflow_server::public::record_origin::{inspect_field_payment_routing,lock_field_payment_routing_sources};
     fixture::with_database(2, |pool| async move {
         migrate(&pool).await;
         seed(&pool,"no-temp-routing","company","asset-routing","manual","draft","draft","actor","available",1000).await;
@@ -1259,8 +1259,8 @@ async fn no_temp_files_workflow_routing_uses_public_sources_without_temp_relatio
 
 #[tokio::test]
 async fn no_temp_routing_ignores_pg_temp_shadow_before_and_after_capture() {
-    use erpx_server_files::public::field_attachment_routing::{inspect_field_attachment_routing,lock_field_attachment_routing_sources};
-    use erpx_server_workflow::public::record_origin::{inspect_field_payment_routing,lock_field_payment_routing_sources};
+    use erpx_files_server::public::field_attachment_routing::{inspect_field_attachment_routing,lock_field_attachment_routing_sources};
+    use erpx_workflow_server::public::record_origin::{inspect_field_payment_routing,lock_field_payment_routing_sources};
     fixture::with_database(2, |pool| async move {
         migrate(&pool).await;
         seed(&pool,"shadow-routing","company","asset-shadow","manual","draft","draft","actor","available",1000).await;
@@ -1282,7 +1282,7 @@ async fn no_temp_routing_ignores_pg_temp_shadow_before_and_after_capture() {
 
 #[tokio::test]
 async fn no_temp_selected_link_observation_retains_scoped_absence_and_present_routing() {
-    use erpx_server_files::public::field_attachment_routing::{observe_field_attachment_routing,lock_field_attachment_routing_sources};
+    use erpx_files_server::public::field_attachment_routing::{observe_field_attachment_routing,lock_field_attachment_routing_sources};
     fixture::with_database(3, |pool| async move {
         migrate(&pool).await;
         seed(&pool,"observation","company","asset-observation","manual","draft","draft","actor","available",1000).await;
@@ -1323,7 +1323,7 @@ async fn no_temp_selected_link_observation_retains_scoped_absence_and_present_ro
 
 #[tokio::test]
 async fn global_visit_link_marker_matches_actual_typescript_without_finance_markers() {
-    use erpx_server_files::public::field_attachment_routing::{observe_global_field_visit_link,observe_unscoped_attachment_link,lock_field_attachment_routing_sources};
+    use erpx_files_server::public::field_attachment_routing::{observe_global_field_visit_link,observe_unscoped_attachment_link,lock_field_attachment_routing_sources};
     fixture::with_database(3,|pool|async move {
         migrate(&pool).await;
         seed(&pool,"global-local","company","asset-local","manual","draft","draft","actor","available",1000).await;
@@ -1367,7 +1367,7 @@ async fn global_visit_link_marker_matches_actual_typescript_without_finance_mark
 
 #[tokio::test]
 async fn global_attachment_ancestry_matches_installed_visit_marker_and_null() {
-    use erpx_server_files::public::field_attachment_routing::{inspect_field_attachment_routing,observe_global_attachment_ancestry,lock_field_attachment_routing_sources};
+    use erpx_files_server::public::field_attachment_routing::{inspect_field_attachment_routing,observe_global_attachment_ancestry,lock_field_attachment_routing_sources};
     fixture::with_database(3,|pool|async move {
         migrate(&pool).await;
         seed(&pool,"global-source","company","asset-one","manual","draft","draft","actor","available",1000).await;
@@ -1400,7 +1400,7 @@ async fn global_attachment_ancestry_matches_installed_visit_marker_and_null() {
 
 #[tokio::test]
 async fn unscoped_global_ancestry_matches_real_ts_for_foreign_related_and_null() {
-    use erpx_server_files::public::field_attachment_routing::{observe_unscoped_attachment_link,observe_unscoped_global_attachment_ancestry,lock_field_attachment_routing_sources};
+    use erpx_files_server::public::field_attachment_routing::{observe_unscoped_attachment_link,observe_unscoped_global_attachment_ancestry,lock_field_attachment_routing_sources};
     fixture::with_database(3,|pool|async move {
         migrate(&pool).await;
         seed(&pool,"unscoped-root","foreign","asset-foreign","manual","draft","draft","actor","available",1000).await;

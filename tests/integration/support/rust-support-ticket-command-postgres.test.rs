@@ -3,21 +3,21 @@
 //! authority and the Workflow receipt/audit/outbox. No TS writer is invoked.
 #[path = "../../support/finance/review-composition.rs"]
 mod review;
-use erpx_server_commercial::public::purchases::current_package_catalogue;
-use erpx_server_identity_access::public::work_context::{
+use erpx_commercial_server::public::purchases::current_package_catalogue;
+use erpx_identity_access_server::public::work_context::{
     ExpectedWorkSelection, HoldingWorkspaceRequest,
 };
-use erpx_server_runtime::public::postgres::PgTransactionError;
-use erpx_server_shared::public::{AssignmentId, Clock, CommandKey, CompanyId, HoldingId};
-use erpx_server_support::public::ticket::TicketChange;
-use erpx_server_workflow::public::commands::CommandJson;
-use erpx_service::support_ticket_command::{SupportTicketCommand, SupportTicketCreate};
+use erpx_platform_runtime_server::public::postgres::PgTransactionError;
+use erpx_platform_shared_server::public::{AssignmentId, Clock, CommandKey, CompanyId, HoldingId};
+use erpx_support_server::public::ticket::TicketChange;
+use erpx_workflow_server::public::commands::CommandJson;
+use erpx_platform_composition::support_ticket_command::{SupportTicketCommand, SupportTicketCreate};
 use std::sync::Arc;
 
 #[derive(Clone)]
 struct TestClock(Arc<review::account::fixture::MutableClock>);
 impl Clock for TestClock {
-    fn now(&self) -> erpx_server_shared::public::TimestampMillis {
+    fn now(&self) -> erpx_platform_shared_server::public::TimestampMillis {
         self.0.now()
     }
 }
@@ -762,8 +762,8 @@ async fn support_ticket_create_triage_start_resolve_confirm_and_replay() {
 #[tokio::test]
 async fn support_ticket_http_route_accepts_real_session_and_rendered_context() {
     use axum::{body::{Body, to_bytes}, http::Request};
-    use erpx_service::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
-    use erpx_service::support_ticket_http::{SupportTicketHttpTarget, support_ticket_http_router};
+    use erpx_platform_composition::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
+    use erpx_platform_composition::support_ticket_http::{SupportTicketHttpTarget, support_ticket_http_router};
     use tower::ServiceExt;
     review::account::with_system(|system| async move {
         let p = review::setup_with_finance(system, false).await;
@@ -992,9 +992,9 @@ async fn support_ticket_http_route_accepts_real_session_and_rendered_context() {
 
 #[tokio::test]
 async fn records_request_team_sources_match_typescript_join_and_reject_invalid_fences() {
-    use erpx_server_support::public::records_request_team_sources::{inspect_records_request_team_sources,lock_records_request_team_sources};
+    use erpx_support_server::public::records_request_team_sources::{inspect_records_request_team_sources,lock_records_request_team_sources};
     let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let script=r#"if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');const fs=await import('node:fs'),people=await import('./packages/server-people_payroll/src/adapters/final-root-owner-projection-sources.ts'),s=fs.readFileSync('./packages/server-support/src/adapters/service-team-reads.ts','utf8');const match=s.match(/prepare\(`(SELECT m\.user_id,m\.responsibility,[^`]+)`\)/);if(!match)throw Error('TEAM_QUERY_CHANGED');let sql=match[1].replace('${people_payrollProjectionSources.hr_people}',people.finalRootOwnerProjectionSources.hr_people);if(sql.includes('${')||(sql.match(/\?/g)||[]).length!==2)throw Error('TEAM_QUERY_BINDS_CHANGED');let n=0;process.stdout.write(sql.replace(/\?/g,()=>'$'+(++n)));"#;
+    let script=r#"if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');const fs=await import('node:fs'),people=await import('./modules/people-payroll/server/src/adapters/final-root-owner-projection-sources.ts'),s=fs.readFileSync('./modules/support/server/src/adapters/service-team-reads.ts','utf8');const match=s.match(/prepare\(`(SELECT m\.user_id,m\.responsibility,[^`]+)`\)/);if(!match)throw Error('TEAM_QUERY_CHANGED');let sql=match[1].replace('${people_payrollProjectionSources.hr_people}',people.finalRootOwnerProjectionSources.hr_people);if(sql.includes('${')||(sql.match(/\?/g)||[]).length!==2)throw Error('TEAM_QUERY_BINDS_CHANGED');let n=0;process.stdout.write(sql.replace(/\?/g,()=>'$'+(++n)));"#;
     let oracle=std::process::Command::new(std::env::var("ERPX_NODE_BIN").expect("pinned Node required")).current_dir(root).args(["--conditions=react-server","--input-type=module","-e",script]).output().unwrap();assert!(oracle.status.success(),"actual Support TS oracle: {}",String::from_utf8_lossy(&oracle.stderr));let original=String::from_utf8(oracle.stdout).unwrap();
     review::account::with_system(|system|async move{
         let p=review::setup_with_finance(system,false).await;let db=&p.system.holdings[0];
@@ -1019,13 +1019,13 @@ async fn records_request_team_sources_match_typescript_join_and_reject_invalid_f
 
 #[tokio::test]
 async fn support_service_membership_sql_matches_identity_assignment_source() {
-    use erpx_server_identity_access::public::sales_recipient::{inspect_sales_assignment_join,lock_sales_recipient_sources};
-    use erpx_server_support::public::native_support_read_sql::{read_statement,RD_SERVICE_MEMBER};
+    use erpx_identity_access_server::public::sales_recipient::{inspect_sales_assignment_join,lock_sales_recipient_sources};
+    use erpx_support_server::public::native_support_read_sql::{read_statement,RD_SERVICE_MEMBER};
     let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     // r23 follow-up retired the TypeScript `serviceMemberSql` oracle. The native
     // registry now carries the byte-identical statement; only the closed Identity
     // assignment projection still comes from its owner so drift stays visible.
-    let script=r#"if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');const i=await import('./packages/server-identity_access/src/adapters/final-root-owner-projection-sources.ts');process.stdout.write(JSON.stringify({projection:i.finalRootOwnerProjectionSources.assignments}));"#;
+    let script=r#"if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');const i=await import('./modules/identity-access/server/src/adapters/final-root-owner-projection-sources.ts');process.stdout.write(JSON.stringify({projection:i.finalRootOwnerProjectionSources.assignments}));"#;
     let oracle=std::process::Command::new(std::env::var("ERPX_NODE_BIN").expect("pinned Node required")).current_dir(root).args(["--conditions=react-server","--input-type=module","-e",script]).output().unwrap();assert!(oracle.status.success(),"actual Identity assignment projection: {}",String::from_utf8_lossy(&oracle.stderr));let ts:serde_json::Value=serde_json::from_slice(&oracle.stdout).unwrap();let projection=ts["projection"].as_str().unwrap().to_owned();
     let statement=read_statement(RD_SERVICE_MEMBER).expect("native service member read");assert_eq!(statement.bind_count,4);
     // The caller-side probe runs `SELECT 1 WHERE EXISTS(...)` and treats a row

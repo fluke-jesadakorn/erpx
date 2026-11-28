@@ -7,9 +7,9 @@ import {
   samePersonQuerySql,
   sessionByUserSql,
   sessionExistsSql,
-} from '../../../packages/server-identity_access/src/adapters/iam-probe-sql';
+} from '../../../modules/identity-access/server/src/adapters/iam-probe-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-identity_access/src');
+const srcRoot = resolve(__dirname, '../../../modules/identity-access/server/src');
 const read = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 const readOnly = (sql: string) => {

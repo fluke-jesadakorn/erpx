@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const root = resolve(process.cwd(), 'packages/server-collaboration/src');
+const root = resolve(process.cwd(), 'modules/collaboration/server/src');
 const src = (f: string) => readFileSync(resolve(root, 'adapters', f), 'utf8');
 const push = src('web-push.ts');
 const planner = src('notification_statement.rs');

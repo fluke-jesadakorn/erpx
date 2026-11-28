@@ -3,18 +3,18 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_procurement::public::supplier_promise_command::{
+use erpx_procurement_server::public::supplier_promise_command::{
     PgSupplierPromiseCommand, RecordSupplierPromiseCommand, SupplierPromiseCommandActor,
     SupplierPromiseCommandRepository, SupplierPromiseLineCommand, SupplierPromiseRecordReceipt,
     record_supplier_promise, inspect_supplier_promise_history, lock_supplier_promise_history_writes,
 };
-use erpx_server_procurement::public::supplier_promise_command_http::record_supplier_promise_in_transaction;
+use erpx_procurement_server::public::supplier_promise_command_http::record_supplier_promise_in_transaction;
 use sqlx::Connection;
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, CommandKey, CompanyId, RecordId, TimestampMillis,
 };
 
@@ -22,7 +22,7 @@ const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
 
 #[tokio::test]
 async fn selected_promise_witness_binds_actual_record_and_transaction() {
-    use erpx_server_procurement::public::supplier_promise_command::inspect_supplier_promise_record;
+    use erpx_procurement_server::public::supplier_promise_command::inspect_supplier_promise_record;
     fixture::with_database(3, |pool| async move {
         setup(&pool).await;
         run_command(&pool, actor("company", "branch", "owner"), "order-owned", input(), "record-source").await.unwrap();
@@ -420,7 +420,7 @@ async fn readback_and_audit_outbox_persisted() {
 
 #[tokio::test]
 async fn commerce_request_link_source_fences_absence_and_unit() {
-    use erpx_server_procurement::public::commerce_request_link::{inspect_commerce_request_links, lock_commerce_request_links};
+    use erpx_procurement_server::public::commerce_request_link::{inspect_commerce_request_links, lock_commerce_request_links};
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
         sqlx::query("INSERT INTO employee_requests(id,company_id,branch_id,kind,category,requester_user_id,created_by,created_at,updated_at) VALUES('link-request','company','branch','purchase','purchase','owner','owner',10,10),('direct-request','foreign','branch-foreign','purchase','purchase','owner','owner',10,10)")
@@ -429,9 +429,9 @@ async fn commerce_request_link_source_fences_absence_and_unit() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let script = r#"if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');
 const fs=await import('node:fs');
-const a=await import('./packages/server-records/src/adapters/commerce-final-owner-projection-sources.ts');
-const b=await import('./packages/server-procurement/src/adapters/commerce-final-owner-projection-sources.ts');
-const text=fs.readFileSync('./packages/server-commerce/src/adapters/commerce.ts','utf8');
+const a=await import('./modules/records/server/src/adapters/commerce-final-owner-projection-sources.ts');
+const b=await import('./modules/procurement/server/src/adapters/commerce-final-owner-projection-sources.ts');
+const text=fs.readFileSync('./modules/commerce/server/src/adapters/commerce.ts','utf8');
 const match=text.match(/readEmployeeRequests1:[\s\S]*?db\.prepare\(`([^`]+)`\)/);
 if(!match)throw Error('COMMERCE_LOOKUP_SOURCE_MISSING');
 const records=a.commerceFinalOwnerProjectionSources.employee_requests;
@@ -518,7 +518,7 @@ process.stdout.write(JSON.stringify({sql,procurement}));"#;
 
 #[tokio::test]
 async fn commerce_request_link_rejects_rls_and_deferred_drift() {
-    use erpx_server_procurement::public::commerce_request_link::{inspect_commerce_request_links, lock_commerce_request_links};
+    use erpx_procurement_server::public::commerce_request_link::{inspect_commerce_request_links, lock_commerce_request_links};
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
         sqlx::query("INSERT INTO employee_requests(id,company_id,branch_id,kind,category,requester_user_id,created_by,created_at,updated_at) VALUES('deferred-source-request','company','branch','purchase','purchase','owner','owner',10,10)")

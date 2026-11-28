@@ -2,12 +2,12 @@
 //! PostgreSQL. Every command owns one serializable Legal transaction.
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_legal::public::legal_records::*;
-use erpx_server_runtime::public::http_support::{HeaderMap, StatusCode, body::to_bytes, header};
-use erpx_server_runtime::public::postgres::{
+use erpx_legal_server::public::legal_records::*;
+use erpx_platform_runtime_server::public::http_support::{HeaderMap, StatusCode, body::to_bytes, header};
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, HoldingId, UserId,
 };
 use sqlx::{AssertSqlSafe, PgConnection};
@@ -61,7 +61,7 @@ impl LegalHoldNotifier for Notifier {
         Box::pin(async move {
             if self.fail {
                 return Err(BusinessError::new(
-                    erpx_server_shared::public::FailureKind::Unavailable,
+                    erpx_platform_shared_server::public::FailureKind::Unavailable,
                     "SYNTHETIC_NOTIFIER_FAILURE",
                     "Synthetic notifier failure.",
                 )

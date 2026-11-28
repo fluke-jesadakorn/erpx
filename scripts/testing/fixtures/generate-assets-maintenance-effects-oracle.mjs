@@ -6,12 +6,12 @@ import {resolve} from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
 if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');
 const revision='a5ed8737a2f05eff1ee9841fda4a094b3926d732';
-const path='packages/server-assets/src/adapters/maintenance-transaction.ts';
+const path='modules/assets/server/src/adapters/maintenance-transaction.ts';
 const original=execFileSync('git',['show',`${revision}:${path}`],{encoding:'utf8'});
 const ts=createRequire(resolve('package.json'))('typescript');
 const loaded={exports:{}};
 new Function('module','exports','require',ts.transpileModule(original,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText)(loaded,loaded.exports,name=>{
- if(name==='@erpx/server-workflow/public/command-assertions')return {assertion:(_db,_key,label,predicate,bindings)=>({guard:{label,predicate,bindings}})};
+ if(name==='@erpx/workflow-server/public/command-assertions')return {assertion:(_db,_key,label,predicate,bindings)=>({guard:{label,predicate,bindings}})};
  throw Error('UNREVIEWED_ORACLE_IMPORT:'+name);
 });
 const db=new DatabaseSync(':memory:');

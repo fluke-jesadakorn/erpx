@@ -88,7 +88,7 @@ it('copies source while excluding private environment and generated state in nes
 
 async function combinedReleaseFixture() {
   const root=await realpath(await mkdtemp(join(tmpdir(),'erpx-combined-release-'))), fingerprint='a'.repeat(64);
-  const {appDefinitions}=await import('@erpx/contracts/apps');
+  const {appDefinitions}=await import('@erpx/platform-contracts/apps');
   const {releaseArtifactReference}=await import('../../../scripts/local/workspace-release-manifest');
   const apps:Record<string,Awaited<ReturnType<typeof releaseArtifactReference>>>={};
   for(const role of [...appDefinitions.map(app=>app.id),'gateway','jobs']){

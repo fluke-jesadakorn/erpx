@@ -4,9 +4,9 @@ import { resolve } from 'node:path';
 import {
   staffTaskPointHead,
   staffProjectByRefHead,
-} from '../../../packages/server-projects/src/adapters/read-tail-r34';
+} from '../../../modules/projects/server/src/adapters/read-tail-r34';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-projects/src');
+const srcRoot = resolve(__dirname, '../../../modules/projects/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 // Verbatim pre-dedupe inline heads from HEAD before the r34 edit. Byte-identity

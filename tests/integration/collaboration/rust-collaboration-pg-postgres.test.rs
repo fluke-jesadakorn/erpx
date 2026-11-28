@@ -3,25 +3,25 @@
 //! skipped when `ERPX_TEST_ADMIN_URL` is not configured.
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_collaboration::public::inbox::{
+use erpx_collaboration_server::public::inbox::{
     InboxNotificationQuery, InboxScope, PgInboxUnit, UnavailableInboxTargets,
 };
-use erpx_server_collaboration::public::messaging_native::{
+use erpx_collaboration_server::public::messaging_native::{
     Change as MessagingChange, MessagingScope, PgMessagingUnit, RoomKind, execute as send_room,
 };
-use erpx_server_collaboration::public::messaging_teams::{
+use erpx_collaboration_server::public::messaging_teams::{
     Change as TeamChange, MessagingTeamUnit, PgMessagingTeamUnit, execute as execute_team,
 };
-use erpx_server_collaboration::public::social::{
+use erpx_collaboration_server::public::social::{
     Audience, Change, FeedFilter, PgSocialUnit, SocialHomeAdditions, SocialHomeCandidate,
     SocialHomePolicy, SocialHomePolicyFuture, SocialHomeSelection, SocialScope,
     UnavailableSocialRecords, execute, lock_social_sources,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CommandKey};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey};
 
 type Error = PgTransactionError<BusinessError>;
 
@@ -322,8 +322,8 @@ async fn collaboration_pg_units_mount_over_real_owner_rows() {
             body: "Hello #pg".into(),
             audience: Audience::Branch,
             tags: vec![],
-            mentions: vec![erpx_server_collaboration::public::social::MentionInput {
-                kind: erpx_server_collaboration::public::social::MentionKind::Person,
+            mentions: vec![erpx_collaboration_server::public::social::MentionInput {
+                kind: erpx_collaboration_server::public::social::MentionKind::Person,
                 target_id: "other".into(),
             }],
             linked_record: None,
@@ -425,9 +425,9 @@ async fn collaboration_pg_units_mount_over_real_owner_rows() {
                                 audience: Audience::Branch,
                                 tags: vec![],
                                 mentions: vec![
-                                    erpx_server_collaboration::public::social::MentionInput {
+                                    erpx_collaboration_server::public::social::MentionInput {
                                         kind:
-                                            erpx_server_collaboration::public::social::MentionKind::Record,
+                                            erpx_collaboration_server::public::social::MentionKind::Record,
                                         target_id: "people_payroll/leave-1".into(),
                                     },
                                 ],
@@ -519,7 +519,7 @@ async fn collaboration_pg_units_mount_over_real_owner_rows() {
                             CommandKey::new("messaging-pg-files").unwrap(),
                         );
                         let headers =
-                            erpx_server_runtime::public::http_support::HeaderMap::new();
+                            erpx_platform_runtime_server::public::http_support::HeaderMap::new();
                         match unit
                             .bind_attachment(
                                 "acme.example.test",

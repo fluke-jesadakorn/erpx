@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 
 vi.mock('server-only', () => ({}));
 
-const srcRoot = resolve(__dirname, '../../../packages/server-platform_administration/src');
+const srcRoot = resolve(__dirname, '../../../modules/platform-administration/server/src');
 const source = (relative: string) => readFileSync(resolve(srcRoot, relative), 'utf8');
 const sha = (value: string) => createHash('sha256').update(value).digest('hex');
 

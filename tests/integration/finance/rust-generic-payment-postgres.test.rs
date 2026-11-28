@@ -4,16 +4,16 @@
 #![allow(dead_code)]
 #[path = "../../support/finance/review-composition.rs"]
 mod facts;
-use erpx_server_finance::public::bank_reconciliation::{
+use erpx_finance_server::public::bank_reconciliation::{
     BankImportInput, BankImportRow, prepare_bank_import,
 };
-use erpx_server_finance::public::generic_payment::*;
-use erpx_server_finance::public::service_receipt::*;
-use erpx_server_shared::public::{AssignmentId, Clock, CommandKey, CompanyId, HoldingId, UserId};
+use erpx_finance_server::public::generic_payment::*;
+use erpx_finance_server::public::service_receipt::*;
+use erpx_platform_shared_server::public::{AssignmentId, Clock, CommandKey, CompanyId, HoldingId, UserId};
 use facts::{account, setup};
 
-fn actor(user: &str) -> erpx_server_finance::public::FinanceActor {
-    erpx_server_finance::public::FinanceActor {
+fn actor(user: &str) -> erpx_finance_server::public::FinanceActor {
+    erpx_finance_server::public::FinanceActor {
         user_id: UserId::new(user).unwrap(),
         holding_id: HoldingId::new("h001").unwrap(),
         company_id: CompanyId::new("company").unwrap(),
@@ -21,7 +21,7 @@ fn actor(user: &str) -> erpx_server_finance::public::FinanceActor {
     }
 }
 
-async fn seed(pool: &erpx_server_runtime::public::postgres::DatabasePool) {
+async fn seed(pool: &erpx_platform_runtime_server::public::postgres::DatabasePool) {
     sqlx::raw_sql(
         "INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,currency,is_control,control_kind,status,version,created_at,updated_at)VALUES\
          ('ap','company','chart','2100','Trade payables','liability','THB',1,'payable','active',1,0,0),\
@@ -175,7 +175,7 @@ async fn generic_payment_rejects_expense_claim_and_wrong_invoice_kind() {
         )
         .await
         {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e)) => {
                 assert_eq!(e.code, "PAYMENT_SETTLEMENT_SOURCE_INVALID")
             }
             Err(other) => panic!("expected business denial, got {other:?}"),
@@ -277,14 +277,14 @@ async fn generic_payment_confirmation_posts_payable_and_receivable_directions() 
 }
 
 struct AllowJournal;
-impl erpx_server_finance::public::JournalAuthority for AllowJournal {
-    type Error = erpx_server_runtime::public::postgres::PgTransactionError<
-        erpx_server_finance::public::JournalError,
+impl erpx_finance_server::public::JournalAuthority for AllowJournal {
+    type Error = erpx_platform_runtime_server::public::postgres::PgTransactionError<
+        erpx_finance_server::public::JournalError,
     >;
     async fn authorize(
         &mut self,
-        _: &erpx_server_finance::public::FinanceActor,
-        _: &erpx_server_finance::public::JournalDraft,
+        _: &erpx_finance_server::public::FinanceActor,
+        _: &erpx_finance_server::public::JournalDraft,
     ) -> Result<(), Self::Error> {
         Ok(())
     }
@@ -292,7 +292,7 @@ impl erpx_server_finance::public::JournalAuthority for AllowJournal {
 
 #[tokio::test]
 async fn generic_payment_confirmation_persists_journal_allocation_and_bank_match() {
-    use erpx_server_finance::public::{
+    use erpx_finance_server::public::{
         FinanceCollation, JournalStatus, PgJournalPreparation, embedded_currency_rules,
         prepare_journal,
     };
@@ -622,14 +622,14 @@ async fn generic_payment_detects_invoice_drift_after_prepare_and_after_write() {
         let plan=prepare_generic_payment(&mut tx,&maker,"pay-drift-before",&payment("payment","bill-open","supplier"),clock.as_ref()).await.unwrap();
         sqlx::query("UPDATE finance_invoices SET updated_at=updated_at+1 WHERE id='bill-open' AND company_id='company'").execute(&mut *tx).await.unwrap();
         let error=plan.persist(&mut tx).await.err().expect("changed invoice must reject pending payment");
-        assert!(matches!(error,erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e) if e.code=="PAYMENT_SOURCE_CHANGED"));
+        assert!(matches!(error,erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(ref e) if e.code=="PAYMENT_SOURCE_CHANGED"));
         tx.rollback().await.unwrap();
         let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
         let retained=prepare_generic_payment(&mut tx,&maker,"pay-drift-after",&payment("payment","bill-open","supplier"),clock.as_ref()).await.unwrap().persist(&mut tx).await.unwrap();
         retained.require_current(&mut tx).await.unwrap();
         sqlx::query("UPDATE finance_invoices SET updated_at=updated_at+1 WHERE id='bill-open' AND company_id='company'").execute(&mut *tx).await.unwrap();
         let error=retained.require_current(&mut tx).await.err().expect("changed invoice must invalidate retained effect");
-        assert!(matches!(error,erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e) if e.code=="PAYMENT_SOURCE_CHANGED"));
+        assert!(matches!(error,erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(ref e) if e.code=="PAYMENT_SOURCE_CHANGED"));
         tx.rollback().await.unwrap();
         let persisted:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM finance_payments WHERE id IN ('pay-drift-before','pay-drift-after')),(SELECT count(*) FROM money_transaction_snapshots WHERE source_id IN ('pay-drift-before','pay-drift-after')),(SELECT updated_at FROM finance_invoices WHERE id='bill-open')").fetch_one(pool.raw()).await.unwrap();
         assert_eq!(persisted,(0,0,0));

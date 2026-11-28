@@ -1,9 +1,9 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { versionStatusGuardSql } from '../../../packages/server-finance/src/adapters/finance-read-tail-r52-sql';
+import { versionStatusGuardSql } from '../../../modules/finance/server/src/adapters/finance-read-tail-r52-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-finance/src');
+const srcRoot = resolve(__dirname, '../../../modules/finance/server/src');
 const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const count = (src: string, needle: string) => src.split(needle).length - 1;
 const norm = (src: string) => src.replace(/\s+/g, ' ');

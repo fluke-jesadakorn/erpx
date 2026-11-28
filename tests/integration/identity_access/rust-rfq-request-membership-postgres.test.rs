@@ -1,6 +1,6 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_identity_access::public::rfq_request_membership::{
+use erpx_identity_access_server::public::rfq_request_membership::{
     rfq_request_current_principals, rfq_request_service_member, rfq_request_service_owner,
 };
 

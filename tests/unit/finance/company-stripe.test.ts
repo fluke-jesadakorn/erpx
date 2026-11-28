@@ -1,5 +1,5 @@
 import {describe,expect,it} from 'vitest';
-import {currentStripeOnboardingUrl} from "@erpx/feature-billing/lib/company-stripe";
+import {currentStripeOnboardingUrl} from "@erpx/billing-ui/lib/company-stripe";
 
 const connection={account_id:'acct_current',livemode:false};
 const now=1790832000000;

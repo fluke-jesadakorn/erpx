@@ -1,10 +1,10 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     MigrationTrack, PgUnitOfWork, TransactionOptions, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::BusinessError;
-use erpx_server_workflow::public::stock_count_flow::*;
+use erpx_platform_shared_server::public::BusinessError;
+use erpx_workflow_server::public::stock_count_flow::*;
 use std::path::Path;
 fn person(id: &str) -> StockCountParticipant {
     StockCountParticipant {
@@ -67,10 +67,10 @@ async fn route_assignment_and_action_commit_with_exact_versions_and_event_images
 
 #[path = "../../support/workflow/command-actor.rs"]
 mod actor_fixture;
-use erpx_server_runtime::public::postgres::{DatabasePool, PgTransactionError};
-use erpx_server_shared::public::{Clock, CompanyId, IdentifierSource, RecordId, TimestampMillis};
-use erpx_server_workflow::public::commands::*;
-use erpx_server_workflow::public::service_initial_count_receipt::*;
+use erpx_platform_runtime_server::public::postgres::{DatabasePool, PgTransactionError};
+use erpx_platform_shared_server::public::{Clock, CompanyId, IdentifierSource, RecordId, TimestampMillis};
+use erpx_workflow_server::public::commands::*;
+use erpx_workflow_server::public::service_initial_count_receipt::*;
 use sqlx::PgConnection;
 type Error = PgTransactionError<BusinessError>;
 struct ClockFixture;
@@ -332,7 +332,7 @@ async fn oversized_operation_and_result_id_are_rejected_without_variable_project
 
 #[tokio::test]
 async fn original_service_setup_receipt_exposes_exact_request_hash_for_matching_mapping() {
-    use erpx_server_workflow::public::service_count_setup_receipt::{
+    use erpx_workflow_server::public::service_count_setup_receipt::{
         read_service_count_setup_history, read_service_count_setup_receipt,
     };
     fixture::with_database(2,|pool|async move{
@@ -349,7 +349,7 @@ async fn original_service_setup_receipt_exposes_exact_request_hash_for_matching_
 
 #[tokio::test]
 async fn count_decision_evidence_rejects_trigger_tamper_and_rolls_back_receipt() {
-    use erpx_server_workflow::public::service_count_decision_evidence::*;
+    use erpx_workflow_server::public::service_count_decision_evidence::*;
     fixture::with_database(2, |pool| async move {
         let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
         let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();
@@ -382,10 +382,10 @@ async fn count_decision_evidence_rejects_trigger_tamper_and_rolls_back_receipt()
 // Isolated fixture actor exercises Workflow's planned ledger evidence only.
 struct PlannedLedgerFixture<'a> {
     generated:
-        &'a erpx_server_workflow::public::service_count_command_evidence::CountCommandGeneratedIds,
-    clock: erpx_server_workflow::public::service_count_command_evidence::CountCommandClock,
+        &'a erpx_workflow_server::public::service_count_command_evidence::CountCommandGeneratedIds,
+    clock: erpx_workflow_server::public::service_count_command_evidence::CountCommandClock,
     plan: Option<
-        erpx_server_workflow::public::service_count_command_evidence::PlannedCountCommandEvidence,
+        erpx_workflow_server::public::service_count_command_evidence::PlannedCountCommandEvidence,
     >,
 }
 impl PgOwnerCommandEffects for PlannedLedgerFixture<'_> {
@@ -411,7 +411,7 @@ impl PgOwnerCommandEffects for PlannedLedgerFixture<'_> {
             })?,
             event_scope: None,
         };
-        self.plan=Some(erpx_server_workflow::public::service_count_command_evidence::plan_count_command_evidence(c,actor,request,&output,self.clock).await?);
+        self.plan=Some(erpx_workflow_server::public::service_count_command_evidence::plan_count_command_evidence(c,actor,request,&output,self.clock).await?);
         Ok(output)
     }
     async fn apply(
@@ -439,7 +439,7 @@ impl PgOwnerCommandEffects for PlannedLedgerFixture<'_> {
 }
 #[tokio::test]
 async fn planned_count_command_rejects_corruption_before_retaining_ledger_rows() {
-    use erpx_server_workflow::public::service_count_command_evidence::{
+    use erpx_workflow_server::public::service_count_command_evidence::{
         CountCommandClock, CountCommandGeneratedIds,
     };
     fixture::with_database(2,|pool|async move{
@@ -454,7 +454,7 @@ async fn planned_count_command_rejects_corruption_before_retaining_ledger_rows()
 
 #[tokio::test]
 async fn count_revision_evidence_checks_ordinary_ledger_without_flow_or_decision() {
-    use erpx_server_workflow::public::service_count_command_evidence::{
+    use erpx_workflow_server::public::service_count_command_evidence::{
         CountCommandClock, CountCommandGeneratedIds, verify_historical_count_command,
     };
     fixture::with_database(2, |pool| async move {

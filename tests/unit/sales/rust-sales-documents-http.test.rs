@@ -1,10 +1,10 @@
 //! Actual owner-local HTTP router tests for the native Sales document list.
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_sales::public::sales_documents_http::{
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_sales_server::public::sales_documents_http::{
     SalesDocumentsHttpBackend, SalesDocumentsHttpFuture, SalesDocumentsHttpRequest,
     SalesDocumentsHttpResponse, SalesDocumentsHttpTarget, sales_documents_router,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Noop;
@@ -358,7 +358,7 @@ async fn response_headers_are_private_and_bounded() {
 
 #[tokio::test]
 async fn command_plan_returns_only_registered_owner_reads() {
-    use erpx_server_sales::public::native_sales_read_sql::{
+    use erpx_sales_server::public::native_sales_read_sql::{
         RD_NOTIFICATION_RECONCILIATION_INSTALLED, RD_PRICE_LIST_ACTIVE, RD_PRICE_LIST_ITEMS_ACTIVE,
     };
 
@@ -387,7 +387,7 @@ async fn command_plan_returns_only_registered_owner_reads() {
     assert_eq!(status, 200);
     let statements = body["data"]["statements"].as_array().expect("statements");
     assert_eq!(statements.len(), 1);
-    assert_eq!(statements[0]["sql"], erpx_server_sales::public::native_sales_read_sql::read_statement(RD_PRICE_LIST_ACTIVE).unwrap().sql);
+    assert_eq!(statements[0]["sql"], erpx_sales_server::public::native_sales_read_sql::read_statement(RD_PRICE_LIST_ACTIVE).unwrap().sql);
     assert_eq!(statements[0]["values"][0], "company");
 
     let (status, body, _) = http(
@@ -402,7 +402,7 @@ async fn command_plan_returns_only_registered_owner_reads() {
     assert_eq!(status, 200);
     assert_eq!(
         body["data"]["statements"][0]["sql"],
-        erpx_server_sales::public::native_sales_read_sql::read_statement(RD_PRICE_LIST_ITEMS_ACTIVE)
+        erpx_sales_server::public::native_sales_read_sql::read_statement(RD_PRICE_LIST_ITEMS_ACTIVE)
             .unwrap()
             .sql
     );
@@ -419,7 +419,7 @@ async fn command_plan_returns_only_registered_owner_reads() {
     assert_eq!(status, 200);
     assert_eq!(
         body["data"]["statements"][0]["sql"],
-        erpx_server_sales::public::native_sales_read_sql::read_statement(
+        erpx_sales_server::public::native_sales_read_sql::read_statement(
             RD_NOTIFICATION_RECONCILIATION_INSTALLED
         )
         .unwrap()

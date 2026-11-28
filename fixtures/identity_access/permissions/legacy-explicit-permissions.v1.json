@@ -2,7 +2,7 @@
   "version": 1,
   "source": {
     "revision": "61c039972228495012cb0ab628d97e96e53ecd52",
-    "path": "packages/feature-identity_access/src/lib/permissions.ts",
+    "path": "modules/identity-access/ui/src/lib/permissions.ts",
     "sha256": "f52ef9d2872df236f22d40e30d6de6a2314c72837e2757c757181c019eddd124"
   },
   "cases": [

@@ -1,5 +1,5 @@
 import type { ServerResponse } from "node:http";
-import { oasisDemoAccountHost, oasisDemoHolding } from '@erpx/contracts/holding-hosts';
+import { oasisDemoAccountHost, oasisDemoHolding } from '@erpx/platform-contracts/holding-hosts';
 
 function validId(segment: string): boolean {
   const id = decodeURIComponent(segment);

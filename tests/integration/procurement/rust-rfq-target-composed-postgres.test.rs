@@ -1,42 +1,42 @@
-#[path = "../../../src/composition/src/procurement_rfq_target.rs"]
+#[path = "../../../platform/composition/src/procurement_rfq_target.rs"]
 mod binding;
-#[path = "../../../src/composition/src/procurement_rfq_decision.rs"]
+#[path = "../../../platform/composition/src/procurement_rfq_decision.rs"]
 mod decision;
-#[path = "../../../src/composition/src/procurement_rfq_approval.rs"]
+#[path = "../../../platform/composition/src/procurement_rfq_approval.rs"]
 mod procurement_rfq_approval;
-#[path = "../../../src/composition/src/procurement_rfq_access.rs"]
+#[path = "../../../platform/composition/src/procurement_rfq_access.rs"]
 mod request_access;
-#[path = "../../../src/composition/src/procurement_rfq_detail.rs"]
+#[path = "../../../platform/composition/src/procurement_rfq_detail.rs"]
 mod request_detail;
-#[path = "../../../src/composition/src/procurement_rfq_quantity.rs"]
+#[path = "../../../platform/composition/src/procurement_rfq_quantity.rs"]
 mod procurement_rfq_quantity;
 use request_access as procurement_rfq_access;
-#[path = "../../../src/composition/src/procurement_rfq_request.rs"]
+#[path = "../../../platform/composition/src/procurement_rfq_request.rs"]
 mod procurement_rfq_request;
-#[path = "../../../src/composition/src/procurement_rfq_assertions.rs"]
+#[path = "../../../platform/composition/src/procurement_rfq_assertions.rs"]
 mod procurement_rfq_assertions;
 use procurement_rfq_assertions as rfq_assertions;
-#[path = "../../../src/composition/src/procurement_rfq_receipt.rs"]
+#[path = "../../../platform/composition/src/procurement_rfq_receipt.rs"]
 mod rfq_receipt;
-#[path = "../../../src/composition/src/procurement_rfq_materialization.rs"]
+#[path = "../../../platform/composition/src/procurement_rfq_materialization.rs"]
 mod procurement_rfq_materialization;
 use procurement_rfq_materialization as rfq_materialization;
 #[path = "../../support/finance/review-composition.rs"]
 mod review;
-use erpx_server_identity_access::public::effective_authority::{
+use erpx_identity_access_server::public::effective_authority::{
     HoldingWorkSourcePreparation, WorkAuthorizationRequest,
 };
-use erpx_server_procurement::public::{
+use erpx_procurement_server::public::{
     rfq_target_source::{lock_rfq_target_sources, observe_rfq_target},
     rfq_transition::RfqTransitionAction,
     rfq_transition_normalization::normalize_rfq_transition,
 };
-use erpx_server_records::public::rfq_request_source::{
+use erpx_records_server::public::rfq_request_source::{
     lock_rfq_request_sources, observe_rfq_quotation_row, observe_rfq_request,
 };
-use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{BusinessError, Clock, FailureKind};
-use erpx_server_workflow::public::source_ordered_json::SourceOrderedJson;
+use erpx_platform_runtime_server::public::postgres::{PgTransactionError, PgWorkFuture};
+use erpx_platform_shared_server::public::{BusinessError, Clock, FailureKind};
+use erpx_workflow_server::public::source_ordered_json::SourceOrderedJson;
 use sqlx::PgConnection;
 use std::sync::Arc;
 #[derive(Clone)]
@@ -46,13 +46,13 @@ impl HoldingWorkSourcePreparation for TargetLocks {
         Box::pin(async move {
             lock_rfq_target_sources(&mut *c).await?;
             lock_rfq_request_sources(&mut *c).await?;
-            erpx_server_workflow::public::rfq_command_receipt::lock_rfq_receipts(c).await
+            erpx_workflow_server::public::rfq_command_receipt::lock_rfq_receipts(c).await
         })
     }
 }
 #[tokio::test]
 async fn actual_procurement_actor_is_checked_against_full_rfq_target() {
-    let oracle=std::process::Command::new(std::env::var("ERPX_NODE_BIN").expect("pinned Node required")).current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")).args(["--conditions=react-server","--import=tsx","-e","const {procurementCommandSourceImage}=require('./packages/server-procurement/src/adapters/command-source.ts');process.stdout.write(procurementCommandSourceImage('rfq','r'))"]).output().unwrap();
+    let oracle=std::process::Command::new(std::env::var("ERPX_NODE_BIN").expect("pinned Node required")).current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")).args(["--conditions=react-server","--import=tsx","-e","const {procurementCommandSourceImage}=require('./modules/procurement/server/src/adapters/command-source.ts');process.stdout.write(procurementCommandSourceImage('rfq','r'))"]).output().unwrap();
     assert!(
         oracle.status.success(),
         "{}",
@@ -100,7 +100,7 @@ async fn actual_procurement_actor_is_checked_against_full_rfq_target() {
             let witness_input=normalize_rfq_transition(&SourceOrderedJson::parse(r#"{"action":"submit","expectedVersion":1,"offerId":"offer1","reason":"reason"}"#)?).unwrap();
             let other_input=normalize_rfq_transition(&SourceOrderedJson::parse(r#"{"action":"cancel","expectedVersion":1,"reason":"reason"}"#)?).unwrap();
             let assertion=rfq_assertions::prepare_rfq_assertion_witness(c,current,&target,"witness-key",&witness_input).await.unwrap();
-            let missing=erpx_server_workflow::public::rfq_command_receipt::inspect_rfq_receipt(c,"witness-key").await?;
+            let missing=erpx_workflow_server::public::rfq_command_receipt::inspect_rfq_receipt(c,"witness-key").await?;
             let fresh=rfq_receipt::fresh_rfq_replay_witness(c,current,&missing,&witness_input,"witness-key","rfq").await?.unwrap();
             assert!(rfq_receipt::rfq_observations_match(c,&fresh,&assertion,current,&target,&witness_input,"witness-key").await);
             assertion.require_same_observation(c,"witness-key").await.unwrap();
@@ -163,7 +163,7 @@ async fn actual_procurement_actor_is_checked_against_full_rfq_target() {
             sqlx::query("SAVEPOINT attachment_number_range").execute(&mut *c).await?;
             sqlx::query("INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,declared_bytes,staging_key,status,created_by,expires_at,created_at,updated_at) VALUES('range-upload','employee_request','request','request_evidence','file','text/plain',1,'range-staging','ready','fixture-a',100,0,0)").execute(&mut *c).await?;
             sqlx::query("INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,checksum_sha256,created_by,created_at) VALUES('range-attachment','range-upload','employee_request','request','request_evidence','range-object',1,'file','text/plain',9007199254740992,'checksum','fixture-a',0)").execute(&mut *c).await?;
-            let file_error=erpx_server_files::public::rfq_request_attachments::read_rfq_request_attachments(c,"request").await.err().expect("unsafe attachment bytes must fail");
+            let file_error=erpx_files_server::public::rfq_request_attachments::read_rfq_request_attachments(c,"request").await.err().expect("unsafe attachment bytes must fail");
             assert!(matches!(file_error,PgTransactionError::Persistence(e) if e.code=="DATABASE_NUMBER_OUT_OF_RANGE"));
             sqlx::query("ROLLBACK TO SAVEPOINT attachment_number_range").execute(&mut *c).await?;
             let historical=rfq_assertions::prepare_rfq_assertion_witness(c,current,&linked,"linked-witness-key",&witness_input).await.unwrap();
@@ -206,9 +206,9 @@ async fn actual_procurement_actor_is_checked_against_full_rfq_target() {
             assert!(request_detail::prepare_rfq_request_detail_enabled(c,current,&linked,&unrelated,now).await.is_err());
             let detail=match request_detail::prepare_rfq_request_detail_enabled(c,current,&linked,&reviewer_source,now).await? {request_detail::RfqDetailPreparation::QuotationChecksRequired(f)=>f,_=>panic!("detail required")};
             assert!(detail.items_json()=="[]" && !detail.owner() && detail.handlers().is_empty() && detail.events().is_empty() && detail.team_name().is_none() && detail.children().is_empty() && detail.attachments().is_empty());
-            erpx_server_identity_access::public::rfq_request_membership::require_rfq_request_actor_unit(c,current).await?;
+            erpx_identity_access_server::public::rfq_request_membership::require_rfq_request_actor_unit(c,current).await?;
             let mut wrong_unit=other_pool.begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE").await?;
-            assert!(erpx_server_identity_access::public::rfq_request_membership::require_rfq_request_actor_unit(&mut wrong_unit,current).await.is_err());
+            assert!(erpx_identity_access_server::public::rfq_request_membership::require_rfq_request_actor_unit(&mut wrong_unit,current).await.is_err());
             assert!(request_detail::prepare_rfq_quotation_gate(&mut wrong_unit,&detail).await.is_err());wrong_unit.rollback().await?;
             assert!(matches!(request_detail::prepare_rfq_quotation_gate(c,&detail).await?,request_detail::RfqQuotationGate::NotEligible));
             sqlx::query("SAVEPOINT quotation_handler").execute(&mut *c).await?;
@@ -268,7 +268,7 @@ async fn actual_procurement_actor_is_checked_against_full_rfq_target() {
             sqlx::query("ROLLBACK TO SAVEPOINT approved_missing").execute(&mut *c).await?;
             sqlx::query("ROLLBACK TO SAVEPOINT linked_request").execute(&mut *c).await?;target.require_current(c).await?;
             let mut other=other_pool.begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE").await?;
-            use erpx_server_identity_access::public::rfq_target_authority::{require_rfq_target_permissions,RfqScopePermission};
+            use erpx_identity_access_server::public::rfq_target_authority::{require_rfq_target_permissions,RfqScopePermission};
             let crossed=require_rfq_target_permissions(&mut other,current,"company",Some("company"),None,&[RfqScopePermission::Purchase],now).await.err().expect("another transaction cannot reuse the actor");
             assert!(matches!(crossed,PgTransactionError::Business(e) if e.kind==FailureKind::Forbidden && e.code=="PROCUREMENT_ACCESS_CHANGED"));other.rollback().await?;
             let denied=binding::require_enabled_rfq_target(c,current,&target,RfqTransitionAction::Approve,now).await.err().expect("approval permission must be checked");
@@ -312,7 +312,7 @@ async fn actual_procurement_actor_is_checked_against_full_rfq_target() {
             let target=observe_rfq_target(c,current,"rfq").await?.expect("selected branch target");
             binding::require_enabled_rfq_target(c,current,&target,RfqTransitionAction::Submit,now).await?;
             assert!(observe_rfq_target(c,current,"other-branch").await?.is_none());
-            use erpx_server_identity_access::public::rfq_target_authority::{require_rfq_target_permissions,RfqScopePermission};
+            use erpx_identity_access_server::public::rfq_target_authority::{require_rfq_target_permissions,RfqScopePermission};
             let denied=require_rfq_target_permissions(c,current,"company",Some("branch2"),None,&[RfqScopePermission::Purchase],now).await.err().expect("wrong branch must be denied");
             assert!(matches!(denied,PgTransactionError::Business(e) if e.kind==FailureKind::Forbidden && e.code=="PROCUREMENT_ACCESS_CHANGED"));
             let quotation=observe_rfq_quotation_row(c,&current.selection().workspace().company_id,"request").await?;

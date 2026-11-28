@@ -1,15 +1,15 @@
 //! Actual owner-local HTTP tests for native Projects graph and milestone commands.
-use erpx_server_projects::public::project_commands_http::{
+use erpx_projects_server::public::project_commands_http::{
     ProjectCommandHttpResponse, ProjectCommandHttpTarget, ProjectMilestoneCommandHttpBackend,
     ProjectMilestoneSaveHttpRequest, ProjectMilestoneTransitionHttpRequest,
     project_milestone_commands_router,
 };
-use erpx_server_projects::public::project_graph_http::{
+use erpx_projects_server::public::project_graph_http::{
     ProjectGraphHttpBackend, ProjectGraphHttpFuture, ProjectGraphHttpRequest,
     ProjectGraphHttpResponse, ProjectGraphHttpTarget, project_graph_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 #[derive(Default)]
@@ -62,7 +62,7 @@ impl ProjectMilestoneCommandHttpBackend for CommandProbe {
     fn save<'a>(
         &'a self,
         request: ProjectMilestoneSaveHttpRequest<'a>,
-    ) -> erpx_server_projects::public::project_commands_http::ProjectCommandHttpFuture<
+    ) -> erpx_projects_server::public::project_commands_http::ProjectCommandHttpFuture<
         'a,
         ProjectCommandHttpResponse,
     > {
@@ -96,7 +96,7 @@ impl ProjectMilestoneCommandHttpBackend for CommandProbe {
     fn transition<'a>(
         &'a self,
         request: ProjectMilestoneTransitionHttpRequest<'a>,
-    ) -> erpx_server_projects::public::project_commands_http::ProjectCommandHttpFuture<
+    ) -> erpx_projects_server::public::project_commands_http::ProjectCommandHttpFuture<
         'a,
         ProjectCommandHttpResponse,
     > {

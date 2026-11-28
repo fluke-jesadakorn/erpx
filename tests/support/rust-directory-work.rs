@@ -11,8 +11,8 @@ pub mod source_change;
 #[path = "rust-directory-provenance-facts.rs"]
 pub mod source_facts;
 pub use account_queue::account;
-use erpx_server_identity_access::public::{directory::*, *};
-use erpx_server_shared::public::{Clock, HoldingId};
+use erpx_identity_access_server::public::{directory::*, *};
+use erpx_platform_shared_server::public::{Clock, HoldingId};
 use std::{collections::BTreeMap, sync::Arc};
 pub struct Prepared {
     pub authority: account_queue::PreparedAccountQueuedAuthority,
@@ -20,7 +20,7 @@ pub struct Prepared {
     pub profile: ldap::Fixture,
     pub directory: Arc<PostgresDirectory>,
     pub runtime: DirectoryRefreshRuntime,
-    pub work: Arc<erpx_server_identity_access::public::effective_authority::HoldingWorkAuthorizer>,
+    pub work: Arc<erpx_identity_access_server::public::effective_authority::HoldingWorkAuthorizer>,
 }
 pub async fn prepare(
     system: account::System,
@@ -120,8 +120,8 @@ pub async fn execute(
     prepared: &Prepared,
 ) -> Result<
     String,
-    erpx_server_runtime::public::postgres::PgTransactionError<
-        erpx_server_shared::public::BusinessError,
+    erpx_platform_runtime_server::public::postgres::PgTransactionError<
+        erpx_platform_shared_server::public::BusinessError,
     >,
 > {
     prepared.work.execute("acme.example.test",prepared.authority.proof.clone(),prepared.authority.selection.clone(),prepared.authority.access.clone(),|c,context|Box::pin(async move{sqlx::query("INSERT INTO synthetic_directory_work_effects(id) VALUES('actual-authorized-effect')").execute(c).await?;Ok(context.user_id().as_str().to_owned())})).await
@@ -145,16 +145,16 @@ pub async fn wait_provider(prepared: &Prepared) {
 /// business owners do; the IAM/session coordinator remains the authority issuer.
 #[derive(Clone)]
 pub struct EffectSources;
-impl erpx_server_identity_access::public::effective_authority::HoldingWorkSourcePreparation
+impl erpx_identity_access_server::public::effective_authority::HoldingWorkSourcePreparation
     for EffectSources
 {
     fn prepare<'c>(
         &'c self,
         c: &'c mut sqlx::PgConnection,
-    ) -> erpx_server_runtime::public::postgres::PgWorkFuture<
+    ) -> erpx_platform_runtime_server::public::postgres::PgWorkFuture<
         'c,
         (),
-        erpx_server_shared::public::BusinessError,
+        erpx_platform_shared_server::public::BusinessError,
     > {
         Box::pin(async move {
             sqlx::query("LOCK TABLE synthetic_directory_work_effects IN SHARE ROW EXCLUSIVE MODE")

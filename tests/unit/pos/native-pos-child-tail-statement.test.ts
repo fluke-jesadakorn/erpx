@@ -6,7 +6,7 @@ import {
   nativePosChildTailCreatedByStatement,
   nativePosChildTailCompletedLineStatement,
   nativePosChildTailRefundPaymentStatement,
-} from '../../../packages/server-pos/src/adapters/native-pos-child-tail';
+} from '../../../modules/pos/server/src/adapters/native-pos-child-tail';
 
 const config = () => JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:44997', timeoutMs: 1000 });
 const previous = process.env.ERPX_NATIVE_POS_OWNER_CONFIG;
@@ -105,16 +105,16 @@ describe('native POS child-tail read bridge (round 30)', () => {
   });
 
   it('keeps no retired child-tail SQL literal in the TS adapters', () => {
-    const core = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-core.ts', import.meta.url), 'utf8');
+    const core = readFileSync(new URL('../../../modules/pos/server/src/adapters/pos-core.ts', import.meta.url), 'utf8');
     for (const item of cases) expect(core).not.toContain(item.sql);
     expect(core.match(/nativePosChildTail(LinesSum|CreatedBy|CompletedLine|RefundPayment)Statement\(db/g)).toHaveLength(4);
   });
 
   it('keeps row locks, PMS fragments and day-report/Stripe registries inline', () => {
-    const core = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-core.ts', import.meta.url), 'utf8');
-    const pos = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos.ts', import.meta.url), 'utf8');
-    const dayReport = readFileSync(new URL('../../../packages/server-pos/src/adapters/native-pos-day-report.ts', import.meta.url), 'utf8');
-    const stripe = readFileSync(new URL('../../../packages/server-pos/src/adapters/native-pos-stripe-reads.ts', import.meta.url), 'utf8');
+    const core = readFileSync(new URL('../../../modules/pos/server/src/adapters/pos-core.ts', import.meta.url), 'utf8');
+    const pos = readFileSync(new URL('../../../modules/pos/server/src/adapters/pos.ts', import.meta.url), 'utf8');
+    const dayReport = readFileSync(new URL('../../../modules/pos/server/src/adapters/native-pos-day-report.ts', import.meta.url), 'utf8');
+    const stripe = readFileSync(new URL('../../../modules/pos/server/src/adapters/native-pos-stripe-reads.ts', import.meta.url), 'utf8');
     expect(core).toContain("const posSaleByIdLockSql = (): string => 'SELECT * FROM pos_sales WHERE id=? FOR UPDATE';");
     expect(core).toContain("SELECT pg_advisory_xact_lock(hashtextextended('pos-daily:'||?,0))");
     expect(core).toContain('FOR UPDATE OF rp,r');

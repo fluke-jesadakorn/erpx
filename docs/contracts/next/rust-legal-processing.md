@@ -22,7 +22,7 @@ The source holds a row share lock and a private fingerprint of its bounded scala
 
 The registered `legal.rust-queued-authority-composition.integration` suite exercises actual current Identity, Legal record policy and Commercial sources in disposable PostgreSQL databases. The added polling cases cover the exact public response, null results, retained History, disabled-settings metadata reads, confidential membership withdrawal, assignment expiry, malformed/oversized payloads, transaction mismatch and local source rewrites. The final source-coherent invocation passes all19 cases, including the existing worker/queue cases, with zero failures or skipped cases. This is component verification, not browser/runtime acceptance.
 
-The implementation is in [owner status source](../../../packages/server-legal/src/adapters/postgres_processing_status.rs), [public source facade](../../../packages/server-legal/src/public/processing_status.rs) and [service composition](../../../src/composition/src/legal_processing_status.rs). These component boundaries do not establish general Legal reads, full worker parity, browser polling, production readiness or completion of the TypeScript backend withdrawal.
+The implementation is in [owner status source](../../../modules/legal/server/src/adapters/postgres_processing_status.rs), [public source facade](../../../modules/legal/server/src/public/processing_status.rs) and [service composition](../../../platform/composition/src/legal_processing_status.rs). These component boundaries do not establish general Legal reads, full worker parity, browser polling, production readiness or completion of the TypeScript backend withdrawal.
 
 ## Offline signed-PDF conformance
 

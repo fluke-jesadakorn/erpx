@@ -2,11 +2,11 @@
 //! establish Control session, purchase authority or production composition.
 #![allow(dead_code)]
 #[path = "../../support/rust-postgres.rs"] mod fixture;
-use erpx_server_workflow::public::customer_portal_events::*;
-use erpx_server_runtime::public::postgres::{MigrationTrack,load_migrations,migrate_database,PgTransactionError};
-use erpx_server_shared::public::{BusinessError,FailureKind};
+use erpx_workflow_server::public::customer_portal_events::*;
+use erpx_platform_runtime_server::public::postgres::{MigrationTrack,load_migrations,migrate_database,PgTransactionError};
+use erpx_platform_shared_server::public::{BusinessError,FailureKind};
 use sqlx::{Connection,PgConnection};
-async fn setup(pool: &erpx_server_runtime::public::postgres::DatabasePool) {
+async fn setup(pool: &erpx_platform_runtime_server::public::postgres::DatabasePool) {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
     let files = load_migrations(root, MigrationTrack::HoldingWrite)
         .await

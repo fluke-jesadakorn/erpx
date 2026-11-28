@@ -1,12 +1,12 @@
-use erpx_server_people_payroll::public::payroll_summary::{
+use erpx_people_payroll_server::public::payroll_summary::{
     PayrollReadActor, PayrollReadFuture, PayrollReadRepository, PayrollRunRow, PayrollSummaryRow,
     PayrollWorkRow, payroll_runs, payroll_summary, payroll_work_rows,
 };
-use erpx_server_people_payroll::public::payroll_summary_http::{
+use erpx_people_payroll_server::public::payroll_summary_http::{
     PayrollReadHttpBackend, PayrollReadHttpFuture, PayrollReadHttpRequest, PayrollReadHttpResponse,
     PayrollReadHttpTarget, people_payroll_router,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, CompanyId, FailureKind, RecordId, TimestampMillis,
 };
 use std::sync::{Arc, Mutex};
@@ -93,7 +93,7 @@ impl PayrollReadRepository for FakeRepo {
     fn summary<'a>(
         &'a mut self,
         _: &'a CompanyId,
-        _: Option<&'a erpx_server_people_payroll::public::payroll_summary::PayrollMonth>,
+        _: Option<&'a erpx_people_payroll_server::public::payroll_summary::PayrollMonth>,
     ) -> PayrollReadFuture<'a, Vec<PayrollSummaryRow>, Self::Error> {
         self.summary_calls += 1;
         Box::pin(async move { Ok(self.summary.clone()) })
@@ -250,8 +250,8 @@ impl PayrollReadHttpBackend for Probe {
                 ));
             }
             Ok(PayrollReadHttpResponse {
-                data: erpx_server_runtime::public::http_support::serde_json::json!([]),
-                context: erpx_server_runtime::public::http_support::serde_json::json!({"userId":"user"}),
+                data: erpx_platform_runtime_server::public::http_support::serde_json::json!([]),
+                context: erpx_platform_runtime_server::public::http_support::serde_json::json!({"userId":"user"}),
             })
         })
     }
@@ -304,7 +304,7 @@ async fn owner_router_forwards_exact_targets_queries_and_bounded_errors() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = tokio::spawn(async move {
-        let _ = erpx_server_runtime::public::http_support::serve(listener, router).await;
+        let _ = erpx_platform_runtime_server::public::http_support::serve(listener, router).await;
     });
     let get = |path: &str| {
         format!("GET {path} HTTP/1.1\r\nHost: acme.example.test\r\nConnection: close\r\n\r\n")

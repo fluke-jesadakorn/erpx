@@ -5,10 +5,10 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_identity_access::public::pms_social_event_recipients::{
+use erpx_identity_access_server::public::pms_social_event_recipients::{
     pms_social_conversation_readable, pms_social_recipients, pms_social_source_readable,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
 

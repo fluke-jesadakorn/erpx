@@ -6,9 +6,9 @@ import {
   journalLineNetSql,
   BOOKS_AGGREGATE_IMAGE_SQL,
   childBillingRunExistsSql,
-} from '../../../packages/server-finance/src/adapters/finance-read-tail-r43-sql';
+} from '../../../modules/finance/server/src/adapters/finance-read-tail-r43-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-finance/src');
+const srcRoot = resolve(__dirname, '../../../modules/finance/server/src');
 const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const helper = read('finance-read-tail-r43-sql.ts');
 

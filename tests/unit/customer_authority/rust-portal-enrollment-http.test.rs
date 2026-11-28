@@ -3,12 +3,12 @@
 //! Proves the exact Account-host dispatch, strict bodies, session cookie
 //! transport, `{data}` envelope and business-error mapping. The owner rules are
 //! proved separately in the enrollment unit/Postgres suites.
-use erpx_server_customer_authority::public::portal_enrollment::{
+use erpx_customer_authority_server::public::portal_enrollment::{
     PortalEnrollmentHttpBackend, PortalEnrollmentHttpCommand, PortalEnrollmentHttpFuture,
     PortalEnrollmentHttpRequest, PortalEnrollmentHttpTarget, portal_enrollment_http_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 #[derive(Default)]

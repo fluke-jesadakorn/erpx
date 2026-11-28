@@ -8,11 +8,11 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_crm::public::activity_workspace::{
+use erpx_crm_server::public::activity_workspace::{
     ActivityActor, PgActivityDirectory, PgActivityWorkspace, activity_work, activity_workspace,
     due_date_millis,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
 

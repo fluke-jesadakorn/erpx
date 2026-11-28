@@ -5,7 +5,7 @@
 //! detail projection. PostgreSQL transaction behaviour and the composed
 //! Organization/Identity/Finance ports are proven by the sibling integration
 //! target.
-use erpx_server_people_payroll::public::workforce::{
+use erpx_people_payroll_server::public::workforce::{
     CompensationMoneyPort, CompensationMoneyRequest, CompensationRow, CompensationTransitionInput,
     EngagementRow, EngagementTransitionInput, NoCompensationMoneyPort, NoStaffPlacementPort,
     PersonAccountLinkPort, PersonAccountLinkRequest, PersonStatusFacts, PersonUpdateInput,
@@ -14,7 +14,7 @@ use erpx_server_people_payroll::public::workforce::{
     WorkforceLedgerEntry, WorkforcePersonRow, create_compensation, person_detail, save_person,
     set_person_status, transition_compensation, transition_engagement,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, CommandKey, CompanyId, HoldingId, TimestampMillis,
 };
 use serde_json::{Value, json};
@@ -263,7 +263,7 @@ impl WorkforceCommandRepository for FakeRepo {
     fn create_person<'b>(
         &'b mut self,
         _: &'b CompanyId,
-        _: &'b erpx_server_people_payroll::public::workforce::PersonInsert<'b>,
+        _: &'b erpx_people_payroll_server::public::workforce::PersonInsert<'b>,
     ) -> WorkforceCommandFuture<'b, (), Self::Error> {
         Box::pin(async move {
             self.create_person_calls += 1;
@@ -273,14 +273,14 @@ impl WorkforceCommandRepository for FakeRepo {
     fn create_person_record<'b>(
         &'b mut self,
         _: &'b CompanyId,
-        _: &'b erpx_server_people_payroll::public::workforce::PersonRecordInsert<'b>,
+        _: &'b erpx_people_payroll_server::public::workforce::PersonRecordInsert<'b>,
     ) -> WorkforceCommandFuture<'b, (), Self::Error> {
         Box::pin(async { Ok(()) })
     }
     fn update_person<'b>(
         &'b mut self,
         _: &'b CompanyId,
-        _: &'b erpx_server_people_payroll::public::workforce::PersonUpdate<'b>,
+        _: &'b erpx_people_payroll_server::public::workforce::PersonUpdate<'b>,
     ) -> WorkforceCommandFuture<'b, (), Self::Error> {
         Box::pin(async move {
             self.update_person_calls += 1;
@@ -290,7 +290,7 @@ impl WorkforceCommandRepository for FakeRepo {
     fn set_person_status<'b>(
         &'b mut self,
         _: &'b CompanyId,
-        _: &'b erpx_server_people_payroll::public::workforce::PersonStatusWrite<'b>,
+        _: &'b erpx_people_payroll_server::public::workforce::PersonStatusWrite<'b>,
     ) -> WorkforceCommandFuture<'b, (), Self::Error> {
         Box::pin(async move {
             self.status_calls += 1;
@@ -309,7 +309,7 @@ impl WorkforceCommandRepository for FakeRepo {
     fn create_engagement<'b>(
         &'b mut self,
         _: &'b CompanyId,
-        _: &'b erpx_server_people_payroll::public::workforce::EngagementInsert<'b>,
+        _: &'b erpx_people_payroll_server::public::workforce::EngagementInsert<'b>,
     ) -> WorkforceCommandFuture<'b, (), Self::Error> {
         Box::pin(async move {
             self.engagement_create_calls += 1;
@@ -319,7 +319,7 @@ impl WorkforceCommandRepository for FakeRepo {
     fn transition_engagement<'b>(
         &'b mut self,
         _: &'b CompanyId,
-        _: &'b erpx_server_people_payroll::public::workforce::EngagementTransitionWrite<'b>,
+        _: &'b erpx_people_payroll_server::public::workforce::EngagementTransitionWrite<'b>,
     ) -> WorkforceCommandFuture<'b, (), Self::Error> {
         Box::pin(async move {
             self.engagement_transition_calls += 1;
@@ -353,7 +353,7 @@ impl WorkforceCommandRepository for FakeRepo {
     fn create_compensation<'b>(
         &'b mut self,
         _: &'b CompanyId,
-        _: &'b erpx_server_people_payroll::public::workforce::CompensationInsert<'b>,
+        _: &'b erpx_people_payroll_server::public::workforce::CompensationInsert<'b>,
     ) -> WorkforceCommandFuture<'b, (), Self::Error> {
         Box::pin(async move {
             self.compensation_create_calls += 1;
@@ -363,7 +363,7 @@ impl WorkforceCommandRepository for FakeRepo {
     fn transition_compensation<'b>(
         &'b mut self,
         _: &'b CompanyId,
-        _: &'b erpx_server_people_payroll::public::workforce::CompensationTransitionWrite<'b>,
+        _: &'b erpx_people_payroll_server::public::workforce::CompensationTransitionWrite<'b>,
     ) -> WorkforceCommandFuture<'b, (), Self::Error> {
         Box::pin(async move {
             self.compensation_transition_calls += 1;
@@ -384,7 +384,7 @@ impl WorkforceCommandRepository for FakeRepo {
         Box::pin(async move {
             if self.deny_ports {
                 return Err(BusinessError::new(
-                    erpx_server_shared::public::FailureKind::Unavailable,
+                    erpx_platform_shared_server::public::FailureKind::Unavailable,
                     "PEOPLE_STAFF_PLACEMENT_PORT_UNAVAILABLE",
                     "The Organization staff placement port is unavailable.",
                 ));
@@ -400,7 +400,7 @@ impl WorkforceCommandRepository for FakeRepo {
         Box::pin(async move {
             if self.deny_ports {
                 return Err(BusinessError::new(
-                    erpx_server_shared::public::FailureKind::Unavailable,
+                    erpx_platform_shared_server::public::FailureKind::Unavailable,
                     "PEOPLE_ACCOUNT_LINK_PORT_UNAVAILABLE",
                     "The Identity account link port is unavailable.",
                 ));
@@ -419,7 +419,7 @@ impl WorkforceCommandRepository for FakeRepo {
         Box::pin(async move {
             if self.deny_ports {
                 return Err(BusinessError::new(
-                    erpx_server_shared::public::FailureKind::Unavailable,
+                    erpx_platform_shared_server::public::FailureKind::Unavailable,
                     "PEOPLE_ACCOUNT_LINK_PORT_UNAVAILABLE",
                     "The Identity account link port is unavailable.",
                 ));
@@ -435,7 +435,7 @@ impl WorkforceCommandRepository for FakeRepo {
         Box::pin(async move {
             if self.deny_ports {
                 return Err(BusinessError::new(
-                    erpx_server_shared::public::FailureKind::Unavailable,
+                    erpx_platform_shared_server::public::FailureKind::Unavailable,
                     "PEOPLE_COMPENSATION_MONEY_PORT_UNAVAILABLE",
                     "The Finance money snapshot port is unavailable.",
                 ));

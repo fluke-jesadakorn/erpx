@@ -1,10 +1,10 @@
 //! Owner-local HTTP router tests for native Sales customer follow-up commands.
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_sales::public::customer_followup_commands::{
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_sales_server::public::customer_followup_commands::{
     FollowupHttpBackend, FollowupHttpCommand, FollowupHttpFuture, FollowupHttpRequest,
     FollowupHttpResponse, FollowupHttpTarget, customer_followups_router,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 use std::sync::{Arc, Mutex};
 
 struct Probe {

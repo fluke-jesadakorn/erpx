@@ -5,9 +5,9 @@
 #[path = "../../support/finance/review-composition.rs"]
 mod facts;
 use axum::{Router, body::Body, http::Request};
-use erpx_server_commercial::public::purchases::current_package_catalogue;
-use erpx_server_shared::public::{Clock, CompanyId, HoldingId};
-use erpx_service::{
+use erpx_commercial_server::public::purchases::current_package_catalogue;
+use erpx_platform_shared_server::public::{Clock, CompanyId, HoldingId};
+use erpx_platform_composition::{
     finance_journal_detail::*, finance_journal_detail_http::*,
     finance_journal_review::FinanceJournalEnvironment,
 };
@@ -79,10 +79,10 @@ async fn actual_node_finance_ssr_read_keeps_original_account_context_and_rejects
   let workspace_checked=app.clone().oneshot(Request::builder().uri("/api/v1/holdings/acme/finance/journals/journal-node-detail/workspace").header("host","acme.example.test").header("cookie",&cookie).body(Body::empty()).unwrap()).await.unwrap();assert_eq!(workspace_checked.status(),200);
   let listener=TcpListener::bind(("127.0.0.1",0)).await.unwrap();let address=listener.local_addr().unwrap();let stop=Arc::new(Notify::new());let shutdown=stop.clone();let server=tokio::spawn(async move{axum::serve(listener,app).with_graceful_shutdown(async move{shutdown.notified().await}).await});
   let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();let node=std::env::var("ERPX_NODE_BIN").expect("Explicit pinned Node required");
-  let mut child=Command::new(node).env_clear().env("PATH",std::env::var("PATH").unwrap_or_default()).env("NODE_ENV","test").args(["--conditions=react-server"]).arg(root.join("tests/support/finance/native-journal-client.mjs")).arg(root.join("packages/feature-finance/src/adapters/server/native-journal-detail.ts")).kill_on_drop(true).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).spawn().unwrap();let mut input=child.stdin.take().unwrap();let mut output=BufReader::new(child.stdout.take().unwrap());let diagnostics=child.stderr.take().unwrap();let errors=tokio::spawn(async move{let mut bytes=Vec::new();diagnostics.take(8193).read_to_end(&mut bytes).await.map(|_|bytes)});
+  let mut child=Command::new(node).env_clear().env("PATH",std::env::var("PATH").unwrap_or_default()).env("NODE_ENV","test").args(["--conditions=react-server"]).arg(root.join("tests/support/finance/native-journal-client.mjs")).arg(root.join("modules/finance/ui/src/adapters/server/native-journal-detail.ts")).kill_on_drop(true).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).spawn().unwrap();let mut input=child.stdin.take().unwrap();let mut output=BufReader::new(child.stdout.take().unwrap());let diagnostics=child.stderr.take().unwrap();let errors=tokio::spawn(async move{let mut bytes=Vec::new();diagnostics.take(8193).read_to_end(&mut bytes).await.map(|_|bytes)});
   let result=async{
    let payload=serde_json::json!({"configuration":{"privateBaseUrl":format!("http://{address}"),"holdings":[{"origin":"https://acme.example.test","holdingSlug":"acme","holdingId":"h001"}],"timeoutMs":1500},"input":{"holdingSlug":"acme","journalId":"journal-node-detail"},"cookie":cookie});input.write_all((payload.to_string()+"\n").as_bytes()).await.map_err(|_|"FINANCE_NODE_INPUT")?;phase(&mut output,"read-complete").await?;
-   let central=account::login(&p.system,"a@example.test",Some(erpx_server_identity_access::public::PresentedSecrets{browser:p.reviewer_central.browser.clone(),active:p.reviewer_central.active.clone(),saved:p.reviewer_central.saved.clone()})).await;let child=account::child(&p.system,&central,account::ACME).await;
+   let central=account::login(&p.system,"a@example.test",Some(erpx_identity_access_server::public::PresentedSecrets{browser:p.reviewer_central.browser.clone(),active:p.reviewer_central.active.clone(),saved:p.reviewer_central.saved.clone()})).await;let child=account::child(&p.system,&central,account::ACME).await;
    let now=p.system.scenario.clock.now().get();sqlx::query("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at)VALUES($1,'fixture-a','company','finance-fixture-a',3,7,$2,$3)").bind(&child.result.session_id).bind(now+3_600_000).bind(now).execute(p.system.holdings[0].raw()).await.map_err(|_|"FINANCE_CURRENT_SELECTION_FIXTURE")?;
    let payload=serde_json::json!({"cookie":format!("__Host-erpx-product={}",child.token.expose())});input.write_all((payload.to_string()+"\n").as_bytes()).await.map_err(|_|"FINANCE_NODE_INPUT")?;phase(&mut output,"done").await
   }.await;

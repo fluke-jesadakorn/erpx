@@ -5,11 +5,11 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_finance::public::sales_order_credit::sales_order_credit_allows;
-use erpx_server_runtime::public::postgres::{
+use erpx_finance_server::public::sales_order_credit::sales_order_credit_allows;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId};
 use sqlx::PgConnection;
 
 fn company() -> CompanyId {
@@ -141,8 +141,8 @@ async fn legacy_sales_approval_orders_credit_assertion_before_version_guard() {
     // statement capture is substituted; credit assertions execute against real
     // migrated PostgreSQL below, without changing production guards.
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let app = root.join("packages/server-commerce/src/application/commerce.ts");
-    let finance = root.join("packages/server-finance/src/adapters/commerce-facts.ts");
+    let app = root.join("modules/commerce/server/src/application/commerce.ts");
+    let finance = root.join("modules/finance/server/src/adapters/commerce-facts.ts");
     let script = r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const c=await import(process.argv[1]);const f=await import(process.argv[2]);const db={prepare(sql){return {bind(...values){return {sql,values}}}}};const finance=f.CommerceFinanceFacts(db);const writer={replayCommand:async()=>null,readCommerceOrders1:async()=>({id:'sales-draft',kind:'sales',state:'submitted',version:3,created_by:'creator',discount_approval_required:0,party_id:'party-limited',subtotal_minor:35001,tax_minor:0}),guardRule1:()=>({marker:'version'}),prepareCommerceOrders4:()=>({marker:'update'}),prepareFinanceParties1:finance.prepareFinanceParties1,guardRule20:finance.guardRule20,executeCommand:async(...a)=>a[7]};const actor={userId:'reviewer',companyId:'company',branchId:null,departmentId:null,iam:{permissions:['commerce.sales','commerce.approve'],personUserIds:[]}};const application=c.createCommerceApplication({clock:{now:()=>1},require:a=>a,error:(status,code,message)=>Object.assign(new Error(message),{status,code}),hash:async()=>'',forActor:async()=>writer});const steps=await application.transitionOrder(actor,'sales-draft',{action:'approve',expectedVersion:2},'credit-oracle');process.stdout.write(JSON.stringify(steps));"#;
     let oracle =
         std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
@@ -206,12 +206,12 @@ async fn legacy_sales_approval_orders_credit_assertion_before_version_guard() {
 
 #[tokio::test]
 async fn commerce_order_party_guard_matches_actual_typescript_sql() {
-    use erpx_server_finance::public::commerce_order_party_guard::{
+    use erpx_finance_server::public::commerce_order_party_guard::{
         CommerceOrderPartyKind, lock_commerce_order_party_source,
         observe_commerce_order_party_guard,
     };
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let finance = root.join("packages/server-finance/src/adapters/commerce-facts.ts");
+    let finance = root.join("modules/finance/server/src/adapters/commerce-facts.ts");
     let script = r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const f=await import(process.argv[1]);const db={prepare(sql){return{bind(...values){return{sql,values}}}}};const s=f.CommerceFinanceFacts(db).guardRule17({key:'party-oracle',guardId:'party',values:['party-limited','company','customer','USD']});process.stdout.write(JSON.stringify(s));"#;
     let oracle =
         std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))

@@ -1,1 +1,0 @@
-export {portalCollaborationAttachmentPolicies,authorizePortalCollaborationAttachmentTarget,portalCollaborationAttachmentTargetVersionGuard,portalCollaborationAttachmentRecordVersionStep} from "@erpx/server-files/adapters/attachments/portal-collaboration-policy";

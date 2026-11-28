@@ -1,18 +1,18 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-vi.mock('@erpx/server-identity_access/public/authorization', () => ({
+vi.mock('@erpx/identity-access-server/public/authorization', () => ({
   requireWorkContext: vi.fn(async () => ({
     userId: 'user', holdingId: 'h', holdingSlug: 'acme', companyId: 'company',
     branchId: null, departmentId: null,
   })),
 }));
-vi.mock('@erpx/feature-work_projection/lib/destination-links', () => ({
+vi.mock('@erpx/work-projection-ui/lib/destination-links', () => ({
   canonicalDestinationLinks: (value: unknown) => value,
 }));
 import {
   nativeCustomerAccessSources,
   nativeCustomerAccessSourcesGet,
-} from '../../../packages/feature-customer_authority/src/lib/access-sources';
+} from '../../../modules/customer-authority/ui/src/lib/access-sources';
 
 const key = 'ERPX_NATIVE_CUSTOMER_AUTHORITY_READ_CONFIG';
 const config = JSON.stringify({

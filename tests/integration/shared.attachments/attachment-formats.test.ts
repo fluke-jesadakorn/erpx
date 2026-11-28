@@ -5,10 +5,10 @@ import { join } from "node:path";
 import { createServer } from "node:net";
 import sharp from "sharp";
 import { describe,expect,it } from "vitest";
-import { attachmentScannerReadiness,scanAttachmentBytes } from "@erpx/server-files/public/attachments/scanner";
-import { detectedAttachmentMediaType,sanitizedAttachmentPreview } from "@erpx/server-files/public/attachments/preview";
-import { ATTACHMENT_UPLOAD_MAX_BYTES,readBoundedUploadBody } from "@erpx/server-files/public/attachments/upload";
-import { validMessagingSignature } from "@erpx/server-collaboration/public/messaging-files";
+import { attachmentScannerReadiness,scanAttachmentBytes } from "@erpx/files-server/public/attachments/scanner";
+import { detectedAttachmentMediaType,sanitizedAttachmentPreview } from "@erpx/files-server/public/attachments/preview";
+import { ATTACHMENT_UPLOAD_MAX_BYTES,readBoundedUploadBody } from "@erpx/files-server/public/attachments/upload";
+import { validMessagingSignature } from "@erpx/collaboration-server/public/messaging-files";
 
 const repository=process.cwd();
 const scannerSocket=process.env.ERPX_CLAMD_SOCKET??join(repository,".scratch/dev/clamav/clamd.sock");

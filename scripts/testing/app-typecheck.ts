@@ -1,7 +1,7 @@
 import { mkdir, open, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { appDefinition } from '@erpx/contracts/apps';
+import { appDefinition } from '@erpx/platform-contracts/apps';
 import { pinnedNode } from '../local/app-task';
 const root = resolve(import.meta.dirname, '../..');
 const id = process.argv.find(arg => arg.startsWith('--app='))?.slice(6);

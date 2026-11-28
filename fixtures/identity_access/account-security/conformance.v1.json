@@ -3,23 +3,23 @@
   "sourceCommit": "a5ed8737a2f05eff1ee9841fda4a094b3926d732",
   "sources": [
     {
-      "path": "packages/server-identity_access/src/domain/mfa.ts",
+      "path": "modules/identity-access/server/src/domain/mfa.ts",
       "sha256": "7762a6c99383b472cc2bb6cb51161156dc8ec71d32aea3e2baba911da0e46669"
     },
     {
-      "path": "packages/server-identity_access/src/application/mfa.ts",
+      "path": "modules/identity-access/server/src/application/mfa.ts",
       "sha256": "572242049ede0a2dd588f59a1ab1c75845d942409bb09e5a9bd5377fea6ea37b"
     },
     {
-      "path": "packages/server-identity_access/src/adapters/iam-mfa.ts",
+      "path": "modules/identity-access/server/src/adapters/iam-mfa.ts",
       "sha256": "050091435c98ecde1d1c74d484e836599011e5c8d5c065d959045ce5f64420a2"
     },
     {
-      "path": "packages/server-identity_access/src/adapters/account-session-security.ts",
+      "path": "modules/identity-access/server/src/adapters/account-session-security.ts",
       "sha256": "ba7c469c4f5f5817d052f6e8daabb160ce2b041d1d294289a4b50b19ec7011a0"
     },
     {
-      "path": "packages/server-identity_access/src/domain/product-sso.ts",
+      "path": "modules/identity-access/server/src/domain/product-sso.ts",
       "sha256": "baa82774d08371721309fa370ca68ae3c0eaa66f83fe7c65d8fc8cd6f5f205b4"
     }
   ],

@@ -1,4 +1,4 @@
-use erpx_server_legal::public::{
+use erpx_legal_server::public::{
     DocumentExtractionFailure as Failure, DocumentExtractionKind as Kind, ExtractedDocument,
     ExtractedPage, ExtractionMethod as Method, ExtractionStatus, LegalDocumentMediaType as Media,
     finish_document_extraction, unresolved_document_extraction,

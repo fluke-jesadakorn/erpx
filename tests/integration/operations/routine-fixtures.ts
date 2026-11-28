@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
-import {loadIamAuthority} from '@erpx/server-identity_access/public/iam-store';
-import {nextOccurrence,type RoutineRule} from '@erpx/feature-work_projection/lib/routine-calendar';
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
+import {loadIamAuthority} from '@erpx/identity-access-server/public/iam-store';
+import {nextOccurrence,type RoutineRule} from '@erpx/work-projection-ui/lib/routine-calendar';
+import type {SqlDatabase} from '@erpx/platform-runtime-server/public/runtime/types';
 
 /**
  * SQL fixtures for the retained routine reads, run and generation fence.

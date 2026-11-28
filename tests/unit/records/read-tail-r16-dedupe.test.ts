@@ -11,10 +11,10 @@ import {
   requestAiUsageMonthlyCountSql,
   requestAiProposalProjection,
   requestAiProposalProjectionSql,
-} from '../../../packages/server-records/src/adapters/ai-usage-projection';
-import { betaManagementRequestSources } from '../../../packages/server-records/src/adapters/beta-management-sources';
+} from '../../../modules/records/server/src/adapters/ai-usage-projection';
+import { betaManagementRequestSources } from '../../../modules/records/server/src/adapters/beta-management-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-records/src');
+const srcRoot = resolve(__dirname, '../../../modules/records/server/src');
 const shared = readFileSync(resolve(srcRoot, 'adapters/ai-usage-projection.ts'), 'utf8');
 const beta = readFileSync(resolve(srcRoot, 'adapters/beta-management-sources.ts'), 'utf8');
 const requestAi = readFileSync(resolve(srcRoot, 'adapters/request-ai.ts'), 'utf8');

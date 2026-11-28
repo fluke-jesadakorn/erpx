@@ -9,7 +9,7 @@ import {
   nativeLane39EcomConfigured,
   type Lane39HoldingContext,
   type NativeLane39Transport,
-} from "../../../packages/server-ecommerce/src/adapters/native-lane-39/client";
+} from "../../../modules/ecommerce/server/src/adapters/native-lane-39/client";
 
 /** Exact dev value for ERPX_NATIVE_ECOM_LANE39_CONFIG (1..64 holdings). */
 export const DEV_CONFIG = {
@@ -180,7 +180,7 @@ describe("lane 39 Ecommerce native workspace-list transport", () => {
     }
     expect(
       (readFileSync(
-        resolve(process.cwd(), "packages/server-ecommerce/src/adapters/ecommerce.ts"),
+        resolve(process.cwd(), "modules/ecommerce/server/src/adapters/ecommerce.ts"),
         "utf8",
       ).match(/readSource\("ecommerce_channels"|ecommerceOrderedList\("c\.\*", "ecommerce_carts c"/g) ?? []).length,
     ).toBe(0);
@@ -188,7 +188,7 @@ describe("lane 39 Ecommerce native workspace-list transport", () => {
 
   it("pins both rendered SQL/result oracles against the Rust adapter literals", () => {
     const source = readFileSync(
-      resolve(process.cwd(), "packages/server-ecommerce/src/adapters/native_lane_39/postgres.rs"),
+      resolve(process.cwd(), "modules/ecommerce/server/src/adapters/native_lane_39/postgres.rs"),
       "utf8",
     );
     const channels =

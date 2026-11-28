@@ -4,11 +4,11 @@ import { createServer, type Server } from 'node:http';
 vi.mock('server-only', () => ({}));
 const mocks = vi.hoisted(() => ({ authorize: vi.fn(), retained: vi.fn(), incoming: vi.fn() }));
 vi.mock('next/headers', () => ({ headers: mocks.incoming }));
-vi.mock('@erpx/server-identity_access/public/authorization', () => ({ requireWorkContext: mocks.authorize, publicScope: () => ({ holdingSlug: 'acme' }) }));
-vi.mock('@erpx/feature-work_projection/lib/workspace', () => ({ workspaceBase: () => '/holdings/acme' }));
-vi.mock('@erpx/server-work_projection/public/page-error', () => ({ pageError: (error: unknown) => { throw error; } }));
-vi.mock('@erpx/feature-field_service/components/initial-physical-stock-count', () => ({ ServiceInitialPhysicalStockCount: () => null }));
-vi.mock('@erpx/server-inventory/public/service-initial-physical-stock-count', () => ({
+vi.mock('@erpx/identity-access-server/public/authorization', () => ({ requireWorkContext: mocks.authorize, publicScope: () => ({ holdingSlug: 'acme' }) }));
+vi.mock('@erpx/work-projection-ui/lib/workspace', () => ({ workspaceBase: () => '/holdings/acme' }));
+vi.mock('@erpx/work-projection-server/public/page-error', () => ({ pageError: (error: unknown) => { throw error; } }));
+vi.mock('@erpx/field-service-ui/components/initial-physical-stock-count', () => ({ ServiceInitialPhysicalStockCount: () => null }));
+vi.mock('@erpx/inventory-server/public/service-initial-physical-stock-count', () => ({
   serviceInitialPhysicalStockCountWorkspace: mocks.retained,
   prepareServiceInitialPhysicalStockCount: mocks.retained,
   transitionServiceInitialPhysicalStockCount: mocks.retained,
@@ -20,8 +20,8 @@ vi.mock('@erpx/server-inventory/public/service-initial-physical-stock-count', ()
   serviceInitialPhysicalStockCountFlowSchema: { parse: mocks.retained },
 }));
 
-import Page from '../../../packages/feature-service/src/routes/holdings/[holdingSlug]/services/field-service/settings/initial-stock/page';
-import {serviceCountCommand} from '../../../packages/workplace/src/lib/service-count-native-command';
+import Page from '../../../products/service/ui/src/routes/holdings/[holdingSlug]/services/field-service/settings/initial-stock/page';
+import {serviceCountCommand} from '../../../platform/workplace/src/lib/service-count-native-command';
 
 const nativeContext = { userId:'worker', holdingId:'holding', companyId:'company', branchId:null, departmentId:null, branchSlug:null, departmentSlug:null, assignmentId:'grant', assignmentVersion:3, revision:7, role:'worker', assignmentScopeKind:'holding', modules:['field_service'], permissions:['inventory.read','inventory.prepare'] };
 const actor = { ...nativeContext, authority: { assignmentVersion:3, revision:7 }, iam: { permissions:nativeContext.permissions }, scope: { kind:'holding' }, assignmentScope:'holding' };

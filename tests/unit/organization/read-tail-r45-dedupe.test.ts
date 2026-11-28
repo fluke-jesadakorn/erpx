@@ -1,9 +1,9 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { nodeChildExists } from '../../../packages/server-organization/src/adapters/organization-read-tail-sources-r45';
+import { nodeChildExists } from '../../../modules/organization/server/src/adapters/organization-read-tail-sources-r45';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+const srcRoot = resolve(__dirname, '../../../modules/organization/server/src');
 const adapters = resolve(srcRoot, 'adapters');
 const read = (name: string) => readFileSync(resolve(adapters, name), 'utf8');
 const helper = read('organization-read-tail-sources-r45.ts');

@@ -1,11 +1,11 @@
-import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgres";
-import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
-import {} from "@erpx/server-procurement/public/supplier-bill-matching";
-import {invoiceFulfillment} from '@erpx/server-commerce/public/commerce';
-import {postInvoice} from '@erpx/server-finance/public/finance';
+import type {PostgresDatabase} from "@erpx/platform-runtime-server/public/runtime/postgres";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
+import {assignFlowPrimary,resolveFlow} from '@erpx/workflow-server/public/flow-routing';
+import {} from "@erpx/procurement-server/public/supplier-bill-matching";
+import {invoiceFulfillment} from '@erpx/commerce-server/public/commerce';
+import {postInvoice} from '@erpx/finance-server/public/finance';
 import {markFinanceJournalPosted} from "./finance-journal-seed";
-import {captureSupplierBill, decideSupplierBill} from "@erpx/server-procurement/testing/supplier-bill-oracle";
+import {captureSupplierBill, decideSupplierBill} from "@erpx/procurement-server/testing/supplier-bill-oracle";
 
 /** Seed distinct reviewed functional Inventory and goods-clearing references
  * before any receipt is created. A clearing/payable alias is not a valid AP

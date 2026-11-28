@@ -1,24 +1,24 @@
 import {directoryTx as createDirectoryTransaction} from './directory-transaction';
-import {connectionById} from '@erpx/server-identity_access/public/directory-lookup';
+import {connectionById} from '@erpx/identity-access-server/public/directory-lookup';
 import {synchronizeConnection} from './synchronization';
 import { createDirectories, createDirectoryJobDrain, createRunDirectoryJob, type DirectoryTransaction } from './directories';
 const clients = new WeakMap<DirectoryTransaction, PoolClient>();
-import { iamDb } from "@erpx/server-identity_access/public/iam-db";
+import { iamDb } from "@erpx/identity-access-server/public/iam-db";
 import "server-only";
 import { z } from "zod";
 import type { PoolClient } from "pg";
-import { iamCommand } from "@erpx/server-identity_access/public/iam-transactions";
-import { assertCompanyScope, type IamActor } from "@erpx/server-identity_access/public/iam-context";
-import { requireFreshMfa } from "@erpx/server-identity_access/public/iam-mfa";
-import { proposeIamReview } from "@erpx/server-identity_access/public/iam-service";
-import {insertIamGrant,validateIamGrant} from '@erpx/server-identity_access/public/iam-grants';
-import { readDirectory, testDirectory } from "@erpx/server-identity_access/public/iam-providers";
-import { ApiError } from "@erpx/server-runtime/public/http";
-import { runtimeEnv } from "@erpx/server-runtime/public/runtime";
-import { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
-export { connectionInput } from '@erpx/server-identity_access/domain/directories';
-import { connectionInput, type ConnectionRow } from '@erpx/server-identity_access/domain/directories';
-export type { ConnectionRow } from '@erpx/server-identity_access/domain/directories';
+import { iamCommand } from "@erpx/identity-access-server/public/iam-transactions";
+import { assertCompanyScope, type IamActor } from "@erpx/identity-access-server/public/iam-context";
+import { requireFreshMfa } from "@erpx/identity-access-server/public/iam-mfa";
+import { proposeIamReview } from "@erpx/identity-access-server/public/iam-service";
+import {insertIamGrant,validateIamGrant} from '@erpx/identity-access-server/public/iam-grants';
+import { readDirectory, testDirectory } from "@erpx/identity-access-server/public/iam-providers";
+import { ApiError } from "@erpx/platform-runtime-server/public/http";
+import { runtimeEnv } from "@erpx/platform-runtime-server/public/runtime";
+import { PostgresDatabase } from "@erpx/platform-runtime-server/public/runtime/postgres";
+export { connectionInput } from '@erpx/identity-access-server/domain/directories';
+import { connectionInput, type ConnectionRow } from '@erpx/identity-access-server/domain/directories';
+export type { ConnectionRow } from '@erpx/identity-access-server/domain/directories';
 
 
 export async function saveConnection(db: PostgresDatabase, actor: IamActor, input: z.infer<typeof connectionInput>, key: string) { return directoryService(db).saveConnection(actor, input, key); }
@@ -28,8 +28,8 @@ export async function disableConnection(db: PostgresDatabase, actor: IamActor, i
 /** Only complete snapshots replace membership; credentials never enter the snapshot. */
 
 
-export { mappingInput } from '@erpx/server-identity_access/domain/directories';
-import { mappingInput } from '@erpx/server-identity_access/domain/directories';
+export { mappingInput } from '@erpx/identity-access-server/domain/directories';
+import { mappingInput } from '@erpx/identity-access-server/domain/directories';
 export async function proposeMapping(db: PostgresDatabase, actor: IamActor, input: z.infer<typeof mappingInput>, key: string) { return directoryService(db).proposeMapping(actor, input, key); }
 export async function applyDirectoryReview(c: PoolClient, actor: IamActor, kind: string, p: Record<string, unknown>) { return directoryService().applyDirectoryReview(directoryTx(c, actor), actor, kind, p); }
 async function drainOneDirectoryJob(raw:PostgresDatabase){const db=iamDb(raw);return createRunDirectoryJob({now:Date.now,token:()=>crypto.randomUUID(),claim:async(now,token,leaseUntil)=>await db
@@ -52,7 +52,7 @@ try{await run();}finally{clearInterval(renewal);}},synchronize:(connection)=>syn
             .bind(nextRun, connectionId, token)
             .run();}})();}
 export async function drainDirectoryJobs(db: PostgresDatabase) { return createDirectoryJobDrain({ one: () => drainOneDirectoryJob(db) })(); }
-export { refreshDirectoryMember } from "@erpx/server-identity_access/public/iam-directory-refresh";
+export { refreshDirectoryMember } from "@erpx/identity-access-server/public/iam-directory-refresh";
 function directoryTx(c:PoolClient,actor?:IamActor):DirectoryTransaction {const tx=createDirectoryTransaction(c,actor);clients.set(tx,c);return tx;}
 function directoryService(raw?: PostgresDatabase) {
     const db = raw ? iamDb(raw) : undefined;

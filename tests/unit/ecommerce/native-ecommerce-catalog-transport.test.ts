@@ -6,7 +6,7 @@ import {
   nativeEcommerceCatalogConfiguration,
   NativeEcommerceCatalogError,
   type NativeEcommerceCatalogPageContext,
-} from '../../../packages/feature-sales/src/public/native-ecommerce-catalog';
+} from '../../../modules/sales/ui/src/public/native-ecommerce-catalog';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44994',
@@ -145,7 +145,7 @@ describe('native Ecommerce catalog transport',()=>{
  });
 
  it('maps transport failures to the retained page/route status policy',async()=>{
-  const {nativeEcommerceCatalogFailure}=await import('../../../packages/feature-sales/src/public/native-ecommerce-catalog-page');
+  const {nativeEcommerceCatalogFailure}=await import('../../../modules/sales/ui/src/public/native-ecommerce-catalog-page');
   expect(nativeEcommerceCatalogFailure(new NativeEcommerceCatalogError('NATIVE_ECOMMERCE_CATALOG_CONTEXT_CHANGED')))
     .toMatchObject({status:409,code:'WORK_CONTEXT_CHANGED'});
   expect(nativeEcommerceCatalogFailure(new NativeEcommerceCatalogError('NATIVE_ECOMMERCE_CATALOG_REQUEST_INVALID')))

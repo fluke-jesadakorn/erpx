@@ -33,8 +33,8 @@ writes are retired by `retire.manufacturing`.
   — test-only copies added so the suite keeps exercising the original legacy
   behavior without importing the production TS modules.
 
-No file under `packages/feature-manufacturing/**` or
-`packages/server-manufacturing/src/**` was changed by this slice.
+No file under `modules/manufacturing/ui/**` or
+`modules/manufacturing/server/src/**` was changed by this slice.
 
 ## Four cutover layers — not applicable to this slice
 
@@ -105,7 +105,7 @@ or missing lane environment, not to this slice):
   `retire.manufacturing`.
 - `bunx tsc --noEmit -p tsconfig.json` and `bunx tsc -p tests/config/tsconfig.json --noEmit`
   — **fail** on unrelated concurrent WIP:
-  `packages/server-commerce/src/adapters/native-quality-product.ts:206` (`TS2322`)
+  `modules/commerce/server/src/adapters/native-quality-product.ts:206` (`TS2322`)
   and `tests/unit/assets/native-assets-transport.test.ts:81` (`TS2783`).
 - Targeted unit suites via `tests/config/vitest.unit.config.mts` — **161/162
   passed**; the single failure is a fail-closed 503 from a missing native config,

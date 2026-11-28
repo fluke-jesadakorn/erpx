@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { benefitPackageSettlementSources } from '../../../packages/server-benefits/src/adapters/package-obligations';
+import { benefitPackageSettlementSources } from '../../../modules/benefits/server/src/adapters/package-obligations';
 
-const src = readFileSync(new URL('../../../packages/server-benefits/src/adapters/package-obligations.ts', import.meta.url), 'utf8');
+const src = readFileSync(new URL('../../../modules/benefits/server/src/adapters/package-obligations.ts', import.meta.url), 'utf8');
 
 // Pre-dedupe literal, copied from HEAD, used only as the byte-identity oracle.
 function terminal(table: string, id: string, kind: string) {

@@ -6,16 +6,16 @@ import {
   legalActiveDestructionGuardHead,
   legalExecutiveObligationSpineHead,
   legalExecutiveHoldSpineHead,
-} from '../../../packages/server-legal/src/adapters/legal-read-tail-r46-sources';
-import queuedContract from '../../../packages/server-legal/src/adapters/queued-purchases-sources.json' with {
+} from '../../../modules/legal/server/src/adapters/legal-read-tail-r46-sources';
+import queuedContract from '../../../modules/legal/server/src/adapters/queued-purchases-sources.json' with {
   type: 'json',
 };
-import evidenceContract from '../../../packages/server-legal/src/adapters/executive-main-evidence-sources.json' with {
+import evidenceContract from '../../../modules/legal/server/src/adapters/executive-main-evidence-sources.json' with {
   type: 'json',
 };
 
-const srcRoot = resolve(__dirname, '../../../packages/server-legal/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-legal/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/legal/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/legal/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 /** Exact literals that were inline before the heads were extracted. Only the
  * trusted aliases, read prefix and whitespace gap vary; rendering must be

@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { projectsClockCte } from '../../../packages/server-projects/src/adapters/clock-cte';
-import { projectPurchaseSourceHead } from '../../../packages/server-projects/src/adapters/read-tail-r32';
+import { projectsClockCte } from '../../../modules/projects/server/src/adapters/clock-cte';
+import { projectPurchaseSourceHead } from '../../../modules/projects/server/src/adapters/read-tail-r32';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-projects/src');
+const srcRoot = resolve(__dirname, '../../../modules/projects/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 // Verbatim pre-dedupe inline purchase-source heads from HEAD before the r32 edit.

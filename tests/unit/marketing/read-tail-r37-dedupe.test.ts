@@ -3,8 +3,8 @@ import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-marketing/src/adapters/${name}`, import.meta.url);
-const srcRoot = resolve("packages/server-marketing/src");
+  new URL(`../../../modules/marketing/server/src/adapters/${name}`, import.meta.url);
+const srcRoot = resolve("modules/marketing/server/src");
 
 // Byte oracles captured from the two original inline statements before dedupe.
 const exists =
@@ -30,7 +30,7 @@ async function selectTokens(): Promise<number> {
 describe("marketing module-membership probe dedupe (r37)", () => {
   it("emits byte-identical EXISTS and ALLOWED probes from one renderer", async () => {
     const { marketingModuleMemberSql } = await import(
-      "../../../packages/server-marketing/src/adapters/module-membership.ts"
+      "../../../modules/marketing/server/src/adapters/module-membership.ts"
     );
     expect(marketingModuleMemberSql()).toBe(exists);
     expect(marketingModuleMemberSql("selected")).toBe(existsSelected);

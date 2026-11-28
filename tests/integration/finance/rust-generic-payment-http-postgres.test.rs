@@ -7,14 +7,14 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_commercial::public::purchases::current_package_catalogue;
-use erpx_server_identity_access::public::account_holding_bindings::{
+use erpx_commercial_server::public::purchases::current_package_catalogue;
+use erpx_identity_access_server::public::account_holding_bindings::{
     ConfiguredAccountHolding, ConfiguredHoldingRegistry,
 };
-use erpx_server_shared::public::{CompanyId, HoldingId};
-use erpx_service::finance_generic_payment_http::{GenericPaymentTarget, finance_generic_payment_router};
-use erpx_service::finance_journal_create::FinanceJournalCreateConfiguration;
-use erpx_service::finance_journal_review::FinanceJournalEnvironment;
+use erpx_platform_shared_server::public::{CompanyId, HoldingId};
+use erpx_platform_composition::finance_generic_payment_http::{GenericPaymentTarget, finance_generic_payment_router};
+use erpx_platform_composition::finance_journal_create::FinanceJournalCreateConfiguration;
+use erpx_platform_composition::finance_journal_review::FinanceJournalEnvironment;
 use std::sync::Arc;
 use tower::ServiceExt;
 
@@ -64,7 +64,7 @@ fn router_for(p: &review::Prepared, companies:&[&str]) -> axum::Router {
         host:"acme.example.test".into(),holding_slug:"acme".into(),authorizer:p.authorizer.clone(),
         configuration:FinanceJournalCreateConfiguration::new(FinanceJournalEnvironment::Development,HoldingId::new("h001").unwrap(),CompanyId::new(*company).unwrap(),Arc::new(current_package_catalogue().unwrap())).unwrap(),clock:p.system.scenario.clock.clone(),
     }).collect();
-    finance_generic_payment_router(Arc::new(policy),Arc::new(registry),Arc::new(erpx_service::field_service_reservation_read_http::FieldServiceReadScopeHeaders),targets).unwrap()
+    finance_generic_payment_router(Arc::new(policy),Arc::new(registry),Arc::new(erpx_platform_composition::field_service_reservation_read_http::FieldServiceReadScopeHeaders),targets).unwrap()
 }
 
 #[tokio::test]

@@ -1,10 +1,10 @@
 import {createHash} from "node:crypto";
 import {readFile,realpath} from "node:fs/promises";
 import {join,resolve,sep} from "node:path";
-import type {EngineeringGate,EngineeringObservation} from "@erpx/feature-runtime/lib/engineering-completion";
-import {attachmentReconciliationEvidenceValid,businessWorkerEvidenceValid,financialContinuityEvidenceValid,stockContinuityEvidenceValid} from "@erpx/feature-runtime/lib/engineering-gate-evidence";
+import type {EngineeringGate,EngineeringObservation} from "@erpx/platform-runtime-ui/lib/engineering-completion";
+import {attachmentReconciliationEvidenceValid,businessWorkerEvidenceValid,financialContinuityEvidenceValid,stockContinuityEvidenceValid} from "@erpx/platform-runtime-ui/lib/engineering-gate-evidence";
 import {reconcileStockSnapshots,type StockSnapshot} from "../../../fixtures/inventory/builders/engineering-stock-continuity";
-import {evaluateEngineeringPerformance,type PerformanceSample} from "@erpx/feature-runtime/lib/engineering-performance";
+import {evaluateEngineeringPerformance,type PerformanceSample} from "@erpx/platform-runtime-ui/lib/engineering-performance";
 import {playwrightObservations,vitestObservations,requiredBrowserExecutionsValid,syntheticRollbackEvidenceValid} from "./engineering-test-results";
 
 const sha=(bytes:string|Buffer)=>createHash("sha256").update(bytes).digest("hex");

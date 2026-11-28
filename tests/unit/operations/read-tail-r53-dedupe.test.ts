@@ -3,14 +3,14 @@ import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { OPERATIONS_STAFF_TASK_HEAD, OPERATIONS_TASK_LIST_HEAD } from '../../../packages/server-operations/src/adapters/read-tail-r53-sources';
-import { operationsStaffTaskExists } from '../../../packages/server-operations/src/adapters/operations-staff-task-exists';
-import { taskParticipantReadPolicy, projectTaskRecordPolicy } from '../../../packages/server-operations/src/adapters/project-task-record-policy';
-import { executiveMainEvidenceSources } from '../../../packages/server-operations/src/adapters/executive-main-evidence-sources';
-import { projectStructureSources } from '../../../packages/server-operations/src/adapters/project-structure-sources';
+import { OPERATIONS_STAFF_TASK_HEAD, OPERATIONS_TASK_LIST_HEAD } from '../../../modules/operations/server/src/adapters/read-tail-r53-sources';
+import { operationsStaffTaskExists } from '../../../modules/operations/server/src/adapters/operations-staff-task-exists';
+import { taskParticipantReadPolicy, projectTaskRecordPolicy } from '../../../modules/operations/server/src/adapters/project-task-record-policy';
+import { executiveMainEvidenceSources } from '../../../modules/operations/server/src/adapters/executive-main-evidence-sources';
+import { projectStructureSources } from '../../../modules/operations/server/src/adapters/project-structure-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-operations/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-operations/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/operations/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/operations/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const sha = (sql: string) => createHash('sha256').update(sql).digest('hex');
 const binds = (sql: string) => (sql.match(/\?/g) ?? []).length;
 

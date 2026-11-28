@@ -10,7 +10,7 @@ import {
   NativeCommerceOrdersError,
   type NativeCommerceOrdersPageContext,
   type NativeCommerceOrdersTransport,
-} from '../../../packages/feature-commerce/src/public/native-commerce-orders';
+} from '../../../modules/commerce/ui/src/public/native-commerce-orders';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44993',
@@ -271,12 +271,12 @@ describe('native Commerce order transport',()=>{
   it('keeps goods-receipt route authority with the mounted native owner router',()=>{
     const root=resolve(import.meta.dirname??process.cwd(),'../../..');
     const source=(path:string)=>readFileSync(resolve(root,path),'utf8');
-    expect(source('packages/server-commerce/src/adapters/receipt_http.rs'))
+    expect(source('modules/commerce/server/src/adapters/receipt_http.rs'))
       .toContain('"/api/v1/holdings/{holding_slug}/commerce/purchase-orders/{order_id}/goods-receipts"');
-    const mount=source('src/composition/src/private_development_api.rs');
+    const mount=source('platform/composition/src/private_development_api.rs');
     expect(mount).toContain('commerce_receipt_targets');
     expect(mount).toContain('commerce_receipt_http_router_with_origin_policy(');
-    const client=source('packages/feature-commerce/src/public/native-commerce-orders.ts');
+    const client=source('modules/commerce/ui/src/public/native-commerce-orders.ts');
     expect(client).toContain('async goodsReceipt(');
     expect(client).toContain('${encodeURIComponent(orderId)}/goods-receipts');
     expect(client).not.toContain('SELECT ');
@@ -285,7 +285,7 @@ describe('native Commerce order transport',()=>{
       if(entry.isDirectory())return tsWithRoute(path);
       return entry.name.endsWith('.ts')&&readFileSync(path,'utf8').includes('goods-receipts')?[path]:[];
     });
-    expect(tsWithRoute(resolve(root,'packages/server-commerce/src'))).toEqual([]);
+    expect(tsWithRoute(resolve(root,'modules/commerce/server/src'))).toEqual([]);
   });
 
   it('maps changed context and request failures to the retained page policy',()=>{
@@ -307,8 +307,8 @@ describe('native Commerce order transport',()=>{
 
   it('leaves the catch-all order-detail path to the Axum router with no TS owner execution',()=>{
     const root=resolve(import.meta.dirname??process.cwd(),'../../..');
-    const route=readFileSync(resolve(root,'packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts'),'utf8');
-    expect(route).not.toContain("from '@erpx/server-commerce/public/commerce-order-read'");
+    const route=readFileSync(resolve(root,'platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts'),'utf8');
+    expect(route).not.toContain("from '@erpx/commerce-server/public/commerce-order-read'");
     expect(route).not.toContain('getOrder(');
     expect(route).not.toContain('path[0]==="orders"&&path[1]?await getOrder');
     expect(route).toContain("if(path[0]==='orders'&&path[1])throw new ApiError(404,'NOT_FOUND','Workflow action not found.');");
@@ -316,7 +316,7 @@ describe('native Commerce order transport',()=>{
     for(const token of ['getOrder','prepare(','holdingResources(','commerce-order-read'])expect(get).not.toContain(token);
     // The mounted Axum router, not the deleted branch, owns the exact path and
     // executes the owner read through its backend.
-    const router=readFileSync(resolve(root,'packages/server-commerce/src/adapters/order_http.rs'),'utf8');
+    const router=readFileSync(resolve(root,'modules/commerce/server/src/adapters/order_http.rs'),'utf8');
     expect(router).toContain('"/api/v1/holdings/{holding_slug}/commerce/orders/{order_id}"');
     expect(router).toContain('get(detail_handler)');
     expect(router).toContain('.execute(CommerceOrderHttpRequest {');

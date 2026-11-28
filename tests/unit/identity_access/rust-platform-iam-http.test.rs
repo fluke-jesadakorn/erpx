@@ -3,14 +3,14 @@
 //! These prove Host-only target resolution, exact Origin, strict command
 //! headers/bodies and Platform error mapping. They do not prove the Account
 //! session or Platform assignment resolution owned by composition.
-use erpx_server_identity_access::public::iam_roles_http::{
+use erpx_identity_access_server::public::iam_roles_http::{
     IamPlatformRolesReviewsHttpRequest, IamPlatformRolesReviewsHttpTarget,
     IamRolesReviewsHttpBackend, IamRolesReviewsHttpCommand, IamRolesReviewsHttpFuture,
     IamRolesReviewsHttpRequest, IamRolesReviewsHttpResponse,
     iam_platform_roles_reviews_http_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Probe {

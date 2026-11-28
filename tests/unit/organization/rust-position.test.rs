@@ -1,8 +1,8 @@
-use erpx_server_organization::public::organization_nodes::{
+use erpx_organization_server::public::organization_nodes::{
     OrganizationAuthority, OrganizationCommand, OrganizationCommandActor,
 };
-use erpx_server_organization::public::position::*;
-use erpx_server_shared::public::{
+use erpx_organization_server::public::position::*;
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, Clock, CompanyId, HoldingId, TimestampMillis, UserId,
 };
 use serde_json::{Value, json};
@@ -185,7 +185,7 @@ impl OrganizationPositionRepository for FakeRepository {
         _operation: &'a str,
         _record_id: &'a str,
         _input: &'a PositionInput,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<'a, Option<Value>>
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<'a, Option<Value>>
     {
         self.calls.push("replay".into());
         let prior = self.replay.clone();
@@ -195,7 +195,7 @@ impl OrganizationPositionRepository for FakeRepository {
     fn roster<'a>(
         &'a mut self,
         _company: &'a CompanyId,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<'a, PositionRoster>
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<'a, PositionRoster>
     {
         self.calls.push("roster".into());
         let roster = self.roster.clone();
@@ -206,7 +206,7 @@ impl OrganizationPositionRepository for FakeRepository {
         &'a mut self,
         _company: &'a CompanyId,
         _branch: &'a str,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<'a, bool> {
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<'a, bool> {
         self.calls.push("branch_active".into());
         Box::pin(async move { Ok(self.branch_active) })
     }
@@ -216,7 +216,7 @@ impl OrganizationPositionRepository for FakeRepository {
         _company: &'a CompanyId,
         _department: &'a str,
         _branch: Option<&'a str>,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<'a, bool> {
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<'a, bool> {
         self.calls.push("department_active".into());
         Box::pin(async move { Ok(self.department_active) })
     }
@@ -225,7 +225,7 @@ impl OrganizationPositionRepository for FakeRepository {
         &'a mut self,
         _company: &'a CompanyId,
         _level: &'a str,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<'a, Option<i64>>
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<'a, Option<i64>>
     {
         self.calls.push("position_level".into());
         let level = self.level;
@@ -236,7 +236,7 @@ impl OrganizationPositionRepository for FakeRepository {
         &'a mut self,
         _company: &'a CompanyId,
         _key: &'a str,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<
         'a,
         PositionGraphGuard,
     > {
@@ -249,7 +249,7 @@ impl OrganizationPositionRepository for FakeRepository {
         &'a mut self,
         _company: &'a CompanyId,
         _position: &'a str,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<'a, Vec<String>>
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<'a, Vec<String>>
     {
         self.calls.push("exiting_engagements".into());
         let exiting = self.exiting.clone();
@@ -266,7 +266,7 @@ impl OrganizationPositionRepository for FakeRepository {
         roster_required: bool,
         exiting: &'a [String],
         now: i64,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<'a, Value> {
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<'a, Value> {
         self.calls.push("persist".into());
         let id = id
             .map(str::to_owned)
@@ -298,7 +298,7 @@ impl RosterExitPort for FakeRosterExit {
         key: &'a str,
         reason: &'a str,
         now: i64,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<'a, ()> {
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<'a, ()> {
         self.calls.push((
             engagement_ids.to_vec(),
             key.to_owned(),
@@ -324,14 +324,14 @@ impl OrganizationPositionRepository for FakeUnit<'_> {
         operation: &'a str,
         record_id: &'a str,
         input: &'a PositionInput,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<'a, Option<Value>>
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<'a, Option<Value>>
     {
         self.repository.replay(actor, key, operation, record_id, input)
     }
     fn roster<'a>(
         &'a mut self,
         company: &'a CompanyId,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<'a, PositionRoster>
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<'a, PositionRoster>
     {
         self.repository.roster(company)
     }
@@ -339,7 +339,7 @@ impl OrganizationPositionRepository for FakeUnit<'_> {
         &'a mut self,
         company: &'a CompanyId,
         branch: &'a str,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<'a, bool> {
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<'a, bool> {
         self.repository.branch_active(company, branch)
     }
     fn department_active<'a>(
@@ -347,14 +347,14 @@ impl OrganizationPositionRepository for FakeUnit<'_> {
         company: &'a CompanyId,
         department: &'a str,
         branch: Option<&'a str>,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<'a, bool> {
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<'a, bool> {
         self.repository.department_active(company, department, branch)
     }
     fn position_level<'a>(
         &'a mut self,
         company: &'a CompanyId,
         level: &'a str,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<'a, Option<i64>>
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<'a, Option<i64>>
     {
         self.repository.position_level(company, level)
     }
@@ -362,7 +362,7 @@ impl OrganizationPositionRepository for FakeUnit<'_> {
         &'a mut self,
         company: &'a CompanyId,
         key: &'a str,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<
         'a,
         PositionGraphGuard,
     > {
@@ -372,7 +372,7 @@ impl OrganizationPositionRepository for FakeUnit<'_> {
         &'a mut self,
         company: &'a CompanyId,
         position: &'a str,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<'a, Vec<String>>
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<'a, Vec<String>>
     {
         self.repository.exiting_engagements(company, position)
     }
@@ -386,7 +386,7 @@ impl OrganizationPositionRepository for FakeUnit<'_> {
         roster_required: bool,
         exiting: &'a [String],
         now: i64,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<'a, Value> {
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<'a, Value> {
         self.repository
             .persist(actor, id, input, key, guard, roster_required, exiting, now)
     }
@@ -400,7 +400,7 @@ impl RosterExitPort for FakeUnit<'_> {
         key: &'a str,
         reason: &'a str,
         now: i64,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<'a, ()> {
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<'a, ()> {
         self.roster_exit.execute(actor, engagement_ids, key, reason, now)
     }
 }

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const { nativeRequest } = vi.hoisted(() => ({ nativeRequest: vi.fn() }));
-vi.mock("@erpx/server-runtime/public/native-http", () => ({ nativeRequest }));
-import { nativeFinanceAttachmentVersionStep } from "../../../packages/server-finance/src/adapters/native-finance-owner-write";
+vi.mock("@erpx/platform-runtime-server/public/native-http", () => ({ nativeRequest }));
+import { nativeFinanceAttachmentVersionStep } from "../../../modules/finance/server/src/adapters/native-finance-owner-write";
 
 const KEY = "ERPX_NATIVE_FINANCE_OWNER_WRITE_CONFIG";
 const original = process.env[KEY];

@@ -4,12 +4,12 @@
 //! an empty engagement list, the exact phase order including the Collaboration
 //! notice interleaves, and the retained SQL predicates. PostgreSQL behaviour is
 //! proven by the sibling `roster_position_exit_postgres` integration target.
-use erpx_server_people_payroll::public::roster_position_exit::{
+use erpx_people_payroll_server::public::roster_position_exit::{
     ROSTER_POSITION_EXIT_MAX_ENGAGEMENTS, ROSTER_POSITION_EXIT_ORDER, RosterPositionExitPhase,
     affected_assignments, pending_position_requests, roster_position_exit_order,
     roster_position_exit_plan,
 };
-use erpx_server_shared::public::{CompanyId, TimestampMillis};
+use erpx_platform_shared_server::public::{CompanyId, TimestampMillis};
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
 

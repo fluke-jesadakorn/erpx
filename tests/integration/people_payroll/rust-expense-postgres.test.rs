@@ -10,7 +10,7 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_people_payroll::public::expense::{
+use erpx_people_payroll_server::public::expense::{
     ExpenseApprovalDecision, ExpenseApprovalInstance, ExpenseApprovalPort, ExpenseApprovalView,
     ExpenseCommandFuture, ExpenseEvidenceFacts, ExpenseEvidenceOwner, ExpenseEvidencePort,
     ExpenseEvidenceRemoval, ExpenseFileBinding, ExpensePayable, ExpensePaymentSettlement,
@@ -22,12 +22,12 @@ use erpx_server_people_payroll::public::expense::{
     prepare_expense_payment, reverse_expense, save_expense, save_expense_accounting,
     save_expense_payment, submit_expense,
 };
-use erpx_server_people_payroll::public::workforce::WorkforceCommandActor;
-use erpx_server_runtime::public::postgres::{
+use erpx_people_payroll_server::public::workforce::WorkforceCommandActor;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, CommandKey, CompanyId, HoldingId, TimestampMillis,
 };
 use serde_json::{Value, json};

@@ -4,9 +4,9 @@ import { resolve } from 'node:path';
 import {
   planningAttachmentTargetRow,
   planningAttachmentTargetVersionExists,
-} from '../../../packages/server-planning/src/adapters/planning-attachment-target-sql';
+} from '../../../modules/planning/server/src/adapters/planning-attachment-target-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-planning/src');
+const srcRoot = resolve(__dirname, '../../../modules/planning/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
 

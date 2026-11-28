@@ -28,7 +28,7 @@ const reply = (value: unknown, status = 200) =>
   new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json" } });
 
 const { createExecMetricEcomClient } = await import(
-  "../../../packages/server-ecommerce/src/adapters/native-exec-metric/client"
+  "../../../modules/ecommerce/server/src/adapters/native-exec-metric/client"
 );
 
 describe("native Ecommerce executive metric transport", () => {
@@ -108,7 +108,7 @@ describe("native Ecommerce executive metric transport", () => {
 
 describe("native Ecommerce executive metric Rust parity", () => {
   const rust = readFileSync(
-    resolve(process.cwd(), "packages/server-ecommerce/src/adapters/native_exec_metric/domain.rs"),
+    resolve(process.cwd(), "modules/ecommerce/server/src/adapters/native_exec_metric/domain.rs"),
     "utf8",
   );
 
@@ -136,7 +136,7 @@ describe("native Ecommerce executive metric Rust parity", () => {
 
   test("the TS family no longer owns any SQL text", () => {
     const src = readFileSync(
-      resolve(process.cwd(), "packages/server-ecommerce/src/adapters/executive-metric-projections.ts"),
+      resolve(process.cwd(), "modules/ecommerce/server/src/adapters/executive-metric-projections.ts"),
       "utf8",
     );
     expect(src).not.toContain("ecommerceScalar");

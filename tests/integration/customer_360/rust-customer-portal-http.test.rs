@@ -1,15 +1,15 @@
 //! Actual owner-local customer-portal HTTP router tests. Verified portal
 //! sessions, purchases, Files and the owned transaction remain composition
 //! responsibilities.
-use erpx_server_customer_360::public::customer_portal::{
+use erpx_customer_360_server::public::customer_portal::{
     CustomerPortalProjection, PortalCommandError, PortalCommandInput, PortalCommandOutcome,
 };
-use erpx_server_customer_360::public::customer_portal_http::{
+use erpx_customer_360_server::public::customer_portal_http::{
     CustomerPortalHttpBackend, CustomerPortalHttpCommandFuture, CustomerPortalHttpCommandRequest, CustomerPortalHttpFuture,
     CustomerPortalHttpReadRequest, CustomerPortalHttpTarget, customer_portal_http_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Noop;

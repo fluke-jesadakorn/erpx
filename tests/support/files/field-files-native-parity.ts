@@ -7,7 +7,7 @@ import {join} from 'node:path';
 import {randomUUID,createHash} from 'node:crypto';
 import {Pool} from 'pg';
 import {expect} from 'vitest';
-import {PostgresDatabase} from '@erpx/server-runtime/adapters/runtime/postgres';
+import {PostgresDatabase} from '@erpx/platform-runtime-server/adapters/runtime/postgres';
 import {attachmentToolEnvironment} from '../../../scripts/testing/runtime-tooling';
 
 const sleep=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms));

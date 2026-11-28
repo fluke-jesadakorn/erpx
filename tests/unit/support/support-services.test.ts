@@ -2,11 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { nativeApiPath } from "../../../scripts/local/native-api-proxy";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { createValidateServiceScope } from "@erpx/server-support/application/service-access";
-import { createServiceTeamHandlers, createResolveServiceTeam } from "@erpx/server-support/application/service-teams";
-import { createServiceTeamOptions } from "@erpx/server-support/application/service-team-options";
-import { type ServiceTeam } from "@erpx/server-support/domain/service-teams";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import { createValidateServiceScope } from "@erpx/support-server/application/service-access";
+import { createServiceTeamHandlers, createResolveServiceTeam } from "@erpx/support-server/application/service-teams";
+import { createServiceTeamOptions } from "@erpx/support-server/application/service-team-options";
+import { type ServiceTeam } from "@erpx/support-server/domain/service-teams";
 vi.mock("server-only", () => ({}));
 const actor = { userId: "owner", companyId: "company", holdingId: "holding", branchId: null, departmentId: null, role: "holding_owner" } as WorkContext;
 const scope = { company_id: "company", branch_id: "branch", department_id: "department" };
@@ -17,11 +17,11 @@ describe("Support service team policy through typed ports", () => {
     it("keeps an unavailable local team as a blocker instead of falling back", async () => { const handlers = vi.fn(async () => []); expect(await createResolveServiceTeam({ teams: async () => [{ ...team, scope_kind: "department", scope_node_id: "department" }, { ...team, id: "fallback", scope_kind: "holding", scope_node_id: "company" }], handlers })(scope, "it")).toBeNull(); expect(handlers).toHaveBeenCalledTimes(1); expect(handlers).toHaveBeenCalledWith(scope, "team"); });
     it("uses retained coverage for inactive teams without reading live coverage", async () => { const coverage = vi.fn(async () => []); const data = await createServiceTeamOptions({ owner: async () => true, nodes: async () => [], teams: async () => [{ ...team, active: 0, configuration_json: JSON.stringify({ name: "Support team", active: false, expectedVersion: 4, members: [{ userId: "lead", responsibility: "lead" }], coverage: [{ category: "it", scopeKind: "branch", scopeNodeId: "branch" }] }) }], members: async () => [], history: async () => [], handlers: async () => [], coverage })(actor); expect(data.teams[0].coverage).toEqual([{ category: "it", scope_kind: "branch", scope_node_id: "branch" }]); expect(coverage).not.toHaveBeenCalled(); });
 });
-import { createGetSupportTicket, createSupportWorkspace } from "@erpx/server-support/application/support";
-import { createSupportEvidenceGuard, createSupportEvidence } from "@erpx/server-support/application/support-evidence";
-import { createSupportSessionContext } from "@erpx/server-support/application/support-sessions";
-import { supportSessionProjection, type SupportSession } from "@erpx/server-support/domain/support-sessions";
-import type { SupportCommandPorts, SupportCommand, SupportMutation, SupportRow } from "@erpx/server-support/application/command";
+import { createGetSupportTicket, createSupportWorkspace } from "@erpx/support-server/application/support";
+import { createSupportEvidenceGuard, createSupportEvidence } from "@erpx/support-server/application/support-evidence";
+import { createSupportSessionContext } from "@erpx/support-server/application/support-sessions";
+import { supportSessionProjection, type SupportSession } from "@erpx/support-server/domain/support-sessions";
+import type { SupportCommandPorts, SupportCommand, SupportMutation, SupportRow } from "@erpx/support-server/application/command";
 const mutation: SupportMutation = { native: { guard: "current" } };
 const ticket: SupportRow = { id: "ticket", status: "open", source_kind: "sales_order", created_by: actor.userId, owner_id: actor.userId, owner_eligible: 1, branch_id: "branch", department_id: null, version: 4 };
 const policy = { calendar: { timezone: "Asia/Bangkok", weekdays: [1, 2, 3, 4, 5], opensAtMinute: 540, closesAtMinute: 1020, holidays: [] }, targetMinutes: 60, pauseWhileWaiting: true };
@@ -54,7 +54,7 @@ describe("Temporary Support capability lifecycle", () => {
     });
     it("requires an active context grant before projecting any attachment facts", async () => { const evidence = vi.fn(async () => [{ id: "private-file" }]); await expect(createSupportSessionContext({ ...runtime(), context: async () => null, evidence })(actor, "session")).rejects.toMatchObject({ code: "SUPPORT_CAPABILITY_REQUIRED" }); expect(evidence).not.toHaveBeenCalled(); });
 });
-import { createSupportTicketSourceGuards } from "@erpx/server-support/application/support";
+import { createSupportTicketSourceGuards } from "@erpx/support-server/application/support";
 describe("Support source transaction composition", () => {
     it("retains current-ticket guards without reading an absent origin", async () => { const source = vi.fn(async () => { throw new Error("unused"); }), origin = vi.fn(async () => mutation), combine = vi.fn(() => mutation); expect(await createSupportTicketSourceGuards({ ticket: async () => ticket, current: async () => mutation, source, origin, combine })(actor, "key", "ticket", 4, "handoff")).toBe(mutation); expect(source).not.toHaveBeenCalled(); expect(combine).not.toHaveBeenCalled(); });
     it("checks source-origin availability after the current ticket before composing guards", async () => { const calls: string[] = [], current = vi.fn(async () => { calls.push("current"); return mutation; }), source = vi.fn(async () => { calls.push("origin"); throw new Error("source is unavailable"); }), combine = vi.fn(() => mutation); await expect(createSupportTicketSourceGuards({ ticket: async () => ({ ...ticket, source_record_json: JSON.stringify({ kind: "asset", id: "asset" }) }), current, source, origin: async () => mutation, combine })(actor, "key", "ticket", 4, "handoff")).rejects.toThrow("source is unavailable"); expect(calls).toEqual(["current", "origin"]); expect(combine).not.toHaveBeenCalled(); });
@@ -67,11 +67,11 @@ describe("Support source transaction composition", () => {
 import {afterEach} from 'vitest';
 import * as React from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {createSupportPortalCommands,readSupportPortal,validSupportPortalWorkspace,type SupportPortalSource} from '@erpx/feature-support/lib/ticket-portal-command';
-import {workFetch} from '@erpx/feature-work_projection/lib/work-fetch';
-import {setContextSwitching} from '@erpx/feature-work_projection/lib/context-switch';
-import {SupportTicketPortalSetup,supportPortalRequest} from '@erpx/feature-support/components/ticket-portal';
-import {supportTicketPortalPrepareSchema,supportTicketPortalDecisionSchema,supportTicketPortalResponseSchema,supportTicketPortalSelectionSchema,type SupportTicketPortalWorkspace} from '@erpx/server-support/domain/ticket-portal';
+import {createSupportPortalCommands,readSupportPortal,validSupportPortalWorkspace,type SupportPortalSource} from '@erpx/support-ui/lib/ticket-portal-command';
+import {workFetch} from '@erpx/work-projection-ui/lib/work-fetch';
+import {setContextSwitching} from '@erpx/work-projection-ui/lib/context-switch';
+import {SupportTicketPortalSetup,supportPortalRequest} from '@erpx/support-ui/components/ticket-portal';
+import {supportTicketPortalPrepareSchema,supportTicketPortalDecisionSchema,supportTicketPortalResponseSchema,supportTicketPortalSelectionSchema,type SupportTicketPortalWorkspace} from '@erpx/support-server/domain/ticket-portal';
 const portalBase='/holdings/acme',portalContext='a'.repeat(64),portalPrepare={ticketId:'ticket',ticketVersion:4,customerName:'Actual recipient',email:'recipient@example.test',subject:'Approved public subject',summary:'Only the approved customer-facing summary',expiresAt:1900000000000,reason:'Explicit customer access review'};
 function portalView(id='binding'):SupportTicketPortalWorkspace{return{companyId:'company',schemaAvailable:true,available:true,contextKey:portalContext,canPrepare:true,ticket:{id:'ticket',version:4,title:'Internal case title',status:'open',sourceKind:'general'},bindings:[{id,ticketId:'ticket',ticketVersion:4,customerName:portalPrepare.customerName,email:portalPrepare.email,subject:portalPrepare.subject,summary:portalPrepare.summary,expiresAt:portalPrepare.expiresAt,status:'draft',version:1,canApprove:false,canReject:false,canRevoke:false,canRespond:false,response:null,acknowledgedAt:null}]};}
 function supportPortalBrowser(){const node={isConnected:true,dataset:{workUser:'manager',workRevision:'1',workCompany:'company',workAssignment:'support-role',workStale:'false'}},surface=Object.assign(new EventTarget(),{location:{origin:'https://helpdesk.example.test'}}),events:CustomEvent[]=[];let boundary:typeof node|null=node,edit='original-edit';const form={isConnected:true,getAttribute:()=>edit} as unknown as HTMLFormElement;for(const name of ['erpx:record-command-saved','erpx:work-changed'])surface.addEventListener(name,event=>events.push(event as CustomEvent));vi.stubGlobal('window',surface);vi.stubGlobal('document',{documentElement:{dataset:{}},querySelector:(selector:string)=>selector==='[data-work-revision]'?boundary:null,activeElement:{closest:()=>form}});setContextSwitching(false);const source:SupportPortalSource={base:portalBase,companyId:'company',contextKey:portalContext,ticketId:'ticket',ticketVersion:4,bindingId:null,bindingVersion:null,responseVersion:0};return{node,events,source,form,newer:()=>{edit='newer-edit';},remove:()=>{boundary=null;},restore:()=>{boundary=node;}};}
@@ -89,9 +89,9 @@ it('staff current-owner reads recheck after delayed original JSON before publish
 async function supportRoute(file:string,ports:Record<string,unknown>){const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL('../../../'+file,import.meta.url),'utf8'),tree=ts.createSourceFile(file,source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),body=tree.statements.filter(node=>!ts.isImportDeclaration(node)).map(node=>node.getText(tree)).join('\n'),emitted=ts.transpileModule(body,{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React}}).outputText,exports:Record<string,unknown>={};new Function('exports',...Object.keys(ports),emitted)(exports,...Object.values(ports));return exports;}
 function nativeSupportPagePorts(data:unknown,evidence:unknown={items:[]}){vi.stubEnv('ERPX_NATIVE_SUPPORT_READ_CONFIG','test-support-read');class TestApiError extends Error{readonly status:number;readonly code:string;constructor(status:number,code:string,message:string){super(message);this.status=status;this.code=code;}}return{ApiError:TestApiError,headers:async()=>new Headers(),createNativeSupportReader:()=>({detail:async()=>data,evidence:async()=>evidence})};}
 afterEach(()=>vi.unstubAllEnvs());
-it('dedicated staff pages use only the named owner SSR read and exact empty parallel slots',async()=>{const view=portalView(),read=vi.fn(async()=>view),Component=()=>null,ports={React,requireWorkContext:async()=>actor,supportTicketPortalWorkspace:read,supportTicketPortalSelectionSchema,publicScope:(value:WorkContext)=>value,workspaceBase:()=>portalBase,SupportTicketPortalSetup:Component},root=await supportRoute("packages/feature-support/src/routes/holdings/[holdingSlug]/customers-sales/customers/service/portal/page.tsx",ports),Page=root.default as (p:{params:Promise<{holdingSlug:string}>;searchParams:Promise<Record<string,string>>})=>Promise<React.ReactElement>;await Page({params:Promise.resolve({holdingSlug:'acme'}),searchParams:Promise.resolve({ticketId:'ticket'})});expect(read).toHaveBeenCalledWith(actor,{ticketId:'ticket'});for(const path of ["packages/feature-support/src/routes/holdings/[holdingSlug]/@record/customers-sales/customers/service/portal/page.tsx","packages/feature-support/src/routes/holdings/[holdingSlug]/@record/customers-sales/customers/service/portal/[bindingId]/page.tsx"]){const slot=await supportRoute(path,{});expect((slot.default as ()=>null)()).toBeNull();}});
+it('dedicated staff pages use only the named owner SSR read and exact empty parallel slots',async()=>{const view=portalView(),read=vi.fn(async()=>view),Component=()=>null,ports={React,requireWorkContext:async()=>actor,supportTicketPortalWorkspace:read,supportTicketPortalSelectionSchema,publicScope:(value:WorkContext)=>value,workspaceBase:()=>portalBase,SupportTicketPortalSetup:Component},root=await supportRoute("modules/support/ui/src/routes/holdings/[holdingSlug]/customers-sales/customers/service/portal/page.tsx",ports),Page=root.default as (p:{params:Promise<{holdingSlug:string}>;searchParams:Promise<Record<string,string>>})=>Promise<React.ReactElement>;await Page({params:Promise.resolve({holdingSlug:'acme'}),searchParams:Promise.resolve({ticketId:'ticket'})});expect(read).toHaveBeenCalledWith(actor,{ticketId:'ticket'});for(const path of ["modules/support/ui/src/routes/holdings/[holdingSlug]/@record/customers-sales/customers/service/portal/page.tsx","modules/support/ui/src/routes/holdings/[holdingSlug]/@record/customers-sales/customers/service/portal/[bindingId]/page.tsx"]){const slot=await supportRoute(path,{});expect((slot.default as ()=>null)()).toBeNull();}});
 
-async function actualSupportPortalSubmit(){const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL("../../../packages/feature-support/src/components/ticket-portal.tsx",import.meta.url),'utf8'),tree=ts.createSourceFile('actual-support-portal.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),component=tree.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='SupportTicketPortalSetup');if(!component||!ts.isFunctionDeclaration(component)||!component.body)throw Error('Original Support owner required');const submit=component.body.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='submit');let drawer:import('typescript').JsxElement|undefined;const visit=(node:import('typescript').Node)=>{if(ts.isJsxElement(node)&&node.openingElement.tagName.getText(tree)==='DraftFormDrawer')drawer=node;ts.forEachChild(node,visit);};visit(component);if(!submit||!drawer)throw Error('Original submit/drawer required');const c=supportPortalBrowser(),view=portalView(),commands=createSupportPortalCommands(()=>c.source),state={busy:false,uncertain:false,error:'',notice:null as {owner:string;text:string;bindingId:string}|null,open:true,refreshed:null as unknown},fields:Record<string,string>={customerName:portalPrepare.customerName,email:portalPrepare.email,subject:portalPrepare.subject,summary:portalPrepare.summary,reason:portalPrepare.reason},revision={current:0},setter=(key:keyof typeof state)=>(value:unknown)=>Object.assign(state,{[key]:value}),compile=(text:string)=>ts.transpileModule(text,{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React}}).outputText;
+async function actualSupportPortalSubmit(){const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL("../../../modules/support/ui/src/components/ticket-portal.tsx",import.meta.url),'utf8'),tree=ts.createSourceFile('actual-support-portal.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),component=tree.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='SupportTicketPortalSetup');if(!component||!ts.isFunctionDeclaration(component)||!component.body)throw Error('Original Support owner required');const submit=component.body.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='submit');let drawer:import('typescript').JsxElement|undefined;const visit=(node:import('typescript').Node)=>{if(ts.isJsxElement(node)&&node.openingElement.tagName.getText(tree)==='DraftFormDrawer')drawer=node;ts.forEachChild(node,visit);};visit(component);if(!submit||!drawer)throw Error('Original submit/drawer required');const c=supportPortalBrowser(),view=portalView(),commands=createSupportPortalCommands(()=>c.source),state={busy:false,uncertain:false,error:'',notice:null as {owner:string;text:string;bindingId:string}|null,open:true,refreshed:null as unknown},fields:Record<string,string>={customerName:portalPrepare.customerName,email:portalPrepare.email,subject:portalPrepare.subject,summary:portalPrepare.summary,reason:portalPrepare.reason},revision={current:0},setter=(key:keyof typeof state)=>(value:unknown)=>Object.assign(state,{[key]:value}),compile=(text:string)=>ts.transpileModule(text,{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React}}).outputText;
  class SubmittedFormData extends FormData{constructor(target:unknown){super();if(target!==c.form)throw Error('Original form required');this.set('expiresAt',String(portalPrepare.expiresAt));}}
  const identity=(source:SupportPortalSource)=>JSON.stringify([source.base,source.companyId,source.ticketId,source.bindingId]),ports={busyRef:{current:false},setBusy:setter('busy'),setError:setter('error'),setNotice:setter('notice'),revision,owner:identity,current:c.source,mode:'prepare',allowed:true,commands:{current:commands},supportPortalRequest,fields,effective:{base:portalBase,view},FormData:SubmittedFormData,setRefreshed:setter('refreshed'),setUncertain:setter('uncertain'),base:portalBase,initial:view,setFields:(value:Record<string,string>)=>{for(const key of Object.keys(fields))delete fields[key];Object.assign(fields,value);},setOpen:setter('open'),live:{current:c.source}},run=new Function(...Object.keys(ports),compile(`${submit.getText(tree)}\nreturn submit;`))(...Object.values(ports)) as (form:HTMLFormElement,retry?:boolean)=>Promise<void>;
  const passthrough=(props:{children?:React.ReactNode})=>React.createElement('div',{},props.children);
@@ -99,14 +99,14 @@ async function actualSupportPortalSubmit(){const {readFile}=await import('node:f
 }
 it('actual staff submit and open drawer recover the original request, retain newer summary and expose the exact saved binding inside the drawer',async()=>{const c=await actualSupportPortalSubmit(),calls:{method:string;body:BodyInit|null|undefined;key:string|null}[]=[];vi.stubGlobal('fetch',portalTransport(calls, key=>{if(calls.filter(call=>call.method==='POST').length===1)throw Error('Original native reply lost');return Response.json({data:{id:`support-portal-${key}`,status:'draft',version:1}});}));await c.run();expect(c.state.uncertain).toBe(true);expect(c.drawerHtml()).toContain('Retry original Portal request');c.newer();await c.retry();expect(calls[1]).toEqual(calls[0]);expect(c.fields.summary).toBe('Newer unsent public summary');expect(c.state.open).toBe(true);expect(c.state.notice?.bindingId).toBe(`support-portal-${calls[0].key}`);expect(c.drawerHtml()).toContain('Open saved customer access');expect(c.drawerHtml()).toContain('Your newer draft remains.');expect(c.events[0].detail.formEditVersion).toBe('original-edit');});
 
-it.each([false,true])('actual original Helpdesk detail preserves the no-addon workflow and displays only its owner-proven optional Portal handoff=%s',async permitted=>{const data={row:{id:'ticket',title:'Original internal case',issue:'Private staff issue',status:'open',version:4,source_kind:'general',owner_eligible:1,reviewer_count:1},canManage:true,managedInFieldService:false,canReadOrder:false,incidents:[],history:[],slaClock:null,slaPolicies:[]},available=vi.fn(async()=>permitted),nil=()=>null,route=await supportRoute("packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/support/[id]/screen.tsx",{React,requireWorkContext:async()=>actor,publicScope:(value:WorkContext)=>value,workspaceBase:()=>portalBase,...nativeSupportPagePorts(data),supportTicketPortalAvailable:available,pageError:(error:unknown)=>{throw error;},canonicalUiHref:(href:string)=>href,Link:'a',WorkspaceLink:'a',PageContent:'main',Card:'section',InlineNotice:'p',TimeText:nil,SupportSlaConsole:nil,SupportEvidenceConsole:nil,SupportConsole:nil}),Page=route.default as (p:{params:Promise<{holdingSlug:string;id:string}>})=>Promise<React.ReactNode>,html=renderToStaticMarkup(await Page({params:Promise.resolve({holdingSlug:'acme',id:'ticket'})}));expect(html).toContain('Original internal case');expect(html).toContain('Private staff issue');expect(html.includes('Prepare verified customer ticket access')).toBe(permitted);if(permitted)expect(html).toContain('/customers-sales/customers/service/portal?ticketId=ticket');expect(available).toHaveBeenCalledExactlyOnceWith(actor,'ticket');});
-it('the original Field Service-managed case does not ask the optional Helpdesk Portal owner or expose a wrong-source action',async()=>{const available=vi.fn(),nil=()=>null,route=await supportRoute("packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/support/[id]/screen.tsx",{React,requireWorkContext:async()=>actor,publicScope:(value:WorkContext)=>value,workspaceBase:()=>portalBase,...nativeSupportPagePorts({row:{id:'ticket',title:'Service-owned case',issue:'Original private issue',status:'open',version:4,source_kind:'field_service'},canManage:true,managedInFieldService:true,canReadOrder:false,incidents:[],history:[],slaClock:null,slaPolicies:[]}),supportTicketPortalAvailable:available,pageError:(error:unknown)=>{throw error;},canonicalUiHref:(href:string)=>href,Link:'a',WorkspaceLink:'a',PageContent:'main',Card:'section',InlineNotice:'p',TimeText:nil,SupportSlaConsole:nil,SupportEvidenceConsole:nil,SupportConsole:nil}),Page=route.default as (p:{params:Promise<{holdingSlug:string;id:string}>})=>Promise<React.ReactNode>,html=renderToStaticMarkup(await Page({params:Promise.resolve({holdingSlug:'acme',id:'ticket'})}));expect(html).toContain('Service-owned case');expect(html).not.toContain('Prepare verified customer ticket access');expect(available).not.toHaveBeenCalled();});
+it.each([false,true])('actual original Helpdesk detail preserves the no-addon workflow and displays only its owner-proven optional Portal handoff=%s',async permitted=>{const data={row:{id:'ticket',title:'Original internal case',issue:'Private staff issue',status:'open',version:4,source_kind:'general',owner_eligible:1,reviewer_count:1},canManage:true,managedInFieldService:false,canReadOrder:false,incidents:[],history:[],slaClock:null,slaPolicies:[]},available=vi.fn(async()=>permitted),nil=()=>null,route=await supportRoute("platform/workplace/src/routes/holdings/[holdingSlug]/_presenters/support/[id]/screen.tsx",{React,requireWorkContext:async()=>actor,publicScope:(value:WorkContext)=>value,workspaceBase:()=>portalBase,...nativeSupportPagePorts(data),supportTicketPortalAvailable:available,pageError:(error:unknown)=>{throw error;},canonicalUiHref:(href:string)=>href,Link:'a',WorkspaceLink:'a',PageContent:'main',Card:'section',InlineNotice:'p',TimeText:nil,SupportSlaConsole:nil,SupportEvidenceConsole:nil,SupportConsole:nil}),Page=route.default as (p:{params:Promise<{holdingSlug:string;id:string}>})=>Promise<React.ReactNode>,html=renderToStaticMarkup(await Page({params:Promise.resolve({holdingSlug:'acme',id:'ticket'})}));expect(html).toContain('Original internal case');expect(html).toContain('Private staff issue');expect(html.includes('Prepare verified customer ticket access')).toBe(permitted);if(permitted)expect(html).toContain('/customers-sales/customers/service/portal?ticketId=ticket');expect(available).toHaveBeenCalledExactlyOnceWith(actor,'ticket');});
+it('the original Field Service-managed case does not ask the optional Helpdesk Portal owner or expose a wrong-source action',async()=>{const available=vi.fn(),nil=()=>null,route=await supportRoute("platform/workplace/src/routes/holdings/[holdingSlug]/_presenters/support/[id]/screen.tsx",{React,requireWorkContext:async()=>actor,publicScope:(value:WorkContext)=>value,workspaceBase:()=>portalBase,...nativeSupportPagePorts({row:{id:'ticket',title:'Service-owned case',issue:'Original private issue',status:'open',version:4,source_kind:'field_service'},canManage:true,managedInFieldService:true,canReadOrder:false,incidents:[],history:[],slaClock:null,slaPolicies:[]}),supportTicketPortalAvailable:available,pageError:(error:unknown)=>{throw error;},canonicalUiHref:(href:string)=>href,Link:'a',WorkspaceLink:'a',PageContent:'main',Card:'section',InlineNotice:'p',TimeText:nil,SupportSlaConsole:nil,SupportEvidenceConsole:nil,SupportConsole:nil}),Page=route.default as (p:{params:Promise<{holdingSlug:string;id:string}>})=>Promise<React.ReactNode>,html=renderToStaticMarkup(await Page({params:Promise.resolve({holdingSlug:'acme',id:'ticket'})}));expect(html).toContain('Service-owned case');expect(html).not.toContain('Prepare verified customer ticket access');expect(available).not.toHaveBeenCalled();});
 
 
 // Run the original Support presenter with a real-shaped Service intake row:
 // migration1048 captures service_order_id, while source_record_json/order_id
 // remain null. Named visibility is an explicit original owner reader port.
-async function actualServiceTicketHandoff(source:Awaited<ReturnType<typeof import("@erpx/server-records/public/source-record-policy")['visibleSourceRecord']>>,options:{orderId?:string|null;managed?:boolean;fail?:Error}={}){const nativeId='service-order-actual-key',read=vi.fn(async()=>{if(options.fail)throw options.fail;return source;}),nil=()=>null,data={row:{id:'ticket-intake',title:'Original Service intake',issue:'Original visit issue',status:'open',version:3,source_kind:options.managed===false?'general':'field_service',service_order_id:options.orderId===undefined?nativeId:options.orderId,service_order_version:2,source_record_json:null,order_id:null,owner_eligible:1},managedInFieldService:options.managed!==false,canManage:false,canReadOrder:false,incidents:[],history:[],slaClock:null,slaPolicies:[]},route=await supportRoute("packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/support/[id]/screen.tsx",{React,requireWorkContext:async()=>actor,publicScope:(value:WorkContext)=>value,workspaceBase:()=>portalBase,...nativeSupportPagePorts(data),visibleSourceRecord:read,supportTicketPortalAvailable:vi.fn(),pageError:(error:unknown)=>{throw error;},canonicalUiHref:(href:string)=>href,Link:'a',WorkspaceLink:'a',PageContent:'main',Card:'section',InlineNotice:'p',TimeText:nil,SupportSlaConsole:nil,SupportEvidenceConsole:nil,SupportConsole:nil}),Page=route.default as (p:{params:Promise<{holdingSlug:string;id:string}>})=>Promise<React.ReactNode>;return{nativeId,read,render:async()=>renderToStaticMarkup(await Page({params:Promise.resolve({holdingSlug:'acme',id:'ticket-intake'})}))};}
+async function actualServiceTicketHandoff(source:Awaited<ReturnType<typeof import("@erpx/records-server/public/source-record-policy")['visibleSourceRecord']>>,options:{orderId?:string|null;managed?:boolean;fail?:Error}={}){const nativeId='service-order-actual-key',read=vi.fn(async()=>{if(options.fail)throw options.fail;return source;}),nil=()=>null,data={row:{id:'ticket-intake',title:'Original Service intake',issue:'Original visit issue',status:'open',version:3,source_kind:options.managed===false?'general':'field_service',service_order_id:options.orderId===undefined?nativeId:options.orderId,service_order_version:2,source_record_json:null,order_id:null,owner_eligible:1},managedInFieldService:options.managed!==false,canManage:false,canReadOrder:false,incidents:[],history:[],slaClock:null,slaPolicies:[]},route=await supportRoute("platform/workplace/src/routes/holdings/[holdingSlug]/_presenters/support/[id]/screen.tsx",{React,requireWorkContext:async()=>actor,publicScope:(value:WorkContext)=>value,workspaceBase:()=>portalBase,...nativeSupportPagePorts(data),visibleSourceRecord:read,supportTicketPortalAvailable:vi.fn(),pageError:(error:unknown)=>{throw error;},canonicalUiHref:(href:string)=>href,Link:'a',WorkspaceLink:'a',PageContent:'main',Card:'section',InlineNotice:'p',TimeText:nil,SupportSlaConsole:nil,SupportEvidenceConsole:nil,SupportConsole:nil}),Page=route.default as (p:{params:Promise<{holdingSlug:string;id:string}>})=>Promise<React.ReactNode>;return{nativeId,read,render:async()=>renderToStaticMarkup(await Page({params:Promise.resolve({holdingSlug:'acme',id:'ticket-intake'})}))};}
 const readableServiceVisit={kind:'field_service_order' as const,id:'service-order-actual-key',version:7,href:'/field-service/service-order-actual-key',label:'Field service order · Actual original visit',title:'Actual original visit',companyId:'company',branchId:'branch',departmentId:null,status:'scheduled'};
 it('actual Service-owned Support ticket links its exact currently authorized visit even though its legacy source fields are null',async()=>{const c=await actualServiceTicketHandoff(readableServiceVisit),html=await c.render();expect(html).toContain('Open Field Service visit');expect(html).toContain('href="/holdings/acme/field-service/service-order-actual-key"');expect(c.read).toHaveBeenCalledExactlyOnceWith(actor,{kind:'field_service_order',id:c.nativeId});expect(html).not.toContain('/commerce/orders/');expect(html).toContain('Original Service intake');});
 it('an unavailable Service destination leaves the original case and owner explanation readable without a guessed visit link',async()=>{const c=await actualServiceTicketHandoff(null),html=await c.render();expect(c.read).toHaveBeenCalledExactlyOnceWith(actor,{kind:'field_service_order',id:c.nativeId});expect(html).toContain('Original Service intake');expect(html).toContain('managed in Field Service');expect(html).not.toContain('Open Field Service visit');});
@@ -130,7 +130,7 @@ it('the Support landing presenter reads only the native workspace and preserves 
         typed = { kind: 'asset' as const, id: 'asset-1', version: 3, label: 'Asset · Boiler', href: '/assets/asset-1' },
         source = vi.fn(async () => typed),
         rendered: Record<string, unknown>[] = [],
-        route = await supportRoute("packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/support/screen.tsx", {
+        route = await supportRoute("platform/workplace/src/routes/holdings/[holdingSlug]/_presenters/support/screen.tsx", {
             React,
             requireWorkContext: async () => actor,
             publicScope: (value: WorkContext) => value,
@@ -161,9 +161,9 @@ it('the Support landing presenter reads only the native workspace and preserves 
         source: { id: 'order-1', version: 2 },
         typedSource: { kind: 'asset', id: 'asset-1', version: 3, label: 'Asset · Boiler' },
     });
-    const sourceText = await (await import('node:fs/promises')).readFile(new URL('../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/support/screen.tsx', import.meta.url), 'utf8');
-    expect(sourceText).toContain('@erpx/feature-support/lib/native-support-read');
-    expect(sourceText).not.toContain('@erpx/server-sales');
+    const sourceText = await (await import('node:fs/promises')).readFile(new URL('../../../platform/workplace/src/routes/holdings/[holdingSlug]/_presenters/support/screen.tsx', import.meta.url), 'utf8');
+    expect(sourceText).toContain('@erpx/support-ui/lib/native-support-read');
+    expect(sourceText).not.toContain('@erpx/sales-server');
     expect(sourceText).not.toContain('supportWorkspace');
     vi.unstubAllEnvs();
     const missing = route.default as typeof Page;
@@ -179,7 +179,7 @@ it('the native Support workspace preserves filtered rows, source choice, typed e
         source_kind: 'general',
     }));
     const data = { items: rows, sources: [{ id: 'order-1', number: 'SO-1', version: 2, customer_name: 'Acme Customer' }], canCreate: true, canCreateOrder: true, ownReportsOnly: false },
-        components = await supportRoute('packages/feature-support/src/components/support-workspace.tsx', {
+        components = await supportRoute('modules/support/ui/src/components/support-workspace.tsx', {
             React,
             canonicalUiHref: (href: string) => `canonical:${href}`,
             Link: 'a',
@@ -236,9 +236,9 @@ it('the native Support workspace preserves filtered rows, source choice, typed e
 it('the Support case routes delegate to the native Support presenter instead of the Sales customer hub', async () => {
     const { readFile } = await import('node:fs/promises');
     for (const path of [
-        'packages/feature-support/src/routes/holdings/[holdingSlug]/customers-sales/customers/service/cases/page.tsx',
-        'packages/feature-support/src/routes/holdings/[holdingSlug]/customers-sales/customers/service/cases/[id]/page.tsx',
-        'packages/feature-support/src/routes/holdings/[holdingSlug]/customers-sales/customers/service/cases/[id]/[recordSection]/page.tsx',
+        'modules/support/ui/src/routes/holdings/[holdingSlug]/customers-sales/customers/service/cases/page.tsx',
+        'modules/support/ui/src/routes/holdings/[holdingSlug]/customers-sales/customers/service/cases/[id]/page.tsx',
+        'modules/support/ui/src/routes/holdings/[holdingSlug]/customers-sales/customers/service/cases/[id]/[recordSection]/page.tsx',
     ]) {
         const source = await readFile(new URL(`../../../${path}`, import.meta.url), 'utf8');
         expect(source).toContain('_presenters/support/screen');
@@ -246,7 +246,7 @@ it('the Support case routes delegate to the native Support presenter instead of 
         expect(source).not.toContain('customers/service/cases/_screen');
     }
     const Screen = vi.fn(async () => React.createElement('div', {}, 'native workspace'));
-    const route = await supportRoute("packages/feature-support/src/routes/holdings/[holdingSlug]/customers-sales/customers/service/cases/page.tsx", {
+    const route = await supportRoute("modules/support/ui/src/routes/holdings/[holdingSlug]/customers-sales/customers/service/cases/page.tsx", {
         Screen,
         notFound: () => { throw new Error('not found'); },
         recordSections: {},
@@ -263,7 +263,7 @@ it('the Support case routes delegate to the native Support presenter instead of 
 
 it('keeps one fixed Support ticket-evidence projection for the search and by-id readers', async () => {
     const { readFile } = await import('node:fs/promises');
-    const source = await readFile(new URL('../../../packages/server-support/src/adapters/executive-main-evidence-sources.ts', import.meta.url), 'utf8');
+    const source = await readFile(new URL('../../../modules/support/server/src/adapters/executive-main-evidence-sources.ts', import.meta.url), 'utf8');
     expect(source).toContain('const evidenceSelect = (columns: string, body: string)');
     expect(source.match(/const ticketEvidenceColumns = \(overdue: boolean\)/g)).toHaveLength(1);
     expect(source.match(/evidenceSelect\(ticketEvidenceColumns\(overdue\), `support_tickets t WHERE/g)).toHaveLength(2);
@@ -272,7 +272,7 @@ it('keeps one fixed Support ticket-evidence projection for the search and by-id 
 
 it('routes both SLA policy point/work reads through the mounted native transport', async () => {
     const { readFile } = await import('node:fs/promises');
-    const source = await readFile(new URL('../../../packages/server-support/src/adapters/support-sla.ts', import.meta.url), 'utf8');
+    const source = await readFile(new URL('../../../modules/support/server/src/adapters/support-sla.ts', import.meta.url), 'utf8');
     expect(source).not.toContain('policyEligibilitySelect');
     expect(source).not.toContain('SELECT p.*,');
     expect(source).not.toContain('nativeSupportReadAll');
@@ -286,7 +286,7 @@ it('routes both SLA policy point/work reads through the mounted native transport
 
 it('plans the three active-organization-node scope probes in Rust with kind-scoped authority', async () => {
     const { readFile } = await import('node:fs/promises');
-    const source = await readFile(new URL('../../../packages/server-support/src/adapters/service-access.ts', import.meta.url), 'utf8');
+    const source = await readFile(new URL('../../../modules/support/server/src/adapters/service-access.ts', import.meta.url), 'utf8');
     expect(source).not.toContain('activeOrgNodeSql');
     expect(source).not.toContain('departmentBranchMatch');
     expect(source).not.toContain('organizationProjectionSources');
@@ -296,7 +296,7 @@ it('plans the three active-organization-node scope probes in Rust with kind-scop
       'SUPPORT_RD_SERVICE_SCOPE_DEPARTMENT',
     ]) expect(source).toContain(kind);
 
-    const { validateServiceScope } = await import('@erpx/server-support/adapters/service-access');
+    const { validateServiceScope } = await import('@erpx/support-server/adapters/service-access');
     const config = JSON.stringify({
       privateBaseUrl: 'http://127.0.0.1:3997',
       timeoutMs: 1000,
@@ -307,7 +307,7 @@ it('plans the three active-organization-node scope probes in Rust with kind-scop
     const db = {
       prepare: (sql: string) => ({ bind: (...values: unknown[]) => ({ sql, values, first: async () => true }) }),
       batch,
-    } as unknown as import('@erpx/server-runtime/public/runtime/types').SqlDatabase;
+    } as unknown as import('@erpx/platform-runtime-server/public/runtime/types').SqlDatabase;
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
       new Response(JSON.stringify({ data: { statements: [{ sql: 'SELECT 1', values: [] }] } }), { status: 200, headers: { 'content-type': 'application/json' } }),
     );
@@ -346,7 +346,7 @@ it('plans a native fragment head and rejects tail shapes outside the server-pinn
     );
     try {
         const { nativeSupportReadFragment, SUPPORT_RD_TICKET_PORTAL_VALID_BINDINGS } =
-            await import('@erpx/server-support/adapters/native-support-read');
+            await import('@erpx/support-server/adapters/native-support-read');
         await expect(nativeSupportReadFragment(SUPPORT_RD_TICKET_PORTAL_VALID_BINDINGS, 4))
             .resolves.toBe('SELECT binding.* FROM support_ticket_portal_bindings binding');
         await expect(nativeSupportReadFragment(SUPPORT_RD_TICKET_PORTAL_VALID_BINDINGS, 2))
@@ -362,9 +362,9 @@ it('plans a native fragment head and rejects tail shapes outside the server-pinn
 it('keeps one parameterized assignment-access witness for the Support ticket and incident read predicates', async () => {
     const { readFile } = await import('node:fs/promises');
     const [helperSource, ticketSource, incidentSource] = await Promise.all([
-        readFile(new URL('../../../packages/server-support/src/adapters/eligibility-projection-sources.ts', import.meta.url), 'utf8'),
-        readFile(new URL('../../../packages/server-support/src/adapters/support-ticket-read.ts', import.meta.url), 'utf8'),
-        readFile(new URL('../../../packages/server-support/src/adapters/support-incident-read.ts', import.meta.url), 'utf8'),
+        readFile(new URL('../../../modules/support/server/src/adapters/eligibility-projection-sources.ts', import.meta.url), 'utf8'),
+        readFile(new URL('../../../modules/support/server/src/adapters/support-ticket-read.ts', import.meta.url), 'utf8'),
+        readFile(new URL('../../../modules/support/server/src/adapters/support-incident-read.ts', import.meta.url), 'utf8'),
     ]);
     expect(helperSource).toContain('export const supportAssignmentAccessSql');
     expect(helperSource).toContain("readTailR45AssignmentExistsSql('g', `g.id=? AND g.user_id=? AND g.role=? AND g.company_id=${alias}.company_id");
@@ -372,8 +372,8 @@ it('keeps one parameterized assignment-access witness for the Support ticket and
     expect(ticketSource.match(/supportAssignmentAccessSql\(/g)).toHaveLength(1);
     expect(incidentSource.match(/supportAssignmentAccessSql\(/g)).toHaveLength(1);
 
-    const { supportTicketReadPredicate } = await import('@erpx/server-support/public/support-ticket-read');
-    const { supportIncidentReadPredicate } = await import('@erpx/server-support/public/support-incident-read');
+    const { supportTicketReadPredicate } = await import('@erpx/support-server/public/support-ticket-read');
+    const { supportIncidentReadPredicate } = await import('@erpx/support-server/public/support-incident-read');
     const readActor = { ...actor, assignmentId: 'assignment' } as WorkContext;
     const ticket = supportTicketReadPredicate(readActor);
     const incident = supportIncidentReadPredicate(readActor);
@@ -395,7 +395,7 @@ it('keeps one parameterized assignment-access witness for the Support ticket and
     // Each caller keeps its original indentation and scope/role order, so the
     // shared helper renders both predicates byte-identically to the pre-dedupe
     // literals rather than merely an equivalent token multiset.
-    const { finalRootOwnerProjectionSources } = await import('@erpx/server-identity_access/public/final-root-owner-projection-sources');
+    const { finalRootOwnerProjectionSources } = await import('@erpx/identity-access-server/public/final-root-owner-projection-sources');
     const a = finalRootOwnerProjectionSources.assignments;
     const originalTicket = `EXISTS(SELECT 1 FROM (${a}) g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=t.company_id
    AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
@@ -424,7 +424,7 @@ describe('retired Support Next API routes', () => {
         'service-teams/[[...path]]',
         'service-teams/preview',
     ] as const;
-    const packageRoutes = 'packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]';
+    const packageRoutes = 'modules/support/ui/src/routes/api/v1/holdings/[holdingSlug]';
     const appRoutes = (app: string) => `apps/${app}/src/app/api/v1/holdings/[holdingSlug]`;
     const retiredFiles = [
         ...retiredSegments.map(segment => `${packageRoutes}/${segment}/route.ts`),
@@ -498,42 +498,42 @@ describe('retired Support Next API routes', () => {
 
     it('keeps the native Axum routes and SQL-owning adapters for every retired branch', () => {
         for (const [file, route, method] of [
-            ['src/composition/src/support_read_http.rs', '/api/v1/holdings/{holding_slug}/support', 'get(read_ticket::<C>)'],
-            ['src/composition/src/support_read_http.rs', '/api/v1/holdings/{holding_slug}/support/incidents', 'get(read_incidents::<C>)'],
-            ['src/composition/src/support_read_http.rs', '/api/v1/holdings/{holding_slug}/support/sla', 'get(read_sla::<C>)'],
-            ['src/composition/src/support_read_http.rs', '/api/v1/holdings/{holding_slug}/support/sessions', 'get(read_sessions::<C>)'],
-            ['src/composition/src/support_session_http.rs', '/api/v1/holdings/{holding_slug}/support/sessions', 'post(post_session::<C>)'],
-            ['src/composition/src/support_ticket_http.rs', '/api/v1/holdings/{holding_slug}/support', 'post(post_ticket::<C>)'],
-            ['src/composition/src/support_sla_http.rs', '/api/v1/holdings/{holding_slug}/support/sla', 'post(post_sla::<C>)'],
-            ['src/composition/src/support_incident_http.rs', '/api/v1/holdings/{holding_slug}/support/incidents', 'post(post_incident::<C>)'],
-            ['src/composition/src/support_evidence_http.rs', '/api/v1/holdings/{holding_slug}/support/evidence', 'post(post_evidence::<C>)'],
-            ['packages/server-support/src/adapters/ticket_portal_http.rs', '/api/v1/holdings/{holding_slug}/support/ticket-portal', 'get(staff_workspace).post(prepare)'],
-            ['packages/server-support/src/adapters/ticket_portal_http.rs', '/api/v1/holdings/{holding_slug}/support/ticket-portal/{binding_id}', 'get(staff_binding_workspace)'],
-            ['packages/server-support/src/adapters/ticket_portal_http.rs', '/api/v1/holdings/{holding_slug}/support/ticket-portal/{binding_id}/decisions', 'post(decide)'],
-            ['packages/server-support/src/adapters/ticket_portal_http.rs', '/api/v1/holdings/{holding_slug}/support/ticket-portal/{binding_id}/responses', 'post(respond)'],
-            ['packages/server-support/src/adapters/service_teams_http.rs', '/api/v1/holdings/{holding_slug}/service-teams', 'get(options).post(save_create)'],
-            ['packages/server-support/src/adapters/service_teams_http.rs', '/api/v1/holdings/{holding_slug}/service-teams/preview', 'post(preview_create)'],
-            ['packages/server-support/src/adapters/service_teams_http.rs', '/api/v1/holdings/{holding_slug}/service-teams/{id}', 'post(save_update)'],
+            ['platform/composition/src/support_read_http.rs', '/api/v1/holdings/{holding_slug}/support', 'get(read_ticket::<C>)'],
+            ['platform/composition/src/support_read_http.rs', '/api/v1/holdings/{holding_slug}/support/incidents', 'get(read_incidents::<C>)'],
+            ['platform/composition/src/support_read_http.rs', '/api/v1/holdings/{holding_slug}/support/sla', 'get(read_sla::<C>)'],
+            ['platform/composition/src/support_read_http.rs', '/api/v1/holdings/{holding_slug}/support/sessions', 'get(read_sessions::<C>)'],
+            ['platform/composition/src/support_session_http.rs', '/api/v1/holdings/{holding_slug}/support/sessions', 'post(post_session::<C>)'],
+            ['platform/composition/src/support_ticket_http.rs', '/api/v1/holdings/{holding_slug}/support', 'post(post_ticket::<C>)'],
+            ['platform/composition/src/support_sla_http.rs', '/api/v1/holdings/{holding_slug}/support/sla', 'post(post_sla::<C>)'],
+            ['platform/composition/src/support_incident_http.rs', '/api/v1/holdings/{holding_slug}/support/incidents', 'post(post_incident::<C>)'],
+            ['platform/composition/src/support_evidence_http.rs', '/api/v1/holdings/{holding_slug}/support/evidence', 'post(post_evidence::<C>)'],
+            ['modules/support/server/src/adapters/ticket_portal_http.rs', '/api/v1/holdings/{holding_slug}/support/ticket-portal', 'get(staff_workspace).post(prepare)'],
+            ['modules/support/server/src/adapters/ticket_portal_http.rs', '/api/v1/holdings/{holding_slug}/support/ticket-portal/{binding_id}', 'get(staff_binding_workspace)'],
+            ['modules/support/server/src/adapters/ticket_portal_http.rs', '/api/v1/holdings/{holding_slug}/support/ticket-portal/{binding_id}/decisions', 'post(decide)'],
+            ['modules/support/server/src/adapters/ticket_portal_http.rs', '/api/v1/holdings/{holding_slug}/support/ticket-portal/{binding_id}/responses', 'post(respond)'],
+            ['modules/support/server/src/adapters/service_teams_http.rs', '/api/v1/holdings/{holding_slug}/service-teams', 'get(options).post(save_create)'],
+            ['modules/support/server/src/adapters/service_teams_http.rs', '/api/v1/holdings/{holding_slug}/service-teams/preview', 'post(preview_create)'],
+            ['modules/support/server/src/adapters/service_teams_http.rs', '/api/v1/holdings/{holding_slug}/service-teams/{id}', 'post(save_update)'],
         ] as const)
             expect(flatSource(file), `${file} ${method} ${route}`).toContain(`"${route}", ${method}`);
 
         for (const file of [
-            'packages/server-support/src/adapters/support_ticket_read.rs',
-            'packages/server-support/src/adapters/support_auxiliary.rs',
-            'packages/server-support/src/adapters/service_teams_pg.rs',
-            'packages/server-support/src/adapters/ticket_portal_pg.rs',
+            'modules/support/server/src/adapters/support_ticket_read.rs',
+            'modules/support/server/src/adapters/support_auxiliary.rs',
+            'modules/support/server/src/adapters/service_teams_pg.rs',
+            'modules/support/server/src/adapters/ticket_portal_pg.rs',
         ] as const) expect(readSource(file), file).toMatch(/sqlx::query|query_as|query_scalar|PgPool/);
     });
 
     it('preserves the native {data} envelope without a Next presenter route', () => {
-        expect(readSource('packages/server-support/src/adapters/support_http.rs')).toContain('json!({"data": value})');
+        expect(readSource('modules/support/server/src/adapters/support_http.rs')).toContain('json!({"data": value})');
         for (const file of [
-            'packages/feature-support/src/components/support-console.tsx',
-            'packages/feature-support/src/components/support-session-console.tsx',
-            'packages/feature-support/src/components/support-incident-console.tsx',
+            'modules/support/ui/src/components/support-console.tsx',
+            'modules/support/ui/src/components/support-session-console.tsx',
+            'modules/support/ui/src/components/support-incident-console.tsx',
         ] as const) expect(readSource(file), file).toContain('result.data.id');
 
-        const evidence = readSource('packages/feature-support/src/components/support-evidence-console.tsx');
+        const evidence = readSource('modules/support/ui/src/components/support-evidence-console.tsx');
         expect(evidence).toContain('`/api/v1${base}/support/evidence`');
         expect(evidence).not.toContain('`/api/v1${base}/support`');
     });

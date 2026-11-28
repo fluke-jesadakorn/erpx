@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { reviewEligibilityRows } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r29-sources';
+import { reviewEligibilityRows } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-tail-r29-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-customer_authority/src');
+const srcRoot = resolve(__dirname, '../../../modules/customer-authority/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 // Opaque, closed inputs reconstructed verbatim from the pre-dedupe call sites

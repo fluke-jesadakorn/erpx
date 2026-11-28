@@ -1,4 +1,4 @@
-use erpx_server_operations::public::field_exceptions::*;
+use erpx_operations_server::public::field_exceptions::*;
 fn row() -> Exception {
     Exception {
         id: "exception".into(),
@@ -142,7 +142,7 @@ fn stale_versions_and_terminal_transitions_are_rejected_without_overflow() {
 
 #[test]
 fn field_policy_preserves_input_bounds_and_deduplicates_only_storage() {
-    use erpx_server_operations::public::field_policy::*;
+    use erpx_operations_server::public::field_policy::*;
     let input = DraftPolicy {
         area: " service ".into(),
         name: " Native queue ".into(),
@@ -174,7 +174,7 @@ fn field_policy_preserves_input_bounds_and_deduplicates_only_storage() {
 }
 #[test]
 fn policy_review_needs_an_independent_creator_and_exact_current_revision() {
-    use erpx_server_operations::public::field_policy::*;
+    use erpx_operations_server::public::field_policy::*;
     let row = DraftPolicy {
         area: "service".into(),
         name: "Native queue".into(),
@@ -199,7 +199,7 @@ fn policy_review_needs_an_independent_creator_and_exact_current_revision() {
 }
 #[test]
 fn open_uses_the_exact_published_policy_and_bounded_due_date() {
-    use erpx_server_operations::public::field_policy::*;
+    use erpx_operations_server::public::field_policy::*;
     let mut policy = DraftPolicy {
         area: "service".into(),
         name: "Native queue".into(),
@@ -272,7 +272,7 @@ fn zod_text_and_owner_id_unicode_boundaries() {
 
 #[test]
 fn policy_and_exception_inputs_use_zod_unicode_boundaries() {
-    use erpx_server_operations::public::field_policy::{DraftPolicy,OpenException,identifier,review_policy,PolicyAction};
+    use erpx_operations_server::public::field_policy::{DraftPolicy,OpenException,identifier,review_policy,PolicyAction};
     let mut policy=DraftPolicy{area:"service".into(),name:"😀".repeat(160),target_minutes:60,source_kinds:vec!["field_service_order".into()]};
     assert!(policy.validate().is_ok());policy.name="😀".repeat(161);assert!(policy.validate().is_err());
     policy.name="valid name".into();let mut published=policy.draft("policy","company","maker",1,0).unwrap();

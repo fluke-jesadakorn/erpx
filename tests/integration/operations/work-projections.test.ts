@@ -1,19 +1,19 @@
 import {afterEach,beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from '../../support/runtime-env';
 import {expenseDb as db,expenseFixture,key} from '../../support/helpers/expense-fixture';
-import {projectSchema,taskSchema} from '@erpx/server-operations/public/staff-tasks';
+import {projectSchema,taskSchema} from '@erpx/operations-server/public/staff-tasks';
 import {saveTask} from '../../support/operations/staff-tasks-fixture';
-import {getTask} from '@erpx/server-operations/public/staff-task-read';
+import {getTask} from '@erpx/operations-server/public/staff-task-read';
 import {seedRoutineFor,seedRoutineRunTask,seedRoutineTemplate} from './routine-fixtures';
-import {recordsPage,getRecord,searchReferences} from '@erpx/server-records/public/records';
-import {publishInboxEvent,inboxPage} from '@erpx/server-collaboration/public/inbox';
-import {listStaffNotifications,notificationsPage} from '@erpx/server-collaboration/public/staff-notifications';
-import {packageGrantStore,readCompanyPackageGrants} from '@erpx/server-commercial/public/package-grants';
-import {readExecutiveMetricProjection} from '@erpx/server-operations/public/executive-metric-projections';
-import {metricCatalogFor,queryMetric} from '@erpx/server-runtime/public/executive/metrics';
-import {searchExecutiveEvidence,readExecutiveEvidence} from '@erpx/server-runtime/public/executive/evidence';
+import {recordsPage,getRecord,searchReferences} from '@erpx/records-server/public/records';
+import {publishInboxEvent,inboxPage} from '@erpx/collaboration-server/public/inbox';
+import {listStaffNotifications,notificationsPage} from '@erpx/collaboration-server/public/staff-notifications';
+import {packageGrantStore,readCompanyPackageGrants} from '@erpx/commercial-server/public/package-grants';
+import {readExecutiveMetricProjection} from '@erpx/operations-server/public/executive-metric-projections';
+import {metricCatalogFor,queryMetric} from '@erpx/platform-runtime-server/public/executive/metrics';
+import {searchExecutiveEvidence,readExecutiveEvidence} from '@erpx/platform-runtime-server/public/executive/evidence';
 import {seedProjectFor} from '../projects/project-actual-fixtures';
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);await applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();f.head.modules=['operations','collaboration','projects'];});
@@ -59,7 +59,7 @@ it('clamps ordinary Work metric rows and evidence to current purchase history an
 });
 
 it('rechecks a captured Work task item and removes unavailable draft actions while retaining existing cancellation policy',async()=>{
- const {getStaffWork}=await import('@erpx/server-work_projection/public/domain-work'),{enrichFlowWork}=await import('@erpx/server-workflow/public/flow-work');
+ const {getStaffWork}=await import('@erpx/work-projection-server/public/domain-work'),{enrichFlowWork}=await import('@erpx/workflow-server/public/flow-work');
  const created=await saveTask(db,f.claimant,null,taskSchema.parse({title:'Original reviewed Work draft',assigneeUserId:f.head.userId,completionApprovers:[f.manager.userId],dueAt:new Date(Date.now()+86400000).toISOString()}),key()),id=String(created.id),stale=(await getStaffWork(f.claimant)).filter(row=>row.id===id);expect(stale).toHaveLength(1);expect(stale[0].canAct).toBe(true);
  vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');expect((await enrichFlowWork(f.claimant,stale)).filter(row=>row.id===id)).toEqual([]);await purchase();expect((await enrichFlowWork(f.claimant,stale)).find(row=>row.id===id)?.canAct).toBe(true);await purchase('work','draining');expect((await enrichFlowWork(f.claimant,stale)).find(row=>row.id===id)).toMatchObject({canAct:false,queue:'waiting'});
  await db.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(f.claimant.assignmentId).run();expect((await enrichFlowWork(f.claimant,stale)).filter(row=>row.id===id)).toEqual([]);
@@ -72,13 +72,13 @@ it('counts only actual licensed ordinary or Project routine templates and retain
  expect((await metricCatalogFor(db,f.head)).find(row=>row.id==='routines')?.available).toBe(true);expect((await readExecutiveMetricProjection(db,f.head,'routines',filters(),'default')).raw).toEqual([{label:'Published',value:'1'}]);await purchase();expect((await readExecutiveMetricProjection(db,f.head,'routines',filters(),'default')).raw).toEqual([{label:'Published',value:'1'}]);await purchase('work-routines');await purchase('work-routines','draining');await purchase('work','draining');const projection=await readExecutiveMetricProjection(db,f.head,'routines',filters(),'default');expect(projection.raw).toEqual([{label:'Published',value:'2'}]);expect((await projection.source({label:'Published',page:1},'2')).rows).toHaveLength(2);
 });
 it('intersects the actual release decision with purchased ordinary Task records in the pre-limit owner SQL',async()=>{
- const {workSourceReadScope}=await import('@erpx/server-operations/public/record-purchases');const id=await task();await record(id);await purchase();vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');
+ const {workSourceReadScope}=await import('@erpx/operations-server/public/record-purchases');const id=await task();await record(id);await purchase();vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');
  const select=async()=>{const scope=await workSourceReadScope(db,f.head,'records');return (await db.prepare(`SELECT workspace_records.id FROM workspace_records WHERE company_id=? AND ${scope.where}`).bind(f.company,...scope.args).all<{id:string}>()).results.map(row=>row.id);};
  expect(await select()).toEqual([id]);vi.stubEnv('NODE_ENV','production');expect(await select()).toEqual([]);vi.stubEnv('NODE_ENV','test');expect(await select()).toEqual([id]);expect((await readCompanyPackageGrants(db,f.company)).map(row=>[row.packageId,row.state])).toEqual([['work','active']]);
 });
 
 it('reuses the current included Social owner policy for actual Project-derived ordinary Task projections without a Social purchase',async()=>{
- const {savePostDraft,publishPost}=await import('@erpx/server-collaboration/public/social-home'),{sourceSnapshot}=await import('@erpx/server-collaboration/public/social-source');
+ const {savePostDraft,publishPost}=await import('@erpx/collaboration-server/public/social-home'),{sourceSnapshot}=await import('@erpx/collaboration-server/public/social-source');
  await purchase();await purchase('projects');vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');
  const project=await seedProjectFor(db,f.owner,null,projectSchema.parse({title:'Original native conversation Project',memberUserIds:[f.head.userId]}),key()),draft=await savePostDraft(db,f.owner,null,{body:'Actual native Project conversation source',audience:{kind:'company'},sources:[{kind:'staff_project',id:String(project.id)}],purpose:'update',expectedVersion:1},key()),post=await publishPost(db,f.owner,draft.id,draft.version,key()),snapshot=await sourceSnapshot(db,f.owner,post.id,[]),created=await saveTask(db,f.owner,null,taskSchema.parse({title:'Actual ordinary source-derived Task',assigneeUserId:f.head.userId,startApprovers:[],completionApprovers:[]}),key(),false,{postId:post.id,sourceVersion:snapshot.post.version,sourceHash:snapshot.hash,commentIds:[],aiDraftId:null}),id=String(created.id);await record(id,0,f.head);await db.prepare('UPDATE staff_tasks SET due_at=? WHERE id=?').bind(Date.now()-60000,id).run();
  await publishInboxEvent(db,{key:key(),companyId:f.company,sourceType:'task',sourceId:id,sourceVersion:1,category:'work',preview:'Actual included conversation Task',recipientIds:[f.head.userId]});

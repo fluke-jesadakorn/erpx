@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import ts from 'typescript';
 
-const adapters = resolve(__dirname, '../../../packages/server-talent/src/adapters');
+const adapters = resolve(__dirname, '../../../modules/talent/server/src/adapters');
 const src = (name: string) => readFileSync(resolve(adapters, name), 'utf8');
 const compile = (decl: string) => ts.transpileModule(decl, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText;
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -118,7 +118,7 @@ describe('Talent read-tail r42 source-row select head family', () => {
         else if (e.name.endsWith('.ts')) files.push(p);
       }
     };
-    walk(resolve(__dirname, '../../../packages/server-talent/src'));
+    walk(resolve(__dirname, '../../../modules/talent/server/src'));
     for (const re of [/SELECT/g, /\bSELECT\b/g]) {
       let count = 0;
       for (const f of files) count += (readFileSync(f, 'utf8').match(re) ?? []).length;

@@ -1,16 +1,16 @@
 //! Actual owner-local Customer 360 contact-note HTTP router tests. These prove
 //! ingress facts only; Account authority, source visibility, same-person policy
 //! and PostgreSQL remain separate composition responsibilities.
-use erpx_server_customer_360::public::customer_notes::{
+use erpx_customer_360_server::public::customer_notes::{
     CustomerNoteCommandResult, CustomerNoteHistoryRow, CustomerNoteRow, CustomerNoteSource,
     CustomerNotesView,
 };
-use erpx_server_customer_360::public::customer_notes_http::{
+use erpx_customer_360_server::public::customer_notes_http::{
     CustomerNotesHttpBackend, CustomerNotesHttpCommandRequest, CustomerNotesHttpFuture,
     CustomerNotesHttpReadRequest, CustomerNotesHttpTarget, customer_notes_http_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Noop;

@@ -1,10 +1,10 @@
-// FIXTURE-ONLY ORACLE: copied from the retired packages/server-planning writer so the
+// FIXTURE-ONLY ORACLE: copied from the retired modules/planning/server writer so the
 // PostgreSQL integration suite retains its exact pre-cutover SQL semantics.
 // Production code must never import this module. See tests/support/planning/index.ts.
-import {productionReadProjection as productionmanufacturingProjection} from '@erpx/server-manufacturing/public/production-read-projections';
-import {productionReadProjection as productioncommerceProjection} from '@erpx/server-commerce/public/production-read-projections';
-import {productionReadProjection as productionorganizationProjection} from '@erpx/server-organization/public/production-read-projections';
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";export function productionCommandSources(db:SqlDatabase){return {async scenarios(companyId:string,branchId:string | null,branchId2:string | null){return db
+import {productionReadProjection as productionmanufacturingProjection} from '@erpx/manufacturing-server/public/production-read-projections';
+import {productionReadProjection as productioncommerceProjection} from '@erpx/commerce-server/public/production-read-projections';
+import {productionReadProjection as productionorganizationProjection} from '@erpx/organization-server/public/production-read-projections';
+import type {SqlDatabase} from '@erpx/platform-runtime-server/public/runtime/types';import type {Row} from '@erpx/commerce-server/public/commerce';import {assertion} from "@erpx/workflow-server/public/command-assertions";export function productionCommandSources(db:SqlDatabase){return {async scenarios(companyId:string,branchId:string | null,branchId2:string | null){return db
           .prepare(
             `SELECT p.*,s.name specification_name FROM planning_scenarios p ${productionmanufacturingProjection.scenarioSpecification} WHERE p.company_id=? AND (?::text IS NULL OR p.branch_id=?) ORDER BY p.updated_at DESC`,
           )

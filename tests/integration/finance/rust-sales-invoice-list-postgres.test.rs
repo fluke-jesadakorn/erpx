@@ -8,14 +8,14 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_commercial::public::purchases::current_package_catalogue;
-use erpx_server_identity_access::public::work_context::HoldingWorkspaceRequest;
-use erpx_server_runtime::public::postgres::DatabasePool;
-use erpx_server_shared::public::{CompanyId, HoldingId};
-use erpx_server_finance::public::sales_invoice_list::SalesInvoiceListQuery;
-use erpx_service::finance_journal_detail::*;
-use erpx_service::finance_journal_detail_http::*;
-use erpx_service::finance_journal_review::FinanceJournalEnvironment;
+use erpx_commercial_server::public::purchases::current_package_catalogue;
+use erpx_identity_access_server::public::work_context::HoldingWorkspaceRequest;
+use erpx_platform_runtime_server::public::postgres::DatabasePool;
+use erpx_platform_shared_server::public::{CompanyId, HoldingId};
+use erpx_finance_server::public::sales_invoice_list::SalesInvoiceListQuery;
+use erpx_platform_composition::finance_journal_detail::*;
+use erpx_platform_composition::finance_journal_detail_http::*;
+use erpx_platform_composition::finance_journal_review::FinanceJournalEnvironment;
 use facts::{Prepared, account, setup};
 use std::sync::Arc;
 use tower::ServiceExt;
@@ -173,7 +173,7 @@ async fn sales_invoice_list_reads_owner_facts_and_filters() {
             .execute(&mut *tx)
             .await
             .unwrap();
-        let foreign = erpx_server_finance::public::sales_invoice_list::read_sales_invoice_list(
+        let foreign = erpx_finance_server::public::sales_invoice_list::read_sales_invoice_list(
             &mut tx,
             "another-company",
             None,
@@ -183,7 +183,7 @@ async fn sales_invoice_list_reads_owner_facts_and_filters() {
         .await
         .unwrap();
         assert!(foreign.page.items.is_empty());
-        let scoped = erpx_server_finance::public::sales_invoice_list::read_sales_invoice_list(
+        let scoped = erpx_finance_server::public::sales_invoice_list::read_sales_invoice_list(
             &mut tx,
             "company",
             Some("branch"),
@@ -243,9 +243,9 @@ async fn sales_invoice_list_paginates_and_rejects_a_stale_context() {
                 {
                     let mut request = selection(&p);
                     request.expected = Some(
-                        erpx_server_identity_access::public::work_context::ExpectedWorkSelection {
+                        erpx_identity_access_server::public::work_context::ExpectedWorkSelection {
                             revision: 99,
-                            assignment_id: erpx_server_shared::public::AssignmentId::new(
+                            assignment_id: erpx_platform_shared_server::public::AssignmentId::new(
                                 "finance-fixture-b",
                             )
                             .unwrap(),
@@ -258,8 +258,8 @@ async fn sales_invoice_list_paginates_and_rejects_a_stale_context() {
             )
             .await
         {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
-                assert!(matches!(error.kind, erpx_server_shared::public::FailureKind::Conflict));
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
+                assert!(matches!(error.kind, erpx_platform_shared_server::public::FailureKind::Conflict));
             }
             other => panic!("stale context must fail: {other:?}"),
         }

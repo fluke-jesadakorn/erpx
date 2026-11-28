@@ -1,8 +1,8 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { manufacturingPurchaseRecordBranchSelect } from '../../../packages/server-manufacturing/src/adapters/manufacturing-read-tail-r18-sql';
+import { manufacturingPurchaseRecordBranchSelect } from '../../../modules/manufacturing/server/src/adapters/manufacturing-read-tail-r18-sql';
 
-const src = (name: string) => readFile(new URL(`../../../packages/server-manufacturing/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFile(new URL(`../../../modules/manufacturing/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 /** The four pre-dedupe UNION branch literals, captured verbatim from the source
  * before the helper replaced them. Sources are the exact caller expressions so
@@ -77,7 +77,7 @@ describe('manufacturing read-tail r18 parameterized family dedupe', () => {
   });
 
   it('lowers the manufacturing owner SELECT KPI strictly below the recorded BEFORE=89 baseline', async () => {
-    const files = await tsFiles(new URL('../../../packages/server-manufacturing/src/', import.meta.url));
+    const files = await tsFiles(new URL('../../../modules/manufacturing/server/src/', import.meta.url));
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThan(89);

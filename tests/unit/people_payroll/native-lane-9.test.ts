@@ -10,7 +10,7 @@ import {
   SQL_ORACLE_SHA256,
   type Lane9Actor,
   type Transport,
-} from "../../../packages/server-people_payroll/src/adapters/native-lane-9/client";
+} from "../../../modules/people-payroll/server/src/adapters/native-lane-9/client";
 import {
   DETAIL_RESPONSE_ORACLE_SHA256,
   LIST_RESPONSE_ORACLE_SHA256,
@@ -18,13 +18,13 @@ import {
   paymentBatches,
   SQL_DETAIL_ORACLE_SHA256,
   SQL_LIST_ORACLE_SHA256,
-} from "../../../packages/server-people_payroll/src/adapters/native-lane-9/flow-routing-client";
+} from "../../../modules/people-payroll/server/src/adapters/native-lane-9/flow-routing-client";
 import {
   RESPONSE_ORACLE_SHA256 as ROUTE_RESPONSE_ORACLE_SHA256,
   SQL_ROUTE_ORACLE_SHA256,
   routePeople,
   type RouteTransport,
-} from "../../../packages/server-people_payroll/src/adapters/native-lane-9/person-route-client";
+} from "../../../modules/people-payroll/server/src/adapters/native-lane-9/person-route-client";
 
 const ENV = "ERPX_NATIVE_PEOPLE_PAYROLL_LANE9_CONFIG";
 const ORIGINAL = process.env[ENV];
@@ -147,7 +147,7 @@ describe("native lane-9 multi-holding person-image transport", () => {
 
   it("replaced the TypeScript SQL literal completely", () => {
     const source = readFileSync(
-      resolve(__dirname, "../../../packages/server-people_payroll/src/adapters/project-worker-startup-state.ts"),
+      resolve(__dirname, "../../../modules/people-payroll/server/src/adapters/project-worker-startup-state.ts"),
       "utf8",
     );
     expect(source).not.toMatch(/jsonb_build_object/);
@@ -323,7 +323,7 @@ describe("native lane-9 payment-batch flow-routing transport", () => {
 
   it("replaced both TypeScript SQL literals completely", () => {
     const source = readFileSync(
-      resolve(__dirname, "../../../packages/server-people_payroll/src/adapters/workflow-flow-routing-facts.ts"),
+      resolve(__dirname, "../../../modules/people-payroll/server/src/adapters/workflow-flow-routing-facts.ts"),
       "utf8",
     );
     expect(source).not.toMatch(/SELECT DISTINCT ON \(source_id\)/);
@@ -446,7 +446,7 @@ describe("native lane-9 work-review person-route transport", () => {
 
   it("replaced the TypeScript SQL literal completely", () => {
     const source = readFileSync(
-      resolve(__dirname, "../../../packages/server-people_payroll/src/adapters/work-review-facts.ts"),
+      resolve(__dirname, "../../../modules/people-payroll/server/src/adapters/work-review-facts.ts"),
       "utf8",
     );
     expect(source).not.toMatch(/user_id IN \(\$\{ids\.map/);

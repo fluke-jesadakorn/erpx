@@ -10,7 +10,7 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_talent::public::native_talent_read_sql::{
+use erpx_talent_server::public::native_talent_read_sql::{
     read_statement, RD_CANDIDATE_EVENTS, RD_CANDIDATE_SOURCE_IMAGE,
     RD_CANDIDATE_SOURCE_IMAGE_FILE, RD_OFFER_EVENTS, RD_REQUISITION_SOURCE_IMAGE,
     RD_REQUISITION_SOURCE_IMAGE_FILE,
@@ -34,7 +34,7 @@ INSERT INTO talent_candidate_events VALUES ('cand-ev-1','cand-1','1','consent','
 INSERT INTO talent_offer_events VALUES ('offer-ev-1','offer-1','1','approve-offer','reviewer','Independent approval','approved','1');";
 
 /// Live `talentOwnerSourceQuery` candidate image literals copied verbatim from
-/// `packages/server-talent/src/adapters/purchases.ts` (file=false / file=true).
+/// `modules/talent/server/src/adapters/purchases.ts` (file=false / file=true).
 const LIVE_CANDIDATE_IMAGE: &str =
     "SELECT to_jsonb(c)::text image FROM talent_candidates c WHERE c.id=? AND c.company_id=?";
 const LIVE_CANDIDATE_IMAGE_FILE: &str =
@@ -46,7 +46,7 @@ const LIVE_CANDIDATE_EVENTS: &str =
 const LIVE_OFFER_EVENTS: &str =
     "SELECT * FROM talent_offer_events WHERE offer_id=? ORDER BY version";
 /// Live `talentOwnerSourceQuery` requisition image literals copied verbatim
-/// from `packages/server-talent/src/adapters/purchases.ts` (file=false / true).
+/// from `modules/talent/server/src/adapters/purchases.ts` (file=false / true).
 const LIVE_REQUISITION_IMAGE: &str =
     "SELECT to_jsonb(r)::text image FROM talent_requisitions r WHERE r.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?)";
 const LIVE_REQUISITION_IMAGE_FILE: &str =

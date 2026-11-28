@@ -1,7 +1,7 @@
 import {describe,expect,it,vi} from 'vitest';
 vi.mock('server-only',()=>({}));
-import {ApiError} from '@erpx/server-runtime/public/http';
-import {createNativeSupportReader,type SupportReadTransport} from '../../../packages/feature-support/src/adapters/server/native-support-read';
+import {ApiError} from '@erpx/platform-runtime-server/public/http';
+import {createNativeSupportReader,type SupportReadTransport} from '../../../modules/support/ui/src/adapters/server/native-support-read';
 
 const configuration=JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:3105',

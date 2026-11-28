@@ -1,3 +1,0 @@
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
-import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapters/native-command-assertions';
-export function collaborationAgentSources(db: SqlDatabase) { return { clearReserveAssertions(usageId: string, companyId: string) { return nativeClearCommandAssertions(db, companyId, usageId); }, clearFinishAssertions(usageId: string, companyId: string) { return nativeClearCommandAssertions(db, companyId, usageId); }, clearFailureAssertions(usageId: string, companyId: string) { return nativeClearCommandAssertions(db, companyId, usageId); } }; }

@@ -5,16 +5,16 @@
 #![allow(dead_code)]
 #[path = "../../support/operations/rust-operations-database.rs"]
 mod fixture;
-use erpx_server_operations::public::field_exceptions::*;
-use erpx_server_operations::public::field_policy::*;
-use erpx_server_operations::public::staff_tasks::{
+use erpx_operations_server::public::field_exceptions::*;
+use erpx_operations_server::public::field_policy::*;
+use erpx_operations_server::public::staff_tasks::{
     notify_staff_record, notify_staff_task_approval,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::record_source_contract::{SourceKind, SourceRecord};
-use erpx_server_shared::public::{CommandKey, CompanyId};
+use erpx_platform_shared_server::public::record_source_contract::{SourceKind, SourceRecord};
+use erpx_platform_shared_server::public::{CommandKey, CompanyId};
 use sqlx::Connection;
 
 async fn migrate(pool: &DatabasePool) {
@@ -517,7 +517,7 @@ async fn unicode_exception_owner_writes_readback_and_invalid_rollback() {
         for (key,title,issue) in [("unicode-invalid-title","😀".repeat(161),"valid issue".to_owned()),("unicode-invalid-issue","valid title".to_owned(),"😀".repeat(4001))] {
             let mut invalid=open_input();invalid.title=title;invalid.issue=issue;
             let result=open_operations_exception(&mut tx,&company(),&CommandKey::new(key).unwrap(),"maker",&invalid,&source(SourceKind::StaffTask,"company",1),&source_json(),&policy,10).await;
-            assert!(matches!(result,Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e)) if e.code=="OPERATIONS_INPUT_INVALID"));
+            assert!(matches!(result,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(ref e)) if e.code=="OPERATIONS_INPUT_INVALID"));
             let count:(i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM operations_exceptions WHERE id=$1),(SELECT count(*) FROM operations_exception_events WHERE exception_id=$1)").bind(format!("operations-exception-{key}")).fetch_one(&mut *tx).await.unwrap();assert_eq!(count,(0,0));
         }
         tx.rollback().await.unwrap();

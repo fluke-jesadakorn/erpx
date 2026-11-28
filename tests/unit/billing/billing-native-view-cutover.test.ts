@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
 const src = (name: string) =>
-  readFile(new URL(`../../../packages/server-billing/src/${name}`, import.meta.url), 'utf8');
+  readFile(new URL(`../../../modules/billing/server/src/${name}`, import.meta.url), 'utf8');
 
 describe('billing native-authoritative view cutover', () => {
   it('removes the TypeScript view SQL and export from the owner adapter and barrel', async () => {
@@ -42,7 +42,7 @@ describe('billing native-authoritative view cutover', () => {
   });
 
   it('fails the GET view closed when the native projection is unavailable', async () => {
-    const { createBillingApi } = await import('@erpx/server-billing/application/api');
+    const { createBillingApi } = await import('@erpx/billing-server/application/api');
     const ports = {
       ready: async () => {},
       repository: {
@@ -66,7 +66,7 @@ describe('billing native-authoritative view cutover', () => {
   });
 
   it('returns the native projection and forwards the resolved actor when configured', async () => {
-    const { createBillingApi } = await import('@erpx/server-billing/application/api');
+    const { createBillingApi } = await import('@erpx/billing-server/application/api');
     const projection = { sandbox: true, now: 1, account: { holding_id: 'h001' } };
     let received: { userId: string; holdingId: string } | undefined;
     const ports = {

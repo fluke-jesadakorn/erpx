@@ -3,9 +3,9 @@ import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 
-const adapters = new URL('../../../packages/server-maintenance/src/adapters/', import.meta.url);
+const adapters = new URL('../../../modules/maintenance/server/src/adapters/', import.meta.url);
 const src = (name: string) => readFile(new URL(name, adapters), 'utf8');
-const srcRoot = resolve(__dirname, '../../../packages/server-maintenance/src');
+const srcRoot = resolve(__dirname, '../../../modules/maintenance/server/src');
 
 /** Pre-r29 byte oracles: the descriptor head shared by the operational
  * (module-scoped) and policy (permission-checked) attachment fact sources was
@@ -19,7 +19,7 @@ const withExtra = "SELECT company_id,branch_id AS branch_id,department_id AS dep
 
 describe('maintenance read-tail r29 descriptor-head delegation', () => {
   it('renders all descriptor callers byte-identically through settlementRefSource', async () => {
-    const { settlementRefSource } = await import('../../../packages/server-maintenance/src/adapters/asset-settlement-refs');
+    const { settlementRefSource } = await import('../../../modules/maintenance/server/src/adapters/asset-settlement-refs');
     // The family's head is exactly the canonical settlementRefSource head; the
     // empty-tail case stays byte-identical to the r19/r26/r27/r28 callers.
     expect(settlementRefSource('company_id,branch_id branch_id,department_id department_id,version', 'maintenance_work_orders', ' WHERE id=? AND company_id=?')).toBe(noExtra);

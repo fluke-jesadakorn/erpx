@@ -3,11 +3,11 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 vi.mock('server-only', () => ({}));
-import { nativeSourceWhere } from '../../../packages/server-quality/src/adapters/native-source-wrapper-sql';
-import { evidenceHead } from '../../../packages/server-quality/src/adapters/inspection-evidence-source-sql';
-import { ecommerceQualitySettlementSources } from '../../../packages/server-quality/src/public/ecommerce-package-sources';
+import { nativeSourceWhere } from '../../../modules/quality/server/src/adapters/native-source-wrapper-sql';
+import { evidenceHead } from '../../../modules/quality/server/src/adapters/inspection-evidence-source-sql';
+import { ecommerceQualitySettlementSources } from '../../../modules/quality/server/src/public/ecommerce-package-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-quality/src');
+const srcRoot = resolve(__dirname, '../../../modules/quality/server/src');
 const read = (path: string) => readFileSync(resolve(srcRoot, path), 'utf8');
 const sha = (sql: string) => createHash('sha256').update(sql).digest('hex');
 

@@ -1,4 +1,4 @@
-import {calendarData} from "@erpx/server-work_projection/public/calendar/index";
+import {calendarData} from "@erpx/work-projection-server/public/calendar/index";
 import { afterEach } from "vitest";
 import { reviewedFinanceGrant } from "../../support/helpers/finance-purchase-fixture";
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
@@ -15,14 +15,14 @@ import {
   prepareBusinessBilling,
   prepareRecognitionRun,
   decideRecognitionRun,
-} from "@erpx/server-finance/public/finance-business-contracts";
+} from "@erpx/finance-server/public/finance-business-contracts";
 import {
   billingCorrectionSchema,
   prepareBillingCorrection,
   decideBillingCorrection,
-} from "@erpx/server-finance/public/finance-billing-corrections";
-import { setFinanceCompanyTool } from "@erpx/server-finance/public/finance-company-tools";
-import {postInvoice,trialBalance,createPayment,approvePayment,releasePayment,confirmPayment,importBankStatement,reversePayment} from '@erpx/server-finance/public/finance';
+} from "@erpx/finance-server/public/finance-billing-corrections";
+import { setFinanceCompanyTool } from "@erpx/finance-server/public/finance-company-tools";
+import {postInvoice,trialBalance,createPayment,approvePayment,releasePayment,confirmPayment,importBankStatement,reversePayment} from '@erpx/finance-server/public/finance';
 import {
   approveRefund,
   prepareRefundInstruction,
@@ -30,24 +30,24 @@ import {
   confirmRefundInstruction,
   refundConfirmationSchema,
   refundWorkspace,
-} from "@erpx/server-finance/public/refunds";
+} from "@erpx/finance-server/public/refunds";
 import {
   prepareAccountingProfile,
   decideAccountingProfile,
-} from "@erpx/server-finance/public/accounting-profiles";
+} from "@erpx/finance-server/public/accounting-profiles";
 import {
   prepareVatEntry,
   reviewVatEntry,
   vatEntrySchema,
   vatWorkspace,
-} from "@erpx/server-finance/public/finance-tax-register";
+} from "@erpx/finance-server/public/finance-tax-register";
 import {
   bookRuleSchema,
   prepareBookRule,
   decideBookRule,
-} from "@erpx/server-finance/public/finance-books";
-import { invoiceHistoryCte } from "@erpx/server-finance/public/finance-history";
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
+} from "@erpx/finance-server/public/finance-books";
+import { invoiceHistoryCte } from "@erpx/finance-server/public/finance-history";
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));

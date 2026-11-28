@@ -1,0 +1,1 @@
+export {organizationAuthorityActorPerson,organizationAuthorityAppointee,organizationAuthoritySelectorPerson,stageOrganizationSelfCeo} from '@erpx/people-payroll-server/adapters/organization-authority-people';

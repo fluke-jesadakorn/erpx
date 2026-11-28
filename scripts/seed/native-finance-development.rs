@@ -7,8 +7,8 @@ mod finance;
 #[path = "../../tests/support/runtime/private-session-config.rs"]
 mod private_fixture;
 
-use erpx_server_identity_access::public::{SystemAccountClock, SystemAuthenticationSecrets};
-use erpx_service::private_development_api::{
+use erpx_identity_access_server::public::{SystemAccountClock, SystemAuthenticationSecrets};
+use erpx_platform_composition::private_development_api::{
     DevelopmentApiConfiguration, assemble_development_api,
 };
 use std::{

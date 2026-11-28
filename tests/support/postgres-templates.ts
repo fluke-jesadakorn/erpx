@@ -2,8 +2,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, readdir, writeFile, rename, link, rm } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { Pool, type PoolClient } from "pg";
-import { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
-import { migrateDatabase } from "@erpx/server-runtime/public/runtime/migrations";
+import { PostgresDatabase } from "@erpx/platform-runtime-server/adapters/runtime/postgres";
+import { migrateDatabase } from "@erpx/platform-runtime-server/public/runtime/migrations";
 
 export const databaseTracks = {
   CONTROL_DB: "control", CONTROL_READ_DB: "control-read",
@@ -24,7 +24,7 @@ export async function postgresFixtureFingerprint(root:string){
   const files=(await readdir(join(root,directory),{recursive:true,withFileTypes:true})).filter(entry=>entry.isFile()).map(entry=>join(entry.parentPath,entry.name)).filter(file=>/\.[cm]?[jt]sx?$/.test(file)).sort();
   for(const file of files)hash.update(file.slice(root.length)).update('\0').update(await readFile(file)).update('\0');
  }
- for(const file of ['packages/server-runtime/src/adapters/runtime/migrations.ts','packages/server-runtime/src/adapters/runtime/postgres.ts','packages/server-runtime/src/adapters/runtime/resources.ts','packages/server-runtime/src/adapters/runtime/read-metrics.ts','bun.lock'])hash.update(file).update('\0').update(await readFile(join(root,file))).update('\0');
+ for(const file of ['platform/runtime/server/src/adapters/runtime/migrations.ts','platform/runtime/server/src/adapters/runtime/postgres.ts','platform/runtime/server/src/adapters/runtime/resources.ts','platform/runtime/server/src/adapters/runtime/read-metrics.ts','bun.lock'])hash.update(file).update('\0').update(await readFile(join(root,file))).update('\0');
  return hash.digest('hex');
 }
 async function atomic(path: string, value: unknown, exclusive=false) {

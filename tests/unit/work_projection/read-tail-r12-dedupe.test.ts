@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 
 const src = (name: string) =>
-  new URL(`../../../packages/server-work_projection/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/work-projection/server/src/adapters/${name}`, import.meta.url);
 
 const attendeeSql =
   'SELECT 1 FROM calendar_attendees WHERE appointment_id=? AND company_id=? AND user_id=?';
@@ -23,7 +23,7 @@ describe('work_projection read-tail r12 dedupe', () => {
 
   it('emits the original byte-identical probes for every caller', async () => {
     const { appointmentProbe, invitedAttendeeSql } = await import(
-      '../../../packages/server-work_projection/src/adapters/read-tail-sql.ts'
+      '../../../modules/work-projection/server/src/adapters/read-tail-sql.ts'
     );
     expect(invitedAttendeeSql).toBe(attendeeSql);
     expect(appointmentProbe('1')).toBe(appointmentPrefix);

@@ -1,12 +1,12 @@
 //! Owner-local HTTP ingress for native POS commands.
-use erpx_server_pos::public::commands_http::{
+use erpx_pos_server::public::commands_http::{
     PosCommandHttpBackend, PosCommandHttpFuture, PosCommandHttpRequest, PosCommandHttpResponse,
     PosCommandHttpState, PosCommandHttpTarget, pos_command_router,
 };
-use erpx_server_runtime::public::http_support::{
+use erpx_platform_runtime_server::public::http_support::{
     HeaderMap, HeaderValue, StatusCode, body::to_bytes, header, serde_json,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Noop;

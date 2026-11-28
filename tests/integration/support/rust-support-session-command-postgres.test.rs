@@ -3,23 +3,23 @@
 #![allow(dead_code)]
 #[path = "../../support/finance/review-composition.rs"]
 mod review;
-use erpx_server_commercial::public::purchases::current_package_catalogue;
-use erpx_server_identity_access::public::work_context::{
+use erpx_commercial_server::public::purchases::current_package_catalogue;
+use erpx_identity_access_server::public::work_context::{
     ExpectedWorkSelection, HoldingWorkspaceRequest,
 };
-use erpx_server_runtime::public::postgres::PgTransactionError;
-use erpx_server_shared::public::{AssignmentId, Clock, CommandKey, CompanyId, HoldingId};
-use erpx_server_support::public::session::{
+use erpx_platform_runtime_server::public::postgres::PgTransactionError;
+use erpx_platform_shared_server::public::{AssignmentId, Clock, CommandKey, CompanyId, HoldingId};
+use erpx_support_server::public::session::{
     CapabilityCode, SessionAction, SessionRequest,
 };
-use erpx_server_workflow::public::commands::CommandJson;
-use erpx_service::support_session_command::SupportSessionCommand;
+use erpx_workflow_server::public::commands::CommandJson;
+use erpx_platform_composition::support_session_command::SupportSessionCommand;
 use std::sync::Arc;
 
 #[derive(Clone)]
 struct TestClock(Arc<review::account::fixture::MutableClock>);
 impl Clock for TestClock {
-    fn now(&self) -> erpx_server_shared::public::TimestampMillis {
+    fn now(&self) -> erpx_platform_shared_server::public::TimestampMillis {
         self.0.now()
     }
 }
@@ -109,7 +109,7 @@ async fn support_setup(
 }
 
 async fn seed_ticket(
-    pool: &erpx_server_runtime::public::postgres::DatabasePool,
+    pool: &erpx_platform_runtime_server::public::postgres::DatabasePool,
     id: &str,
     source_kind: &str,
     owner: &str,
@@ -511,8 +511,8 @@ async fn support_session_http_route_accepts_real_session_and_rendered_context() 
         body::{Body, to_bytes},
         http::Request,
     };
-    use erpx_service::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
-    use erpx_service::support_session_http::{
+    use erpx_platform_composition::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
+    use erpx_platform_composition::support_session_http::{
         SupportSessionHttpTarget, support_session_http_router,
     };
     use tower::ServiceExt;

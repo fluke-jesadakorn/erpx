@@ -3,12 +3,12 @@ import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
-import { packageSourceProjection } from '../../../packages/server-commercial/src/adapters/commercial-read-tail-r11-sources';
-import { purchaseScopeRead } from '../../../packages/server-commercial/src/adapters/commercial-read-tail-r12-sources';
-import { purchaseObservationAgg } from '../../../packages/server-commercial/src/adapters/commercial-read-tail-r6-sources';
-import { packageSourceSelect } from '../../../packages/server-commercial/src/adapters/commercial-read-tail-r27-sources';
+import { packageSourceProjection } from '../../../modules/commercial/server/src/adapters/commercial-read-tail-r11-sources';
+import { purchaseScopeRead } from '../../../modules/commercial/server/src/adapters/commercial-read-tail-r12-sources';
+import { purchaseObservationAgg } from '../../../modules/commercial/server/src/adapters/commercial-read-tail-r6-sources';
+import { packageSourceSelect } from '../../../modules/commercial/server/src/adapters/commercial-read-tail-r27-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-commercial/src');
+const srcRoot = resolve(__dirname, '../../../modules/commercial/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const sha = (sql: string) => createHash('sha256').update(sql).digest('hex');
 // Prose comments describe the excluded lock kinds; assertions inspect code only.

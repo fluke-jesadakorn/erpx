@@ -3,23 +3,23 @@ import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { describe, expect, test, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { commercialOwnerProjectionSources as commerceProjectionSources } from '../../../packages/server-commerce/src/public/commercial-owner-projection-sources';
+import { commercialOwnerProjectionSources as commerceProjectionSources } from '../../../modules/commerce/server/src/public/commercial-owner-projection-sources';
 import {
   crmCampaignOptionsSql,
   crmOpportunityOwnerGuardSql,
   crmOpportunityOwnerReadSql,
-} from '../../../packages/server-crm/src/adapters/read-tail-r27-sql';
-import { crmCommerceOrderReadSql } from '../../../packages/server-crm/src/adapters/read-tail-r32-sql';
-import { crmContactAccountReadSql } from '../../../packages/server-crm/src/adapters/read-tail-r35-sql';
-import { crmProjectionFromSql } from '../../../packages/server-crm/src/adapters/read-tail-r46-sql';
+} from '../../../modules/crm/server/src/adapters/read-tail-r27-sql';
+import { crmCommerceOrderReadSql } from '../../../modules/crm/server/src/adapters/read-tail-r32-sql';
+import { crmContactAccountReadSql } from '../../../modules/crm/server/src/adapters/read-tail-r35-sql';
+import { crmProjectionFromSql } from '../../../modules/crm/server/src/adapters/read-tail-r46-sql';
 import {
   crmMaterializedScopeSql,
   crmOwnedListSql,
-} from '../../../packages/server-crm/src/adapters/read-tail-r47-sql';
-import { crmOwnedSourceRowSql } from '../../../packages/server-crm/src/adapters/read-tail-r34-sql';
-import { crmSingleKeySourceSql } from '../../../packages/server-crm/src/adapters/read-tail-r37-sql';
+} from '../../../modules/crm/server/src/adapters/read-tail-r47-sql';
+import { crmOwnedSourceRowSql } from '../../../modules/crm/server/src/adapters/read-tail-r34-sql';
+import { crmSingleKeySourceSql } from '../../../modules/crm/server/src/adapters/read-tail-r37-sql';
 
-const owner = resolve(__dirname, '../../../packages/server-crm/src');
+const owner = resolve(__dirname, '../../../modules/crm/server/src');
 const src = (name: string) => readFileSync(resolve(owner, 'adapters', name), 'utf8');
 const sha = (value: string) => createHash('sha256').update(value).digest('hex');
 const totalSelects = () => {
@@ -156,7 +156,7 @@ describe('crm read-tail r21 byte-identical projection/FROM head', () => {
     expect(src('attachment-read.ts')).toContain('`SELECT 1 FROM${actorScopeSql}workforce_actor_scope WHERE ${current.where}`');
     expect(src('attachment-read.ts')).toContain('await lockQueuedCommandAuthority(database);');
     expect(src('purchases.ts')).toContain('SELECT 1 FROM command_receipts WHERE command_id=?');
-    expect(src('purchases.ts')).toContain('@erpx/server-pms/public/crm-purchase-sources');
+    expect(src('purchases.ts')).toContain('@erpx/pms-server/public/crm-purchase-sources');
     expect(src('native-crm-read.ts')).toContain('export async function nativeCrmReadAll<T>');
     expect(src('native-crm-command.ts')).toContain('export async function nativeCrmExecute(');
   });

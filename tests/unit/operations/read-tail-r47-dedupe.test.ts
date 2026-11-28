@@ -2,16 +2,16 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { finalRootOwnerProjectionSources as collaborationProjectionSources } from '@erpx/server-collaboration/public/final-root-owner-projection-sources';
-import { projectHandoverSourceSql } from '@erpx/server-projects/public/project-read-projections';
-import { operationsProjectSourceExists } from '../../../packages/server-operations/src/adapters/project-source-exists';
-import { operationsJoinSourceExists } from '../../../packages/server-operations/src/adapters/join-source-exists';
-import { operationsActiveDelegationSql } from '../../../packages/server-operations/src/adapters/task-delegation-source';
-import { operationsSocialTaskOriginExists } from '../../../packages/server-operations/src/adapters/social-task-origin-exists';
-import { handoverTaskAccessSql, handoverSourcesReadableSql } from '../../../packages/server-operations/src/adapters/handover-policy';
+import { finalRootOwnerProjectionSources as collaborationProjectionSources } from '@erpx/collaboration-server/public/final-root-owner-projection-sources';
+import { projectHandoverSourceSql } from '@erpx/projects-server/public/project-read-projections';
+import { operationsProjectSourceExists } from '../../../modules/operations/server/src/adapters/project-source-exists';
+import { operationsJoinSourceExists } from '../../../modules/operations/server/src/adapters/join-source-exists';
+import { operationsActiveDelegationSql } from '../../../modules/operations/server/src/adapters/task-delegation-source';
+import { operationsSocialTaskOriginExists } from '../../../modules/operations/server/src/adapters/social-task-origin-exists';
+import { handoverTaskAccessSql, handoverSourcesReadableSql } from '../../../modules/operations/server/src/adapters/handover-policy';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-operations/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-operations/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/operations/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/operations/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 const clock = 'floor(extract(epoch FROM clock_timestamp())*1000)::bigint';
 

@@ -6,11 +6,11 @@
 )]
 #[path = "../../support/field_service/parts.rs"]
 mod facts;
-use erpx_server_files::public::field_visit_intake::{FieldIntakeAvailability, FieldSetRequest};
-use erpx_server_identity_access::public::effective_authority::WorkAuthorizationRequest;
-use erpx_server_runtime::public::postgres::PgTransactionError;
-use erpx_server_shared::public::{BusinessError, CompanyId, HoldingId};
-use erpx_service::field_attachment_intake_command::{
+use erpx_files_server::public::field_visit_intake::{FieldIntakeAvailability, FieldSetRequest};
+use erpx_identity_access_server::public::effective_authority::WorkAuthorizationRequest;
+use erpx_platform_runtime_server::public::postgres::PgTransactionError;
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, HoldingId};
+use erpx_platform_composition::field_attachment_intake_command::{
     FieldAttachmentIntakeCommand, FieldAttachmentIntakeCommandSources,
     FieldIntakeProviderReadiness, FieldIntakeProviderStatus, FieldSetCommandResponse,
     execute_field_attachment_intake, execute_field_attachment_intake_with_live_readiness,
@@ -24,12 +24,12 @@ struct CommandClock<C> {
     ticks: std::sync::atomic::AtomicI64,
     advancing: bool,
 }
-impl<C: erpx_server_shared::public::Clock> erpx_server_shared::public::Clock for CommandClock<C> {
-    fn now(&self) -> erpx_server_shared::public::TimestampMillis {
+impl<C: erpx_platform_shared_server::public::Clock> erpx_platform_shared_server::public::Clock for CommandClock<C> {
+    fn now(&self) -> erpx_platform_shared_server::public::TimestampMillis {
         let offset = if self.advancing {
             self.ticks.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
         } else { 0 };
-        erpx_server_shared::public::TimestampMillis::new(self.source.now().get() + offset)
+        erpx_platform_shared_server::public::TimestampMillis::new(self.source.now().get() + offset)
     }
 }
 
@@ -52,8 +52,8 @@ async fn execute_as(
     p: &facts::Parts,
     key: &str,
     purpose: &str,
-    device: erpx_server_identity_access::public::DeviceProof,
-    selection: erpx_server_identity_access::public::work_context::HoldingWorkspaceRequest,
+    device: erpx_identity_access_server::public::DeviceProof,
+    selection: erpx_identity_access_server::public::work_context::HoldingWorkspaceRequest,
     company_id: &str,
 ) -> Result<FieldSetCommandResponse, PgTransactionError<BusinessError>> {
     execute_with_provider(p, key, purpose, device, selection, company_id, None).await
@@ -62,8 +62,8 @@ async fn execute_with_provider(
     p: &facts::Parts,
     key: &str,
     purpose: &str,
-    device: erpx_server_identity_access::public::DeviceProof,
-    selection: erpx_server_identity_access::public::work_context::HoldingWorkspaceRequest,
+    device: erpx_identity_access_server::public::DeviceProof,
+    selection: erpx_identity_access_server::public::work_context::HoldingWorkspaceRequest,
     company_id: &str,
     provider: Option<Arc<dyn FieldIntakeProviderReadiness>>,
 ) -> Result<FieldSetCommandResponse, PgTransactionError<BusinessError>> {
@@ -76,7 +76,7 @@ async fn execute_with_provider(
         advancing: key == "field-outbox-create",
     });
     let catalogue =
-        Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap());
+        Arc::new(erpx_commercial_server::public::purchases::current_package_catalogue().unwrap());
     p.review
         .authorizer
         .execute_with_typed_sources_deferred(
@@ -202,7 +202,7 @@ async fn invalid_wire_keys_leave_no_files_or_workflow_effects() {
 async fn native_create_replay_and_alias_each_record_exact_workflow_evidence() {
     facts::account::with_system(|system|async move {
         let p=facts::setup_workspace(system).await;
-        let ledger=erpx_server_files::public::field_visit_intake::field_set_command_id("company","fixture-a","native-create");
+        let ledger=erpx_files_server::public::field_visit_intake::field_set_command_id("company","fixture-a","native-create");
         let first=execute(&p,"native-create","site_photo").await.unwrap();assert!(!first.replayed);
         let replay=execute(&p,"native-create","site_photo").await.unwrap();assert!(replay.replayed);assert_eq!(first.data,replay.data);
         let alias=execute(&p,"native-alias","site_photo").await.unwrap();assert!(!alias.replayed);assert_eq!(first.data,alias.data);
@@ -255,7 +255,7 @@ async fn late_receipt_audit_outbox_origin_and_cleanup_corruption_rolls_back() {
             sqlx::raw_sql(create).execute(p.pool().raw()).await.unwrap();
             let key=format!("native-{name}-fail");let result=execute(&p,&key,"site_photo").await;
             match result { Err(PgTransactionError::Business(e)) if e.code == if name == "iam" { "WORK_AUTHORITY_CHANGED" } else { "SERVICE_ATTACHMENT_CHANGED" } => {}, Err(PgTransactionError::Business(e)) => panic!("{name} rejected as {}", e.code), Err(PgTransactionError::Persistence(e)) => panic!("{name} persistence {}", e.code), Ok(_) => panic!("{name} corruption was accepted") }
-            let counts:(i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM attachment_sets WHERE target_id='issue-order'),(SELECT count(*) FROM command_receipts WHERE command_id=$1),(SELECT count(*) FROM audit_events WHERE command_id=$1),(SELECT count(*) FROM outbox_events WHERE command_id=$1)").bind(erpx_server_files::public::field_visit_intake::field_set_command_id("company","fixture-a",&key)).fetch_one(p.pool().raw()).await.unwrap();assert_eq!(counts,(0,0,0,0),"{name}");
+            let counts:(i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM attachment_sets WHERE target_id='issue-order'),(SELECT count(*) FROM command_receipts WHERE command_id=$1),(SELECT count(*) FROM audit_events WHERE command_id=$1),(SELECT count(*) FROM outbox_events WHERE command_id=$1)").bind(erpx_files_server::public::field_visit_intake::field_set_command_id("company","fixture-a",&key)).fetch_one(p.pool().raw()).await.unwrap();assert_eq!(counts,(0,0,0,0),"{name}");
             sqlx::raw_sql(drop_sql).execute(p.pool().raw()).await.unwrap();
         }
         let control=execute(&p,"native-control","site_photo").await.unwrap();
@@ -280,16 +280,16 @@ async fn true_legacy_receipt_replays_without_synthetic_workflow_evidence() {
 
 #[tokio::test]
 async fn new_session_and_read_only_role_replay_but_other_users_get_their_own_keys() {
-    use erpx_server_identity_access::public::work_context::ExpectedWorkSelection;
-    use erpx_server_identity_access::public::{
+    use erpx_identity_access_server::public::work_context::ExpectedWorkSelection;
+    use erpx_identity_access_server::public::{
         AuthenticationSecrets, DeviceProof, SecretPurpose, SystemAuthenticationSecrets,
     };
-    use erpx_server_shared::public::{AssignmentId, Clock};
+    use erpx_platform_shared_server::public::{AssignmentId, Clock};
     facts::account::with_system(|system| async move {
         let p=facts::setup_workspace(system).await;
         sqlx::query("INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json) VALUES('shared-wire-key','other.operation','fixture-a','unrelated','other','{}',1,'{}')").execute(p.pool().raw()).await.unwrap();
         let first=execute(&p,"shared-wire-key","site_photo").await.unwrap();
-        let raw_key=erpx_server_files::public::field_visit_intake::field_set_command_id("company","fixture-a","shared-wire-key");
+        let raw_key=erpx_files_server::public::field_visit_intake::field_set_command_id("company","fixture-a","shared-wire-key");
         let now=p.review.system.scenario.clock.now().get();
         sqlx::raw_sql("INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status) VALUES('*','field_readonly','Synthetic read-only Service role',false,1,'active'); INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','field_readonly',1,'[\"records.read\",\"module.field_service.read\"]','[]','[\"holding\"]','fixture',0)").execute(p.pool().raw()).await.unwrap();
         sqlx::query("INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind) VALUES('field-readonly-a','fixture-a','field_readonly','[\"field_service\"]','company',$1,$2,4,'holding')").bind(now-1000).bind(now+3600000).execute(p.pool().raw()).await.unwrap();
@@ -308,7 +308,7 @@ async fn new_session_and_read_only_role_replay_but_other_users_get_their_own_key
         sqlx::query("UPDATE active_work_contexts SET assignment_id='agreement-reviewer-b',assignment_version=3,revision=9 WHERE user_id='fixture-b'").execute(p.pool().raw()).await.unwrap();
         let mut reviewer=p.review.reviewer_selection.clone();reviewer.expected=Some(ExpectedWorkSelection{revision:9,assignment_id:AssignmentId::new("agreement-reviewer-b").unwrap(),assignment_version:3});
         let second=execute_as(&p,"shared-wire-key","site_photo",p.review.reviewer.clone(),reviewer,"company").await.unwrap();assert!(!second.replayed);assert_ne!(second.data["id"],first.data["id"]);
-        let second_key=erpx_server_files::public::field_visit_intake::field_set_command_id("company","fixture-b","shared-wire-key");assert_ne!(raw_key,second_key);
+        let second_key=erpx_files_server::public::field_visit_intake::field_set_command_id("company","fixture-b","shared-wire-key");assert_ne!(raw_key,second_key);
         let count:i64=sqlx::query_scalar("SELECT count(*) FROM command_receipts WHERE command_id IN ($1,$2,'shared-wire-key')").bind(raw_key).bind(second_key).fetch_one(p.pool().raw()).await.unwrap();assert_eq!(count,3);
     }).await;
 }
@@ -319,15 +319,15 @@ async fn native_field_intake_outbox_uses_files_identity_and_survives_corrupt_rec
   let p=facts::setup_workspace(system).await;
   let created=execute(&p,"field-outbox-create","technician_report").await.unwrap();
   let db=p.pool().raw();
-  let ledger=erpx_server_files::public::field_visit_intake::field_set_command_id("company","fixture-a","field-outbox-create");
+  let ledger=erpx_files_server::public::field_visit_intake::field_set_command_id("company","fixture-a","field-outbox-create");
   let times:(i64,i64)=sqlx::query_as("SELECT r.created_at,s.created_at FROM command_receipts r JOIN attachment_sets s ON s.id=r.result_json::jsonb->>'setId' WHERE r.command_id=$1").bind(&ledger).fetch_one(db).await.unwrap();
   assert!(times.1>times.0,"the owner effect occurs after the sampled command receipt");
   let mut c=db.acquire().await.unwrap();
-  let q=erpx_server_files::public::field_outbox::QUARANTINE;
-  let evidence=format!("({}) AND ({})",erpx_server_files::public::field_outbox::ELIGIBLE,erpx_server_workflow::public::field_outbox::FILES_COMMAND_EVIDENCE);
+  let q=erpx_files_server::public::field_outbox::QUARANTINE;
+  let evidence=format!("({}) AND ({})",erpx_files_server::public::field_outbox::ELIGIBLE,erpx_workflow_server::public::field_outbox::FILES_COMMAND_EVIDENCE);
   let mut owned=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT count(*) FROM outbox_events e WHERE ");owned.push(q);assert_eq!(owned.build_query_scalar::<i64>().fetch_one(&mut *c).await.unwrap(),1);
   let fenced=sqlx::query("UPDATE outbox_events SET lease_token='legacy-files' WHERE command_id=$1").bind(&ledger).execute(&mut *c).await.unwrap_err();assert_eq!(fenced.as_database_error().and_then(|e|e.constraint()),Some("native_outbox_runtime_required"));
-  use erpx_server_workflow::public::service_count_outbox::{claim,eligible,fail,complete};
+  use erpx_workflow_server::public::service_count_outbox::{claim,eligible,fail,complete};
   let now=9_000_000_000_000i64;
   let event=claim(&mut c,q,"files-native",now).await.unwrap().unwrap();
   assert!(eligible(&mut c,&evidence,&event).await.unwrap());
@@ -352,13 +352,13 @@ async fn native_field_intake_outbox_uses_files_identity_and_survives_corrupt_rec
 #[tokio::test]
 async fn native_field_dead_letter_recovery_requires_current_source_and_preserves_failure_audit(){
  facts::account::with_system(|system|async move{
-  use erpx_server_workflow::public::service_count_outbox::{claim,fail,eligible,complete,DeadLetterRetry,retry_owned_dead_letter};
+  use erpx_workflow_server::public::service_count_outbox::{claim,fail,eligible,complete,DeadLetterRetry,retry_owned_dead_letter};
   let p=facts::setup_workspace(system).await;
   execute(&p,"field-outbox-recovery","exception_evidence").await.unwrap();
-  let ledger=erpx_server_files::public::field_visit_intake::field_set_command_id("company","fixture-a","field-outbox-recovery");
+  let ledger=erpx_files_server::public::field_visit_intake::field_set_command_id("company","fixture-a","field-outbox-recovery");
   let mut c=p.pool().raw().acquire().await.unwrap();
-  let q=erpx_server_files::public::field_outbox::QUARANTINE;
-  let evidence=format!("({}) AND ({})",erpx_server_files::public::field_outbox::ELIGIBLE,erpx_server_workflow::public::field_outbox::FILES_COMMAND_EVIDENCE);
+  let q=erpx_files_server::public::field_outbox::QUARANTINE;
+  let evidence=format!("({}) AND ({})",erpx_files_server::public::field_outbox::ELIGIBLE,erpx_workflow_server::public::field_outbox::FILES_COMMAND_EVIDENCE);
   let mut at=9_000_000_000_000i64;
   let mut last=None;
   for attempt in 1..=6 {
@@ -394,7 +394,7 @@ async fn intake_create_and_replay_fail_closed_while_grant_writer_holds_fence() {
         let p=facts::setup_workspace(system).await;
         let db=p.pool().raw();
         let key="intake-fence-contention";
-        let ledger=erpx_server_files::public::field_visit_intake::field_set_command_id("company","fixture-a",key);
+        let ledger=erpx_files_server::public::field_visit_intake::field_set_command_id("company","fixture-a",key);
         let provider=Arc::new(BrokenProvider(std::sync::atomic::AtomicUsize::new(0)));
         let mut writer=db.begin().await.unwrap();
         let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();

@@ -2,14 +2,14 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
-import { depreciationAmount, halfAway, instrumentSchedule, monthlyDate } from "../../../packages/server-finance/src/domain/finance-instrument-policy";
-import { decimalToUnits, unitsToDecimal } from "../../../packages/feature-finance/src/lib/finance-money";
-import { calculateFinance } from "../../../packages/server-finance/src/domain/finance-calculations";
-import { calculateInvoiceLines } from "../../../packages/server-finance/src/domain/finance-invoice-lines";
-import { createJournalPreparation } from "../../../packages/server-finance/src/application/journal";
+import { depreciationAmount, halfAway, instrumentSchedule, monthlyDate } from "../../../modules/finance/server/src/domain/finance-instrument-policy";
+import { decimalToUnits, unitsToDecimal } from "../../../modules/finance/ui/src/lib/finance-money";
+import { calculateFinance } from "../../../modules/finance/server/src/domain/finance-calculations";
+import { calculateInvoiceLines } from "../../../modules/finance/server/src/domain/finance-invoice-lines";
+import { createJournalPreparation } from "../../../modules/finance/server/src/application/journal";
 import { financeNodeOracle } from "./finance-node-oracle";
 
-const sourcePaths = ["packages/server-finance/src/domain/finance-instrument-policy.ts", "packages/feature-finance/src/lib/finance-money.ts", "packages/server-finance/src/domain/finance-calculations.ts", "packages/server-finance/src/domain/finance-invoice-lines.ts", "packages/server-finance/src/application/journal.ts", "packages/server-finance/src/domain/finance-policy.ts", "packages/feature-finance/src/lib/company-money.ts", "packages/server-finance/src/application/functional-fx.ts", "packages/catalogue/src/iso-4217-current.json"];
+const sourcePaths = ["modules/finance/server/src/domain/finance-instrument-policy.ts", "modules/finance/ui/src/lib/finance-money.ts", "modules/finance/server/src/domain/finance-calculations.ts", "modules/finance/server/src/domain/finance-invoice-lines.ts", "modules/finance/server/src/application/journal.ts", "modules/finance/server/src/domain/finance-policy.ts", "modules/finance/ui/src/lib/company-money.ts", "modules/finance/server/src/application/functional-fx.ts", "platform/catalogue/src/iso-4217-current.json"];
 const sourceCommit = "a5ed8737a2f05eff1ee9841fda4a094b3926d732";
 const sources = await Promise.all(sourcePaths.map(async (path) => ({ path, sha256: createHash("sha256").update(await readFile(path)).digest("hex") })));
 for (const source of sources) {

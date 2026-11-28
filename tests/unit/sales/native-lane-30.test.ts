@@ -9,8 +9,8 @@ import {
   nativeCustomerNotesConfigured,
   readCustomerNotes,
   type NativeNoteActor,
-} from '../../../packages/server-sales/src/adapters/native-lane-30/client';
-import { ApiError } from '@erpx/server-runtime/public/http';
+} from '../../../modules/sales/server/src/adapters/native-lane-30/client';
+import { ApiError } from '@erpx/platform-runtime-server/public/http';
 
 const config = JSON.stringify({
   privateBaseUrl: 'http://127.0.0.1:44996',

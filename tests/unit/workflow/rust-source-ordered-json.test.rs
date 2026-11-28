@@ -1,4 +1,4 @@
-use erpx_server_workflow::public::source_ordered_json::SourceOrderedJson;
+use erpx_workflow_server::public::source_ordered_json::SourceOrderedJson;
 use std::io::Write;
 #[test]
 fn borrowed_array_and_truthiness_keep_js_json_values() {
@@ -66,7 +66,7 @@ fn frozen_node_conformance_corpus_matches() {
 mod actor_fixture;
 #[test]
 fn frozen_actor_fingerprints_match_legacy_node() {
-    use erpx_server_workflow::public::source_ordered_json::source_ordered_command_fingerprint;
+    use erpx_workflow_server::public::source_ordered_json::source_ordered_command_fingerprint;
     let corpus: serde_json::Value = serde_json::from_str(include_str!(
         "../../../fixtures/workflow/rust-commands/conformance.v1.json"
     ))
@@ -86,7 +86,7 @@ fn frozen_actor_fingerprints_match_legacy_node() {
 }
 #[test]
 fn large_surrogate_fingerprint_matches_actual_node() {
-    use erpx_server_workflow::public::source_ordered_json::source_ordered_command_fingerprint;
+    use erpx_workflow_server::public::source_ordered_json::source_ordered_command_fingerprint;
     let corpus: serde_json::Value = serde_json::from_str(include_str!(
         "../../../fixtures/workflow/rust-commands/conformance.v1.json"
     ))
@@ -115,7 +115,7 @@ fn large_surrogate_fingerprint_matches_actual_node() {
 }
 #[test]
 fn validated_wrapper_keeps_existing_actor_restrictions() {
-    use erpx_server_workflow::public::source_ordered_json::source_ordered_command_fingerprint;
+    use erpx_workflow_server::public::source_ordered_json::source_ordered_command_fingerprint;
     let corpus: serde_json::Value = serde_json::from_str(include_str!(
         "../../../fixtures/workflow/rust-commands/conformance.v1.json"
     ))

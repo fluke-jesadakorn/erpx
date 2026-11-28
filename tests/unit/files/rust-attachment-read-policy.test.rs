@@ -1,10 +1,10 @@
 //! Pure Files attachment metadata policy tests. No database or HTTP authority.
-use erpx_server_files::public::attachment_read::{
+use erpx_files_server::public::attachment_read::{
     AttachmentLinkFacts, AttachmentListFilter, AttachmentReader, AttachmentScanFacts,
     AttachmentSetFacts, AttachmentStatusFacts, AttachmentTargetScope, bindable, may_read_status,
     require_current, validate_set, validate_status,
 };
-use erpx_server_shared::public::{CompanyId, FailureKind};
+use erpx_platform_shared_server::public::{CompanyId, FailureKind};
 
 fn company() -> CompanyId {
     CompanyId::new("company").unwrap()
@@ -487,12 +487,12 @@ fn link_caption_and_component_ref_use_byte_bounds() {
 
 #[test]
 fn asset_descriptor_scope_matches_actual_typescript_policy() {
-    use erpx_server_files::public::attachment_read::{AssetReadDescriptor,asset_descriptor_read_scope};
+    use erpx_files_server::public::attachment_read::{AssetReadDescriptor,asset_descriptor_read_scope};
     // Invoke the actual TS application policy and registry. The mock is only
     // the already-retained assignment/Asset descriptor; purchase is separate.
     let script=r#"
-import {createAttachmentPolicy} from '@erpx/server-files/application/attachments/policy';
-import {createOperationalAttachmentPolicy} from '@erpx/server-files/application/attachments/remaining-operational-policy';
+import {createAttachmentPolicy} from '@erpx/files-server/application/attachments/policy';
+import {createOperationalAttachmentPolicy} from '@erpx/files-server/application/attachments/remaining-operational-policy';
 const api=createAttachmentPolicy({clock:{now:()=>1},error:(status,code,message)=>Object.assign(new Error(message),{status,code})});
 const policy=api.attachmentPolicy('asset','manual','record');
 const operational=createOperationalAttachmentPolicy({clock:{now:()=>1},error:(status,code,message)=>Object.assign(new Error(message),{status,code})});

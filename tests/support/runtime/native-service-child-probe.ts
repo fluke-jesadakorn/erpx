@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {chmod,readFile,rm,symlink,writeFile} from 'node:fs/promises';
-import {engineeringVerificationContext,isEngineeringVerificationOrigin} from '@erpx/server-platform_administration/public/engineering-verification';
+import {engineeringVerificationContext,isEngineeringVerificationOrigin} from '@erpx/platform-administration-server/public/engineering-verification';
 const directory=process.env.ERPX_DATA_DIR!;
 const path=`${directory}/native-service-child.json`,attestationPath=`${directory}/engineering-attestation.json`,entry=process.argv[1]!,release=`${directory}/release`;
 const original=await readFile(path),attestation=await readFile(attestationPath),entryBytes=await readFile(entry),releasePath=`${release}/release.json`,releaseBytes=await readFile(releasePath);

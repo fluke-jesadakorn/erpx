@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-support/src');
+const srcRoot = resolve(__dirname, '../../../modules/support/server/src');
 const src = (f: string) => readFileSync(resolve(srcRoot, f), 'utf8');
 const support = src('adapters/support.ts');
 const bridge = src('adapters/native-support-read.ts');

@@ -12,13 +12,13 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_assets::public::asset_http::{AssetHttpTarget, asset_router};
-use erpx_server_assets::public::asset_register::{AcquisitionCostProvider, AssetFuture, NewAsset};
-use erpx_server_identity_access::public::{
+use erpx_assets_server::public::asset_http::{AssetHttpTarget, asset_router};
+use erpx_assets_server::public::asset_register::{AcquisitionCostProvider, AssetFuture, NewAsset};
+use erpx_identity_access_server::public::{
     AuthenticationSecrets, OpaqueSecret, SecretDigest, SecretPurpose, SystemAuthenticationSecrets,
 };
-use erpx_server_runtime::public::postgres::DatabasePool;
-use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
+use erpx_platform_runtime_server::public::postgres::DatabasePool;
+use erpx_platform_shared_server::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
 use serde_json::{Value, json};
 use sqlx::PgConnection;
 use std::sync::{Arc,atomic::{AtomicUsize,Ordering}};
@@ -67,7 +67,7 @@ struct Fixture {
     control: DatabasePool,
     holding: DatabasePool,
     authorizer:
-        Arc<erpx_server_identity_access::public::effective_authority::HoldingWorkAuthorizer>,
+        Arc<erpx_identity_access_server::public::effective_authority::HoldingWorkAuthorizer>,
     clock: Arc<auth::MutableClock>,
     maker: String,
     reviewer: String,

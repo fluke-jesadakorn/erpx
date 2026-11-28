@@ -1,0 +1,6 @@
+import type {SqlDatabase} from "@erpx/platform-runtime-server/public/runtime/types";
+import {assertion} from "@erpx/workflow-server/public/command-assertions";
+import {agentMemberNameProjection} from "@erpx/people-payroll-server/public/agent-member-name-projection";
+import {assignmentCompanyProbeSql} from './read-tail-family-r30';
+export async function agentGovernanceEligiblePeople(db:SqlDatabase,companyId:string,now:number){return (await db.prepare(`SELECT DISTINCT x.user_id id,COALESCE(p.legal_name,x.user_id) name FROM assignments x ${agentMemberNameProjection()} WHERE x.company_id=? AND iam_assignment_active(x.id,?) AND iam_principal_active(x.user_id,x.company_id,?) ORDER BY 2`).bind(companyId,now,now).all<{id:string;name:string}>()).results;}
+export function agentGovernanceEligibleMember(db:SqlDatabase,key:string,label:string,companyId:string,userId:string,now:number){return assertion(db,key,label,`EXISTS(${assignmentCompanyProbeSql("user_id=? AND iam_assignment_active(id,?) AND iam_principal_active(user_id,company_id,?)")})`,[companyId,userId,now,now]);}

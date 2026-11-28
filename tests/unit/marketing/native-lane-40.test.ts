@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createHash } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { ApiError } from '@erpx/server-runtime/public/http';
+import { ApiError } from '@erpx/platform-runtime-server/public/http';
 import {
   LANE40_ACTIVE_FORM_SOURCE,
   LANE40_CAMPAIGN_SUMMARY,
@@ -14,7 +14,7 @@ import {
   nativeLane40Configured,
   readMarketingLane40,
   readMarketingLane40ForCompany,
-} from '../../../packages/server-marketing/src/adapters/native-lane-40/client';
+} from '../../../modules/marketing/server/src/adapters/native-lane-40/client';
 
 vi.mock('server-only', () => ({}));
 
@@ -170,7 +170,7 @@ describe('native Marketing lane-40 read client', () => {
   });
 
   it('pins every rendered SQL oracle and its owner-local table set', async () => {
-    const rust = await readFile(new URL('../../../packages/server-marketing/src/adapters/native_lane_40/postgres.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/marketing/server/src/adapters/native_lane_40/postgres.rs', import.meta.url), 'utf8');
     const statements = rust.split('#[cfg(test)]')[0]!;
     expect(statements).toContain('sqlx::query');
     expect(statements).not.toContain('crm_leads');
@@ -182,7 +182,7 @@ describe('native Marketing lane-40 read client', () => {
       for (const table of oracle.tables) expect(sql, `${kind}/${table}`).toContain(table);
       expect(sql).not.toMatch(/FOR (UPDATE|SHARE)|LOCK TABLE/);
     }
-    const client = await readFile(new URL('../../../packages/server-marketing/src/adapters/native-lane-40/client.ts', import.meta.url), 'utf8');
+    const client = await readFile(new URL('../../../modules/marketing/server/src/adapters/native-lane-40/client.ts', import.meta.url), 'utf8');
     expect(client).not.toMatch(/SELECT /);
     expect(client).toContain('MARKETING_LANE40_READ_UNAVAILABLE');
   });
@@ -310,7 +310,7 @@ describe('native Marketing lane-40 read client', () => {
   });
 
   it('retirement:ts-statements KPI is 1 for the owner (BEFORE=17; wave 2 retired 1)', async () => {
-    const root = resolve('packages/server-marketing/src');
+    const root = resolve('modules/marketing/server/src');
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -321,9 +321,9 @@ describe('native Marketing lane-40 read client', () => {
     };
     await walk(root);
     expect(total).toBe(1);
-    const workspace = await readFile(new URL('../../../packages/server-marketing/src/adapters/marketing.ts', import.meta.url), 'utf8');
+    const workspace = await readFile(new URL('../../../modules/marketing/server/src/adapters/marketing.ts', import.meta.url), 'utf8');
     expect(workspace).not.toMatch(/SELECT COALESCE\(NULLIF\(BTRIM\(attribution_json/);
     expect(workspace).toContain('readMarketingLane40');
-    await expect(readFile(new URL('../../../packages/server-marketing/src/adapters/candidate-form-rows.ts', import.meta.url), 'utf8')).rejects.toThrow();
+    await expect(readFile(new URL('../../../modules/marketing/server/src/adapters/candidate-form-rows.ts', import.meta.url), 'utf8')).rejects.toThrow();
   });
 });

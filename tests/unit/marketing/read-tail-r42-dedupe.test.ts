@@ -5,12 +5,12 @@ import ts from 'typescript';
 import {
   marketingEvidenceCandidateRows,
   marketingEvidenceEventRows,
-} from '../../../packages/server-marketing/src/adapters/executive-evidence-rows';
+} from '../../../modules/marketing/server/src/adapters/executive-evidence-rows';
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-marketing/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/marketing/server/src/adapters/${name}`, import.meta.url);
 const src = (name: string) => readFile(adapter(name), 'utf8');
-const srcRoot = resolve('packages/server-marketing/src');
+const srcRoot = resolve('modules/marketing/server/src');
 
 // Byte oracles captured from the two original emitters before the r42 tail merge.
 const candidateProjection =

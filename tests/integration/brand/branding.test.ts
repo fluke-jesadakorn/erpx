@@ -13,16 +13,16 @@
  */
 import sharp from "sharp";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
 import {
   createNativeBrandPresentationClient,
   nativeBrandPresentationConfigured,
   normalizeBrandImage,
   requireBrandManagement,
-} from "@erpx/server-brand/public/branding";
-import type { NativeBrandPresentationTransport } from "@erpx/server-brand/public/branding";
-import * as brandingPublic from "@erpx/server-brand/public/branding";
-import { matchesUploadSignature } from "@erpx/server-files/public/upload-validation";
+} from "@erpx/brand-server/public/branding";
+import type { NativeBrandPresentationTransport } from "@erpx/brand-server/public/branding";
+import * as brandingPublic from "@erpx/brand-server/public/branding";
+import { matchesUploadSignature } from "@erpx/files-server/public/upload-validation";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture } from "../../support/helpers/expense-fixture";
 

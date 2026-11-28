@@ -1,7 +1,7 @@
 import {describe,it,expect,vi,beforeEach,afterEach} from 'vitest';
 vi.mock('server-only',()=>({}));
-import {CommerceInventoryFacts} from '../../../packages/server-inventory/src/adapters/commerce-facts';
-import {INVENTORY_RD_IN_TRANSIT_CURRENCY_TOTALS,INVENTORY_RD_FULFILLMENT_LOT_ALLOCATION,INVENTORY_RD_ORDER_RESERVATIONS_BY_LINE,INVENTORY_RD_LOT_BALANCE_BY_LOT_WAREHOUSE} from '../../../packages/server-inventory/src/adapters/native-inventory-read';
+import {CommerceInventoryFacts} from '../../../modules/inventory/server/src/adapters/commerce-facts';
+import {INVENTORY_RD_IN_TRANSIT_CURRENCY_TOTALS,INVENTORY_RD_FULFILLMENT_LOT_ALLOCATION,INVENTORY_RD_ORDER_RESERVATIONS_BY_LINE,INVENTORY_RD_LOT_BALANCE_BY_LOT_WAREHOUSE} from '../../../modules/inventory/server/src/adapters/native-inventory-read';
 
 describe('native Inventory commerce-facts caller-unit reads',()=>{
   const envKey='ERPX_NATIVE_INVENTORY_CONFIG';

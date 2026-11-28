@@ -1,7 +1,7 @@
 //! Native Work Projection Home unread HTTP ingress on registered Holding targets.
-use erpx_server_runtime::public::http_support::{HeaderMap, Response, StatusCode, body::to_bytes};
-use erpx_server_shared::public::{BusinessError, FailureKind};
-use erpx_server_work_projection::public::work_home_unread_http::{
+use erpx_platform_runtime_server::public::http_support::{HeaderMap, Response, StatusCode, body::to_bytes};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
+use erpx_work_projection_server::public::work_home_unread_http::{
     WorkHomeUnreadHttpBackend, WorkHomeUnreadHttpFuture, WorkHomeUnreadHttpRequest,
     WorkHomeUnreadHttpResponse, WorkHomeUnreadHttpState, WorkHomeUnreadHttpTarget,
     work_home_unread_router,

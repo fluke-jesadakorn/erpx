@@ -6,8 +6,8 @@ import { beforeAll, describe, expect, test, vi } from 'vitest';
 const { fragments } = vi.hoisted(() => ({ fragments: { full: '', core: '' } }));
 
 vi.mock('server-only', () => ({}));
-vi.mock('@erpx/server-support/adapters/native-support-read', async (importOriginal) => {
-  const original = await importOriginal<typeof import('../../../packages/server-support/src/adapters/native-support-read')>();
+vi.mock('@erpx/support-server/adapters/native-support-read', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../../modules/support/server/src/adapters/native-support-read')>();
   return {
     ...original,
     nativeSupportReadFragment: async (kind: string) =>
@@ -15,15 +15,15 @@ vi.mock('@erpx/server-support/adapters/native-support-read', async (importOrigin
   };
 });
 
-import { readTailR43ColumnsFromSql } from '../../../packages/server-support/src/adapters/read-tail-r43-sql';
-import { portalImageSelectedCte } from '../../../packages/server-support/src/adapters/ticket-portal-image-sql';
-import { socialPmsSourceFacts } from '@erpx/server-pms/public/social-source-facts';
+import { readTailR43ColumnsFromSql } from '../../../modules/support/server/src/adapters/read-tail-r43-sql';
+import { portalImageSelectedCte } from '../../../modules/support/server/src/adapters/ticket-portal-image-sql';
+import { socialPmsSourceFacts } from '@erpx/pms-server/public/social-source-facts';
 import {
   supportTicketPortalCoreImage,
   supportTicketPortalImage,
-} from '@erpx/server-support/adapters/ticket-portal-sources';
+} from '@erpx/support-server/adapters/ticket-portal-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-support/src');
+const srcRoot = resolve(__dirname, '../../../modules/support/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 const rustLiteral = (name: string): string => {

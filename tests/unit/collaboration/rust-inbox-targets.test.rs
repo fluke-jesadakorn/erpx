@@ -1,5 +1,5 @@
 //! Unit proof of the retained Inbox `source_type` -> destination table.
-use erpx_server_collaboration::public::inbox::{
+use erpx_collaboration_server::public::inbox::{
     CalendarInboxTargets, CommerceInboxTargets, CrmInboxTargets, CustomerInboxTargets,
     FinanceInboxTargets, GovernanceInboxTargets, InboxTargetPort, InboxTargetVisibility,
     InventoryInboxTargets, LearningInboxTargets, OperationsInboxTargets, PayrollInboxTargets,
@@ -34,7 +34,7 @@ use erpx_server_collaboration::public::inbox::{
     supplier_promise_href, talent_application_href, talent_history_capabilities,
     task_alert_href, uses_enforced_layer, workflow_history_capabilities,
 };
-use erpx_server_commercial::public::purchases::PackageEnforcementMode;
+use erpx_commercial_server::public::purchases::PackageEnforcementMode;
 
 const ID: &str = "seg/one two";
 const ENCODED: &str = "seg%2Fone%20two";

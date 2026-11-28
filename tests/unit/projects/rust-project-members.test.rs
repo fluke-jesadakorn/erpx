@@ -1,12 +1,12 @@
 //! Native Projects member-roster read: application port + payload parity.
 //!
-//! This target needs a `[[test]]` entry in packages/server-projects/Cargo.toml,
+//! This target needs a `[[test]]` entry in modules/projects/server/Cargo.toml,
 //! which is outside the worker allowed paths and is lead-owned. The in-crate
 //! `#[cfg(test)]` modules cover the same facts without registration.
-use erpx_server_projects::public::project_members::{
+use erpx_projects_server::public::project_members::{
     ProjectMemberFuture, ProjectMemberRepository, ProjectMemberScope, read_project_members,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 use serde_json::json;
 
 struct Repo(Vec<String>);

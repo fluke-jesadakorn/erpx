@@ -6,9 +6,9 @@ import ts from 'typescript';
 
 vi.mock('server-only', () => ({}));
 
-import { pointRead } from '../../../packages/server-sales/src/adapters/point-read';
+import { pointRead } from '../../../modules/sales/server/src/adapters/point-read';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-sales/src');
+const srcRoot = resolve(__dirname, '../../../modules/sales/server/src');
 const helper = readFileSync(resolve(srcRoot, 'adapters/by-key.ts'), 'utf8');
 const notifications = readFileSync(resolve(srcRoot, 'adapters/notifications.ts'), 'utf8');
 const pricing = readFileSync(resolve(srcRoot, 'adapters/pricing.ts'), 'utf8');

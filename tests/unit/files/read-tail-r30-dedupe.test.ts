@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { reconciliationReadySql } from '../../../packages/server-files/src/adapters/read-tail-r30-source-sql';
+import { reconciliationReadySql } from '../../../modules/files/server/src/adapters/read-tail-r30-source-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-files/src');
+const srcRoot = resolve(__dirname, '../../../modules/files/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 const literalSelectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;

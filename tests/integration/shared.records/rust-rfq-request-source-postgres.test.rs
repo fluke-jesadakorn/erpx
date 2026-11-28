@@ -1,7 +1,7 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_records::public::rfq_request_source::*;
-use erpx_server_shared::public::CompanyId;
+use erpx_records_server::public::rfq_request_source::*;
+use erpx_platform_shared_server::public::CompanyId;
 use sqlx::Connection;
 
 #[tokio::test]

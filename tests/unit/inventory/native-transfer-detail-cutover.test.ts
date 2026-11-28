@@ -4,11 +4,11 @@ import { resolve } from "node:path";
 
 const ROOT = new URL("../../../", import.meta.url).pathname.replace(/\/$/, "");
 const read = (path: string) => readFileSync(resolve(ROOT, path), "utf8");
-const TS = read("packages/server-inventory/src/adapters/inventory-transfers.ts");
-const FLOW = read("packages/server-workflow/src/adapters/flow-access.ts");
-const TRANSPORT = read("packages/server-inventory/src/adapters/native-transfer-detail-read.ts");
-const READ_BARREL = read("packages/server-inventory/src/public/inventory-transfer-read.ts");
-const APP_BARREL = read("packages/server-inventory/src/public/inventory-transfers.ts");
+const TS = read("modules/inventory/server/src/adapters/inventory-transfers.ts");
+const FLOW = read("modules/workflow/server/src/adapters/flow-access.ts");
+const TRANSPORT = read("modules/inventory/server/src/adapters/native-transfer-detail-read.ts");
+const READ_BARREL = read("modules/inventory/server/src/public/inventory-transfer-read.ts");
+const APP_BARREL = read("modules/inventory/server/src/public/inventory-transfers.ts");
 
 describe("native stock-transfer detail caller cutover", () => {
   test("getTransfer no longer accepts or uses a caller SQL unit", () => {

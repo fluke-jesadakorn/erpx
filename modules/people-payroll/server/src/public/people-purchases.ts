@@ -1,0 +1,1 @@
+export {withPeoplePreparationTransaction,peopleReferenceRows,peopleOwnerTransaction,peoplePurchaseControls,requirePeopleCurrentAuthority} from "@erpx/people-payroll-server/adapters/people-purchases";

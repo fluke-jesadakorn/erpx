@@ -1,16 +1,16 @@
 //! Actual owner-local Executive customer-activity metric HTTP source tests.
 //! These prove ingress facts only; Account authority, source gates and
 //! PostgreSQL remain separate composition responsibilities.
-use erpx_server_customer_360::public::customer_activity_metric::{
+use erpx_customer_360_server::public::customer_activity_metric::{
     CustomerActivityBreakdown, CustomerActivityMetricGroup,
 };
-use erpx_server_customer_360::public::customer_activity_metric_http::{
+use erpx_customer_360_server::public::customer_activity_metric_http::{
     CustomerActivityMetricHttpBackend, CustomerActivityMetricHttpFuture,
     CustomerActivityMetricHttpReadRequest, CustomerActivityMetricHttpTarget,
     customer_activity_metric_http_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Noop;

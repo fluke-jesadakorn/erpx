@@ -6,7 +6,7 @@ import {
   nativeSessionListConfigured,
   nativeSessionListConfiguration,
   type NativeSessionListTransport,
-} from '../../../packages/server-identity_access/src/public/native-session-list';
+} from '../../../modules/identity-access/server/src/public/native-session-list';
 
 const raw = JSON.stringify({
   privateBaseUrl: 'http://127.0.0.1:44996',

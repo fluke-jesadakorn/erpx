@@ -5,18 +5,18 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { assignmentReadSql } from '@erpx/server-identity_access/public/record-source-authority';
-import { purchasedCapabilityPredicate } from '@erpx/server-commercial/public/purchased-capability-sql';
-import { crmCommerceOrderSources } from '@erpx/server-commerce/public/crm-purchase-sources';
-import { crmFinanceCustomerSources } from '@erpx/server-finance/public/crm-purchase-sources';
+import { assignmentReadSql } from '@erpx/identity-access-server/public/record-source-authority';
+import { purchasedCapabilityPredicate } from '@erpx/commercial-server/public/purchased-capability-sql';
+import { crmCommerceOrderSources } from '@erpx/commerce-server/public/crm-purchase-sources';
+import { crmFinanceCustomerSources } from '@erpx/finance-server/public/crm-purchase-sources';
 const clockNowMs='SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms';
 const followupMetricPrefix='SELECT followup.*,actual.branch_id,actual.department_id,actual.kind order_kind';
 import {
   SALES_RD_FOLLOWUP_METRIC_PROJECTION,
   SALES_RD_FOLLOWUP_METRIC_SOURCE,
-} from '../../../packages/server-sales/src/adapters/native-sales-read';
+} from '../../../modules/sales/server/src/adapters/native-sales-read';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-sales/src');
+const srcRoot = resolve(__dirname, '../../../modules/sales/server/src');
 const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const registry = read('native_sales_read_sql.rs');
 const metric = read('metric-purchases.ts');

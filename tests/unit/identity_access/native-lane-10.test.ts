@@ -10,14 +10,14 @@ const h = vi.hoisted(() => ({
   recoveryEmail: vi.fn(),
   recoveryJob: vi.fn(),
 }));
-const clientPath = '../../../packages/server-identity_access/src/adapters/native-lane-10/client';
+const clientPath = '../../../modules/identity-access/server/src/adapters/native-lane-10/client';
 vi.mock('server-only', () => ({}));
-vi.mock('../../../packages/server-runtime/src/public/runtime', () => ({
+vi.mock('../../../platform/runtime/server/src/public/runtime', () => ({
   runtimeEnv: async () => ({ BETTER_AUTH_SECRET: 'lane10-test-secret', CONTROL_DB: {} }),
   holdingResources: async () => ({ write: {} }),
 }));
 
-const srcRoot = resolve(__dirname, '../../../packages/server-identity_access/src');
+const srcRoot = resolve(__dirname, '../../../modules/identity-access/server/src');
 const source = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
 const devConfig = {
   privateBaseUrl: 'http://127.0.0.1:3198',
@@ -76,7 +76,7 @@ describe('native lane 10 TypeScript boundary', () => {
 
   it('cuts inspectInvitation over to the native reader using the hashed token', async () => {
     h.invitation.mockResolvedValueOnce(fixture);
-    const { inspectInvitation } = await import('../../../packages/server-identity_access/src/adapters/account-access');
+    const { inspectInvitation } = await import('../../../modules/identity-access/server/src/adapters/account-access');
     const token = 'lane10-token-32-characters-minimum';
     const result = await inspectInvitation(token);
     expect(result).toEqual({ name: 'Person', email: 'person@example.test', existingAccount: true });
@@ -87,9 +87,9 @@ describe('native lane 10 TypeScript boundary', () => {
   });
 
   it('propagates fail-closed native errors without a local SQL retry', async () => {
-    const { ApiError } = await import('@erpx/server-runtime/public/http');
+    const { ApiError } = await import('@erpx/platform-runtime-server/public/http');
     h.invitation.mockRejectedValueOnce(new ApiError(503, 'ACCOUNT_ACCESS_READ_UNAVAILABLE', 'unavailable'));
-    const { inspectInvitation } = await import('../../../packages/server-identity_access/src/adapters/account-access');
+    const { inspectInvitation } = await import('../../../modules/identity-access/server/src/adapters/account-access');
     await expect(inspectInvitation('lane10-token-32-characters-minimum')).rejects.toMatchObject({
       status: 503,
       code: 'ACCOUNT_ACCESS_READ_UNAVAILABLE',
@@ -98,7 +98,7 @@ describe('native lane 10 TypeScript boundary', () => {
 });
 
 describe('native lane 10 multi-holding client', () => {
-  let client: typeof import('../../../packages/server-identity_access/src/adapters/native-lane-10/client');
+  let client: typeof import('../../../modules/identity-access/server/src/adapters/native-lane-10/client');
   beforeEach(async () => {
     vi.resetModules();
     vi.clearAllMocks();

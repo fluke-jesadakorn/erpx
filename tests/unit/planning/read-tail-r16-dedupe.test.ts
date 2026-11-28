@@ -2,11 +2,11 @@ import { describe, expect, test } from 'vitest';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { planningSourceRows, planningImageSourceRows } from '../../../packages/server-planning/src/adapters/planning-image-source-sql';
-import { planningPurchaseScenarioRows, planningPurchaseRecommendationRows, planningPurchaseResourceRows, planningPurchaseSourceReadLocks } from '../../../packages/server-planning/src/adapters/purchase-sources';
-import { planningAttachmentScenarioSourceRows, planningAttachmentRecommendationSourceRows } from '../../../packages/server-planning/src/adapters/attachment-read-sources';
+import { planningSourceRows, planningImageSourceRows } from '../../../modules/planning/server/src/adapters/planning-image-source-sql';
+import { planningPurchaseScenarioRows, planningPurchaseRecommendationRows, planningPurchaseResourceRows, planningPurchaseSourceReadLocks } from '../../../modules/planning/server/src/adapters/purchase-sources';
+import { planningAttachmentScenarioSourceRows, planningAttachmentRecommendationSourceRows } from '../../../modules/planning/server/src/adapters/attachment-read-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-planning/src');
+const srcRoot = resolve(__dirname, '../../../modules/planning/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
 const contract = JSON.parse(src('planning-read-tail-sources.json')) as Record<string, string>;

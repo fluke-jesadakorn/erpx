@@ -1,4 +1,4 @@
-use erpx_server_identity_access::public::directory::framing::*;
+use erpx_identity_access_server::public::directory::framing::*;
 
 fn nested(depth: usize) -> Vec<u8> {
     let mut result = vec![0x04, 1, 0x80];

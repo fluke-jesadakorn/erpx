@@ -1,12 +1,12 @@
-import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import { isTransactionalSqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import type { SqlDatabase } from "@erpx/platform-runtime-server/public/runtime/types";
+import { isTransactionalSqlDatabase } from "@erpx/platform-runtime-server/public/runtime/types";
 
 /**
  * Test-only native-seeding oracle for CRM lead qualification.
  *
  * The TypeScript `crm.lead.qualify` writer is retired: `changeCRMLead` now
  * rejects `qualify` with `CRM_COMMAND_NOT_NATIVE` while the Rust owner
- * (`packages/server-crm/src/adapters/leads_native.rs`) is authoritative.
+ * (`modules/crm/server/src/adapters/leads_native.rs`) is authoritative.
  * Tests that only need the durable owner rows qualify through this oracle
  * instead of the removed TypeScript effect.
  *

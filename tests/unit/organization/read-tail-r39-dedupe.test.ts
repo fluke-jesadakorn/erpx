@@ -6,9 +6,9 @@ import {
   activeStaffLevelSource,
   changeVersionGuardSource,
   scopeNodeBranchExists,
-} from '../../../packages/server-organization/src/adapters/organization-read-tail-sources-r39';
+} from '../../../modules/organization/server/src/adapters/organization-read-tail-sources-r39';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+const srcRoot = resolve(__dirname, '../../../modules/organization/server/src');
 const adapters = resolve(srcRoot, 'adapters');
 const read = (name: string) => readFileSync(resolve(adapters, name), 'utf8');
 const helper = read('organization-read-tail-sources-r39.ts');
@@ -108,7 +108,7 @@ describe('Organization read-tail r39 node and scope guard families', () => {
     expect(read('organization-drafts.ts')).toContain('FOR UPDATE');
     expect(read('pos-core-facts.ts')).toContain('FOR UPDATE');
     expect(read('finance-starter-sources.ts')).toContain('FOR UPDATE');
-    const spaced = await import('../../../packages/server-organization/src/adapters/organization-nodes-spaced-projections');
+    const spaced = await import('../../../modules/organization/server/src/adapters/organization-nodes-spaced-projections');
     expect(spaced.ORG_NODES_SPACED_CLAUSE('JOIN', 'c')).toBe(spaced.ORG_NODES_SPACED_C_JOIN);
     expect(spaced.ORG_NODES_SPACED_CLAUSE('JOIN', 'n')).toBe(spaced.ORG_NODES_SPACED_N_JOIN);
     expect(spaced.ORG_NODES_SPACED_CLAUSE('JOIN', 'b')).toBe(spaced.ORG_NODES_SPACED_B_JOIN);

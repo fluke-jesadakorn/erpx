@@ -7,7 +7,7 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_identity_access::public::position_gpo::{
+use erpx_identity_access_server::public::position_gpo::{
     ConfigRetryInput, ConnectionRow, FreshMfa, GpoAction, GpoFuture, IamRoleActor, Inventory,
     InventoryObject, JobRetryInput, NotRequiredInput, PgPositionGpo, PositionGpoDirectory,
     PositionGpoInput, PublishInput, UnmapInput, UnmapPublishInput, drain_position_gpo_locked,
@@ -15,10 +15,10 @@ use erpx_server_identity_access::public::position_gpo::{
     preview_unmap_position_gpo, publish_position_gpo, reconcile_position_gpo, retry_position_gpo,
     retry_position_gpo_config, unmap_position_gpo,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CompanyId, HoldingId, RecordId, UserId,
 };
 use serde_json::{Value, json};

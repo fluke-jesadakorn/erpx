@@ -4,7 +4,7 @@ import {join} from 'node:path';
 import {Pool} from 'pg';
 import {workspaceHmrCase,workspaceHmrReady,measureWorkspaceHmr} from './workspace-hmr';
 import {applicationHmrEntries} from './application-hmr';
-import {productIds} from '@erpx/contracts/product-registry';
+import {productIds} from '@erpx/platform-contracts/product-registry';
 
 export type ApplicationSmokeApp='finance'|'sales'|'supply'|'assets'|'projects'|'support'|'service'|'legal'|'manufacturing';
 const entries={finance:{path:'finance/reports/company',heading:'Reports and statements'},sales:{path:'customers-sales/sales/pipeline',heading:'Sales'},supply:{path:'purchasing/orders',heading:'Purchase orders'},assets:{path:'services/assets/register',heading:'Assets & maintenance'},projects:{path:'projects-routines/projects',heading:'Projects'},support:{path:'customers-sales/customers/service/cases',heading:'Customers'},service:{path:'services/field-service',heading:'Field service'},legal:{path:'services/legal/mine',heading:'Legal'},manufacturing:{path:'production/manufacturing',heading:'Manufacturing'}} as const;

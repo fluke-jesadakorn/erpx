@@ -2,14 +2,14 @@ import { describe, it, expect } from 'vitest';
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import ts from 'typescript';
-import { marketingSourceRowGuardSql, attachmentOwnerVersionGuardSql } from '../../../packages/server-marketing/src/adapters/attachment-owner-version-guard';
-import { actorScopeAssignmentSql } from '../../../packages/server-marketing/src/adapters/marketing-actor-scope-guard';
-import { attachmentReviewerGuardSql } from '../../../packages/server-marketing/src/adapters/attachment-reviewer-guard';
-import { marketingSourceIdsSql } from '../../../packages/server-marketing/src/adapters/marketing-source-id-sql';
-import { marketingActorScopeSql } from '../../../packages/server-marketing/src/adapters/marketing-actor-scope-sql';
+import { marketingSourceRowGuardSql, attachmentOwnerVersionGuardSql } from '../../../modules/marketing/server/src/adapters/attachment-owner-version-guard';
+import { actorScopeAssignmentSql } from '../../../modules/marketing/server/src/adapters/marketing-actor-scope-guard';
+import { attachmentReviewerGuardSql } from '../../../modules/marketing/server/src/adapters/attachment-reviewer-guard';
+import { marketingSourceIdsSql } from '../../../modules/marketing/server/src/adapters/marketing-source-id-sql';
+import { marketingActorScopeSql } from '../../../modules/marketing/server/src/adapters/marketing-actor-scope-sql';
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-marketing/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/marketing/server/src/adapters/${name}`, import.meta.url);
 const src = (name: string) => readFile(adapter(name), 'utf8');
 
 // Oracles are frozen from base 4a403bb7b1b5c385d1115e92410273bee69cefff (HEAD
@@ -40,7 +40,7 @@ async function ownerSelectTokens(): Promise<number> {
       else if (entry.name.endsWith('.ts')) total += selectTokens(await readFile(path, 'utf8'));
     }
   };
-  await walk(resolve('packages/server-marketing/src'));
+  await walk(resolve('modules/marketing/server/src'));
   return total;
 }
 type GuardOracle = {

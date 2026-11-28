@@ -5,13 +5,13 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { readTailR45AssignmentExistsSql } from '../../../packages/server-support/src/adapters/read-tail-r45-sql';
+import { readTailR45AssignmentExistsSql } from '../../../modules/support/server/src/adapters/read-tail-r45-sql';
 import {
   supportEligibleFlagSql,
   supportAssignmentAccessSql,
-} from '../../../packages/server-support/src/adapters/eligibility-projection-sources';
+} from '../../../modules/support/server/src/adapters/eligibility-projection-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-support/src');
+const srcRoot = resolve(__dirname, '../../../modules/support/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 const totalSelects = () => {

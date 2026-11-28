@@ -4,12 +4,12 @@
 //! capped at 100; these tests pin that contract on the owner side.
 //!
 //! Registration note for the lead: add the matching `[[test]]` stanza to
-//! `packages/server-collaboration/Cargo.toml` (manifest edits are lead-owned).
+//! `modules/collaboration/server/Cargo.toml` (manifest edits are lead-owned).
 
-use erpx_server_collaboration::public::messaging_people::{
+use erpx_collaboration_server::public::messaging_people::{
     project, MessagingPeopleFuture, MessagingPeopleRead, PeopleQuery, PeopleService, PersonRow,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 
 #[derive(Default)]
 struct FakeRead {

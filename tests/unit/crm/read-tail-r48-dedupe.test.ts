@@ -1,10 +1,10 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { crmSelectBodySql } from '../../../packages/server-crm/src/adapters/read-tail-r46-sql';
-import { crmCompanyScopeSql } from '../../../packages/server-crm/src/adapters/read-tail-r48-sql';
+import { crmSelectBodySql } from '../../../modules/crm/server/src/adapters/read-tail-r46-sql';
+import { crmCompanyScopeSql } from '../../../modules/crm/server/src/adapters/read-tail-r48-sql';
 
-const owner = resolve(__dirname, '../../../packages/server-crm/src');
+const owner = resolve(__dirname, '../../../modules/crm/server/src');
 const src = (name: string) => readFileSync(resolve(owner, 'adapters', name), 'utf8');
 const totalSelects = () => {
   let total = 0;
@@ -76,8 +76,8 @@ describe('crm read-tail r48 byte-identical company-scope read head', () => {
       'LOCK TABLE crm_accounts,crm_contacts,crm_guest_links,crm_guest_sharing_events,crm_leads,crm_opportunities,crm_case_events,crm_lead_activities,crm_lead_activity_events IN SHARE MODE',
     );
     expect(src('purchases.ts')).toContain('SELECT 1 FROM command_receipts WHERE command_id=?');
-    expect(src('purchases.ts')).toContain('@erpx/server-finance/public/crm-purchase-sources');
-    expect(src('marketing-package-obligations.ts')).toContain('@erpx/server-marketing/public/package-obligations');
+    expect(src('purchases.ts')).toContain('@erpx/finance-server/public/crm-purchase-sources');
+    expect(src('marketing-package-obligations.ts')).toContain('@erpx/marketing-server/public/package-obligations');
   });
 
   test.each([

@@ -12,20 +12,20 @@ import {
   nativeInboxAvailable,
   nativeInboxNotificationsSSR,
   nativeInboxSummarySSR,
-} from '../../../packages/server-collaboration/src/public/native-inbox-page';
+} from '../../../modules/collaboration/server/src/public/native-inbox-page';
 
 const root = resolve(process.cwd());
 const screen = readFileSync(
-  resolve(root, 'packages/workplace/src/routes/holdings/[holdingSlug]/inbox/notifications/_screen.tsx'), 'utf8',
+  resolve(root, 'platform/workplace/src/routes/holdings/[holdingSlug]/inbox/notifications/_screen.tsx'), 'utf8',
 );
 const presenter = readFileSync(
-  resolve(root, 'packages/server-collaboration/src/adapters/notification-presentation.ts'), 'utf8',
+  resolve(root, 'modules/collaboration/server/src/adapters/notification-presentation.ts'), 'utf8',
 );
 const barrel = readFileSync(
-  resolve(root, 'packages/server-collaboration/src/public/notification-presentation.ts'), 'utf8',
+  resolve(root, 'modules/collaboration/server/src/public/notification-presentation.ts'), 'utf8',
 );
 const client = readFileSync(
-  resolve(root, 'packages/server-collaboration/src/public/native-inbox-page.ts'), 'utf8',
+  resolve(root, 'modules/collaboration/server/src/public/native-inbox-page.ts'), 'utf8',
 );
 
 const ENV = 'ERPX_NATIVE_COLLABORATION_CONFIG';

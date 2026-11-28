@@ -1,8 +1,8 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { billingPendingInboxSql } from '../../../packages/server-billing/src/adapters/billing-read-tail-r23-sql';
+import { billingPendingInboxSql } from '../../../modules/billing/server/src/adapters/billing-read-tail-r23-sql';
 
-const src = (name: string) => readFile(new URL(`../../../packages/server-billing/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFile(new URL(`../../../modules/billing/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 /** Byte-identical originals of the two pending stripe_inbox drain reads. */
 const MATCHED = `SELECT * FROM stripe_inbox WHERE state='pending' AND next_at<=$1 AND payload_json::jsonb #>> '{data,object,customer}'=(SELECT customer_id FROM billing_accounts WHERE holding_id=$2) ORDER BY created_at,id LIMIT 50`;
@@ -52,7 +52,7 @@ describe('billing read-tail r23 parameterized family dedupe', () => {
   });
 
   it('lowers the billing owner SELECT KPI strictly below the recorded BEFORE=63 baseline', async () => {
-    const files = await tsFiles(new URL('../../../packages/server-billing/src/', import.meta.url));
+    const files = await tsFiles(new URL('../../../modules/billing/server/src/', import.meta.url));
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThan(63);

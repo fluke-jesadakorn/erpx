@@ -1,10 +1,10 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_commercial::public::owner_read::{
+use erpx_commercial_server::public::owner_read::{
     SQL_USAGE_METER, SQL_USAGE_SEAT, SQL_USAGE_SNAPSHOT, USAGE_METER, USAGE_SEAT, USAGE_SNAPSHOT,
     statement,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     MigrationTrack, load_migrations, migrate_database,
 };
 use sqlx::Row;

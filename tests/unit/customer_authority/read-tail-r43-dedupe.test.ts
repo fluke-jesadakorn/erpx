@@ -1,14 +1,14 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { finalRootOwnerProjectionSources as financeProjectionSources } from '@erpx/server-finance/public/final-root-owner-projection-sources';
-import { selectProjection } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r40-sources';
-import { companyScopeSelect } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r33-sources';
-import { allColumnsProjection } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r37-sources';
-import { evidenceSource } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r41-sources';
-import { supportRequestRead } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r42-sources';
+import { finalRootOwnerProjectionSources as financeProjectionSources } from '@erpx/finance-server/public/final-root-owner-projection-sources';
+import { selectProjection } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-tail-r40-sources';
+import { companyScopeSelect } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-tail-r33-sources';
+import { allColumnsProjection } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-tail-r37-sources';
+import { evidenceSource } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-tail-r41-sources';
+import { supportRequestRead } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-tail-r42-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-customer_authority/src');
+const srcRoot = resolve(__dirname, '../../../modules/customer-authority/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 // Exact pre-dedupe literals copied verbatim from the r33/r37/r41/r42 baselines

@@ -5,16 +5,16 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_files::public::business_evidence::{
+use erpx_files_server::public::business_evidence::{
     PgBusinessEvidenceFiles, PreparedBusinessEvidence, evidence_context, policy_fact,
 };
-use erpx_server_records::public::business_evidence::{
+use erpx_records_server::public::business_evidence::{
     BusinessEvidenceRequest, prepare_business_evidence,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, TimestampMillis};
 use sqlx::PgConnection;
 
 const NOW: i64 = 1_800_000_000_000;
@@ -25,11 +25,11 @@ fn company() -> CompanyId {
 
 #[tokio::test]
 async fn legal_citation_metadata_matches_legacy_sql_and_retains_absence() {
-    use erpx_server_files::public::legal_citation_metadata::{LegalCitationMetadataRequest, inspect_legal_citation_metadata, lock_legal_citation_metadata};
+    use erpx_files_server::public::legal_citation_metadata::{LegalCitationMetadataRequest, inspect_legal_citation_metadata, lock_legal_citation_metadata};
     fixture::with_database(3, |pool| async move {
         setup(&pool).await;
         sqlx::query("UPDATE attachment_links SET state='bound',bound_at=1,binding_type='legal_document',binding_id='doc' WHERE id='link-1'").execute(pool.raw()).await.unwrap();
-        let script = r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const {finalRootOwnerProjectionSources}=await import('./packages/server-files/src/adapters/final-root-owner-projection-sources.ts');const text=await Bun.file('packages/server-legal/src/adapters/legal/knowledge.ts').text();const match=text.match(/export const legalEvidenceDocumentAvailableSql = (`[^`]*`);/);if(!match)throw Error('LEGAL_PREDICATE_NOT_FOUND');process.stdout.write(new Function('filesProjectionSources',`return ${match[1]}`)(finalRootOwnerProjectionSources));"#;
+        let script = r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const {finalRootOwnerProjectionSources}=await import('./modules/files/server/src/adapters/final-root-owner-projection-sources.ts');const text=await Bun.file('modules/legal/server/src/adapters/legal/knowledge.ts').text();const match=text.match(/export const legalEvidenceDocumentAvailableSql = (`[^`]*`);/);if(!match)throw Error('LEGAL_PREDICATE_NOT_FOUND');process.stdout.write(new Function('filesProjectionSources',`return ${match[1]}`)(finalRootOwnerProjectionSources));"#;
         let result=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
             .current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
             .arg("--conditions=react-server").arg("-e").arg(script).output().unwrap();
@@ -123,7 +123,7 @@ fn request(target: &str, version: i64, sets: &[&str]) -> BusinessEvidenceRequest
     }
 }
 
-fn policies() -> Vec<erpx_server_records::public::business_evidence::EvidencePolicyFact> {
+fn policies() -> Vec<erpx_records_server::public::business_evidence::EvidencePolicyFact> {
     vec![policy_fact(
         "commerce_order_delivery",
         "proof_of_delivery",
@@ -269,7 +269,7 @@ async fn rejects_foreign_scope_wrong_target_missing_context_and_short_sets() {
         );
         // set-1 now requires two links but has one.
         match prepare_business_evidence(&mut port, request("delivery-1", 1, &["set-1"])).await {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                 assert_eq!(error.code, "ATTACHMENT_REQUIRED")
             }
             _ => panic!("expected insufficient-link conflict"),

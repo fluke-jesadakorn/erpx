@@ -1,12 +1,12 @@
-import {packageGrantStore} from "@erpx/server-commercial/public/package-grants";
+import {packageGrantStore} from "@erpx/commercial-server/public/package-grants";
 import {beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {maintenanceDetail} from "@erpx/server-assets/public/asset-maintenance";
-import {readSourceRecord} from "@erpx/server-records/public/source-record-policy";
-import {calendarData} from "@erpx/server-work_projection/public/calendar/index";
-import {collaborationActionDetail,collaborationWorkspace} from "@erpx/server-collaboration/public/collaboration-work";
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+import {maintenanceDetail} from "@erpx/assets-server/public/asset-maintenance";
+import {readSourceRecord} from "@erpx/records-server/public/source-record-policy";
+import {calendarData} from "@erpx/work-projection-server/public/calendar/index";
+import {collaborationActionDetail,collaborationWorkspace} from "@erpx/collaboration-server/public/collaboration-work";
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,assetId:string;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();for(const a of [f.owner,f.head,f.tie,f.claimant])a.modules=['maintenance','assets'];assetId=String((await seedAsset(f.owner,{branchId:f.branch,departmentId:f.department,code:key(),name:'Synthetic zero-cost safety station',category:'Inspection equipment',currency:'THB',costMinor:0,acquiredDate:'2026-01-01'})).id);});
@@ -163,7 +163,7 @@ it('hands current preventive plan and work sources to Collaboration without gran
 
 it('filters actual Asset, preventive and Work sources before shared limits and keeps purchased history scoped to the current selected role',async()=>{
  await applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS);
- const {getRecord,recordsPage,searchReferences}=await import("@erpx/server-records/public/records"),{listStaffNotifications,notificationsPage}=await import("@erpx/server-collaboration/public/staff-notifications"),{publishInboxEvent,inboxPage}=await import("@erpx/server-collaboration/public/inbox");
+ const {getRecord,recordsPage,searchReferences}=await import("@erpx/records-server/public/records"),{listStaffNotifications,notificationsPage}=await import("@erpx/collaboration-server/public/staff-notifications"),{publishInboxEvent,inboxPage}=await import("@erpx/collaboration-server/public/inbox");
  const {id,works}=await seedPlan({status:'active',version:2,nextDueLocal:DUE_LOCAL,nextDueAt:DUE_AT,occurrences:[{planVersion:2,dueLocal:DUE_LOCAL,dueAt:DUE_AT,workStatus:'scheduled'}]}),work=works[0],now=Date.now(),shared=key(),recordActor={...f.owner,modules:["assets","maintenance"]};
  const records=[{module:"assets",section:"asset-register",id:assetId,title:"Private original physical Asset"},{module:"maintenance",section:"work-orders",id:work,title:"Private original Maintenance Work"},{module:"maintenance",section:"work-orders",id,title:"Private original Preventive Plan"},{module:"assets",section:"asset-register",id:shared,title:"Shared independent asset reference"}];
  for(const record of records)await db.prepare("INSERT INTO workspace_records(module_id,id,section_id,title,description,status,fields_json,company_id,created_by,updated_by,created_at,updated_at) VALUES(?,?,?,?,'','draft','[]',?,?,?,?,?)").bind(record.module,record.id,record.section,record.title,f.company,f.owner.userId,f.owner.userId,now,now).run();

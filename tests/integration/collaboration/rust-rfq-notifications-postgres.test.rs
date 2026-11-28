@@ -1,9 +1,9 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_collaboration::public::rfq_notifications::*;
-use erpx_server_identity_access::public::staff_notifications::rfq_notification_recipients;
-use erpx_server_runtime::public::postgres::PgTransactionError;
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_collaboration_server::public::rfq_notifications::*;
+use erpx_identity_access_server::public::staff_notifications::rfq_notification_recipients;
+use erpx_platform_runtime_server::public::postgres::PgTransactionError;
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use sqlx::{Connection, PgConnection};
 type Error = PgTransactionError<BusinessError>;
 

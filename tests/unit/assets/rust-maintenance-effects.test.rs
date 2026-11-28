@@ -1,4 +1,4 @@
-use erpx_server_assets::public::maintenance::*;
+use erpx_assets_server::public::maintenance::*;
 use serde_json::Value;
 fn condition(value: &str) -> MaintenanceAssetCondition {
     match value {

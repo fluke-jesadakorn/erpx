@@ -1,7 +1,7 @@
-import {productNavigationHref} from "@erpx/feature-work_projection/lib/product-navigation";
+import {productNavigationHref} from "@erpx/work-projection-ui/lib/product-navigation";
 import { beforeAll, expect, it } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
-import { productSsoStore, ssoHash } from "@erpx/server-identity_access/adapters/product-sso-store";
+import { productSsoStore, ssoHash } from "@erpx/identity-access-server/adapters/product-sso-store";
 import { revokeSsoFamily } from "./sso-family-oracle";
 import { randomUUID } from "node:crypto";
 

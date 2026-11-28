@@ -8,7 +8,7 @@ import {
   RecordDetailsFinanceOwnedFacts,
   FINANCE_LANE5B_RD_PARTY,
   FINANCE_LANE5B_RD_ROWS,
-} from '../../../packages/server-finance/src/adapters/records-record-details-owned-facts';
+} from '../../../modules/finance/server/src/adapters/records-record-details-owned-facts';
 
 const ENV = 'ERPX_NATIVE_FINANCE_CUSTOMER_READ_CONFIG';
 const holdings = [
@@ -121,8 +121,8 @@ describe('native Finance lane 5b record facts transport', () => {
 });
 
 describe('native Finance lane 5b SQL/result parity', () => {
-  const srcPath = '../../../packages/server-finance/src/adapters/records-record-details-owned-facts.ts';
-  const rsPath = '../../../packages/server-finance/src/adapters/native_lane_5/domain.rs';
+  const srcPath = '../../../modules/finance/server/src/adapters/records-record-details-owned-facts.ts';
+  const rsPath = '../../../modules/finance/server/src/adapters/native_lane_5/domain.rs';
 
   it('the TS adapter contains no SQL and no local fallback', () => {
     const src = readFileSync(new URL(srcPath, import.meta.url), 'utf8');

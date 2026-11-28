@@ -1,5 +1,5 @@
-use erpx_server_people_payroll::public::{identity_facts::*, invitation_person_link::*};
-use erpx_server_shared::public::{CompanyId, RecordId, TimestampMillis, UserId};
+use erpx_people_payroll_server::public::{identity_facts::*, invitation_person_link::*};
+use erpx_platform_shared_server::public::{CompanyId, RecordId, TimestampMillis, UserId};
 
 fn request() -> InvitationPersonLinkRequest {
     InvitationPersonLinkRequest {

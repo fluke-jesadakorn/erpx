@@ -2,11 +2,11 @@ import { describe, expect, test, vi } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
-import { qualityLineageTerminalSql } from '../../../packages/server-quality/src/adapters/quality-lineage-terminal-sql';
-import { inspectionEvidenceSource, inspectionMetricSource } from '../../../packages/server-quality/src/adapters/inspection-evidence-source-sql';
-import { commercialOwnerProjectionSources as commerce } from '@erpx/server-commerce/public/commercial-owner-projection-sources';
+import { qualityLineageTerminalSql } from '../../../modules/quality/server/src/adapters/quality-lineage-terminal-sql';
+import { inspectionEvidenceSource, inspectionMetricSource } from '../../../modules/quality/server/src/adapters/inspection-evidence-source-sql';
+import { commercialOwnerProjectionSources as commerce } from '@erpx/commerce-server/public/commercial-owner-projection-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-quality/src');
+const srcRoot = resolve(__dirname, '../../../modules/quality/server/src');
 const read = (path: string) => readFileSync(resolve(srcRoot, path), 'utf8');
 
 // Pre-dedupe lineage terminal heads copied byte-for-byte from the r23 source.

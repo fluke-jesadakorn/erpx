@@ -1,13 +1,13 @@
 //! Actual owner-local HTTP router tests for the native Commerce order slice.
 //! The exact owner dispatch is exercised over loopback without a shared
 //! composition backend or PostgreSQL-backed request.
-use erpx_server_commerce::public::order_http::{
+use erpx_commerce_server::public::order_http::{
     CommerceOrderHttpBackend, CommerceOrderHttpCommand, CommerceOrderHttpFuture,
     CommerceOrderHttpRequest, CommerceOrderHttpResponse, CommerceOrderHttpState,
     CommerceOrderHttpTarget, commerce_order_http_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Probe {
@@ -562,7 +562,7 @@ fn configuration_rejects_duplicate_targets_and_bad_origins() {
     assert!(
         CommerceOrderHttpState::new_with_origin_policy(
             vec![development],
-            erpx_server_commerce::public::order_http::CommerceOriginPolicy::NonProduction
+            erpx_commerce_server::public::order_http::CommerceOriginPolicy::NonProduction
         )
         .is_ok()
     );
@@ -573,8 +573,8 @@ fn configuration_rejects_duplicate_targets_and_bad_origins() {
 
 #[tokio::test]
 async fn ingress_preserves_untrusted_selection_for_backend_and_classifies_writes() {
-    use erpx_server_commerce::public::order_http::CommerceSelectionOperation;
-    use erpx_server_runtime::public::http_support::{HeaderMap, HeaderValue, StatusCode};
+    use erpx_commerce_server::public::order_http::CommerceSelectionOperation;
+    use erpx_platform_runtime_server::public::http_support::{HeaderMap, HeaderValue, StatusCode};
     struct DeferredProbe(Arc<Mutex<Vec<(CommerceSelectionOperation, Vec<String>)>>>);
     impl CommerceOrderHttpBackend for DeferredProbe {
         fn execute<'a>(
@@ -672,7 +672,7 @@ async fn ingress_preserves_untrusted_selection_for_backend_and_classifies_writes
 
 #[tokio::test]
 async fn origin_check_rejects_foreign_or_duplicate_before_backend_dispatch() {
-    use erpx_server_runtime::public::http_support::{HeaderMap, HeaderValue, StatusCode};
+    use erpx_platform_runtime_server::public::http_support::{HeaderMap, HeaderValue, StatusCode};
     let seen = Arc::new(Mutex::new(Vec::new()));
     let state = CommerceOrderHttpState::new(vec![target(
         "acme.example.test",
@@ -725,7 +725,7 @@ async fn origin_check_rejects_foreign_or_duplicate_before_backend_dispatch() {
 
 #[test]
 fn trusted_origin_policy_matches_real_typescript_url_validation() {
-    use erpx_server_commerce::public::order_http::CommerceOriginPolicy;
+    use erpx_commerce_server::public::order_http::CommerceOriginPolicy;
     let cases = [
         (
             "production",
@@ -796,7 +796,7 @@ fn trusted_origin_policy_matches_real_typescript_url_validation() {
     ];
     let script = r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const m=await import(process.argv[1]);const cases=JSON.parse(process.argv[2]);const out=[];for(const [environment,origin] of cases){process.env.NODE_ENV=environment;try{const c=m.nativeCommerceOrdersConfiguration(JSON.stringify({privateBaseUrl:'http://127.0.0.1:44993',timeoutMs:1000,holdings:[{origin,holdingId:'h001',holdingSlug:'acme'}]}));m.createNativeCommerceOrdersClient(c);out.push(true)}catch{out.push(false)}}process.stdout.write(JSON.stringify(out));"#;
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let module = root.join("packages/feature-commerce/src/public/native-commerce-orders.ts");
+    let module = root.join("modules/commerce/ui/src/public/native-commerce-orders.ts");
     let cases_json = serde_json::to_string(&cases).unwrap();
     let output =
         std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
@@ -1073,7 +1073,7 @@ async fn catchall_order_detail_native_payload_is_accepted_by_typescript_client()
     // handler; this is transport through the real native client, not a plan.
     let script = r#"const m=await import(process.argv[1]);const body=JSON.parse(process.argv[2]);const actor={userId:'user',holdingId:'h001',holdingSlug:'acme',companyId:'company',branchId:null,departmentId:null,assignmentId:'assignment',role:'owner',assignmentScope:'holding',scope:{kind:'holding'},authority:{revision:7,assignmentVersion:3},modules:['sales'],iam:{permissions:['commerce.read','commerce.sales','commerce.approve']}};const input={holdingSlug:'acme',expected:{companyId:'company',assignmentId:'assignment',revision:7,assignmentVersion:3}};const transport=async()=>new Response(JSON.stringify(body),{status:200,headers:{'content-type':'application/json'}});const cfg=m.nativeCommerceOrdersConfiguration(JSON.stringify({privateBaseUrl:'http://127.0.0.1:44993',timeoutMs:1000,holdings:[{origin:'https://acme.example.com',holdingSlug:'acme',holdingId:'h001'}]}));const value=await m.createNativeCommerceOrdersClient(cfg,transport).detail({get:name=>name==='host'?'acme.example.com':null},actor,'order-1',input);if(value.order.id!=='order-1'||value.lines.length!==1)throw Error('PARITY_FAILED');process.stdout.write('PARITY_OK');"#;
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let module = root.join("packages/feature-commerce/src/public/native-commerce-orders.ts");
+    let module = root.join("modules/commerce/ui/src/public/native-commerce-orders.ts");
     let output = std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
         .current_dir(root)
         .args(["--conditions=react-server", "-e", script])

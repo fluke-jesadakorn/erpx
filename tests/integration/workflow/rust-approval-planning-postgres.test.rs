@@ -6,12 +6,12 @@
 //! leave_cancellation and overtime cycles are isolated by record type.
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::BusinessError;
-use erpx_server_workflow::public::approval_planning::{
+use erpx_platform_shared_server::public::BusinessError;
+use erpx_workflow_server::public::approval_planning::{
     OpenOwnerApproval, StaffApprovalStep, StaffApprovalView, StaffDecision, close_owner_approvals,
     open_owner_approval, owner_approval_view, prepare_owner_decision,
 };

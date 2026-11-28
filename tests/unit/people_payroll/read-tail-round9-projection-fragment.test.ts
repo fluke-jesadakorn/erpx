@@ -1,13 +1,13 @@
 import { describe, expect, test } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
-import { ppRdRound9ProjectionFragment } from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-round9-sources';
+import { ppRdRound9ProjectionFragment } from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-round9-sources';
 import {
   PP_RD18_HR_ENGAGEMENTS_E_JOIN_SQL,
   PP_RD18_HR_ENGAGEMENTS_E_FROM_SQL,
-} from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r18-sources';
+} from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r18-sources';
 
 const src = (name: string) => readFileSync(
-  new URL(`../../../packages/server-people_payroll/src/adapters/${name}`, import.meta.url), 'utf8',
+  new URL(`../../../modules/people-payroll/server/src/adapters/${name}`, import.meta.url), 'utf8',
 );
 
 describe('People Payroll round-9 quoted projection fragment family', () => {
@@ -39,7 +39,7 @@ describe('People Payroll round-9 quoted projection fragment family', () => {
   });
 
   test('the fold lowers the owner SELECT count below 1138', () => {
-    const root = new URL('../../../packages/server-people_payroll/src/', import.meta.url);
+    const root = new URL('../../../modules/people-payroll/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {

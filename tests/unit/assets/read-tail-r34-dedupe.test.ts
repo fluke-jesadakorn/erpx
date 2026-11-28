@@ -4,7 +4,7 @@ import {resolve} from 'node:path';
 
 vi.mock('server-only',()=>({}));
 
-const srcRoot=resolve(__dirname,'../../../packages/server-assets/src');
+const srcRoot=resolve(__dirname,'../../../modules/assets/server/src');
 const src=(p:string)=>readFileSync(resolve(srcRoot,p),'utf8');
 const ownerSelectCount=()=>{
  let selects=0;
@@ -21,8 +21,8 @@ const ownerSelectCount=()=>{
 
 describe('Assets read-tail r34 universal select head family',()=>{
  it('renders the one universal head byte-identically for both delegates',async()=>{
-  const {assetSelectProjectionSql,assetProjectionFromSql}=await import('../../../packages/server-assets/src/adapters/asset-scope-tuple');
-  const {assetSourceImageSql}=await import('../../../packages/server-assets/src/adapters/financial-workflow-sources');
+  const {assetSelectProjectionSql,assetProjectionFromSql}=await import('../../../modules/assets/server/src/adapters/asset-scope-tuple');
+  const {assetSourceImageSql}=await import('../../../modules/assets/server/src/adapters/financial-workflow-sources');
   // Pre-r34 literals, rebuilt verbatim; no projection, FROM or tail fragment changes.
   const head=(projection:string,tail="")=>`SELECT ${projection}${tail}`;
   const projectionFrom=(projection:string,from:string,tail="")=>`SELECT ${projection} FROM${from}${tail}`;
@@ -52,8 +52,8 @@ describe('Assets read-tail r34 universal select head family',()=>{
  });
 
  it('keeps both real image-witness call sites byte-identical with unchanged binds',async()=>{
-  const {assetSourceImageSql,assetFinanceLinkReadSql}=await import('../../../packages/server-assets/src/adapters/financial-workflow-sources');
-  const {assetSourceProbeSql}=await import('../../../packages/server-assets/src/adapters/record-purchases');
+  const {assetSourceImageSql,assetFinanceLinkReadSql}=await import('../../../modules/assets/server/src/adapters/financial-workflow-sources');
+  const {assetSourceProbeSql}=await import('../../../modules/assets/server/src/adapters/record-purchases');
   const agg=(alias:string,from:string)=>`(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${from})`;
   const probe=(from:string,where:string)=>`SELECT 1 FROM ${from} WHERE ${where}`;
   // Physical lineage witness: pre-r34 projection and tail, rebuilt verbatim.

@@ -1,5 +1,5 @@
-use erpx_server_maintenance::public::*;
-use erpx_server_shared::public::{FailureKind, UserId};
+use erpx_maintenance_server::public::*;
+use erpx_platform_shared_server::public::{FailureKind, UserId};
 use serde_json::{Value, json};
 fn corpus() -> Value {
     serde_json::from_str(include_str!(

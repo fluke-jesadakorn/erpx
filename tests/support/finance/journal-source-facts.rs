@@ -6,12 +6,12 @@ pub mod preparation;
 #[path = "review-facts.rs"]
 #[allow(dead_code)] // The shared fixture also supports retry-specific suites.
 pub mod review;
-use erpx_server_finance::public::{journal_review::*, *};
-use erpx_server_runtime::public::postgres::{
+use erpx_finance_server::public::{journal_review::*, *};
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, PgTransactionError, PgUnitOfWork, TransactionOptions,
 };
-use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind, RecordId, UserId};
-use erpx_server_workflow::public::commands::*;
+use erpx_platform_shared_server::public::{BusinessError, CommandKey, FailureKind, RecordId, UserId};
+use erpx_workflow_server::public::commands::*;
 use sqlx::PgConnection;
 use std::sync::Arc;
 use tokio::sync::Mutex;

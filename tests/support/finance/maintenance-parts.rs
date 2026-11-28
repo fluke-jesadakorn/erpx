@@ -2,14 +2,14 @@
 //! source data is synthetic; no actor or owner-policy port is substituted.
 #[path = "review-composition.rs"]
 pub mod review;
-use erpx_server_commercial::public::purchases::PackageEnforcementMode;
-use erpx_server_identity_access::public::{
+use erpx_commercial_server::public::purchases::PackageEnforcementMode;
+use erpx_identity_access_server::public::{
     effective_authority::WorkAuthorizationRequest,
     work_context::{ExpectedWorkSelection, HoldingWorkspaceRequest},
 };
-use erpx_server_runtime::public::postgres::DatabasePool;
-use erpx_server_shared::public::{AssignmentId, Clock, CommandKey, IdentifierSource, RecordId};
-use erpx_service::maintenance_parts::{
+use erpx_platform_runtime_server::public::postgres::DatabasePool;
+use erpx_platform_shared_server::public::{AssignmentId, Clock, CommandKey, IdentifierSource, RecordId};
+use erpx_platform_composition::maintenance_parts::{
     MaintenancePartsSourcePreparation, execute_maintenance_issue_part,
 };
 pub use review::*;
@@ -68,7 +68,7 @@ impl Parts {
             let key=key.clone();let clock=clock.clone();Box::pin(async move {
                 assert!(!current.has_permission("finance.write"));
                 let raw=format!(r#"{{"action":"issue-part","expectedVersion":{version},"reason":"Synthetic genuine issue","warehouseId":"warehouse","productId":"product","quantityMilli":1000,"entryDate":"2026-01-10","allocations":[]}}"#);
-                let command=erpx_server_maintenance::public::work_wire::normalize_maintenance_change(raw.as_bytes()).unwrap().into_command(CommandKey::new(key)?,RecordId::new("work")?);
+                let command=erpx_maintenance_server::public::work_wire::normalize_maintenance_change(raw.as_bytes()).unwrap().into_command(CommandKey::new(key)?,RecordId::new("work")?);
                 execute_maintenance_issue_part(c,current,&command,PackageEnforcementMode::Enforced,clock.as_ref(),clock.as_ref(),&mut Ids).await?;Ok(())
             })
         }).await.unwrap();
@@ -78,7 +78,7 @@ impl Parts {
         &self,
         id: &str,
         key: &str,
-    ) -> Result<erpx_server_finance::public::journal_review::JournalReviewResult, Error> {
+    ) -> Result<erpx_finance_server::public::journal_review::JournalReviewResult, Error> {
         self.reviewer.review(id, key, post()).await
     }
 }
@@ -114,7 +114,7 @@ pub fn spawn_post(
     id: String,
     key: &str,
 ) -> tokio::task::JoinHandle<
-    Result<erpx_server_finance::public::journal_review::JournalReviewResult, Error>,
+    Result<erpx_finance_server::public::journal_review::JournalReviewResult, Error>,
 > {
     let administration = p.reviewer.administration();
     let proof = p.reviewer.reviewer.clone();
@@ -131,7 +131,7 @@ pub async fn blocked_by(p: &Parts, database: &str, pid: i32) {
 }
 pub async fn legacy_source_exists(p: &Parts, id: &str) -> bool {
     let original =
-        include_str!("../../../packages/server-maintenance/src/adapters/finance-record-sources.ts");
+        include_str!("../../../modules/maintenance/server/src/adapters/finance-record-sources.ts");
     let sql = original
         .split("journal:`")
         .nth(1)
@@ -162,7 +162,7 @@ pub fn spawn_issue(
     tokio::spawn(async move {
         authorizer.execute_with_sources("acme.example.test",proof,selection,issue_request(),MaintenancePartsSourcePreparation,move|c,current|{let key=key.clone();let clock=clock.clone();Box::pin(async move{
         let raw=format!(r#"{{"action":"issue-part","expectedVersion":{version},"reason":"Synthetic concurrent genuine issue","warehouseId":"warehouse","productId":"product","quantityMilli":1000,"entryDate":"2026-01-10","allocations":[]}}"#);
-        let command=erpx_server_maintenance::public::work_wire::normalize_maintenance_change(raw.as_bytes()).unwrap().into_command(CommandKey::new(key)?,RecordId::new("work")?);
+        let command=erpx_maintenance_server::public::work_wire::normalize_maintenance_change(raw.as_bytes()).unwrap().into_command(CommandKey::new(key)?,RecordId::new("work")?);
         execute_maintenance_issue_part(c,current,&command,PackageEnforcementMode::Enforced,clock.as_ref(),clock.as_ref(),&mut Ids).await?;Ok(())
     })}).await
     })

@@ -1,2 +1,0 @@
-export { marketingWorkspace, createMarketingAsset, createMarketingCandidate, changeMarketing, marketingDetail, marketingExecutiveEvidenceRow, marketingWork } from "@erpx/server-marketing/adapters/marketing";
-export type { MarketingExecutiveEvidenceMetric } from "@erpx/server-marketing/domain/marketing";

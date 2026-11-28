@@ -1,14 +1,14 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { sourceImage } from '../../../packages/server-procurement/src/adapters/read-tail-r31';
-import { branchDepartmentScope } from '../../../packages/server-procurement/src/adapters/read-tail-sql';
-import { platformOwnerProjectionSources as commercePlatformSources } from '../../../packages/server-commerce/src/public/platform-owner-projection-sources';
-import { platformOwnerProjectionSources as financePlatformSources } from '../../../packages/server-finance/src/public/platform-owner-projection-sources';
-import { platformOwnerProjectionSources as people_payrollPlatformSources } from '../../../packages/server-people_payroll/src/public/platform-owner-projection-sources';
+import { sourceImage } from '../../../modules/procurement/server/src/adapters/read-tail-r31';
+import { branchDepartmentScope } from '../../../modules/procurement/server/src/adapters/read-tail-sql';
+import { platformOwnerProjectionSources as commercePlatformSources } from '../../../modules/commerce/server/src/public/platform-owner-projection-sources';
+import { platformOwnerProjectionSources as financePlatformSources } from '../../../modules/finance/server/src/public/platform-owner-projection-sources';
+import { platformOwnerProjectionSources as people_payrollPlatformSources } from '../../../modules/people-payroll/server/src/public/platform-owner-projection-sources';
 
 const src = (name: string) => readFileSync(
-  new URL(`../../../packages/server-procurement/src/adapters/${name}`, import.meta.url), 'utf8',
+  new URL(`../../../modules/procurement/server/src/adapters/${name}`, import.meta.url), 'utf8',
 );
 const count = (s: string, needle: string) => s.split(needle).length - 1;
 const sha = (name: string) => createHash('sha256').update(src(name)).digest('hex');
@@ -90,7 +90,7 @@ describe('Procurement read-tail r49 supplier read-head dedupe', () => {
   });
 
   test('worktree SELECT count is 88 - 3 = 85', () => {
-    const root = new URL('../../../packages/server-procurement/src/', import.meta.url);
+    const root = new URL('../../../modules/procurement/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {

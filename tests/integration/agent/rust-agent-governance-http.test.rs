@@ -2,12 +2,12 @@
 //! facts only; Account authority, Agent policy, snapshots, receipts, audit and
 //! outbox remain separate composition responsibilities. The platform-owned
 //! Agent evidence audit read is not served by this router.
-use erpx_server_agent::public::governance::{
+use erpx_agent_server::public::governance::{
     AgentGovernanceHttpBackend, AgentGovernanceHttpCommandRequest, AgentGovernanceHttpFuture,
     AgentGovernanceHttpReadRequest, AgentGovernanceHttpTarget, agent_governance_http_router,
 };
-use erpx_server_runtime::public::http_support::serve;
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::serve;
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Noop;

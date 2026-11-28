@@ -6,14 +6,14 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_identity_access::public::assignment::{
+use erpx_identity_access_server::public::assignment::{
     AssignmentActor, AssignmentRevocation, PgIdentityAssignments, assignment_workspace,
     revoke_assignment,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, HoldingId, RecordId, UserId,
 };
 use serde_json::Value;

@@ -1,4 +1,0 @@
-import {ppRd38SinglePredTail} from './pp-read-tail-r38-sources';
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
-export async function organizationDraftLifecycleCases(db:SqlDatabase,companyId:string){return (await db.prepare("SELECT id,engagement_id,person_id,workflow,status,version,definition FROM people_lifecycle_cases WHERE company_id=? AND status IN ('draft','waiting_it','pending_review','scheduled')").bind(companyId).all<{id:string;engagement_id:string;person_id:string;workflow:string;status:string;version:number;definition:{positionId?:string}}>()).results;}
-export async function organizationDraftLeaveAssignments(db:SqlDatabase,companyId:string){return (await db.prepare(ppRd38SinglePredTail('engagement_id,id,policy_version_id,effective_from,effective_to,version', 'leave_policy_assignments', 'company_id', ' ORDER BY engagement_id,id')).bind(companyId).all<{engagement_id:string}&Record<string,unknown>>()).results;}

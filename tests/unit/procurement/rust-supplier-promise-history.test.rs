@@ -1,10 +1,10 @@
 //! Native Procurement supplier promise history policy and row tests.
-use erpx_server_procurement::public::supplier_promise_history::{
+use erpx_procurement_server::public::supplier_promise_history::{
     OpenPromiseRow, SupplierPromiseHistoryFuture, SupplierPromiseHistoryRepository,
     SupplierPromiseLineRow, SupplierPromiseOrderRow, SupplierPromiseReadActor, SupplierPromiseRow,
     SupplierPromiseSourceLineRow, supplier_promise_history,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, CompanyId, FailureKind, RecordId, TimestampMillis,
 };
 

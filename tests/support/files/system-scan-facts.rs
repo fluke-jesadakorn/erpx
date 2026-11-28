@@ -10,13 +10,13 @@ pub mod facts;
 )]
 #[path = "../runtime/private-session-api.rs"]
 pub mod fixture;
-use erpx_server_files::public::attachment_scan::{AttachmentScanFailure, AttachmentScanScope};
-use erpx_server_runtime::public::postgres::LeasedDevelopmentDatabase;
-use erpx_server_shared::public::{BusinessError, CompanyId, HoldingId};
-use erpx_service::files_system_scan::DevelopmentFilesScanConfiguration;
+use erpx_files_server::public::attachment_scan::{AttachmentScanFailure, AttachmentScanScope};
+use erpx_platform_runtime_server::public::postgres::LeasedDevelopmentDatabase;
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, HoldingId};
+use erpx_platform_composition::files_system_scan::DevelopmentFilesScanConfiguration;
 use std::{collections::BTreeMap, sync::Arc};
 pub async fn lease(
-    pool: &erpx_server_runtime::public::postgres::DatabasePool,
+    pool: &erpx_platform_runtime_server::public::postgres::DatabasePool,
 ) -> LeasedDevelopmentDatabase {
     let d = fixture::database(pool).await;
     LeasedDevelopmentDatabase::parse(

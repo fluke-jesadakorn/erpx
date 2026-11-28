@@ -7,13 +7,13 @@ import {
   legalMemberEditPointSql,
   legalFactDataSql,
   legalMetricCountPrefix,
-} from '../../../packages/server-legal/src/adapters/legal-read-tail-r38-sources';
-import contract from '../../../packages/server-legal/src/adapters/legal-read-tail-r38-sources.json' with {
+} from '../../../modules/legal/server/src/adapters/legal-read-tail-r38-sources';
+import contract from '../../../modules/legal/server/src/adapters/legal-read-tail-r38-sources.json' with {
   type: 'json',
 };
 
-const srcRoot = resolve(__dirname, '../../../packages/server-legal/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-legal/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/legal/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/legal/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 describe('legal read-tail r38 fragment families', () => {
   it('renders byte-identical SQL for every member of each family', () => {

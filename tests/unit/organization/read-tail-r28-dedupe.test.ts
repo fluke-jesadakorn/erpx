@@ -4,9 +4,9 @@ import { describe, expect, test } from 'vitest';
 import {
   companySnapshotAggregate,
   correlatedNodeJson,
-} from '../../../packages/server-organization/src/adapters/organization-column-alias-families-r28';
+} from '../../../modules/organization/server/src/adapters/organization-column-alias-families-r28';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+const srcRoot = resolve(__dirname, '../../../modules/organization/server/src');
 const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const helper = read('organization-column-alias-families-r28.ts');
 const graphGuard = read('organization-graph-guard.ts');

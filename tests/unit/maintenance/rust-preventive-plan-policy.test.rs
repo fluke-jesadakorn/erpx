@@ -1,7 +1,7 @@
 //! Preventive-plan owner policy: independent activation, retained-occurrence
 //! guard, eligible owner, state and version/CAS refusal order.
-use erpx_server_maintenance::public::preventive_plan::*;
-use erpx_server_shared::public::BusinessError;
+use erpx_maintenance_server::public::preventive_plan::*;
+use erpx_platform_shared_server::public::BusinessError;
 
 fn actor(user: &str, review: bool) -> PreventivePlanActor {
     PreventivePlanActor {

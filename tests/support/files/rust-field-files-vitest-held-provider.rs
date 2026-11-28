@@ -8,8 +8,8 @@ mod engineering_cohort;
 #[allow(dead_code, unused_imports)]
 #[path = "../field_service/parts.rs"]
 mod facts;
-use erpx_server_identity_access::public::{SystemAccountClock, SystemAuthenticationSecrets};
-use erpx_service::private_development_api::{
+use erpx_identity_access_server::public::{SystemAccountClock, SystemAuthenticationSecrets};
+use erpx_platform_composition::private_development_api::{
     DevelopmentApiConfiguration, assemble_development_api, run_field_files_worker_file,
 };
 use sqlx::Row;
@@ -77,8 +77,8 @@ async fn main() {
 
 async fn run_fixture(
     system: facts::account::System,
-    reads: Option<[erpx_server_runtime::public::postgres::DatabasePool; 2]>,
-    engineering: Option<&[erpx_server_runtime::public::postgres::DatabasePool]>,
+    reads: Option<[erpx_platform_runtime_server::public::postgres::DatabasePool; 2]>,
+    engineering: Option<&[erpx_platform_runtime_server::public::postgres::DatabasePool]>,
     mut shutdown: tokio::sync::watch::Receiver<bool>,
 ) {
     if *shutdown.borrow() {
@@ -213,7 +213,7 @@ async fn run_fixture(
         configuration::document(&p.review.system.control, &p.review.system.holdings).await;
     doc["listen"] = address.to_string().into();
     if let Some(ref pools) = reads {
-        use erpx_server_runtime::public::postgres::{
+        use erpx_platform_runtime_server::public::postgres::{
             MigrationTrack, load_migrations, migrate_database,
         };
         let files = load_migrations(

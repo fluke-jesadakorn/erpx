@@ -39,13 +39,13 @@ import {
   nativePosChargeConnectionStatement,
   nativePosConnectionAccountStatement,
   nativePosCounterPaymentConnectionStatement,
-} from '../../../packages/server-pos/src/adapters/native-pos-core-statement';
-import { pmsHospitalitySetupPosFacts } from '../../../packages/server-pos/src/adapters/pms-hospitality-setup-facts';
-import { pmsPosFacts } from '../../../packages/server-pos/src/adapters/pms-command-facts';
-import { pmsBookingChangeFacts } from '../../../packages/server-pos/src/adapters/pms-booking-change-facts';
-import { pmsBookingPosFacts } from '../../../packages/server-pos/src/adapters/pms-booking-facts';
-import { pmsCounterPaymentFacts } from '../../../packages/server-pos/src/adapters/pms-counter-payment-facts';
-import { stripeEntrypointFacts } from '../../../packages/server-pos/src/adapters/stripe-entrypoint-facts';
+} from '../../../modules/pos/server/src/adapters/native-pos-core-statement';
+import { pmsHospitalitySetupPosFacts } from '../../../modules/pos/server/src/adapters/pms-hospitality-setup-facts';
+import { pmsPosFacts } from '../../../modules/pos/server/src/adapters/pms-command-facts';
+import { pmsBookingChangeFacts } from '../../../modules/pos/server/src/adapters/pms-booking-change-facts';
+import { pmsBookingPosFacts } from '../../../modules/pos/server/src/adapters/pms-booking-facts';
+import { pmsCounterPaymentFacts } from '../../../modules/pos/server/src/adapters/pms-counter-payment-facts';
+import { stripeEntrypointFacts } from '../../../modules/pos/server/src/adapters/stripe-entrypoint-facts';
 
 const config = () => JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:44994', timeoutMs: 1000 });
 const previous = process.env.ERPX_NATIVE_POS_OWNER_CONFIG;
@@ -106,7 +106,7 @@ describe('native POS core workspace read bridge (shifts family)', () => {
 
   it('keeps the retired startup register literal out of the TS adapter', async () => {
     const { readFileSync } = await import('node:fs');
-    const startup = readFileSync(new URL('../../../packages/server-pos/src/adapters/startup.ts', import.meta.url), 'utf8');
+    const startup = readFileSync(new URL('../../../modules/pos/server/src/adapters/startup.ts', import.meta.url), 'utf8');
     expect(startup).not.toContain('SELECT id,branch_id,warehouse_id,name,mode,active,version FROM pos_registers');
     expect(startup).toContain('nativePosStartupRegistersStatement(database');
   });
@@ -144,7 +144,7 @@ describe('native POS core workspace read bridge (shifts family)', () => {
 
   it('keeps the retired Commerce attachment image literal out of the TS adapter', async () => {
     const { readFileSync } = await import('node:fs');
-    const source = readFileSync(new URL('../../../packages/server-pos/src/adapters/commerce-attachment-sources.ts', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../modules/pos/server/src/adapters/commerce-attachment-sources.ts', import.meta.url), 'utf8');
     expect(source).not.toContain("jsonb_build_object('catalog'");
     expect(source).toContain('nativePosCommerceAttachmentImageStatement<{image:string}>');
     expect(source).toContain('LOCK TABLE pos_catalog,pos_register_catalog,pos_registers IN SHARE ROW EXCLUSIVE MODE');
@@ -646,7 +646,7 @@ describe('native POS core workspace read bridge (shifts family)', () => {
 
   it('keeps all four Stripe by-id payment reads on the native registry with no local SQL', async () => {
     const { readFileSync } = await import('node:fs');
-    const source = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-stripe.ts', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../modules/pos/server/src/adapters/pos-stripe.ts', import.meta.url), 'utf8');
     expect(source.match(/nativePosPaymentByIdStatement<PosRow>\(db, facts\.id\)/g)).toHaveLength(4);
     expect(source).not.toContain('SELECT * FROM pos_payments WHERE id=? FOR UPDATE');
   });
@@ -688,11 +688,11 @@ describe('native POS core workspace read bridge (shifts family)', () => {
   it('keeps the three plain by-id payment reads on the native registry with no local SQL', async () => {
     const { readFileSync } = await import('node:fs');
     for (const file of ['pos-stripe.ts', 'pos-core.ts']) {
-      const source = readFileSync(new URL(`../../../packages/server-pos/src/adapters/${file}`, import.meta.url), 'utf8');
+      const source = readFileSync(new URL(`../../../modules/pos/server/src/adapters/${file}`, import.meta.url), 'utf8');
       expect(source).not.toContain("one(db, 'SELECT * FROM pos_payments WHERE id=?', facts.payment_id)");
     }
-    const stripe = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-stripe.ts', import.meta.url), 'utf8');
-    const core = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-core.ts', import.meta.url), 'utf8');
+    const stripe = readFileSync(new URL('../../../modules/pos/server/src/adapters/pos-stripe.ts', import.meta.url), 'utf8');
+    const core = readFileSync(new URL('../../../modules/pos/server/src/adapters/pos-core.ts', import.meta.url), 'utf8');
     expect(stripe.match(/nativePosPaymentByIdPlainStatement\(db, facts\.payment_id\)/g)).toHaveLength(2);
     expect(core.match(/nativePosPaymentByIdPlainStatement\(db, facts\.payment_id\)/g)).toHaveLength(1);
   });
@@ -781,7 +781,7 @@ describe('native POS core workspace read bridge (shifts family)', () => {
     const { readFileSync } = await import('node:fs');
     const literal = "SELECT * FROM pos_connections WHERE company_id=? AND state='ready' AND charges_enabled=true AND payouts_enabled=true";
     for (const file of ['pms-booking-change-facts.ts', 'pms-booking-facts.ts']) {
-      const source = readFileSync(new URL(`../../../packages/server-pos/src/adapters/${file}`, import.meta.url), 'utf8');
+      const source = readFileSync(new URL(`../../../modules/pos/server/src/adapters/${file}`, import.meta.url), 'utf8');
       expect(source).not.toContain(literal);
       expect(source).toContain('nativePosBookingConnectionStatement');
     }
@@ -868,7 +868,7 @@ describe('native POS core workspace read bridge (shifts family)', () => {
 
   it('keeps no byte-identical Stripe entrypoint SQL literal in the TS adapter', async () => {
     const { readFileSync } = await import('node:fs');
-    const source = readFileSync(new URL('../../../packages/server-pos/src/adapters/stripe-entrypoint-facts.ts', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../modules/pos/server/src/adapters/stripe-entrypoint-facts.ts', import.meta.url), 'utf8');
     expect(source).not.toContain('SELECT * FROM pos_connections WHERE company_id=?');
     expect(source).not.toContain('SELECT id,kind,state,last_error,payload_json FROM pos_jobs');
     expect(source).toContain('nativePosConnectionsStatement');
@@ -919,7 +919,7 @@ describe('native POS core workspace read bridge (shifts family)', () => {
 
   it('keeps no byte-identical movement-sale SQL literal in the TS adapter', async () => {
     const { readFileSync } = await import('node:fs');
-    const source = readFileSync(new URL('../../../packages/server-pos/src/adapters/movement-presentation-query.ts', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../modules/pos/server/src/adapters/movement-presentation-query.ts', import.meta.url), 'utf8');
     expect(source).not.toContain('SELECT l.sale_id FROM pos_stock_moves');
     expect(source).toContain('nativePosMovementSaleStatement');
   });
@@ -1010,7 +1010,7 @@ describe('native POS core workspace read bridge (shifts family)', () => {
 
   it('keeps no byte-identical product-image guard SQL literal in the TS adapter', async () => {
     const { readFileSync } = await import('node:fs');
-    const source = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-images.ts', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../modules/pos/server/src/adapters/pos-images.ts', import.meta.url), 'utf8');
     expect(source).not.toContain('SELECT product_id,version FROM pos_catalog');
     expect(source).not.toContain('SELECT attachment_source_id FROM pos_product_images');
     expect(source).toContain('nativePosCatalogStatement');
@@ -1135,8 +1135,8 @@ describe('native POS PMS/counter connection read bridge (SELECT-only family)', (
 
   it('keeps no byte-identical PMS/counter connection SQL literal in the TS adapters', async () => {
     const { readFileSync } = await import('node:fs');
-    const command = readFileSync(new URL('../../../packages/server-pos/src/adapters/pms-command-facts.ts', import.meta.url), 'utf8');
-    const counter = readFileSync(new URL('../../../packages/server-pos/src/adapters/pms-counter-payment-facts.ts', import.meta.url), 'utf8');
+    const command = readFileSync(new URL('../../../modules/pos/server/src/adapters/pms-command-facts.ts', import.meta.url), 'utf8');
+    const counter = readFileSync(new URL('../../../modules/pos/server/src/adapters/pms-counter-payment-facts.ts', import.meta.url), 'utf8');
     for (const source of [command, counter]) {
       expect(source).not.toContain('FROM pos_connections');
       expect(source).not.toMatch(/FOR UPDATE|FOR SHARE/);
@@ -1199,7 +1199,7 @@ describe('native POS by-id register read (byte-identical SELECT-only family)', (
     // only the lock-free quoted literal must be gone.
     const literal = "'SELECT * FROM pos_registers WHERE id=?'";
     for (const file of ['pos.ts', 'pos-core.ts']) {
-      const source = readFileSync(new URL(`../../../packages/server-pos/src/adapters/${file}`, import.meta.url), 'utf8');
+      const source = readFileSync(new URL(`../../../modules/pos/server/src/adapters/${file}`, import.meta.url), 'utf8');
       expect(source).not.toContain(literal);
       expect(source).toContain('nativePosRegisterByIdStatement');
     }
@@ -1332,7 +1332,7 @@ describe('native POS keyed register/shift/table reads (core read family)', () =>
 
   it('keeps the retired keyed SQL literals out of the TS core adapter', async () => {
     const { readFileSync } = await import('node:fs');
-    const core = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-core.ts', import.meta.url), 'utf8');
+    const core = readFileSync(new URL('../../../modules/pos/server/src/adapters/pos-core.ts', import.meta.url), 'utf8');
     for (const item of cases) {
       expect(core).not.toContain(item.sql);
       expect(core).toContain(item.bridge.name);
@@ -1341,7 +1341,7 @@ describe('native POS keyed register/shift/table reads (core read family)', () =>
     expect(core).toContain('SELECT * FROM pos_registers WHERE id=? FOR UPDATE');
     expect(core).toContain('pmsProjectionSources.pms_sources');
     // Day-report and Stripe registries stay mounted in the owner registry.
-    const owner = readFileSync(new URL('../../../packages/server-pos/src/adapters/owner_writes.rs', import.meta.url), 'utf8');
+    const owner = readFileSync(new URL('../../../modules/pos/server/src/adapters/owner_writes.rs', import.meta.url), 'utf8');
     expect(owner).toContain('crate::adapters::day_report_reads::SETTLEMENTS');
     expect(owner).toContain('crate::adapters::stripe_reads::REFUND_ID_BY_PROVIDER');
     expect(owner).toContain('crate::adapters::core_reads::REGISTER_BY_NAME');
@@ -1493,7 +1493,7 @@ describe('native POS keyed core settings/receipt/day-close/reversal reads (core_
   it('keeps the retired keyed core literals out of the TS adapters', async () => {
     const { readFileSync } = await import('node:fs');
     for (const item of cases) {
-      const source = readFileSync(new URL(`../../../packages/server-pos/src/adapters/${item.source}`, import.meta.url), 'utf8');
+      const source = readFileSync(new URL(`../../../modules/pos/server/src/adapters/${item.source}`, import.meta.url), 'utf8');
       // A lock-bearing settings read intentionally stays inline; compare the
       // complete literal rather than a substrings that it contains.
       const inline = item.kind === 'pos_core_keyed_settings'
@@ -1502,9 +1502,9 @@ describe('native POS keyed core settings/receipt/day-close/reversal reads (core_
       expect(source).not.toContain(inline);
       expect(source).toContain(item.bridge.name);
     }
-    const core = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-core.ts', import.meta.url), 'utf8');
+    const core = readFileSync(new URL('../../../modules/pos/server/src/adapters/pos-core.ts', import.meta.url), 'utf8');
     expect(core).toContain('SELECT * FROM pos_settings WHERE company_id=? FOR UPDATE');
-    const owner = readFileSync(new URL('../../../packages/server-pos/src/adapters/owner_writes.rs', import.meta.url), 'utf8');
+    const owner = readFileSync(new URL('../../../modules/pos/server/src/adapters/owner_writes.rs', import.meta.url), 'utf8');
     expect(owner).toContain('crate::adapters::core_keyed_reads::SETTINGS');
     expect(owner).toContain('crate::adapters::core_keyed_reads::RECEIPT_BY_ID');
     expect(owner).toContain('crate::adapters::core_keyed_reads::PREPARED_DAY_CLOSE');

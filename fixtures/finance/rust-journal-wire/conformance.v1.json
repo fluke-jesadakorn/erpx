@@ -3,11 +3,11 @@
   "commit": "a5ed8737a2f05eff1ee9841fda4a094b3926d732",
   "sources": [
     {
-      "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
+      "path": "platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
       "sha256": "a1d9e2b3a7f4fe7c70e7b33613b3dd02ab6e2feba30c24e9bd679776c34128c9"
     },
     {
-      "path": "packages/feature-legal/src/routes/api/v1/holdings/[holdingSlug]/legal/[[...path]]/route.ts",
+      "path": "modules/legal/ui/src/routes/api/v1/holdings/[holdingSlug]/legal/[[...path]]/route.ts",
       "sha256": "ae1399b78a0bb12b135968693aa6d82e5200231e2dfc46ff05f6c7a26cdc5cf3"
     }
   ],

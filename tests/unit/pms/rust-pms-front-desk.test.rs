@@ -1,11 +1,11 @@
 //! Native PMS front-desk policy and application facts. No database, browser,
 //! command, purchase or Workflow acceptance is inferred.
-use erpx_server_pms::public::front_desk::*;
-use erpx_server_pms::public::room_board::{
+use erpx_pms_server::public::front_desk::*;
+use erpx_pms_server::public::room_board::{
     PmsBoardActor, PmsBoardEntitlement, PmsBoardEntitlementPort, PmsBoardFuture, PmsPropertyRow,
     PmsRecord,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 fn actor() -> PmsBoardActor {
@@ -137,7 +137,7 @@ impl PmsFrontDeskRepository for Repo {
         property_id: &'a str,
         _business_date: &'a str,
         selection: &'a PmsFrontDeskSelection,
-        visibility: erpx_server_pms::public::room_board::PmsBoardVisibility,
+        visibility: erpx_pms_server::public::room_board::PmsBoardVisibility,
     ) -> PmsBoardFuture<'a, PmsFrontDeskData, Self::Error> {
         self.seen.lock().unwrap().push(format!(
             "front-desk:{property_id}:{}:{}:{}:{}",

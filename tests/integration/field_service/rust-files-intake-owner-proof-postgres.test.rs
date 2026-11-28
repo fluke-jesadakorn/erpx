@@ -7,12 +7,12 @@
 #[path = "../../support/field_service/parts.rs"]
 mod facts;
 
-use erpx_server_files::public::field_visit_intake::{
+use erpx_files_server::public::field_visit_intake::{
     FieldIntakeAvailability, FieldSetRequest, create_field_set, prepare_field_intake,
 };
-use erpx_server_identity_access::public::effective_authority::WorkAuthorizationRequest;
-use erpx_server_shared::public::{Clock, CompanyId, HoldingId};
-use erpx_service::field_attachment_intake::{
+use erpx_identity_access_server::public::effective_authority::WorkAuthorizationRequest;
+use erpx_platform_shared_server::public::{Clock, CompanyId, HoldingId};
+use erpx_platform_composition::field_attachment_intake::{
     FieldAttachmentIntakeAuthority, FieldAttachmentIntakeSources,
 };
 use std::sync::{
@@ -25,7 +25,7 @@ async fn actual_field_proof_creates_a_set_and_rejects_late_visit_version_change(
     facts::account::with_system(|system| async move {
         let p = facts::setup_workspace(system).await;
         let clock = p.review.system.scenario.clock.clone();
-        let catalogue = Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap());
+        let catalogue = Arc::new(erpx_commercial_server::public::purchases::current_package_catalogue().unwrap());
         let created = Arc::new(AtomicBool::new(false));
         let observed = created.clone();
         let result = p.review.authorizer.execute_with_sources(
@@ -48,7 +48,7 @@ async fn actual_field_proof_creates_a_set_and_rejects_late_visit_version_change(
                 // Field version change even though bind permits its own advance.
                 sqlx::query("UPDATE field_service_orders SET version=version+1 WHERE id='issue-order'").execute(&mut *c).await?;
                 let rejected = read.require_current(c, now).await;
-                assert!(matches!(&rejected, Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) if error.code == "SERVICE_ATTACHMENT_CHANGED"));
+                assert!(matches!(&rejected, Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) if error.code == "SERVICE_ATTACHMENT_CHANGED"));
                 rejected
             }) },
         ).await;
@@ -64,7 +64,7 @@ async fn actual_field_proof_commits_one_set_and_reuses_its_original_draft() {
     facts::account::with_system(|system| async move {
         let p = facts::setup_workspace(system).await;
         let clock = p.review.system.scenario.clock.clone();
-        let catalogue = Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap());
+        let catalogue = Arc::new(erpx_commercial_server::public::purchases::current_package_catalogue().unwrap());
         let mut saved = None;
         for (key, replay) in [("real-create", false), ("real-create", true), ("real-alias", false), ("real-alias", true)] {
             let clock = clock.clone();
@@ -94,19 +94,19 @@ async fn actual_field_proof_commits_one_set_and_reuses_its_original_draft() {
 
 #[derive(Clone)]
 struct FieldFileSavepointSources;
-impl erpx_server_identity_access::public::effective_authority::HoldingWorkSourcePreparation for FieldFileSavepointSources {
-    fn prepare<'c>(&'c self,c:&'c mut sqlx::PgConnection)->erpx_server_runtime::public::postgres::PgWorkFuture<'c,(),erpx_server_shared::public::BusinessError> {
+impl erpx_identity_access_server::public::effective_authority::HoldingWorkSourcePreparation for FieldFileSavepointSources {
+    fn prepare<'c>(&'c self,c:&'c mut sqlx::PgConnection)->erpx_platform_runtime_server::public::postgres::PgWorkFuture<'c,(),erpx_platform_shared_server::public::BusinessError> {
         Box::pin(async move {
             sqlx::query("SELECT pg_current_xact_id()").execute(&mut *c).await?;
             sqlx::query("SAVEPOINT before_field_file_sources").execute(&mut *c).await?;
-            erpx_server_identity_access::public::effective_authority::HoldingWorkSourcePreparation::prepare(&FieldAttachmentIntakeSources,c).await
+            erpx_identity_access_server::public::effective_authority::HoldingWorkSourcePreparation::prepare(&FieldAttachmentIntakeSources,c).await
         })
     }
 }
 
 #[tokio::test]
 async fn field_file_source_rechecks_utility_locks_after_savepoint_rollback() {
-    use erpx_server_field_service::public::file_source::read_field_file_source;
+    use erpx_field_service_server::public::file_source::read_field_file_source;
     facts::account::with_system(|system| async move {
         let p=facts::setup_workspace(system).await;
         let observed=Arc::new(AtomicBool::new(false));let checked=observed.clone();
@@ -131,7 +131,7 @@ async fn field_file_source_rechecks_utility_locks_after_savepoint_rollback() {
 
 #[tokio::test]
 async fn field_file_require_held_distinguishes_read_and_bind_modes() {
-    use erpx_server_field_service::public::file_source::{FieldFileSourceLockMode as Mode,lock_field_file_bind_sources,lock_field_file_sources,require_field_file_sources_held};
+    use erpx_field_service_server::public::file_source::{FieldFileSourceLockMode as Mode,lock_field_file_bind_sources,lock_field_file_sources,require_field_file_sources_held};
     facts::account::with_system(|system| async move {
         let p=facts::setup_workspace(system).await;let db=p.pool().raw();
         let mut outside=db.acquire().await.unwrap();assert!(require_field_file_sources_held(&mut outside,Mode::Read).await.is_err());drop(outside);
@@ -147,8 +147,8 @@ async fn field_file_require_held_distinguishes_read_and_bind_modes() {
 
 #[tokio::test]
 async fn selected_field_bind_writer_rejects_read_only_source_fence() {
-    use erpx_server_field_service::public::file_source::{bind_field_file_evidence,read_field_file_source};
-    use erpx_server_runtime::public::postgres::PgTransactionError;
+    use erpx_field_service_server::public::file_source::{bind_field_file_evidence,read_field_file_source};
+    use erpx_platform_runtime_server::public::postgres::PgTransactionError;
     facts::account::with_system(|system| async move {
         let p=facts::setup_workspace(system).await;let clock=p.review.system.scenario.clock.clone();
         p.review.authorizer.execute_with_sources(
@@ -168,9 +168,9 @@ async fn selected_field_bind_writer_rejects_read_only_source_fence() {
 
 #[tokio::test]
 async fn files_workflow_finance_batch_classifies_both_global_payment_branches() {
-    use erpx_server_files::public::field_attachment_ancestry::{inspect_field_attachment_ancestry,lock_field_attachment_ancestry};
-    use erpx_server_workflow::public::record_origin::{inspect_field_payment_receipt_batch,lock_payment_origin_candidate_sources};
-    use erpx_server_finance::public::raw_field_payment_allocation_marker::{inspect_field_payment_origin_batch,lock_raw_field_payment_allocation_sources};
+    use erpx_files_server::public::field_attachment_ancestry::{inspect_field_attachment_ancestry,lock_field_attachment_ancestry};
+    use erpx_workflow_server::public::record_origin::{inspect_field_payment_receipt_batch,lock_payment_origin_candidate_sources};
+    use erpx_finance_server::public::raw_field_payment_allocation_marker::{inspect_field_payment_origin_batch,lock_raw_field_payment_allocation_sources};
     // Uses the actual three owner ports on a migrated Holding DB. This is a
     // routing predicate test, not selected authorization or purchase evidence.
     facts::account::with_system(|system| async move {
@@ -212,8 +212,8 @@ async fn files_workflow_finance_batch_classifies_both_global_payment_branches() 
         }
         for (suffix,receipt,allocation) in [("set",true,false),("upload",false,true),("upload-set",true,true)] {
             let ancestry=inspect_field_attachment_ancestry(&mut tx,&CompanyId::new("company").unwrap(),&format!("direct-payment-link-{suffix}")).await.unwrap().unwrap();
-            let direct_batch=erpx_server_workflow::public::record_origin::inspect_field_direct_payment_receipt_batch(&mut tx,&ancestry).await.unwrap();
-            let direct=erpx_server_finance::public::raw_field_payment_allocation_marker::inspect_direct_field_payment_origin(&mut tx,&direct_batch).await.unwrap();
+            let direct_batch=erpx_workflow_server::public::record_origin::inspect_field_direct_payment_receipt_batch(&mut tx,&ancestry).await.unwrap();
+            let direct=erpx_finance_server::public::raw_field_payment_allocation_marker::inspect_direct_field_payment_origin(&mut tx,&direct_batch).await.unwrap();
             let source_batch=inspect_field_payment_receipt_batch(&mut tx,&ancestry).await.unwrap();
             let source=inspect_field_payment_origin_batch(&mut tx,&source_batch).await.unwrap();
             let payment=match suffix{"set"=>"batch-receipt","upload"=>"batch-alloc",_=>"batch-both"};
@@ -231,8 +231,8 @@ async fn files_workflow_finance_batch_classifies_both_global_payment_branches() 
         }
         for (suffix,direct_expected,source_expected) in [("receipt",true,true),("alloc",false,true),("shared",false,true)] {
             let ancestry=inspect_field_attachment_ancestry(&mut tx,&CompanyId::new("company").unwrap(),&format!("batch-link-{suffix}")).await.unwrap().unwrap();
-            let direct_batch=erpx_server_workflow::public::record_origin::inspect_field_direct_payment_receipt_batch(&mut tx,&ancestry).await.unwrap();
-            let direct=erpx_server_finance::public::raw_field_payment_allocation_marker::inspect_direct_field_payment_origin(&mut tx,&direct_batch).await.unwrap();
+            let direct_batch=erpx_workflow_server::public::record_origin::inspect_field_direct_payment_receipt_batch(&mut tx,&ancestry).await.unwrap();
+            let direct=erpx_finance_server::public::raw_field_payment_allocation_marker::inspect_direct_field_payment_origin(&mut tx,&direct_batch).await.unwrap();
             let source_batch=inspect_field_payment_receipt_batch(&mut tx,&ancestry).await.unwrap();let source=inspect_field_payment_origin_batch(&mut tx,&source_batch).await.unwrap();
             assert_eq!((direct.marked(),source.marked()),(direct_expected,source_expected),"{suffix}");
             direct.require_current(&mut tx).await.unwrap();source.require_current(&mut tx).await.unwrap();
@@ -257,14 +257,14 @@ async fn files_workflow_finance_batch_classifies_both_global_payment_branches() 
 
 #[tokio::test]
 async fn files_finance_inventory_batch_classifies_global_field_journals() {
-    use erpx_server_files::public::field_attachment_ancestry::{CurrentFieldAttachmentAncestry,inspect_field_attachment_ancestry,lock_field_attachment_ancestry};
-    use erpx_server_workflow::public::record_origin::FieldPaymentTargets;
-    use erpx_server_inventory::public::field_journal_consumption_marker::{FieldJournalTargets,inspect_field_journal_consumption_batch,lock_field_journal_consumption_batch_sources};
-    use erpx_server_finance::public::raw_field_journal_marker::{inspect_field_journal_marker_batch,lock_raw_field_journal_marker_sources_nowait};
+    use erpx_files_server::public::field_attachment_ancestry::{CurrentFieldAttachmentAncestry,inspect_field_attachment_ancestry,lock_field_attachment_ancestry};
+    use erpx_workflow_server::public::record_origin::FieldPaymentTargets;
+    use erpx_inventory_server::public::field_journal_consumption_marker::{FieldJournalTargets,inspect_field_journal_consumption_batch,lock_field_journal_consumption_batch_sources};
+    use erpx_finance_server::public::raw_field_journal_marker::{inspect_field_journal_marker_batch,lock_raw_field_journal_marker_sources_nowait};
     struct InventorySource<'a>(&'a CurrentFieldAttachmentAncestry);
     impl FieldJournalTargets for InventorySource<'_> {
         fn relation_identifier(&self)->&str{FieldPaymentTargets::relation_identifier(self.0)}
-        fn require_current<'a>(&'a self,c:&'a mut sqlx::PgConnection)->erpx_server_runtime::public::postgres::PgWorkFuture<'a,(),erpx_server_shared::public::BusinessError>{
+        fn require_current<'a>(&'a self,c:&'a mut sqlx::PgConnection)->erpx_platform_runtime_server::public::postgres::PgWorkFuture<'a,(),erpx_platform_shared_server::public::BusinessError>{
             Box::pin(async move{self.0.require_current(c).await})
         }
     }
@@ -323,7 +323,7 @@ async fn files_finance_inventory_batch_classifies_global_field_journals() {
         }
         for suffix in ["set","upload","upload-set"] {
             let ancestry=inspect_field_attachment_ancestry(&mut tx,&CompanyId::new("company").unwrap(),&format!("direct-journal-link-{suffix}")).await.unwrap().unwrap();
-            let direct=erpx_server_finance::public::raw_field_journal_marker::inspect_direct_field_journal_marker(&mut tx,&ancestry).await.unwrap();
+            let direct=erpx_finance_server::public::raw_field_journal_marker::inspect_direct_field_journal_marker(&mut tx,&ancestry).await.unwrap();
             let source=inspect_field_journal_marker_batch(&mut tx,&ancestry).await.unwrap();
             let oracle:bool=sqlx::query_scalar("SELECT erpx_finance_field_journal_owned('journal-finance',NULL)").fetch_one(&mut *tx).await.unwrap();
             assert_eq!(direct.marked(),oracle,"direct journal {suffix}");assert!(oracle);assert!(!source.marked(),"direct must not enter source predicate {suffix}");
@@ -338,7 +338,7 @@ async fn files_finance_inventory_batch_classifies_global_field_journals() {
         for mode in ["inventory","both"] {
             for path in ["set","upload","upload-set"] {
                 let ancestry=inspect_field_attachment_ancestry(&mut tx,&CompanyId::new("company").unwrap(),&format!("inv-direct-link-{mode}-{path}")).await.unwrap().unwrap();let adapter=InventorySource(&ancestry);
-                let f=erpx_server_finance::public::raw_field_journal_marker::inspect_direct_field_journal_marker(&mut tx,&ancestry).await.unwrap();
+                let f=erpx_finance_server::public::raw_field_journal_marker::inspect_direct_field_journal_marker(&mut tx,&ancestry).await.unwrap();
                 let i=inspect_field_journal_consumption_batch(&mut tx,&adapter).await.unwrap();
                 assert_eq!((f.marked(),i.direct_present(),i.present()),(mode=="both",true,false),"{mode}/{path}");
                 let journal=if mode=="both"{"journal-both"}else{"journal-inventory"};
@@ -373,16 +373,16 @@ async fn files_finance_inventory_batch_classifies_global_field_journals() {
 
 #[tokio::test]
 async fn no_temp_files_workflow_finance_routing_retains_separate_path_vectors() {
-    use erpx_server_files::public::field_attachment_routing::{inspect_field_attachment_routing,lock_field_attachment_routing_sources};
-    use erpx_server_workflow::public::record_origin::{inspect_field_payment_routing,lock_field_payment_routing_sources};
-    use erpx_server_finance::public::field_attachment_routing::{inspect_finance_field_routing,lock_field_attachment_finance_routing,PathFlags};
-    use erpx_server_inventory::public::field_journal_consumption_marker::{FieldJournalRoutingSource,inspect_field_journal_routing,lock_field_journal_routing_sources};
-    struct InventorySource<'a>(&'a erpx_server_files::public::field_attachment_routing::CurrentFieldAttachmentRouting);
+    use erpx_files_server::public::field_attachment_routing::{inspect_field_attachment_routing,lock_field_attachment_routing_sources};
+    use erpx_workflow_server::public::record_origin::{inspect_field_payment_routing,lock_field_payment_routing_sources};
+    use erpx_finance_server::public::field_attachment_routing::{inspect_finance_field_routing,lock_field_attachment_finance_routing,PathFlags};
+    use erpx_inventory_server::public::field_journal_consumption_marker::{FieldJournalRoutingSource,inspect_field_journal_routing,lock_field_journal_routing_sources};
+    struct InventorySource<'a>(&'a erpx_files_server::public::field_attachment_routing::CurrentFieldAttachmentRouting);
     impl FieldJournalRoutingSource for InventorySource<'_> {
         fn selected_link_id(&self)->&str{self.0.selected_link_id()}
         fn company_id(&self)->&str{self.0.company_id()}
-        fn ancestry_sql(&self)->&'static str{erpx_server_files::public::field_attachment_routing::FIELD_ATTACHMENT_ANCESTRY_SQL}
-        fn require_current<'a>(&'a self,c:&'a mut sqlx::PgConnection)->erpx_server_runtime::public::postgres::PgWorkFuture<'a,(),erpx_server_shared::public::BusinessError>{Box::pin(async move{self.0.require_current(c).await})}
+        fn ancestry_sql(&self)->&'static str{erpx_files_server::public::field_attachment_routing::FIELD_ATTACHMENT_ANCESTRY_SQL}
+        fn require_current<'a>(&'a self,c:&'a mut sqlx::PgConnection)->erpx_platform_runtime_server::public::postgres::PgWorkFuture<'a,(),erpx_platform_shared_server::public::BusinessError>{Box::pin(async move{self.0.require_current(c).await})}
     }
     // Owner-proof fixture uses the existing test administrator. This proves no
     // TEMP is used in the path, not restricted application-role permissions.
@@ -411,7 +411,7 @@ async fn no_temp_files_workflow_finance_routing_retains_separate_path_vectors() 
         let temp_before:i64=sqlx::query_scalar("SELECT count(*) FROM pg_class WHERE relnamespace=pg_my_temp_schema()").fetch_one(&mut *tx).await.unwrap();
         let no=PathFlags{direct_set:false,direct:false,source_attachment:false,source:false};
         for (path,receipt,allocation,journal) in [("set",true,false,false),("upload",false,true,false),("upload-set",false,false,true),("none",false,false,false)] {
-            let ancestry=inspect_field_attachment_routing(&mut tx,&erpx_server_shared::public::CompanyId::new("company").unwrap(),&format!("nt-link-{path}")).await.unwrap().unwrap();
+            let ancestry=inspect_field_attachment_routing(&mut tx,&erpx_platform_shared_server::public::CompanyId::new("company").unwrap(),&format!("nt-link-{path}")).await.unwrap().unwrap();
             let workflow=inspect_field_payment_routing(&mut tx,&ancestry).await.unwrap();let finance=inspect_finance_field_routing(&mut tx,&workflow).await.unwrap();let v=finance.vector();let inventory_source=InventorySource(&ancestry);let inventory=inspect_field_journal_routing(&mut tx,&inventory_source).await.unwrap();let iv=inventory.vector();assert_eq!((iv.direct_set,iv.direct,iv.source,iv.source_attachment),(false,journal,false,false));inventory.require_current(&mut tx).await.unwrap();
             assert_eq!(v.payment_receipt,PathFlags{direct_set:path=="set" && receipt,direct:receipt,source_attachment:false,source:false},"{path}");assert_eq!(v.payment_allocation,PathFlags{direct_set:false,direct:allocation,source_attachment:false,source:false},"{path}");assert_eq!(v.journal,PathFlags{direct_set:false,direct:journal,source_attachment:false,source:false},"{path}");
             let oracle:bool=if path=="upload-set" {sqlx::query_scalar("SELECT erpx_finance_field_journal_owned('nt-journal',NULL)").fetch_one(&mut *tx).await.unwrap()} else {sqlx::query_scalar("SELECT erpx_finance_field_payment_owned($1)").bind(if path=="set"{"nt-payment"}else if path=="upload"{"nt-allocated"}else{"nt-late"}).fetch_one(&mut *tx).await.unwrap()};assert_eq!(oracle,receipt||allocation||journal);finance.require_current(&mut tx).await.unwrap();
@@ -423,7 +423,7 @@ async fn no_temp_files_workflow_finance_routing_retains_separate_path_vectors() 
         sqlx::query("INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,checksum_sha256,created_by,created_at,company_id) VALUES('nt-source','nt-source-upload','finance_payment','nt-payment','manual','nt/source-object',1,'file','text/plain',1,'checksum','fixture',0,'company')").execute(&mut *tx).await.unwrap();
         sqlx::query("INSERT INTO attachment_sets(id,company_id,target_type,target_id,component_kind,purpose_key,expected_target_version,policy_version,classification,audience_json,state,created_by,created_at,updated_at) VALUES('nt-source-set','company','asset','unrelated','record','manual',1,1,'internal','{}','draft','fixture',0,0)").execute(&mut *tx).await.unwrap();
         sqlx::query("INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) VALUES('nt-source-link','nt-source-set','nt-source','draft','fixture',0,10000)").execute(&mut *tx).await.unwrap();
-        let ancestry=inspect_field_attachment_routing(&mut tx,&erpx_server_shared::public::CompanyId::new("company").unwrap(),"nt-source-link").await.unwrap().unwrap();let workflow=inspect_field_payment_routing(&mut tx,&ancestry).await.unwrap();let finance=inspect_finance_field_routing(&mut tx,&workflow).await.unwrap();let vector=finance.vector();
+        let ancestry=inspect_field_attachment_routing(&mut tx,&erpx_platform_shared_server::public::CompanyId::new("company").unwrap(),"nt-source-link").await.unwrap().unwrap();let workflow=inspect_field_payment_routing(&mut tx,&ancestry).await.unwrap();let finance=inspect_finance_field_routing(&mut tx,&workflow).await.unwrap();let vector=finance.vector();
         assert_eq!(vector.payment_receipt,PathFlags{direct_set:false,direct:false,source_attachment:true,source:true});assert_eq!(vector.payment_allocation,no);assert_eq!(vector.journal,no);
         let oracle:bool=sqlx::query_scalar("SELECT erpx_files_field_attachment_owned('nt-source')").fetch_one(&mut *tx).await.unwrap();assert!(oracle);finance.require_current(&mut tx).await.unwrap();
         // A distinct real Files source carries the same journal through the
@@ -431,7 +431,7 @@ async fn no_temp_files_workflow_finance_routing_retains_separate_path_vectors() 
         sqlx::query("INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,declared_bytes,staging_key,status,created_by,expires_at,created_at,updated_at,company_id) VALUES('nt-journal-source-upload','asset','other','manual','file','text/plain',1,'nt/journal-source','uploaded','fixture',10000,0,0,'company')").execute(&mut *tx).await.unwrap();
         sqlx::query("INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,checksum_sha256,created_by,created_at,company_id) VALUES('nt-journal-source','nt-journal-source-upload','finance_journal','nt-journal','manual','nt/journal-source-object',1,'file','text/plain',1,'checksum','fixture',0,'company')").execute(&mut *tx).await.unwrap();
         sqlx::query("INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) VALUES('nt-journal-source-link','nt-source-set','nt-journal-source','draft','fixture',0,10000)").execute(&mut *tx).await.unwrap();
-        let journal_source=inspect_field_attachment_routing(&mut tx,&erpx_server_shared::public::CompanyId::new("company").unwrap(),"nt-journal-source-link").await.unwrap().unwrap();let journal_workflow=inspect_field_payment_routing(&mut tx,&journal_source).await.unwrap();let journal_finance=inspect_finance_field_routing(&mut tx,&journal_workflow).await.unwrap();let journal_adapter=InventorySource(&journal_source);let journal_inventory=inspect_field_journal_routing(&mut tx,&journal_adapter).await.unwrap();
+        let journal_source=inspect_field_attachment_routing(&mut tx,&erpx_platform_shared_server::public::CompanyId::new("company").unwrap(),"nt-journal-source-link").await.unwrap().unwrap();let journal_workflow=inspect_field_payment_routing(&mut tx,&journal_source).await.unwrap();let journal_finance=inspect_finance_field_routing(&mut tx,&journal_workflow).await.unwrap();let journal_adapter=InventorySource(&journal_source);let journal_inventory=inspect_field_journal_routing(&mut tx,&journal_adapter).await.unwrap();
         assert_eq!(journal_finance.vector().journal,PathFlags{direct_set:false,direct:false,source_attachment:true,source:true});let iv=journal_inventory.vector();assert!(!iv.direct_set && !iv.direct && iv.source && iv.source_attachment);journal_finance.require_current(&mut tx).await.unwrap();journal_inventory.require_current(&mut tx).await.unwrap();
         let legacy:bool=sqlx::query_scalar("SELECT erpx_files_field_attachment_owned('nt-journal-source')").fetch_one(&mut *tx).await.unwrap();assert!(legacy);
         // A foreign withdrawn link may make the global source predicate true,
@@ -441,7 +441,7 @@ async fn no_temp_files_workflow_finance_routing_retains_separate_path_vectors() 
         sqlx::query("INSERT INTO attachment_sets(id,company_id,target_type,target_id,component_kind,purpose_key,expected_target_version,policy_version,classification,audience_json,state,created_by,created_at,updated_at) VALUES('nt-foreign-payment-set','foreign','finance_payment','nt-payment','record','manual',1,1,'internal','{}','draft','fixture',0,0)").execute(&mut *tx).await.unwrap();
         sqlx::query("INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) VALUES('nt-shared-selected','nt-source-set','nt-shared','draft','fixture',0,10000)").execute(&mut *tx).await.unwrap();
         sqlx::query("INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at,withdrawn_at,withdrawn_by,withdrawal_reason) VALUES('nt-shared-foreign-payment','nt-foreign-payment-set','nt-shared','withdrawn','fixture',0,10000,1,'fixture','fixture'),('nt-shared-foreign-journal','nt-foreign-set','nt-shared','withdrawn','fixture',0,10000,1,'fixture','fixture')").execute(&mut *tx).await.unwrap();
-        let shared=inspect_field_attachment_routing(&mut tx,&erpx_server_shared::public::CompanyId::new("company").unwrap(),"nt-shared-selected").await.unwrap().unwrap();let shared_workflow=inspect_field_payment_routing(&mut tx,&shared).await.unwrap();let shared_finance=inspect_finance_field_routing(&mut tx,&shared_workflow).await.unwrap();let shared_vector=shared_finance.vector();
+        let shared=inspect_field_attachment_routing(&mut tx,&erpx_platform_shared_server::public::CompanyId::new("company").unwrap(),"nt-shared-selected").await.unwrap().unwrap();let shared_workflow=inspect_field_payment_routing(&mut tx,&shared).await.unwrap();let shared_finance=inspect_finance_field_routing(&mut tx,&shared_workflow).await.unwrap();let shared_vector=shared_finance.vector();
         assert_eq!(shared_vector.payment_receipt,PathFlags{direct_set:false,direct:false,source_attachment:false,source:true});assert_eq!(shared_vector.payment_allocation,no);assert_eq!(shared_vector.journal,PathFlags{direct_set:false,direct:false,source_attachment:false,source:true});
         let shared_adapter=InventorySource(&shared);let shared_inventory=inspect_field_journal_routing(&mut tx,&shared_adapter).await.unwrap();let shared_iv=shared_inventory.vector();
         assert!(!shared_iv.direct_set && !shared_iv.direct && shared_iv.source && !shared_iv.source_attachment);
@@ -460,7 +460,7 @@ async fn no_temp_files_workflow_finance_routing_retains_separate_path_vectors() 
           EXISTS(SELECT 1 FROM public.attachment_links l JOIN public.attachment_sets s ON s.id=l.set_id WHERE l.id=$1 AND s.company_id=$2)"#;
         for (id,expected) in [("nt-link-set","payment"),("nt-link-upload","payment"),("nt-link-upload-set","journal"),("nt-link-none","other"),("nt-source-link","payment"),("nt-journal-source-link","journal"),("nt-shared-selected","field"),("nt-dual-link","journal"),("nt-visit-link","field")] {
             let (journal,payment,field,scoped):(bool,bool,bool,bool)=sqlx::query_as(selector_sql).bind(id).bind("company").fetch_one(&mut *tx).await.unwrap();assert!(scoped,"{id}");
-            let ancestry=inspect_field_attachment_routing(&mut tx,&erpx_server_shared::public::CompanyId::new("company").unwrap(),id).await.unwrap().unwrap();
+            let ancestry=inspect_field_attachment_routing(&mut tx,&erpx_platform_shared_server::public::CompanyId::new("company").unwrap(),id).await.unwrap().unwrap();
             let workflow=inspect_field_payment_routing(&mut tx,&ancestry).await.unwrap();let finance=inspect_finance_field_routing(&mut tx,&workflow).await.unwrap();let f=finance.vector();
             let adapter=InventorySource(&ancestry);let inventory=inspect_field_journal_routing(&mut tx,&adapter).await.unwrap();let i=inventory.vector();let visit=ancestry.field_visit_routing();
             let actual_journal=f.journal.direct||f.journal.source_attachment||i.direct||i.source_attachment;
@@ -473,7 +473,7 @@ async fn no_temp_files_workflow_finance_routing_retains_separate_path_vectors() 
         for (id,expected_marker) in [("nt-shared-foreign-journal",true),("nt-missing-selector",false)] {
             let (journal,payment,field,scoped):(bool,bool,bool,bool)=sqlx::query_as(selector_sql).bind(id).bind("company").fetch_one(&mut *tx).await.unwrap();
             assert_eq!(journal||payment||field,expected_marker,"global marker {id}");assert!(!scoped,"foreign/missing {id}");
-            assert!(inspect_field_attachment_routing(&mut tx,&erpx_server_shared::public::CompanyId::new("company").unwrap(),id).await.unwrap().is_none());
+            assert!(inspect_field_attachment_routing(&mut tx,&erpx_platform_shared_server::public::CompanyId::new("company").unwrap(),id).await.unwrap().is_none());
         }
         let temp_after:i64=sqlx::query_scalar("SELECT count(*) FROM pg_class WHERE relnamespace=pg_my_temp_schema()").fetch_one(&mut *tx).await.unwrap();assert_eq!(temp_after,temp_before,"routing must not create temp relations");
         tx.rollback().await.unwrap();
@@ -482,10 +482,10 @@ async fn no_temp_files_workflow_finance_routing_retains_separate_path_vectors() 
 
 #[tokio::test]
 async fn initial_count_terminal_history_matches_actual_supply_sql_and_version_chain() {
-    use erpx_server_files::public::count_history_attachment_sources::*;
-    use erpx_server_inventory::public::{count_terminal_history_source::*,initial_count_history_source::*};
-    use erpx_server_workflow::public::record_origin::*;
-    use erpx_service::initial_count_terminal_history::inspect_initial_count_terminal_history;
+    use erpx_files_server::public::count_history_attachment_sources::*;
+    use erpx_inventory_server::public::{count_terminal_history_source::*,initial_count_history_source::*};
+    use erpx_workflow_server::public::record_origin::*;
+    use erpx_platform_composition::initial_count_terminal_history::inspect_initial_count_terminal_history;
     facts::account::with_system(|system| async move {
         let p=facts::setup_workspace(system).await;
         let mut tx=p.pool().raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
@@ -502,7 +502,7 @@ async fn initial_count_terminal_history_matches_actual_supply_sql_and_version_ch
             let details=serde_json::json!({"bindingId":target,"bindingType":if compat {"legacy_upload_adapter"}else{"record_document"}}).to_string();sqlx::query("INSERT INTO public.attachment_events(id,company_id,set_id,actor_id,action,details_json,created_at) VALUES($1,'company',$2,$3,'set.bound',$4,1)").bind(&event).bind(&set).bind(actor).bind(details).execute(&mut *c).await?;
             let result=if compat {serde_json::json!({"attachmentSetId":set,"ownerVersion":previous+1})}else{serde_json::json!({"setId":set,"version":previous+1})}.to_string();sqlx::query("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES($1,$2,'user','fixture',$3,$4,'{\"companyId\":\"company\"}',1)").bind(&cmd).bind(if compat {"attachment.compatibility.bind"}else{"attachment.record.bind"}).bind(target).bind(result).execute(&mut *c).await?;Ok(())}
         binding(&mut tx,"terminal-chain",2,"user",false).await.unwrap();binding(&mut tx,"terminal-chain",3,"user",true).await.unwrap();binding(&mut tx,"terminal-gap",2,"user",false).await.unwrap();binding(&mut tx,"terminal-wrong-actor",2,"other",false).await.unwrap();
-        let dir=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/server-inventory/src/adapters/supply-terminal-receipts.ts");let script=r#"if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');const m=await import(process.argv[1]);process.stdout.write(JSON.stringify(m.supplyInventoryTerminalReceipts));"#;
+        let dir=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../modules/inventory/server/src/adapters/supply-terminal-receipts.ts");let script=r#"if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');const m=await import(process.argv[1]);process.stdout.write(JSON.stringify(m.supplyInventoryTerminalReceipts));"#;
         let output=std::process::Command::new(std::env::var("ERPX_NODE_BIN").unwrap_or_else(|_|"node".into())).arg("--conditions=react-server").arg("--input-type=module").arg("-e").arg(script).arg(dir).output().unwrap();assert!(output.status.success(),"actual TS: {}",String::from_utf8_lossy(&output.stderr));let actual:String=serde_json::from_slice(&output.stdout).unwrap();let oracle=format!("SELECT EXISTS(SELECT 1 FROM ({actual}) t WHERE t.kind='count' AND t.company_id=$1 AND t.id=$2)");
         for (id,expected) in [("terminal-direct",true),("terminal-chain",true),("terminal-gap",false),("terminal-wrong-actor",false),("terminal-cancel",true),("terminal-reject",true),("terminal-bad-auth",false),("terminal-bad-version",false),("terminal-missing",false)] {let real:bool=sqlx::query_scalar(sqlx::AssertSqlSafe(oracle.as_str())).bind("company").bind(id).fetch_one(&mut *tx).await.unwrap();let observed=inspect_initial_count_terminal_history(&mut tx,&counts,&decisions,&receipts,&files,&company,id).await.unwrap();assert_eq!((observed.matches(),real),(expected,expected),"{id}");observed.require_current(&mut tx).await.unwrap();}
         let foreign=CompanyId::new("foreign").unwrap();let foreign_observed=inspect_initial_count_terminal_history(&mut tx,&counts,&decisions,&receipts,&files,&foreign,"terminal-direct").await.unwrap();assert!(!foreign_observed.matches());assert!(!sqlx::query_scalar::<_,bool>(sqlx::AssertSqlSafe(oracle.as_str())).bind("foreign").bind("terminal-direct").fetch_one(&mut *tx).await.unwrap());
@@ -515,21 +515,21 @@ async fn initial_count_terminal_history_matches_actual_supply_sql_and_version_ch
 
 #[tokio::test]
 async fn field_file_source_accepts_large_persisted_reservation_history() {
-    use erpx_server_field_service::public::file_source::read_field_file_source;
+    use erpx_field_service_server::public::file_source::read_field_file_source;
     // Read the original retired owner function at its immutable cutover parent.
     // Actual owner dependency exports still supply the SQL fragments; the
     // original query is executed in the same leased Holding transaction.
     let script=r#"
 if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');
 const {execFileSync}=await import('node:child_process');
-const source=execFileSync('git',['show','e4be8bddb^:packages/server-field_service/src/adapters/purchases.ts'],{encoding:'utf8'});
+const source=execFileSync('git',['show','e4be8bddb^:modules/field-service/server/src/adapters/purchases.ts'],{encoding:'utf8'});
 const scopeMatch=source.match(/const scope=("[^"\n]+");/);
 const fnMatch=source.match(/export function serviceOwnerSourceQuery\([\s\S]*?\n\}/);
 if(!scopeMatch||!fnMatch)throw Error('ORIGINAL_SOURCE_MISSING');
-const {fieldServiceTechnicianPredicate}=await import('@erpx/server-identity_access/public/field-service-authority');
-const {fieldServiceCustomerSourceRows}=await import('@erpx/server-finance/public/field-service-references');
-const {fieldServiceAssetSourceRows}=await import('@erpx/server-assets/public/field-service-references');
-const support=execFileSync('git',['show','e4be8bddb^:packages/server-support/src/adapters/field-service-sources.ts'],{encoding:'utf8'});
+const {fieldServiceTechnicianPredicate}=await import('@erpx/identity-access-server/public/field-service-authority');
+const {fieldServiceCustomerSourceRows}=await import('@erpx/finance-server/public/field-service-references');
+const {fieldServiceAssetSourceRows}=await import('@erpx/assets-server/public/field-service-references');
+const support=execFileSync('git',['show','e4be8bddb^:modules/support/server/src/adapters/field-service-sources.ts'],{encoding:'utf8'});
 const ticketMatch=support.match(/export const fieldServiceTicketSourceRows = ("[^"\n]+");/);if(!ticketMatch)throw Error('ORIGINAL_TICKET_SOURCE_MISSING');
 const fieldServiceTicketSourceRows=JSON.parse(ticketMatch[1]);
 const js=new Bun.Transpiler({loader:'ts'}).transformSync(fnMatch[0].replace(/^export /,''));

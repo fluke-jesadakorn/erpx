@@ -4,11 +4,11 @@
 )]
 #[path = "../../support/rust-directory-work.rs"]
 mod fixture;
-use erpx_server_identity_access::public::{
+use erpx_identity_access_server::public::{
     SystemAuthenticationSecrets, directory::*, effective_authority::HoldingWorkAuthorizer,
 };
-use erpx_server_runtime::public::postgres::{DatabasePool, PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{BusinessError, Clock, FailureKind, HoldingId, RecordId};
+use erpx_platform_runtime_server::public::postgres::{DatabasePool, PgTransactionError, PgWorkFuture};
+use erpx_platform_shared_server::public::{BusinessError, Clock, FailureKind, HoldingId, RecordId};
 use fixture::{account, ldap};
 use sqlx::PgConnection;
 use std::{collections::BTreeMap, sync::Arc, time::Duration};

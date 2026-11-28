@@ -1,14 +1,14 @@
-use erpx_service::finance_field_journal_flow::{FinanceFieldJournalFlowAccess,FinanceFieldJournalFlowRuntime,FinanceFieldJournalFlowResponse,FinanceFieldJournalFlowInput,FinanceFieldJournalFlowResult,FinanceFieldJournalFlowCommandResponse};
-use erpx_server_finance::public::service_no_charge::{ServiceNoChargeControls,ServiceNoChargeInput,ServiceNoChargeResult,ServiceNoChargeStatus,ServiceNoChargeResponse};
-use erpx_service::finance_presentation::FinancePurchaseAccess;
-use erpx_server_finance::public::{
+use erpx_platform_composition::finance_field_journal_flow::{FinanceFieldJournalFlowAccess,FinanceFieldJournalFlowRuntime,FinanceFieldJournalFlowResponse,FinanceFieldJournalFlowInput,FinanceFieldJournalFlowResult,FinanceFieldJournalFlowCommandResponse};
+use erpx_finance_server::public::service_no_charge::{ServiceNoChargeControls,ServiceNoChargeInput,ServiceNoChargeResult,ServiceNoChargeStatus,ServiceNoChargeResponse};
+use erpx_platform_composition::finance_presentation::FinancePurchaseAccess;
+use erpx_finance_server::public::{
     field_service_invoice_read::{
         FinanceInvoiceOptions, FinanceServiceInvoiceSource, FinanceServiceInvoiceWorkspace,
     },
     journal_detail::*,
     journal_workspace::FinanceJournalRecordWorkspace,
 };
-use erpx_service::finance_journal_detail::{
+use erpx_platform_composition::finance_journal_detail::{
     FinanceJournalReadResponse, FinanceJournalWorkspaceReadResponse, FinanceRenderedWorkContext,
     FinanceServiceInvoiceWorkspaceResponse, FinanceFieldWorkResponse,
 };

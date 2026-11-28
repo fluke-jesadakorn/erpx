@@ -2,10 +2,10 @@ import { describe, expect, test, vi } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
-import { ecommerceOrderedList, ecommerceSourceIdentity } from '../../../packages/server-ecommerce/src/adapters/read-tail-sql';
-import { ecommerceNativeOrderRoots } from '../../../packages/server-ecommerce/src/adapters/package-sources';
+import { ecommerceOrderedList, ecommerceSourceIdentity } from '../../../modules/ecommerce/server/src/adapters/read-tail-sql';
+import { ecommerceNativeOrderRoots } from '../../../modules/ecommerce/server/src/adapters/package-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-ecommerce/src');
+const srcRoot = resolve(__dirname, '../../../modules/ecommerce/server/src');
 const read = (path: string) => readFileSync(resolve(srcRoot, path), 'utf8');
 const shared = read('adapters/read-tail-sql.ts');
 const pb = read('adapters/purchase-boundary.ts');

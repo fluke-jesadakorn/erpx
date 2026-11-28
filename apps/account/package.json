@@ -10,12 +10,12 @@
     "lint": "bun ../../scripts/testing/scoped-lint.ts --app=account"
   },
   "dependencies": {
-    "@erpx/contracts": "workspace:*",
-    "@erpx/feature-account": "workspace:*",
-    "@erpx/feature-runtime": "workspace:*",
-    "@erpx/server-identity_access": "workspace:*",
-    "@erpx/server-runtime": "workspace:*",
-    "@erpx/workplace": "workspace:*",
+    "@erpx/platform-contracts": "workspace:*",
+    "@erpx/product-account-ui": "workspace:*",
+    "@erpx/platform-runtime-ui": "workspace:*",
+    "@erpx/identity-access-server": "workspace:*",
+    "@erpx/platform-runtime-server": "workspace:*",
+    "@erpx/platform-workplace": "workspace:*",
     "next": "16.4.3",
     "react": "19.3.1",
     "react-dom": "19.3.1"

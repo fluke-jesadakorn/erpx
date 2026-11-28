@@ -2,7 +2,7 @@
 // Replaces the retired TypeScript writer-oracle assertions with independent,
 // native-derived recipient/message/id/error proofs over every effect. This
 // file is included by `support_notification.rs`'s `#[cfg(test)]` module, so it
-// runs with `cargo test -p erpx-server-collaboration --lib support_notification`.
+// runs with `cargo test -p erpx-collaboration-server --lib support_notification`.
 // It is deliberately not named `*.test.rs`: Cargo `[[test]]` targets and the
 // catalogue suite manifest are outside this migration slice's allowed paths.
 // Items are in scope through the including module's `use super::*`.

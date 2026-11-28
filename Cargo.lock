@@ -712,12 +712,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "00d174d5400e5e8fd687ad1049e2f578285fa914201b1af7e8b112a4546bd826"
 
 [[package]]
-name = "erpx-server-agent"
+name = "erpx-agent-server"
 version = "0.1.0"
 dependencies = [
- "erpx-server-runtime",
- "erpx-server-shared",
- "erpx-server-workflow",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
+ "erpx-workflow-server",
  "serde",
  "serde_json",
  "sqlx",
@@ -727,15 +727,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-assets"
+name = "erpx-assets-server"
 version = "0.1.0"
 dependencies = [
  "axum",
- "erpx-server-finance",
- "erpx-server-identity-access",
- "erpx-server-runtime",
- "erpx-server-shared",
- "erpx-server-workflow",
+ "erpx-finance-server",
+ "erpx-identity-access-server",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
+ "erpx-workflow-server",
  "serde",
  "serde_json",
  "sqlx",
@@ -745,12 +745,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-benefits"
+name = "erpx-benefits-server"
 version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
- "erpx-server-runtime",
- "erpx-server-shared",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
  "serde",
  "serde_json",
  "sqlx",
@@ -759,11 +759,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-billing"
+name = "erpx-billing-server"
 version = "0.1.0"
 dependencies = [
- "erpx-server-runtime",
- "erpx-server-shared",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
  "serde",
  "serde_json",
  "sqlx",
@@ -772,12 +772,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-brand"
+name = "erpx-brand-server"
 version = "0.1.0"
 dependencies = [
- "erpx-server-runtime",
- "erpx-server-shared",
- "erpx-server-workflow",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
+ "erpx-workflow-server",
  "serde",
  "serde_json",
  "sqlx",
@@ -786,17 +786,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-collaboration"
+name = "erpx-collaboration-server"
 version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
- "erpx-server-commercial",
- "erpx-server-crm",
- "erpx-server-identity-access",
- "erpx-server-organization",
- "erpx-server-quality",
- "erpx-server-runtime",
- "erpx-server-shared",
+ "erpx-commercial-server",
+ "erpx-crm-server",
+ "erpx-identity-access-server",
+ "erpx-organization-server",
+ "erpx-quality-server",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
  "reqwest",
  "ring",
  "rustls",
@@ -811,14 +811,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-commerce"
+name = "erpx-commerce-server"
 version = "0.1.0"
 dependencies = [
- "erpx-server-finance",
- "erpx-server-inventory",
- "erpx-server-runtime",
- "erpx-server-shared",
- "erpx-server-workflow",
+ "erpx-finance-server",
+ "erpx-inventory-server",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
+ "erpx-workflow-server",
  "serde_json",
  "sha2 0.10.9",
  "sqlx",
@@ -828,12 +828,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-commercial"
+name = "erpx-commercial-server"
 version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
- "erpx-server-runtime",
- "erpx-server-shared",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
  "hex",
  "icu_collator",
  "icu_collator_data",
@@ -854,11 +854,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-crm"
+name = "erpx-crm-server"
 version = "0.1.0"
 dependencies = [
- "erpx-server-runtime",
- "erpx-server-shared",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
  "serde",
  "serde_json",
  "sqlx",
@@ -867,11 +867,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-customer-360"
+name = "erpx-customer-360-server"
 version = "0.1.0"
 dependencies = [
- "erpx-server-runtime",
- "erpx-server-shared",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
  "serde",
  "serde_json",
  "sqlx",
@@ -880,14 +880,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-customer-authority"
+name = "erpx-customer-authority-server"
 version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
- "erpx-server-commercial",
- "erpx-server-identity-access",
- "erpx-server-runtime",
- "erpx-server-shared",
+ "erpx-commercial-server",
+ "erpx-identity-access-server",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
  "reqwest",
  "ring",
  "rustls",
@@ -901,11 +901,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-ecommerce"
+name = "erpx-ecommerce-server"
 version = "0.1.0"
 dependencies = [
- "erpx-server-runtime",
- "erpx-server-shared",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
  "serde",
  "serde_json",
  "sqlx",
@@ -914,15 +914,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-field-service"
+name = "erpx-field-service-server"
 version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
- "erpx-server-identity-access",
- "erpx-server-inventory",
- "erpx-server-runtime",
- "erpx-server-shared",
- "erpx-server-workflow",
+ "erpx-identity-access-server",
+ "erpx-inventory-server",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
+ "erpx-workflow-server",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -935,18 +935,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-files"
+name = "erpx-files-server"
 version = "0.1.0"
 dependencies = [
- "erpx-server-benefits",
- "erpx-server-collaboration",
- "erpx-server-identity-access",
- "erpx-server-learning",
- "erpx-server-projects",
- "erpx-server-records",
- "erpx-server-runtime",
- "erpx-server-shared",
- "erpx-server-workflow",
+ "erpx-benefits-server",
+ "erpx-collaboration-server",
+ "erpx-identity-access-server",
+ "erpx-learning-server",
+ "erpx-projects-server",
+ "erpx-records-server",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
+ "erpx-workflow-server",
  "futures-util",
  "hex",
  "libvips",
@@ -963,14 +963,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-finance"
+name = "erpx-finance-server"
 version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
- "erpx-server-platform-administration",
- "erpx-server-runtime",
- "erpx-server-shared",
- "erpx-server-workflow",
+ "erpx-platform-administration-server",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
+ "erpx-workflow-server",
  "futures-util",
  "icu_collator",
  "icu_locale",
@@ -988,18 +988,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-identity-access"
+name = "erpx-identity-access-server"
 version = "0.1.0"
 dependencies = [
  "argon2",
  "axum",
  "base64 0.23.1",
  "bytes",
- "erpx-server-manage-erpx",
- "erpx-server-organization",
- "erpx-server-people-payroll",
- "erpx-server-runtime",
- "erpx-server-shared",
+ "erpx-manage-erpx-server",
+ "erpx-organization-server",
+ "erpx-people-payroll-server",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
  "futures-util",
  "getrandom 0.4.3",
  "hex",
@@ -1033,15 +1033,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-inventory"
+name = "erpx-inventory-server"
 version = "0.1.0"
 dependencies = [
- "erpx-server-commerce",
- "erpx-server-finance",
- "erpx-server-quality",
- "erpx-server-runtime",
- "erpx-server-shared",
- "erpx-server-workflow",
+ "erpx-commerce-server",
+ "erpx-finance-server",
+ "erpx-quality-server",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
+ "erpx-workflow-server",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -1051,13 +1051,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-learning"
+name = "erpx-learning-server"
 version = "0.1.0"
 dependencies = [
- "erpx-server-benefits",
- "erpx-server-runtime",
- "erpx-server-shared",
- "erpx-server-workflow",
+ "erpx-benefits-server",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
+ "erpx-workflow-server",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -1067,7 +1067,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-legal"
+name = "erpx-legal-server"
 version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
@@ -1075,10 +1075,10 @@ dependencies = [
  "const-oid 0.9.6",
  "der 0.7.10",
  "docx-rs",
- "erpx-server-files",
- "erpx-server-identity-access",
- "erpx-server-runtime",
- "erpx-server-shared",
+ "erpx-files-server",
+ "erpx-identity-access-server",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
  "hex",
  "lopdf",
  "nix",
@@ -1102,14 +1102,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-maintenance"
+name = "erpx-maintenance-server"
 version = "0.1.0"
 dependencies = [
- "erpx-server-assets",
- "erpx-server-identity-access",
- "erpx-server-runtime",
- "erpx-server-shared",
- "erpx-server-workflow",
+ "erpx-assets-server",
+ "erpx-identity-access-server",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
+ "erpx-workflow-server",
  "serde",
  "serde_json",
  "sqlx",
@@ -1118,11 +1118,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-manage-erpx"
+name = "erpx-manage-erpx-server"
 version = "0.1.0"
 dependencies = [
- "erpx-server-runtime",
- "erpx-server-shared",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
  "serde",
  "serde_json",
  "sqlx",
@@ -1131,11 +1131,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-manufacturing"
+name = "erpx-manufacturing-server"
 version = "0.1.0"
 dependencies = [
- "erpx-server-runtime",
- "erpx-server-shared",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
  "serde",
  "serde_json",
  "sqlx",
@@ -1144,12 +1144,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-marketing"
+name = "erpx-marketing-server"
 version = "0.1.0"
 dependencies = [
- "erpx-server-runtime",
- "erpx-server-shared",
- "erpx-server-workflow",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
+ "erpx-workflow-server",
  "serde",
  "serde_json",
  "sqlx",
@@ -1158,11 +1158,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-operations"
+name = "erpx-operations-server"
 version = "0.1.0"
 dependencies = [
- "erpx-server-runtime",
- "erpx-server-shared",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
  "jiff",
  "serde",
  "serde_json",
@@ -1171,12 +1171,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-organization"
+name = "erpx-organization-server"
 version = "0.1.0"
 dependencies = [
- "erpx-server-runtime",
- "erpx-server-shared",
- "erpx-server-workflow",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
+ "erpx-workflow-server",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -1186,14 +1186,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-people-payroll"
+name = "erpx-people-payroll-server"
 version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
- "erpx-server-benefits",
- "erpx-server-collaboration",
- "erpx-server-runtime",
- "erpx-server-shared",
+ "erpx-benefits-server",
+ "erpx-collaboration-server",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
  "icu_collator",
  "icu_collator_data",
  "icu_locale",
@@ -1209,12 +1209,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-planning"
+name = "erpx-planning-server"
 version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
- "erpx-server-runtime",
- "erpx-server-shared",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
  "serde",
  "serde_json",
  "sqlx",
@@ -1223,13 +1223,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-platform-administration"
+name = "erpx-platform-administration-server"
 version = "0.1.0"
 dependencies = [
- "erpx-server-identity-access",
- "erpx-server-organization",
- "erpx-server-runtime",
- "erpx-server-shared",
+ "erpx-identity-access-server",
+ "erpx-organization-server",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
  "hex",
  "nix",
  "serde",
@@ -1242,12 +1242,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-pms"
+name = "erpx-pms-server"
 version = "0.1.0"
 dependencies = [
- "erpx-server-platform-administration",
- "erpx-server-runtime",
- "erpx-server-shared",
+ "erpx-platform-administration-server",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
  "hex",
  "serde",
  "serde_json",
@@ -1260,12 +1260,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-pos"
+name = "erpx-pos-server"
 version = "0.1.0"
 dependencies = [
- "erpx-server-runtime",
- "erpx-server-shared",
- "erpx-server-workflow",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
+ "erpx-workflow-server",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -1273,17 +1273,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-procurement"
+name = "erpx-procurement-server"
 version = "0.1.0"
 dependencies = [
- "erpx-server-collaboration",
- "erpx-server-commerce",
- "erpx-server-files",
- "erpx-server-identity-access",
- "erpx-server-records",
- "erpx-server-runtime",
- "erpx-server-shared",
- "erpx-server-workflow",
+ "erpx-collaboration-server",
+ "erpx-commerce-server",
+ "erpx-files-server",
+ "erpx-identity-access-server",
+ "erpx-records-server",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
+ "erpx-workflow-server",
  "serde",
  "serde_json",
  "sqlx",
@@ -1292,11 +1292,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-projects"
+name = "erpx-projects-server"
 version = "0.1.0"
 dependencies = [
- "erpx-server-runtime",
- "erpx-server-shared",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
  "serde",
  "serde_json",
  "sqlx",
@@ -1305,12 +1305,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-quality"
+name = "erpx-quality-server"
 version = "0.1.0"
 dependencies = [
- "erpx-server-files",
- "erpx-server-runtime",
- "erpx-server-shared",
+ "erpx-files-server",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
  "futures-util",
  "hex",
  "serde",
@@ -1324,12 +1324,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-records"
+name = "erpx-records-server"
 version = "0.1.0"
 dependencies = [
- "erpx-server-runtime",
- "erpx-server-shared",
- "erpx-server-workflow",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
+ "erpx-workflow-server",
  "serde",
  "serde_json",
  "sqlx",
@@ -1338,12 +1338,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-runtime"
+name = "erpx-platform-runtime-server"
 version = "0.1.0"
 dependencies = [
  "axum",
  "base64 0.23.1",
- "erpx-server-shared",
+ "erpx-platform-shared-server",
  "getrandom 0.4.3",
  "hex",
  "nix",
@@ -1363,14 +1363,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-sales"
+name = "erpx-sales-server"
 version = "0.1.0"
 dependencies = [
- "erpx-server-commercial",
- "erpx-server-identity-access",
- "erpx-server-people-payroll",
- "erpx-server-runtime",
- "erpx-server-shared",
+ "erpx-commercial-server",
+ "erpx-identity-access-server",
+ "erpx-people-payroll-server",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
  "reqwest",
  "rustls",
  "serde",
@@ -1383,7 +1383,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-shared"
+name = "erpx-platform-shared-server"
 version = "0.1.0"
 dependencies = [
  "serde",
@@ -1391,11 +1391,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-support"
+name = "erpx-support-server"
 version = "0.1.0"
 dependencies = [
- "erpx-server-runtime",
- "erpx-server-shared",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
  "jiff",
  "serde",
  "serde_json",
@@ -1406,11 +1406,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-talent"
+name = "erpx-talent-server"
 version = "0.1.0"
 dependencies = [
- "erpx-server-runtime",
- "erpx-server-shared",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
  "serde",
  "serde_json",
  "sqlx",
@@ -1419,25 +1419,25 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-work-projection"
+name = "erpx-work-projection-server"
 version = "0.1.0"
 dependencies = [
- "erpx-server-benefits",
- "erpx-server-collaboration",
- "erpx-server-customer-authority",
- "erpx-server-field-service",
- "erpx-server-finance",
- "erpx-server-identity-access",
- "erpx-server-learning",
- "erpx-server-maintenance",
- "erpx-server-marketing",
- "erpx-server-operations",
- "erpx-server-organization",
- "erpx-server-quality",
- "erpx-server-runtime",
- "erpx-server-shared",
- "erpx-server-support",
- "erpx-server-workflow",
+ "erpx-benefits-server",
+ "erpx-collaboration-server",
+ "erpx-customer-authority-server",
+ "erpx-field-service-server",
+ "erpx-finance-server",
+ "erpx-identity-access-server",
+ "erpx-learning-server",
+ "erpx-maintenance-server",
+ "erpx-marketing-server",
+ "erpx-operations-server",
+ "erpx-organization-server",
+ "erpx-quality-server",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
+ "erpx-support-server",
+ "erpx-workflow-server",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -1449,11 +1449,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-server-workflow"
+name = "erpx-workflow-server"
 version = "0.1.0"
 dependencies = [
- "erpx-server-runtime",
- "erpx-server-shared",
+ "erpx-platform-runtime-server",
+ "erpx-platform-shared-server",
  "hex",
  "ryu-js",
  "serde",
@@ -1465,53 +1465,53 @@ dependencies = [
 ]
 
 [[package]]
-name = "erpx-service"
+name = "erpx-platform-composition"
 version = "0.1.0"
 dependencies = [
  "axum",
  "base64 0.23.1",
  "bytes",
- "erpx-server-agent",
- "erpx-server-assets",
- "erpx-server-benefits",
- "erpx-server-billing",
- "erpx-server-brand",
- "erpx-server-collaboration",
- "erpx-server-commerce",
- "erpx-server-commercial",
- "erpx-server-crm",
- "erpx-server-customer-360",
- "erpx-server-customer-authority",
- "erpx-server-ecommerce",
- "erpx-server-field-service",
- "erpx-server-files",
- "erpx-server-finance",
- "erpx-server-identity-access",
- "erpx-server-inventory",
- "erpx-server-learning",
- "erpx-server-legal",
- "erpx-server-maintenance",
- "erpx-server-manage-erpx",
- "erpx-server-manufacturing",
- "erpx-server-marketing",
- "erpx-server-operations",
- "erpx-server-organization",
- "erpx-server-people-payroll",
- "erpx-server-planning",
- "erpx-server-platform-administration",
- "erpx-server-pms",
- "erpx-server-pos",
- "erpx-server-procurement",
- "erpx-server-projects",
- "erpx-server-quality",
- "erpx-server-records",
- "erpx-server-runtime",
- "erpx-server-sales",
- "erpx-server-shared",
- "erpx-server-support",
- "erpx-server-talent",
- "erpx-server-work-projection",
- "erpx-server-workflow",
+ "erpx-agent-server",
+ "erpx-assets-server",
+ "erpx-benefits-server",
+ "erpx-billing-server",
+ "erpx-brand-server",
+ "erpx-collaboration-server",
+ "erpx-commerce-server",
+ "erpx-commercial-server",
+ "erpx-crm-server",
+ "erpx-customer-360-server",
+ "erpx-customer-authority-server",
+ "erpx-ecommerce-server",
+ "erpx-field-service-server",
+ "erpx-files-server",
+ "erpx-finance-server",
+ "erpx-identity-access-server",
+ "erpx-inventory-server",
+ "erpx-learning-server",
+ "erpx-legal-server",
+ "erpx-maintenance-server",
+ "erpx-manage-erpx-server",
+ "erpx-manufacturing-server",
+ "erpx-marketing-server",
+ "erpx-operations-server",
+ "erpx-organization-server",
+ "erpx-people-payroll-server",
+ "erpx-planning-server",
+ "erpx-platform-administration-server",
+ "erpx-pms-server",
+ "erpx-pos-server",
+ "erpx-procurement-server",
+ "erpx-projects-server",
+ "erpx-quality-server",
+ "erpx-records-server",
+ "erpx-platform-runtime-server",
+ "erpx-sales-server",
+ "erpx-platform-shared-server",
+ "erpx-support-server",
+ "erpx-talent-server",
+ "erpx-work-projection-server",
+ "erpx-workflow-server",
  "hex",
  "ldap3_proto",
  "nix",

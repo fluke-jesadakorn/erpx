@@ -2,12 +2,12 @@ import { chmod, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
-import type { RuntimeEnv } from "@erpx/server-runtime/adapters/runtime/env";
-import { isTransactionalSqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import type { RuntimeEnv } from "@erpx/platform-runtime-server/adapters/runtime/env";
+import { isTransactionalSqlDatabase } from "@erpx/platform-runtime-server/public/runtime/types";
 import { seedExpenseCompany } from "../../expenses/company";
 import { mapSpendingOrganization } from "../../../tests/support/helpers/spending-organization";
-import { businessRoles } from "@erpx/feature-identity_access/lib/business-roles";
-import registry from "@erpx/catalogue/module-registry.json";
+import { businessRoles } from "@erpx/identity-access-ui/lib/business-roles";
+import registry from "@erpx/platform-catalogue/module-registry.json";
 import { moduleBrowserHoldingDisplayName } from "../../../scripts/testing/browser-fixture-metadata";
 
 /** Called only after browser-simulation validated its exact eight owned DBs. */
@@ -27,7 +27,7 @@ export async function prepareModuleBrowser(profile: string, env: RuntimeEnv, dir
     // Tests use the normal explicitly declared Acme staffing personas; the
     // workflow's separate development CLI retains its existing dev-only guard.
     const { companyId, actors } = await (await import("../../../scripts/seed/seed-acme-organization")).seedAcmeOrganizationForBrowser(directory);
-    const current = (await import("@erpx/server-runtime/adapters/runtime/env")).getRuntime();
+    const current = (await import("@erpx/platform-runtime-server/adapters/runtime/env")).getRuntime();
     if (profile === "local-seed") await (await import("./local-browser-erpx-realm")).seedLocalBrowserRealm(current, directory);
     await (await import("../../people_payroll/builders/local-browser-roster-directory")).seedLocalBrowserRosterDirectory(current, directory);
     await (await import("../../people_payroll/builders/local-browser-leave")).seedLocalBrowserLeave(current, directory);

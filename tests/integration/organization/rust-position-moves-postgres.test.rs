@@ -1,15 +1,15 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_organization::public::organization_nodes::{
+use erpx_organization_server::public::organization_nodes::{
     OrganizationActor, OrganizationAuthority, OrganizationCommand, OrganizationCommandActor,
     OrganizationScopeKind,
 };
-use erpx_server_organization::public::position_moves::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_organization_server::public::position_moves::*;
+use erpx_platform_runtime_server::public::postgres::{
     load_migrations, migrate_database, DatabasePool, MigrationTrack, PgTransactionError,
     PgUnitOfWork, TransactionOptions,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, Clock, CompanyId, HoldingId, TimestampMillis, UserId,
 };
 use serde_json::json;

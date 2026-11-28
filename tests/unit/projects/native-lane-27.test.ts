@@ -14,7 +14,7 @@ import {
   nativeProjectVisibleProjects,
   type ActualsTransport,
   type ProjectActualsActor,
-} from "../../../packages/server-projects/src/adapters/native-lane-27/client";
+} from "../../../modules/projects/server/src/adapters/native-lane-27/client";
 
 const ENV = "ERPX_NATIVE_PROJECTS_CONFIG";
 
@@ -153,7 +153,7 @@ const failure = (run: () => unknown) => {
 
 describe("native lane 27 projects actuals transport", () => {
   it("pins the owner KPI after the cutover", () => {
-    const root = resolve(__dirname, "../../../packages/server-projects/src");
+    const root = resolve(__dirname, "../../../modules/projects/server/src");
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -172,7 +172,7 @@ describe("native lane 27 projects actuals transport", () => {
   it("pins the native SQL and result oracle", () => {
     const source = readFileSync(
       new URL(
-        "../../../packages/server-projects/src/adapters/native_lane_27/postgres.rs",
+        "../../../modules/projects/server/src/adapters/native_lane_27/postgres.rs",
         import.meta.url,
       ),
       "utf8",

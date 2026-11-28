@@ -1,4 +1,4 @@
-import { appDefinitions, appDirectory } from '@erpx/contracts/apps';
+import { appDefinitions, appDirectory } from '@erpx/platform-contracts/apps';
 
 export type ProcessIdentity = { command: string; cwd: string; started: string };
 export type AppProcessLease = { id: string; pid: number; port: number; identity: ProcessIdentity };

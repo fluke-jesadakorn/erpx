@@ -1,6 +1,6 @@
 //! Retained Brand identity acceptance values: strict inner objects, trimming,
 //! bounded lengths, integer versions and the canonical stored JSON order.
-use erpx_server_brand::public::identity::*;
+use erpx_brand_server::public::identity::*;
 use serde_json::{Value, json};
 
 fn identity(short_name: &str, tagline: Option<&str>, accent: &str, logo: Option<&str>) -> Value {
@@ -251,7 +251,7 @@ fn publication_requires_an_independent_reviewer() {
 
 #[test]
 fn branding_inputs_preserve_profile_storefront_and_media_bounds() {
-    use erpx_server_brand::public::branding::{
+    use erpx_brand_server::public::branding::{
         BrandMediaInput, BrandScopeKind, BrandVariant, DocumentMode, UpdateProfileInput,
         UpdateStorefrontInput,
     };

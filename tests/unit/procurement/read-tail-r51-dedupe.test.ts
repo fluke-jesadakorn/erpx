@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { jsonbAggHead } from '../../../packages/server-procurement/src/adapters/read-tail-r51';
-import { jsonbAggBy } from '../../../packages/server-procurement/src/adapters/read-tail-r21';
-import { jsonbAggJoinBy } from '../../../packages/server-procurement/src/adapters/read-tail-r22';
+import { jsonbAggHead } from '../../../modules/procurement/server/src/adapters/read-tail-r51';
+import { jsonbAggBy } from '../../../modules/procurement/server/src/adapters/read-tail-r21';
+import { jsonbAggJoinBy } from '../../../modules/procurement/server/src/adapters/read-tail-r22';
 
-const adapters = (name: string) => new URL(`../../../packages/server-procurement/src/adapters/${name}`, import.meta.url);
+const adapters = (name: string) => new URL(`../../../modules/procurement/server/src/adapters/${name}`, import.meta.url);
 const src = (name: string) => readFileSync(adapters(name), 'utf8');
 const count = (s: string, needle: string) => s.split(needle).length - 1;
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -130,7 +130,7 @@ describe('Procurement read-tail r51 jsonb_agg head dedupe', () => {
   });
 
   test('worktree SELECT count is 82 - 2 + 1 = 81', () => {
-    const root = new URL('../../../packages/server-procurement/src/', import.meta.url);
+    const root = new URL('../../../modules/procurement/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {

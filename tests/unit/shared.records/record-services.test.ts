@@ -1,22 +1,22 @@
 import {describe,expect,test,vi} from 'vitest';
-import {createRecordsApplication,type RecordsPorts,type RecordsRepository} from "@erpx/server-records/application/records";
-import {createSourceRecordApplication,type SourceRecordPorts} from "@erpx/server-records/application/source-record-policy";
-import {createBusinessEvidenceApplication,type BusinessEvidencePorts} from "@erpx/server-records/application/business-evidence";
-import {createRequestPreviewApplication,type RequestPreviewPorts} from "@erpx/server-records/application/request-preview";
-import {createRequestPageApplication,type RequestPagePorts} from "@erpx/server-records/application/request-page";
-import {createSelfServiceApplication,type SelfServicePorts} from "@erpx/server-records/application/self-service";
-import {createRecordDomainDetailsApplication,type RecordDomainDetailsPorts} from "@erpx/server-records/application/record-domain-details";
-import {createEmployeeRequestsApplication,type EmployeeRequestsPorts} from "@erpx/server-records/application/employee-requests";
-import {createRequestAiApplication,type RequestAiPorts,type RequestAiRepository} from "@erpx/server-records/application/request-ai";
-import {employeeRequestSchema} from "@erpx/server-records/domain/employee-requests";
-import {requestAiResult} from "@erpx/server-records/domain/request-ai";
-import type {RecordRow} from "@erpx/server-records/domain/records";
-import type {SourceRow} from "@erpx/server-records/domain/source-record-policy";
-import type {RecordsCommands} from "@erpx/server-records/domain/commands";
-import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import type {ApprovalRoute,StaffPerson} from "@erpx/server-operations/public/staff-policy-contract";
-import type {AttachmentPolicy} from "@erpx/server-files/public/attachments/types";
-import {BusinessRuleError} from "@erpx/server-shared/index";
+import {createRecordsApplication,type RecordsPorts,type RecordsRepository} from "@erpx/records-server/application/records";
+import {createSourceRecordApplication,type SourceRecordPorts} from "@erpx/records-server/application/source-record-policy";
+import {createBusinessEvidenceApplication,type BusinessEvidencePorts} from "@erpx/records-server/application/business-evidence";
+import {createRequestPreviewApplication,type RequestPreviewPorts} from "@erpx/records-server/application/request-preview";
+import {createRequestPageApplication,type RequestPagePorts} from "@erpx/records-server/application/request-page";
+import {createSelfServiceApplication,type SelfServicePorts} from "@erpx/records-server/application/self-service";
+import {createRecordDomainDetailsApplication,type RecordDomainDetailsPorts} from "@erpx/records-server/application/record-domain-details";
+import {createEmployeeRequestsApplication,type EmployeeRequestsPorts} from "@erpx/records-server/application/employee-requests";
+import {createRequestAiApplication,type RequestAiPorts,type RequestAiRepository} from "@erpx/records-server/application/request-ai";
+import {employeeRequestSchema} from "@erpx/records-server/domain/employee-requests";
+import {requestAiResult} from "@erpx/records-server/domain/request-ai";
+import type {RecordRow} from "@erpx/records-server/domain/records";
+import type {SourceRow} from "@erpx/records-server/domain/source-record-policy";
+import type {RecordsCommands} from "@erpx/records-server/domain/commands";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
+import type {ApprovalRoute,StaffPerson} from "@erpx/operations-server/public/staff-policy-contract";
+import type {AttachmentPolicy} from "@erpx/files-server/public/attachments/types";
+import {BusinessRuleError} from "@erpx/platform-shared-server/index";
 const actor:WorkContext={userId:'owner',name:'Owner',email:'owner@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['operations','assets','support','maintenance','field_service'],assignments:[],workspaces:[],authority:{sessionId:'session',revision:1,assignmentVersion:1}};
 function strict<Ports extends object>(facts:Partial<Ports>):Ports{return new Proxy(facts,{get(target,name){if(name in target)return target[name as keyof Ports];return ()=>{throw Error('Unexpected port: '+String(name));};}}) as Ports;}
 const commands:RecordsCommands<string>={replay:async()=>null,commit:(async(_a,_key,_operation,_input,_id,_version,result)=>result) as RecordsCommands<string>['commit']};
@@ -62,28 +62,28 @@ test('an AI worker does not discover a provider when its lease could not be clai
 test('domain drawers refuse an absent record rather than showing another owner record',async()=>{const app=createRecordDomainDetailsApplication(strict<RecordDomainDetailsPorts<string>>({learningWorkspace:async()=>({courses:[],assignments:[],people:[],canWrite:false,canReview:false,actorId:actor.userId})}));await expect(app.recordDomainData(actor,'learning_course','missing')).rejects.toMatchObject({code:'RECORD_NOT_FOUND'});});
 
 test('Field source cutover never falls back or replaces same-unit guards with HTTP',async()=>{
- const {ApiError}=await import('@erpx/server-runtime/public/http');
+ const {ApiError}=await import('@erpx/platform-runtime-server/public/http');
  const row={id:'source',company_id:'company',branch_id:null,department_id:null,version:3,title:'Service visit',status:'scheduled'}, native=vi.fn(async()=>row as typeof row|undefined);
  const prepare=vi.fn(()=>{throw Error('Legacy Field SQL must not execute');});
- const database={prepare} as unknown as import('@erpx/server-runtime/public/runtime/types').SqlDatabase;
- vi.doMock('@erpx/server-field_service/public/native-source-record',()=>({nativeSourceRecord:native}));
- vi.doMock('@erpx/server-identity_access/public/iam-permissions',()=>({requirePermission:()=>{}}));
- vi.doMock('../../../packages/server-runtime/src/public/runtime',()=>({holdingResources:async()=>({write:database})}));
+ const database={prepare} as unknown as import('@erpx/platform-runtime-server/public/runtime/types').SqlDatabase;
+ vi.doMock('@erpx/field-service-server/public/native-source-record',()=>({nativeSourceRecord:native}));
+ vi.doMock('@erpx/identity-access-server/public/iam-permissions',()=>({requirePermission:()=>{}}));
+ vi.doMock('../../../platform/runtime/server/src/public/runtime',()=>({holdingResources:async()=>({write:database})}));
  try{
-  const policy=await import('../../../packages/server-records/src/adapters/source-record-policy');
+  const policy=await import('../../../modules/records/server/src/adapters/source-record-policy');
   const source=await policy.readSourceRecord(actor,{kind:'field_service_order',id:'source',version:3});expect(source).toMatchObject({id:'source',version:3,title:'Service visit',href:'/field-service/source'});expect(native).toHaveBeenCalledWith(actor,'source',3);expect(prepare).not.toHaveBeenCalled();
   native.mockClear();await expect(policy.readSourceRecord(actor,{kind:'field_service_order',id:'source'},database)).rejects.toMatchObject({status:503,code:'FIELD_RECORD_SOURCE_NATIVE_UNIT_REQUIRED'});expect(native).not.toHaveBeenCalled();expect(prepare).not.toHaveBeenCalled();
   await expect(policy.sourceRecordGuards(database,actor,'key',source)).rejects.toMatchObject({status:503,code:'FIELD_RECORD_SOURCE_NATIVE_UNIT_REQUIRED'});expect(native).not.toHaveBeenCalled();expect(prepare).not.toHaveBeenCalled();
   for(const status of [403,404]){native.mockRejectedValueOnce(new ApiError(status,'DENIED','unavailable'));expect(await policy.visibleSourceRecord(actor,{kind:'field_service_order',id:'source'})).toBeNull();}
   for(const status of [409,503]){native.mockRejectedValueOnce(new ApiError(status,'UNAVAILABLE','unavailable'));await expect(policy.visibleSourceRecord(actor,{kind:'field_service_order',id:'source'})).rejects.toMatchObject({status});}
   native.mockResolvedValueOnce(undefined);await expect(policy.readSourceRecord(actor,{kind:'field_service_order',id:'source'})).rejects.toMatchObject({status:503,code:'FIELD_RECORD_SOURCE_NATIVE_UNAVAILABLE'});expect(prepare).not.toHaveBeenCalled();
- }finally{vi.doUnmock('@erpx/server-field_service/public/native-source-record');vi.doUnmock('@erpx/server-identity_access/public/iam-permissions');vi.doUnmock('../../../packages/server-runtime/src/public/runtime');vi.resetModules();}
+ }finally{vi.doUnmock('@erpx/field-service-server/public/native-source-record');vi.doUnmock('@erpx/identity-access-server/public/iam-permissions');vi.doUnmock('../../../platform/runtime/server/src/public/runtime');vi.resetModules();}
 });
 
 test('workspace-record detail is native-only and fails closed without configuration',async()=>{
  const previous=process.env.ERPX_NATIVE_RECORDS_CONFIG;
  const reader={...actor,iam:{permissions:['records.read'],grantablePermissions:[],principalId:'principal',personId:null,roleRevision:1,identityVersion:1,freshUntil:null}} as WorkContext;
- const {recordSupplementData}=await import('@erpx/server-records/public/record-details');
+ const {recordSupplementData}=await import('@erpx/records-server/public/record-details');
  delete process.env.ERPX_NATIVE_RECORDS_CONFIG;
  try{
   await expect(recordSupplementData(reader,{kind:'workspace_record',id:'record'},{module:'operations'})).rejects.toMatchObject({status:503,code:'NATIVE_RECORD_DETAILS_UNAVAILABLE'});

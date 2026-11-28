@@ -1,9 +1,9 @@
 import { beforeAll, afterEach, describe, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import {calculateCloseReconciliations} from '@erpx/server-finance/public/finance';
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import {calculateCloseReconciliations} from '@erpx/finance-server/public/finance';
 
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 const db=env.H001_DB;
 afterEach(()=>vi.unstubAllEnvs());
 const preparer={userId:"close-preparer",assignmentId:"close-preparer-a",role:"finance_preparer",companyId:"close-company",holdingId:"h001",branchId:null,departmentId:null} as WorkContext;

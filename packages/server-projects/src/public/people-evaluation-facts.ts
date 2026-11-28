@@ -1,1 +1,0 @@
-export {peopleEvaluationProjectsFacts,peopleEvaluationProjectTaskReadScope,peopleEvaluationProjectSourceLocks,peopleEvaluationProjectSourceImage} from '@erpx/server-projects/adapters/people-evaluation-facts';

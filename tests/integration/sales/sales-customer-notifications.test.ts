@@ -3,7 +3,7 @@ import {join,resolve} from 'node:path';
 import {beforeAll,it,expect,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,key} from "../../support/helpers/expense-fixture";
-import {migrateDatabase} from '@erpx/server-runtime/public/runtime/migrations';
+import {migrateDatabase} from '@erpx/platform-runtime-server/public/runtime/migrations';
 import {seedExpenseCompany} from '../../../fixtures/expenses/company';
 
 /** Notification settings/queue/retry commands are native-only. Their command

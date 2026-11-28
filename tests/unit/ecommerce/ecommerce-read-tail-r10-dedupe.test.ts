@@ -2,10 +2,10 @@ import { describe, expect, test, vi } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
-import { commercialOwnerProjectionSources as commerceProjectionSources } from '../../../packages/server-commerce/src/public/commercial-owner-projection-sources';
-import { commercialOwnerProjectionSources as financeProjectionSources } from '../../../packages/server-finance/src/public/commercial-owner-projection-sources';
+import { commercialOwnerProjectionSources as commerceProjectionSources } from '../../../modules/commerce/server/src/public/commercial-owner-projection-sources';
+import { commercialOwnerProjectionSources as financeProjectionSources } from '../../../modules/finance/server/src/public/commercial-owner-projection-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-ecommerce/src');
+const srcRoot = resolve(__dirname, '../../../modules/ecommerce/server/src');
 const src = readFileSync(resolve(srcRoot, 'adapters/ecommerce.ts'), 'utf8');
 
 // Pre-dedupe projection-existence guards copied verbatim from HEAD, kept only

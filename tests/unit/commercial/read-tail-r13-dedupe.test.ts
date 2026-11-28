@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { monthScopedRead } from '../../../packages/server-commercial/src/adapters/commercial-read-tail-r13-sources';
+import { monthScopedRead } from '../../../modules/commercial/server/src/adapters/commercial-read-tail-r13-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-commercial/src');
+const srcRoot = resolve(__dirname, '../../../modules/commercial/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 // Pre-dedupe oracles copied verbatim from the r12 baseline (BEFORE=23). The

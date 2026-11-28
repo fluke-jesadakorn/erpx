@@ -2,25 +2,25 @@ import {seedCommerceFulfillment} from "../../support/helpers/commerce-fulfillmen
 import {afterEach,beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {saveMaster,saveOrder,orderSchema,transitionOrder,invoiceFulfillment} from '@erpx/server-commerce/public/commerce';
-import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
-import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
-import {withFinanceFlowAssignment} from "@erpx/server-finance/public/document-purchases";
-import {postInvoice} from '@erpx/server-finance/public/finance';
+import {saveMaster,saveOrder,orderSchema,transitionOrder,invoiceFulfillment} from '@erpx/commerce-server/public/commerce';
+import {getOrder} from '@erpx/commerce-server/public/commerce-order-read';
+import {assignFlowPrimary,resolveFlow} from '@erpx/workflow-server/public/flow-routing';
+import {withFinanceFlowAssignment} from "@erpx/finance-server/public/document-purchases";
+import {postInvoice} from '@erpx/finance-server/public/finance';
 import {seedFinanceJournal} from '../../support/helpers/finance-journal-seed';
-import {ledgerWorkspace} from "@erpx/server-finance/public/ledger";
-import {bookRuleSchema,prepareBookRule,decideBookRule} from "@erpx/server-finance/public/finance-books";
-import {createCRMLead,changeCRMOpportunity,getCRMLead} from "@erpx/server-crm/public/crm";
-import {changeCRMIdentity,crmIdentities} from "@erpx/server-crm/public/crm-identities";
+import {ledgerWorkspace} from "@erpx/finance-server/public/ledger";
+import {bookRuleSchema,prepareBookRule,decideBookRule} from "@erpx/finance-server/public/finance-books";
+import {createCRMLead,changeCRMOpportunity,getCRMLead} from "@erpx/crm-server/public/crm";
+import {changeCRMIdentity,crmIdentities} from "@erpx/crm-server/public/crm-identities";
 import {linkNativeQuote,qualifyNativeLead,winNativePmsLead} from "./crm-lead-command-oracle";
-import {changeMarketingCampaign,marketingCostSources} from "@erpx/server-marketing/public/marketing-campaigns";
-import {createMarketingAsset,createMarketingCandidate,changeMarketing} from "@erpx/server-marketing/public/marketing";
-import {crmAnalytics,marketingAnalytics,analyticsOptions} from "@erpx/server-crm/public/crm-marketing-report";
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+import {changeMarketingCampaign,marketingCostSources} from "@erpx/marketing-server/public/marketing-campaigns";
+import {createMarketingAsset,createMarketingCandidate,changeMarketing} from "@erpx/marketing-server/public/marketing";
+import {crmAnalytics,marketingAnalytics,analyticsOptions} from "@erpx/crm-server/public/crm-marketing-report";
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 const date='2026-09-25',range={from:'2026-09-01',to:'2026-09-30'};
 // Native-seeding oracles: the deleted TypeScript qualify/win-pms writers are
-// replaced by rows matching packages/server-crm/src/adapters/leads_native.rs.
+// replaced by rows matching modules/crm/server/src/adapters/leads_native.rs.
 // Authority, purchase and Workflow coverage lives in the Rust CRM suites.
 const qualify=(leadId:string,customerId:string,expectedValue:string,reason:string,actor:typeof f.owner=f.owner)=>qualifyNativeLead(db,{key:key(),leadId,customerId,expectedVersion:1,expectedValue,closeDate:date,reason,scope:{companyId:actor.companyId,branchId:actor.branchId,departmentId:actor.departmentId,actorId:actor.userId}});
 const winPms=(leadId:string,reservationId:string,propertyId:string,reason:string)=>winNativePmsLead(db,{key:key(),leadId,reservationId,propertyId,expectedVersion:1,leadVersion:2,reason,scope:{companyId:f.owner.companyId,branchId:f.owner.branchId,departmentId:f.owner.departmentId,actorId:f.owner.userId}});
@@ -150,7 +150,7 @@ it('keeps hotel history private until authority is reviewed and hides it after w
  expect((await db.prepare('SELECT evidence FROM crm_guest_links WHERE id=?').bind(linkId).first<{evidence:string}>())!.evidence).toBe('Independent identity check');
 });
 async function reportPackage(packageId:'sales'|'sales-marketing'|'pms'|'finance',state:'active'|'draining'='active'){
- const {packageGrantStore,readCompanyPackageGrants}=await import('@erpx/server-commercial/public/package-grants'),prior=(await readCompanyPackageGrants(db,f.company)).find(row=>row.packageId===packageId);return packageGrantStore(db,{authorize:async()=>({userId:'isolated-crm-report-provider'}),obligations:async()=>{throw Error('REPORT_FIXTURE_CANNOT_INACTIVATE');}}).apply({expectedVersion:prior?.version??0,idempotencyKey:key(),grant:{companyId:f.company,packageId,packageVersion:1,state,startsAt:0,endsAt:null,version:(prior?.version??0)+1,reason:'Isolated actual customer report source history',evidence:'test:crm-report-source'}});
+ const {packageGrantStore,readCompanyPackageGrants}=await import('@erpx/commercial-server/public/package-grants'),prior=(await readCompanyPackageGrants(db,f.company)).find(row=>row.packageId===packageId);return packageGrantStore(db,{authorize:async()=>({userId:'isolated-crm-report-provider'}),obligations:async()=>{throw Error('REPORT_FIXTURE_CANNOT_INACTIVATE');}}).apply({expectedVersion:prior?.version??0,idempotencyKey:key(),grant:{companyId:f.company,packageId,packageVersion:1,state,startsAt:0,endsAt:null,version:(prior?.version??0)+1,reason:'Isolated actual customer report source history',evidence:'test:crm-report-source'}});
 }
 it('keeps basic Sales-only CRM reporting while hiding unpurchased private campaign Hotel selectors and invalid native source rows',async()=>{
  const actor={...f.owner,modules:[]},lead=await createCRMLead(actor,{branchId:f.branch,title:'Actual purchased report prospect',contactName:'Synthetic report contact',contactDetail:'Declared synthetic source channel',source:'Staff direct source',brief:'Ordinary CRM reporting does not buy Marketing or Hotel',dueDate:date},key()),campaign=await changeMarketingCampaign({...f.owner,modules:['marketing']},{action:'create',code:`PRIVATE_${key().slice(0,8)}`,name:'Private unpurchased campaign'},key()),property=key(),other=await expenseFixture(),foreign=await createCRMLead(other.owner,{branchId:other.branch,title:'Other Company report source',contactName:'Other Company contact',contactDetail:'Other declared source channel',source:'Staff source',brief:'This cannot supply the report contact lineage.',dueDate:date},key()),foreignRow=await getCRMLead(other.owner,String(foreign.id)),bad=key();

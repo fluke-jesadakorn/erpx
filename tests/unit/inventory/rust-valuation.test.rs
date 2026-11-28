@@ -1,7 +1,7 @@
 //! Independent retained Node oracle plus conservation and safe-admission cases.
 //! Planning ports are synthetic: these tests do not prove a transaction or IAM.
-use erpx_server_inventory::public::{consumption::*, *};
-use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, RecordId};
+use erpx_inventory_server::public::{consumption::*, *};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, FailureKind, RecordId};
 use serde_json::{Value, json};
 fn corpus() -> Value {
     serde_json::from_str(include_str!(
@@ -494,7 +494,7 @@ async fn field_service_utf16_lot_slots_preserve_original_identity_and_storage_bi
 
 #[test]
 fn service_detail_available_stock_accounts_for_reservations_and_holds() {
-    use erpx_server_inventory::public::field_service_detail::service_available_milli;
+    use erpx_inventory_server::public::field_service_detail::service_available_milli;
     assert_eq!(service_available_milli(5_000, 1_000, false, 1_500), 2_500);
     assert_eq!(service_available_milli(5_000, 1_000, true, 0), 0);
     assert_eq!(service_available_milli(5_000, 0, false, 8_000), 0);

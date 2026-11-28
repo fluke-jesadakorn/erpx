@@ -1,4 +1,4 @@
-use erpx_server_identity_access::public::directory::grants::*;
+use erpx_identity_access_server::public::directory::grants::*;
 use serde_json::Value;
 fn fixture() -> Value {
     serde_json::from_str(include_str!(concat!(
@@ -7,7 +7,7 @@ fn fixture() -> Value {
     )))
     .unwrap()
 }
-fn evaluate(case: &Value, now: i64) -> Result<(), erpx_server_shared::public::BusinessError> {
+fn evaluate(case: &Value, now: i64) -> Result<(), erpx_platform_shared_server::public::BusinessError> {
     let f = &case["facts"];
     let parent = &f["parent"];
     let role = &f["role"];
@@ -107,9 +107,9 @@ fn ordinary_directory_assembled_b0_mapping_cases_keep_the_same_decisions_and_err
         if let Err(error) = result {
             assert_eq!(error.code, case["error"]["code"].as_str().unwrap(), "{id}");
             let expected = match case["error"]["status"].as_i64().unwrap() {
-                403 => erpx_server_shared::public::FailureKind::Forbidden,
-                409 => erpx_server_shared::public::FailureKind::Conflict,
-                422 => erpx_server_shared::public::FailureKind::InvalidInput,
+                403 => erpx_platform_shared_server::public::FailureKind::Forbidden,
+                409 => erpx_platform_shared_server::public::FailureKind::Conflict,
+                422 => erpx_platform_shared_server::public::FailureKind::InvalidInput,
                 _ => panic!("unexpected source error class"),
             };
             assert_eq!(error.kind, expected, "{id}");

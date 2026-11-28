@@ -3,16 +3,16 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_inventory::public::counts::{
+use erpx_inventory_server::public::counts::{
     lock_count_sources, lock_count_transition_guard_sources,
 };
-use erpx_server_quality::public::quality_commands::lock_quality_count_disposition_sources;
-use erpx_server_runtime::public::postgres::{
+use erpx_quality_server::public::quality_commands::lock_quality_count_disposition_sources;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{CompanyId, RecordId};
-use erpx_server_workflow::public::quality_return_receipts::lock_quality_scrap_request_receipts;
-use erpx_service::quality_count_origin::inspect_quality_count_origin;
+use erpx_platform_shared_server::public::{CompanyId, RecordId};
+use erpx_workflow_server::public::quality_return_receipts::lock_quality_scrap_request_receipts;
+use erpx_platform_composition::quality_count_origin::inspect_quality_count_origin;
 use sqlx::PgConnection;
 
 async fn setup(pool: &DatabasePool) {
@@ -170,10 +170,10 @@ pub(crate) async fn seed_return_count(
 }
 
 async fn lock_return_sources(c: &mut PgConnection) {
-    erpx_server_commerce::public::quality_return_origin::lock_quality_return_commerce(c)
+    erpx_commerce_server::public::quality_return_origin::lock_quality_return_commerce(c)
         .await
         .unwrap();
-    erpx_server_inventory::public::quality_fulfillment_allocation::lock_quality_fulfillment_allocations(c).await.unwrap();
+    erpx_inventory_server::public::quality_fulfillment_allocation::lock_quality_fulfillment_allocations(c).await.unwrap();
     lock_all(c).await;
 }
 async fn finalized_return_count(
@@ -183,17 +183,17 @@ async fn finalized_return_count(
     product: &str,
     lot: Option<&str>,
     post: bool,
-) -> erpx_server_quality::public::quality_commands::RetainedQualityCountDisposition<
-    erpx_server_inventory::public::counts::CurrentInventoryQualityCount,
+) -> erpx_quality_server::public::quality_commands::RetainedQualityCountDisposition<
+    erpx_inventory_server::public::counts::CurrentInventoryQualityCount,
 > {
-    use erpx_server_inventory::public::counts::{
+    use erpx_inventory_server::public::counts::{
         apply_quality_count_decision, apply_quality_count_effects, inspect_count_transition_guard,
         plan_count_transition, plan_count_transition_effects, prepare_inventory_quality_count,
     };
-    use erpx_server_inventory::public::service_initial_physical_count::{
+    use erpx_inventory_server::public::service_initial_physical_count::{
         CountAction, CountAuthority,
     };
-    use erpx_server_quality::public::quality_commands::{
+    use erpx_quality_server::public::quality_commands::{
         QualityCountDispositionAction, QualityCountDispositionFacts,
         prepare_quality_count_disposition,
     };
@@ -266,7 +266,7 @@ async fn finalized_return_count(
 
 #[tokio::test]
 async fn actual_customer_return_origins_and_finalized_count_actions() {
-    use erpx_service::quality_count_origin::inspect_quality_count_customer_return;
+    use erpx_platform_composition::quality_count_origin::inspect_quality_count_customer_return;
     fixture::with_database(3,|pool|async move {
         setup(&pool).await; seed_customer_return(&pool).await;
         seed_return_count(&pool,"plain","quality-return-approval-key-0","plain-product",None).await;
@@ -279,7 +279,7 @@ async fn actual_customer_return_origins_and_finalized_count_actions() {
         assert!(inspect_quality_count_customer_return(&mut missing,direct,&company,Some(&branch)).await.is_err());missing.rollback().await.unwrap();
         // Tracked origin additionally needs the actual Inventory allocation fence.
         let mut missing_allocation=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *missing_allocation).await.unwrap();
-        erpx_server_commerce::public::quality_return_origin::lock_quality_return_commerce(&mut missing_allocation).await.unwrap();lock_all(&mut missing_allocation).await;
+        erpx_commerce_server::public::quality_return_origin::lock_quality_return_commerce(&mut missing_allocation).await.unwrap();lock_all(&mut missing_allocation).await;
         let direct=inspect_quality_count_origin(&mut missing_allocation,&company,Some(&branch),&tracked).await.unwrap().unwrap();
         assert!(inspect_quality_count_customer_return(&mut missing_allocation,direct,&company,Some(&branch)).await.is_err());missing_allocation.rollback().await.unwrap();
         let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_return_sources(&mut tx).await;
@@ -319,13 +319,13 @@ async fn actual_customer_return_origins_and_finalized_count_actions() {
         let mut other=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();lock_return_sources(&mut other).await;
         assert!(untracked.require_current(&mut other).await.is_err());other.rollback().await.unwrap();
         let mut commerce_loss=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *commerce_loss).await.unwrap();
-        erpx_server_inventory::public::quality_fulfillment_allocation::lock_quality_fulfillment_allocations(&mut commerce_loss).await.unwrap();lock_all(&mut commerce_loss).await;
-        sqlx::query("SAVEPOINT commerce_fence").execute(&mut *commerce_loss).await.unwrap();erpx_server_commerce::public::quality_return_origin::lock_quality_return_commerce(&mut commerce_loss).await.unwrap();
+        erpx_inventory_server::public::quality_fulfillment_allocation::lock_quality_fulfillment_allocations(&mut commerce_loss).await.unwrap();lock_all(&mut commerce_loss).await;
+        sqlx::query("SAVEPOINT commerce_fence").execute(&mut *commerce_loss).await.unwrap();erpx_commerce_server::public::quality_return_origin::lock_quality_return_commerce(&mut commerce_loss).await.unwrap();
         let direct=inspect_quality_count_origin(&mut commerce_loss,&company,Some(&branch),&plain).await.unwrap().unwrap();let proof=inspect_quality_count_customer_return(&mut commerce_loss,direct,&company,Some(&branch)).await.unwrap().unwrap();
         sqlx::query("ROLLBACK TO SAVEPOINT commerce_fence").execute(&mut *commerce_loss).await.unwrap();assert!(proof.require_current(&mut commerce_loss).await.is_err());commerce_loss.rollback().await.unwrap();
         let mut allocation_loss=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *allocation_loss).await.unwrap();
-        erpx_server_commerce::public::quality_return_origin::lock_quality_return_commerce(&mut allocation_loss).await.unwrap();lock_all(&mut allocation_loss).await;
-        sqlx::query("SAVEPOINT allocation_fence").execute(&mut *allocation_loss).await.unwrap();erpx_server_inventory::public::quality_fulfillment_allocation::lock_quality_fulfillment_allocations(&mut allocation_loss).await.unwrap();
+        erpx_commerce_server::public::quality_return_origin::lock_quality_return_commerce(&mut allocation_loss).await.unwrap();lock_all(&mut allocation_loss).await;
+        sqlx::query("SAVEPOINT allocation_fence").execute(&mut *allocation_loss).await.unwrap();erpx_inventory_server::public::quality_fulfillment_allocation::lock_quality_fulfillment_allocations(&mut allocation_loss).await.unwrap();
         let direct=inspect_quality_count_origin(&mut allocation_loss,&company,Some(&branch),&tracked).await.unwrap().unwrap();let proof=inspect_quality_count_customer_return(&mut allocation_loss,direct,&company,Some(&branch)).await.unwrap().unwrap();
         sqlx::query("ROLLBACK TO SAVEPOINT allocation_fence").execute(&mut *allocation_loss).await.unwrap();assert!(proof.require_current(&mut allocation_loss).await.is_err());allocation_loss.rollback().await.unwrap();
         let mut saved=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *saved).await.unwrap();sqlx::query("SAVEPOINT return_fences").execute(&mut *saved).await.unwrap();lock_return_sources(&mut saved).await;
@@ -343,8 +343,8 @@ async fn quality_return_fences_block_concurrent_allocation_phantoms() {
             "INSERT INTO inventory_fulfillment_lot_allocations(id,fulfillment_line_id,lot_id,quantity_milli,value_minor,disposition) VALUES('race-stock','lot-fulfilled','lot-existing',1,1,'available')",
         ] {
             let mut owner=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *owner).await.unwrap();
-            erpx_server_commerce::public::quality_return_origin::lock_quality_return_commerce(&mut owner).await.unwrap();
-            erpx_server_inventory::public::quality_fulfillment_allocation::lock_quality_fulfillment_allocations(&mut owner).await.unwrap();
+            erpx_commerce_server::public::quality_return_origin::lock_quality_return_commerce(&mut owner).await.unwrap();
+            erpx_inventory_server::public::quality_fulfillment_allocation::lock_quality_fulfillment_allocations(&mut owner).await.unwrap();
             let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *owner).await.unwrap();
             let other_pool=pool.clone();let (send,receive)=tokio::sync::oneshot::channel();
             let worker=tokio::spawn(async move {let mut c=other_pool.raw().acquire().await.unwrap();let worker_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *c).await.unwrap();send.send(worker_pid).unwrap();let _=sqlx::query(mutation).execute(&mut *c).await;});
@@ -357,7 +357,7 @@ async fn quality_return_fences_block_concurrent_allocation_phantoms() {
 
 #[tokio::test]
 async fn posted_quality_count_witness_requires_and_retains_all_owner_fences() {
-    use erpx_server_inventory::public::quality_disposition_count::{
+    use erpx_inventory_server::public::quality_disposition_count::{
         QualityDispositionCountRequest, inspect_quality_disposition_count,
         lock_quality_disposition_count_sources,
     };
@@ -453,7 +453,7 @@ async fn posted_quality_count_witness_requires_and_retains_all_owner_fences() {
 
 #[tokio::test]
 async fn direct_quality_origin_retains_large_unicode_image_exactly() {
-    use erpx_server_inventory::public::counts::inspect_direct_quality_count_origin;
+    use erpx_inventory_server::public::counts::inspect_direct_quality_count_origin;
     fixture::with_database(3, |pool| async move {
         setup(&pool).await;
         seed(&pool, "large", "good").await;

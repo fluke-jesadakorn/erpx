@@ -4,11 +4,11 @@
 )]
 #[path = "../../support/finance/maintenance-parts.rs"]
 mod facts;
-use erpx_server_finance::public::{FinanceActor, journal_review::*};
-use erpx_server_identity_access::public::effective_authority::WorkAuthorizationRequest;
-use erpx_server_inventory::public::consumption_finance::*;
-use erpx_server_maintenance::public::finance_lineage::*;
-use erpx_server_shared::public::Clock;
+use erpx_finance_server::public::{FinanceActor, journal_review::*};
+use erpx_identity_access_server::public::effective_authority::WorkAuthorizationRequest;
+use erpx_inventory_server::public::consumption_finance::*;
+use erpx_maintenance_server::public::finance_lineage::*;
+use erpx_platform_shared_server::public::Clock;
 use facts::*;
 
 #[tokio::test]
@@ -179,7 +179,7 @@ async fn a_source_label_without_actual_inventory_evidence_never_acquires_mainten
         // The actual manual creation path is used to produce a target, then a
         // hostile direct row mutation claims a foreign source. No consumption
         // or original issuer proof is fabricated to satisfy the service.
-        let mut maker=p.reviewer.maker_selection.clone();maker.expected=Some(erpx_server_identity_access::public::work_context::ExpectedWorkSelection{revision:9,assignment_id:erpx_server_shared::public::AssignmentId::new("finance-fixture-a").unwrap(),assignment_version:3});
+        let mut maker=p.reviewer.maker_selection.clone();maker.expected=Some(erpx_identity_access_server::public::work_context::ExpectedWorkSelection{revision:9,assignment_id:erpx_platform_shared_server::public::AssignmentId::new("finance-fixture-a").unwrap(),assignment_version:3});
         sqlx::query("UPDATE active_work_contexts SET assignment_id='finance-fixture-a',revision=9 WHERE user_id='fixture-a'").execute(p.pool().raw()).await.unwrap();
         let mut real=p.reviewer;real.maker_selection=maker;real.create("parts-fake-manual",false).await.unwrap();
         sqlx::query("UPDATE finance_journals SET source_type='maintenance_parts',source_id='no-actual-consumption'WHERE id='journal-parts-fake-manual'").execute(real.system.holdings[0].raw()).await.unwrap();

@@ -1,0 +1,74 @@
+# Work on ERPX locally
+
+Use this guide to run the native development gateway and select checks for the app you changed. For a self-contained first run, use the [Service Count quickstart](start-here.md).
+
+The development gateway serves port3100 and starts apps lazily on owned ports3200–3299. Registered Holding hosts select independent apps by path; see [ADR-051](adr/ADR-051-holding-addresses-and-workspace-paths.md). Installed production and staging are outside this migration. Full acceptance is deferred to an explicitly frozen production candidate and never runs automatically in daily CI.
+Set `ERPX_DEV_MAX_APPS` in ignored `.env.local` only when the machine has room for more concurrent app processes (1–12; default4). Account and Apps share that budget. An app with active requests or HMR connections is never evicted.
+
+## Stack
+
+Next.js 16.4.6 App Router + React 19.3.1 + TypeScript 7 + Tailwind 4, built as a standalone Node.js 26.11.1 release. Bun 1.4.3 manages the frontend toolchain; Rust 1.99.1 and locked Cargo dependencies provide the new backend implementation. PostgreSQL 18.6 stores relational data and durable jobs, and private filesystem adapters store evidence. The installed private production service remains on Node.js 24.20.0 until a reviewed release is deployed. Cloudflare Tunnel provides the existing installation's HTTPS ingress.
+
+Typechecks use the TypeScript 7 native compiler. The `typescript` dependency aliases Microsoft’s TypeScript 6 compatibility package because Next.js, ESLint and repository AST tools still require its compiler API; `@typescript/native` supplies TypeScript 7 and the `tsc` command. Both are pinned in the lockfile. Security overrides keep esbuild and Zod patched and retain a patched Undici 7 for Cloudflare’s compatible API.
+
+```bash
+bun install --frozen-lockfile
+# Use pinned Node 26.11.1 and Bun 1.4.3 on PATH.
+# Each app generates its own ignored route types during dev/build.
+# Scoped app typechecks generate routes in a private project alongside dev.
+# Configure absolute data/manifest paths and a separate development PostgreSQL URL first.
+bun run seed:local           # development data only; never production
+bun run seed:verify:local   # read-only seed checks
+bun run dev                              # lazy apps behind :3100
+bun run dev -- --app=finance              # prewarm one product
+bun run test:dev                          # staged/unstaged/untracked changes vs HEAD
+bun run test:dev --app=finance            # scoped development profile
+bun run test:dev --watch                  # cancel obsolete rounds after edits
+bun run test:ci --base=<sha> --head=<sha>  # clean exact candidate verification
+bun run build:affected                   # independent app build outputs/cache
+```
+
+Development starts at a registered Holding: [Acme](https://acme.jesadakorn.com/), [Northstar](https://northstar.jesadakorn.com/) or [ERPX](https://erpx-internal.jesadakorn.com/). Select a Company, branch or department explicitly, then an app, for example `/bangkok/finance` or `/bangkok/finance-dept/finance`. Company work uses `/finance?company=acme-co`. Account remains central at [Account](https://account-dev-erpx.jesadakorn.com/). Former app hosts return generic404; Console retains exact health/ready reads. The [Holding development runbook](../ops/macos/holding-development.md) records routing, migration and operations. Production and staging remain unchanged; full acceptance is deferred.
+
+The rich local dataset and demo personas are documented in [docs/local-seed.md](local-seed.md).
+
+## Rust migration verification
+
+Install the toolchain pinned by `rust-toolchain.toml`, then use the native commands below. The inventory command reads implementation metadata and does not start a service or change a database.
+
+```bash
+bun run rust:test
+bun run rust:fmt
+bun run rust:check
+bun run rust:clippy
+cargo run --locked --package erpx-platform-composition --bin erpx-server -- owners
+```
+
+The native unit command uses catalogue targets and case receipts without database access. PostgreSQL suites require a configured local test administrator and explicit integration selection; the fixture creates and drops only its leased disposable databases. Use the registered test catalogue for affected native/TypeScript checks. Ordinary development does not run production acceptance, deploy services or publish images. Follow [SECURITY.md](../.github/SECURITY.md) for vulnerability reports and [GOVERNANCE.md](community/GOVERNANCE.md) for ownership and architecture decisions.
+
+## Structure
+
+- `apps/<id>/`: app-owned routes, layouts, handlers, config, route types and build output; no imports from another app. `apps/compat` retains non-product compatibility source. The authorized development Console cutover is active; its pages/APIs return404 and health/ready reads use Account. Holding paths dispatch to their owning applications. Apps keeps the stable `apps` app/CLI identity in `apps/launcher/`.
+- `modules/<owner>/server/src/{domain,application,adapters,public}/`: in-process business owners; consumers use named public exports and typed ports.
+- `modules/<owner>/ui/`, `platform/ui/`, `platform/workplace/`, `platform/front/`: owner presentation, primitives and shells with explicit subpath exports. `platform/contracts/` owns pure host/product metadata and shared contracts.
+- `tests/{unit,integration,e2e,journeys,uat,provider}/<owner>/`: executable suites, assigned from the catalogue rather than filenames. `tests/support/` holds helpers/setup; `tests/catalogue/` holds required-case registers; `tests/config/` holds runner/typecheck configuration.
+- `scripts/{testing,performance,seed,docs,assets,ui,local}/`: executable tooling by purpose. `fixtures/<owner>/`: fixture data and builders shared by seeds and tests. Executable fixture preparation belongs in `scripts/testing/fixtures/`.
+- `migrations/postgres/`: existing database tracks; `ops/`: operations; `docs/TOC.md`: documentation hub, with research in `docs/research/` and verification in `docs/testing/`.
+
+After changing workspace UI dependencies, run `bun run workspaces:styles` to refresh Tailwind source ownership; scoped verification rejects stale style inputs. App source imports must use declared package subpath exports.
+
+Register every test in `tests/catalogue/suite-manifest.json`, place it under its declared lane and owner, and keep test support outside executable suite folders. Use the owner's public entry point rather than adding legacy forwarding modules. `bun run structure:check` verifies these placement rules. The sole retained legacy runtime entry supports the unchanged staging bootstrap.
+
+## Business context
+
+[Production plan](production-plan.md) → [current contracts](contracts/next/README.md), [glossary](../CONTEXT.md), and [architecture decisions](adr/README.md). The generated catalogue defines workflow ownership; the verification inventory separates dated engineering evidence, provider scope and Company release acceptance.
+
+## Verification
+
+Daily verification uses affected suites and registered desktop browser smoke with `acceptance:false`. Unit/typecheck/lint/build tasks may use complete-input caches; selected integration and browser cases execute against isolated fictional fixtures. Missing dependency/suite mappings fail selection. Migration tests retain real migrations against empty databases.
+
+Use `bun run docs:check`, `bun run products:check`, `bun run structure:check`, `bun run test:catalogue`, and `bun run architecture:check` for repository checks. Documentation checks include root Markdown and the archive index while preserving immutable evidence; tracked temporary files are rejected. The per-app development profile runs lint/typecheck, related unit/integration and registered browser smoke. [E2E specification](testing/e2e-specification.md) records case identities and remaining gaps.
+
+`bun run release:acceptance --candidate=<sha>` is reserved for intentional production preparation. It refuses an unfrozen candidate or a missing combined app/gateway/jobs release; the workspace-v2 acceptance adapter remains an explicit delivery blocker. It must not run during this migration. Existing dated receipts and specialized UI gates remain unchanged, and development observations never promote them.
+
+Browser traces, logs, process leases and benchmark receipts remain private under ignored `.scratch/dev/`. Use the existing authorized dev account through normal sign-in; prepare fictional fixture accounts within isolated browser cases.

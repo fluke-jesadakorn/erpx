@@ -2,11 +2,11 @@ import {describe,it,expect,vi,beforeEach,afterEach} from 'vitest';
 import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 vi.mock('server-only',()=>({}));
-import {INVENTORY_RD_COUNT_SOURCE_ROW,INVENTORY_RD_SERVICE_INITIAL_COUNT_ROW,nativeInventoryReadFirst} from '../../../packages/server-inventory/src/adapters/native-inventory-read';
-import {serviceInitialCountExists,nativeServiceCountPersistedMarker} from '../../../packages/server-inventory/src/adapters/native-service-count-source';
-import {countStatus} from '../../../packages/server-inventory/src/adapters/native-count-status';
-import {purchaseReplayExists,commandReplayExists} from '../../../packages/server-inventory/src/adapters/native-replay-probe';
-import {lotBalanceVersion,transferStatus} from '../../../packages/server-inventory/src/adapters/native-scoped-field';
+import {INVENTORY_RD_COUNT_SOURCE_ROW,INVENTORY_RD_SERVICE_INITIAL_COUNT_ROW,nativeInventoryReadFirst} from '../../../modules/inventory/server/src/adapters/native-inventory-read';
+import {serviceInitialCountExists,nativeServiceCountPersistedMarker} from '../../../modules/inventory/server/src/adapters/native-service-count-source';
+import {countStatus} from '../../../modules/inventory/server/src/adapters/native-count-status';
+import {purchaseReplayExists,commandReplayExists} from '../../../modules/inventory/server/src/adapters/native-replay-probe';
+import {lotBalanceVersion,transferStatus} from '../../../modules/inventory/server/src/adapters/native-scoped-field';
 
 const RETIRED_SQL='SELECT id,company_id,branch_id,warehouse_id FROM inventory_counts WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?)';
 const root=resolve(new URL('.',import.meta.url).pathname,'../../..');
@@ -56,11 +56,11 @@ describe('native Inventory count-purchase source read',()=>{
   });
 
   it('deleted the replaced TypeScript SQL and pinned the byte-identical owner plan',()=>{
-    const source=readFileSync(`${root}/packages/server-inventory/src/adapters/count-purchases.ts`,'utf8');
+    const source=readFileSync(`${root}/modules/inventory/server/src/adapters/count-purchases.ts`,'utf8');
     expect(source).not.toContain(RETIRED_SQL);
     expect(source).toContain('INVENTORY_RD_COUNT_SOURCE_ROW');
     expect(source).toContain('nativeInventoryReadFirst');
-    const rust=readFileSync(`${root}/packages/server-inventory/src/adapters/native_command_sql.rs`,'utf8');
+    const rust=readFileSync(`${root}/modules/inventory/server/src/adapters/native_command_sql.rs`,'utf8');
     expect(rust).toContain(`"${RETIRED_SQL}"`);
     expect(rust).toContain('pub const RD_COUNT_SOURCE_ROW: &str = "inventory_rd_count_source_row";');
     expect(rust).toMatch(/const READ_COUNT_SOURCE_ROW: NativeStatement = NativeStatement \{[\s\S]*?bind_count: 4,/);
@@ -119,14 +119,14 @@ describe('native Inventory service physical-count source probe',()=>{
   });
 
   it('deleted the TS probe literal from both consumers and pinned the Rust plan',()=>{
-    const tails=readFileSync(`${root}/packages/server-inventory/src/adapters/read-tail-sql.ts`,'utf8');
+    const tails=readFileSync(`${root}/modules/inventory/server/src/adapters/read-tail-sql.ts`,'utf8');
     expect(tails).not.toContain(SERVICE_SQL);
     for(const file of ['service-initial-physical-stock-count-source.ts','count-attachment-purchases.ts']){
-      const source=readFileSync(`${root}/packages/server-inventory/src/adapters/${file}`,'utf8');
+      const source=readFileSync(`${root}/modules/inventory/server/src/adapters/${file}`,'utf8');
       expect(source).not.toContain('serviceInitialPhysicalNativeRowSql');
       expect(source).toContain('serviceInitialCountExists');
     }
-    const rust=readFileSync(`${root}/packages/server-inventory/src/adapters/native_command_sql.rs`,'utf8');
+    const rust=readFileSync(`${root}/modules/inventory/server/src/adapters/native_command_sql.rs`,'utf8');
     expect(rust).toContain(`"${SERVICE_SQL}"`);
     expect(rust).toContain('pub const RD_SERVICE_INITIAL_COUNT_ROW: &str = "inventory_rd_service_initial_count_row";');
     expect(rust).toMatch(/const READ_SERVICE_INITIAL_COUNT_ROW: NativeStatement = NativeStatement \{[\s\S]*?bind_count: 2,/);
@@ -177,13 +177,13 @@ describe('native Inventory canonical count-status read',()=>{
   });
 
   it('deleted the canonical TS literal from all four callers and pinned the Rust plan',()=>{
-    expect(readFileSync(`${root}/packages/server-inventory/src/adapters/inventory-read-projections.ts`,'utf8')).not.toContain(STATUS_SQL);
+    expect(readFileSync(`${root}/modules/inventory/server/src/adapters/inventory-read-projections.ts`,'utf8')).not.toContain(STATUS_SQL);
     for(const file of ['count-purchases.ts','initial-physical-stock-count-source.ts','manufacturing-initial-physical-stock-count-source.ts','pos-initial-physical-stock-count-source.ts']){
-      const source=readFileSync(`${root}/packages/server-inventory/src/adapters/${file}`,'utf8');
+      const source=readFileSync(`${root}/modules/inventory/server/src/adapters/${file}`,'utf8');
       expect(source).not.toContain('inventoryCountStatusSql');
       expect(source).toContain('countStatus');
     }
-    const rust=readFileSync(`${root}/packages/server-inventory/src/adapters/native_command_sql.rs`,'utf8');
+    const rust=readFileSync(`${root}/modules/inventory/server/src/adapters/native_command_sql.rs`,'utf8');
     expect(rust).toContain(`"${STATUS_SQL}"`);
     expect(rust).toContain('pub const RD_COUNT_STATUS: &str = "inventory_rd_count_status";');
   });
@@ -234,10 +234,10 @@ describe('native Inventory service-count persisted marker probe',()=>{
   });
 
   it('deleted the marker SQL literal from the owner adapter and pinned the Rust plan',()=>{
-    const source=readFileSync(`${root}/packages/server-inventory/src/adapters/service-initial-physical-stock-count-source.ts`,'utf8');
+    const source=readFileSync(`${root}/modules/inventory/server/src/adapters/service-initial-physical-stock-count-source.ts`,'utf8');
     expect(source).not.toContain(MARKER_SQL);
     expect(source).toContain('nativeServiceCountPersistedMarker');
-    const rust=readFileSync(`${root}/packages/server-inventory/src/adapters/native_command_sql.rs`,'utf8');
+    const rust=readFileSync(`${root}/modules/inventory/server/src/adapters/native_command_sql.rs`,'utf8');
     expect(rust).toContain(`"${MARKER_SQL}"`);
     expect(rust).toContain('pub const RD_SERVICE_COUNT_PERSISTED: &str = "inventory_rd_service_count_persisted";');
   });
@@ -298,16 +298,16 @@ describe('native Inventory command-receipt replay probes',()=>{
 
   it('deleted the TS replay literals from all six callers and pinned the Rust plans',()=>{
     for(const file of ['count-purchases.ts','landed-cost-purchases.ts','transfer-purchases.ts']){
-      const source=readFileSync(`${root}/packages/server-inventory/src/adapters/${file}`,'utf8');
+      const source=readFileSync(`${root}/modules/inventory/server/src/adapters/${file}`,'utf8');
       expect(source).not.toContain('inventoryPurchaseReplaySql');
       expect(source).toContain('purchaseReplayExists');
     }
     for(const file of ['initial-physical-stock-count-source.ts','pos-initial-physical-stock-count-source.ts','manufacturing-initial-physical-stock-count-source.ts']){
-      const source=readFileSync(`${root}/packages/server-inventory/src/adapters/${file}`,'utf8');
+      const source=readFileSync(`${root}/modules/inventory/server/src/adapters/${file}`,'utf8');
       expect(source).not.toContain('inventoryCommandReplaySql');
       expect(source).toContain('commandReplayExists');
     }
-    const rust=readFileSync(`${root}/packages/server-inventory/src/adapters/native_command_sql.rs`,'utf8');
+    const rust=readFileSync(`${root}/modules/inventory/server/src/adapters/native_command_sql.rs`,'utf8');
     expect(rust).toContain(`"${PURCHASE_REPLAY}"`);
     expect(rust).toContain(`"${COMMAND_REPLAY}"`);
   });
@@ -367,13 +367,13 @@ describe('native Inventory scoped-field point reads',()=>{
   });
 
   it('deleted the r33 helper and both call sites, and pinned the Rust plans',()=>{
-    expect(readFileSync(`${root}/packages/server-inventory/src/adapters/read-tail-sql.ts`,'utf8')).not.toContain('scopedFieldSql');
+    expect(readFileSync(`${root}/modules/inventory/server/src/adapters/read-tail-sql.ts`,'utf8')).not.toContain('scopedFieldSql');
     for(const file of ['inventory-transit.ts','transfer-purchases.ts']){
-      const source=readFileSync(`${root}/packages/server-inventory/src/adapters/${file}`,'utf8');
+      const source=readFileSync(`${root}/modules/inventory/server/src/adapters/${file}`,'utf8');
       expect(source).not.toContain('scopedFieldSql');
       expect(source).toContain(file==='inventory-transit.ts'?'lotBalanceVersion':'transferStatus');
     }
-    const rust=readFileSync(`${root}/packages/server-inventory/src/adapters/native_command_sql.rs`,'utf8');
+    const rust=readFileSync(`${root}/modules/inventory/server/src/adapters/native_command_sql.rs`,'utf8');
     expect(rust).toContain(`"${LOT_VERSION}"`);
     expect(rust).toContain(`"${TRANSFER_STATUS}"`);
   });

@@ -7,26 +7,26 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_benefits::public::executive_evidence::{
+use erpx_benefits_server::public::executive_evidence::{
     BenefitEvidenceAction, BenefitEvidenceFilters, BenefitEvidenceRequest, read_benefit_evidence,
 };
-use erpx_server_benefits::public::payroll_source::{
+use erpx_benefits_server::public::payroll_source::{
     BenefitsPayrollQuery, BenefitsPayrollScope, BenefitsPayrollSourceRepository,
     PgBenefitsPayrollSource, payroll_benefit_inputs,
 };
-use erpx_server_benefits::public::workspace::{
+use erpx_benefits_server::public::workspace::{
     BenefitsActor, BenefitsEntitlement, BenefitsEntitlementPort, BenefitsFuture,
     BenefitsPeoplePort, BenefitsWorker, PgBenefitsWorkspaceRead, benefits_election_detail,
     benefits_workspace,
 };
-use erpx_server_runtime::public::executive_access::{
+use erpx_platform_runtime_server::public::executive_access::{
     EvidenceAccessAction, ExecutiveEvidenceAccess, record_executive_evidence_access,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, TimestampMillis};
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
 

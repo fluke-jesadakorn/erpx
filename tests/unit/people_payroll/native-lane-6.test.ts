@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 vi.mock('server-only', () => ({}));
-import { ApiError } from '@erpx/server-runtime/public/http';
+import { ApiError } from '@erpx/platform-runtime-server/public/http';
 import {
   LANE6_CONFIG_INVALID,
   LANE6_RESPONSE_INVALID,
@@ -13,12 +13,12 @@ import {
   nativeCalendarAccessPeople,
   nativeCalendarPersonScope,
   type LaneHoldingScope,
-} from '../../../packages/server-people_payroll/src/adapters/native-lane-6/client';
-import { calendarAvailabilityPeoplePayrollFacts } from '../../../packages/server-people_payroll/src/adapters/calendar-availability-facts';
-import { calendarIndexPeoplePayrollFacts } from '../../../packages/server-people_payroll/src/adapters/calendar-index-facts';
-import { calendarAccessPeoplePayrollFacts } from '../../../packages/server-people_payroll/src/adapters/calendar-access-facts';
+} from '../../../modules/people-payroll/server/src/adapters/native-lane-6/client';
+import { calendarAvailabilityPeoplePayrollFacts } from '../../../modules/people-payroll/server/src/adapters/calendar-availability-facts';
+import { calendarIndexPeoplePayrollFacts } from '../../../modules/people-payroll/server/src/adapters/calendar-index-facts';
+import { calendarAccessPeoplePayrollFacts } from '../../../modules/people-payroll/server/src/adapters/calendar-access-facts';
 
-const src = (name: string) => readFileSync(new URL(`../../../packages/server-people_payroll/src/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFileSync(new URL(`../../../modules/people-payroll/server/src/${name}`, import.meta.url), 'utf8');
 const sha = (value: string) => createHash('sha256').update(value).digest('hex');
 
 /** Verbatim retired `db.prepare` literal from calendar-availability-facts.ts. */

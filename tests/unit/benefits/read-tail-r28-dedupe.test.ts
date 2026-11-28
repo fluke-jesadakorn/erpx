@@ -3,10 +3,10 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 vi.mock('server-only', () => ({}));
-import { benefitExistsHead, benefitOwnerExistsGuard } from '../../../packages/server-benefits/src/adapters/benefits-read-sql';
-import { benefitPackageSettlementSources } from '../../../packages/server-benefits/src/adapters/package-obligations';
+import { benefitExistsHead, benefitOwnerExistsGuard } from '../../../modules/benefits/server/src/adapters/benefits-read-sql';
+import { benefitPackageSettlementSources } from '../../../modules/benefits/server/src/adapters/package-obligations';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-benefits/src');
+const srcRoot = resolve(__dirname, '../../../modules/benefits/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const sha = (sql: string) => createHash('sha256').update(sql).digest('hex');
 
@@ -105,7 +105,7 @@ describe('benefits read-tail r28 exists-head dedupe', () => {
       expect(src(name), name).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE/i);
       // Wave-3 documents the retired payroll-input SELECT's Rust successor; no import follows.
       expect((src(name).match(/native_/g) ?? []).length, name).toBeLessThanOrEqual(name === 'benefits-read-sql.ts' ? 1 : 0);
-      expect(src(name), name).not.toContain('@erpx/server-benefits/adapters/benefits-native-read');
+      expect(src(name), name).not.toContain('@erpx/benefits-server/adapters/benefits-native-read');
     }
     for (const [name, count, mode] of [
       ['purchases.ts', 1, 'IN SHARE ROW EXCLUSIVE MODE'],

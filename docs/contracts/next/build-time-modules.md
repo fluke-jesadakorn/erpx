@@ -13,9 +13,9 @@ The independent UI selection is `ERPX_BUILD_UI_MODULES=erpx-example`. Its finite
 Manifest, selection and implementation participate in the Apps build identity. Enabled runtime identity also includes the composer and its generated authentication wrapper. Off and on builds must each pass the existing isolated artifact verifier plus route, NFT and standalone graph inspection; source merely existing in a private snapshot is not evidence that it is consumed by the off build. Authentication and actual gateway reachability must be checked separately from direct component rendering.
 
 ```bash
-cargo check --locked -p erpx-service --no-default-features --all-targets
-cargo test --locked -p erpx-service --no-default-features --test module_assembly
-cargo test --locked -p erpx-service --no-default-features --features module-example --test module_assembly
+cargo check --locked -p erpx-platform-composition --no-default-features --all-targets
+cargo test --locked -p erpx-platform-composition --no-default-features --test module_assembly
+cargo test --locked -p erpx-platform-composition --no-default-features --features module-example --test module_assembly
 bun scripts/testing/ui-module-build-proof.ts
 ERPX_BUILD_UI_MODULES=erpx-example bun scripts/testing/ui-module-build-proof.ts
 ```
@@ -26,7 +26,7 @@ The focused native Field write audit found no direct cross-owner mutation bypass
 
 ## Field bundle dependency and withdrawal checklist
 
-This is an implementation boundary, not evidence of a completed Field bundle. The current default `existing-business` feature enables all nineteen business packages; `business-http`, `private-development-api`, contract exporters and worker features currently imply that group. Field modules in `src/composition/src/lib.rs` are gated by `existing-business` or `business-http`, and `private_development_api.rs` assembles Field alongside other owners. The generic `business_http.rs` also combines Finance and Legal. Turning off a private target or hiding a route therefore does not demonstrate that Field or an unrelated owner was omitted from the binary.
+This is an implementation boundary, not evidence of a completed Field bundle. The current default `existing-business` feature enables all nineteen business packages; `business-http`, `private-development-api`, contract exporters and worker features currently imply that group. Field modules in `platform/composition/src/lib.rs` are gated by `existing-business` or `business-http`, and `private_development_api.rs` assembles Field alongside other owners. The generic `business_http.rs` also combines Finance and Legal. Turning off a private target or hiding a route therefore does not demonstrate that Field or an unrelated owner was omitted from the binary.
 
 The direct owner imports in the current `field_service*` composition and Field attachment composition cover Field Service, Identity Access, Commercial, People/Payroll, Organization, Assets, Support, Collaboration, Commerce, Inventory, Quality, Finance, Workflow and Files, alongside Shared and Runtime. The Field package itself directly depends on Shared, Runtime, Identity Access and Workflow. This is an observed import inventory, not a proven minimal transitive Cargo closure: follow each package's actual dependencies and each enabled composition path before selecting features. In particular, Finance cost and invoice paths, Files binding and status, Work/source reads, and Support/Collaboration effects are part of the qualified Field journeys; their absence cannot be replaced by an empty response or a fabricated proof. Other owner surfaces and retained TypeScript setup, initial stock, Files and Records dependencies remain separately scoped in the [Field ownership ledger](../../status/rust-delivery-bundles.json).
 

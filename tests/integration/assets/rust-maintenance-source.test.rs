@@ -1,11 +1,11 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_assets::public::maintenance::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_assets_server::public::maintenance::*;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, HoldingId, RecordId};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, HoldingId, RecordId};
 use std::{sync::Arc, time::Duration};
 async fn setup(pool: &DatabasePool) {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
@@ -205,8 +205,8 @@ fn physical_change(action: MaintenancePhysicalAction) -> MaintenancePhysicalChan
     MaintenancePhysicalChange {
         action,
         expected_asset_version: 1,
-        actor_id: erpx_server_shared::public::UserId::new("actor").unwrap(),
-        command_key: erpx_server_shared::public::CommandKey::new("physical-command").unwrap(),
+        actor_id: erpx_platform_shared_server::public::UserId::new("actor").unwrap(),
+        command_key: erpx_platform_shared_server::public::CommandKey::new("physical-command").unwrap(),
         reason: "Synthetic reason".into(),
         at: 300,
     }
@@ -354,7 +354,7 @@ async fn nul_reason_waits_for_physical_apply_and_late_start_guard() {
 
 #[tokio::test]
 async fn service_asset_sources_retain_distinct_owner_locks() {
-    use erpx_server_assets::public::field_service_workspace::*;
+    use erpx_assets_server::public::field_service_workspace::*;
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
         sqlx::query("INSERT INTO operational_assets(id,company_id,branch_id,code,name,category,currency,created_by,created_at,updated_at) VALUES('service-lock-asset','company','branch','SERVICE-LOCK','Synthetic asset','synthetic','THB','fixture',0,0)").execute(pool.raw()).await.unwrap();

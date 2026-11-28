@@ -2,17 +2,17 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_customer_authority::public::access::AccessActor;
-use erpx_server_customer_authority::public::identity::{
+use erpx_customer_authority_server::public::access::AccessActor;
+use erpx_customer_authority_server::public::identity::{
     CustomerAddress, CustomerIdentity, IdentityChange, IdentityRequest, NotificationConsent,
     PgCustomerIdentity, change_customer_identity, identity_detail, identity_workspace,
     request_customer_identity_change,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, HoldingId, UserId,
 };
 use sqlx::Row;

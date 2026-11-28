@@ -3,15 +3,15 @@
 //! Proves live-claims/token binding, one-hour attempt reservation facts, release
 //! of only the in-flight reservation, acceptance identity binding, replay and
 //! the session re-proof around owner effects.
-use erpx_server_customer_authority::public::portal_enrollment::{
+use erpx_customer_authority_server::public::portal_enrollment::{
     AcceptedInvitation, EnrollmentFuture, EnrollmentInvite, EnrollmentRepository,
     EnrollmentReservation, InvitationMatch, PortalActor, PortalSession, accept,
     invitation_unavailable, release, reserve,
 };
-use erpx_server_customer_authority::public::portal_invitation_delivery::{
+use erpx_customer_authority_server::public::portal_invitation_delivery::{
     InvitationClaims, invitation_token, invitation_token_hash,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 use std::sync::Mutex;
 
 const SECRET: &str = "vector-secret-2026";
@@ -89,7 +89,7 @@ impl EnrollmentRepository for Fake {
             self.state.lock().unwrap().sessions += 1;
             if self.session_error {
                 return Err(BusinessError::new(
-                    erpx_server_shared::public::FailureKind::Unauthenticated,
+                    erpx_platform_shared_server::public::FailureKind::Unauthenticated,
                     "CUSTOMER_PORTAL_SESSION_REQUIRED",
                     "Sign in again to accept this invitation.",
                 ));

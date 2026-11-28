@@ -1,10 +1,10 @@
 //! Native POS cash-movement policy, idempotency and command sequencing.
-use erpx_server_pos::public::cash_movement::{
+use erpx_pos_server::public::cash_movement::{
     CashMovementActor, CashMovementFuture, CashMovementReadback, CashMovementReceipt,
     CashMovementRepository, CashReceipt, CashShift, CreateCashMovement, ValidatedCashMovement,
     create_cash_movement, valid_uuid,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, RecordId,
     TimestampMillis, UserId,
 };
@@ -466,11 +466,11 @@ fn a_corrupt_stored_receipt_is_not_presented_as_success() {
 fn receipt_identity_is_company_assignment_and_input_bound() {
     let mut other = actor();
     other.assignment_id = AssignmentId::new("assignment-2").unwrap();
-    let first = erpx_server_pos::public::cash_movement::receipt_identity(
+    let first = erpx_pos_server::public::cash_movement::receipt_identity(
         &actor(),
         &command().validate().unwrap(),
     );
-    let second = erpx_server_pos::public::cash_movement::receipt_identity(
+    let second = erpx_pos_server::public::cash_movement::receipt_identity(
         &other,
         &command().validate().unwrap(),
     );
@@ -554,11 +554,11 @@ fn trims_feff_but_not_nel_like_javascript() {
     padded.reason = "\u{FEFF}Opening float top-up\u{FEFF}".into();
     assert_eq!(padded.validate().unwrap().reason, "Opening float top-up");
     assert_eq!(
-        erpx_server_pos::public::cash_movement::receipt_identity(
+        erpx_pos_server::public::cash_movement::receipt_identity(
             &actor(),
             &command().validate().unwrap(),
         ),
-        erpx_server_pos::public::cash_movement::receipt_identity(
+        erpx_pos_server::public::cash_movement::receipt_identity(
             &actor(),
             &padded.validate().unwrap(),
         )

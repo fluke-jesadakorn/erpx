@@ -6,26 +6,26 @@ import {join} from "node:path";
 import { applyMigrations,env } from "../../support/runtime-env";
 import { expenseDb as db,expenseFixture,key } from "../../support/helpers/expense-fixture";
 import { cancelPayrollRunSeed } from "../../support/helpers/payroll-cancellation-seed";
-import { thaiPayroll2026Pack } from "@erpx/feature-people_payroll/lib/thai-payroll-pack";
+import { thaiPayroll2026Pack } from "@erpx/people-payroll-ui/lib/thai-payroll-pack";
 import { thai2026Reference,thai2026AdjustmentReference } from "../../support/helpers/thai-payroll-reference";
-import {createPayrollAdjustment,editPayrollAdjustment,payrollAdjustmentCreateSchema,payrollAdjustmentEditSchema} from "@erpx/server-people_payroll/public/payroll-adjustments";
-import { assertStatutoryRunReady,createThaiPayrollProfile,decideThaiPayrollProfile,thaiPayrollProfileSchema } from "@erpx/server-people_payroll/public/payroll-statutory";
-import { approvePaymentBatch,approvePayrollRun,approveTimeEntry,compensationSchema,confirmPaymentBatch,createCompensation,createCountryPack,createPaymentBatch,createTimeEntry,countryPackTransitionSchema,decidePayrollCorrection,exportPaymentBatch,exportPayrollReview,finalPayPreparationSchema,getPaymentFile,getPayrollReviewFile,payrollRunSchema,payrollPostSchema,prepareFinalPay,requestPayrollCorrection,timeEntrySchema,transitionCompensation,transitionCountryPack } from "@erpx/server-people_payroll/public/people-payroll";
+import {createPayrollAdjustment,editPayrollAdjustment,payrollAdjustmentCreateSchema,payrollAdjustmentEditSchema} from "@erpx/people-payroll-server/public/payroll-adjustments";
+import { assertStatutoryRunReady,createThaiPayrollProfile,decideThaiPayrollProfile,thaiPayrollProfileSchema } from "@erpx/people-payroll-server/public/payroll-statutory";
+import { approvePaymentBatch,approvePayrollRun,approveTimeEntry,compensationSchema,confirmPaymentBatch,createCompensation,createCountryPack,createPaymentBatch,createTimeEntry,countryPackTransitionSchema,decidePayrollCorrection,exportPaymentBatch,exportPayrollReview,finalPayPreparationSchema,getPaymentFile,getPayrollReviewFile,payrollRunSchema,payrollPostSchema,prepareFinalPay,requestPayrollCorrection,timeEntrySchema,transitionCompensation,transitionCountryPack } from "@erpx/people-payroll-server/public/people-payroll";
 import { calculatePayrollRun,createPayrollRun,postPayroll } from "../../support/helpers/payroll-run-seed";
-import {getPayslip,getPayslipExport,listPayslips} from "@erpx/server-people_payroll/public/payroll-payslips";
-import {requestPayrollRecovery,consentPayrollRecovery,reviewPayrollRecovery,recognizePayrollRecovery,payrollRecoveryAgreement,payrollRecoveryPage,payrollRecoveryRequestSchema,payrollRecoveryPolicy} from "@erpx/server-people_payroll/public/payroll-recoveries";
-import { payrollReadiness,submitPayrollReview } from "@erpx/server-people_payroll/public/payroll-readiness";
-import {importBankStatement} from '@erpx/server-finance/public/finance';
-import {calendarCommand} from "@erpx/server-work_projection/public/calendar/commands";
-import { packageGrantStore, readCompanyPackageGrants } from "@erpx/server-commercial/public/package-grants";
-import {journalDetail,ledgerWorkspace} from "@erpx/server-finance/public/ledger";
-import {financeProductDocumentEntry} from "@erpx/server-finance/public/document-purchases";
-import {financeDocumentPresentationAccess} from "@erpx/server-finance/public/record-presentation";
+import {getPayslip,getPayslipExport,listPayslips} from "@erpx/people-payroll-server/public/payroll-payslips";
+import {requestPayrollRecovery,consentPayrollRecovery,reviewPayrollRecovery,recognizePayrollRecovery,payrollRecoveryAgreement,payrollRecoveryPage,payrollRecoveryRequestSchema,payrollRecoveryPolicy} from "@erpx/people-payroll-server/public/payroll-recoveries";
+import { payrollReadiness,submitPayrollReview } from "@erpx/people-payroll-server/public/payroll-readiness";
+import {importBankStatement} from '@erpx/finance-server/public/finance';
+import {calendarCommand} from "@erpx/work-projection-server/public/calendar/commands";
+import { packageGrantStore, readCompanyPackageGrants } from "@erpx/commercial-server/public/package-grants";
+import {journalDetail,ledgerWorkspace} from "@erpx/finance-server/public/ledger";
+import {financeProductDocumentEntry} from "@erpx/finance-server/public/document-purchases";
+import {financeDocumentPresentationAccess} from "@erpx/finance-server/public/record-presentation";
 
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 // Flow access for Payroll is a native owner read. Keep the native table as the
 // only detail state and stub only the HTTP transport for this DB-level suite.
-vi.mock("@erpx/feature-people_payroll/public/native-payroll-summary-owned",()=>({
+vi.mock("@erpx/people-payroll-ui/public/native-payroll-summary-owned",()=>({
  ownedPeoplePayrollRun:async(actor:{companyId:string},_holdingSlug:string,runId:string)=>{
   const run=await env.H001_DB.prepare("SELECT id,pay_group_id FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(runId,actor.companyId).first();
   if(!run)throw Object.assign(new Error("Payroll run not found."),{status:404,code:"PAYROLL_RUN_NOT_FOUND"});

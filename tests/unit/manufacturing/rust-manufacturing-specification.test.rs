@@ -1,13 +1,13 @@
 //! Native Manufacturing specification command decisions and application policy.
 //! Domain/application only: no adapter, HTTP, receipt persistence or browser.
-use erpx_server_manufacturing::public::bom::BomActor;
-use erpx_server_manufacturing::public::specification::{
+use erpx_manufacturing_server::public::bom::BomActor;
+use erpx_manufacturing_server::public::specification::{
     CREATE_OPERATION, CreatePlan, CreateRequest, ReceiptSnapshot, ReviewAction, ReviewPlan,
     ReviewRequest, SpecificationCommandRepository, SpecificationRow, create_specification,
     parse_quantity_milli, review_specification,
 };
-use erpx_server_runtime::public::http_support::serde_json;
-use erpx_server_shared::public::{BusinessError, CommandKey, CompanyId, RecordId, TimestampMillis};
+use erpx_platform_runtime_server::public::http_support::serde_json;
+use erpx_platform_shared_server::public::{BusinessError, CommandKey, CompanyId, RecordId, TimestampMillis};
 use std::cell::RefCell;
 use std::future::Future;
 use std::pin::Pin;

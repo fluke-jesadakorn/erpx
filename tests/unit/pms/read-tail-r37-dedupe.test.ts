@@ -4,9 +4,9 @@ import { describe, expect, it } from 'vitest';
 import {
   PMS_STRIPE_PAYMENT_ID_HEAD_SQL,
   PMS_BOOKING_PAYMENT_ID_HEAD_SQL,
-} from '../../../packages/server-pms/src/adapters/pms-read-tail-r37-sql';
+} from '../../../modules/pms/server/src/adapters/pms-read-tail-r37-sql';
 
-const dir = new URL('../../../packages/server-pms/src/', import.meta.url);
+const dir = new URL('../../../modules/pms/server/src/', import.meta.url);
 const src = (name: string) => readFile(new URL(name, dir), 'utf8');
 const SHARED = 'adapters/pms-read-tail-r37-sql.ts';
 const STRIPE = 'SELECT id FROM pms_stripe_payments WHERE';

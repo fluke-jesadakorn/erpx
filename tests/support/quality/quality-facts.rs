@@ -1,5 +1,5 @@
 //! Newly leased fully migrated Quality test databases only.
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
 pub async fn setup(pool: &DatabasePool) {

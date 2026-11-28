@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
-vi.mock("@erpx/server-runtime/public/http", () => ({
+vi.mock("@erpx/platform-runtime-server/public/http", () => ({
   ApiError: class ApiError extends Error {
     constructor(
       readonly status: number,
@@ -14,7 +14,7 @@ vi.mock("@erpx/server-runtime/public/http", () => ({
   },
 }));
 
-import { ApiError } from "@erpx/server-runtime/public/http";
+import { ApiError } from "@erpx/platform-runtime-server/public/http";
 import {
   FILES_CU_EARLIEST_ORIGINAL,
   FILES_CU_RECONCILIATION,
@@ -28,17 +28,17 @@ import {
   readTaxSignatureMetadata,
   readTaxSignatureWorkspace,
   type CommercialReadTransport,
-} from "../../../packages/server-files/src/adapters/native-lane-21/client";
+} from "../../../modules/files/server/src/adapters/native-lane-21/client";
 import {
   commercialEarliestOriginal,
   commercialFileReconciliation,
   commercialStoredOriginals,
   commercialUnreconciledOriginals,
-} from "../../../packages/server-files/src/adapters/commercial-usage-facts";
+} from "../../../modules/files/server/src/adapters/commercial-usage-facts";
 import {
   taxSignatureMetadata,
   taxSignatureWorkspace,
-} from "../../../packages/server-files/src/adapters/finance-tax-signatures";
+} from "../../../modules/files/server/src/adapters/finance-tax-signatures";
 
 const ENV = "ERPX_NATIVE_LANE_21_READ_CONFIG";
 /** Exact development configuration for ERPX_NATIVE_LANE_21_READ_CONFIG. */
@@ -170,7 +170,7 @@ describe("native Files commercial-usage lane 21 contract", () => {
       created_at: 10,
       destroyed_at: null,
     };
-    const client = await import("../../../packages/server-files/src/adapters/native-lane-21/client");
+    const client = await import("../../../modules/files/server/src/adapters/native-lane-21/client");
     const spy = vi.spyOn(client, "readFilesCommercialUsage").mockImplementation(((
       params: { kind: string },
     ) => {
@@ -358,7 +358,7 @@ describe("native Files tax-signature lane 21 contract", () => {
   });
 
   it("maps an absent metadata row to null and keeps the TS caller contract", async () => {
-    const client = await import("../../../packages/server-files/src/adapters/native-lane-21/client");
+    const client = await import("../../../modules/files/server/src/adapters/native-lane-21/client");
     const spy = vi
       .spyOn(client, "readTaxSignatureMetadata")
       .mockResolvedValue(null);

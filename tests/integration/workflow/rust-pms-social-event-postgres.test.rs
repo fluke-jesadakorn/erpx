@@ -7,11 +7,11 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
-use erpx_server_workflow::public::job_projector::{
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
+use erpx_workflow_server::public::job_projector::{
     EventMessage, EventPayload, PmsSocialFuture, PmsSocialNotice, PmsSocialOriginal,
     PmsSocialPorts, PmsSocialPost, PmsSocialSource, pms_social_original, project_pms_social,
 };

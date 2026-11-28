@@ -1,5 +1,5 @@
 // Exact same-owner private primitive; no public root-fd/storage bypass export.
-#[path = "../../../packages/server-files/src/adapters/local_sanitization_io.rs"]
+#[path = "../../../modules/files/server/src/adapters/local_sanitization_io.rs"]
 mod owned_io;
 use nix::{
     fcntl::{OFlag, openat},

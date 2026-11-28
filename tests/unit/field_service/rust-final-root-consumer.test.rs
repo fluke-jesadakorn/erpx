@@ -2,9 +2,9 @@
 //! `scoped_service` agreement composition embeds the native fixed statement.
 //! The retired TS authority is gone; the native-owned agreement statement is
 //! pinned here as the independent test oracle.
-use erpx_server_field_service::public::final_root_consumer::FinalRootConsumerScope;
-use erpx_server_field_service::public::final_root_projection::FinalRootProjectionSource;
-use erpx_server_shared::public::CompanyId;
+use erpx_field_service_server::public::final_root_consumer::FinalRootConsumerScope;
+use erpx_field_service_server::public::final_root_projection::FinalRootProjectionSource;
+use erpx_platform_shared_server::public::CompanyId;
 
 const NATIVE_AGREEMENTS_SQL: &str = r#"SELECT "id","company_id","branch_id","department_id","customer_id","asset_id","title","start_date","end_date","currency","visit_rate_minor","status","created_by","reviewed_by","reviewed_at","version","created_at","updated_at","warranty_discount_bps" FROM field_service_agreements"#;
 

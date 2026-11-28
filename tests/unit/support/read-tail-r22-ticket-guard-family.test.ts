@@ -1,9 +1,9 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { ticketGuardExistsSql } from '../../../packages/server-support/src/adapters/ticket-guard-sources';
+import { ticketGuardExistsSql } from '../../../modules/support/server/src/adapters/ticket-guard-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-support/src');
+const srcRoot = resolve(__dirname, '../../../modules/support/server/src');
 const src = (p: string) => readFileSync(resolve(srcRoot, p), 'utf8');
 const ticketRead = src('adapters/support-ticket-read.ts');
 const evidence = src('adapters/support-evidence.ts');

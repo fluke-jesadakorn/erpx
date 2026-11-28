@@ -6,7 +6,7 @@ Updated 2026-10-21. The development implementation covers the fourteen groups be
 
 Staff use `/holdings/[holdingSlug]/legal` and `/api/v1/holdings/[holdingSlug]/legal`; existing workspace resolution supplies Company, Branch and Department. External users may use `/legal-portal/[holdingSlug]`. Current migration acceptance covers scoped reads and revocation of shared document versions, plus private-document downloads and access-history evidence, for identities already authorized to access the Legal Portal. New external-recipient invitations and enrollment, invited-account verification and acceptance, invited-signer fresh MFA, consent pinned to an exact document version, and signing evidence are deferred together as a separate feature blocker; the Portal signing route remains disabled.
 
-Implementation lives in [the Legal server owner](../../../packages/server-legal/src/) and [Legal feature UI](../../../packages/feature-legal/src/), composed by `apps/legal` and `apps/legal-portal`. Additive holding migrations establish typed aggregates, workflows, immutable evidence and processing. Legacy preview data remains intact; only explicit reviewed imports create live records. The Legal Portal invitation and enrollment feature is outside current migration acceptance.
+Implementation lives in [the Legal server owner](../../../modules/legal/server/src/) and [Legal feature UI](../../../modules/legal/ui/src/), composed by `apps/legal` and `apps/legal-portal`. Additive holding migrations establish typed aggregates, workflows, immutable evidence and processing. Legacy preview data remains intact; only explicit reviewed imports create live records. The Legal Portal invitation and enrollment feature is outside current migration acceptance.
 
 ## Capabilities
 

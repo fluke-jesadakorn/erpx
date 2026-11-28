@@ -1,7 +1,7 @@
 import{workspaceBrowserFixtureProfile}from './development-host-profile';
 import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join } from 'node:path';
-import { appDefinitions } from '@erpx/contracts/apps';
+import { appDefinitions } from '@erpx/platform-contracts/apps';
 import { startWorkspaceGateway } from '../local/workspace-gateway-runtime';
 import { hasPortListener } from '../local/port-listeners';
 

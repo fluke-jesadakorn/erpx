@@ -3,11 +3,11 @@ import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { OPERATIONS_VIEWER_CLOCK_SQL, OPERATIONS_TASK_SCOPE_SQL, operationsViewerClockHead } from '../../../packages/server-operations/src/adapters/workforce-actor-scope-source';
-import { projectTaskRecordPolicy } from '../../../packages/server-operations/src/adapters/project-task-record-policy';
+import { OPERATIONS_VIEWER_CLOCK_SQL, OPERATIONS_TASK_SCOPE_SQL, operationsViewerClockHead } from '../../../modules/operations/server/src/adapters/workforce-actor-scope-source';
+import { projectTaskRecordPolicy } from '../../../modules/operations/server/src/adapters/project-task-record-policy';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-operations/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-operations/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/operations/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/operations/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const sha = (sql: string) => createHash('sha256').update(sql).digest('hex');
 
 /** Independent pre-r54 byte oracle captured from record-purchases.ts:103 before

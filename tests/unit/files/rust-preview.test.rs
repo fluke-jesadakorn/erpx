@@ -1,4 +1,4 @@
-use erpx_server_files::public::preview::{
+use erpx_files_server::public::preview::{
     PREVIEW_INPUT_LIMIT, PreviewArtifact, PreviewComputeBudget, PreviewFailure, PreviewInput,
     PreviewMedia, PreviewResult, PreviewSourceMedia,
 };

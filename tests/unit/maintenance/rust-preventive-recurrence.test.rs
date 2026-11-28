@@ -1,8 +1,8 @@
 //! Wall-clock recurrence parity for preventive plans. The synthetic zone models
 //! the 2026 America/New_York transitions; the PostgreSQL integration test proves
 //! the real IANA calendar adapter.
-use erpx_server_maintenance::public::preventive_plan::*;
-use erpx_server_shared::public::BusinessError;
+use erpx_maintenance_server::public::preventive_plan::*;
+use erpx_platform_shared_server::public::BusinessError;
 
 const SPRING_GAP: i64 = 1_772_953_200_000; // 2026-03-08T07:00Z (03:00 EDT)
 const FALL_BACK: i64 = 1_793_512_800_000; // 2026-11-01T06:00Z (01:00 EST)

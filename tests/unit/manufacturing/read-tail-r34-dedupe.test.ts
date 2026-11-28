@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { manufacturingOrderJoinSelect } from '../../../packages/server-manufacturing/src/adapters/manufacturing-read-tail-r15-sql';
-import { manufacturingStockFootprintSelect } from '../../../packages/server-manufacturing/src/adapters/manufacturing-read-tail-r23-sql';
+import { manufacturingOrderJoinSelect } from '../../../modules/manufacturing/server/src/adapters/manufacturing-read-tail-r15-sql';
+import { manufacturingStockFootprintSelect } from '../../../modules/manufacturing/server/src/adapters/manufacturing-read-tail-r23-sql';
 
-const adapter = (name: string) => new URL(`../../../packages/server-manufacturing/src/adapters/${name}`, import.meta.url);
+const adapter = (name: string) => new URL(`../../../modules/manufacturing/server/src/adapters/${name}`, import.meta.url);
 
 /** Native commerce output-product join, expanded exactly as the four r15 call sites pass it. */
 const JP = 'JOIN commerce_products p ON p.id=s.output_product_id';
@@ -68,7 +68,7 @@ describe('manufacturing read-tail r34 r15/r23 head-fold dedupe', () => {
   });
 
   it('keeps the native read witnesses byte-identical to the ORDERS/DETAILED oracles', async () => {
-    const native = await readFile(new URL('../../../packages/server-manufacturing/src/public/native_command.rs', import.meta.url), 'utf8');
+    const native = await readFile(new URL('../../../modules/manufacturing/server/src/public/native_command.rs', import.meta.url), 'utf8');
     expect(native).toContain(ORDERS);
     expect(native).toContain(DETAILED);
   });
@@ -115,7 +115,7 @@ describe('manufacturing read-tail r34 r15/r23 head-fold dedupe', () => {
 
   it('pins the manufacturing owner SELECT KPI at 45 after the r22 native detail-read cut (46->45)', async () => {
     let total = 0;
-    for (const file of await tsFiles(new URL('../../../packages/server-manufacturing/src/', import.meta.url))) {
+    for (const file of await tsFiles(new URL('../../../modules/manufacturing/server/src/', import.meta.url))) {
       total += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     }
     expect(total).toBe(42); // package-obligation owner-table heads 45->42.

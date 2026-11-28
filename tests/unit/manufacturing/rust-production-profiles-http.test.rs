@@ -4,14 +4,14 @@
 //! the frozen `RD_ACCOUNTING_PROFILES` plan with only the bind marker changed.
 //!
 //! Lead integration needs one owner Cargo `[[test]]` entry for this file
-//! (`autotests = false` in `packages/server-manufacturing/Cargo.toml`).
+//! (`autotests = false` in `modules/manufacturing/server/Cargo.toml`).
 
-use erpx_server_manufacturing::public::native_command::PLAN_ACCOUNTING_PROFILES;
-use erpx_server_manufacturing::public::production_profiles::{
+use erpx_manufacturing_server::public::native_command::PLAN_ACCOUNTING_PROFILES;
+use erpx_manufacturing_server::public::production_profiles::{
     ACCOUNTING_PROFILES_SQL, AccountingProfileRow, AccountingProfilesRead,
     AccountingProfilesReadFuture, ProductionProfilesTarget, router_with_reader,
 };
-use erpx_server_runtime::public::http_support::serve;
+use erpx_platform_runtime_server::public::http_support::serve;
 use std::sync::Arc;
 
 #[derive(Clone)]

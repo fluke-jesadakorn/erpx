@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { commandAuditProbe, latestSupportVersion, supportAbsent } from '../../../packages/server-customer_authority/src/adapters/package-obligation-sql';
+import { commandAuditProbe, latestSupportVersion, supportAbsent } from '../../../modules/customer-authority/server/src/adapters/package-obligation-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-customer_authority/src');
+const srcRoot = resolve(__dirname, '../../../modules/customer-authority/server/src');
 const adapter = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 // Pre-dedupe fragments copied verbatim from HEAD; byte-identity oracles only.

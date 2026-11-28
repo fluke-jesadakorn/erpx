@@ -68,7 +68,7 @@ The four `server-field_service` adapter/public pairs `attachment-purchases`, `at
 
 Unused presenter/client ID-selector props, public selector APIs, optional runtime selector wrappers and the obsolete external bind configuration are removed. The retained bind/withdraw bridge factories transport the already-selected resource with exact rendered context; they grant no authority and do not implement business rules.
 
-Shared Files application/repository, scanner and cleanup code still serves non-Field owners and excludes Field-owned resources. The static Field policy rows in `packages/server-files/src/domain/attachments/policy.ts` remain declarative inventory for the engineering matrix, not an authorization or writer implementation. Remove those rows only when that inventory consumes the Rust contract directly. Remove other owners' shared logic only with their own verified migrations. Database rows, audit, receipts, migrations, publication history and earlier evidence remain intact.
+Shared Files application/repository, scanner and cleanup code still serves non-Field owners and excludes Field-owned resources. The static Field policy rows in `modules/files/server/src/domain/attachments/policy.ts` remain declarative inventory for the engineering matrix, not an authorization or writer implementation. Remove those rows only when that inventory consumes the Rust contract directly. Remove other owners' shared logic only with their own verified migrations. Database rows, audit, receipts, migrations, publication history and earlier evidence remain intact.
 
 The source-bound [local verification receipt](../../testing/evidence/2026-10-31-field-visit-files-native.json) records the changed-source manifest and evidence limits.
 

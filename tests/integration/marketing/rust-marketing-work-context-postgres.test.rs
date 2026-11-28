@@ -6,9 +6,9 @@ use axum::{
     body::{Body, to_bytes},
     http::Request,
 };
-use erpx_server_identity_access::public::work_context::HoldingWorkContextInspector;
-use erpx_server_shared::public::{Clock, HoldingId};
-use erpx_service::{
+use erpx_identity_access_server::public::work_context::HoldingWorkContextInspector;
+use erpx_platform_shared_server::public::{Clock, HoldingId};
+use erpx_platform_composition::{
     field_service_reservation_read_http::FieldServiceReadScopeHeaders,
     native_work_roles_http::{NativeWorkRoleTarget, native_work_roles_router},
 };
@@ -68,8 +68,8 @@ async fn real_account_work_role_response_reaches_typescript_mapper() {
    let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");let mut child=std::process::Command::new(std::env::var("ERPX_NODE_BIN").unwrap()).current_dir(root).args(["--conditions=react-server","--import=tsx","scripts/testing/fixtures/marketing-work-context-legacy-oracle.ts"]).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).spawn().unwrap();
    write!(child.stdin.take().unwrap(),"{}",serde_json::json!({"response":body,"identity":identity,"user":{"name":name,"email":email}})).unwrap();let out=child.wait_with_output().unwrap();assert!(out.status.success(),"TS mapper oracle failed");let actual:serde_json::Value=serde_json::from_slice(&out.stdout).unwrap();
    let mut selection=p.maker_selection.clone();selection.expected.as_mut().unwrap().revision=revision;
-   let hash=p.authorizer.execute("acme.example.test",p.maker.clone(),selection,erpx_server_identity_access::public::effective_authority::WorkAuthorizationRequest{permission:"finance.write".into(),module:Some("finance".into()),destination:"finance/journals".into(),api:true},|_c,current|Box::pin(async move {
-    use erpx_server_workflow::public::{commands::CommandField,source_ordered_json::{SourceOrderedFingerprintActor,ScopedWorkAuthority,SourceOrderedJson,source_ordered_fingerprint_metadata}};
+   let hash=p.authorizer.execute("acme.example.test",p.maker.clone(),selection,erpx_identity_access_server::public::effective_authority::WorkAuthorizationRequest{permission:"finance.write".into(),module:Some("finance".into()),destination:"finance/journals".into(),api:true},|_c,current|Box::pin(async move {
+    use erpx_workflow_server::public::{commands::CommandField,source_ordered_json::{SourceOrderedFingerprintActor,ScopedWorkAuthority,SourceOrderedJson,source_ordered_fingerprint_metadata}};
     let sel=current.selection();let assignment=sel.assignment();let workspace=sel.workspace();let actor=SourceOrderedFingerprintActor{user_id:current.user_id().as_str(),assignment_id:assignment.id.as_str(),role:&assignment.role,company_id:workspace.company_id.as_str(),branch:workspace.branch_id.as_ref().map(|x|CommandField::Value(x.as_str())).unwrap_or(CommandField::Null),department:workspace.department_id.as_ref().map(|x|CommandField::Value(x.as_str())).unwrap_or(CommandField::Null),authority:CommandField::Value(ScopedWorkAuthority{session_id:current.session_id().as_str(),revision:sel.revision(),assignment_version:assignment.version})};
     let input=SourceOrderedJson::parse(r#"{"kind":"content","name":"Draft","configuration":{},"preview":{}}"#)?;Ok(source_ordered_fingerprint_metadata(&actor,"marketing.asset.create","marketing-content-fixture",&input))
    })).await.unwrap();assert_eq!(hash,actual["hash"].as_str().unwrap());
@@ -81,11 +81,11 @@ async fn real_account_work_role_response_reaches_typescript_mapper() {
 
 #[tokio::test]
 async fn marketing_command_uses_real_account_role_boundaries() {
-    use erpx_server_marketing::public::lead_candidate_command_http::{
+    use erpx_marketing_server::public::lead_candidate_command_http::{
         MarketingLeadCommandHttpTarget, marketing_lead_command_http_router,
     };
-    use erpx_server_shared::public::CompanyId;
-    use erpx_service::marketing::{MarketingBackend, MarketingConfiguration, MarketingService};
+    use erpx_platform_shared_server::public::CompanyId;
+    use erpx_platform_composition::marketing::{MarketingBackend, MarketingConfiguration, MarketingService};
     review::account::with_system(|system|async move {
   let p=review::setup_with_finance(system,false).await;let db=p.system.holdings[0].raw();let now=p.system.scenario.clock.now().get();
   sqlx::query("UPDATE assignments SET modules_json='[\"finance\",\"marketing\"]' WHERE id='finance-fixture-a'").execute(db).await.unwrap();

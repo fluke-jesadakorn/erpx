@@ -7,9 +7,9 @@ import {
   benefitSourceProbe,
   benefitSubqueryNotExists,
   workforceActorScopeProbe,
-} from '../../../packages/server-benefits/src/adapters/benefits-read-sql';
+} from '../../../modules/benefits/server/src/adapters/benefits-read-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-benefits/src');
+const srcRoot = resolve(__dirname, '../../../modules/benefits/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 // Pre-dedupe literals, copied byte-for-byte from the r24 base HEAD, used only

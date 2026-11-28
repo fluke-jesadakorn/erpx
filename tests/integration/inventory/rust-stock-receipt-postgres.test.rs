@@ -9,28 +9,28 @@ mod facts;
 mod fence;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_inventory::public::stock_receipt::*;
-use erpx_server_inventory::public::stock_register::read_stock_register;
-use erpx_server_runtime::public::postgres::{
+use erpx_inventory_server::public::stock_receipt::*;
+use erpx_inventory_server::public::stock_register::read_stock_register;
+use erpx_platform_runtime_server::public::postgres::{
     PgTransactionError, PgUnitOfWork, PgWorkFuture, TransactionOptions,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 use sqlx::PgConnection;
 
 type Error = PgTransactionError<BusinessError>;
 
 struct ActualCancellationStockSource {
-    facts: erpx_server_inventory::public::quality_cancellation_stock::QualityCancellationStockFacts,
-    prepared: erpx_server_quality::public::quality_http::PreparedQualityCancellation,
+    facts: erpx_inventory_server::public::quality_cancellation_stock::QualityCancellationStockFacts,
+    prepared: erpx_quality_server::public::quality_http::PreparedQualityCancellation,
     after:
-        std::sync::OnceLock<erpx_server_quality::public::quality_http::RetainedQualityCancellation>,
+        std::sync::OnceLock<erpx_quality_server::public::quality_http::RetainedQualityCancellation>,
 }
-impl erpx_server_inventory::public::quality_cancellation_stock::PgQualityCancellationStockSource
+impl erpx_inventory_server::public::quality_cancellation_stock::PgQualityCancellationStockSource
     for ActualCancellationStockSource
 {
     fn facts(
         &self,
-    ) -> &erpx_server_inventory::public::quality_cancellation_stock::QualityCancellationStockFacts
+    ) -> &erpx_inventory_server::public::quality_cancellation_stock::QualityCancellationStockFacts
     {
         &self.facts
     }
@@ -53,17 +53,17 @@ impl erpx_server_inventory::public::quality_cancellation_stock::PgQualityCancell
 
 #[tokio::test]
 async fn quality_cancellation_stock_writer_first_retries_after_real_contention() {
-    use erpx_server_inventory::public::quality_cancellation_stock::{
+    use erpx_inventory_server::public::quality_cancellation_stock::{
         QualityCancellationStockAction, QualityCancellationStockFacts,
         lock_quality_cancellation_stock_sources, prepare_quality_cancellation_stock,
     };
-    use erpx_server_quality::public::quality_http::{
+    use erpx_quality_server::public::quality_http::{
         lock_quality_cancellation_writes, lock_quality_read_sources, prepare_quality_cancellation,
     };
-    use erpx_server_quality::public::quality_read::{
+    use erpx_quality_server::public::quality_read::{
         CancellationAction, QualityCancellationCommand,
     };
-    use erpx_server_shared::public::{CommandKey, CompanyId, RecordId, UserId};
+    use erpx_platform_shared_server::public::{CommandKey, CompanyId, RecordId, UserId};
     use std::sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
@@ -110,17 +110,17 @@ async fn quality_cancellation_stock_writer_first_retries_after_real_contention()
 
 #[tokio::test]
 async fn quality_cancellation_stock_owner_first_blocks_writer_and_rollback_restores_effect() {
-    use erpx_server_inventory::public::quality_cancellation_stock::{
+    use erpx_inventory_server::public::quality_cancellation_stock::{
         QualityCancellationStockAction, QualityCancellationStockFacts,
         lock_quality_cancellation_stock_sources, prepare_quality_cancellation_stock,
     };
-    use erpx_server_quality::public::quality_http::{
+    use erpx_quality_server::public::quality_http::{
         lock_quality_cancellation_writes, lock_quality_read_sources, prepare_quality_cancellation,
     };
-    use erpx_server_quality::public::quality_read::{
+    use erpx_quality_server::public::quality_read::{
         CancellationAction, QualityCancellationCommand,
     };
-    use erpx_server_shared::public::{CommandKey, CompanyId, RecordId, UserId};
+    use erpx_platform_shared_server::public::{CommandKey, CompanyId, RecordId, UserId};
     fixture::with_database(3,|pool|async move {
         facts::setup(&pool,"none",true).await;
         sqlx::query("INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,status,created_by,created_at,updated_at) VALUES('race-hold','company','branch','warehouse','product','Review','2026-11-10','held','maker',0,0)").execute(pool.raw()).await.unwrap();
@@ -162,19 +162,19 @@ async fn quality_hold_requires_its_stock_row_in_migrated_schema() {
 
 #[tokio::test]
 async fn quality_cancellation_stock_afterimage_tracks_real_owner_triggers_and_rollback() {
-    use erpx_server_inventory::public::quality_cancellation_stock::{
+    use erpx_inventory_server::public::quality_cancellation_stock::{
         PgQualityCancellationStockSource, QualityCancellationStockAction,
         QualityCancellationStockFacts, lock_quality_cancellation_stock_sources,
         prepare_quality_cancellation_stock,
     };
-    use erpx_server_quality::public::quality_http::{
+    use erpx_quality_server::public::quality_http::{
         PreparedQualityCancellation, RetainedQualityCancellation, lock_quality_cancellation_writes,
         lock_quality_read_sources, prepare_quality_cancellation,
     };
-    use erpx_server_quality::public::quality_read::{
+    use erpx_quality_server::public::quality_read::{
         CancellationAction, QualityCancellationCommand,
     };
-    use erpx_server_shared::public::{CommandKey, CompanyId, RecordId, UserId};
+    use erpx_platform_shared_server::public::{CommandKey, CompanyId, RecordId, UserId};
     use std::sync::OnceLock;
     struct ActualSource {
         facts: QualityCancellationStockFacts,
@@ -246,7 +246,7 @@ async fn quality_cancellation_stock_afterimage_tracks_real_owner_triggers_and_ro
 
 #[tokio::test]
 async fn quality_stock_witness_reads_version_and_denies_missing_rows() {
-    use erpx_server_inventory::public::quality_stock_source::{
+    use erpx_inventory_server::public::quality_stock_source::{
         inspect_quality_stock, lock_quality_stock_sources,
     };
     fixture::with_database(2,|pool|async move {
@@ -271,7 +271,7 @@ async fn quality_stock_witness_reads_version_and_denies_missing_rows() {
 
 #[tokio::test]
 async fn quality_stock_source_waits_for_writer_before_snapshot() {
-    use erpx_server_inventory::public::quality_stock_source::{
+    use erpx_inventory_server::public::quality_stock_source::{
         inspect_quality_stock, lock_quality_stock_sources,
     };
     fixture::with_database(3,|pool|async move {
@@ -299,22 +299,22 @@ async fn quality_stock_source_waits_for_writer_before_snapshot() {
 
 #[tokio::test]
 async fn quality_receipt_lineage_intersects_actual_inventory_and_commerce_sources() {
-    use erpx_server_commerce::public::quality_receipt_origin::{
+    use erpx_commerce_server::public::quality_receipt_origin::{
         inspect_quality_receipt_commerce, lock_quality_receipt_commerce,
     };
-    use erpx_server_inventory::public::quality_disposition_count::{
+    use erpx_inventory_server::public::quality_disposition_count::{
         CurrentQualityDispositionCount, QualityDispositionCountRequest,
         inspect_quality_disposition_count, lock_quality_disposition_count_sources,
     };
-    use erpx_server_inventory::public::quality_fulfillment_allocation::{
+    use erpx_inventory_server::public::quality_fulfillment_allocation::{
         QualityFulfillmentAllocationRequest, inspect_quality_fulfillment_allocations,
         lock_quality_fulfillment_allocations,
     };
-    use erpx_server_quality::public::purchase_lineage::{
+    use erpx_quality_server::public::purchase_lineage::{
         CountLineageRequest, QualityLineageCountPort, QualityLineageRequest,
         inspect_quality_purchase_lineage, lock_quality_purchase_lineage,
     };
-    use erpx_server_shared::public::{CompanyId, RecordId};
+    use erpx_platform_shared_server::public::{CompanyId, RecordId};
     struct InventoryCounts;
     impl QualityLineageCountPort for InventoryCounts {
         type Witness = CurrentQualityDispositionCount;
@@ -389,13 +389,13 @@ async fn quality_receipt_lineage_intersects_actual_inventory_and_commerce_source
 
 #[tokio::test]
 async fn quality_receipt_preparation_waits_for_commerce_writer_before_snapshot() {
-    use erpx_server_commerce::public::quality_receipt_origin::{
+    use erpx_commerce_server::public::quality_receipt_origin::{
         inspect_quality_receipt_commerce, lock_quality_receipt_commerce,
     };
-    use erpx_server_inventory::public::quality_disposition_count::lock_quality_disposition_count_sources;
-    use erpx_server_inventory::public::quality_fulfillment_allocation::lock_quality_fulfillment_allocations;
-    use erpx_server_quality::public::purchase_lineage::lock_quality_purchase_lineage;
-    use erpx_server_shared::public::{CompanyId, RecordId};
+    use erpx_inventory_server::public::quality_disposition_count::lock_quality_disposition_count_sources;
+    use erpx_inventory_server::public::quality_fulfillment_allocation::lock_quality_fulfillment_allocations;
+    use erpx_quality_server::public::purchase_lineage::lock_quality_purchase_lineage;
+    use erpx_platform_shared_server::public::{CompanyId, RecordId};
     fixture::with_database(3,|pool|async move {
         facts::setup(&pool,"lot",true).await;
         let mut writer=pool.raw().begin().await.unwrap();
@@ -430,23 +430,23 @@ async fn quality_receipt_preparation_waits_for_commerce_writer_before_snapshot()
 
 #[tokio::test]
 async fn quality_return_origins_join_workflow_and_inventory_witnesses() {
-    use erpx_server_commerce::public::quality_return_origin::{
+    use erpx_commerce_server::public::quality_return_origin::{
         QualityReturnSelector, inspect_quality_return_commerce, lock_quality_return_commerce,
     };
-    use erpx_server_inventory::public::quality_disposition_count::{
+    use erpx_inventory_server::public::quality_disposition_count::{
         CurrentQualityDispositionCount, QualityDispositionCountRequest,
         inspect_quality_disposition_count, lock_quality_disposition_count_sources,
     };
-    use erpx_server_inventory::public::quality_fulfillment_allocation::{
+    use erpx_inventory_server::public::quality_fulfillment_allocation::{
         QualityFulfillmentAllocationRequest, inspect_quality_fulfillment_allocations,
         lock_quality_fulfillment_allocations,
     };
-    use erpx_server_quality::public::purchase_lineage::{
+    use erpx_quality_server::public::purchase_lineage::{
         CountLineageRequest, QualityLineageCountPort, QualityLineageRequest,
         inspect_quality_purchase_lineage, lock_quality_purchase_lineage,
     };
-    use erpx_server_shared::public::{CompanyId, RecordId};
-    use erpx_server_workflow::public::record_origin::{
+    use erpx_platform_shared_server::public::{CompanyId, RecordId};
+    use erpx_workflow_server::public::record_origin::{
         RawRecordOriginRequest, lock_record_origin_sources, read_raw_record_origin,
         verify_raw_record_origin,
     };
@@ -539,7 +539,7 @@ async fn quality_return_origins_join_workflow_and_inventory_witnesses() {
 
 #[tokio::test]
 async fn quality_allocation_witness_retains_receipt_and_return_identity() {
-    use erpx_server_inventory::public::quality_fulfillment_allocation::{
+    use erpx_inventory_server::public::quality_fulfillment_allocation::{
         QualityFulfillmentAllocationRequest, inspect_quality_fulfillment_allocations,
         lock_quality_fulfillment_allocations,
     };
@@ -577,7 +577,7 @@ async fn quality_allocation_witness_retains_receipt_and_return_identity() {
 
 #[tokio::test]
 async fn quality_allocation_absence_is_guarded_against_concurrent_insert() {
-    use erpx_server_inventory::public::quality_fulfillment_allocation::{
+    use erpx_inventory_server::public::quality_fulfillment_allocation::{
         QualityFulfillmentAllocationRequest, inspect_quality_fulfillment_allocations,
         lock_quality_fulfillment_allocations,
     };
@@ -611,7 +611,7 @@ async fn quality_allocation_absence_is_guarded_against_concurrent_insert() {
 
 #[tokio::test]
 async fn quality_allocation_witness_retains_more_than_one_thousand_matches() {
-    use erpx_server_inventory::public::quality_fulfillment_allocation::{
+    use erpx_inventory_server::public::quality_fulfillment_allocation::{
         QualityFulfillmentAllocationRequest, inspect_quality_fulfillment_allocations,
         lock_quality_fulfillment_allocations,
     };
@@ -1100,7 +1100,7 @@ async fn receipt_rolls_back_with_the_enclosing_commerce_unit() {
                     )
                     .await?;
                     Err(BusinessError::new(
-                        erpx_server_shared::public::FailureKind::Conflict,
+                        erpx_platform_shared_server::public::FailureKind::Conflict,
                         "FIXTURE_ABORT",
                         "Roll back after verifying Inventory effects.",
                     )
@@ -1441,7 +1441,7 @@ async fn receipt_refuses_an_inactive_existing_lot_and_rolls_back_stock() {
                         "LOT_UNAVAILABLE",
                     );
                     Err(BusinessError::new(
-                        erpx_server_shared::public::FailureKind::Conflict,
+                        erpx_platform_shared_server::public::FailureKind::Conflict,
                         "FIXTURE_ABORT",
                         "Roll back after verifying the inactive lot refusal.",
                     )
@@ -1567,22 +1567,22 @@ mod commerce_receipt {
     #![allow(dead_code)]
     use super::fixture;
 
-    use erpx_server_commerce::public::order::CommerceOrderActor;
-    use erpx_server_commerce::public::receipt::{
+    use erpx_commerce_server::public::order::CommerceOrderActor;
+    use erpx_commerce_server::public::receipt::{
         CommerceReceipt, PgCommerceReceipt, ReceiptAllocationCommand, ReceiptCommand,
         ReceiptDisposition, ReceiptLineCommand, receive_purchase_order,
     };
-    use erpx_server_inventory::public::commerce_receipt::{
+    use erpx_inventory_server::public::commerce_receipt::{
         InventoryStockReceipt, QualityReceiptHoldPort,
     };
-    use erpx_server_inventory::public::stock_receipt::{
+    use erpx_inventory_server::public::stock_receipt::{
         StockReceiptQualityPort, StockReceiptQualityRequest,
     };
-    use erpx_server_runtime::public::postgres::{
+    use erpx_platform_runtime_server::public::postgres::{
         DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, PgWorkFuture,
         TransactionOptions, load_migrations, migrate_database,
     };
-    use erpx_server_shared::public::{
+    use erpx_platform_shared_server::public::{
         AssignmentId, BusinessError, CommandKey, CompanyId, HoldingId, RecordId, TimestampMillis,
         UserId,
     };
@@ -2440,7 +2440,7 @@ mod commerce_receipt {
                 .execute(&mut *fenced)
                 .await
                 .unwrap();
-            erpx_server_inventory::public::stock_receipt::lock_stock_receipt_sources(&mut fenced)
+            erpx_inventory_server::public::stock_receipt::lock_stock_receipt_sources(&mut fenced)
                 .await
                 .unwrap();
             let mut changed = request;
@@ -2499,8 +2499,8 @@ mod commerce_receipt {
 
 #[tokio::test]
 async fn quality_origin_allocation_cte_matches_actual_typescript_join() {
-    use erpx_server_inventory::public::quality_origin_allocation_join::{inspect_quality_origin_allocation_join,lock_quality_origin_allocation_join};
-    let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const {commerceQualityOriginRows}=await import('./packages/server-commerce/src/adapters/quality-purchase-sources.ts');const receipt=commerceQualityOriginRows.match(/WHERE a\.quality_hold_id IS NOT NULL AND a\.disposition='quarantine'/);const tracked=commerceQualityOriginRows.match(/JOIN inventory_fulfillment_lot_allocations original ON ([^\n]+)/);if(!receipt||!tracked)throw Error('QUALITY_INVENTORY_TS_SOURCE_MISSING');process.stdout.write(JSON.stringify({receipt:receipt[0],tracked:tracked[1]}));"#;
+    use erpx_inventory_server::public::quality_origin_allocation_join::{inspect_quality_origin_allocation_join,lock_quality_origin_allocation_join};
+    let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const {commerceQualityOriginRows}=await import('./modules/commerce/server/src/adapters/quality-purchase-sources.ts');const receipt=commerceQualityOriginRows.match(/WHERE a\.quality_hold_id IS NOT NULL AND a\.disposition='quarantine'/);const tracked=commerceQualityOriginRows.match(/JOIN inventory_fulfillment_lot_allocations original ON ([^\n]+)/);if(!receipt||!tracked)throw Error('QUALITY_INVENTORY_TS_SOURCE_MISSING');process.stdout.write(JSON.stringify({receipt:receipt[0],tracked:tracked[1]}));"#;
     let out=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")).args(["--conditions=react-server","-e",script]).output().unwrap();assert!(out.status.success(),"actual Quality source unavailable");let original:serde_json::Value=serde_json::from_slice(&out.stdout).unwrap();
     fixture::with_database(2,|pool|async move {
         facts::setup(&pool,"lot",true).await;

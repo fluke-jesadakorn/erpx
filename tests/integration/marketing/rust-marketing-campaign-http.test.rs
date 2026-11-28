@@ -1,12 +1,12 @@
 //! Actual owner-local Marketing campaign/attribution HTTP router tests.
 //! These prove ingress facts only; composition, Account session and PostgreSQL
 //! remain separate responsibilities.
-use erpx_server_marketing::public::campaign_attribution_http::{
+use erpx_marketing_server::public::campaign_attribution_http::{
     MarketingCampaignHttpBackend, MarketingCampaignHttpFuture, MarketingCampaignHttpReadRequest,
     MarketingCampaignHttpResponse, MarketingCampaignHttpTarget, marketing_campaign_http_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Noop;
@@ -307,12 +307,12 @@ async fn actual_router_forwards_exact_target_and_maps_business_errors() {
 
 mod lead_http {
     use super::{get, get_with_body, http};
-    use erpx_server_marketing::public::lead_candidate_http::{
+    use erpx_marketing_server::public::lead_candidate_http::{
         MarketingLeadHttpBackend, MarketingLeadHttpFuture, MarketingLeadHttpReadRequest,
         MarketingLeadHttpResponse, MarketingLeadHttpTarget, marketing_lead_http_router,
     };
-    use erpx_server_runtime::public::http_support::serve;
-    use erpx_server_shared::public::{BusinessError, FailureKind};
+    use erpx_platform_runtime_server::public::http_support::serve;
+    use erpx_platform_shared_server::public::{BusinessError, FailureKind};
     use std::sync::{Arc, Mutex};
 
     #[derive(Clone, Debug, Eq, PartialEq)]
@@ -551,14 +551,14 @@ mod lead_http {
 
 mod lead_command_http {
     use super::http;
-    use erpx_server_marketing::public::lead_candidate_command_http::{
+    use erpx_marketing_server::public::lead_candidate_command_http::{
         MarketingAssetReviewHttpRequest, MarketingCommandHttpRequest,
         MarketingLeadCommandHttpBackend, MarketingLeadCommandHttpFuture,
         MarketingLeadCommandHttpRequest, MarketingLeadCommandHttpTarget,
         marketing_lead_command_http_router,
     };
-    use erpx_server_runtime::public::http_support::{serde_json, serve};
-    use erpx_server_shared::public::{BusinessError, FailureKind};
+    use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+    use erpx_platform_shared_server::public::{BusinessError, FailureKind};
     use serde_json::Value;
     use std::sync::{Arc, Mutex};
 

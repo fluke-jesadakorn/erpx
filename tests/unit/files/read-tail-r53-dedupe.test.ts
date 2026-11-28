@@ -3,10 +3,10 @@ import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { SOURCE_STATE_HEAD_SQL } from '../../../packages/server-files/src/adapters/read-tail-r53-source-sql';
+import { SOURCE_STATE_HEAD_SQL } from '../../../modules/files/server/src/adapters/read-tail-r53-source-sql';
 
 const rootDir = resolve(__dirname, '../../..');
-const srcRoot = resolve(rootDir, 'packages/server-files/src');
+const srcRoot = resolve(rootDir, 'modules/files/server/src');
 // Fixed pre-r53 baseline: both inline source-state heads are still literal in
 // this commit, so the rendered-SQL oracles stay valid after the slice is
 // integrated and HEAD advances.
@@ -16,7 +16,7 @@ const SR = 'adapters/attachments/service-repository.ts';
 
 const src = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
 const git = (...a: string[]) => execFileSync('git', a, { cwd: rootDir, encoding: 'utf8' });
-const before = (rel: string) => git('show', `${BASE}:packages/server-files/src/${rel}`);
+const before = (rel: string) => git('show', `${BASE}:modules/files/server/src/${rel}`);
 const count = (text: string, needle: string) => text.split(needle).length - 1;
 const sha = (text: string) => createHash('sha256').update(text).digest('hex');
 const tsFiles = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(entry => {

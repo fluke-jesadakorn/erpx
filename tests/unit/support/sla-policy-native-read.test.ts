@@ -4,8 +4,8 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { createSlaPolicyReader } from '../../../packages/server-support/src/adapters/support-sla';
-import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
+import { createSlaPolicyReader } from '../../../modules/support/server/src/adapters/support-sla';
+import type { WorkContext } from '@erpx/identity-access-server/public/authorization';
 
 const config = JSON.stringify({
   privateBaseUrl: 'http://127.0.0.1:3997',
@@ -65,7 +65,7 @@ describe('Support SLA policy mounted native read transport', () => {
   });
 
   test('retires the plan-and-execute point/work kinds without touching the retained Support readers', () => {
-    const root = resolve(__dirname, '../../../packages/server-support/src');
+    const root = resolve(__dirname, '../../../modules/support/server/src');
     const sla = readFileSync(resolve(root, 'adapters/support-sla.ts'), 'utf8');
     const bridge = readFileSync(resolve(root, 'adapters/native-support-read.ts'), 'utf8');
     const application = readFileSync(resolve(root, 'application/support-sla.ts'), 'utf8');

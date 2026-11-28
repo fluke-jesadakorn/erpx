@@ -5,11 +5,11 @@
 #![allow(dead_code)]
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_platform_administration::public::platform_executive::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_administration_server::public::platform_executive::*;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::FailureKind;
+use erpx_platform_shared_server::public::FailureKind;
 
 const JUNE: i64 = 1_780_272_000_000;
 const JULY: i64 = 1_782_864_000_000;

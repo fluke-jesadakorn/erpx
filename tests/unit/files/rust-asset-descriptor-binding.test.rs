@@ -4,13 +4,13 @@
 //! in `rust-attachment-read-policy.test.rs`. These cases cover the binding
 //! itself: source observation, IAM/scope gating, freshness and exact version.
 
-use erpx_server_files::public::asset_descriptor_binding::{
+use erpx_files_server::public::asset_descriptor_binding::{
     AssetDescriptorEvidence, AssetDescriptorFacts, AssetDescriptorPort, AssetReadAccess,
     bind_asset_attachment_target_scope,
 };
-use erpx_server_files::public::attachment_read::{asset_descriptor_read_scope, AssetReadDescriptor};
-use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind};
+use erpx_files_server::public::attachment_read::{asset_descriptor_read_scope, AssetReadDescriptor};
+use erpx_platform_runtime_server::public::postgres::{PgTransactionError, PgWorkFuture};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, FailureKind};
 use std::sync::{Arc, Mutex};
 
 fn company() -> CompanyId {

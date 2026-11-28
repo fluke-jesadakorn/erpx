@@ -8,7 +8,7 @@ import {
   nativePosSettlementsListStatement,
   nativePosExceptionJobsListStatement,
   nativePosRecordSupplementSalesStatement,
-} from '../../../packages/server-pos/src/adapters/native-pos-list-reads';
+} from '../../../modules/pos/server/src/adapters/native-pos-list-reads';
 
 const config = () => JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:44997', timeoutMs: 1000 });
 const previous = process.env.ERPX_NATIVE_POS_OWNER_CONFIG;
@@ -148,19 +148,19 @@ describe('native POS list-read bridge (round 31)', () => {
   });
 
   it('keeps no retired list-read SQL literal in the TS adapters', () => {
-    const pos = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos.ts', import.meta.url), 'utf8');
+    const pos = readFileSync(new URL('../../../modules/pos/server/src/adapters/pos.ts', import.meta.url), 'utf8');
     for (const item of cases) expect(pos).not.toContain(item.sql);
     expect(pos.match(/nativePos(SalesList|RefundsList|ConnectionsRow|SettlementsList|ExceptionJobsList)Statement\(db/g)).toHaveLength(5);
-    const records = readFileSync(new URL('../../../packages/server-pos/src/adapters/records-record-details-owned-facts.ts', import.meta.url), 'utf8');
+    const records = readFileSync(new URL('../../../modules/pos/server/src/adapters/records-record-details-owned-facts.ts', import.meta.url), 'utf8');
     expect(records).not.toContain('SELECT DISTINCT s.id FROM pos_sales');
     expect(records).toContain('nativePosRecordSupplementSalesStatement<Row>(database');
   });
 
   it('keeps row locks, PMS fragments and day-report/Stripe registries inline', () => {
-    const core = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-core.ts', import.meta.url), 'utf8');
-    const pos = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos.ts', import.meta.url), 'utf8');
-    const dayReport = readFileSync(new URL('../../../packages/server-pos/src/adapters/native-pos-day-report.ts', import.meta.url), 'utf8');
-    const stripe = readFileSync(new URL('../../../packages/server-pos/src/adapters/native-pos-stripe-reads.ts', import.meta.url), 'utf8');
+    const core = readFileSync(new URL('../../../modules/pos/server/src/adapters/pos-core.ts', import.meta.url), 'utf8');
+    const pos = readFileSync(new URL('../../../modules/pos/server/src/adapters/pos.ts', import.meta.url), 'utf8');
+    const dayReport = readFileSync(new URL('../../../modules/pos/server/src/adapters/native-pos-day-report.ts', import.meta.url), 'utf8');
+    const stripe = readFileSync(new URL('../../../modules/pos/server/src/adapters/native-pos-stripe-reads.ts', import.meta.url), 'utf8');
     expect(core).toContain("const posSaleByIdLockSql = (): string => 'SELECT * FROM pos_sales WHERE id=? FOR UPDATE';");
     expect(core).toContain("SELECT pg_advisory_xact_lock(hashtextextended('pos-daily:'||?,0))");
     expect(core).toContain('FOR UPDATE OF rp,r');

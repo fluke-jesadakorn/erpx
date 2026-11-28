@@ -3,7 +3,7 @@
 //! retained list/revoke rules. No database is opened.
 #![allow(dead_code)]
 
-use erpx_server_runtime::public::executive_connections::{
+use erpx_platform_runtime_server::public::executive_connections::{
     ConnectionActor, ConnectionScope, ConnectionStatus, CreateConnectionInput,
     EXECUTIVE_CONNECTION_LIMIT, EXECUTIVE_CONNECTION_SECRET_LENGTH,
     EXECUTIVE_CONNECTION_SECRET_PREFIX, ExecutiveConnectionsStore, GrantRow, NewConnection,

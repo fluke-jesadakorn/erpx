@@ -1,7 +1,7 @@
 import {describe,it,expect,vi} from 'vitest';
 vi.mock('server-only',()=>({}));
-import {createNativeSalesInvoiceListReader} from '../../../packages/feature-finance/src/adapters/server/native-sales-invoice-list';
-import type {NativeJournalPageContext} from '../../../packages/feature-finance/src/adapters/server/native-journal-page';
+import {createNativeSalesInvoiceListReader} from '../../../modules/finance/ui/src/adapters/server/native-sales-invoice-list';
+import type {NativeJournalPageContext} from '../../../modules/finance/ui/src/adapters/server/native-journal-page';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44993',

@@ -8,8 +8,8 @@ import {
   type NativeBillingConfiguration,
   type NativeBillingPageContext,
   type NativeBillingTransport,
-} from '@erpx/server-billing/public/native-billing';
-import type { BillingView } from '@erpx/feature-billing/lib/billing';
+} from '@erpx/billing-server/public/native-billing';
+import type { BillingView } from '@erpx/billing-ui/lib/billing';
 
 const actor: NativeBillingPageContext = {
   userId: 'admin',

@@ -1,7 +1,7 @@
 import {describe,it,expect,vi,beforeEach,afterEach} from 'vitest';
 vi.mock('server-only',()=>({}));
-import {documentPostingPreviewFacts} from '../../../packages/server-inventory/src/adapters/document-posting-preview-facts';
-import {INVENTORY_RD_STOCK_COUNT_ROW,INVENTORY_RD_STOCK_COUNT_DELTAS} from '../../../packages/server-inventory/src/adapters/native-inventory-read';
+import {documentPostingPreviewFacts} from '../../../modules/inventory/server/src/adapters/document-posting-preview-facts';
+import {INVENTORY_RD_STOCK_COUNT_ROW,INVENTORY_RD_STOCK_COUNT_DELTAS} from '../../../modules/inventory/server/src/adapters/native-inventory-read';
 
 describe('native Inventory document-posting preview caller-unit reads',()=>{
   const envKey='ERPX_NATIVE_INVENTORY_CONFIG';

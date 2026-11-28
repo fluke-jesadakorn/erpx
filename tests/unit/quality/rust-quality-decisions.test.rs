@@ -1,5 +1,5 @@
 //! Native Quality policy and application decisions over semantic ports.
-use erpx_server_quality::public::quality_read::{
+use erpx_quality_server::public::quality_read::{
     CancellationAction, HoldStatus, InspectionResult, MeasurementInput, QualityActor,
     QualityCancellationCommand, QualityCancellationReceipt, QualityCancellationRepository,
     QualityDetailCoreData, QualityDetailData, QualityFuture, QualityHoldFacts, QualityMetric,
@@ -7,7 +7,7 @@ use erpx_server_quality::public::quality_read::{
     QualityWorkspaceData, cancel_quality_hold, evaluate_measurements, plan_cancellation,
     quality_decision, quality_detail, quality_workspace,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, Clock, CommandKey, CompanyId, FailureKind, RecordId, TimestampMillis, UserId,
 };
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -63,8 +63,8 @@ fn actor(
     can_hold: bool,
     can_inspect: bool,
     can_release: bool,
-) -> erpx_server_quality::public::quality_read::QualityActorFacts {
-    erpx_server_quality::public::quality_read::QualityActorFacts {
+) -> erpx_quality_server::public::quality_read::QualityActorFacts {
+    erpx_quality_server::public::quality_read::QualityActorFacts {
         user_id: "actor".into(),
         can_hold,
         can_inspect,
@@ -218,11 +218,11 @@ fn invalid_captured_limits_never_turn_into_unbounded_passing_limits() {
 
 #[test]
 fn cancellation_reason_normalization_matches_javascript_trim() {
-    let normalized = erpx_server_quality::public::quality_read::validate_reason(
+    let normalized = erpx_quality_server::public::quality_read::validate_reason(
         "\u{feff} reason \u{feff}", "QUALITY_CANCELLATION_REASON", "Invalid reason",
     ).unwrap();
     assert_eq!(normalized, "reason");
-    let retained = erpx_server_quality::public::quality_read::validate_reason(
+    let retained = erpx_quality_server::public::quality_read::validate_reason(
         "\u{0085}reason\u{0085}", "QUALITY_CANCELLATION_REASON", "Invalid reason",
     ).unwrap();
     assert_eq!(retained, "\u{0085}reason\u{0085}");
@@ -239,7 +239,7 @@ fn separates_independent_inspection_release_cancellation_and_disposition_decisio
     assert!(!decision.can_disposition);
 
     let reviewer = actor(true, true, true);
-    let reviewer = erpx_server_quality::public::quality_read::QualityActorFacts {
+    let reviewer = erpx_quality_server::public::quality_read::QualityActorFacts {
         user_id: "reviewer".into(),
         ..reviewer
     };
@@ -251,7 +251,7 @@ fn separates_independent_inspection_release_cancellation_and_disposition_decisio
     );
     assert!(quality_decision(&awaiting, &reviewer).can_release);
     assert!(!quality_decision(&awaiting, &creator).can_release);
-    let inspector = erpx_server_quality::public::quality_read::QualityActorFacts {
+    let inspector = erpx_quality_server::public::quality_read::QualityActorFacts {
         user_id: "inspector".into(),
         ..reviewer.clone()
     };
@@ -269,7 +269,7 @@ fn separates_independent_inspection_release_cancellation_and_disposition_decisio
 
     let mut pending = hold(HoldStatus::CancelPending, "actor", None, None);
     pending.cancel_requested_by = Some("requester".into());
-    let requester = erpx_server_quality::public::quality_read::QualityActorFacts {
+    let requester = erpx_quality_server::public::quality_read::QualityActorFacts {
         user_id: "requester".into(),
         ..reviewer.clone()
     };
@@ -519,8 +519,8 @@ fn _assert_error_shape(error: BusinessError) -> (FailureKind, &'static str) {
 
 #[test]
 fn identity_aliases_control_all_independent_quality_decisions() {
-    use erpx_server_quality::public::quality_read::quality_decision_with_same_person;
-    let reviewer=erpx_server_quality::public::quality_read::QualityActorFacts { user_id:"reviewer".into(), ..actor(true,true,true) };
+    use erpx_quality_server::public::quality_read::quality_decision_with_same_person;
+    let reviewer=erpx_quality_server::public::quality_read::QualityActorFacts { user_id:"reviewer".into(), ..actor(true,true,true) };
     let creator_alias=|id:&str| id=="creator-alias";
     let inspector_alias=|id:&str| id=="inspector-alias";
     let requester_alias=|id:&str| id=="requester-alias";

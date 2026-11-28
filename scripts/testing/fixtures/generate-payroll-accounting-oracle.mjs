@@ -1,11 +1,11 @@
 const expectedInputs={
-  "packages/server-people_payroll/src/domain/payroll-accounting.ts": "0c3c3814af6a577ab7d4f9ea2c4eb829399a1cffbb88c8c16db25faf4d07b451",
-  "packages/server-people_payroll/src/adapters/payroll-accounting.ts": "6577499f9a3602fda9c7320f303b76cb74bd723983973dcc2ff2c5a2203846b3",
-  "packages/server-people_payroll/src/public/payroll-accounting.ts": "f7e75500f7c9250ef7674f3f5460532128084dc52159ad5cc8c7c015010abc5c",
-  "packages/feature-finance/src/lib/finance-money.ts": "c36415b741869d868e321634749ddd97854ccf81dfb32740a0c41789488651b8",
-  "packages/server-shared/src/domain/error.ts": "ff9c315f159f7adcff264d6637617b80760f758c7cb0b19e1896f85bb51b798c",
+  "modules/people-payroll/server/src/domain/payroll-accounting.ts": "0c3c3814af6a577ab7d4f9ea2c4eb829399a1cffbb88c8c16db25faf4d07b451",
+  "modules/people-payroll/server/src/adapters/payroll-accounting.ts": "6577499f9a3602fda9c7320f303b76cb74bd723983973dcc2ff2c5a2203846b3",
+  "modules/people-payroll/server/src/public/payroll-accounting.ts": "f7e75500f7c9250ef7674f3f5460532128084dc52159ad5cc8c7c015010abc5c",
+  "modules/finance/ui/src/lib/finance-money.ts": "c36415b741869d868e321634749ddd97854ccf81dfb32740a0c41789488651b8",
+  "platform/shared/server/src/domain/error.ts": "ff9c315f159f7adcff264d6637617b80760f758c7cb0b19e1896f85bb51b798c",
   "tests/unit/people_payroll/payroll-accounting.test.ts": "2f9a62b5604996c0c34ced741a3924156f9a1c72d12fffdd6bbb8dbaa9aa52fd",
-  "packages/server-people_payroll/src/application/people-payroll.ts": "acaf0b3618032c256d78ee9c00864df3c6dc26150377722d8c5e002ad5ec83f2",
+  "modules/people-payroll/server/src/application/people-payroll.ts": "acaf0b3618032c256d78ee9c00864df3c6dc26150377722d8c5e002ad5ec83f2",
   "package.json": "e158b60b978f47f7a718283bbaa23b8296b1d075f710ac9ef2e64d241320555a",
   "bun.lock": "714d959fc1f827a8ebdfef2edf73a9f29c52c7c2bd9c0a3e5a613d844d03376a",
   "node_modules/typescript/package.json": "d9b8fb53c67c947fece83bcb73fa8512227ea6a12b110e096fdab8ecdc02b655",
@@ -29,10 +29,10 @@ const fixtureRoot=resolve(dirname(fileURLToPath(import.meta.url)),'../../../fixt
 const engineTree=treeDigest('node_modules/@typescript/old');
 const sources={};for(const [p,h] of Object.entries(expectedInputs)){const b=readFileSync(p);if(hash(b)!==h)throw Error('SOURCE_DRIFT:'+p);sources[p]=b.toString('utf8')}
 const b0='a5ed8737a2f05eff1ee9841fda4a094b3926d732';
-const b0paths=['packages/server-people_payroll/src/domain/payroll-accounting.ts','packages/server-people_payroll/src/adapters/payroll-accounting.ts','packages/server-people_payroll/src/public/payroll-accounting.ts','packages/feature-finance/src/lib/finance-money.ts','packages/server-shared/src/domain/error.ts','tests/unit/people_payroll/payroll-accounting.test.ts','packages/server-people_payroll/src/application/people-payroll.ts'];
+const b0paths=['modules/people-payroll/server/src/domain/payroll-accounting.ts','modules/people-payroll/server/src/adapters/payroll-accounting.ts','modules/people-payroll/server/src/public/payroll-accounting.ts','modules/finance/ui/src/lib/finance-money.ts','platform/shared/server/src/domain/error.ts','tests/unit/people_payroll/payroll-accounting.test.ts','modules/people-payroll/server/src/application/people-payroll.ts'];
 for(const p of b0paths)if(execFileSync('git',['show',`${b0}:${p}`],{encoding:'utf8'})!==sources[p])throw Error('B0_SOURCE_DRIFT:'+p);
 const mod=(p,bindings)=>{const m={exports:{}};const code=ts.transpileModule(sources[p],{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;new Function('module','exports','require',code)(m,m.exports,n=>{if(Object.hasOwn(bindings,n))return bindings[n];throw Error('UNREVIEWED_IMPORT:'+p+':'+n)});return m.exports};
-const shared=mod('packages/server-shared/src/domain/error.ts',{}),money=mod('packages/feature-finance/src/lib/finance-money.ts',{}),domain=mod('packages/server-people_payroll/src/domain/payroll-accounting.ts',{'@erpx/server-shared/index':shared,'@erpx/feature-finance/lib/finance-money':money});
+const shared=mod('platform/shared/server/src/domain/error.ts',{}),money=mod('modules/finance/ui/src/lib/finance-money.ts',{}),domain=mod('modules/people-payroll/server/src/domain/payroll-accounting.ts',{'@erpx/platform-shared-server/index':shared,'@erpx/finance-ui/lib/finance-money':money});
 const accounts={expenseAccountId:'wages',bonusExpenseAccountId:'bonus',employerExpenseAccountId:'sso-expense',netPayableAccountId:'net',taxPayableAccountId:'tax',socialSecurityPayableAccountId:'sso',advanceReceivableAccountId:'advances',benefitPayableAccountId:'benefits',otherDeductionPayableAccountId:'other',employerContributionAccountId:'employer',serviceChargeExpenseAccountId:'service',overtimeExpenseAccountId:'overtime'};
 const baseSnapshot={engagement:{employment_type:'salaried',start_date:'2026-09-01',end_date:null},period:{start:'2026-09-01',end:'2026-09-30'},hours:{entries:[],handoffs:[]},costAssignments:[{id:'assignment-1',effective_from:'2026-09-01',effective_to:null,branch_id:'branch-1',department_id:'department-1',evidence_status:'verified'}]};
 const baseComponents=[{code:'BONUS',kind:'earning',amountMinor:20000},{code:'thai:withholding',kind:'deduction',amountMinor:7000},{code:'thai:sso-employee',kind:'deduction',amountMinor:5000},{code:'payroll-advance:repayment-1',kind:'deduction',amountMinor:2000},{code:'thai:sso-employer',kind:'employer',amountMinor:5000}];

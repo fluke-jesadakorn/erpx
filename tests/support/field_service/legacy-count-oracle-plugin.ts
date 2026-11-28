@@ -15,14 +15,14 @@ const modules={
 } as const;
 const entry='virtual:service-count-historical',prefix='\0service-count-historical:';
 const aliases:Record<string,keyof typeof modules>={
- '@erpx/server-inventory/adapters/service-initial-physical-stock-count-source-sql':'sql',
- '@erpx/server-inventory/domain/service-initial-physical-stock-count':'domain',
- '@erpx/server-inventory/adapters/inventory-counts':'inventory',
- '@erpx/server-inventory/adapters/count-purchases':'purchases',
- '@erpx/server-inventory/public/count-purchases':'purchases',
- '@erpx/server-inventory/adapters/service-initial-physical-stock-count-source':'source',
- '@erpx/server-workflow/public/flow-routing':'flow',
- '@erpx/server-workflow/adapters/flow-routing':'flow',
+ '@erpx/inventory-server/adapters/service-initial-physical-stock-count-source-sql':'sql',
+ '@erpx/inventory-server/domain/service-initial-physical-stock-count':'domain',
+ '@erpx/inventory-server/adapters/inventory-counts':'inventory',
+ '@erpx/inventory-server/adapters/count-purchases':'purchases',
+ '@erpx/inventory-server/public/count-purchases':'purchases',
+ '@erpx/inventory-server/adapters/service-initial-physical-stock-count-source':'source',
+ '@erpx/workflow-server/public/flow-routing':'flow',
+ '@erpx/workflow-server/adapters/flow-routing':'flow',
 };
 export function historicalServiceCountOracle():Plugin{return {
  name:'test-only-service-count-historical-oracle',
@@ -36,7 +36,7 @@ export function historicalServiceCountOracle():Plugin{return {
   const name=id.slice(prefix.length).replace(/\.ts$/,'') as keyof typeof modules, spec=modules[name];if(!spec)throw Error('LEGACY_COUNT_ORACLE_MODULE_REQUIRED');
   const bytes=readFileSync(resolve('fixtures/inventory/legacy-count-oracle',spec[0]));
   if(createHash('sha256').update(bytes).digest('hex')!==spec[1])throw Error('LEGACY_COUNT_ORACLE_SOURCE_CHANGED');
-  let source=bytes.toString('utf8').replaceAll('../../../../packages/server-runtime/src/public/runtime','@erpx/server-runtime/public/runtime');
+  let source=bytes.toString('utf8').replaceAll('../../../../platform/runtime/server/src/public/runtime','@erpx/platform-runtime-server/public/runtime');
   for(const [alias,target] of Object.entries(aliases))for(const quote of ["'",'"'])source=source.replaceAll(`${quote}${alias}${quote}`,`${quote}${entry}/${target}${quote}`);
   return (await transformWithOxc(source,spec[0].replace(/\.snapshot$/,''),{lang:'ts'})).code;
  },

@@ -2,17 +2,17 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('server-only', () => ({}));
-vi.mock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+vi.mock('../../../modules/workflow/server/src/adapters/native-workflow-read', () => ({
   nativeWorkflowReadAll: vi.fn(async () => []),
   nativeWorkflowReadFirst: vi.fn(async () => null),
 }));
-import { nativeWorkflowReadAll } from '../../../packages/server-workflow/src/adapters/native-workflow-read';
-import { calendarIndexWorkflowFacts } from '../../../packages/server-workflow/src/adapters/calendar-index-facts';
-import { RecordDetailsWorkflowOwnedFacts } from '../../../packages/server-workflow/src/adapters/records-record-details-owned-facts';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import { nativeWorkflowReadAll } from '../../../modules/workflow/server/src/adapters/native-workflow-read';
+import { calendarIndexWorkflowFacts } from '../../../modules/workflow/server/src/adapters/calendar-index-facts';
+import { RecordDetailsWorkflowOwnedFacts } from '../../../modules/workflow/server/src/adapters/records-record-details-owned-facts';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
 
 const readAll = vi.mocked(nativeWorkflowReadAll);
-const srcRoot = resolve(__dirname, '../../../packages/server-workflow/src');
+const srcRoot = resolve(__dirname, '../../../modules/workflow/server/src');
 
 /** Independent reconstruction of the two retired TypeScript literals (r47). */
 const hr = '"id","user_id","company_id","legal_name","preferred_name","email","phone","country_code","status","version","created_by","created_at","updated_at","merged_into_id","work_email","work_phone"';
@@ -41,8 +41,8 @@ beforeEach(() => {
 describe('calendar-index and record-details native cutover (r47)', () => {
   it('registers byte-identical, SELECT-only SQL with three and one binds', async () => {
     const [domain, publicRegistry] = await Promise.all([
-      readFile(new URL('../../../packages/server-workflow/src/domain/workflow_wave3.rs', import.meta.url), 'utf8'),
-      readFile(new URL('../../../packages/server-workflow/src/public/workflow_wave3.rs', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/workflow/server/src/domain/workflow_wave3.rs', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/workflow/server/src/public/workflow_wave3.rs', import.meta.url), 'utf8'),
     ]);
     for (const [kind, sql, binds] of [
       ['wf_native_calendar_index_facts', calendarSql, 3],
@@ -83,8 +83,8 @@ describe('calendar-index and record-details native cutover (r47)', () => {
 
   it('removes the retired SELECT literals and the local inList helper', async () => {
     const [calendar, details] = await Promise.all([
-      readFile(new URL('../../../packages/server-workflow/src/adapters/calendar-index-facts.ts', import.meta.url), 'utf8'),
-      readFile(new URL('../../../packages/server-workflow/src/adapters/records-record-details-owned-facts.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/workflow/server/src/adapters/calendar-index-facts.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/workflow/server/src/adapters/records-record-details-owned-facts.ts', import.meta.url), 'utf8'),
     ]);
     expect(calendar).not.toContain('SELECT record_id,action,actor,at');
     expect(calendar).not.toContain('jsonb_array_elements_text');
@@ -98,8 +98,8 @@ describe('calendar-index and record-details native cutover (r47)', () => {
 
   it('the record-details repository port forwards the actor company into the native reader', async () => {
     const [application, adapter] = await Promise.all([
-      readFile(new URL('../../../packages/server-records/src/application/record-details.ts', import.meta.url), 'utf8'),
-      readFile(new URL('../../../packages/server-records/src/adapters/record-details.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/records/server/src/application/record-details.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/records/server/src/adapters/record-details.ts', import.meta.url), 'utf8'),
     ]);
     expect(application).toContain('readCommerceMasterDetailHistory(id: string, companyId: string)');
     expect(application).toContain('r.readCommerceMasterDetailHistory(id, actor.companyId)');

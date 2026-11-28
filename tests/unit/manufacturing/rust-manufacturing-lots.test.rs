@@ -1,12 +1,12 @@
 //! Native Manufacturing production-lot posting policy and use cases.
 //! Domain/application only: no PostgreSQL, HTTP or browser.
-use erpx_server_manufacturing::public::lots::{
+use erpx_manufacturing_server::public::lots::{
     Genealogy, LotPosting, ManufacturingLotRepository, MaterialAllocation, MaterialIssueRow,
     MaterialLotFacts, MaterialLotPlan, MaterialLotRequest, OutputAllocation, OutputLotPlan,
     OutputLotRequest, TrackingMode, plan_material_lots, plan_output_lots, post_material_lots,
     post_output_lots, scaled_amount,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 use std::future::Future;
 use std::pin::Pin;
 
@@ -247,7 +247,7 @@ fn material_serial_must_be_one_unit() {
 
 #[test]
 fn output_allocations_require_full_quantity_and_unique_identity() {
-    let input = erpx_server_manufacturing::public::lots::OutputLotInput {
+    let input = erpx_manufacturing_server::public::lots::OutputLotInput {
         key: "key",
         order_id: "order",
         order_version: 4,
@@ -293,7 +293,7 @@ fn output_allocations_require_full_quantity_and_unique_identity() {
 #[test]
 fn output_rejects_expired_and_non_unit_serials() {
     let entry = "2026-10-02";
-    let lot_input = erpx_server_manufacturing::public::lots::OutputLotInput {
+    let lot_input = erpx_manufacturing_server::public::lots::OutputLotInput {
         key: "key",
         order_id: "order",
         order_version: 4,
@@ -314,7 +314,7 @@ fn output_rejects_expired_and_non_unit_serials() {
     )
     .unwrap_err();
     assert_eq!(expired.code, "MANUFACTURING_OUTPUT_EXPIRY");
-    let serial_input = erpx_server_manufacturing::public::lots::OutputLotInput {
+    let serial_input = erpx_manufacturing_server::public::lots::OutputLotInput {
         tracking_mode: TrackingMode::Serial,
         output_milli: 2_000,
         total_minor: 2_000,
@@ -336,7 +336,7 @@ fn output_rejects_expired_and_non_unit_serials() {
 
 #[test]
 fn output_value_and_genealogy_split_across_allocations() {
-    let input = erpx_server_manufacturing::public::lots::OutputLotInput {
+    let input = erpx_manufacturing_server::public::lots::OutputLotInput {
         key: "key",
         order_id: "order",
         order_version: 4,

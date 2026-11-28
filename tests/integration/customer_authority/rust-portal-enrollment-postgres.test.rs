@@ -6,18 +6,18 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_customer_authority::public::portal_enrollment::{
+use erpx_customer_authority_server::public::portal_enrollment::{
     EnrollmentFuture, PgPortalEnrollmentCommand, PortalSession, PortalSessionPort, accept, release,
     reserve,
 };
-use erpx_server_customer_authority::public::portal_invitation_delivery::{
+use erpx_customer_authority_server::public::portal_invitation_delivery::{
     InvitationClaims, invitation_token, invitation_token_hash,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 use sqlx::Row;
 
 const NOW: i64 = 1_800_000_000_000;
@@ -37,14 +37,14 @@ impl PortalSessionPort for FixedSession {
         Box::pin(async move {
             if self.fail {
                 return Err(BusinessError::new(
-                    erpx_server_shared::public::FailureKind::Unauthenticated,
+                    erpx_platform_shared_server::public::FailureKind::Unauthenticated,
                     "CUSTOMER_PORTAL_SESSION_REQUIRED",
                     "Sign in again to accept this invitation.",
                 ));
             }
             if expected.is_some_and(|value| value != &self.proof) {
                 return Err(BusinessError::new(
-                    erpx_server_shared::public::FailureKind::Unauthenticated,
+                    erpx_platform_shared_server::public::FailureKind::Unauthenticated,
                     "CUSTOMER_PORTAL_SESSION_REQUIRED",
                     "Sign in again to accept this invitation.",
                 ));
@@ -159,7 +159,7 @@ async fn reserve_at(
     token: &str,
     now: i64,
 ) -> Result<
-    erpx_server_customer_authority::public::portal_enrollment::EnrollmentInvite,
+    erpx_customer_authority_server::public::portal_enrollment::EnrollmentInvite,
     PgTransactionError<BusinessError>,
 > {
     let token = token.to_owned();
@@ -173,7 +173,7 @@ async fn reserve_at(
                 let mut command = PgPortalEnrollmentCommand::new(
                     connection,
                     &mut session,
-                    erpx_server_commercial::public::purchases::PackageEnforcementMode::Disabled,
+                    erpx_commercial_server::public::purchases::PackageEnforcementMode::Disabled,
                     false,
                 );
                 reserve(&mut command, &claims, &token, now).await
@@ -184,7 +184,7 @@ async fn reserve_at(
 
 async fn release_at(
     pool: &DatabasePool,
-    reservation: &erpx_server_customer_authority::public::portal_enrollment::EnrollmentReservation,
+    reservation: &erpx_customer_authority_server::public::portal_enrollment::EnrollmentReservation,
 ) -> Result<(), PgTransactionError<BusinessError>> {
     let reservation = reservation.clone();
     PgUnitOfWork::new(pool.clone())
@@ -195,7 +195,7 @@ async fn release_at(
                 let mut command = PgPortalEnrollmentCommand::new(
                     connection,
                     &mut session,
-                    erpx_server_commercial::public::purchases::PackageEnforcementMode::Disabled,
+                    erpx_commercial_server::public::purchases::PackageEnforcementMode::Disabled,
                     false,
                 );
                 release(&mut command, &reservation).await
@@ -210,7 +210,7 @@ async fn accept_at(
     now: i64,
     session_fail: bool,
 ) -> Result<
-    erpx_server_customer_authority::public::portal_enrollment::AcceptedInvitation,
+    erpx_customer_authority_server::public::portal_enrollment::AcceptedInvitation,
     PgTransactionError<BusinessError>,
 > {
     let token = token.to_owned();
@@ -225,7 +225,7 @@ async fn accept_at(
                 let mut command = PgPortalEnrollmentCommand::new(
                     connection,
                     &mut session,
-                    erpx_server_commercial::public::purchases::PackageEnforcementMode::Disabled,
+                    erpx_commercial_server::public::purchases::PackageEnforcementMode::Disabled,
                     false,
                 );
                 accept(&mut command, &claims, &token, now).await

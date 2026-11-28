@@ -2,12 +2,12 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { jsonEachApproverPoolSql } from '../../../packages/server-workflow/src/adapters/json-each-sources';
-import { participantSql } from '../../../packages/server-workflow/src/adapters/approval-participant-projection';
-import { nativeApprovalPlanningPorts } from '../../../packages/server-workflow/src/adapters/approval-planning';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import { jsonEachApproverPoolSql } from '../../../modules/workflow/server/src/adapters/json-each-sources';
+import { participantSql } from '../../../modules/workflow/server/src/adapters/approval-participant-projection';
+import { nativeApprovalPlanningPorts } from '../../../modules/workflow/server/src/adapters/approval-planning';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-workflow/src');
+const srcRoot = resolve(__dirname, '../../../modules/workflow/server/src');
 const poolSql = (expr: string) => `SELECT value FROM erpx_json_each(COALESCE(${expr},'[]'))`;
 
 // Guards are built synchronously; no DB execution occurs.
@@ -49,9 +49,9 @@ describe('approver-pool erpx_json_each generator family (r35)', () => {
 
   it('keeps one generator definition and no inline COALESCE literals in callers', async () => {
     const [shared, planning, participant] = await Promise.all([
-      readFile(new URL('../../../packages/server-workflow/src/adapters/json-each-sources.ts', import.meta.url), 'utf8'),
-      readFile(new URL('../../../packages/server-workflow/src/adapters/approval-planning.ts', import.meta.url), 'utf8'),
-      readFile(new URL('../../../packages/server-workflow/src/adapters/approval-participant-projection.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/workflow/server/src/adapters/json-each-sources.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/workflow/server/src/adapters/approval-planning.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/workflow/server/src/adapters/approval-participant-projection.ts', import.meta.url), 'utf8'),
     ]);
     expect(shared.match(/export const jsonEachApproverPoolSql/g) ?? []).toHaveLength(1);
     expect(planning).not.toContain("erpx_json_each(COALESCE(approver_pool_json");

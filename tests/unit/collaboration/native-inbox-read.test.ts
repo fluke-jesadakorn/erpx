@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const calls: Array<{ company: string; input: Record<string, unknown> }> = [];
 const statement = { tag: 'native-statement' };
-vi.mock('../../../packages/server-collaboration/src/adapters/native-system-notification', () => ({
+vi.mock('../../../modules/collaboration/server/src/adapters/native-system-notification', () => ({
   nativeSystemNotificationStatement: vi.fn(async (
     _db: { prepare(sql: string): { bind(): unknown } },
     company: string,
@@ -20,9 +20,9 @@ import {
   nativeInboxStatements,
   nativeInboxSqlFragment,
   SYSTEM_COMPANY,
-} from '../../../packages/server-collaboration/src/adapters/native-inbox-statements';
+} from '../../../modules/collaboration/server/src/adapters/native-inbox-statements';
 
-const root = resolve(process.cwd(), 'packages/server-collaboration/src');
+const root = resolve(process.cwd(), 'modules/collaboration/server/src');
 const adapters = resolve(root, 'adapters');
 const src = (f: string) => readFileSync(resolve(adapters, f), 'utf8');
 const db = { prepare: (_sql: string) => ({ bind: () => statement }) } as never;

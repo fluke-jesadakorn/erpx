@@ -3,19 +3,19 @@ const list = vi.fn();
 const status = vi.fn();
 const mapped = vi.fn();
 vi.mock('server-only', () => ({}));
-vi.mock('@erpx/feature-work_projection/lib/destination-links', () => ({
+vi.mock('@erpx/work-projection-ui/lib/destination-links', () => ({
   canonicalDestinationLinks: (value: unknown) => value,
 }));
-vi.mock('@erpx/server-files/public/attachments/feature', () => ({
+vi.mock('@erpx/files-server/public/attachments/feature', () => ({
   attachmentsV2ReadOnly: () => false,
 }));
-vi.mock('@erpx/server-files/public/native-attachments', () => ({
+vi.mock('@erpx/files-server/public/native-attachments', () => ({
   nativeAttachmentReadAvailable: () => process.env.ERPX_NATIVE_ATTACHMENT_READ_CONFIG !== undefined,
   nativeAttachmentReadConfiguration: (raw: string) => JSON.parse(raw),
   createNativeAttachmentReadClient: () => ({ list, status }),
   nativeAttachmentReadFailure: (error: unknown) => mapped(error),
 }));
-vi.mock('@erpx/server-runtime/public/http', () => ({
+vi.mock('@erpx/platform-runtime-server/public/http', () => ({
   ApiError: class ApiError extends Error {
     constructor(
       readonly status: number,
@@ -31,9 +31,9 @@ import {
   nativeAttachmentReadConfigured,
   nativeAttachmentSets,
   nativeAttachmentStatus,
-} from '../../../packages/workplace/src/lib/native-attachments';
-import { ApiError } from '@erpx/server-runtime/public/http';
-import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
+} from '../../../platform/workplace/src/lib/native-attachments';
+import { ApiError } from '@erpx/platform-runtime-server/public/http';
+import type { WorkContext } from '@erpx/identity-access-server/public/authorization';
 
 const actor = {
   userId: 'actor',

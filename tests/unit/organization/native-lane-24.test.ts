@@ -25,10 +25,10 @@ import {
   nativeLane24WorkspacePositions,
   validateFacts,
   type Lane24Target,
-} from '../../../packages/server-organization/src/adapters/native-lane-24/client';
-import { peopleEvaluationOrganizationFacts } from '../../../packages/server-organization/src/adapters/people-evaluation-facts';
-import { peopleAccessNodes } from '../../../packages/server-organization/src/adapters/people-access-nodes';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+} from '../../../modules/organization/server/src/adapters/native-lane-24/client';
+import { peopleEvaluationOrganizationFacts } from '../../../modules/organization/server/src/adapters/people-evaluation-facts';
+import { peopleAccessNodes } from '../../../modules/organization/server/src/adapters/people-access-nodes';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
 
 const HOLDINGS = [
   { origin: 'https://acme.jesadakorn.com', host: 'acme.jesadakorn.com', holdingId: 'h001', holdingSlug: 'acme', companyId: 'acme-company' },

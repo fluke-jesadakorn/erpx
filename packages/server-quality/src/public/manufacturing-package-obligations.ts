@@ -1,1 +1,0 @@
-export {lockManufacturingQualityPackageObligationSources,manufacturingQualityPackageObligations} from "@erpx/server-quality/adapters/manufacturing-package-obligations";

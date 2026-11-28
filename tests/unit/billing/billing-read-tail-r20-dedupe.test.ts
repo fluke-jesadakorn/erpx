@@ -1,8 +1,8 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { billingUsageMeterSql, billingSeatUsageSql } from '../../../packages/server-billing/src/adapters/billing-read-tail-r20-sql';
+import { billingUsageMeterSql, billingSeatUsageSql } from '../../../modules/billing/server/src/adapters/billing-read-tail-r20-sql';
 
-const src = (name: string) => readFile(new URL(`../../../packages/server-billing/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFile(new URL(`../../../modules/billing/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 /** Byte-identical originals, with the awaited native commercial source rendered as SRC. */
 const METER_MEASURED = `SELECT source_key,meter_kind,company_id,branch_id,funding_source,quantity,
@@ -74,7 +74,7 @@ describe('billing read-tail r20 parameterized family dedupe', () => {
   });
 
   it('lowers the billing owner SELECT KPI strictly below the recorded BEFORE=71 baseline', async () => {
-    const files = await tsFiles(new URL('../../../packages/server-billing/src/', import.meta.url));
+    const files = await tsFiles(new URL('../../../modules/billing/server/src/', import.meta.url));
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThan(71);

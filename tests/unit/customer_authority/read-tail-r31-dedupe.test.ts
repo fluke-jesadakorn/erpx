@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { supportConclusionIdentity } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r31-sources';
+import { supportConclusionIdentity } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-tail-r31-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-customer_authority/src');
+const srcRoot = resolve(__dirname, '../../../modules/customer-authority/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 // Exact pre-dedupe SELECT clauses copied verbatim from HEAD (r30 baseline,

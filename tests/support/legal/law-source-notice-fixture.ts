@@ -9,7 +9,7 @@
  * Tracked for removal by `retire.collaboration.legal-law-source-notifications`:
  * delete once the harness drives the native statement port directly.
  */
-import type { SqlDatabase, SqlStatement } from '@erpx/server-runtime/public/runtime/types';
+import type { SqlDatabase, SqlStatement } from '@erpx/platform-runtime-server/public/runtime/types';
 
 const SQL = `INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)
  SELECT ?,i.company_id,i.owner_id,'legal',i.id,i.version,'Official law source changed; review original, text, dates and Company applicability before use',?

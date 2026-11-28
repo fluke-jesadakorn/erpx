@@ -2,14 +2,14 @@ import { describe, expect, test } from 'vitest';
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { memberExistsSql, evidenceProjectionHead } from '../../../packages/server-projects/src/adapters/read-tail-r38';
+import { memberExistsSql, evidenceProjectionHead } from '../../../modules/projects/server/src/adapters/read-tail-r38';
 import {
   projectReadProjection, projectMemberScopeSql, projectOwnerOrMemberColumnSql,
   projectHandoverSourceSql, projectOwnerOrMemberSql, projectTaskMemberSql, projectMemberScopeGuard,
-} from '../../../packages/server-projects/src/adapters/project-read-projections';
-import { projectMemberExistsSql } from '../../../packages/server-projects/src/adapters/read-tail-r27';
+} from '../../../modules/projects/server/src/adapters/project-read-projections';
+import { projectMemberExistsSql } from '../../../modules/projects/server/src/adapters/read-tail-r27';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-projects/src');
+const srcRoot = resolve(__dirname, '../../../modules/projects/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 

@@ -1,6 +1,6 @@
-import { supportedModelProtocol } from "@erpx/feature-shared/lib/ai/providers";
-import { sealAiKey } from "@erpx/server-agent/public/ai-transport";
-import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import { supportedModelProtocol } from "@erpx/platform-shared-ui/lib/ai/providers";
+import { sealAiKey } from "@erpx/agent-server/public/ai-transport";
+import type { SqlDatabase } from "@erpx/platform-runtime-server/public/runtime/types";
 
 type AiEnv = {
   AI_CREDENTIAL_KEY_ID?: string;

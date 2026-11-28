@@ -1,13 +1,13 @@
 //! Actual owner-local Branding HTTP router tests. These prove ingress facts
 //! only; Account authority, Branding policy, snapshots, receipts, audit and
 //! outbox remain separate composition responsibilities.
-use erpx_server_brand::public::branding_http::{
+use erpx_brand_server::public::branding_http::{
     BrandingHttpBackend, BrandingHttpCommandRequest, BrandingHttpFuture, BrandingHttpReadRequest,
     BrandingHttpTarget, BrandingPresentationHttpRequest, BrandingPresentationReadKind,
     branding_http_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Noop;

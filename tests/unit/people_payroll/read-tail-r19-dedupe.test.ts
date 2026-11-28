@@ -6,9 +6,9 @@ import {
   PP_RD19_EVAL_DEF_OPEN_EXISTS_SQL,
   PP_RD19_ACTIVE_ENGAGEMENT_EXISTS_SQL,
   ppRd19InList,
-} from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r19-sources';
+} from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r19-sources';
 
-const src = (name: string) => readFileSync(new URL(`../../../packages/server-people_payroll/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFileSync(new URL(`../../../modules/people-payroll/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const quoted = (literal: string) => JSON.stringify(literal);
 const literals = [
   PP_RD19_HR_ENGAGEMENT_VERSION_EXISTS_SQL,
@@ -89,7 +89,7 @@ describe('People Payroll read-tail r19 byte-identical dedupe', () => {
   });
 
   test('worktree read-only SELECT count stays strictly lower than the recorded 1552 r19 baseline', () => {
-    const root = new URL('../../../packages/server-people_payroll/src/', import.meta.url);
+    const root = new URL('../../../modules/people-payroll/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {

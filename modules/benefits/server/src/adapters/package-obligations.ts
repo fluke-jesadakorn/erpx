@@ -1,0 +1,72 @@
+import "server-only";
+import {createHash} from "node:crypto";
+import type {PostgresDatabase} from "@erpx/platform-runtime-server/public/runtime/postgres";
+import type {SqlDatabase} from "@erpx/platform-runtime-server/public/runtime/types";
+import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/commercial-server/public/package-settlement-sources";
+import {benefitEligibilitySettlementLocks,benefitEligibilitySettlementSources as learning} from "@erpx/learning-server/public/benefit-source-facts";
+import {benefitPayrollInputOwnerPredicate,benefitElectionFactPrefix,benefitReleasedElectionHandoffPrefix,benefitScopePrefix,benefitWindowFactPrefix,benefitDependentFactPrefix,benefitPlanFactPrefix,benefitFactFinalSelect,benefitLearningFactArm,benefitSubqueryNotExists,benefitExistsHead} from "@erpx/benefits-server/adapters/benefits-read-sql";
+import {benefitSettlementEvents} from "./native-lane-settlement/client";
+
+type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
+const sources=new WeakMap<SqlDatabase,string>();
+export async function lockBenefitPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){
+ const {database,companyId}=packageSettlementSource(owner,lock);
+ await database.batch([database.prepare("LOCK TABLE benefit_plans,benefit_plan_events,benefit_enrollment_windows,benefit_window_events,benefit_dependents,benefit_dependent_events,benefit_elections,benefit_election_events,benefit_payroll_inputs,command_receipts IN SHARE MODE"),...benefitEligibilitySettlementLocks(database)]);
+ sources.set(database,companyId);
+}
+export function assertBenefitPackageObligationSources(owner:PostgresDatabase,database:SqlDatabase,companyId:string){owner.assertActiveTransaction(database);if(sources.get(database)!==companyId)throw Error("BENEFIT_PACKAGE_OBLIGATION_SOURCE_REQUIRED");}
+function terminal(table:string,id:string,kind:string){
+ return benefitExistsHead(table, `event JOIN command_receipts command ON command.record_id=${id}.id
+ AND command.operation='benefits.${kind}.'||CASE WHEN event.action IN ('create','elect') THEN 'create' ELSE event.action END
+ AND command.actor_id=event.actor_id AND command.authority_json::jsonb->>'companyId'=${id}.company_id
+ AND command.result_json::jsonb->>'id'=${id}.id AND command.result_json::jsonb->>'status'=event.status
+ AND command.result_json::jsonb->>'version'=event.version::text
+ WHERE event.${kind==='window'?'window':kind}_id=${id}.id AND event.status=${id}.status AND event.version<=${id}.version`);
+}
+/** Byte-identical owner-local settlement-source projection shared by the four
+ * Benefits actual-source selects; generated SQL is unchanged. */
+const settlementSource=(events:string,alias:string,kind:string,table:string)=>`SELECT ${alias}.*,${terminal(events,alias,kind)} terminal_proven FROM ${table} ${alias}`;
+/** Closed actual owner lineage, including sources hidden by a user's Work,
+ * purchase, state or rollout. Peer owners never substitute caller labels. */
+export const benefitPackageSettlementSources={
+ plans:settlementSource('benefit_plan_events','p','plan','benefit_plans'),
+ windows:settlementSource('benefit_window_events','w','window','benefit_enrollment_windows'),
+ dependents:settlementSource('benefit_dependent_events','d','dependent','benefit_dependents'),
+ elections:settlementSource('benefit_election_events','e','election','benefit_elections'),
+ inputs:"SELECT * FROM benefit_payroll_inputs",
+} as const;
+/** Byte-identical owner-local MATERIALIZED scope CTE projection shared by the
+ * plans/windows/elections settlement sources; generated SQL is unchanged. */
+export const materializedScopeCte=(alias:string,source:string)=>`SELECT ${alias}.* FROM (${source}) ${alias},scope WHERE ${alias}.company_id=scope.company_id`;
+/** The four-arm event history is owned by the native settlement route; no
+ * TypeScript SQL remains for it in this adapter. */
+export async function benefitPackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){
+ assertBenefitPackageObligationSources(owner,database,input.companyId);
+ if(input.moduleId!=="benefits"||input.packageId!=="people-benefits"||input.packageVersion!==1||!Number.isSafeInteger(input.now)||input.now<0)throw Error("BENEFIT_PACKAGE_OBLIGATION_SCOPE_REQUIRED");
+ const facts=(await database.prepare(`${benefitScopePrefix}to_char(to_timestamp(?::bigint/1000.0) AT TIME ZONE 'UTC','YYYY-MM-DD') today),
+ plans AS MATERIALIZED(${materializedScopeCte('p',benefitPackageSettlementSources.plans)}),
+ windows AS MATERIALIZED(${materializedScopeCte('w',benefitPackageSettlementSources.windows)}),
+ elections AS MATERIALIZED(${materializedScopeCte('e',benefitPackageSettlementSources.elections)}),
+ facts AS(
+ ${benefitPlanFactPrefix}p.status NOT IN ('retired','rejected') OR NOT p.terminal_proven pending FROM plans p
+ ${benefitWindowFactPrefix}w.status NOT IN ('closed','cancelled') OR NOT w.terminal_proven FROM windows w
+ ${benefitDependentFactPrefix} OR NOT d.terminal_proven FROM (${benefitPackageSettlementSources.dependents}) d,scope WHERE d.company_id=scope.company_id
+ ${benefitElectionFactPrefix} NOT e.terminal_proven
+ OR plan.id IS NULL OR plan.company_id IS DISTINCT FROM e.company_id OR plan.version<e.plan_version
+${benefitReleasedElectionHandoffPrefix} JOIN benefit_election_events event ON event.election_id=e.id AND event.version=handoff.source_election_version AND event.action='release' AND event.status='released' AND event.actor_id=handoff.released_by
+ JOIN command_receipts command ON command.record_id=e.id AND command.operation='benefits.election.release' AND command.actor_id=event.actor_id AND command.authority_json::jsonb->>'companyId'=e.company_id AND command.result_json::jsonb->>'version'=event.version::text
+ WHERE handoff.election_id=e.id AND handoff.company_id=e.company_id AND handoff.person_id=e.person_id AND handoff.engagement_id=e.engagement_id AND handoff.currency=e.currency AND handoff.source_election_version<=e.version AND handoff.employee_deduction_minor=e.employee_deduction_minor AND handoff.employer_cost_minor=e.employer_cost_minor AND handoff.effective_from=e.effective_from AND handoff.effective_to IS NOT DISTINCT FROM e.effective_to)
+ OR (e.employee_deduction_minor+e.employer_cost_minor>0 AND (e.effective_to IS NULL OR e.effective_to>=scope.today))))
+ FROM elections e CROSS JOIN scope LEFT JOIN plans plan ON plan.id=e.plan_id LEFT JOIN windows win ON win.id=e.window_id
+ UNION ALL ${benefitPayrollInputOwnerPredicate} OR e.effective_from IS DISTINCT FROM h.effective_from OR e.effective_to IS DISTINCT FROM h.effective_to FROM benefit_payroll_inputs h CROSS JOIN scope LEFT JOIN elections e ON e.id=h.election_id WHERE h.company_id=scope.company_id
+ ${benefitLearningFactArm('learning-consumption','c.id','c.source_assignment_version',"'consumed'",'c.image',`
+ e.id IS NULL OR c.person_id IS DISTINCT FROM e.person_id OR c.certificate_id IS DISTINCT FROM e.learning_certificate_id OR c.certificate_source_id IS NULL OR c.certificate_company_id IS DISTINCT FROM c.company_id OR c.certificate_person_id IS DISTINCT FROM c.person_id OR c.certificate_handoff_id IS DISTINCT FROM c.handoff_id OR c.certificate_source_version IS DISTINCT FROM c.source_assignment_version OR c.certificate_code IS DISTINCT FROM c.eligibility_code
+ OR c.handoff_source_id IS NULL OR c.handoff_company_id IS DISTINCT FROM c.company_id OR c.handoff_person_id IS DISTINCT FROM c.person_id OR c.handoff_assignment_id IS DISTINCT FROM c.assignment_id OR c.handoff_source_version IS DISTINCT FROM c.source_assignment_version OR c.handoff_code IS DISTINCT FROM c.eligibility_code OR c.assignment_source_id IS NULL OR c.assignment_company_id IS DISTINCT FROM c.company_id OR c.assignment_version<c.source_assignment_version
+ FROM (${learning.consumptions}) c CROSS JOIN scope LEFT JOIN elections e ON e.id=c.election_id WHERE c.company_id=scope.company_id
+`)} ${benefitLearningFactArm('missing-learning-consumption','e.id','e.version','e.status','to_jsonb(e)',`true FROM elections e JOIN plans plan ON plan.id=e.plan_id WHERE e.status<>'cancelled' AND plan.required_eligibility_code IS NOT NULL AND ${benefitSubqueryNotExists(learning.consumptions, 'c', 'c.election_id=e.id AND c.company_id=e.company_id AND c.certificate_id=e.learning_certificate_id AND c.person_id=e.person_id AND c.eligibility_code=plan.required_eligibility_code')}`)}
+ ${benefitFactFinalSelect('COALESCE(pending,true)',' ORDER BY kind,id')}`).bind(input.companyId,input.now).all<{kind:string;id:string;version:number;state:string;image:unknown;pending:boolean}>()).results;
+ // Event history is immutable, but still participates in the reviewed image.
+  // Event history is immutable and now read solely by the native owner route.
+  const events=await benefitSettlementEvents(input.companyId);
+ return {companyId:input.companyId,packageId:input.packageId,moduleId:"benefits",observedAt:input.now,revision:createHash("sha256").update(JSON.stringify({companyId:input.companyId,packageVersion:input.packageVersion,facts,events:events.results})).digest("hex"),outstanding:facts.filter(fact=>fact.pending).length};
+}

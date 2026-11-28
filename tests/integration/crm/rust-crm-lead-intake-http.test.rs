@@ -2,13 +2,13 @@
 //! These prove ingress facts only; composition, Account session, scope,
 //! purchase, Finance/Commerce witnesses, Workflow and PostgreSQL remain
 //! separate responsibilities.
-use erpx_server_crm::public::commands_http::{CommandHttpFuture, CrmCommandHttpReply};
-use erpx_server_crm::public::leads_intake_http::{
+use erpx_crm_server::public::commands_http::{CommandHttpFuture, CrmCommandHttpReply};
+use erpx_crm_server::public::leads_intake_http::{
     CrmLeadIntakeHttpBackend, CrmLeadIntakeHttpRequest, CrmLeadIntakeHttpTarget,
     crm_lead_intake_http_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Noop;

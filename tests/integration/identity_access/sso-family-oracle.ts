@@ -1,4 +1,4 @@
-import type { TransactionalSqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import type { TransactionalSqlDatabase } from "@erpx/platform-runtime-server/public/runtime/types";
 
 /**
  * Test oracle for the native SSO family deletion protocol.

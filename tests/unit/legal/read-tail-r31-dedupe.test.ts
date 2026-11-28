@@ -2,10 +2,10 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { legalRecentItemListSql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r31-sources';
+import { legalRecentItemListSql } from '../../../modules/legal/server/src/adapters/legal-read-tail-r31-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-legal/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-legal/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/legal/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/legal/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const recent = (columns: string, table: string, limit: number) =>
   `SELECT ${columns} FROM ${table} WHERE item_id=? ORDER BY created_at DESC LIMIT ${limit}`;
 
@@ -104,7 +104,7 @@ const CONFIG = {
 };
 const native = { id: 'item-one', version: 7 };
 const ownerSrc = (name: string) =>
-  readFile(new URL(`../../../packages/server-legal/src/${name}`, import.meta.url), 'utf8');
+  readFile(new URL(`../../../modules/legal/server/src/${name}`, import.meta.url), 'utf8');
 
 let savedConfig: string | undefined;
 let savedFetch: typeof globalThis.fetch;
@@ -129,7 +129,7 @@ function capture(response: () => Response = () => Response.json(native)) {
 
 describe('legal read-tail r31 native inspection-source cutover', () => {
   it('parity: findInspectionSource returns the exact native projection', async () => {
-    const { findInspectionSource } = await import('@erpx/server-legal/public/legal/processing');
+    const { findInspectionSource } = await import('@erpx/legal-server/public/legal/processing');
     begin();
     const calls = capture();
     const out = await findInspectionSource({} as never, 'company-a', 'doc/one');
@@ -142,7 +142,7 @@ describe('legal read-tail r31 native inspection-source cutover', () => {
 
   it('bind: the Company selects the exact registered Holding and reaches the owner read', async () => {
     const { nativeInspectionSourceRead } = await import(
-      '../../../packages/server-legal/src/adapters/native-legal-auxiliary'
+      '../../../modules/legal/server/src/adapters/native-legal-auxiliary'
     );
     begin();
     const calls = capture();
@@ -157,7 +157,7 @@ describe('legal read-tail r31 native inspection-source cutover', () => {
   });
 
   it('fails closed on unknown Company, invalid ids, missing config and native errors', async () => {
-    const { findInspectionSource } = await import('@erpx/server-legal/public/legal/processing');
+    const { findInspectionSource } = await import('@erpx/legal-server/public/legal/processing');
     begin();
     capture();
     await expect(findInspectionSource({} as never, 'company-x', 'doc-one')).rejects.toMatchObject({

@@ -5,7 +5,7 @@ const root = resolve(import.meta.dir, "../..");
 const arguments_ = process.argv.slice(2);
 if (arguments_.some(value => value !== "--check") || arguments_.length > 1) throw new Error("ACCOUNT_CONTRACT_ARGUMENTS_INVALID");
 const cargo = process.env.ERPX_CARGO_BIN ?? "cargo";
-const command = [cargo, "run", "--quiet", "--locked", "--package", "erpx-server-identity-access", "--example", "export-account-contracts", "--features", "contracts"];
+const command = [cargo, "run", "--quiet", "--locked", "--package", "erpx-identity-access-server", "--example", "export-account-contracts", "--features", "contracts"];
 const generated = Bun.spawnSync(command, { cwd: root, stdout: "pipe", stderr: "pipe" });
 if (generated.exitCode !== 0) {
   process.stderr.write(generated.stderr);
@@ -18,7 +18,7 @@ if (openapi.exitCode !== 0) { process.stderr.write(openapi.stderr); throw new Er
 const specification = openapi.stdout.toString();
 const document: unknown = JSON.parse(specification);
 if (!document || typeof document !== "object" || !("openapi" in document) || !("paths" in document)) throw new Error("ACCOUNT_OPENAPI_OUTPUT_INVALID");
-for (const [relative, content] of [["packages/contracts/src/account-auth.generated.ts", source], ["docs/contracts/next/account-auth.openapi.generated.json", specification]]) {
+for (const [relative, content] of [["platform/contracts/src/account-auth.generated.ts", source], ["docs/contracts/next/account-auth.openapi.generated.json", specification]]) {
   const destination = resolve(root, relative);
   if (arguments_.includes("--check")) {
     if (!existsSync(destination) || readFileSync(destination, "utf8") !== content) throw new Error(`ACCOUNT_CONTRACTS_STALE:${relative}`);

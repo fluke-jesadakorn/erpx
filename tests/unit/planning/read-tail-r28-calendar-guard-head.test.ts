@@ -2,11 +2,11 @@ import { describe, expect, test } from 'vitest';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { resourceCalendarByKey } from '../../../packages/server-planning/src/adapters/planning-calendar-source-sql';
-import { planningScopedBranchList } from '../../../packages/server-planning/src/adapters/planning-scoped-list-sql';
-import { planningPackageFactRows } from '../../../packages/server-planning/src/adapters/planning-package-fact-sql';
+import { resourceCalendarByKey } from '../../../modules/planning/server/src/adapters/planning-calendar-source-sql';
+import { planningScopedBranchList } from '../../../modules/planning/server/src/adapters/planning-scoped-list-sql';
+import { planningPackageFactRows } from '../../../modules/planning/server/src/adapters/planning-package-fact-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-planning/src');
+const srcRoot = resolve(__dirname, '../../../modules/planning/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
 const sha = (text: string) => createHash('sha256').update(text).digest('hex');

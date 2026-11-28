@@ -1,5 +1,5 @@
 import type { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import {positionSchema} from '@erpx/server-organization/public/organization';
+import {positionSchema} from '@erpx/organization-server/public/organization';
 import {savePosition} from './organization-positions';
 import {installStaffLevels} from './organization-levels';
 

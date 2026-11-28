@@ -3,8 +3,8 @@
 Status: **spec only**. The shared per-suite composition harness is not ready for
 people_payroll and is outside this worker's allowed paths
 (`retire.people_payroll.people-payroll`, claim `run-20261123-e` / `worker-ppP2`).
-Owner scope here is `packages/server-people_payroll`,
-`packages/feature-people_payroll`, `tests/**`. The harness itself lives in
+Owner scope here is `modules/people-payroll/server`,
+`modules/people-payroll/ui`, `tests/**`. The harness itself lives in
 `scripts/testing/**` and is lead/shared-owned; this worker must not edit it, the
 migration ledger, or push. Acceptance stays deferred.
 
@@ -19,9 +19,9 @@ migration ledger, or push. Acceptance stays deferred.
   is complete. The remaining fault is **cross-database**, not configuration:
   - The native transports resolve through
     `ERPX_NATIVE_PEOPLE_PAYROLL_CONFIG`
-    (`packages/server-people_payroll/src/adapters/native-people-payroll-command.ts`,
-    `packages/feature-people_payroll/src/public/native-payroll-summary.ts`,
-    `packages/feature-people_payroll/src/adapters/server/native-workforce.ts`)
+    (`modules/people-payroll/server/src/adapters/native-people-payroll-command.ts`,
+    `modules/people-payroll/ui/src/public/native-payroll-summary.ts`,
+    `modules/people-payroll/ui/src/adapters/server/native-workforce.ts`)
     to the shared `erpx-server` private-api on loopback `:3198`, which is
     configured against the **shared dev DB**.
   - The lane seeds its fixture into its own leased/template DB (`H001_DB` slot,
@@ -33,8 +33,8 @@ migration ledger, or push. Acceptance stays deferred.
   - That company does not exist in the dev DB behind `:3198`, so the native
     command route cannot resolve the actor/company and fails closed with
     `NATIVE_PEOPLE_PAYROLL_UNAVAILABLE` (503). Secondary in-lane error:
-    `PACKAGE_DEPENDENCY_REQUIRED` (`packages/server-commercial/src/domain/package-dependencies.ts`,
-    `packages/server-commercial/src/domain/packages.rs`) on the people package
+    `PACKAGE_DEPENDENCY_REQUIRED` (`modules/commercial/server/src/domain/package-dependencies.ts`,
+    `modules/commercial/server/src/domain/packages.rs`) on the people package
     obligation preview, a downstream effect of the failed native authority path.
 
 Fix: the lane's native transports must reach a composition instance bound to
@@ -135,7 +135,7 @@ lead fixes the harness contract in §3.
 - Migrate any remaining TS-oracle seeding in `tests/integration/people_payroll/**`
   to native-seeded fixtures as required by the retirement gate; remove only
   writers whose native counterpart is proven and whose TS callers are gone.
-- Do **not** delete `packages/server-people_payroll/src/adapters/people-payroll.ts`
+- Do **not** delete `modules/people-payroll/server/src/adapters/people-payroll.ts`
   (51 writes) or its barrels until native parity + no-live-TS-caller are proven
   and the owner KPI check strictly decreases.
 
@@ -145,8 +145,8 @@ lead fixes the harness contract in §3.
 ERPX_TEST_NATIVE_COMPOSITION=1 \
   bun scripts/testing/test.ts integration --suite=people_payroll.core.integration
 # green 22/22; zero NATIVE_PEOPLE_PAYROLL_UNAVAILABLE / PACKAGE_DEPENDENCY_REQUIRED
-cargo check -p erpx-server-people-payroll --offline
-~/.bun/bin/bunx tsc --noEmit -p packages/feature-people_payroll/tsconfig.json
+cargo check -p erpx-people-payroll-server --offline
+~/.bun/bin/bunx tsc --noEmit -p modules/people-payroll/ui/tsconfig.json
 # retirement:ts-writes owner KPI strictly lower at deletion SHA
 ```
 

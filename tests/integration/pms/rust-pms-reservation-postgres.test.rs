@@ -4,7 +4,7 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_pms::public::reservation::{
+use erpx_pms_server::public::reservation::{
     PgPmsReservationRepository, PmsReservationActor, PmsReservationCancelInput,
     PmsReservationChangeInput, PmsReservationCommand, PmsReservationCommandInput,
     PmsReservationCreateInput, PmsReservationGuestInput, PmsReservationHttpBackend,
@@ -12,12 +12,12 @@ use erpx_server_pms::public::reservation::{
     PmsReservationHttpTarget, PmsReservationLine, PmsReservationOperation,
     lock_reservation_sources, pms_reservation, pms_reservation_router, reservation_request_hash,
 };
-use erpx_server_pms::public::room_board::PmsBoardActor;
-use erpx_server_runtime::public::http_support::serve;
-use erpx_server_runtime::public::postgres::{
+use erpx_pms_server::public::room_board::PmsBoardActor;
+use erpx_platform_runtime_server::public::http_support::serve;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey, FailureKind};
 use serde_json::{Value, json};
 use sqlx::Row;
 use std::sync::{
@@ -278,7 +278,7 @@ async fn execute(
     command: &PmsReservationCommand,
     now: i64,
 ) -> Result<
-    erpx_server_pms::public::reservation::PmsReservationResult,
+    erpx_pms_server::public::reservation::PmsReservationResult,
     PgTransactionError<BusinessError>,
 > {
     let mut repository = PgPmsReservationRepository::new(&mut **tx);

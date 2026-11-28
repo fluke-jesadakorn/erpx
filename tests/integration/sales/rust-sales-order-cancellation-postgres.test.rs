@@ -6,15 +6,15 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_sales::public::sales_order_cancellation::{
+use erpx_sales_server::public::sales_order_cancellation::{
     PgSalesCancellation, SalesCancellationActor, SalesCancellationCommand,
     SalesCancellationReceipt, cancel_confirmed_sales_order,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, RecordId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, RecordId, TimestampMillis};
 use sqlx::Row;
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
@@ -447,7 +447,7 @@ async fn rollback_removes_the_order_receipt_audit_outbox_and_release() {
                     .await?;
                     Err::<(), PgTransactionError<BusinessError>>(
                         BusinessError::new(
-                            erpx_server_shared::public::FailureKind::Unavailable,
+                            erpx_platform_shared_server::public::FailureKind::Unavailable,
                             "SYNTHETIC_ROLLBACK",
                             "Roll back this unit.",
                         )

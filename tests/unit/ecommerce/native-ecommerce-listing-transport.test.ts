@@ -5,9 +5,9 @@ import {
   nativeEcommerceListingFailure,
   nativeEcommerceListingRequired,
   NativeEcommerceListingError,
-} from '../../../packages/feature-sales/src/public/native-ecommerce-listing';
+} from '../../../modules/sales/ui/src/public/native-ecommerce-listing';
 vi.mock('server-only', () => ({}));
-import type { WorkContext } from '../../../packages/server-identity_access/src/public/authorization';
+import type { WorkContext } from '../../../modules/identity-access/server/src/public/authorization';
 
 const config = () => JSON.stringify({
   privateBaseUrl: 'http://127.0.0.1:44996',

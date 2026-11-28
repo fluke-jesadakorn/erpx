@@ -6,8 +6,8 @@ mod account;
 mod ldap;
 #[path = "../../support/rust-directory-source-change.rs"]
 mod source_change;
-use erpx_server_identity_access::public::{directory::*, *};
-use erpx_server_shared::public::{Clock, HoldingId};
+use erpx_identity_access_server::public::{directory::*, *};
+use erpx_platform_shared_server::public::{Clock, HoldingId};
 use sqlx::Row;
 use std::{collections::BTreeMap, sync::Arc};
 

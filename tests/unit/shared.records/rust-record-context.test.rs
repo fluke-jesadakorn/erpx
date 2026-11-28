@@ -1,9 +1,9 @@
 //! Native Records context-read policy and orchestration negatives.
-use erpx_server_records::public::record_context::{
+use erpx_records_server::public::record_context::{
     BacklinkEdge, HistoryRow, LinkTarget, MentionRow, RecordContextActor, RecordContextGuard,
     RecordContextRepository, RecordRow, ReferenceEdge, SuggestionRow, record_context,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::collections::{BTreeMap, BTreeSet};
 
 struct FakeRepository {
@@ -43,7 +43,7 @@ impl RecordContextRepository for FakeRepository {
         &'a mut self,
         _: &'a RecordContextActor,
         _: i64,
-    ) -> erpx_server_records::public::record_context::RecordContextFuture<'a, bool, Self::Error>
+    ) -> erpx_records_server::public::record_context::RecordContextFuture<'a, bool, Self::Error>
     {
         Box::pin(async move { Ok(self.authority) })
     }
@@ -52,7 +52,7 @@ impl RecordContextRepository for FakeRepository {
         _: &'a RecordContextActor,
         _: &'a str,
         _: &'a str,
-    ) -> erpx_server_records::public::record_context::RecordContextFuture<
+    ) -> erpx_records_server::public::record_context::RecordContextFuture<
         'a,
         Option<RecordRow>,
         Self::Error,
@@ -63,7 +63,7 @@ impl RecordContextRepository for FakeRepository {
         &'a mut self,
         _: &'a str,
         _: &'a str,
-    ) -> erpx_server_records::public::record_context::RecordContextFuture<
+    ) -> erpx_records_server::public::record_context::RecordContextFuture<
         'a,
         Vec<ReferenceEdge>,
         Self::Error,
@@ -74,7 +74,7 @@ impl RecordContextRepository for FakeRepository {
         &'a mut self,
         _: &'a str,
         _: &'a str,
-    ) -> erpx_server_records::public::record_context::RecordContextFuture<
+    ) -> erpx_records_server::public::record_context::RecordContextFuture<
         'a,
         Vec<BacklinkEdge>,
         Self::Error,
@@ -85,7 +85,7 @@ impl RecordContextRepository for FakeRepository {
         &'a mut self,
         _: &'a str,
         _: &'a str,
-    ) -> erpx_server_records::public::record_context::RecordContextFuture<
+    ) -> erpx_records_server::public::record_context::RecordContextFuture<
         'a,
         Vec<MentionRow>,
         Self::Error,
@@ -96,7 +96,7 @@ impl RecordContextRepository for FakeRepository {
         &'a mut self,
         _: &'a str,
         _: &'a str,
-    ) -> erpx_server_records::public::record_context::RecordContextFuture<
+    ) -> erpx_records_server::public::record_context::RecordContextFuture<
         'a,
         Vec<SuggestionRow>,
         Self::Error,
@@ -107,7 +107,7 @@ impl RecordContextRepository for FakeRepository {
         &'a mut self,
         _: &'a str,
         _: &'a str,
-    ) -> erpx_server_records::public::record_context::RecordContextFuture<
+    ) -> erpx_records_server::public::record_context::RecordContextFuture<
         'a,
         Vec<HistoryRow>,
         Self::Error,
@@ -119,7 +119,7 @@ impl RecordContextRepository for FakeRepository {
         _: &'a RecordContextActor,
         module_id: &'a str,
         id: &'a str,
-    ) -> erpx_server_records::public::record_context::RecordContextFuture<
+    ) -> erpx_records_server::public::record_context::RecordContextFuture<
         'a,
         Option<LinkTarget>,
         Self::Error,
@@ -156,7 +156,7 @@ impl RecordContextGuard for FakeGuard {
         _: &'a RecordContextActor,
         _: &'a str,
         _: &'a str,
-    ) -> erpx_server_records::public::record_context::RecordContextFuture<'a, (), Self::Error> {
+    ) -> erpx_records_server::public::record_context::RecordContextFuture<'a, (), Self::Error> {
         Box::pin(async move {
             if self.source_fails {
                 return Err(failure());
@@ -176,7 +176,7 @@ impl RecordContextGuard for FakeGuard {
         _: &'a RecordContextActor,
         module_id: &'a str,
         id: &'a str,
-    ) -> erpx_server_records::public::record_context::RecordContextFuture<'a, bool, Self::Error>
+    ) -> erpx_records_server::public::record_context::RecordContextFuture<'a, bool, Self::Error>
     {
         Box::pin(async move {
             if self.target_fails {

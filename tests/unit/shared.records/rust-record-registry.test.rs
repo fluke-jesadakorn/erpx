@@ -4,12 +4,12 @@
 //! guard. PostgreSQL, HTTP and browser behavior are covered by the separate
 //! owner targets; this target proves bounds, authorization order, filtering,
 //! page assembly and cursor behavior without a database.
-use erpx_server_records::public::record_context::{RecordContextActor, RecordRow};
-use erpx_server_records::public::record_registry::{
+use erpx_records_server::public::record_context::{RecordContextActor, RecordRow};
+use erpx_records_server::public::record_registry::{
     MAX_LIST_ROWS, PAGE_SIZE, RecordRegistryFuture, RecordRegistryGuard, RecordRegistryRepository,
     RegistryCursor, RegistryQuery, encode_cursor, record_registry_list, record_registry_page,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex};
 
@@ -193,7 +193,7 @@ async fn page(
     repository: &mut Repository,
     guard: &mut Guard,
     query: &RegistryQuery,
-) -> Result<erpx_server_records::public::record_registry::RegistryPage, BusinessError> {
+) -> Result<erpx_records_server::public::record_registry::RegistryPage, BusinessError> {
     record_registry_page(repository, guard, &actor(), query, NOW).await
 }
 
@@ -213,7 +213,7 @@ fn query_bounds_and_cursor_identity_are_strict() {
         assert!(query.is_err());
     }
     let query = RegistryQuery::list("operations", "overview").unwrap();
-    let scope = erpx_server_records::public::record_registry::registry_scope(&actor(), &query);
+    let scope = erpx_records_server::public::record_registry::registry_scope(&actor(), &query);
     let cursor = RegistryCursor {
         key: 700,
         id: "rec-1".into(),
@@ -223,14 +223,14 @@ fn query_bounds_and_cursor_identity_are_strict() {
     let encoded = encode_cursor(&cursor);
     assert!(!encoded.contains('='));
     assert_eq!(
-        erpx_server_records::public::record_registry::decode_cursor(&encoded, &scope).unwrap(),
+        erpx_records_server::public::record_registry::decode_cursor(&encoded, &scope).unwrap(),
         cursor
     );
     assert!(
-        erpx_server_records::public::record_registry::decode_cursor(&encoded, "other").is_err()
+        erpx_records_server::public::record_registry::decode_cursor(&encoded, "other").is_err()
     );
-    assert!(erpx_server_records::public::record_registry::decode_cursor("a", &scope).is_err());
-    assert!(erpx_server_records::public::record_registry::decode_cursor("!!!!", &scope).is_err());
+    assert!(erpx_records_server::public::record_registry::decode_cursor("a", &scope).is_err());
+    assert!(erpx_records_server::public::record_registry::decode_cursor("!!!!", &scope).is_err());
 }
 
 #[tokio::test]
@@ -494,7 +494,7 @@ async fn foreign_or_wrong_section_rows_fail_closed() {
 
     let mut wrong = row("operations", "overview", "rec-2", 90);
     wrong.section_id = "drafts".into();
-    let error = erpx_server_records::public::record_registry::validate_registry_row(
+    let error = erpx_records_server::public::record_registry::validate_registry_row(
         &wrong,
         &actor(),
         "operations",
@@ -512,7 +512,7 @@ async fn cursor_scope_and_tampering_are_rejected() {
     let error = page(&mut repository, &mut guard, &query).await.unwrap_err();
     assert_eq!(error.code, "INVALID_CURSOR");
 
-    let scope = erpx_server_records::public::record_registry::registry_scope(&actor(), &query);
+    let scope = erpx_records_server::public::record_registry::registry_scope(&actor(), &query);
     let wrong = encode_cursor(&RegistryCursor {
         key: 100,
         id: "rec-1".into(),

@@ -2,11 +2,11 @@ import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { COMMERCE_OWNER_WRITE_NOOP_SQL } from '../../../packages/server-commerce/src/adapters/native-owner-write';
+import { COMMERCE_OWNER_WRITE_NOOP_SQL } from '../../../modules/commerce/server/src/adapters/native-owner-write';
 
 const root = resolve(import.meta.dirname ?? process.cwd(), '../../..');
-const adapters = resolve(root, 'packages/server-commerce/src/adapters');
-const src = resolve(root, 'packages/server-commerce/src');
+const adapters = resolve(root, 'modules/commerce/server/src/adapters');
+const src = resolve(root, 'modules/commerce/server/src');
 const commerce = () => readFileSync(resolve(adapters, 'commerce.ts'), 'utf8');
 const native = () => readFileSync(resolve(adapters, 'native-owner-write.ts'), 'utf8');
 const norm = (s: string) => s.replace(/\s+/g, ' ');
@@ -48,7 +48,7 @@ describe('Commerce read-tail r22 noop-delegation retirement', () => {
     expect(s.split('db.prepare(COMMERCE_OWNER_WRITE_NOOP_SQL)').length - 1).toBe(17);
     expect(s).not.toMatch(/db\.prepare\((?:"|')SELECT 1(?:"|')\)/);
     expect(s.split('await nativeOrder(').length - 1).toBe(17);
-    expect(norm(s)).toContain(norm('import { COMMERCE_OWNER_WRITE_NOOP_SQL, nativeCommerceOwnerWrite, NativeCommerceOwnerWriteError } from "@erpx/server-commerce/adapters/native-owner-write";'));
+    expect(norm(s)).toContain(norm('import { COMMERCE_OWNER_WRITE_NOOP_SQL, nativeCommerceOwnerWrite, NativeCommerceOwnerWriteError } from "@erpx/commerce-server/adapters/native-owner-write";'));
   });
 
   test('native kinds, positional arrays, keys and return contracts are byte-unchanged', () => {

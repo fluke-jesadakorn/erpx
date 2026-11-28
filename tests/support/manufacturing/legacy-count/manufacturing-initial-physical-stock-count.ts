@@ -1,29 +1,29 @@
 import 'server-only';
 import {createHash,randomUUID} from 'node:crypto';
-import {hasPermission} from '@erpx/feature-identity_access/lib/permissions';
-import {minorToDecimal} from '@erpx/feature-finance/lib/finance-money';
-import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
-import {loadIamAuthority} from '@erpx/server-identity_access/public/iam-store';
-import {assignmentReadSql} from '@erpx/server-identity_access/public/record-source-authority';
-import {platformOwnerProjectionSources as identitySources} from '@erpx/server-identity_access/public/platform-owner-projection-sources';
-import {readPurchasedAccesses} from '@erpx/server-commercial/public/purchase-command-boundary';
-import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
-import {manufacturingInitialPhysicalStockCommerceSource,initialPhysicalStockMasterChoices,initialPhysicalStockMasterSource} from '@erpx/server-commerce/public/manufacturing-initial-physical-stock-sources';
-import {manufacturingInitialPhysicalStockHistory} from '@erpx/server-manufacturing/public/initial-physical-stock-sources';
-import {initialPhysicalStockCountFinanceSource} from '@erpx/server-finance/public/initial-physical-stock-count-sources';
-import {financeStarterOrganizationNodes} from '@erpx/server-organization/public/finance-starter-sources';
-import {inventoryQualitySnapshotSources} from '@erpx/server-quality/public/inventory-quality-snapshot-sources';
-import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
-import {holdingResources} from '@erpx/server-runtime/public/runtime';
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
-import {ApiError} from '@erpx/server-runtime/public/http';
-import {resolveFlow,assignFlowPrimary} from '@erpx/server-workflow/public/flow-routing';
-import {requireFlowAccess} from '@erpx/server-workflow/public/flow-access';
-import {replayCommand} from '@erpx/server-workflow/public/commands';
+import {hasPermission} from '@erpx/identity-access-ui/lib/permissions';
+import {minorToDecimal} from '@erpx/finance-ui/lib/finance-money';
+import type {WorkContext} from '@erpx/identity-access-server/public/authorization';
+import {loadIamAuthority} from '@erpx/identity-access-server/public/iam-store';
+import {assignmentReadSql} from '@erpx/identity-access-server/public/record-source-authority';
+import {platformOwnerProjectionSources as identitySources} from '@erpx/identity-access-server/public/platform-owner-projection-sources';
+import {readPurchasedAccesses} from '@erpx/commercial-server/public/purchase-command-boundary';
+import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/commercial-server/public/purchased-capability-sql';
+import {manufacturingInitialPhysicalStockCommerceSource,initialPhysicalStockMasterChoices,initialPhysicalStockMasterSource} from '@erpx/commerce-server/public/manufacturing-initial-physical-stock-sources';
+import {manufacturingInitialPhysicalStockHistory} from '@erpx/manufacturing-server/public/initial-physical-stock-sources';
+import {initialPhysicalStockCountFinanceSource} from '@erpx/finance-server/public/initial-physical-stock-count-sources';
+import {financeStarterOrganizationNodes} from '@erpx/organization-server/public/finance-starter-sources';
+import {inventoryQualitySnapshotSources} from '@erpx/quality-server/public/inventory-quality-snapshot-sources';
+import { scheduledFeaturePredicate } from "@erpx/pms-server/public/feature-availability";
+import {holdingResources} from '@erpx/platform-runtime-server/public/runtime';
+import type {SqlDatabase} from '@erpx/platform-runtime-server/public/runtime/types';
+import {ApiError} from '@erpx/platform-runtime-server/public/http';
+import {resolveFlow,assignFlowPrimary} from '@erpx/workflow-server/public/flow-routing';
+import {requireFlowAccess} from '@erpx/workflow-server/public/flow-access';
+import {replayCommand} from '@erpx/workflow-server/public/commands';
 import {inventoryCountApplication} from './inventory-counts';
-import {manufacturingInitialPhysicalStockCapabilities,manufacturingInitialPhysicalStockCountSource,manufacturingInitialPhysicalStockCountImage,withManufacturingInitialPhysicalStockCountUnit,type ManufacturingInitialPhysicalStockProof} from '@erpx/server-inventory/adapters/manufacturing-initial-physical-stock-count-source';
-import {canPrepareCounts,canEditCount,canReviewCount} from '@erpx/server-inventory/domain/counts';
-import {manufacturingInitialPhysicalStockCountSchema,manufacturingInitialPhysicalStockCountActionSchema,manufacturingInitialPhysicalStockCountSelectionSchema,manufacturingInitialPhysicalStockCountFlowSchema,type ManufacturingInitialPhysicalStockCountView,type ManufacturingInitialPhysicalStockCountRecord} from '@erpx/server-inventory/domain/manufacturing-initial-physical-stock-count';
+import {manufacturingInitialPhysicalStockCapabilities,manufacturingInitialPhysicalStockCountSource,manufacturingInitialPhysicalStockCountImage,withManufacturingInitialPhysicalStockCountUnit,type ManufacturingInitialPhysicalStockProof} from '@erpx/inventory-server/adapters/manufacturing-initial-physical-stock-count-source';
+import {canPrepareCounts,canEditCount,canReviewCount} from '@erpx/inventory-server/domain/counts';
+import {manufacturingInitialPhysicalStockCountSchema,manufacturingInitialPhysicalStockCountActionSchema,manufacturingInitialPhysicalStockCountSelectionSchema,manufacturingInitialPhysicalStockCountFlowSchema,type ManufacturingInitialPhysicalStockCountView,type ManufacturingInitialPhysicalStockCountRecord} from '@erpx/inventory-server/domain/manufacturing-initial-physical-stock-count';
 const quality=inventoryQualitySnapshotSources();
 const hash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const authorityImage=(actor:WorkContext)=>[actor.holdingId,actor.companyId,actor.branchId,actor.departmentId,actor.userId,actor.assignmentId,actor.role,actor.authority??null,actor.iam?.queuedAssignmentVersion,actor.iam?.identityVersion,actor.iam?.roleRevision,actor.iam?.hrAppointmentVersion];
@@ -88,7 +88,7 @@ export async function prepareManufacturingInitialPhysicalStockCount(actor:WorkCo
   return result;
  });
 }
-export async function transitionManufacturingInitialPhysicalStockCount(actor:WorkContext,id:string,action:import("@erpx/server-inventory/domain/manufacturing-initial-physical-stock-count").ManufacturingInitialPhysicalStockCountAction,raw:unknown,key:string){
+export async function transitionManufacturingInitialPhysicalStockCount(actor:WorkContext,id:string,action:import("@erpx/inventory-server/domain/manufacturing-initial-physical-stock-count").ManufacturingInitialPhysicalStockCountAction,raw:unknown,key:string){
  const input=manufacturingInitialPhysicalStockCountActionSchema.parse(raw);if(!['submit','approve','post','reject','cancel'].includes(action))throw new ApiError(404,'COUNT_ACTION_NOT_FOUND','Unknown Count action.');
  return withManufacturingInitialPhysicalStockCountUnit(await owner(actor),actor,{key,operation:`inventory.count.${action}`,id,purpose:action==='submit'?'new-work':'settle-existing',permission:['approve','post','reject'].includes(action)?'inventory.approve':'inventory.prepare'},async(database,source,replay,_current,finalGuard)=>{
   const before=await inventoryCountApplication(database).getCount(actor,id),finance=!replay&&action==='post'?await initialPhysicalStockCountFinanceSource(database,actor.companyId,String(before.count_date)):null;

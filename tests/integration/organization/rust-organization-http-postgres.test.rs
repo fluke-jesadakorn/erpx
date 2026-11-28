@@ -8,22 +8,22 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_identity_access::public::{
+use erpx_identity_access_server::public::{
     account_holding_bindings::{ConfiguredAccountHolding, ConfiguredHoldingRegistry},
     work_context::HoldingWorkspaceRequest,
 };
-use erpx_server_shared::public::{CompanyId, HoldingId};
-use erpx_service::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
-use erpx_service::organization_nodes::{
+use erpx_platform_shared_server::public::{CompanyId, HoldingId};
+use erpx_platform_composition::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
+use erpx_platform_composition::organization_nodes::{
     OrganizationNodeService, OrganizationNodesConfiguration,
 };
-use erpx_service::organization_nodes_http::{OrganizationNodesTarget, organization_nodes_router};
+use erpx_platform_composition::organization_nodes_http::{OrganizationNodesTarget, organization_nodes_router};
 use std::sync::Arc;
 use tower::ServiceExt;
 
 fn owned_maker(
     p: &review::Prepared,
-) -> impl FnOnce() -> Result<HoldingWorkspaceRequest, erpx_server_shared::public::BusinessError>
+) -> impl FnOnce() -> Result<HoldingWorkspaceRequest, erpx_platform_shared_server::public::BusinessError>
        + Send
        + 'static {
     let request = p.maker_selection.clone();

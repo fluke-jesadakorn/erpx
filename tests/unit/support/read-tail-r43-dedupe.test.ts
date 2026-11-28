@@ -5,9 +5,9 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { readTailR43ColumnsFromSql } from '../../../packages/server-support/src/adapters/read-tail-r43-sql';
+import { readTailR43ColumnsFromSql } from '../../../modules/support/server/src/adapters/read-tail-r43-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-support/src');
+const srcRoot = resolve(__dirname, '../../../modules/support/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 const totalSelects = () => {

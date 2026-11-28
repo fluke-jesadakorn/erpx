@@ -1,17 +1,17 @@
 import {beforeAll,beforeEach,afterAll,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {createInvoice,invoiceSchema,postInvoice,importBankStatement} from '@erpx/server-finance/public/finance';
-import {settleInvoice} from '@erpx/server-commerce/public/commerce';
-import {supplierBatchWorkspace} from "@erpx/server-procurement/public/supplier-payments";
-import {prepareTaxIdentity,decideTaxIdentity,taxIdentitySchema} from "@erpx/server-finance/public/finance-tax-identities";
-import {thaiFinanceTaxPack} from "@erpx/feature-finance/lib/thai-finance-tax-pack";
-import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
-import {loadIamAuthority} from "@erpx/server-identity_access/public/iam-store";
-import {createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,drainAttachmentScans,bindRecordAttachmentSet} from "@erpx/server-files/public/attachments/service";
+import {createInvoice,invoiceSchema,postInvoice,importBankStatement} from '@erpx/finance-server/public/finance';
+import {settleInvoice} from '@erpx/commerce-server/public/commerce';
+import {supplierBatchWorkspace} from "@erpx/procurement-server/public/supplier-payments";
+import {prepareTaxIdentity,decideTaxIdentity,taxIdentitySchema} from "@erpx/finance-server/public/finance-tax-identities";
+import {thaiFinanceTaxPack} from "@erpx/finance-ui/lib/thai-finance-tax-pack";
+import {assignFlowPrimary,resolveFlow} from '@erpx/workflow-server/public/flow-routing';
+import {loadIamAuthority} from "@erpx/identity-access-server/public/iam-store";
+import {createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,drainAttachmentScans,bindRecordAttachmentSet} from "@erpx/files-server/public/attachments/service";
 
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
-vi.mock("@erpx/server-files/public/attachments/scanner",()=>({attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:'Declared clean scanner fixture',definitionUpdatedAt:Date.now(),error:null}),scanAttachmentBytes:async()=>({clean:true,signature:null,engine:'Declared clean scanner fixture',definitionUpdatedAt:Date.now()})}));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/files-server/public/attachments/scanner",()=>({attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:'Declared clean scanner fixture',definitionUpdatedAt:Date.now(),error:null}),scanAttachmentBytes:async()=>({clean:true,signature:null,engine:'Declared clean scanner fixture',definitionUpdatedAt:Date.now()})}));
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOQaEj4D8IMMAYAQaQH3RNNL/AAAAAASUVORK5CYII=','base64');
 const reason='Independent review of fictional Company statutory payer evidence and scanned signature.',oldGate=process.env.ERPX_ATTACHMENTS_V2;
 let f:Awaited<ReturnType<typeof expenseFixture>>;

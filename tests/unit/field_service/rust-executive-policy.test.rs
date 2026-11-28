@@ -1,4 +1,4 @@
-use erpx_server_field_service::public::executive::*;
+use erpx_field_service_server::public::executive::*;
 fn candidate(status: &str, completed: Option<i64>) -> FieldExecutiveCandidate {
     FieldExecutiveCandidate {
         source_order: 1,
@@ -94,7 +94,7 @@ fn source_windows_and_metric_breakdowns_are_explicit_and_cursor_parts_are_paired
 
 #[test]
 fn evidence_cursor_limits_and_query_identity_preserve_the_wire_contract() {
-    use erpx_server_field_service::public::executive_evidence as evidence;
+    use erpx_field_service_server::public::executive_evidence as evidence;
     use serde_json::json;
     for (value, expected) in [
         (json!(1), 1),

@@ -1,5 +1,5 @@
 //! Native portal-support command validation/ingress.
-use erpx_server_customer_authority::public::portal_support_commands::{AcknowledgeInput,AcknowledgementReceipt,CloseInput,CustomerActor,Receipt,RespondInput,SupportActor,replay,replay_acknowledgement};
+use erpx_customer_authority_server::public::portal_support_commands::{AcknowledgeInput,AcknowledgementReceipt,CloseInput,CustomerActor,Receipt,RespondInput,SupportActor,replay,replay_acknowledgement};
 fn actor()->SupportActor{SupportActor{user_id:"manager".into(),company_id:"company".into(),branch_id:Some("branch".into()),department_id:None,assignment_id:"assignment".into(),role:"sales_manager".into(),session_id:None,assignment_version:None,permissions:vec!["commerce.read".into(),"commerce.sales".into(),"commerce.approve".into()]}}
 #[test]
 fn response_acknowledge_and_closure_validation_are_bounded_and_exact(){

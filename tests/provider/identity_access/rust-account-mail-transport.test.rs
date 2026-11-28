@@ -12,7 +12,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::post,
 };
-use erpx_server_identity_access::public::{account_mail::*, *};
+use erpx_identity_access_server::public::{account_mail::*, *};
 use std::{
     collections::{BTreeMap, VecDeque},
     net::SocketAddr,

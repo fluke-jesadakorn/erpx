@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
-import { ppRdRound2ByIdCompanyConstant } from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-round2-sources';
+import { ppRdRound2ByIdCompanyConstant } from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-round2-sources';
 
 const src = (name: string) => readFileSync(
-  new URL(`../../../packages/server-people_payroll/src/adapters/${name}`, import.meta.url), 'utf8',
+  new URL(`../../../modules/people-payroll/server/src/adapters/${name}`, import.meta.url), 'utf8',
 );
 const readOnly = (sql: string) => {
   expect(sql).toContain('SELECT ');
@@ -38,7 +38,7 @@ describe('People Payroll read-tail round-2 by-id/by-company/constant family', ()
   });
 
   test('the fold lowers the owner SELECT count below 1150', () => {
-    const root = new URL('../../../packages/server-people_payroll/src/', import.meta.url);
+    const root = new URL('../../../modules/people-payroll/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {

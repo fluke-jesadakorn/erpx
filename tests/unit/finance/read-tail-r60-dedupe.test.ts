@@ -4,9 +4,9 @@ import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import {
   groupEntitiesByHoldingSql,
-} from '../../../packages/server-finance/src/adapters/finance-read-tail-r60-sql';
+} from '../../../modules/finance/server/src/adapters/finance-read-tail-r60-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-finance/src');
+const srcRoot = resolve(__dirname, '../../../modules/finance/server/src');
 const adapters = resolve(srcRoot, 'adapters');
 const read = (name: string) => readFileSync(resolve(adapters, name), 'utf8');
 const count = (src: string, needle: string) => src.split(needle).length - 1;

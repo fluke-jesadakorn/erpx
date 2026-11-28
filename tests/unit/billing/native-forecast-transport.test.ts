@@ -6,7 +6,7 @@ import {
   type NativeBillingPageContext,
   type NativeBillingTransport,
   type SeatForecastBaseline,
-} from '@erpx/server-billing/public/native-billing';
+} from '@erpx/billing-server/public/native-billing';
 
 const actor: NativeBillingPageContext = {
   userId: 'admin',

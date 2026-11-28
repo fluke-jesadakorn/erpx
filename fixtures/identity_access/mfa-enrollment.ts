@@ -1,10 +1,10 @@
 import { randomBytes } from "node:crypto";
-import { createBeginMfa, createVerifyMfa, type MfaActor } from "@erpx/server-identity_access/application/mfa";
-import { encodeBase32 } from "@erpx/server-identity_access/domain/mfa";
-import { ApiError } from "@erpx/server-runtime/public/http";
-import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import { iamThrottle } from "@erpx/server-identity_access/public/iam-throttle";
-import { openSecret, sealSecret, totp } from "@erpx/server-identity_access/public/iam-mfa";
+import { createBeginMfa, createVerifyMfa, type MfaActor } from "@erpx/identity-access-server/application/mfa";
+import { encodeBase32 } from "@erpx/identity-access-server/domain/mfa";
+import { ApiError } from "@erpx/platform-runtime-server/public/http";
+import type { SqlDatabase } from "@erpx/platform-runtime-server/public/runtime/types";
+import { iamThrottle } from "@erpx/identity-access-server/public/iam-throttle";
+import { openSecret, sealSecret, totp } from "@erpx/identity-access-server/public/iam-mfa";
 
 /**
  * Fixture/test oracle for authenticator enrollment and verification.

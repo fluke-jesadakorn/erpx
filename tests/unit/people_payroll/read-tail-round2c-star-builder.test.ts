@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
-import { ppRdRound2cStarByOnePred } from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-round2c-sources';
-import { ppRd57CompRevisionByEngagementSql } from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r57-sources';
-import { ppRd58RosterShiftsByWeekSql } from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r58-sources';
-import { ppRd59ThaiProfilesByCompanySql } from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r59-sources';
+import { ppRdRound2cStarByOnePred } from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-round2c-sources';
+import { ppRd57CompRevisionByEngagementSql } from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r57-sources';
+import { ppRd58RosterShiftsByWeekSql } from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r58-sources';
+import { ppRd59ThaiProfilesByCompanySql } from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r59-sources';
 
 const src = (name: string) => readFileSync(
-  new URL(`../../../packages/server-people_payroll/src/adapters/${name}`, import.meta.url), 'utf8',
+  new URL(`../../../modules/people-payroll/server/src/adapters/${name}`, import.meta.url), 'utf8',
 );
 
 describe('People Payroll round-2c cross-builder row-list family', () => {
@@ -50,7 +50,7 @@ describe('People Payroll round-2c cross-builder row-list family', () => {
   });
 
   test('the fold lowers the owner SELECT count below 1148', () => {
-    const root = new URL('../../../packages/server-people_payroll/src/', import.meta.url);
+    const root = new URL('../../../modules/people-payroll/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {

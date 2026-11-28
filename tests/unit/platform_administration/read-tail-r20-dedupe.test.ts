@@ -5,11 +5,11 @@ import { resolve } from 'node:path';
 
 vi.mock('server-only', () => ({}));
 
-import { derivedSourceExistsSql } from '../../../packages/server-platform_administration/src/adapters/release-predicate';
-import { platformOwnerProjectionSources as identityAccessSources } from '@erpx/server-identity_access/public/platform-owner-projection-sources';
-import { productionScope, criteriaForScope } from '@erpx/catalogue/production-scope';
+import { derivedSourceExistsSql } from '../../../modules/platform-administration/server/src/adapters/release-predicate';
+import { platformOwnerProjectionSources as identityAccessSources } from '@erpx/identity-access-server/public/platform-owner-projection-sources';
+import { productionScope, criteriaForScope } from '@erpx/platform-catalogue/production-scope';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-platform_administration/src');
+const srcRoot = resolve(__dirname, '../../../modules/platform-administration/server/src');
 const source = (relative: string) => readFileSync(resolve(srcRoot, relative), 'utf8');
 const sha = (value: string) => createHash('sha256').update(value).digest('hex');
 

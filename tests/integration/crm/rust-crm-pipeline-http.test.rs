@@ -1,12 +1,12 @@
 //! Actual owner-local CRM pipeline HTTP router tests.
 //! These prove ingress facts only; composition, Account session and PostgreSQL
 //! remain separate responsibilities.
-use erpx_server_crm::public::pipeline_http::{
+use erpx_crm_server::public::pipeline_http::{
     CrmPipelineHttpBackend, CrmPipelineHttpFuture, CrmPipelineHttpReadRequest,
     CrmPipelineHttpResponse, CrmPipelineHttpTarget, crm_pipeline_http_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Noop;
@@ -260,7 +260,7 @@ async fn actual_router_forwards_exact_query_and_maps_business_errors() {
 
 #[tokio::test]
 async fn sales_report_ingress_accepts_only_exact_holding_and_filter_keys() {
-    use erpx_server_crm::public::sales_report_http::{
+    use erpx_crm_server::public::sales_report_http::{
         CrmSalesReportHttpBackend, CrmSalesReportHttpFuture, CrmSalesReportHttpRequest,
         CrmSalesReportHttpTarget, crm_sales_report_router,
     };

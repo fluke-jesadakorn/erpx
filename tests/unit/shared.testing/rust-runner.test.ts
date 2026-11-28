@@ -9,21 +9,21 @@ import type { Suite } from '../../../scripts/testing/catalogue';
 import { createWorkspaceGraph, dependencyClosure, selectCandidateSuites, selectWorkspaceSuites, workspaceFingerprint,loadWorkspaceGraph,loadRevisionWorkspaceGraph,changedWorkspaceFiles } from '../../../scripts/testing/workspace-graph';
 import { runtimeOwnerCycles } from '../../../scripts/architecture/owner-cycles';
 
-const shared = 'packages/server-shared/Cargo.toml', runtime = 'packages/server-runtime/Cargo.toml';
+const shared = 'platform/shared/server/Cargo.toml', runtime = 'platform/runtime/server/Cargo.toml';
 const sharedTest = 'tests/unit/shared.architecture/rust-shared-core.test.rs', runtimeTest = 'tests/unit/shared.architecture/rust-runtime-foundation.test.rs';
 function nativeSources() {
   return new Map([
-    ['Cargo.toml', '[workspace]\nmembers=["packages/server-shared","packages/server-runtime"]\n[workspace.dependencies]\nerpx-server-shared = { path = "packages/server-shared" }\n'],
+    ['Cargo.toml', '[workspace]\nmembers=["platform/shared/server","platform/runtime/server"]\n[workspace.dependencies]\nerpx-server-shared = { path = "platform/shared/server" }\n'],
     ['Cargo.lock', 'version=4\n'], ['rust-toolchain.toml', '[toolchain]\nchannel="1.99.1"\n'],
     [shared, '[package]\nname="erpx-server-shared"\n[[test]]\nname="shared_core"\npath="../../tests/unit/shared.architecture/rust-shared-core.test.rs"\n'],
     [runtime, '[package]\nname="erpx-server-runtime"\n[dependencies]\nerpx-server-shared.workspace = true\n[[test]]\nname="runtime_foundation"\npath="../../tests/unit/shared.architecture/rust-runtime-foundation.test.rs"\n'],
-    ['packages/server-shared/src/lib.rs', 'pub mod public;'], ['packages/server-shared/src/domain/money.rs', 'pub struct Amount(i128);'],
-    ['packages/server-runtime/src/lib.rs', 'pub mod public;'],
+    ['platform/shared/server/src/lib.rs', 'pub mod public;'], ['platform/shared/server/src/domain/money.rs', 'pub struct Amount(i128);'],
+    ['platform/runtime/server/src/lib.rs', 'pub mod public;'],
     [sharedTest, '#[test]\nfn exact_money() {}\n'], [runtimeTest, '#[tokio::test]\nasync fn readiness() {}\n'],
   ]);
 }
 function nativeSuite(packageName = 'erpx-server-shared', target = 'shared_core', file = sharedTest, manifest = shared): Suite {
-  return { id: `shared.${target}.rust.unit`, lane: 'unit', owner: 'shared.architecture', modules: ['finance'], files: [file], framework: 'cargo', cargo: { package: packageName, targets: [target] }, verificationInputs: [manifest, 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml'], fixture: 'none', requires: { jobs: false, scanner: false }, apps: ['finance'], packages: ['@erpx/server-shared'] };
+  return { id: `shared.${target}.rust.unit`, lane: 'unit', owner: 'shared.architecture', modules: ['finance'], files: [file], framework: 'cargo', cargo: { package: packageName, targets: [target] }, verificationInputs: [manifest, 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml'], fixture: 'none', requires: { jobs: false, scanner: false }, apps: ['finance'], packages: ['@erpx/platform-shared-server'] };
 }
 const temporary: string[] = [];
 afterEach(() => { for (const directory of temporary.splice(0)) rmSync(directory, { recursive: true, force: true }); });
@@ -54,9 +54,9 @@ describe('Rust catalogue and source selection', () => {
     expect(cargoChildEnvironment(provider,{ERPX_PROFILE_FIXTURE:'owned',CARGO_INCREMENTAL:'1'}).CARGO_INCREMENTAL).toBeUndefined();
   });
   it('maps only manifest-declared owner licenses from exact Git revisions without ignoring unknown text changes',()=>{
-    const root=fixtureRoot(),commercial='packages/server-commercial/Cargo.toml',legal='packages/server-legal/Cargo.toml';
+    const root=fixtureRoot(),commercial='modules/commercial/server/Cargo.toml',legal='modules/legal/server/Cargo.toml';
     const commercialTest='tests/unit/commercial/rust-package-capabilities.test.rs',legalTest='tests/unit/legal/rust-record-policy.test.rs';
-    const licenses=['packages/server-commercial/licenses/ICU4X-Unicode-3.0.txt','packages/server-legal/licenses/dingbat-to-unicode-BSD-2-Clause.txt'];
+    const licenses=['modules/commercial/server/licenses/ICU4X-Unicode-3.0.txt','modules/legal/server/licenses/dingbat-to-unicode-BSD-2-Clause.txt'];
     const write=(file:string,value:string)=>{mkdirSync(dirname(join(root,file)),{recursive:true});writeFileSync(join(root,file),value);};
     const git=(...args:string[])=>execFileSync('git',args,{cwd:root,encoding:'utf8'}).trim();
     for(const[manifest,name,file,target]of[[commercial,'erpx-server-commercial',commercialTest,'package_capabilities'],[legal,'erpx-server-legal',legalTest,'record_policy']]){
@@ -64,27 +64,27 @@ describe('Rust catalogue and source selection', () => {
       write(manifest.replace('Cargo.toml','licenses/NOTICE.txt'),'retained owner notice');write(file,'#[test] fn real_policy_case() {}');
     }
     const generator='scripts/testing/declared-generator.mjs',transitive='packages/feature-fixture/src/public.ts';
-    const businessTarget='packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/billing/target/route.ts';write(businessTarget,'export const GET = () => 1;');
+    const businessTarget='products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/billing/target/route.ts';write(businessTarget,'export const GET = () => 1;');
     write(generator,"import { value } from '../../packages/feature-fixture/src/public'; export const generated = value;");write(transitive,'export const value = 1;');
-    const privatePaths=['packages/server-commercial/licenses/.scratch/leaked.ts','packages/server-commercial/licenses/target/leaked.rs','packages/server-commercial/licenses/.env.local/leaked.ts'];
+    const privatePaths=['modules/commercial/server/licenses/.scratch/leaked.ts','modules/commercial/server/licenses/target/leaked.rs','modules/commercial/server/licenses/.env.local/leaked.ts'];
     for(const file of privatePaths)write(file,'private fixture sentinel');
     git('init','--quiet');git('add','.');git('-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','--quiet','-m','base');
     const baseSha=git('rev-parse','HEAD'),base=loadRevisionWorkspaceGraph(baseSha,root);
     for(const license of licenses)write(license,'new declared third-party license');
-    write('packages/server-shared/licenses/undeclared.txt','unknown input');write('packages/server-legal/licenses/.env.local','private fixture sentinel');
+    write('platform/shared/server/licenses/undeclared.txt','unknown input');write('modules/legal/server/licenses/.env.local','private fixture sentinel');
     git('add','--',...licenses);git('-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','--quiet','-m','licenses');
     const headSha=git('rev-parse','HEAD'),head=loadRevisionWorkspaceGraph(headSha,root),local=loadWorkspaceGraph(root);
     const suites=[nativeSuite('erpx-server-commercial','package_capabilities',commercialTest,commercial),nativeSuite('erpx-server-legal','record_policy',legalTest,legal),nativeSuite()];
     for(const license of licenses){expect(local.files.get(license)).toBe(head.files.get(license));expect(head.files.get(license)).toMatch(/^resource-sha256:[a-f0-9]{64}$/);}
-    expect(local.files.has('packages/server-shared/licenses/undeclared.txt')).toBe(false);expect(local.files.has('packages/server-legal/licenses/.env.local')).toBe(false);
+    expect(local.files.has('platform/shared/server/licenses/undeclared.txt')).toBe(false);expect(local.files.has('modules/legal/server/licenses/.env.local')).toBe(false);
     expect(local.files.get(generator)).toBe(head.files.get(generator));expect(local.files.get(generator)).toContain('import { value }');
     expect(dependencyClosure(local,[commercialTest])).toContain(transitive);expect(dependencyClosure(head,[commercialTest])).toContain(transitive);
     expect(selectCandidateSuites(head,base,suites,[transitive]).suites).toEqual([suites[0]]);
     expect(local.files.get(businessTarget)).toContain('export const GET');expect(head.files.get(businessTarget)).toContain('export const GET');
     for(const file of privatePaths){expect(local.files.has(file)).toBe(false);expect(head.files.has(file)).toBe(false);}
     expect(selectCandidateSuites(head,base,suites,changedWorkspaceFiles(root,baseSha,headSha)).suites).toEqual(suites.slice(0,2));
-    expect(()=>selectCandidateSuites(local,base,suites,['packages/server-shared/licenses/undeclared.txt'])).toThrow('WORKSPACE_CHANGE_UNMAPPED');
-    expect(()=>selectCandidateSuites(local,base,suites,['packages/server-legal/licenses/.env.local'])).toThrow('WORKSPACE_CHANGE_UNMAPPED');
+    expect(()=>selectCandidateSuites(local,base,suites,['platform/shared/server/licenses/undeclared.txt'])).toThrow('WORKSPACE_CHANGE_UNMAPPED');
+    expect(()=>selectCandidateSuites(local,base,suites,['modules/legal/server/licenses/.env.local'])).toThrow('WORKSPACE_CHANGE_UNMAPPED');
     expect(workspaceFingerprint(head,[commercialTest])).not.toBe(workspaceFingerprint(base,[commercialTest]));expect(workspaceFingerprint(head,[sharedTest])).toBe(workspaceFingerprint(base,[sharedTest]));
   });
   it('requires explicit native provider prerequisites and keeps them outside automatic candidate selection',()=>{
@@ -146,16 +146,16 @@ describe('Rust catalogue and source selection', () => {
   it('maps shared Rust source changes through local Cargo dependencies without creating JavaScript owner cycles', () => {
     const files = nativeSources(), graph = createWorkspaceGraph(files);
     const suites = [nativeSuite(), nativeSuite('erpx-server-runtime', 'runtime_foundation', runtimeTest, runtime)];
-    expect(dependencyClosure(graph, [runtimeTest])).toContain('packages/server-shared/src/domain/money.rs');
-    expect(selectWorkspaceSuites(graph, suites, { changed: ['packages/server-shared/src/domain/money.rs'] }).suites).toEqual(suites);
-    expect(selectWorkspaceSuites(graph, suites, { changed: ['packages/server-runtime/src/lib.rs'] }).suites).toEqual([suites[1]]);
+    expect(dependencyClosure(graph, [runtimeTest])).toContain('platform/shared/server/src/domain/money.rs');
+    expect(selectWorkspaceSuites(graph, suites, { changed: ['platform/shared/server/src/domain/money.rs'] }).suites).toEqual(suites);
+    expect(selectWorkspaceSuites(graph, suites, { changed: ['platform/runtime/server/src/lib.rs'] }).suites).toEqual([suites[1]]);
     expect(runtimeOwnerCycles(graph)).toEqual([]);
-    expect(graph.runtimeImports.get('packages/server-runtime/src/lib.rs')?.size).toBe(0);
+    expect(graph.runtimeImports.get('platform/runtime/server/src/lib.rs')?.size).toBe(0);
   });
 
   it('invalidates a Rust pure-test cache for source, lockfile and toolchain changes', () => {
     const files = nativeSources(), before = createWorkspaceGraph(files), fingerprint = workspaceFingerprint(before, [runtimeTest]);
-    for (const input of ['packages/server-shared/src/domain/money.rs', 'Cargo.lock', 'rust-toolchain.toml']) {
+    for (const input of ['platform/shared/server/src/domain/money.rs', 'Cargo.lock', 'rust-toolchain.toml']) {
       const changed = new Map(files); changed.set(input, changed.get(input)! + '\n# changed');
       expect(workspaceFingerprint(createWorkspaceGraph(changed), [runtimeTest]), input).not.toBe(fingerprint);
     }
@@ -163,25 +163,25 @@ describe('Rust catalogue and source selection', () => {
 
   it('retains the deleted Rust source edge from the base graph for candidate selection', () => {
     const files = nativeSources(), before = createWorkspaceGraph(files), changed = new Map(files);
-    changed.delete('packages/server-shared/src/domain/money.rs');
+    changed.delete('platform/shared/server/src/domain/money.rs');
     const suites = [nativeSuite(), nativeSuite('erpx-server-runtime', 'runtime_foundation', runtimeTest, runtime)];
-    expect(selectCandidateSuites(createWorkspaceGraph(changed), before, suites, ['packages/server-shared/src/domain/money.rs']).suites).toEqual(suites);
+    expect(selectCandidateSuites(createWorkspaceGraph(changed), before, suites, ['platform/shared/server/src/domain/money.rs']).suites).toEqual(suites);
   });
   it('checks selected worker and contract features without enabling vendored packaging dependencies', () => {
     const sources = nativeSources();
-    sources.set('packages/server-identity_access/Cargo.toml', '[package]\nname="erpx-server-identity-access"\n[features]\ncontracts=["dep:ts-rs"]\n');
+    sources.set('modules/identity-access/server/Cargo.toml', '[package]\nname="erpx-server-identity-access"\n[features]\ncontracts=["dep:ts-rs"]\n');
     const legal = { ...nativeSuite(), cargo: { package: 'erpx-server-legal', targets: ['pdf_validation'], features: ['pdf-verifier'] } };
     expect(cargoQualityFeatureArguments(sources, [legal])).toEqual(['--features', 'erpx-server-identity-access/contracts,erpx-server-legal/pdf-verifier']);
     expect(cargoQualityFeatureArguments(nativeSources(), [nativeSuite()])).toEqual([]);
   });
   it('tracks a separate composition binary through runtime infrastructure without an owner dependency cycle', () => {
-    const sources = nativeSources(), service = 'src/composition/Cargo.toml', test = 'tests/unit/shared.architecture/rust-composition.test.rs';
-    sources.set('Cargo.toml', sources.get('Cargo.toml')! + 'erpx-server-runtime = { path = "packages/server-runtime" }\n');
+    const sources = nativeSources(), service = 'platform/composition/Cargo.toml', test = 'tests/unit/shared.architecture/rust-composition.test.rs';
+    sources.set('Cargo.toml', sources.get('Cargo.toml')! + 'erpx-server-runtime = { path = "platform/runtime/server" }\n');
     sources.set(service, '[package]\nname="erpx-service"\n[dependencies]\nerpx-server-runtime.workspace = true\n[[test]]\nname="composition"\npath="../../tests/unit/shared.architecture/rust-composition.test.rs"\n');
-    sources.set('src/composition/src/main.rs', 'fn main() {}'); sources.set(test, '#[test] fn owners_are_pending() {}');
+    sources.set('platform/composition/src/main.rs', 'fn main() {}'); sources.set(test, '#[test] fn owners_are_pending() {}');
     const suite = nativeSuite('erpx-service', 'composition', test, service), graph = createWorkspaceGraph(sources);
-    expect(dependencyClosure(graph, [test])).toContain('packages/server-shared/src/domain/money.rs');
-    expect(selectWorkspaceSuites(graph, [nativeSuite(), suite], { changed: ['src/composition/src/main.rs'] }).suites).toEqual([suite]);
+    expect(dependencyClosure(graph, [test])).toContain('platform/shared/server/src/domain/money.rs');
+    expect(selectWorkspaceSuites(graph, [nativeSuite(), suite], { changed: ['platform/composition/src/main.rs'] }).suites).toEqual([suite]);
     expect(runtimeOwnerCycles(graph)).toEqual([]);
   });
 

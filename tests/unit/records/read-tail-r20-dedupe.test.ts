@@ -5,9 +5,9 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { selectAllWhereSql } from '../../../packages/server-records/src/adapters/read-tail-select-all';
+import { selectAllWhereSql } from '../../../modules/records/server/src/adapters/read-tail-select-all';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-records/src');
+const srcRoot = resolve(__dirname, '../../../modules/records/server/src');
 const shared = readFileSync(resolve(srcRoot, 'adapters/read-tail-select-all.ts'), 'utf8');
 const employeeReads = readFileSync(resolve(srcRoot, 'adapters/employee-requests-read.ts'), 'utf8');
 const documentSources = readFileSync(resolve(srcRoot, 'adapters/workflow-document-sources.ts'), 'utf8');

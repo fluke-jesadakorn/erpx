@@ -1,5 +1,5 @@
-use erpx_server_legal::public::record_policy::*;
-use erpx_server_shared::public::{CompanyId, HoldingId, RecordId, UserId};
+use erpx_legal_server::public::record_policy::*;
+use erpx_platform_shared_server::public::{CompanyId, HoldingId, RecordId, UserId};
 fn id(v: &str) -> RecordId {
     RecordId::new(v).unwrap()
 }
@@ -66,14 +66,14 @@ fn release() -> LegalReleaseObservation {
 
 #[test]
 fn citation_mode_matches_actual_typescript_switch() {
-    use erpx_server_shared::public::{BusinessError, FailureKind};
+    use erpx_platform_shared_server::public::{BusinessError, FailureKind};
     use std::cell::Cell;
     // Execute the real switch; only its trusted runtime lookup is mocked.
     let script = r#"import {mock} from 'bun:test';let environment='local',calls=0;mock.module(process.argv[1],()=>({runtimeEnv:async()=>{calls++;return {ERPX_ENVIRONMENT:environment}}}));const m=await import(process.argv[2]);const cases=[[null,'production'],['disabled','production'],['shadow','local'],['enforced','local'],['shadow','production'],['enforced','staging'],['','local'],['SHADOW','local'],[' enforced','local']];const out=[];for(const [raw,env] of cases){environment=env;calls=0;if(raw===null)delete process.env.ERPX_LEGAL_PACKAGE_ENFORCEMENT;else process.env.ERPX_LEGAL_PACKAGE_ENFORCEMENT=raw;try{out.push({mode:await m.legalPackageEnforcementMode(),calls})}catch(e){out.push({status:e.status,code:e.code,message:e.message,calls})}}process.stdout.write(JSON.stringify(out));"#;
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let runtime = root.join("packages/server-runtime/src/public/runtime.ts");
+    let runtime = root.join("platform/runtime/server/src/public/runtime.ts");
     let switch =
-        root.join("packages/server-commercial/src/adapters/development-package-enforcement.ts");
+        root.join("modules/commercial/server/src/adapters/development-package-enforcement.ts");
     let output =
         std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
             .current_dir(root)
@@ -239,7 +239,7 @@ fn citation_purchase_gates_preserve_ts_modes_and_error_precedence() {
 
 #[test]
 fn citation_kind_mapping_matches_actual_typescript_policy() {
-    let script = r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const {legalKindCapability}=await import('./packages/server-legal/src/domain/purchases.ts');process.stdout.write(JSON.stringify(['contract','template','request','matter','counsel','ip','obligation','compliance','license','corporate','privacy','rule'].map(legalKindCapability)));"#;
+    let script = r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const {legalKindCapability}=await import('./modules/legal/server/src/domain/purchases.ts');process.stdout.write(JSON.stringify(['contract','template','request','matter','counsel','ip','obligation','compliance','license','corporate','privacy','rule'].map(legalKindCapability)));"#;
     let output =
         std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
             .current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))

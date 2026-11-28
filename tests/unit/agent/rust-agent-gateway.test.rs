@@ -1,8 +1,8 @@
 //! Native AI-gateway policy, statement, verified cost and reconciliation
 //! decisions. Ports are faked; exact retained failure codes and replay
 //! equality are asserted without a database.
-use erpx_server_agent::public::gateway::*;
-use erpx_server_shared::public::BusinessError;
+use erpx_agent_server::public::gateway::*;
+use erpx_platform_shared_server::public::BusinessError;
 
 #[derive(Default)]
 struct Fake {

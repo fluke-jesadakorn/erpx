@@ -7,7 +7,7 @@ import ts from 'typescript';
 vi.mock('server-only', () => ({}));
 
 
-const srcRoot = resolve(__dirname, '../../../packages/server-sales/src');
+const srcRoot = resolve(__dirname, '../../../modules/sales/server/src');
 const obligations = readFileSync(resolve(srcRoot, 'adapters/package-obligations.ts'), 'utf8');
 
 // Pre-r27 rendered literals copied from the r26 baseline. The alias is the only

@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isValidElement, type ComponentProps, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AppRouterContext, type AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
-import type { HotelCard } from "@erpx/feature-pms/components/booking-flow";
-import type { BookingPaymentReturnStatus } from "@erpx/feature-pms/components/booking-payment-return";
+import type { HotelCard } from "@erpx/pms-ui/components/booking-flow";
+import type { BookingPaymentReturnStatus } from "@erpx/pms-ui/components/booking-payment-return";
 
 // Only the named native owner ports are substituted. An explicit framework
 // navigation IO port mounts real Next context; the owner, notFound, product
@@ -17,14 +17,14 @@ const owner = vi.hoisted(() => ({
   catalogQueries: vi.fn<(slug: string) => Promise<{ bookingCatalog: CatalogReader }>>(),
   paymentQueries: vi.fn<(slug: string) => Promise<{ bookingPaymentStatus: PaymentReader }>>(),
 }));
-vi.mock("@erpx/server-pms/public/presentation-context-queries", () => ({
+vi.mock("@erpx/pms-server/public/presentation-context-queries", () => ({
   bookingPresentationQueries: owner.catalogQueries,
   bookingPaymentPresentationQueries: owner.paymentQueries,
 }));
-import PropertyPage from "@erpx/feature-booking/routes/book/[holdingSlug]/[propertyId]/page";
-import { BookingPaymentReturn } from "@erpx/feature-pms/components/booking-payment-return";
-import { ProductLinkEnvironment } from "@erpx/workplace/components/product-link-context";
-import { ApiError } from "@erpx/server-runtime/public/http";
+import PropertyPage from "@erpx/product-booking-ui/routes/book/[holdingSlug]/[propertyId]/page";
+import { BookingPaymentReturn } from "@erpx/pms-ui/components/booking-payment-return";
+import { ProductLinkEnvironment } from "@erpx/platform-workplace/components/product-link-context";
+import { ApiError } from "@erpx/platform-runtime-server/public/http";
 
 const target = { holdingSlug: "original-holding", propertyId: "original-property" };
 const attempt = "original-payment.original-signature";

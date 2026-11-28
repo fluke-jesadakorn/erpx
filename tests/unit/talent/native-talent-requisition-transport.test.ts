@@ -2,25 +2,25 @@ import {readFile,readdir} from 'node:fs/promises';
 import {describe,it,expect,vi} from 'vitest';
 vi.mock('server-only',()=>({}));
 vi.mock('next/headers',()=>({headers:async()=>new Headers({host:'acme.example.com',cookie:'__Host-erpx-product=session'})}));
-vi.mock('@erpx/server-talent/public/purchases',()=>({talentPurchaseControls:vi.fn(async()=>undefined)}));
+vi.mock('@erpx/talent-server/public/purchases',()=>({talentPurchaseControls:vi.fn(async()=>undefined)}));
 import {
   createNativeTalentClient,
   nativeTalentAvailable,
   nativeTalentConfiguration,
   NativeTalentError,
   type NativeTalentPageContext,
-} from '../../../packages/feature-talent/src/public/native-talent-requisition';
+} from '../../../modules/talent/ui/src/public/native-talent-requisition';
 import {
   nativeTalentFailure,
   nativeTalentRequisitionCommand,
   nativeTalentWorkspace,
-} from '../../../packages/feature-talent/src/public/native-talent-page';
-import {nativeTalentLifecycleCommand} from '../../../packages/server-talent/src/public/native-talent-lifecycle-page';
-import {nativeTalentPlan,nativeTalentReadAll,nativeTalentReadFirst} from '../../../packages/server-talent/src/adapters/native-talent-read';
-import {talentOwnerSourceImage,talentOwnerSourceWitnessAssertion} from '../../../packages/server-talent/src/adapters/purchases';
-import {SensitiveAttachmentTalentFacts} from '../../../packages/server-talent/src/adapters/attachments-sensitive-facts';
-import {peopleHireHandoffFacts} from '../../../packages/server-talent/src/adapters/people-hire-handoff-facts';
-import {talentPurchaseControls} from '../../../packages/server-talent/src/public/purchases';
+} from '../../../modules/talent/ui/src/public/native-talent-page';
+import {nativeTalentLifecycleCommand} from '../../../modules/talent/server/src/public/native-talent-lifecycle-page';
+import {nativeTalentPlan,nativeTalentReadAll,nativeTalentReadFirst} from '../../../modules/talent/server/src/adapters/native-talent-read';
+import {talentOwnerSourceImage,talentOwnerSourceWitnessAssertion} from '../../../modules/talent/server/src/adapters/purchases';
+import {SensitiveAttachmentTalentFacts} from '../../../modules/talent/server/src/adapters/attachments-sensitive-facts';
+import {peopleHireHandoffFacts} from '../../../modules/talent/server/src/adapters/people-hire-handoff-facts';
+import {talentPurchaseControls} from '../../../modules/talent/server/src/public/purchases';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44993',
@@ -583,7 +583,7 @@ const offerFamily = [
   },
 ] as const;
 
-const adapter = new URL('../../../packages/server-talent/src/adapters/', import.meta.url);
+const adapter = new URL('../../../modules/talent/server/src/adapters/', import.meta.url);
 const src = (name: string) => readFile(new URL(name, adapter), 'utf8');
 async function tsFiles(directory: URL): Promise<string[]> {
   const found: string[] = [];
@@ -668,7 +668,7 @@ describe('talent offer/candidate native read port cutover', () => {
 
   it('pins the owner SELECT KPI at the post-detail-cutover baseline of 9', async () => {
     let count = 0;
-    const srcDir = new URL('../../../packages/server-talent/src/', import.meta.url);
+    const srcDir = new URL('../../../modules/talent/server/src/', import.meta.url);
     for (const file of await tsFiles(srcDir)) count += (await readFile(file, 'utf8')).split('SELECT ').length - 1;
     expect(count).toBe(9);
     expect(count).toBeLessThan(12);
@@ -888,10 +888,10 @@ describe('talent offer/candidate native read port cutover', () => {
 });
 
 describe('native-only Talent application detail GET cutover', () => {
-  const routeUrl = new URL('../../../packages/feature-recruit/src/routes/api/v1/holdings/[holdingSlug]/talent/route.ts', import.meta.url);
-  const readerUrl = new URL('../../../packages/server-talent/src/adapters/talent.ts', import.meta.url);
-  const nativeUrl = new URL('../../../packages/server-talent/src/adapters/native_talent_detail/http.rs', import.meta.url);
-  const sqlUrl = new URL('../../../packages/server-talent/src/adapters/native_talent_detail/postgres.rs', import.meta.url);
+  const routeUrl = new URL('../../../products/recruit/ui/src/routes/api/v1/holdings/[holdingSlug]/talent/route.ts', import.meta.url);
+  const readerUrl = new URL('../../../modules/talent/server/src/adapters/talent.ts', import.meta.url);
+  const nativeUrl = new URL('../../../modules/talent/server/src/adapters/native_talent_detail/http.rs', import.meta.url);
+  const sqlUrl = new URL('../../../modules/talent/server/src/adapters/native_talent_detail/postgres.rs', import.meta.url);
 
   it('deletes the shared detail GET and keeps the write POST', async () => {
     const ts = await import('typescript');
@@ -923,7 +923,7 @@ describe('native-only Talent application detail GET cutover', () => {
     const fn = tree.statements.find((node) => ts.isFunctionDeclaration(node) && node.name?.text === 'talentDetail');
     expect(fn).toBeDefined();
     const compiled = ts.transpileModule(fn!.getText(tree).replace(/^export\s+/, ''), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
-    const { ApiError } = await import('@erpx/server-runtime/public/http');
+    const { ApiError } = await import('@erpx/platform-runtime-server/public/http');
     const read = new Function('ApiError', `${compiled}\nreturn talentDetail;`)(ApiError) as (actor: unknown, id: string) => Promise<unknown>;
     for (const id of ['app-1', 'app-missing']) await expect(read({ companyId: 'company' }, id)).rejects.toMatchObject({ status: 503, code: 'NATIVE_TALENT_DETAIL_UNAVAILABLE' });
   });

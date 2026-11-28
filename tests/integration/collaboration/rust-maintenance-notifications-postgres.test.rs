@@ -3,12 +3,12 @@
 //! a separate mandatory Maintenance composition, never granted by this fixture.
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_collaboration::public::maintenance_notifications::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_collaboration_server::public::maintenance_notifications::*;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, RecordId, TimestampMillis,
 };
 use serde_json::{Value, json};

@@ -2,7 +2,7 @@
 //! `record_context` read port (`G4 / migrate.records.context-read-port`).
 //!
 //! For each caller-unit read, the exact retained TypeScript statement (copied
-//! verbatim from `packages/server-records/src/adapters/records.ts`) and the
+//! verbatim from `modules/records/server/src/adapters/records.ts`) and the
 //! owner's registered Postgres adapter are executed on ONE freshly opened
 //! serializable transaction over the same fixture rows. The projected rows must
 //! match, including an uncommitted write made on that transaction. Nothing
@@ -16,17 +16,17 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_records::public::record_context::{
+use erpx_records_server::public::record_context::{
     BacklinkEdge, HistoryRow, MentionRow, PgRecordContext, RecordContextActor,
     RecordContextRepository, RecordRow, ReferenceEdge, SuggestionRow,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
 use sqlx::{AssertSqlSafe, Connection, Row, postgres::PgRow};
 
 /// Live `readGetRecordRow` (holding scope, no actor cross-owner predicates) and
-/// the five context sub-reads from `packages/server-records/src/adapters/records.ts`
+/// the five context sub-reads from `modules/records/server/src/adapters/records.ts`
 /// (repository methods `readGetRecordRow`, `readRecordContext*2..5` at lines
 /// 78-111). Kept verbatim; `?` is converted to `$n` only for direct execution.
 const LIVE_RECORD: &str = "SELECT module_id,id,section_id,title,description,status,fields_json,version,created_by,updated_at FROM workspace_records WHERE archived_at IS NULL AND module_id=? AND id=? AND company_id=?";

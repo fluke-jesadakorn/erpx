@@ -7,10 +7,10 @@
 )]
 #[path = "../../support/rust-account-queued-authority.rs"]
 mod account_queue;
-use erpx_server_files::public::malware_scanner::{ClamAvConfig, ClamAvScanner, MalwareVerdict};
-use erpx_server_legal::public::{DocumentToolConfiguration, LegalProcessingKind};
-use erpx_server_runtime::public::postgres::DatabasePool;
-use erpx_server_shared::public::{Clock, TimestampMillis};
+use erpx_files_server::public::malware_scanner::{ClamAvConfig, ClamAvScanner, MalwareVerdict};
+use erpx_legal_server::public::{DocumentToolConfiguration, LegalProcessingKind};
+use erpx_platform_runtime_server::public::postgres::DatabasePool;
+use erpx_platform_shared_server::public::{Clock, TimestampMillis};
 use sha2::{Digest, Sha256};
 use sqlx::{ConnectOptions, postgres::PgConnectOptions};
 use std::{

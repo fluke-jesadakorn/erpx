@@ -4,11 +4,11 @@
 mod facts;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_inventory::public::{
+use erpx_inventory_server::public::{
     service_initial_count_revision::*, service_initial_physical_count::*,
 };
-use erpx_server_runtime::public::postgres::{PgTransactionError, PgUnitOfWork, TransactionOptions};
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_runtime_server::public::postgres::{PgTransactionError, PgUnitOfWork, TransactionOptions};
+use erpx_platform_shared_server::public::BusinessError;
 
 #[tokio::test]
 async fn revision_replaces_only_planned_inventory_and_rolls_back_with_owner_unit() {
@@ -85,10 +85,10 @@ async fn initial_count_terminal_and_marker_sources_match_actual_ts_and_isolate_u
     // One rollback-only unit exercises the actual imported TypeScript Count
     // terminal branch and Service marker journal SQL. It is source-predicate
     // evidence only, not Count authority, valid Service lineage or purchase.
-    use erpx_server_inventory::public::{
+    use erpx_inventory_server::public::{
         count_terminal_history_source::*, initial_count_history_source::*,
     };
-    use erpx_server_workflow::public::record_origin::*;
+    use erpx_workflow_server::public::record_origin::*;
     use sqlx::AssertSqlSafe;
 
     fixture::with_database(2, |pool| async move {

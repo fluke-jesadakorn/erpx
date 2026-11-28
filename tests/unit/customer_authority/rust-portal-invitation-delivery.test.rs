@@ -4,7 +4,7 @@
 //! reference vector, the exact private link/body/idempotency key, bounded
 //! retry and terminal states, the safe persisted delivery codes, and the
 //! recovery/claim/cancel/sent/failed orchestration with a fake owner unit.
-use erpx_server_customer_authority::public::portal_invitation_delivery::{
+use erpx_customer_authority_server::public::portal_invitation_delivery::{
     EMAIL_DELIVERY_FAILED, EMAIL_IDEMPOTENCY_CONFLICT, EMAIL_NOT_CONFIGURED,
     EMAIL_SANDBOX_FORBIDDEN_IN_PRODUCTION, EMAIL_SENSITIVE_RECEIPT_INVALID, ENROLLMENT_PATH,
     InvitationClaims, InvitationJob, LEASE_MILLIS, MAX_ATTEMPTS, PUBLIC_ORIGIN_NOT_CONFIGURED,
@@ -13,7 +13,7 @@ use erpx_server_customer_authority::public::portal_invitation_delivery::{
     invitation_token_hash_matches, iso_millis, require_invitation_token, resolve_account_origin,
     safe_delivery_code,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::Mutex;
 
 const SECRET: &str = "vector-secret-2026";
@@ -212,7 +212,7 @@ impl PortalInvitationEmailPort for FakeEmail {
     fn send<'a>(
         &'a self,
         email: PortalEmail,
-    ) -> erpx_server_customer_authority::public::portal_invitation_delivery::PortalEmailFuture<'a, ()>
+    ) -> erpx_customer_authority_server::public::portal_invitation_delivery::PortalEmailFuture<'a, ()>
     {
         self.sent.lock().unwrap().push(email);
         let outcome = self.outcome;
@@ -261,7 +261,7 @@ impl PortalInvitationUnit for FakeUnit {
     fn recover<'a>(
         &'a self,
         _now: i64,
-    ) -> erpx_server_customer_authority::public::portal_invitation_delivery::PortalDeliveryFuture<
+    ) -> erpx_customer_authority_server::public::portal_invitation_delivery::PortalDeliveryFuture<
         'a,
         (),
         Self::Error,
@@ -276,7 +276,7 @@ impl PortalInvitationUnit for FakeUnit {
         &'a self,
         _lease_token: &'a str,
         _now: i64,
-    ) -> erpx_server_customer_authority::public::portal_invitation_delivery::PortalDeliveryFuture<
+    ) -> erpx_customer_authority_server::public::portal_invitation_delivery::PortalDeliveryFuture<
         'a,
         Option<InvitationJob>,
         Self::Error,
@@ -288,7 +288,7 @@ impl PortalInvitationUnit for FakeUnit {
         &'a self,
         _job: &'a InvitationJob,
         _now: i64,
-    ) -> erpx_server_customer_authority::public::portal_invitation_delivery::PortalDeliveryFuture<
+    ) -> erpx_customer_authority_server::public::portal_invitation_delivery::PortalDeliveryFuture<
         'a,
         bool,
         Self::Error,
@@ -302,7 +302,7 @@ impl PortalInvitationUnit for FakeUnit {
         _now: i64,
         state: &'static str,
         reason: &'static str,
-    ) -> erpx_server_customer_authority::public::portal_invitation_delivery::PortalDeliveryFuture<
+    ) -> erpx_customer_authority_server::public::portal_invitation_delivery::PortalDeliveryFuture<
         'a,
         (),
         Self::Error,
@@ -321,7 +321,7 @@ impl PortalInvitationUnit for FakeUnit {
         &'a self,
         _job: &'a InvitationJob,
         _now: i64,
-    ) -> erpx_server_customer_authority::public::portal_invitation_delivery::PortalDeliveryFuture<
+    ) -> erpx_customer_authority_server::public::portal_invitation_delivery::PortalDeliveryFuture<
         'a,
         (),
         Self::Error,
@@ -339,7 +339,7 @@ impl PortalInvitationUnit for FakeUnit {
         state: &'static str,
         code: &'static str,
         next_attempt_at: i64,
-    ) -> erpx_server_customer_authority::public::portal_invitation_delivery::PortalDeliveryFuture<
+    ) -> erpx_customer_authority_server::public::portal_invitation_delivery::PortalDeliveryFuture<
         'a,
         (),
         Self::Error,

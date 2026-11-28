@@ -10,8 +10,8 @@ import {
   SALES_RD_PRICE_LIST_ITEMS_ACTIVE,
   nativeSalesReadAll,
   nativeSalesReadFirst,
-} from '../../../packages/server-sales/src/adapters/native-sales-read';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+} from '../../../modules/sales/server/src/adapters/native-sales-read';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
 
 const host = 'acme.example.com';
 const origin = `https://${host}`;

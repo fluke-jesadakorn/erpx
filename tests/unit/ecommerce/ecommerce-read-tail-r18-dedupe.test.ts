@@ -3,16 +3,16 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
 const { captured } = vi.hoisted(() => ({ captured: [] as string[] }));
-vi.mock('@erpx/server-workflow/public/command-assertions', () => ({
+vi.mock('@erpx/workflow-server/public/command-assertions', () => ({
   assertion: (_db: unknown, _id: string, _step: string, query: string) => {
     captured.push(query);
     return { sql: query };
   },
 }));
-import { ecommerceExistsGuard } from '../../../packages/server-ecommerce/src/adapters/read-tail-sql';
-import { OperationalAttachmentEcommerceFacts } from '../../../packages/server-ecommerce/src/adapters/attachments-operational-facts';
+import { ecommerceExistsGuard } from '../../../modules/ecommerce/server/src/adapters/read-tail-sql';
+import { OperationalAttachmentEcommerceFacts } from '../../../modules/ecommerce/server/src/adapters/attachments-operational-facts';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-ecommerce/src');
+const srcRoot = resolve(__dirname, '../../../modules/ecommerce/server/src');
 const read = (path: string) => readFileSync(resolve(srcRoot, path), 'utf8');
 const ao = read('adapters/attachments-operational-facts.ts');
 const shared = read('adapters/read-tail-sql.ts');

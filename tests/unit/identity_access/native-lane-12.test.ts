@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({ fetch: vi.fn(), write: vi.fn() }));
 
-vi.mock('@erpx/server-identity_access/public/native-identity-write', () => ({
+vi.mock('@erpx/identity-access-server/public/native-identity-write', () => ({
   nativeIdentityWrite: state.write,
 }));
 
@@ -16,9 +16,9 @@ import {
   nativePeopleTemplateAttributes,
   nativePeopleTemplateGroupReferences,
   type LaneHoldingScope,
-} from '../../../packages/server-identity_access/src/adapters/native-lane-12/client';
-import { peopleTemplateAttributes } from '../../../packages/server-identity_access/src/adapters/people-template-attributes';
-import { createApprovalsSourceRepository } from '../../../packages/server-identity_access/src/adapters/workflow-approvals-facts';
+} from '../../../modules/identity-access/server/src/adapters/native-lane-12/client';
+import { peopleTemplateAttributes } from '../../../modules/identity-access/server/src/adapters/people-template-attributes';
+import { createApprovalsSourceRepository } from '../../../modules/identity-access/server/src/adapters/workflow-approvals-facts';
 
 /** Exact dev config: three registered Holdings, no first-holding default. */
 const DEV_CONFIG = {

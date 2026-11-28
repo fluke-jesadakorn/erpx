@@ -3,17 +3,17 @@ import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
-import { manufacturingAccountingProfileSelect } from '../../../packages/server-manufacturing/src/adapters/manufacturing-read-tail-r19-sql';
-import { manufacturingStockFootprintSelect } from '../../../packages/server-manufacturing/src/adapters/manufacturing-read-tail-r23-sql';
-import { manufacturingOwnerTableSelect } from '../../../packages/server-manufacturing/src/adapters/manufacturing-read-tail-r36-sql';
+import { manufacturingAccountingProfileSelect } from '../../../modules/manufacturing/server/src/adapters/manufacturing-read-tail-r19-sql';
+import { manufacturingStockFootprintSelect } from '../../../modules/manufacturing/server/src/adapters/manufacturing-read-tail-r23-sql';
+import { manufacturingOwnerTableSelect } from '../../../modules/manufacturing/server/src/adapters/manufacturing-read-tail-r36-sql';
 import {
   manufacturingCostAllocationProbe,
   manufacturingPackageSettlementSources,
-} from '../../../packages/server-manufacturing/src/adapters/package-obligations';
-import { manufacturingPurchaseOrderRows } from '../../../packages/server-manufacturing/src/adapters/purchases';
+} from '../../../modules/manufacturing/server/src/adapters/package-obligations';
+import { manufacturingPurchaseOrderRows } from '../../../modules/manufacturing/server/src/adapters/purchases';
 
-const adapter = (name: string) => new URL(`../../../packages/server-manufacturing/src/adapters/${name}`, import.meta.url);
-const publicSrc = (name: string) => new URL(`../../../packages/server-manufacturing/src/public/${name}`, import.meta.url);
+const adapter = (name: string) => new URL(`../../../modules/manufacturing/server/src/adapters/${name}`, import.meta.url);
+const publicSrc = (name: string) => new URL(`../../../modules/manufacturing/server/src/public/${name}`, import.meta.url);
 const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
 
 /** Byte oracles captured from the pre-fold HEAD renderings of the accounting-
@@ -198,7 +198,7 @@ describe('manufacturing read-tail r36 owner-table head-family fold', () => {
 
   it('pins the manufacturing owner SELECT KPI at 42 after the package-settlement head fold (45->42)', async () => {
     let total = 0;
-    for (const file of await tsFiles(new URL('../../../packages/server-manufacturing/src/', import.meta.url))) {
+    for (const file of await tsFiles(new URL('../../../modules/manufacturing/server/src/', import.meta.url))) {
       total += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     }
     expect(total).toBe(42); // package-obligation owner-table heads 45->42.

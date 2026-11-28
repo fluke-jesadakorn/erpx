@@ -1,6 +1,6 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_people_payroll::public::rfq_request_people::*;
+use erpx_people_payroll_server::public::rfq_request_people::*;
 
 #[tokio::test]
 async fn event_and_handler_name_fallbacks_are_owner_scoped() {

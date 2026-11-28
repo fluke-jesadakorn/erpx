@@ -1,9 +1,9 @@
 //! Focused owner test for the native Commerce employee-request order read.
 //!
-//! The lead registers this target in `packages/server-commerce/Cargo.toml`
+//! The lead registers this target in `modules/commerce/server/Cargo.toml`
 //! (`autotests = false`); the owner unit tests live beside the implementation.
 
-use erpx_server_commerce::public::native_employee_request_order::{
+use erpx_commerce_server::public::native_employee_request_order::{
     CommerceEmployeeOrderRead, EmployeeOrder, EmployeeOrderFuture, SQL_EMPLOYEE_ORDER_TS, project,
     read_order, statement,
 };

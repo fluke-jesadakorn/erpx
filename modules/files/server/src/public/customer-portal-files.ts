@@ -1,0 +1,1 @@
+export { customerPortalFileTarget, customerPortalSharedFileRows, customerPortalPreviewRow, recordCustomerPortalFileAccess,customerPortalFileSourceReadLocks,customerPortalSharedPreviewSource,customerPortalPreviewReadAudits } from "@erpx/files-server/adapters/customer-portal-files";

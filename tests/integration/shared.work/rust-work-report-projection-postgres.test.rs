@@ -7,7 +7,7 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_work_projection::public::work_report_read::{
+use erpx_work_projection_server::public::work_report_read::{
     WorkReportMode, WorkReportProjection, read_work_report_projection,
 };
 use serde_json::{Value, json};
@@ -108,7 +108,7 @@ async fn period_open_and_draft_projections_match_the_retained_queries() {
         assert_eq!(
             read.money,
             vec![
-                erpx_server_work_projection::public::work_report_read::WorkReportCurrencyTotal {
+                erpx_work_projection_server::public::work_report_read::WorkReportCurrencyTotal {
                     currency: "THB".into(),
                     amount: 1000
                 }

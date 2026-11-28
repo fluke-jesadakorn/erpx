@@ -9,10 +9,10 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_commercial::public::purchases::current_package_catalogue;
-use erpx_server_runtime::public::postgres::DatabasePool;
-use erpx_server_shared::public::{Clock, CompanyId, HoldingId};
-use erpx_service::{
+use erpx_commercial_server::public::purchases::current_package_catalogue;
+use erpx_platform_runtime_server::public::postgres::DatabasePool;
+use erpx_platform_shared_server::public::{Clock, CompanyId, HoldingId};
+use erpx_platform_composition::{
     field_service_reservation_read_http::FieldServiceReadScopeHeaders,
     inventory_count_commands::InventoryCountCommand,
     inventory_count_http::{InventoryCountHttpTarget, inventory_count_http_router},

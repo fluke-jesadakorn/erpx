@@ -11,7 +11,7 @@ import {
   validateNativeLane29Input,
   type Lane29Context,
   type NativeLane29Transport,
-} from '../../../packages/server-work_projection/src/adapters/native-lane-29/client';
+} from '../../../modules/work-projection/server/src/adapters/native-lane-29/client';
 
 const envKey = 'ERPX_NATIVE_WORK_PROJECTION_CONFIG';
 const original = process.env[envKey];
@@ -31,7 +31,7 @@ const DEV_CONFIG = {
 };
 
 const src = (relative: string) =>
-  new URL(`../../../packages/server-work_projection/src/${relative}`, import.meta.url);
+  new URL(`../../../modules/work-projection/server/src/${relative}`, import.meta.url);
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 const config = () => JSON.parse(JSON.stringify(DEV_CONFIG)) as unknown;
 
@@ -63,8 +63,8 @@ afterEach(() => {
 
 describe('native lane 29 contract', () => {
   it('sends announcement filters in the native request order', async () => {
-    const client = await import('../../../packages/server-work_projection/src/adapters/native-lane-29/client');
-    const { calendarAnnouncementsWorkProjectionFacts } = await import('../../../packages/server-work_projection/src/adapters/calendar-announcements-facts');
+    const client = await import('../../../modules/work-projection/server/src/adapters/native-lane-29/client');
+    const { calendarAnnouncementsWorkProjectionFacts } = await import('../../../modules/work-projection/server/src/adapters/calendar-announcements-facts');
     const read = vi.spyOn(client, 'nativeAnnouncementCandidates').mockResolvedValue([]);
     try {
       const db = {} as Parameters<typeof calendarAnnouncementsWorkProjectionFacts>[0];
@@ -140,7 +140,7 @@ describe('native lane 29 contract', () => {
       return match ? match[1]!.split(',').map(s => s.trim().replace(/'/g, '')).filter(Boolean) : [];
     };
     const client = await readFile(
-      new URL('../../../packages/server-work_projection/src/adapters/native-lane-29/client.ts', import.meta.url),
+      new URL('../../../modules/work-projection/server/src/adapters/native-lane-29/client.ts', import.meta.url),
       'utf8',
     );
     const appointmentKeys = keys(client, 'APPOINTMENT_KEYS');

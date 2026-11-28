@@ -16,7 +16,7 @@ import { assignedBrowserShard, type BrowserShard, type BrowserInventoryCase, typ
 import { assertBrowserFaultProbeSelection, browserFaultProbeError, isBrowserFaultProbeCase, orderedBrowserExecutionCases, orderedBrowserExecutionGroups, parseBrowserCaseOrder, selectBrowserCaseOrder, triggerBrowserFaultProbe, type BrowserCaseOrder } from "./browser-execution-plan";
 import { assertRequiredCaseInventory, canonicalCaseFile, loadRequiredCases } from "./required-case-inventory";
 import { writeJsonOutput } from "./json-output";
-import {productIds} from "@erpx/contracts/product-registry";
+import {productIds} from "@erpx/platform-contracts/product-registry";
 import { assertProductHostPlanWorkflow, productHostBrowserFile, productHostProducts, productHostPlan, productHostBusinessWorkflowForCase, productHostPlanPathForWorkflow, productHostPlanPathsFromEnvironment, productHostReadOnlyWorkflowForCase, startProductHostEdge, type ProductHostBusinessWorkflow, type ProductHostPlanPaths } from "./product-host-cohort";
 import { executiveWorkHostBrowserFile, startExecutiveWorkHostEdge } from "./executive-work-host-cohort";
 import { formsHostBrowserFile, formsHostCaseTitle, formsHostOrigin, formsHostPlan, startFormsHostEdge } from "./forms-host-cohort";
@@ -96,7 +96,7 @@ export async function runBrowserSuites(suites: Suite[], options: { mode?: "devel
   // cohort in this suite starts the same reviewed executable.
   let nativeAccountBinary: string | undefined;
   if (process.env.ERPX_NATIVE_BROWSER_ACCOUNT === "1") {
-    await execute(["cargo", "build", "-p", "erpx-service", "--features", "private-field-api,existing-business", "--bin", "erpx-server"], process.env, join(evidence, "native-account-build.log"));
+    await execute(["cargo", "build", "-p", "erpx-platform-composition", "--features", "private-field-api,existing-business", "--bin", "erpx-server"], process.env, join(evidence, "native-account-build.log"));
     const built = join(root, "target/debug/erpx-server"), digest = createHash("sha256").update(await readFile(built)).digest("hex");
     const directory = join(root, ".scratch/dev/rust-migration/browser-native-account");
     await mkdir(directory, { recursive: true, mode: 0o700 });

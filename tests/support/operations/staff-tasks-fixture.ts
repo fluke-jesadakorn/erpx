@@ -4,44 +4,44 @@
  * Work command. This copy is kept for PostgreSQL fixture seeding and is
  * tracked for removal by retire.operations.fixture-oracle.
  */
-import{taskWorkState,canAttachTask}from '@erpx/server-operations/public/staff-task-read';
+import{taskWorkState,canAttachTask}from '@erpx/operations-server/public/staff-task-read';
 export{taskWorkState,canAttachTask};
-import{nativeTaskReadRepository,taskSelect,taskAccess}from '@erpx/server-operations/adapters/staff-task-read';
+import{nativeTaskReadRepository,taskSelect,taskAccess}from '@erpx/operations-server/adapters/staff-task-read';
 
-import { finalRootOwnerProjectionSources as filesProjectionSources } from "@erpx/server-files/public/final-root-owner-projection-sources";
+import { finalRootOwnerProjectionSources as filesProjectionSources } from "@erpx/files-server/public/final-root-owner-projection-sources";
 
-import { getProject } from "@erpx/server-projects/public/staff-projects";
-import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
-import {readablePost} from '@erpx/server-collaboration/public/social-source';
-import { taskSourceStatements, type TaskSource } from "@erpx/server-collaboration/public/social-task";
+import { getProject } from "@erpx/projects-server/public/staff-projects";
+import type { SqlDatabase, SqlStatement } from "@erpx/platform-runtime-server/public/runtime/types";
+import {readablePost} from '@erpx/collaboration-server/public/social-source';
+import { taskSourceStatements, type TaskSource } from "@erpx/collaboration-server/public/social-task";
 import { z } from "zod";
-import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {approvalView,closeApprovals,taskRoute} from '@erpx/server-workflow/public/approval-planning';
+import {assertion} from "@erpx/workflow-server/public/command-assertions";
+import {approvalView,closeApprovals,taskRoute} from '@erpx/workflow-server/public/approval-planning';
 
-import { activeStaff, staffGuard, notification, type StaffActor } from "@erpx/server-operations/public/staff-policy";
-import { holdingResources as nativeHoldingResources } from '../../../packages/server-runtime/src/public/runtime';
-import { policyRead as nativePolicyRead, policyNow as nativePolicyNow } from '@erpx/server-identity_access/public/iam-read-snapshot';
-import { replayCommand as nativeReplayCommand, executeCommand as nativeExecuteCommand } from '@erpx/server-workflow/public/commands';
-import { ApiError as NativeApiError } from '@erpx/server-runtime/public/http';
-import { taskFieldsSchema, taskSchema, type TaskRow, type TaskDetail, canConfigureTask as purecanConfigureTask, type TaskWorkState } from '@erpx/server-operations/domain/staff-tasks';
-import { createStaffTasksApplication, type StaffTasksRepository } from '@erpx/server-operations/application/staff-tasks';
-import { BusinessRuleError } from '@erpx/server-shared/index';
-import { StaffTasksIdentityAccessFacts } from '@erpx/server-identity_access/public/operations-staff-tasks-facts';
-import { StaffTasksProjectsFacts } from '@erpx/server-projects/public/operations-staff-tasks-facts';
-import { StaffTasksPeoplePayrollFacts } from '@erpx/server-people_payroll/public/operations-staff-tasks-facts';
-export { taskFieldsSchema } from '@erpx/server-operations/domain/staff-tasks';
-export { taskSchema } from '@erpx/server-operations/domain/staff-tasks';
-export { projectSchema } from '@erpx/server-operations/domain/staff-tasks';
-export { taskActionSchema } from '@erpx/server-operations/domain/staff-tasks';
-export { taskDelegationSchema } from '@erpx/server-operations/domain/staff-tasks';
-export { taskDelegationRevokeSchema } from '@erpx/server-operations/domain/staff-tasks';
-export type { TaskRow } from '@erpx/server-operations/domain/staff-tasks';
-export type { TaskDetail } from '@erpx/server-operations/domain/staff-tasks';
-export type { ProjectRow } from '@erpx/server-operations/domain/staff-tasks';
-export type { TaskWorkState } from '@erpx/server-operations/domain/staff-tasks';
+import { activeStaff, staffGuard, notification, type StaffActor } from "@erpx/operations-server/public/staff-policy";
+import { holdingResources as nativeHoldingResources } from '../../../platform/runtime/server/src/public/runtime';
+import { policyRead as nativePolicyRead, policyNow as nativePolicyNow } from '@erpx/identity-access-server/public/iam-read-snapshot';
+import { replayCommand as nativeReplayCommand, executeCommand as nativeExecuteCommand } from '@erpx/workflow-server/public/commands';
+import { ApiError as NativeApiError } from '@erpx/platform-runtime-server/public/http';
+import { taskFieldsSchema, taskSchema, type TaskRow, type TaskDetail, canConfigureTask as purecanConfigureTask, type TaskWorkState } from '@erpx/operations-server/domain/staff-tasks';
+import { createStaffTasksApplication, type StaffTasksRepository } from '@erpx/operations-server/application/staff-tasks';
+import { BusinessRuleError } from '@erpx/platform-shared-server/index';
+import { StaffTasksIdentityAccessFacts } from '@erpx/identity-access-server/public/operations-staff-tasks-facts';
+import { StaffTasksProjectsFacts } from '@erpx/projects-server/public/operations-staff-tasks-facts';
+import { StaffTasksPeoplePayrollFacts } from '@erpx/people-payroll-server/public/operations-staff-tasks-facts';
+export { taskFieldsSchema } from '@erpx/operations-server/domain/staff-tasks';
+export { taskSchema } from '@erpx/operations-server/domain/staff-tasks';
+export { projectSchema } from '@erpx/operations-server/domain/staff-tasks';
+export { taskActionSchema } from '@erpx/operations-server/domain/staff-tasks';
+export { taskDelegationSchema } from '@erpx/operations-server/domain/staff-tasks';
+export { taskDelegationRevokeSchema } from '@erpx/operations-server/domain/staff-tasks';
+export type { TaskRow } from '@erpx/operations-server/domain/staff-tasks';
+export type { TaskDetail } from '@erpx/operations-server/domain/staff-tasks';
+export type { ProjectRow } from '@erpx/operations-server/domain/staff-tasks';
+export type { TaskWorkState } from '@erpx/operations-server/domain/staff-tasks';
 
-import {projectTaskPurchaseAccess,projectTaskReadScope,projectTaskWorkState} from '@erpx/server-projects/public/task-purchases';
-import {workTaskPurchaseAccess,workTaskReadScope,workTaskWorkState,withWorkTaskPurchasedCommand} from '@erpx/server-operations/adapters/work-task-purchases';
+import {projectTaskPurchaseAccess,projectTaskReadScope,projectTaskWorkState} from '@erpx/projects-server/public/task-purchases';
+import {workTaskPurchaseAccess,workTaskReadScope,workTaskWorkState,withWorkTaskPurchasedCommand} from '@erpx/operations-server/adapters/work-task-purchases';
 function application(provided?: SqlDatabase, projectReadWhere='TRUE',workReadArgs:(string|number|null)[]=[]) {
     let database = provided!;
     const repository: StaffTasksRepository<SqlStatement> = { readListTasksRows(companyId: string, userId: string, userId2: string, userId3: string, userId4: string, userId5: string, userId6: string, userId7: string, userId8: string, value: string | null, value2: string | null) {
@@ -116,4 +116,4 @@ export async function saveTask(db: SqlDatabase, actor: StaffActor, id: string | 
 
 export async function taskDetail(db: SqlDatabase, actor: StaffActor, id: string): Promise<TaskDetail> { await projectTaskPurchaseAccess(db,actor,id);await workTaskPurchaseAccess(db,actor,id);const project=await projectTaskReadScope(db,actor),work=await workTaskReadScope(db,actor),detail=await invoke(() => application(db,`(${project.where}) AND (${work.where})`,work.args).taskDetail(actor, id));return {...detail,...await workTaskWorkState(db,actor,id,await projectTaskWorkState(db,actor,id,detail))}; }
 
-export { getProject, listProjects } from "@erpx/server-projects/public/staff-projects";
+export { getProject, listProjects } from "@erpx/projects-server/public/staff-projects";

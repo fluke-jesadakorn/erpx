@@ -1,0 +1,23 @@
+import {betaManagementPeopleSources} from '@erpx/people-payroll-server/public/beta-management-sources';
+import {betaManagementCollaborationSources} from '@erpx/collaboration-server/public/beta-management-sources';
+import {betaManagementTaskSources} from '@erpx/operations-server/public/beta-management-sources';
+import type {SqlDatabase} from '@erpx/platform-runtime-server/public/runtime/types';
+import {SUM_BYTES_ATTACHMENT_HEAD_SQL} from './read-tail-r49-source-sql';
+export function betaManagementFacts(db:SqlDatabase){const people=betaManagementPeopleSources(db),collaboration=betaManagementCollaborationSources(db),tasks=betaManagementTaskSources(db);return {async files(companyId:string,companyId2:string,companyId3:string,companyId4:string,companyId5:string,companyId6:string){const taskFileOwner=await tasks.taskFileOwner();return db
+               .prepare(
+                 `SELECT COALESCE(SUM(a.bytes),0)+COALESCE((${SUM_BYTES_ATTACHMENT_HEAD_SQL}derivatives WHERE company_id=?),0) bytes FROM attachments a WHERE a.revoked_at IS NULL AND (
+               (a.owner_type='social_draft' AND ${collaboration.draftFileOwner}) OR
+               (a.owner_type='staff_task' AND ${taskFileOwner}) OR
+               (a.owner_type='expense_claim' AND ${people.expenseFileOwner}) OR
+               (a.owner_type='expense_payment' AND ${people.expensePaymentFileOwner}) OR
+               (a.owner_type='leave_request' AND ${people.leaveFileOwner}))`,
+               )
+               .bind(
+                 companyId,
+                 companyId2,
+                 companyId3,
+                 companyId4,
+                 companyId5,
+                 companyId6,
+               )
+               .first();}};}

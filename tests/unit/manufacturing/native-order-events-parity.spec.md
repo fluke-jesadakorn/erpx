@@ -10,11 +10,11 @@ verifies, mounts and cuts over.
 
 | Layer | File | Responsibility |
 | --- | --- | --- |
-| domain | `packages/server-manufacturing/src/domain/order_events.rs` | frozen SQL, bounded order id, complete `OrderEventRow` DTO |
-| application | `packages/server-manufacturing/src/application/order_events.rs` | read-only query, validation, `OrderEventsRead` owner port, handler |
-| adapter (SQL) | `packages/server-manufacturing/src/adapters/order_events_postgres.rs` | **real sqlx execution** via `PgUnitOfWork` on `DatabasePool`; nine-column history row mapping |
-| adapter (HTTP) | `packages/server-manufacturing/src/adapters/order_events_http.rs` | exact Holding-target axum ingress, no SQL/fallback in the handler |
-| public | `packages/server-manufacturing/src/public/order_events.rs`, `public/order_events_http.rs` | stable owner surface for composition |
+| domain | `modules/manufacturing/server/src/domain/order_events.rs` | frozen SQL, bounded order id, complete `OrderEventRow` DTO |
+| application | `modules/manufacturing/server/src/application/order_events.rs` | read-only query, validation, `OrderEventsRead` owner port, handler |
+| adapter (SQL) | `modules/manufacturing/server/src/adapters/order_events_postgres.rs` | **real sqlx execution** via `PgUnitOfWork` on `DatabasePool`; nine-column history row mapping |
+| adapter (HTTP) | `modules/manufacturing/server/src/adapters/order_events_http.rs` | exact Holding-target axum ingress, no SQL/fallback in the handler |
+| public | `modules/manufacturing/server/src/public/order_events.rs`, `public/order_events_http.rs` | stable owner surface for composition |
 | tests | `tests/unit/manufacturing/rust-order-events-http.test.rs` | SQL parity, full payload, host scope, bounded id |
 
 SQL execution proof: `PgOrderEventsRead::events` in
@@ -49,10 +49,10 @@ wrapper `{"data": [ …rows… ]}` matches the retired owner envelope; headers
 The lead froze `cargo`/`tsc`/build/test/server commands for this iteration, so
 no checks were run. The lead must run, in order:
 
-1. `cargo check -p erpx-server-manufacturing --locked`
-2. `cargo test -p erpx-server-manufacturing --lib --locked` (new in-crate tests)
+1. `cargo check -p erpx-manufacturing-server --locked`
+2. `cargo test -p erpx-manufacturing-server --lib --locked` (new in-crate tests)
 3. after adding the `[[test]]` entry below:
-   `cargo test -p erpx-server-manufacturing --test manufacturing_order_events_http --locked`
+   `cargo test -p erpx-manufacturing-server --test manufacturing_order_events_http --locked`
 4. a scoped Postgres parity test against `erpx_dev_*` (not added here:
    `tests/integration/manufacturing/**` is outside the worker's allowed paths).
 
@@ -67,37 +67,37 @@ no checks were run. The lead must run, in order:
   code units, no control characters). No Company header is bound because the
   frozen owner SQL scopes by `order_id` only; composition keeps the existing
   WorkContext, module, purchase and assignment authority checks.
-- Composition should add a small module under `src/composition/src/` that builds
+- Composition should add a small module under `platform/composition/src/` that builds
   the router from the owner `DatabasePool` and the registered Holding targets,
   alongside the existing Manufacturing routers (`manufacturing_read.rs`,
   `manufacturing_wave3.rs`, `native_lane_28` mounts). No composition or root
   manifest was touched by this worker.
-- Test registration needed in `packages/server-manufacturing/Cargo.toml`
+- Test registration needed in `modules/manufacturing/server/Cargo.toml`
   (`autotests = false`), which is outside this task's allowed paths:
   `[[test]] name = "manufacturing_order_events_http" path = "../../tests/unit/manufacturing/rust-order-events-http.test.rs"`
 
 ## Route-deletion packet (lead-owned)
 
 1. Native route becomes authoritative for the order-events projection.
-2. Consumer move: `packages/server-manufacturing/src/application/production.ts:229`
+2. Consumer move: `modules/manufacturing/server/src/application/production.ts:229`
    (`r.orderEvents(id)` inside `productionDetail`) must obtain the event list
    from the strict native client transport instead of the TS plan/execute
    method; no local SQL and no 503 fallback may remain. Its public surface is
-   `packages/server-manufacturing/src/adapters/production.ts:9` and
-   `packages/server-manufacturing/src/public/production.ts:1`.
+   `modules/manufacturing/server/src/adapters/production.ts:9` and
+   `modules/manufacturing/server/src/public/production.ts:1`.
 3. Downstream callers that must keep receiving the same `history` field:
-   - `packages/server-runtime/src/adapters/executive/evidence.ts:105` and
-     `packages/server-runtime/src/application/executive/evidence.ts:1670`
-   - `packages/server-collaboration/src/adapters/staff-notifications.ts:93` and
-     `packages/server-collaboration/src/application/staff-notifications.ts:232`
-   - `packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/manufacturing/[id]/screen.tsx:20`
+   - `platform/runtime/server/src/adapters/executive/evidence.ts:105` and
+     `platform/runtime/server/src/application/executive/evidence.ts:1670`
+   - `modules/collaboration/server/src/adapters/staff-notifications.ts:93` and
+     `modules/collaboration/server/src/application/staff-notifications.ts:232`
+   - `platform/workplace/src/routes/holdings/[holdingSlug]/_presenters/manufacturing/[id]/screen.tsx:20`
 4. TS authority to delete after the consumer switch (inside this task's allowed
    paths, deletion reserved for the lead's integration):
-   - `packages/server-manufacturing/src/adapters/production-command-sources.ts:142`
+   - `modules/manufacturing/server/src/adapters/production-command-sources.ts:142`
      (`orderEvents` method).
-   - `packages/server-manufacturing/src/adapters/native-manufacturing-read.ts:26`
+   - `modules/manufacturing/server/src/adapters/native-manufacturing-read.ts:26`
      (`MANUFACTURING_RD_ORDER_EVENTS` constant) and its registry entry at line 59.
-   - `packages/server-manufacturing/src/public/native_command.rs:49` (`RD_ORDER_EVENTS`),
+   - `modules/manufacturing/server/src/public/native_command.rs:49` (`RD_ORDER_EVENTS`),
      lines 251–266 (`PLAN_ORDER_EVENTS`) and its `PLANS` entry at line 364
      (retire this one kind only, not the registry).
    - `nativeManufacturingReadAll` / `nativeManufacturingReadFirst` in
@@ -105,7 +105,7 @@ no checks were run. The lead must run, in order:
 5. There is no dedicated shared API route handler or `apps/*/src/app/api/**`
    re-export for order events: the read is reached through `productionDetail`
    only. The generic production `GET`/`POST` route at
-   `packages/feature-manufacturing/src/routes/api/v1/holdings/[holdingSlug]/production/route.ts`
+   `modules/manufacturing/ui/src/routes/api/v1/holdings/[holdingSlug]/production/route.ts`
    must remain because it serves other production operations.
 6. Canonical destination links are unaffected: this read returns no links.
 

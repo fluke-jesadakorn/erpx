@@ -4,11 +4,11 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { supportEligibleFlagSql } from '../../../packages/server-support/src/adapters/eligibility-projection-sources';
-import { supportRecipientEligibility } from '../../../packages/server-support/src/adapters/support-recipient';
-import { finalRootOwnerProjectionSources as identityAccessProjections } from '@erpx/server-identity_access/public/final-root-owner-projection-sources';
+import { supportEligibleFlagSql } from '../../../modules/support/server/src/adapters/eligibility-projection-sources';
+import { supportRecipientEligibility } from '../../../modules/support/server/src/adapters/support-recipient';
+import { finalRootOwnerProjectionSources as identityAccessProjections } from '@erpx/identity-access-server/public/final-root-owner-projection-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-support/src');
+const srcRoot = resolve(__dirname, '../../../modules/support/server/src');
 const src = (p: string) => readFileSync(resolve(srcRoot, p), 'utf8');
 const sla = src('adapters/support-sla.ts');
 const bridge = src('adapters/native-support-read.ts');

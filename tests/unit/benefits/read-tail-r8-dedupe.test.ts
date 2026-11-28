@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { benefitScopePrefix, benefitWindowFactPrefix, benefitDependentFactPrefix } from '../../../packages/server-benefits/src/adapters/benefits-read-sql';
+import { benefitScopePrefix, benefitWindowFactPrefix, benefitDependentFactPrefix } from '../../../modules/benefits/server/src/adapters/benefits-read-sql';
 
-const src = (name: string) => readFileSync(new URL(`../../../packages/server-benefits/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFileSync(new URL(`../../../modules/benefits/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 describe('Benefits read-tail r8 byte-identical dedupe', () => {
   test('scope CTE prefix is the exact shared literal and is read-only', () => {

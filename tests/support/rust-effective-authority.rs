@@ -1,23 +1,23 @@
-use erpx_server_identity_access::public::effective_authority::{
+use erpx_identity_access_server::public::effective_authority::{
     HoldingWorkAuthorizer, WorkAuthorizationRequest,
 };
-use erpx_server_identity_access::public::work_context::{
+use erpx_identity_access_server::public::work_context::{
     ExpectedWorkSelection, HoldingWorkspaceRequest,
 };
-use erpx_server_identity_access::public::{
+use erpx_identity_access_server::public::{
     AccountPolicy, DeviceProof, HoldingOrigin, SecretDigest,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{AssignmentId, Clock, CompanyId, HoldingId, TimestampMillis};
+use erpx_platform_shared_server::public::{AssignmentId, Clock, CompanyId, HoldingId, TimestampMillis};
 use std::sync::{
     Arc,
     atomic::{AtomicI64, Ordering},
 };
 pub fn holding_registry()
--> Arc<erpx_server_identity_access::public::account_holding_bindings::ConfiguredHoldingRegistry> {
-    use erpx_server_identity_access::public::account_holding_bindings::{
+-> Arc<erpx_identity_access_server::public::account_holding_bindings::ConfiguredHoldingRegistry> {
+    use erpx_identity_access_server::public::account_holding_bindings::{
         ConfiguredAccountHolding, ConfiguredHoldingRegistry,
     };
     Arc::new(

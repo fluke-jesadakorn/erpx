@@ -1,0 +1,10 @@
+import 'server-only';
+import type {SqlDatabase} from '@erpx/platform-runtime-server/public/runtime/types';
+import type {ScheduleRow} from '@erpx/operations-server/domain/routines';
+import {nativeOperationsReadAll,OPERATIONS_RD_ROUTINE_TEMPLATE_SCHEDULES} from './native-operations-read';
+/** Owner-native read: the statement is planned by the Operations native read
+ * port (`RD_ROUTINE_TEMPLATE_SCHEDULES`) and executed on the caller's open unit.
+ * This module carries no SQL for this read. */
+export function routineTemplateSchedules(db:SqlDatabase,templateId:string,companyId:string){
+  return nativeOperationsReadAll<ScheduleRow>(OPERATIONS_RD_ROUTINE_TEMPLATE_SCHEDULES,[templateId,companyId],db);
+}

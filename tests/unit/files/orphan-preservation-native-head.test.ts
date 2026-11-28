@@ -5,10 +5,10 @@ import { resolve } from 'node:path';
 import {
   ORPHAN_PRESERVATION_PENDING_SQL,
   ORPHAN_PRESERVATION_PRESENT_SQL,
-} from '../../../packages/server-files/src/adapters/preservation-presence-dedupe-sql';
+} from '../../../modules/files/server/src/adapters/preservation-presence-dedupe-sql';
 
 const rootDir = resolve(__dirname, '../../..');
-const srcRoot = resolve(rootDir, 'packages/server-files/src');
+const srcRoot = resolve(rootDir, 'modules/files/server/src');
 const src = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
 const sha = (text: string) => createHash('sha256').update(text).digest('hex');
 

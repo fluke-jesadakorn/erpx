@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 
 const adapter = () =>
-  new URL('../../../packages/server-work_projection/src/adapters/work-calendar-package-obligation-sources.ts', import.meta.url);
+  new URL('../../../modules/work-projection/server/src/adapters/work-calendar-package-obligation-sources.ts', import.meta.url);
 
 const original = {
   announcements: 'SELECT * FROM calendar_announcements',
@@ -25,7 +25,7 @@ describe('work calendar settlement source dedupe', () => {
 
   it('emits the original byte-identical settlement source statements', async () => {
     const { workCalendarSettlementSources } = await import(
-      '../../../packages/server-work_projection/src/adapters/work-calendar-package-obligation-sources.ts'
+      '../../../modules/work-projection/server/src/adapters/work-calendar-package-obligation-sources.ts'
     );
     for (const [variant, sql] of Object.entries(original)) {
       expect(workCalendarSettlementSources[variant as keyof typeof original]).toBe(sql);

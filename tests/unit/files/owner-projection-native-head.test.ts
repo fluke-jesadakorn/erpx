@@ -6,10 +6,10 @@ import {
   ATTACHMENT_LINKS_OWNER_PROJECTION_SQL,
   ATTACHMENT_SETS_OWNER_PROJECTION_SQL,
   ATTACHMENTS_OWNER_PROJECTION_SQL,
-} from '../../../packages/server-files/src/adapters/owner-projection-dedupe-sql';
+} from '../../../modules/files/server/src/adapters/owner-projection-dedupe-sql';
 
 const rootDir = resolve(__dirname, '../../..');
-const srcRoot = resolve(rootDir, 'packages/server-files/src');
+const srcRoot = resolve(rootDir, 'modules/files/server/src');
 const src = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
 const sha = (text: string) => createHash('sha256').update(text).digest('hex');
 

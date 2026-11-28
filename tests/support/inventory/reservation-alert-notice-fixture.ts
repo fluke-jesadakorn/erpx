@@ -2,7 +2,7 @@
  * FIXTURE-ONLY ORACLE — retained pre-cutover inventory reservation alert notices.
  *
  * Production notice generation now belongs to the native
- * `inventory_reservation_alerts` worker (src/composition), which seeds the same
+ * `inventory_reservation_alerts` worker (platform/composition), which seeds the same
  * deduplicated staff_notifications from Sales and Manufacturing reservations.
  * This copy reproduces the INSERT...SELECT for the integration suites without
  * the TS writer in packages/server-*.
@@ -10,11 +10,11 @@
  * Tracked for removal by `migrate.inventory.reservation-alert-worker`: delete
  * once the integration harness drives the native worker result directly.
  */
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
-import { commercialOwnerProjectionSources as inventoryProjectionSources } from '@erpx/server-inventory/public/commercial-owner-projection-sources';
-import { scheduledFeaturePredicate } from '@erpx/server-pms/public/feature-availability';
-import { inventoryReservationAlertSelect as manufacturingSelect } from '@erpx/server-manufacturing/public/inventory-reservation-alert-sources';
-import { reservationAlertMessage, type ReservationAlertPhase } from '@erpx/server-inventory/domain/reservation-alerts';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
+import { commercialOwnerProjectionSources as inventoryProjectionSources } from '@erpx/inventory-server/public/commercial-owner-projection-sources';
+import { scheduledFeaturePredicate } from '@erpx/pms-server/public/feature-availability';
+import { inventoryReservationAlertSelect as manufacturingSelect } from '@erpx/manufacturing-server/public/inventory-reservation-alert-sources';
+import { reservationAlertMessage, type ReservationAlertPhase } from '@erpx/inventory-server/domain/reservation-alerts';
 
 // Native-owned Commerce/Sales reservation projection (retired TS source). The
 // native projection lives in the Inventory owner's Rust; no TS bridge exists,

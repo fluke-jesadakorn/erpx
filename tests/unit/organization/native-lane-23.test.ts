@@ -3,12 +3,12 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { resolve } from 'node:path';
-import { ApiError } from '@erpx/server-runtime/public/http';
-import { canonicalDestinationLinks } from '@erpx/feature-work_projection/lib/destination-links';
+import { ApiError } from '@erpx/platform-runtime-server/public/http';
+import { canonicalDestinationLinks } from '@erpx/work-projection-ui/lib/destination-links';
 
 vi.mock('server-only', () => ({}));
 const { nativeRequest } = vi.hoisted(() => ({ nativeRequest: vi.fn() }));
-vi.mock('@erpx/server-runtime/public/native-http', () => ({ nativeRequest }));
+vi.mock('@erpx/platform-runtime-server/public/native-http', () => ({ nativeRequest }));
 
 import {
   configuration,
@@ -20,10 +20,10 @@ import {
   validateExecutiveEvidence,
   validateNodeReferences,
   type DirectoryHierarchy,
-} from '../../../packages/server-organization/src/adapters/native-lane-23/client';
+} from '../../../modules/organization/server/src/adapters/native-lane-23/client';
 
 const ROOT = process.cwd();
-const RETIRED_FILE = resolve(ROOT, 'packages/server-organization/src/adapters/directory-projection-facts.ts');
+const RETIRED_FILE = resolve(ROOT, 'modules/organization/server/src/adapters/directory-projection-facts.ts');
 const sha = (value: string) => createHash('sha256').update(value).digest('hex');
 
 const NODES_SQL = `SELECT n.id,n.company_id,n.kind,n.slug,n.display_name,n.parent_id,n.branch_id
@@ -330,7 +330,7 @@ describe('native lane 23 — organization node references', () => {
       ['units', 'iam-unit-facts.ts'],
       ['attachment', 'attachments-finance-facts.ts'],
     ] as const) {
-      const source = readFileSync(resolve(ROOT, 'packages/server-organization/src/adapters', file), 'utf8');
+      const source = readFileSync(resolve(ROOT, 'modules/organization/server/src/adapters', file), 'utf8');
       expect(source).not.toContain(REF_SQL[name]);
       expect(source).toContain('nativeNodeReferences');
     }
@@ -430,7 +430,7 @@ describe('native lane 23 — organization executive evidence', () => {
   it('retired every executive evidence SQL literal and kept only the client', () => {
     const sources = new Map<string, string>();
     for (const file of new Set(EVIDENCE_FILES.map(([, name]) => name))) {
-      sources.set(file, readFileSync(resolve(ROOT, 'packages/server-organization/src/adapters', file), 'utf8'));
+      sources.set(file, readFileSync(resolve(ROOT, 'modules/organization/server/src/adapters', file), 'utf8'));
     }
     for (const [key, file] of EVIDENCE_FILES) {
       expect(sources.get(file)).not.toContain(EVIDENCE_SQL[key]);
@@ -507,8 +507,8 @@ describe('native lane 23 — organization executive evidence', () => {
         holdings: DEV_HOLDINGS,
       });
       delete process.env.ERPX_NATIVE_ORGANIZATION_CONFIG;
-      const actual = await vi.importActual<typeof import('@erpx/server-runtime/public/native-http')>(
-        '@erpx/server-runtime/public/native-http',
+      const actual = await vi.importActual<typeof import('@erpx/platform-runtime-server/public/native-http')>(
+        '@erpx/platform-runtime-server/public/native-http',
       );
       nativeRequest.mockImplementationOnce((...args) =>
         actual.nativeRequest(...(args as Parameters<typeof actual.nativeRequest>)),
@@ -554,36 +554,36 @@ describe('native holding people directory — payload parity and retirement', ()
   });
 
   it('retains no TypeScript SELECT for the directory execution path', () => {
-    const client = readFileSync(resolve(ROOT, 'packages/server-organization/src/adapters/holding-people-directory.ts'), 'utf8');
+    const client = readFileSync(resolve(ROOT, 'modules/organization/server/src/adapters/holding-people-directory.ts'), 'utf8');
     expect(client).not.toContain('SELECT');
     expect(client).not.toContain('.prepare(');
     expect(client).not.toContain('readHoldingPeopleDirectory');
     expect(client).toContain('people-public-directory');
 
-    const repository = readFileSync(resolve(ROOT, 'packages/server-people_payroll/src/adapters/people/directory-repository.ts'), 'utf8');
+    const repository = readFileSync(resolve(ROOT, 'modules/people-payroll/server/src/adapters/people/directory-repository.ts'), 'utf8');
     expect(repository).not.toContain('readHoldingPeopleDirectory');
     expect(repository).not.toContain('readDirectoryFacts6');
 
-    const application = readFileSync(resolve(ROOT, 'packages/server-people_payroll/src/application/directory-projection.ts'), 'utf8');
+    const application = readFileSync(resolve(ROOT, 'modules/people-payroll/server/src/application/directory-projection.ts'), 'utf8');
     expect(application).not.toContain('readHoldingPeopleDirectory');
 
     const facts = readFileSync(RETIRED_FILE, 'utf8');
     expect(facts).not.toContain('activeCompanyNodes');
     expect(facts).not.toContain('SELECT ');
 
-    const route = readFileSync(resolve(ROOT, 'packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/people-public-directory/route.ts'), 'utf8');
+    const route = readFileSync(resolve(ROOT, 'platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/people-public-directory/route.ts'), 'utf8');
     expect(route).not.toContain('SELECT');
   });
 
   it('pins the Rust owner SQL and its native route', () => {
-    const postgres = readFileSync(resolve(ROOT, 'packages/server-people_payroll/src/adapters/holding_directory/postgres.rs'), 'utf8');
+    const postgres = readFileSync(resolve(ROOT, 'modules/people-payroll/server/src/adapters/holding_directory/postgres.rs'), 'utf8');
     expect(postgres).toContain('pub const PEOPLE_SQL');
     expect(postgres).toContain('p.merged_into_id IS NULL');
     expect(postgres).toContain('sqlx::query(PEOPLE_SQL)');
     expect(postgres).toContain('sqlx::query(ASSIGNMENT_ACTIVE_SQL)');
     expect(postgres).toContain('a.scope_kind=$5');
 
-    const http = readFileSync(resolve(ROOT, 'packages/server-people_payroll/src/adapters/holding_directory/http.rs'), 'utf8');
+    const http = readFileSync(resolve(ROOT, 'modules/people-payroll/server/src/adapters/holding_directory/http.rs'), 'utf8');
     expect(http).toContain('/api/v1/holdings/{holding_slug}/people-public-directory');
     expect(http).toContain('work_scope');
   });

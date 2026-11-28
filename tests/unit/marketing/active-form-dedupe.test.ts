@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-marketing/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/marketing/server/src/adapters/${name}`, import.meta.url);
 
 describe('marketing active-form point read family (native lane 40)', () => {
   it('retires the TS active-form builder and routes both point reads to the owner', async () => {
@@ -21,7 +21,7 @@ describe('marketing active-form point read family (native lane 40)', () => {
 
   it('pins the owner-side byte-identical projections and bind slots', async () => {
     const rust = await readFile(
-      new URL('../../../packages/server-marketing/src/adapters/native_lane_40/postgres.rs', import.meta.url),
+      new URL('../../../modules/marketing/server/src/adapters/native_lane_40/postgres.rs', import.meta.url),
       'utf8',
     );
     expect(rust).toContain(
@@ -31,7 +31,7 @@ describe('marketing active-form point read family (native lane 40)', () => {
       "SELECT (jsonb_build_object('id',a.id,'version',a.version,'preview_json',a.preview_json,'company_id',a.company_id))::text AS value FROM marketing_assets a WHERE a.id=$2 AND a.company_id=$1 AND a.version=$3 AND a.kind='content' AND a.status='active'",
     );
     const registry = await readFile(
-      new URL('../../../packages/server-marketing/src/public/native_read.rs', import.meta.url),
+      new URL('../../../modules/marketing/server/src/public/native_read.rs', import.meta.url),
       'utf8',
     );
     expect(registry).toContain(

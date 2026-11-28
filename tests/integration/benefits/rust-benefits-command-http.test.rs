@@ -1,11 +1,11 @@
 //! Actual owner-local Benefits command HTTP router tests. These prove ingress
 //! facts only; composition, Account session and PostgreSQL remain separate.
-use erpx_server_benefits::public::command_http::{
+use erpx_benefits_server::public::command_http::{
     BenefitsCommandHttpBackend, BenefitsCommandHttpFuture, BenefitsCommandHttpRequest,
     BenefitsCommandHttpResponse, BenefitsCommandHttpTarget, benefits_command_http_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone, Debug, Eq, PartialEq)]

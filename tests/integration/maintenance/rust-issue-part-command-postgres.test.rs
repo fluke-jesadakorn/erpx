@@ -13,10 +13,10 @@ mod facts;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 use auth::*;
-use erpx_server_commercial::public::purchases::PackageEnforcementMode;
-use erpx_server_runtime::public::postgres::{DatabasePool, PgTransactionError};
-use erpx_server_shared::public::{BusinessError, IdentifierSource, RecordId};
-use erpx_service::maintenance_parts::{
+use erpx_commercial_server::public::purchases::PackageEnforcementMode;
+use erpx_platform_runtime_server::public::postgres::{DatabasePool, PgTransactionError};
+use erpx_platform_shared_server::public::{BusinessError, IdentifierSource, RecordId};
+use erpx_platform_composition::maintenance_parts::{
     MaintenancePartsSourcePreparation, execute_maintenance_issue_part,
 };
 use facts::*;
@@ -67,13 +67,13 @@ async fn real_native_workflow_posts_one_owner_receipt_and_draft_parts_with_notif
 #[tokio::test]
 async fn full_workflow_keeps_stock_and_quote_refusals_before_maximum_successor_numeric_precompile()
 {
-    use erpx_server_shared::public::CommandKey;
+    use erpx_platform_shared_server::public::CommandKey;
     for kind in ["stock", "quote", "version", "version-nul"] {
         fixture::with_database(2,move |control|async move {fixture::with_database(2,move |holding|async move {
             let(authorizer,_)=setup(&control,&holding).await;seed_work(&holding).await;seed_parts_with_rate(&holding,kind!="quote").await;
             let result=authorizer.execute_with_sources("acme.example.test",proof(),input(),maintenance_request(),MaintenancePartsSourcePreparation,move |c,current|Box::pin(async move {
                 let raw=format!(r#"{{"action":"issue-part","expectedVersion":9007199254740991,"reason":"Actual original maximum input{}","warehouseId":"warehouse","productId":"{}","quantityMilli":1000,"entryDate":"2026-01-10","allocations":[]}}"#,if kind=="version-nul" {"\\u0000"} else {""},if kind=="stock"{"missing-product"}else{"product"});
-                let command=erpx_server_maintenance::public::work_wire::normalize_maintenance_change(raw.as_bytes()).unwrap().into_command(CommandKey::new("synthetic-max-request")?,work_id());
+                let command=erpx_maintenance_server::public::work_wire::normalize_maintenance_change(raw.as_bytes()).unwrap().into_command(CommandKey::new("synthetic-max-request")?,work_id());
                 execute_maintenance_issue_part(c,current,&command,PackageEnforcementMode::Enforced,&PartsWriteClock(std::sync::atomic::AtomicI64::new(NOW)),&PartsGuardClock,&mut Ids(0)).await
             })).await;
             denied(result,match kind {"stock"=>"PART_STOCK_UNAVAILABLE","quote"=>"MANUAL_RATE_REQUIRED",_=>"DATABASE_NUMBER_OUT_OF_RANGE"});
@@ -152,8 +152,8 @@ async fn ordinary_stale_issue_part_against_synthetic_maximum_stored_version_refu
 
 #[tokio::test]
 async fn issue_part_nul_reason_preserves_apply_guards_and_rolls_back_storage_failure() {
-    use erpx_server_maintenance::public::work_wire::normalize_maintenance_change;
-    use erpx_server_shared::public::CommandKey;
+    use erpx_maintenance_server::public::work_wire::normalize_maintenance_change;
+    use erpx_platform_shared_server::public::CommandKey;
     for scenario in [
         "stale",
         "current",

@@ -1,12 +1,12 @@
 //! Native Sales confirmed sales-order cancellation unit rules.
-use erpx_server_sales::public::sales_order_cancellation::{
+use erpx_sales_server::public::sales_order_cancellation::{
     CancellationAuditEntry, CancellationOutboxEntry, CancellationReceiptEntry,
     CancellationReceiptRecord, SalesCancellationActor, SalesCancellationCommand,
     SalesCancellationFuture, SalesCancellationPlan, SalesCancellationReceipt,
     SalesCancellationRepository, SalesCancellationRow, authorize_confirmed_cancellation,
     cancel_confirmed_sales_order, validate_receipt_shape,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, RecordId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, RecordId, TimestampMillis};
 use std::collections::VecDeque;
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
@@ -155,7 +155,7 @@ impl SalesCancellationRepository for Fake {
             self.events.transition += 1;
             let order = self.order.as_mut().ok_or_else(|| {
                 BusinessError::new(
-                    erpx_server_shared::public::FailureKind::NotFound,
+                    erpx_platform_shared_server::public::FailureKind::NotFound,
                     "SALES_ORDER_NOT_FOUND",
                     "Sales order not found.",
                 )

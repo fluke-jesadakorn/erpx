@@ -3,10 +3,10 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 vi.mock('server-only', () => ({}));
-import { selectOneFrom } from '../../../packages/server-benefits/src/adapters/benefits-read-sql';
-import { benefitAssignmentSelectSql } from '../../../packages/server-benefits/src/adapters/purchases';
+import { selectOneFrom } from '../../../modules/benefits/server/src/adapters/benefits-read-sql';
+import { benefitAssignmentSelectSql } from '../../../modules/benefits/server/src/adapters/purchases';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-benefits/src');
+const srcRoot = resolve(__dirname, '../../../modules/benefits/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const sha = (sql: string) => createHash('sha256').update(sql).digest('hex');
 
@@ -74,7 +74,7 @@ describe('benefits read-tail r30 select-one head dedupe', () => {
   test('the fold adds no write, row-lock, native registry or cross-owner consumer', () => {
     for (const name of ['benefits-read-sql.ts', 'purchases.ts']) {
       expect(src(name), name).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE/i);
-      expect(src(name), name).not.toContain('@erpx/server-benefits/adapters/benefits-native-read');
+      expect(src(name), name).not.toContain('@erpx/benefits-server/adapters/benefits-native-read');
     }
     expect(src('purchases.ts').match(/LOCK\s+TABLE/g) ?? []).toHaveLength(1);
     expect(src('purchases.ts')).toContain('IN SHARE ROW EXCLUSIVE MODE');

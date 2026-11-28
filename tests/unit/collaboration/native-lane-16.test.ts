@@ -19,7 +19,7 @@ import {
   sentNoticeRows,
   taskSocialOrigin,
   type Lane16Actor,
-} from '../../../packages/server-collaboration/src/adapters/native-lane-16/client';
+} from '../../../modules/collaboration/server/src/adapters/native-lane-16/client';
 
 const ENV = 'ERPX_NATIVE_LANE_16_READ_CONFIG';
 const original = process.env[ENV];
@@ -180,7 +180,7 @@ describe('native Collaboration lane 16 sent-notice facts', () => {
 
   it('pins the SQL and result oracles shared with the Rust lane', () => {
     const src = readFileSync(
-      'packages/server-collaboration/src/adapters/native_lane_16/postgres.rs', 'utf8',
+      'modules/collaboration/server/src/adapters/native_lane_16/postgres.rs', 'utf8',
     );
     const needle = (name: string) => {
       const match = src.match(new RegExp(`pub const ${name}: &str = r#"([\\s\\S]*?)"#;`))
@@ -196,7 +196,7 @@ describe('native Collaboration lane 16 sent-notice facts', () => {
     expect(sha(render(needle('SQL_NOTICES')))).toBe('d6cee0018f2cbe771d5960313020f476ea2659c2280e9de8a0e6a551068d7dcd');
     expect(sha(needle('RESULT_ORACLE_JSON'))).toBe('2ceaa6b93c6b879c5e5a718e3f8fbc7ae75994ab09a0ec73727807b0cdd3857b');
     const http = readFileSync(
-      'packages/server-collaboration/src/adapters/native_lane_16/http.rs', 'utf8',
+      'modules/collaboration/server/src/adapters/native_lane_16/http.rs', 'utf8',
     );
     expect(http.match(/#\[serde\(rename_all = "camelCase", deny_unknown_fields\)\]/g)).toHaveLength(2);
     for (const field of [
@@ -207,13 +207,13 @@ describe('native Collaboration lane 16 sent-notice facts', () => {
 
   it('emits no SQL from the replaced TypeScript adapter or the client', () => {
     for (const path of [
-      'packages/server-collaboration/src/adapters/people-app-entrypoint-facts.ts',
-      'packages/server-collaboration/src/adapters/native-lane-16/client.ts',
+      'modules/collaboration/server/src/adapters/people-app-entrypoint-facts.ts',
+      'modules/collaboration/server/src/adapters/native-lane-16/client.ts',
     ]) {
       const source = readFileSync(path, 'utf8');
       expect(source).not.toMatch(/SELECT\s|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|pg_advisory/i);
     }
-    const push = readFileSync('packages/server-collaboration/src/adapters/web-push.ts', 'utf8');
+    const push = readFileSync('modules/collaboration/server/src/adapters/web-push.ts', 'utf8');
     expect(push).not.toContain('SELECT * FROM push_preferences');
     expect(push).not.toContain('SELECT id,user_id,session_id FROM push_subscriptions');
     expect(push).not.toContain("countIntNFrom('push_subscriptions WHERE company_id=? AND user_id=? AND session_id=?')");
@@ -243,7 +243,7 @@ describe('native Collaboration lane 16 sent-notice facts', () => {
   });
 
   it('records the final owner SELECT KPI after lanes 15 and 16', () => {
-    const root = 'packages/server-collaboration/src';
+    const root = 'modules/collaboration/server/src';
     const files = readdirSync(root, { recursive: true }).filter((name): name is string =>
       typeof name === 'string' && name.endsWith('.ts'));
     let count = 0;

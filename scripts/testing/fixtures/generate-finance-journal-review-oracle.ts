@@ -6,18 +6,18 @@ import { resolve } from "node:path";
 
 const sourceCommit = "a5ed8737a2f05eff1ee9841fda4a094b3926d732";
 const paths = [
-  "packages/server-finance/src/application/journal-review.ts",
-  "packages/server-finance/src/domain/finance-policy.ts",
-  "packages/server-finance/src/adapters/journal-reversal-money.ts",
-  "packages/server-finance/src/adapters/finance.ts",
-  "packages/server-finance/src/adapters/document-purchases.ts",
-  "packages/server-finance/src/adapters/finance-transactions.ts",
-  "packages/feature-identity_access/src/lib/permissions.ts",
-  "packages/feature-identity_access/src/lib/iam.ts",
-  "packages/feature-identity_access/src/lib/business-roles.ts",
-  "packages/catalogue/src/module-registry.ts",
-  "packages/catalogue/src/module-registry.json",
-  "packages/feature-finance/src/lib/finance-money.ts",
+  "modules/finance/server/src/application/journal-review.ts",
+  "modules/finance/server/src/domain/finance-policy.ts",
+  "modules/finance/server/src/adapters/journal-reversal-money.ts",
+  "modules/finance/server/src/adapters/finance.ts",
+  "modules/finance/server/src/adapters/document-purchases.ts",
+  "modules/finance/server/src/adapters/finance-transactions.ts",
+  "modules/identity-access/ui/src/lib/permissions.ts",
+  "modules/identity-access/ui/src/lib/iam.ts",
+  "modules/identity-access/ui/src/lib/business-roles.ts",
+  "platform/catalogue/src/module-registry.ts",
+  "platform/catalogue/src/module-registry.json",
+  "modules/finance/ui/src/lib/finance-money.ts",
 ];
 const sources = [];
 const baselineSources = new Map<string, string>();

@@ -3,11 +3,11 @@ pub mod database;
 #[allow(dead_code)]
 #[path = "rust-account-credentials.rs"]
 pub mod fixture;
-use erpx_server_identity_access::public::{account_revocation::*, account_sso::*, *};
-use erpx_server_runtime::public::postgres::{
+use erpx_identity_access_server::public::{account_revocation::*, account_sso::*, *};
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::HoldingId;
+use erpx_platform_shared_server::public::HoldingId;
 use std::{
     collections::BTreeMap,
     future::Future,

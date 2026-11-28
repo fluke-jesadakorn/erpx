@@ -2,10 +2,10 @@ import { describe, expect, test } from 'vitest';
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { coverageProbe, purchaseFactAgg } from '../../../packages/server-commercial/src/adapters/commercial-read-tail-r4-sources';
-import { scopedReadHead } from '../../../packages/server-commercial/src/adapters/commercial-read-tail-r14-sources';
+import { coverageProbe, purchaseFactAgg } from '../../../modules/commercial/server/src/adapters/commercial-read-tail-r4-sources';
+import { scopedReadHead } from '../../../modules/commercial/server/src/adapters/commercial-read-tail-r14-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-commercial/src');
+const srcRoot = resolve(__dirname, '../../../modules/commercial/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 // Prose comments describe the excluded lock kinds; assertions inspect code only.

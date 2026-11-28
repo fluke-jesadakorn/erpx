@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { benefitElectionFactPrefix, benefitLearningFactArm, benefitSourceProbe, benefitWindowFactPrefix, benefitDependentFactPrefix } from '../../../packages/server-benefits/src/adapters/benefits-read-sql';
-import { nativeSourceArm, nativeSourcesProbe } from '../../../packages/server-benefits/src/adapters/record-purchases';
+import { benefitElectionFactPrefix, benefitLearningFactArm, benefitSourceProbe, benefitWindowFactPrefix, benefitDependentFactPrefix } from '../../../modules/benefits/server/src/adapters/benefits-read-sql';
+import { nativeSourceArm, nativeSourcesProbe } from '../../../modules/benefits/server/src/adapters/record-purchases';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-benefits/src');
+const srcRoot = resolve(__dirname, '../../../modules/benefits/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 // Pre-dedupe literal, copied byte-for-byte from HEAD. The attachment file-source

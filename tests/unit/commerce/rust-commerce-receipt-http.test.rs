@@ -1,13 +1,13 @@
 //! Actual owner-local HTTP router tests for the native Commerce purchase
 //! goods-receipt slice. The exact owner dispatch is exercised over loopback
 //! without a shared composition backend or PostgreSQL-backed request.
-use erpx_server_commerce::public::receipt_http::{
+use erpx_commerce_server::public::receipt_http::{
     CommerceReceiptHttpBackend, CommerceReceiptHttpFuture, CommerceReceiptHttpRequest,
     CommerceReceiptHttpResponse, CommerceReceiptHttpState, CommerceReceiptHttpTarget,
     CommerceOriginPolicy, commerce_receipt_http_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 const ROUTE: &str = "/api/v1/holdings/acme/commerce/purchase-orders/order-1/goods-receipts";

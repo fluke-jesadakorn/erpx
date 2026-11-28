@@ -12,17 +12,17 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_planning::public::read_source as plans;
-use erpx_server_planning::public::{BindField, ReadScope, bind};
+use erpx_planning_server::public::read_source as plans;
+use erpx_planning_server::public::{BindField, ReadScope, bind};
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row};
 
 /// The retained TypeScript authority, read at compile time. The owner crate's
 /// `byte_parity_with_retained_typescript_statements` test binds every plan to
 /// these exact files; this suite binds the same files again at suite scope.
 const TS_COMMANDS: &str =
-    include_str!("../../../packages/server-planning/src/adapters/production-command-sources-read.ts");
+    include_str!("../../../modules/planning/server/src/adapters/production-command-sources-read.ts");
 const TS_RESOURCES: &str =
-    include_str!("../../../packages/server-planning/src/adapters/resources-read.ts");
+    include_str!("../../../modules/planning/server/src/adapters/resources-read.ts");
 
 const DDL: &str = "\
 CREATE TABLE organization_nodes(id text primary key,company_id text,display_name text);\

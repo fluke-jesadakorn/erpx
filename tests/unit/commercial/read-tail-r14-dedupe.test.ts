@@ -1,14 +1,14 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { scopedReadHead } from '../../../packages/server-commercial/src/adapters/commercial-read-tail-r14-sources';
-import { receiptProbe } from '../../../packages/server-commercial/src/adapters/commercial-read-tail-r5-sources';
-import { holdingMonthReadSql } from '../../../packages/server-commercial/src/adapters/commercial-read-tail-r7-sources';
-import { companyScopedStarSql } from '../../../packages/server-commercial/src/adapters/commercial-read-tail-r8-sources';
-import { holdingSnapshotReadSql } from '../../../packages/server-commercial/src/adapters/commercial-read-tail-r9-sources';
-import { monthScopedRead } from '../../../packages/server-commercial/src/adapters/commercial-read-tail-r13-sources';
+import { scopedReadHead } from '../../../modules/commercial/server/src/adapters/commercial-read-tail-r14-sources';
+import { receiptProbe } from '../../../modules/commercial/server/src/adapters/commercial-read-tail-r5-sources';
+import { holdingMonthReadSql } from '../../../modules/commercial/server/src/adapters/commercial-read-tail-r7-sources';
+import { companyScopedStarSql } from '../../../modules/commercial/server/src/adapters/commercial-read-tail-r8-sources';
+import { holdingSnapshotReadSql } from '../../../modules/commercial/server/src/adapters/commercial-read-tail-r9-sources';
+import { monthScopedRead } from '../../../modules/commercial/server/src/adapters/commercial-read-tail-r13-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-commercial/src');
+const srcRoot = resolve(__dirname, '../../../modules/commercial/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const pureRead = (sql: string) => {
   expect(sql.toUpperCase()).toMatch(/^SELECT /);

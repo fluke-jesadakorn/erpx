@@ -2,12 +2,12 @@
 //!
 //! Pins the exact retired `PublicMarketingForm` payload, the source SQL shape
 //! and the no-fallback application gate. The lead registers this test target in
-//! `packages/server-marketing/Cargo.toml` and mounts the router in composition.
+//! `modules/marketing/server/Cargo.toml` and mounts the router in composition.
 
-use erpx_server_marketing::public::public_form_source::{
+use erpx_marketing_server::public::public_form_source::{
     FormQuery, FormRow, PublicFormFuture, PublicFormSource, SOURCE_KEYS, SOURCE_SQL, read,
 };
-use erpx_server_runtime::public::http_support::serde_json::Value;
+use erpx_platform_runtime_server::public::http_support::serde_json::Value;
 use std::task::{Context, Poll, Waker};
 
 fn block_on<F: std::future::Future>(future: F) -> F::Output {

@@ -1,12 +1,12 @@
 //! Actual owner-local CRM lead/opportunity command HTTP router tests.
 //! These prove ingress facts only; composition, Account session, purchase,
 //! Workflow ledger and PostgreSQL remain separate responsibilities.
-use erpx_server_crm::public::leads_http::{
+use erpx_crm_server::public::leads_http::{
     CrmLeadCommandHttpBackend, CrmLeadCommandHttpFuture, CrmLeadCommandHttpRequest,
     CrmLeadCommandHttpTarget, crm_lead_command_http_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Noop;

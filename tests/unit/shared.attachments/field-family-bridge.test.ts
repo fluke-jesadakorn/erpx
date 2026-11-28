@@ -1,7 +1,7 @@
 import {describe,it,expect,vi} from 'vitest';
-import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
+import type {WorkContext} from '@erpx/identity-access-server/public/authorization';
 import {createHash} from 'node:crypto';
-import {createFieldFamilyBridge,nativeFieldFamilyVisible} from '../../../packages/workplace/src/lib/native-field-family';
+import {createFieldFamilyBridge,nativeFieldFamilyVisible} from '../../../platform/workplace/src/lib/native-field-family';
 const actor={holdingSlug:'acme',holdingId:'h',companyId:'c',assignmentId:'a',authority:{revision:1,assignmentVersion:2},iam:{},scope:{kind:'holding'}} as unknown as WorkContext;
 const config=JSON.stringify({privateBaseUrl:'http://127.0.0.1:44817',timeoutMs:1000,holdings:[{origin:'https://acme.example.com',holdingSlug:'acme',holdingId:'h',fieldFamily:true}]});
 const req=()=>new Request('https://acme.example.com/api',{headers:{host:'acme.example.com',cookie:'test=one','x-erpx-context-company':'c','x-erpx-context-assignment':'a','x-erpx-context-revision':'1','x-erpx-context-assignment-version':'2'}});
@@ -68,7 +68,7 @@ it('admits loopback 3101 only with the explicit production opt-in',async()=>{
  const base={privateBaseUrl:'http://127.0.0.1:3101',timeoutMs:1000,holdings};
  expect(()=>createFieldFamilyBridge(JSON.stringify({...base,production:true}),vi.fn())).not.toThrow();
  expect(()=>createFieldFamilyBridge(JSON.stringify(base),vi.fn())).toThrow();
- const {createNativeFieldAttachmentBridge}=await import('../../../packages/server-files/src/adapters/attachments/native-field-attachment');
+ const {createNativeFieldAttachmentBridge}=await import('../../../modules/files/server/src/adapters/attachments/native-field-attachment');
  expect(()=>createNativeFieldAttachmentBridge(JSON.stringify({...base,production:true}))).not.toThrow();
  expect(()=>createNativeFieldAttachmentBridge(JSON.stringify(base))).toThrow();
 });

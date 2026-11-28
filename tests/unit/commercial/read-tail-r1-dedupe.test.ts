@@ -1,8 +1,8 @@
 import {describe,expect,test} from 'vitest';
 import {readFileSync} from 'node:fs';
-import {receiptProbe} from '../../../packages/server-commercial/src/adapters/commercial-read-tail-r5-sources';
+import {receiptProbe} from '../../../modules/commercial/server/src/adapters/commercial-read-tail-r5-sources';
 
-const src = (name: string) => readFileSync(new URL(`../../../packages/server-commercial/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFileSync(new URL(`../../../modules/commercial/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const LITERAL = "SELECT 1 FROM company_package_change_sets WHERE id=?";
 const PROBE = 'receiptProbe("company_package_change_sets","1")';
 

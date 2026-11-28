@@ -3,17 +3,17 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { DISTINCT_SET_ROW_HEAD_SQL } from '../../../packages/server-files/src/adapters/read-tail-r50-source-sql';
+import { DISTINCT_SET_ROW_HEAD_SQL } from '../../../modules/files/server/src/adapters/read-tail-r50-source-sql';
 
 const rootDir = resolve(__dirname, '../../..');
-const srcRoot = resolve(rootDir, 'packages/server-files/src');
+const srcRoot = resolve(rootDir, 'modules/files/server/src');
 const BASE = '4ed7a6ff2f43c976ebbeb9803deec80ddb36bdbf';
 const HELPER = 'adapters/read-tail-r50-source-sql.ts';
 const LEAVE = 'adapters/leave-evidence-sources.ts';
 const SR = 'adapters/attachments/service-repository.ts';
 const src = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
 const git = (...a: string[]) => execFileSync('git', a, { cwd: rootDir, encoding: 'utf8' });
-const before = (rel: string) => git('show', `${BASE}:packages/server-files/src/${rel}`);
+const before = (rel: string) => git('show', `${BASE}:modules/files/server/src/${rel}`);
 const count = (text: string, needle: string) => text.split(needle).length - 1;
 const sha = (text: string) => createHash('sha256').update(text).digest('hex');
 

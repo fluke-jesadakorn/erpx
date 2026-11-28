@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const root = resolve(process.cwd(), 'packages/server-collaboration/src');
+const root = resolve(process.cwd(), 'modules/collaboration/server/src');
 const src = (f: string) => readFileSync(resolve(root, f), 'utf8');
 
 const inbox = src('adapters/inbox.ts');
@@ -20,8 +20,8 @@ describe('native-only inbox summary cutover', () => {
   });
 
   it('switches the in-scope presentation caller to the native owner path', () => {
-    expect(presentation).toContain('import { nativeInboxSummarySSR } from "@erpx/server-collaboration/public/native-inbox-page"');
-    expect(presentation).not.toContain('import { inboxSummary } from "@erpx/server-collaboration/public/inbox"');
+    expect(presentation).toContain('import { nativeInboxSummarySSR } from "@erpx/collaboration-server/public/native-inbox-page"');
+    expect(presentation).not.toContain('import { inboxSummary } from "@erpx/collaboration-server/public/inbox"');
     expect(presentation).not.toContain('inboxSummary(write');
     expect(presentation).toContain('inboxSummary: async (actor: WorkContext) => nativeInboxSummarySSR(actor.holdingSlug)');
   });

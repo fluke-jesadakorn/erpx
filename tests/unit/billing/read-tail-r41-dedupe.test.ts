@@ -1,12 +1,12 @@
 import { createHash } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { BILLING_PLAN_NAME_LATERAL_SQL } from '../../../packages/server-billing/src/adapters/billing-read-tail-r18-sql';
-import { billingProjectionSql } from '../../../packages/server-billing/src/adapters/billing-read-tail-r35-sql';
-import { billingEnrollmentSubscriptionSql } from '../../../packages/server-billing/src/adapters/billing-read-tail-r33-sql';
-import { billingLegacySubscriptionSql } from '../../../packages/server-billing/src/adapters/billing-read-tail-r32-sql';
+import { BILLING_PLAN_NAME_LATERAL_SQL } from '../../../modules/billing/server/src/adapters/billing-read-tail-r18-sql';
+import { billingProjectionSql } from '../../../modules/billing/server/src/adapters/billing-read-tail-r35-sql';
+import { billingEnrollmentSubscriptionSql } from '../../../modules/billing/server/src/adapters/billing-read-tail-r33-sql';
+import { billingLegacySubscriptionSql } from '../../../modules/billing/server/src/adapters/billing-read-tail-r32-sql';
 
-const srcRoot = new URL('../../../packages/server-billing/src/', import.meta.url);
+const srcRoot = new URL('../../../modules/billing/server/src/', import.meta.url);
 const src = (name: string) => readFile(new URL(`adapters/${name}`, srcRoot), 'utf8');
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 

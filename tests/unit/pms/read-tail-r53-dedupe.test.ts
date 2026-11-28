@@ -2,12 +2,12 @@ import { readFile, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { PMS_POSTINGS_FROM_SQL } from '../../../packages/server-pms/src/adapters/pms-read-tail-r19-sql';
-import { PMS_POSTINGS_PROJECTION_SQL } from '../../../packages/server-pms/src/adapters/pms-read-tail-r29-sql';
-import { pmsOwnerProjectionHeadSql } from '../../../packages/server-pms/src/adapters/pms-read-tail-r53-sql';
-import { financeOwnedSnapshotSources } from '../../../packages/server-pms/src/adapters/finance-owned-snapshot-sources';
+import { PMS_POSTINGS_FROM_SQL } from '../../../modules/pms/server/src/adapters/pms-read-tail-r19-sql';
+import { PMS_POSTINGS_PROJECTION_SQL } from '../../../modules/pms/server/src/adapters/pms-read-tail-r29-sql';
+import { pmsOwnerProjectionHeadSql } from '../../../modules/pms/server/src/adapters/pms-read-tail-r53-sql';
+import { financeOwnedSnapshotSources } from '../../../modules/pms/server/src/adapters/finance-owned-snapshot-sources';
 
-const dir = new URL('../../../packages/server-pms/src/', import.meta.url);
+const dir = new URL('../../../modules/pms/server/src/', import.meta.url);
 const src = (name: string) => readFile(new URL(name, dir), 'utf8');
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 const count = (text: string, needle: string) => text.split(needle).length - 1;

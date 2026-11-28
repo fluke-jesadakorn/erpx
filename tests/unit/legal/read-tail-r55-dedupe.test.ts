@@ -3,14 +3,14 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { finalRootOwnerProjectionSources } from '../../../packages/server-legal/src/adapters/final-root-owner-projection-sources';
-import { hospitalityOwnerProjectionSources } from '../../../packages/server-legal/src/adapters/hospitality-owner-projection-sources';
-import { collaborationNotificationSnapshotSources } from '../../../packages/server-legal/src/adapters/collaboration-notification-snapshot-sources';
-import { legalMembersSnapshotSource } from '../../../packages/server-legal/src/adapters/legal-members-read-sources';
+import { finalRootOwnerProjectionSources } from '../../../modules/legal/server/src/adapters/final-root-owner-projection-sources';
+import { hospitalityOwnerProjectionSources } from '../../../modules/legal/server/src/adapters/hospitality-owner-projection-sources';
+import { collaborationNotificationSnapshotSources } from '../../../modules/legal/server/src/adapters/collaboration-notification-snapshot-sources';
+import { legalMembersSnapshotSource } from '../../../modules/legal/server/src/adapters/legal-members-read-sources';
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
-const srcRoot = resolve(__dirname, '../../../packages/server-legal/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-legal/src/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/legal/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/legal/server/src/${name}`, import.meta.url), 'utf8');
 
 /** Independent byte + SHA oracles for the 11 projection literals captured at
  * HEAD (BEFORE=163) before they were routed through the closed renderer. */
@@ -90,16 +90,16 @@ describe('legal read-tail r55 closed projection dedupe', () => {
       src('adapters/identity-snapshot-sources.ts'),
       src('adapters/legal-signer-access-sources.ts'),
     ]);
-    expect(fr).toContain('export { finalRootOwnerProjectionSources } from "@erpx/server-legal/adapters/final-root-owner-projection-sources";');
-    expect(ho).toContain('export { hospitalityOwnerProjectionSources } from "@erpx/server-legal/adapters/hospitality-owner-projection-sources";');
-    expect(cn).toContain("export {collaborationNotificationSnapshotSources} from '@erpx/server-legal/adapters/collaboration-notification-snapshot-sources';");
+    expect(fr).toContain('export { finalRootOwnerProjectionSources } from "@erpx/legal-server/adapters/final-root-owner-projection-sources";');
+    expect(ho).toContain('export { hospitalityOwnerProjectionSources } from "@erpx/legal-server/adapters/hospitality-owner-projection-sources";');
+    expect(cn).toContain("export {collaborationNotificationSnapshotSources} from '@erpx/legal-server/adapters/collaboration-notification-snapshot-sources';");
     expect(identity).toContain("legalMembersSnapshotSource");
     expect(signer).toContain("legalMembershipSql");
   });
 
   it('keeps public-path values identical for server-files and customer_360 consumers', async () => {
-    const hoPub = await import('@erpx/server-legal/public/hospitality-owner-projection-sources');
-    const frPub = await import('@erpx/server-legal/public/final-root-owner-projection-sources');
+    const hoPub = await import('@erpx/legal-server/public/hospitality-owner-projection-sources');
+    const frPub = await import('@erpx/legal-server/public/final-root-owner-projection-sources');
     expect(hoPub.hospitalityOwnerProjectionSources.legal_documents).toBe(ORIGINALS[3][1]);
     expect(hoPub.hospitalityOwnerProjectionSources.legal_file_preservations).toBe(ORIGINALS[4][1]);
     expect(hoPub.hospitalityOwnerProjectionSources.legal_hold_targets).toBe(ORIGINALS[5][1]);

@@ -2,7 +2,7 @@
 //! `purchaseObservationProjection` SQL builder. The TS projection assembled a
 //! private grant/history row for shadow owners; native now owns the whole
 //! checked-phase projection and emits only this non-personal field set.
-use erpx_server_commercial::public::purchase_command_boundary::{
+use erpx_commercial_server::public::purchase_command_boundary::{
     PURCHASE_AFTER_STEP, PURCHASE_BEFORE_STEP, PURCHASE_SHADOW_OBSERVATION_FIELDS,
 };
 

@@ -1,4 +1,4 @@
-import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import type { SqlDatabase } from "@erpx/platform-runtime-server/public/runtime/types";
 
 /** Native-shape staff level seeding for integration fixtures. The production
  * levels command is served by the native Organization setup router. */

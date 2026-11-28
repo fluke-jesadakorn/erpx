@@ -3,24 +3,24 @@
 //! current Account/IAM authority, purchase history and typed source links.
 #[path = "../../support/finance/review-composition.rs"]
 mod review;
-use erpx_server_commercial::public::purchases::current_package_catalogue;
-use erpx_server_identity_access::public::work_context::{
+use erpx_commercial_server::public::purchases::current_package_catalogue;
+use erpx_identity_access_server::public::work_context::{
     ExpectedWorkSelection, HoldingWorkspaceRequest,
 };
-use erpx_server_runtime::public::postgres::PgTransactionError;
-use erpx_server_shared::public::{AssignmentId, Clock, CompanyId, HoldingId};
-use erpx_server_support::public::support_ticket_read::{
+use erpx_platform_runtime_server::public::postgres::PgTransactionError;
+use erpx_platform_shared_server::public::{AssignmentId, Clock, CompanyId, HoldingId};
+use erpx_support_server::public::support_ticket_read::{
     SupportReadScope, read_customer_contact_notes, read_order_sources, read_ticket_detail,
     read_ticket_history, read_ticket_workspace,
 };
-use erpx_service::support_read_http::{SupportReadHttpTarget, support_read_http_router};
-use erpx_service::support_ticket_read::SupportTicketReadService;
+use erpx_platform_composition::support_read_http::{SupportReadHttpTarget, support_read_http_router};
+use erpx_platform_composition::support_ticket_read::SupportTicketReadService;
 use std::sync::Arc;
 
 #[derive(Clone)]
 struct TestClock(Arc<review::account::fixture::MutableClock>);
 impl Clock for TestClock {
-    fn now(&self) -> erpx_server_shared::public::TimestampMillis {
+    fn now(&self) -> erpx_platform_shared_server::public::TimestampMillis {
         self.0.now()
     }
 }
@@ -57,7 +57,7 @@ fn scoped_user(
 }
 
 async fn serializable<'c>(
-    pool: &'c erpx_server_runtime::public::postgres::DatabasePool,
+    pool: &'c erpx_platform_runtime_server::public::postgres::DatabasePool,
 ) -> sqlx::Transaction<'c, sqlx::Postgres> {
     let mut tx = pool.raw().begin().await.unwrap();
     sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
@@ -86,7 +86,7 @@ fn selection(
 }
 
 async fn activate(
-    pool: &erpx_server_runtime::public::postgres::DatabasePool,
+    pool: &erpx_platform_runtime_server::public::postgres::DatabasePool,
     user: &str,
     assignment: &str,
 ) {
@@ -113,7 +113,7 @@ fn read_service(p: &review::Prepared) -> Arc<SupportTicketReadService<TestClock>
     })
 }
 
-async fn configure(pool: &erpx_server_runtime::public::postgres::DatabasePool, now: i64) {
+async fn configure(pool: &erpx_platform_runtime_server::public::postgres::DatabasePool, now: i64) {
     let expires = now + 3_600_000;
     sqlx::raw_sql(
         "INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status)VALUES('*','custom_support_agent','Synthetic Support agent',false,1,'active'),('*','custom_support_manager','Synthetic Support manager',false,1,'active'),('*','custom_support_reporter','Synthetic Support reporter',false,1,'active') ON CONFLICT DO NOTHING;\
@@ -411,7 +411,7 @@ async fn ticket_reads_keep_company_branch_department_scope_authority_and_history
 #[tokio::test]
 async fn support_http_read_returns_workspace_and_detail_and_hides_unreadable_source_links() {
     use axum::{body::{Body, to_bytes}, http::Request};
-    use erpx_service::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
+    use erpx_platform_composition::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
     use tower::ServiceExt;
     review::account::with_system(|system| async move {
         let p = review::setup_with_finance(system, false).await;
@@ -727,7 +727,7 @@ async fn ticket_recipients_retain_the_scope() {
         let now = p.system.scenario.clock.now().get();
         configure(pool, now).await;
         let mut tx = serializable(pool).await;
-        let recipients = erpx_server_support::public::support_ticket_read::read_ticket_recipients(
+        let recipients = erpx_support_server::public::support_ticket_read::read_ticket_recipients(
             &mut tx,
             &scope("support-holding-a", None, None),
             "ticket-branch-1",
@@ -735,16 +735,16 @@ async fn ticket_recipients_retain_the_scope() {
         .await
         .unwrap();
         assert_eq!(recipients, vec![
-            erpx_server_support::public::support_ticket_read::SupportRecipient {
+            erpx_support_server::public::support_ticket_read::SupportRecipient {
                 id: "fixture-a".into(),
                 name: "Synthetic Agent".into(),
             },
-            erpx_server_support::public::support_ticket_read::SupportRecipient {
+            erpx_support_server::public::support_ticket_read::SupportRecipient {
                 id: "fixture-b".into(),
                 name: "Synthetic Manager".into(),
             },
         ]);
-        let policies = erpx_server_support::public::support_ticket_read::read_sla_policies(
+        let policies = erpx_support_server::public::support_ticket_read::read_sla_policies(
             &mut tx,
             &CompanyId::new("company").unwrap(),
         )
@@ -1244,7 +1244,7 @@ async fn evidence_reads_mask_unbound_rows_and_keep_revoked_metadata_visible() {
         {
             Err(PgTransactionError::Business(error)) => {
                 assert_eq!(error.code, "SUPPORT_TICKET_NOT_FOUND");
-                assert_eq!(error.kind, erpx_server_shared::public::FailureKind::NotFound);
+                assert_eq!(error.kind, erpx_platform_shared_server::public::FailureKind::NotFound);
             }
             _ => panic!("foreign evidence must stay hidden"),
         }
@@ -1254,8 +1254,8 @@ async fn evidence_reads_mask_unbound_rows_and_keep_revoked_metadata_visible() {
 
 #[tokio::test]
 async fn service_ticket_sources_retain_their_distinct_owner_locks() {
-    use erpx_server_support::public::field_service_workspace::*;
-    use erpx_server_support::public::field_service::{lock_service_ticket_sources,require_service_ticket_sources_held};
+    use erpx_support_server::public::field_service_workspace::*;
+    use erpx_support_server::public::field_service::{lock_service_ticket_sources,require_service_ticket_sources_held};
     review::account::with_system(|system| async move {
         let p=review::setup_with_finance(system,false).await;let pool=&p.system.holdings[0];
         configure(pool,p.system.scenario.clock.now().get()).await;

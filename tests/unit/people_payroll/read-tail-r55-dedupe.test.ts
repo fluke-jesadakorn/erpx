@@ -3,10 +3,10 @@ import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import {
   ppRd55AttachmentPresenceV2,
   ppRd55AttachmentPresenceV1,
-} from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r55-sources';
-import { hospitalityOwnerProjectionSources as F } from '@erpx/server-files/public/hospitality-owner-projection-sources';
+} from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r55-sources';
+import { hospitalityOwnerProjectionSources as F } from '@erpx/files-server/public/hospitality-owner-projection-sources';
 
-const src = (name: string) => readFileSync(new URL(`../../../packages/server-people_payroll/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFileSync(new URL(`../../../modules/people-payroll/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const flat = (text: string) => text.replace(/\s+/g, ' ');
 const uses = (name: string, symbol: string) => (src(name).match(new RegExp(symbol + '\\(', 'g')) ?? []).length;
 const readOnly = (literal: string) => {
@@ -136,7 +136,7 @@ describe('People Payroll read-tail r55 dedupe', () => {
   });
 
   test('retirement:ts-statements stays strictly below the recorded BEFORE=1214', () => {
-    const root = new URL('../../../packages/server-people_payroll/src/', import.meta.url);
+    const root = new URL('../../../modules/people-payroll/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {

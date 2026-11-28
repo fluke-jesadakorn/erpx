@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { ecommerceQualitySettlementSources } from '@erpx/server-quality/public/ecommerce-package-sources';
-import { salesQualitySettlementSources } from '@erpx/server-quality/public/sales-package-sources';
-import { disposalCountsSql } from '../../../packages/server-inventory/src/adapters/read-tail-sql';
+import { ecommerceQualitySettlementSources } from '@erpx/quality-server/public/ecommerce-package-sources';
+import { salesQualitySettlementSources } from '@erpx/quality-server/public/sales-package-sources';
+import { disposalCountsSql } from '../../../modules/inventory/server/src/adapters/read-tail-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-inventory/src');
+const srcRoot = resolve(__dirname, '../../../modules/inventory/server/src');
 const adapterDir = resolve(srcRoot, 'adapters');
 const src = (name: string) => readFileSync(resolve(adapterDir, name), 'utf8');
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;

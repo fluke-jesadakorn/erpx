@@ -2,9 +2,9 @@ import { randomUUID } from "node:crypto";
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import { memberProfileView, saveMemberProfile } from "@erpx/server-organization/public/member-profiles";
+import { memberProfileView, saveMemberProfile } from "@erpx/organization-server/public/member-profiles";
 
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({
   runtimeEnv: async () => env,
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
 }));
@@ -89,8 +89,8 @@ it("saves only the owner's profile with optimistic versioning and idempotency", 
   expect(colleague.bio).toBe("");
 });
 
-import {uploadMemberProfileMedia,removeMemberProfileMedia} from "@erpx/server-organization/public/profile-media-command";
-vi.mock("@erpx/server-files/public/attachments/scanner",()=>({scanAttachmentBytes:async()=>({clean:true})}));
+import {uploadMemberProfileMedia,removeMemberProfileMedia} from "@erpx/organization-server/public/profile-media-command";
+vi.mock("@erpx/files-server/public/attachments/scanner",()=>({scanAttachmentBytes:async()=>({clean:true})}));
 const profilePng=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOQaEj4D8IMMAYAQaQH3RNNL/AAAAAASUVORK5CYII=','base64'));
 it('rolls back profile media and its journal on late outbox failure, compensates storage and retries or replays each command once',async()=>{
  const actor=first.owner,db=env.H001_DB,key=randomUUID(),removeKey=randomUUID(),input={kind:'avatar' as const,contentType:'image/png',contentLength:String(profilePng.byteLength),version:'0',commandId:key},body=async()=>profilePng.buffer;

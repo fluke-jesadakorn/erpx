@@ -9,8 +9,8 @@ import {
   createPriceListWorkspaceClient,
   readPriceListWorkspace,
   type PriceListActor,
-} from '../../../packages/server-sales/src/adapters/native-lane-30/pricing-client';
-import { ApiError } from '@erpx/server-runtime/public/http';
+} from '../../../modules/sales/server/src/adapters/native-lane-30/pricing-client';
+import { ApiError } from '@erpx/platform-runtime-server/public/http';
 
 const config = {
   privateBaseUrl: 'http://127.0.0.1:44998',

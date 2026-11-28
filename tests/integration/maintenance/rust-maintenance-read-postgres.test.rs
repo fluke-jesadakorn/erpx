@@ -8,17 +8,17 @@ mod facts;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 use auth::*;
-use erpx_server_identity_access::public::effective_authority::{
+use erpx_identity_access_server::public::effective_authority::{
     HoldingWorkSourcePreparation, WorkAuthorizationRequest,
 };
-use erpx_server_maintenance::public::read::{
+use erpx_maintenance_server::public::read::{
     MaintenanceDowntimeCursor, MaintenanceDowntimeQuery, read_maintenance_detail,
     read_maintenance_downtime_evidence, read_maintenance_plan_detail, read_maintenance_plans,
     read_maintenance_workspace,
 };
-use erpx_server_runtime::public::postgres::{DatabasePool, PgWorkFuture};
-use erpx_server_shared::public::{BusinessError, Clock, FailureKind, TimestampMillis};
-use erpx_server_identity_access::public::work_context::HoldingWorkspaceRequest;
+use erpx_platform_runtime_server::public::postgres::{DatabasePool, PgWorkFuture};
+use erpx_platform_shared_server::public::{BusinessError, Clock, FailureKind, TimestampMillis};
+use erpx_identity_access_server::public::work_context::HoldingWorkspaceRequest;
 use facts::*;
 use sqlx::PgConnection;
 
@@ -204,7 +204,7 @@ async fn downtime_evidence_fails_closed_without_read_permission_or_before_contex
             assert!(
                 matches!(
                     forbidden,
-                    erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e)
+                    erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(ref e)
                         if e.kind == FailureKind::Forbidden
                 ),
                 "downtime evidence must fail closed without records.read"
@@ -341,7 +341,7 @@ async fn reads_refuse_missing_read_permission_expired_context_and_foreign_record
                             assert!(
                                 matches!(
                                     error,
-                                    erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e)
+                                    erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(ref e)
                                         if e.kind == FailureKind::NotFound
                                 ),
                                 "foreign work must be a scoped not-found"
@@ -372,7 +372,7 @@ async fn reads_refuse_missing_read_permission_expired_context_and_foreign_record
             assert!(
                 matches!(
                     denied,
-                    erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e)
+                    erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(ref e)
                         if e.kind == FailureKind::Forbidden
                 ),
                 "missing records.read must fail closed"
@@ -404,8 +404,8 @@ async fn reads_refuse_missing_read_permission_expired_context_and_foreign_record
 
 #[tokio::test]
 async fn creation_vacancy_retains_global_absence_and_same_unit_locks() {
-    use erpx_server_maintenance::public::work_source::inspect_maintenance_asset_vacancy;
-    use erpx_server_shared::public::RecordId;
+    use erpx_maintenance_server::public::work_source::inspect_maintenance_asset_vacancy;
+    use erpx_platform_shared_server::public::RecordId;
     fixture::with_database(2, |control| async move {
         fixture::with_database(2, move |holding| async move {
             let _ = setup(&control, &holding).await;
@@ -450,8 +450,8 @@ async fn creation_vacancy_retains_global_absence_and_same_unit_locks() {
 
 #[tokio::test]
 async fn maintenance_asset_purchase_locks_require_same_unit_and_report_contention() {
-    use erpx_server_maintenance::public::asset_purchase_locks::*;
-    use erpx_server_runtime::public::postgres::{MigrationTrack,PgTransactionError,load_migrations,migrate_database};
+    use erpx_maintenance_server::public::asset_purchase_locks::*;
+    use erpx_platform_runtime_server::public::postgres::{MigrationTrack,PgTransactionError,load_migrations,migrate_database};
     fixture::with_database(2,|pool|async move {
         let migrations=load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
         let mut unlocked=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unlocked).await.unwrap();assert!(bind_maintenance_asset_purchase_sources(&mut unlocked).await.is_err());unlocked.rollback().await.unwrap();
@@ -465,8 +465,8 @@ async fn maintenance_asset_purchase_locks_require_same_unit_and_report_contentio
 
 #[tokio::test]
 async fn maintenance_asset_purchase_record_matches_actual_ts_owner_image() {
-    use erpx_server_maintenance::public::{asset_purchase_locks::*,asset_purchase_record::*};
-    use erpx_server_shared::public::CompanyId;
+    use erpx_maintenance_server::public::{asset_purchase_locks::*,asset_purchase_record::*};
+    use erpx_platform_shared_server::public::CompanyId;
     fixture::with_database(2,|control|async move {fixture::with_database(2,move|holding|async move {
         let (_authorizer,_clock)=setup(&control,&holding).await;seed(&holding).await;
         // This isolated fixture keeps the existing role and permissions, but
@@ -513,8 +513,8 @@ async fn maintenance_asset_purchase_record_matches_actual_ts_owner_image() {
 
 #[tokio::test]
 async fn retirement_work_matches_real_assets_typescript_guard() {
-    use erpx_server_maintenance::public::{asset_purchase_locks::*,asset_purchase_record::*};
-    use erpx_server_runtime::public::postgres::{MigrationTrack,load_migrations,migrate_database};
+    use erpx_maintenance_server::public::{asset_purchase_locks::*,asset_purchase_record::*};
+    use erpx_platform_runtime_server::public::postgres::{MigrationTrack,load_migrations,migrate_database};
     fixture::with_database(2,|pool|async move {
         let migrations=load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
@@ -523,7 +523,7 @@ async fn retirement_work_matches_real_assets_typescript_guard() {
         let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const fs=await import('node:fs');const m=await import(process.argv[2]);const s=fs.readFileSync(process.argv[1],'utf8');const match=s.match(/assertion\(write,key,'no-active-work',`([^`]+)`/);if(!match)throw Error('GUARD_MISSING');const sql=match[1].replace('${maintenanceProjectionSources.maintenance_work_orders}',m.finalRootOwnerProjectionSources.maintenance_work_orders).replace('?', '$1');process.stdout.write('SELECT '+sql);"#;
         let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let output=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(&root).arg("--conditions=react-server").arg("-e").arg(script)
-            .arg(root.join("packages/server-assets/src/adapters/assets.ts")).arg(root.join("packages/server-maintenance/src/adapters/final-root-owner-projection-sources.ts")).output().unwrap();
+            .arg(root.join("modules/assets/server/src/adapters/assets.ts")).arg(root.join("modules/maintenance/server/src/adapters/final-root-owner-projection-sources.ts")).output().unwrap();
         assert!(output.status.success(),"actual Assets guard oracle unavailable");let sql=String::from_utf8(output.stdout).unwrap();
         let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
         lock_maintenance_asset_purchase_sources(&mut tx).await.unwrap();let locks=bind_maintenance_asset_purchase_sources(&mut tx).await.unwrap();

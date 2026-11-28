@@ -1,8 +1,8 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
-const file = new URL('../../../packages/server-talent/src/adapters/people-hire-handoff-facts.ts', import.meta.url);
-const srcDir = new URL('../../../packages/server-talent/src/', import.meta.url);
+const file = new URL('../../../modules/talent/server/src/adapters/people-hire-handoff-facts.ts', import.meta.url);
+const srcDir = new URL('../../../modules/talent/server/src/', import.meta.url);
 
 // Exact pre-dedupe emitted SQL (r28 baseline, BEFORE=50). Only the row source,
 // WHERE predicate and optional `NOT ` are parameterized; the caller keeps its

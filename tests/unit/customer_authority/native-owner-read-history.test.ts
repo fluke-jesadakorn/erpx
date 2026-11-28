@@ -21,12 +21,12 @@ import {
   nativeOwnerReadAll,
   nativeOwnerReadStatement,
   nativePortalReadStatement,
-} from '../../../packages/server-customer_authority/src/adapters/native-owner-read';
-import { readExecutiveMetricProjection } from '../../../packages/server-customer_authority/src/adapters/executive-metric-projections';
-import { portalPurchaseBindingSource } from '../../../packages/server-customer_authority/src/adapters/portal-purchase-binding-source';
-import { assignmentEligibilityExists, assignmentSource } from '../../../packages/server-customer_authority/src/adapters/assignment-eligibility-source';
-import { finalRootOwnerProjectionSources as commerce } from '../../../packages/server-commerce/src/public/final-root-owner-projection-sources';
-import { finalRootOwnerProjectionSources as identity_access } from '../../../packages/server-identity_access/src/public/final-root-owner-projection-sources';
+} from '../../../modules/customer-authority/server/src/adapters/native-owner-read';
+import { readExecutiveMetricProjection } from '../../../modules/customer-authority/server/src/adapters/executive-metric-projections';
+import { portalPurchaseBindingSource } from '../../../modules/customer-authority/server/src/adapters/portal-purchase-binding-source';
+import { assignmentEligibilityExists, assignmentSource } from '../../../modules/customer-authority/server/src/adapters/assignment-eligibility-source';
+import { finalRootOwnerProjectionSources as commerce } from '../../../modules/commerce/server/src/public/final-root-owner-projection-sources';
+import { finalRootOwnerProjectionSources as identity_access } from '../../../modules/identity-access/server/src/public/final-root-owner-projection-sources';
 
 const key = 'ERPX_NATIVE_CUSTOMER_AUTHORITY_READ_CONFIG';
 const config = () => JSON.stringify({
@@ -354,8 +354,8 @@ describe('customer authority portal native read port cutover', () => {
   });
 
   it('keeps no TypeScript SQL mirror in the installed-probe and binding-lock consumers', async () => {
-    const sources = await readFile(new URL('../../../packages/server-customer_authority/src/adapters/portal-support-sources.ts', import.meta.url), 'utf8');
-    const access = await readFile(new URL('../../../packages/server-customer_authority/src/adapters/portal-access.ts', import.meta.url), 'utf8');
+    const sources = await readFile(new URL('../../../modules/customer-authority/server/src/adapters/portal-support-sources.ts', import.meta.url), 'utf8');
+    const access = await readFile(new URL('../../../modules/customer-authority/server/src/adapters/portal-access.ts', import.meta.url), 'utf8');
     expect(sources).not.toContain('to_regclass(');
     expect(sources).toContain('CA_RD_PORTAL_INSTALLED');
     expect(sources).toContain('nativePortalReadStatement');
@@ -367,30 +367,30 @@ describe('customer authority portal native read port cutover', () => {
 });
 
 describe('customer authority access-sources native read cutover', () => {
-  const owner = (file: string) => new URL(`../../../packages/server-customer_authority/src/${file}`, import.meta.url);
+  const owner = (file: string) => new URL(`../../../modules/customer-authority/server/src/${file}`, import.meta.url);
 
   it('retains the workspace source reader only and never routes GET through it', async () => {
     const adapter = await readFile(owner('adapters/access.ts'), 'utf8');
     expect(adapter).toContain('CA_RD_ACCESS_SOURCES');
-    const shared = await readFile(new URL('../../../packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customer-access/route.ts', import.meta.url), 'utf8');
+    const shared = await readFile(new URL('../../../modules/sales/ui/src/routes/api/v1/holdings/[holdingSlug]/customer-access/route.ts', import.meta.url), 'utf8');
     expect(shared).not.toContain('customerAccessWorkspace');
   });
 
   it('routes the shared GET through the native sources handler in both apps', async () => {
-    const shared = await readFile(new URL('../../../packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customer-access/route.ts', import.meta.url), 'utf8');
+    const shared = await readFile(new URL('../../../modules/sales/ui/src/routes/api/v1/holdings/[holdingSlug]/customer-access/route.ts', import.meta.url), 'utf8');
     expect(shared).not.toContain('customerAccessWorkspace');
     for (const app of ['sales', 'compat']) {
       const route = await readFile(new URL(`../../../apps/${app}/src/app/api/v1/holdings/[holdingSlug]/customer-access/route.ts`, import.meta.url), 'utf8');
       expect(route).toContain('nativeCustomerAccessSourcesGet as GET');
       expect(route).toContain('POST');
     }
-    const manifest = JSON.parse(await readFile(new URL('../../../packages/feature-customer_authority/package.json', import.meta.url), 'utf8')) as { exports: Record<string, string> };
+    const manifest = JSON.parse(await readFile(new URL('../../../modules/customer-authority/ui/package.json', import.meta.url), 'utf8')) as { exports: Record<string, string> };
     expect(manifest.exports['./lib/access-sources']).toBe('./src/lib/access-sources.ts');
   });
 });
 
 describe('customer authority portal attachment binding-current read family', () => {
-  const adapter = (name: string) => new URL(`../../../packages/server-customer_authority/src/adapters/${name}`, import.meta.url);
+  const adapter = (name: string) => new URL(`../../../modules/customer-authority/server/src/adapters/${name}`, import.meta.url);
 
   it('keeps one fixed-SQL binding/identity literal shared by the read and withdraw fences', async () => {
     const proof = await readFile(adapter('attachment-withdraw-proof.ts'), 'utf8');
@@ -401,16 +401,16 @@ describe('customer authority portal attachment binding-current read family', () 
     expect(proof).toContain("'FROM customer_access_bindings binding JOIN customer_access_identities identity ON identity.binding_id=binding.id'");
     expect(proof.match(/binding\.email=\?/g)).toHaveLength(1);
     expect(read).not.toContain('binding.email=?');
-    expect(read).toContain("import {bindingIdentityCurrentSql} from '@erpx/server-customer_authority/adapters/attachment-withdraw-proof'");
+    expect(read).toContain("import {bindingIdentityCurrentSql} from '@erpx/customer-authority-server/adapters/attachment-withdraw-proof'");
     expect(read).toContain('.prepare(bindingIdentityCurrentSql)');
     expect(proof).toContain('.prepare(bindingIdentityCurrentSql)');
   });
 });
 
 describe('customer authority assignment-projection existence core dedupe', () => {
-  const helper = () => new URL('../../../packages/server-customer_authority/src/adapters/assignment-eligibility-source.ts', import.meta.url);
-  const access = () => new URL('../../../packages/server-customer_authority/src/adapters/access.ts', import.meta.url);
-  const manager = () => new URL('../../../packages/server-customer_authority/src/adapters/manager-eligibility.ts', import.meta.url);
+  const helper = () => new URL('../../../modules/customer-authority/server/src/adapters/assignment-eligibility-source.ts', import.meta.url);
+  const access = () => new URL('../../../modules/customer-authority/server/src/adapters/access.ts', import.meta.url);
+  const manager = () => new URL('../../../modules/customer-authority/server/src/adapters/manager-eligibility.ts', import.meta.url);
 
   it('keeps one assignment-projection existence core shared by access and manager eligibility', async () => {
     const src = await readFile(helper(), 'utf8');
@@ -447,8 +447,8 @@ describe('customer authority assignment-projection existence core dedupe', () =>
 });
 
 describe('customer authority portal release gate dedupe', () => {
-  const gate = () => new URL('../../../packages/server-customer_authority/src/adapters/portal-release-gate.ts', import.meta.url);
-  const shared = () => new URL('../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r28-sources.ts', import.meta.url);
+  const gate = () => new URL('../../../modules/customer-authority/server/src/adapters/portal-release-gate.ts', import.meta.url);
+  const shared = () => new URL('../../../modules/customer-authority/server/src/adapters/customer-authority-read-tail-r28-sources.ts', import.meta.url);
 
   it('keeps one aliased gate source and one shared read builder for both forms', async () => {
     const src = await readFile(gate(), 'utf8');
@@ -467,9 +467,9 @@ describe('customer authority portal release gate dedupe', () => {
 });
 
 describe('customer authority portal support responses source dedupe', () => {
-  const sources = () => new URL('../../../packages/server-customer_authority/src/adapters/portal-support-sources.ts', import.meta.url);
+  const sources = () => new URL('../../../modules/customer-authority/server/src/adapters/portal-support-sources.ts', import.meta.url);
   it('renders the same support-table SQL for every settlement and lateral caller', async () => {
-    const { portalSupportResponsesSource, portalSupportSettlementSources } = await import('../../../packages/server-customer_authority/src/adapters/portal-support-sources');
+    const { portalSupportResponsesSource, portalSupportSettlementSources } = await import('../../../modules/customer-authority/server/src/adapters/portal-support-sources');
     expect(portalSupportResponsesSource).toBe('SELECT * FROM customer_portal_support_responses');
     expect(portalSupportSettlementSources).toEqual({
       responses: 'SELECT * FROM customer_portal_support_responses',
@@ -480,9 +480,9 @@ describe('customer authority portal support responses source dedupe', () => {
 });
 
 describe('customer authority portal/access binding source dedupe', () => {
-  const binding = () => new URL('../../../packages/server-customer_authority/src/adapters/portal-binding-source.ts', import.meta.url);
-  const access = () => new URL('../../../packages/server-customer_authority/src/adapters/portal-access.ts', import.meta.url);
-  const facts = () => new URL('../../../packages/server-customer_authority/src/adapters/attachments-portal-facts.ts', import.meta.url);
+  const binding = () => new URL('../../../modules/customer-authority/server/src/adapters/portal-binding-source.ts', import.meta.url);
+  const access = () => new URL('../../../modules/customer-authority/server/src/adapters/portal-access.ts', import.meta.url);
+  const facts = () => new URL('../../../modules/customer-authority/server/src/adapters/attachments-portal-facts.ts', import.meta.url);
 
   it('keeps one byte-identical binding core shared by access scope and attachment facts', async () => {
     const src = await readFile(binding(), 'utf8');
@@ -503,10 +503,10 @@ describe('customer authority portal/access binding source dedupe', () => {
 });
 
 describe('customer authority portal purchase binding read core dedupe', () => {
-  const helper = () => new URL('../../../packages/server-customer_authority/src/adapters/portal-purchase-binding-source.ts', import.meta.url);
-  const portal = () => new URL('../../../packages/server-customer_authority/src/adapters/portal-purchases.ts', import.meta.url);
-  const attach = () => new URL('../../../packages/server-customer_authority/src/adapters/attachment-purchases.ts', import.meta.url);
-  const read = () => new URL('../../../packages/server-customer_authority/src/adapters/attachment-read.ts', import.meta.url);
+  const helper = () => new URL('../../../modules/customer-authority/server/src/adapters/portal-purchase-binding-source.ts', import.meta.url);
+  const portal = () => new URL('../../../modules/customer-authority/server/src/adapters/portal-purchases.ts', import.meta.url);
+  const attach = () => new URL('../../../modules/customer-authority/server/src/adapters/attachment-purchases.ts', import.meta.url);
+  const read = () => new URL('../../../modules/customer-authority/server/src/adapters/attachment-read.ts', import.meta.url);
 
   it('keeps one byte-identical binding/order core shared by purchase source and both attachment witnesses', async () => {
     const src = await readFile(helper(), 'utf8');

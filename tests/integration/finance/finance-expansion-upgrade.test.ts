@@ -3,23 +3,23 @@ import { cp, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { createHash } from "node:crypto";
 import { env } from "../../support/runtime-env";
-import { migrateDatabase } from "@erpx/server-runtime/adapters/runtime/migrations";
+import { migrateDatabase } from "@erpx/platform-runtime-server/adapters/runtime/migrations";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
 import {
   prepareBookRule,
   decideBookRule,
   bookRuleSchema,
   createFinanceDimension,
-} from "@erpx/server-finance/public/finance-books";
+} from "@erpx/finance-server/public/finance-books";
 import {
   prepareAssetPolicy,
   decideAssetPolicy,
   prepareAssetPolicyRun,
   decideAssetPolicyRun,
-} from "@erpx/server-finance/public/finance-asset-policies";
-import { statementPackageExport } from "@erpx/server-finance/public/finance-reporting";
-import { setFinanceCompanyTool } from "@erpx/server-finance/public/finance-company-tools";
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
+} from "@erpx/finance-server/public/finance-asset-policies";
+import { statementPackageExport } from "@erpx/finance-server/public/finance-reporting";
+import { setFinanceCompanyTool } from "@erpx/finance-server/public/finance-company-tools";
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({
   runtimeEnv: async () => env,
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
 }));

@@ -1,9 +1,9 @@
 import {describe,it,expect,vi} from 'vitest';
 vi.mock('server-only',()=>({}));
-import {createNativeQualityReader} from '../../../packages/feature-quality/src/adapters/server/native-quality';
-import {qualityHistorySessionKey,mergeQualityHistory,beginQualityHistoryRequest,finishQualityHistoryRequest} from '../../../packages/feature-quality/src/lib/quality-cancellation-history';
-import {QualityCancellationHistory} from '../../../packages/feature-quality/src/components/quality-cancellation-history';
-import {canonicalDestinationLinks} from '@erpx/feature-work_projection/lib/destination-links';
+import {createNativeQualityReader} from '../../../modules/quality/ui/src/adapters/server/native-quality';
+import {qualityHistorySessionKey,mergeQualityHistory,beginQualityHistoryRequest,finishQualityHistoryRequest} from '../../../modules/quality/ui/src/lib/quality-cancellation-history';
+import {QualityCancellationHistory} from '../../../modules/quality/ui/src/components/quality-cancellation-history';
+import {canonicalDestinationLinks} from '@erpx/work-projection-ui/lib/destination-links';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44991',

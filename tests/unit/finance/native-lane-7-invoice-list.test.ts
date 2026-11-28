@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs';
 
 vi.mock('server-only', () => ({ }));
 
-import { NATIVE_FINANCE_LANE_2_CONFIG_KEY } from '../../../packages/server-finance/src/adapters/native-lane-2/client';
-import { financeInvoiceListNative } from '../../../packages/server-finance/src/adapters/native-lane-7/client';
+import { NATIVE_FINANCE_LANE_2_CONFIG_KEY } from '../../../modules/finance/server/src/adapters/native-lane-2/client';
+import { financeInvoiceListNative } from '../../../modules/finance/server/src/adapters/native-lane-7/client';
 
 const actor = { holdingId: 'h001', holdingSlug: 'acme', companyId: 'acme:co-1' };
 const original = process.env[NATIVE_FINANCE_LANE_2_CONFIG_KEY];
@@ -109,20 +109,20 @@ describe('native Finance lane 7 invoice-list transport', () => {
 
 describe('native Finance lane 7 SQL execution and route authority', () => {
   const domain = readFileSync(
-    new URL('../../../packages/server-finance/src/adapters/native_lane_7/domain.rs', import.meta.url),
+    new URL('../../../modules/finance/server/src/adapters/native_lane_7/domain.rs', import.meta.url),
     'utf8',
   );
   const postgres = readFileSync(
-    new URL('../../../packages/server-finance/src/adapters/native_lane_7/postgres.rs', import.meta.url),
+    new URL('../../../modules/finance/server/src/adapters/native_lane_7/postgres.rs', import.meta.url),
     'utf8',
   );
   const adapter = readFileSync(
-    new URL('../../../packages/server-finance/src/adapters/finance-invoice-read.ts', import.meta.url),
+    new URL('../../../modules/finance/server/src/adapters/finance-invoice-read.ts', import.meta.url),
     'utf8',
   );
   const route = readFileSync(
     new URL(
-      '../../../packages/feature-finance/src/routes/api/v1/holdings/[holdingSlug]/finance/route.ts',
+      '../../../modules/finance/ui/src/routes/api/v1/holdings/[holdingSlug]/finance/route.ts',
       import.meta.url,
     ),
     'utf8',

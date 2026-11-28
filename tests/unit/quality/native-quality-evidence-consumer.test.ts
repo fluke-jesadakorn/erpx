@@ -1,16 +1,16 @@
 import { describe, expect, test, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
+import type { WorkContext } from '@erpx/identity-access-server/public/authorization';
 
 const native = vi.hoisted(() => ({ rows: vi.fn() }));
-vi.mock('@erpx/server-quality/public/quality-evidence', () => ({
+vi.mock('@erpx/quality-server/public/quality-evidence', () => ({
   nativeQualityEvidenceRows: (...args: unknown[]) => native.rows(...args),
   nativeQualityEvidenceConfigured: () => true,
 }));
 
-import { createExecutiveEvidenceApplication, type ExecutiveEvidencePorts } from '@erpx/server-runtime/application/executive/evidence';
-import { ApiError } from '@erpx/server-runtime/public/http';
+import { createExecutiveEvidenceApplication, type ExecutiveEvidencePorts } from '@erpx/platform-runtime-server/application/executive/evidence';
+import { ApiError } from '@erpx/platform-runtime-server/public/http';
 
 const root = resolve(__dirname, '../../..');
 const read = (path: string) => readFileSync(resolve(root, path), 'utf8');
@@ -83,12 +83,12 @@ describe('executive inspection evidence uses the strict native transport', () =>
   });
 
   test('the retired SQL member is deleted and the strict transport is exported', () => {
-    expect(read('packages/server-quality/src/adapters/executive-main-evidence-sources.ts')).not.toContain('factsSearchQualityInspectionEvidence');
-    const consumer = read('packages/server-runtime/src/application/executive/evidence.ts');
+    expect(read('modules/quality/server/src/adapters/executive-main-evidence-sources.ts')).not.toContain('factsSearchQualityInspectionEvidence');
+    const consumer = read('platform/runtime/server/src/application/executive/evidence.ts');
     expect(consumer).not.toContain('r.factsSearchQualityInspectionEvidence');
     expect(consumer).toContain('nativeQualityEvidenceRows');
-    expect(read('packages/server-quality/src/adapters/quality-evidence-client.ts')).toContain('ERPX_NATIVE_QUALITY_EVIDENCE_CONFIG');
-    const pkg = JSON.parse(read('packages/server-quality/package.json')) as { exports: Record<string, string> };
+    expect(read('modules/quality/server/src/adapters/quality-evidence-client.ts')).toContain('ERPX_NATIVE_QUALITY_EVIDENCE_CONFIG');
+    const pkg = JSON.parse(read('modules/quality/server/package.json')) as { exports: Record<string, string> };
     expect(pkg.exports['./adapters/quality-evidence-client']).toBe('./src/adapters/quality-evidence-client.ts');
     expect(pkg.exports['./public/quality-evidence']).toBe('./src/public/quality-evidence.ts');
   });

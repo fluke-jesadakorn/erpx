@@ -1,16 +1,16 @@
-import {createNativeFieldFinancialWorkReader} from '../../../packages/server-finance/src/adapters/native-field-work';
+import {createNativeFieldFinancialWorkReader} from '../../../modules/finance/server/src/adapters/native-field-work';
 import {createHash} from 'node:crypto';
-import {createNativeServiceCustomerReceiptReader} from '../../../packages/feature-finance/src/adapters/server/native-service-customer-receipt';
+import {createNativeServiceCustomerReceiptReader} from '../../../modules/finance/ui/src/adapters/server/native-service-customer-receipt';
 import {describe,it,expect,vi} from 'vitest';
 vi.mock('server-only',()=>({}));
 vi.mock('next/headers',()=>({headers:vi.fn()}));
-import {createNativeServicePaymentCommands} from '../../../packages/feature-finance/src/adapters/server/native-service-payment-command';
-import {createNativeServicePaymentReader} from '../../../packages/feature-finance/src/adapters/server/native-service-payment';
-import {createNativeServiceInvoiceReader} from '../../../packages/feature-finance/src/adapters/server/native-service-invoice';
-import {createNativeFinanceSetupWorkspaceReader,nativeFinanceSetupWorkspace} from '../../../packages/feature-finance/src/adapters/server/native-finance-setup';
-import {NativeFinanceReadError} from '../../../packages/feature-finance/src/adapters/server/native-journal-detail';
-import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
-import type {NativeJournalPageContext} from '../../../packages/feature-finance/src/adapters/server/native-journal-page';
+import {createNativeServicePaymentCommands} from '../../../modules/finance/ui/src/adapters/server/native-service-payment-command';
+import {createNativeServicePaymentReader} from '../../../modules/finance/ui/src/adapters/server/native-service-payment';
+import {createNativeServiceInvoiceReader} from '../../../modules/finance/ui/src/adapters/server/native-service-invoice';
+import {createNativeFinanceSetupWorkspaceReader,nativeFinanceSetupWorkspace} from '../../../modules/finance/ui/src/adapters/server/native-finance-setup';
+import {NativeFinanceReadError} from '../../../modules/finance/ui/src/adapters/server/native-journal-detail';
+import type {WorkContext} from '@erpx/identity-access-server/public/authorization';
+import type {NativeJournalPageContext} from '../../../modules/finance/ui/src/adapters/server/native-journal-page';
 const config={privateBaseUrl:'http://127.0.0.1:43117',timeoutMs:250,holdings:[{origin:'https://acme.example.test',holdingSlug:'acme',holdingId:'h001'} ]};
 const actor={userId:'reader',holdingId:'h001',holdingSlug:'acme',companyId:'company',branchId:null,departmentId:null,assignmentId:'grant',role:'finance',assignmentScope:'holding',scope:{kind:'holding'},authority:{revision:7,assignmentVersion:3},modules:['finance'],iam:{permissions:['finance.read','module.finance.read']}} as NativeJournalPageContext;
 const context={userId:'reader',holdingId:'h001',companyId:'company',branchId:null,departmentId:null,branchSlug:null,departmentSlug:null,assignmentId:'grant',assignmentVersion:3,revision:7,role:'finance',assignmentScopeKind:'holding',modules:['finance'],permissions:['finance.read','module.finance.read'],expiresAt:1800000000000};
@@ -191,7 +191,7 @@ describe('native Field-parts journal responsibility transport',()=>{
  const legacy=()=>({runtime:'legacy',data:null,workspace:null,access:null,context});
  const commandRequest=(raw:string)=>new Request('https://acme.example.test/api/v1/holdings/acme/flows/journal/cost',{method:'POST',headers:{host:'acme.example.test',origin:'https://acme.example.test',cookie:'opaque','idempotency-key':'retain-field-cost-flow','x-erpx-context-company':'company','x-erpx-context-assignment':'grant','x-erpx-context-assignment-version':'3','x-erpx-context-revision':'7'},body:raw});
  it('uses a source-qualified native workspace/decisions and only an explicit empty legacy partition may select remaining consumers',async()=>{
-  const {createNativeFieldJournalFlowReader}=await import('../../../packages/feature-finance/src/adapters/server/native-field-journal-flow');
+  const {createNativeFieldJournalFlowReader}=await import('../../../modules/finance/ui/src/adapters/server/native-field-journal-flow');
   const transport=vi.fn(async(url:URL,headers:Headers)=>{expect(url.pathname).toBe('/api/v1/holdings/acme/finance/journals/cost/flow');expect(headers.get('x-erpx-context-company')).toBe('company');expect(headers.get('x-erpx-context-assignment-version')).toBe('3');expect(headers.get('cookie')).toBe('opaque');return json(reply());});
   const result=await createNativeFieldJournalFlowReader(JSON.stringify(config),transport)(actor,incoming,'acme','cost');
   expect(result?.workspace.lines.map(l=>l.debit_minor)).toEqual([600,0]);expect(result?.access.sourceOnly).toBe(true);expect(result?.flow.kind).toBe('journal');expect(transport).toHaveBeenCalledTimes(1);
@@ -199,7 +199,7 @@ describe('native Field-parts journal responsibility transport',()=>{
   await expect(createNativeFieldJournalFlowReader(JSON.stringify(config),async()=>json({...legacy(),workspace}))(actor,incoming,'acme','cost')).rejects.toMatchObject({code:'NATIVE_FINANCE_RESPONSE_INVALID'});
  });
  it('rejects stale identity, another Company and a relabelled native source instead of returning a legacy verdict',async()=>{
-  const {createNativeFieldJournalFlowReader}=await import('../../../packages/feature-finance/src/adapters/server/native-field-journal-flow');
+  const {createNativeFieldJournalFlowReader}=await import('../../../modules/finance/ui/src/adapters/server/native-field-journal-flow');
   for(const changed of [
    {...reply(),context:{...context,userId:'other'}},
    {...reply(),context:{...context,revision:8}},
@@ -210,7 +210,7 @@ describe('native Field-parts journal responsibility transport',()=>{
   await expect(createNativeFieldJournalFlowReader(JSON.stringify(config),async()=>json({error:{code:'SOURCE_CHANGED'}},409))(actor,incoming,'acme','cost')).rejects.toMatchObject({status:409});
  });
  it('preserves original command bytes/key and reads a fresh native view after acknowledgement',async()=>{
-  const {createNativeFieldJournalFlowCommands}=await import('../../../packages/feature-finance/src/adapters/server/native-field-journal-flow');
+  const {createNativeFieldJournalFlowCommands}=await import('../../../modules/finance/ui/src/adapters/server/native-field-journal-flow');
   let reads=0;const raw='{"stepKey":"draft","userId":"reader","expectedVersion":0,"recordVersion":1,"reason":"Retain original \\ud800 cost review","saveDefault":false,"source":"legacy"}';
   const read=async()=>json({...reply(),data:{...journalFlow,version:reads++===0?0:2}});
   const write=vi.fn(async(url:URL,headers:Headers,body:Uint8Array)=>{
@@ -221,7 +221,7 @@ describe('native Field-parts journal responsibility transport',()=>{
   expect(result?.status).toBe(200);expect(await result?.json()).toMatchObject({data:{version:2,kind:'journal'},command:{id:'cost',version:2}});expect(reads).toBe(2);expect(write).toHaveBeenCalledTimes(1);
  });
  it('retains the acknowledged command as uncertain when fresh readback changes identity',async()=>{
-  const {createNativeFieldJournalFlowCommands}=await import('../../../packages/feature-finance/src/adapters/server/native-field-journal-flow');
+  const {createNativeFieldJournalFlowCommands}=await import('../../../modules/finance/ui/src/adapters/server/native-field-journal-flow');
   let reads=0;const read=async()=>json(reads++===0?reply():{...reply(),context:{...context,revision:8}});
   const write=vi.fn(async()=>json({data:{id:'cost',version:2}}));
   const result=await createNativeFieldJournalFlowCommands(JSON.stringify(config),read,write)(commandRequest('{}'),actor,'acme','cost');

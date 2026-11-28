@@ -1,8 +1,8 @@
 import {describe,expect,it,vi} from 'vitest';
 vi.mock('next/headers',()=>({headers:async()=>new Headers({host:'acme.example.test'})}));
-import {createFinanceWorkspace,type FinanceWorkspacePorts} from "@erpx/server-finance/application/workspace";
-import type {ClosePeriodSource} from "@erpx/server-finance/domain/workspace";
-import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
+import {createFinanceWorkspace,type FinanceWorkspacePorts} from "@erpx/finance-server/application/workspace";
+import type {ClosePeriodSource} from "@erpx/finance-server/domain/workspace";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
 const actor:WorkContext={userId:'reviewer',name:'Reviewer',email:'reviewer@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['finance'],assignments:[],workspaces:[]};
 const error=(status:number,code:string,message:string)=>Object.assign(new Error(message),{status,code});
 type Ports=FinanceWorkspacePorts<{items:{id:string}[];nextCursor:string|null},{runs:{id:string}[]},{statusCounts:{proposed:number};transactions:{id:string}[]}>;
@@ -28,7 +28,7 @@ describe('Finance close blocker source reconciliation and independent setup proj
 });
 describe('Native period-close readiness replaces manufacturing SELECT sources',()=>{
   it('accepts the exact native openManufacturing projection and fails closed without SQL',async()=>{
-    const {periodCloseReadiness}=await import('@erpx/server-finance/adapters/finance-workspace');
+    const {periodCloseReadiness}=await import('@erpx/finance-server/adapters/finance-workspace');
     const reply=Response.json({data:{readiness:{draftJournals:1,draftInvoices:2,unmatchedBank:3,openManufacturing:4,pendingCalculations:5}}});
     expect(await periodCloseReadiness(reply)).toEqual({openManufacturing:4});
     await expect(periodCloseReadiness(undefined)).rejects.toMatchObject({status:503,code:'NATIVE_FINANCE_PERIOD_CLOSE_UNAVAILABLE'});

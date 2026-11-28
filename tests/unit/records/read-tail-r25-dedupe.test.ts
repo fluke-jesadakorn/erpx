@@ -5,9 +5,9 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { projectionSourceGuardSql } from '../../../packages/server-records/src/adapters/read-tail-projection-source-guard';
+import { projectionSourceGuardSql } from '../../../modules/records/server/src/adapters/read-tail-projection-source-guard';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-records/src');
+const srcRoot = resolve(__dirname, '../../../modules/records/server/src');
 const shared = readFileSync(resolve(srcRoot, 'adapters/read-tail-projection-source-guard.ts'), 'utf8');
 const policy = readFileSync(resolve(srcRoot, 'adapters/source-record-policy.ts'), 'utf8');
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');

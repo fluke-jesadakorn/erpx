@@ -1,14 +1,14 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_organization::public::organization_nodes::{
+use erpx_organization_server::public::organization_nodes::{
     OrganizationAuthority, OrganizationCommand, OrganizationCommandActor, OrganizationFuture,
 };
-use erpx_server_organization::public::position::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_organization_server::public::position::*;
+use erpx_platform_runtime_server::public::postgres::{
     MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions, load_migrations,
     migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, Clock, CompanyId, HoldingId, TimestampMillis, UserId,
 };
 use serde_json::{Value, json};
@@ -103,7 +103,7 @@ impl RosterExitPort for NoExit {
         _key: &'a str,
         _reason: &'a str,
         _now: i64,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<'a, ()> {
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<'a, ()> {
         Box::pin(async move { Ok(()) })
     }
 }
@@ -121,7 +121,7 @@ impl RosterExitPort for RecordingExit {
         key: &'a str,
         reason: &'a str,
         now: i64,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<'a, ()> {
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<'a, ()> {
         self.calls.push((
             engagement_ids.to_vec(),
             key.to_owned(),
@@ -139,7 +139,7 @@ struct Unit<'a, E> {
 }
 
 impl<E: RosterExitPort> OrganizationPositionRepository for Unit<'_, E> {
-    type Error = erpx_server_runtime::public::postgres::PgTransactionError<BusinessError>;
+    type Error = erpx_platform_runtime_server::public::postgres::PgTransactionError<BusinessError>;
 
     fn replay<'a>(
         &'a mut self,
@@ -222,7 +222,7 @@ impl<E: RosterExitPort> RosterExitPort for Unit<'_, E> {
     }
 }
 
-async fn seed(pool: &erpx_server_runtime::public::postgres::DatabasePool) {
+async fn seed(pool: &erpx_platform_runtime_server::public::postgres::DatabasePool) {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
     let files = load_migrations(root, MigrationTrack::HoldingWrite)
         .await
@@ -275,7 +275,7 @@ async fn seed(pool: &erpx_server_runtime::public::postgres::DatabasePool) {
 }
 
 async fn run<T, F>(
-    pool: erpx_server_runtime::public::postgres::DatabasePool,
+    pool: erpx_platform_runtime_server::public::postgres::DatabasePool,
     f: F,
 ) -> Result<T, PgTransactionError<BusinessError>>
 where

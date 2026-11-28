@@ -16,23 +16,23 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_customer_authority::public::portal_read as plans;
-use erpx_server_customer_authority::public::{ReadScope, bind};
+use erpx_customer_authority_server::public::portal_read as plans;
+use erpx_customer_authority_server::public::{ReadScope, bind};
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row};
 
 /// Retained TypeScript authority, read at compile time for source parity.
 const TS_SUPPORT: &str =
-    include_str!("../../../packages/server-customer_authority/src/adapters/portal-support.ts");
+    include_str!("../../../modules/customer-authority/server/src/adapters/portal-support.ts");
 const TS_SUPPORT_SOURCES: &str = include_str!(
-    "../../../packages/server-customer_authority/src/adapters/portal-support-sources.ts"
+    "../../../modules/customer-authority/server/src/adapters/portal-support-sources.ts"
 );
 const TS_BINDING_SOURCE: &str = include_str!(
-    "../../../packages/server-customer_authority/src/adapters/portal-binding-source.ts"
+    "../../../modules/customer-authority/server/src/adapters/portal-binding-source.ts"
 );
 const TS_ACCESS: &str =
-    include_str!("../../../packages/server-customer_authority/src/adapters/portal-access.ts");
+    include_str!("../../../modules/customer-authority/server/src/adapters/portal-access.ts");
 const TS_ATTACH: &str = include_str!(
-    "../../../packages/server-customer_authority/src/adapters/attachments-portal-facts.ts"
+    "../../../modules/customer-authority/server/src/adapters/attachments-portal-facts.ts"
 );
 
 /// Compare SQL after collapsing all whitespace runs, so TypeScript template

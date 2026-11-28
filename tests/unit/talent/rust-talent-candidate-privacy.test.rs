@@ -1,14 +1,14 @@
 //! Native Talent candidate creation and privacy policy, command and read tests.
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, RecordId, UserId,
 };
-use erpx_server_talent::public::candidate::{
+use erpx_talent_server::public::candidate::{
     CandidateReceipt, CandidateRequest, CandidateRow, CreatePlan, PgTalentCandidates,
     PrivacyAction, PrivacyEventRow, PrivacyPlan, PrivacyRequest, TalentActor,
     TalentCandidateCommandRepository, TalentCandidateReadRepository, candidate_privacy_workspace,
     change_candidate_privacy, create_candidate,
 };
-use erpx_server_talent::public::requisition::ReceiptSnapshot;
+use erpx_talent_server::public::requisition::ReceiptSnapshot;
 use serde_json::Value;
 use std::sync::Mutex;
 
@@ -112,7 +112,7 @@ impl TalentCandidateCommandRepository for Fake {
         _: &'a TalentActor,
         write: bool,
         _: i64,
-    ) -> erpx_server_talent::public::candidate::CandidateFuture<'a, bool, Self::Error> {
+    ) -> erpx_talent_server::public::candidate::CandidateFuture<'a, bool, Self::Error> {
         Box::pin(async move {
             self.calls
                 .lock()
@@ -127,7 +127,7 @@ impl TalentCandidateCommandRepository for Fake {
         _: &'a TalentActor,
         permission: &'a str,
         _: i64,
-    ) -> erpx_server_talent::public::candidate::CandidateFuture<'a, bool, Self::Error> {
+    ) -> erpx_talent_server::public::candidate::CandidateFuture<'a, bool, Self::Error> {
         Box::pin(async move {
             self.calls
                 .lock()
@@ -140,14 +140,14 @@ impl TalentCandidateCommandRepository for Fake {
     fn digest<'a>(
         &'a mut self,
         _: &'a str,
-    ) -> erpx_server_talent::public::candidate::CandidateFuture<'a, String, Self::Error> {
+    ) -> erpx_talent_server::public::candidate::CandidateFuture<'a, String, Self::Error> {
         Box::pin(async move { Ok(DIGEST.into()) })
     }
 
     fn receipt<'a>(
         &'a mut self,
         _: &'a str,
-    ) -> erpx_server_talent::public::candidate::CandidateFuture<
+    ) -> erpx_talent_server::public::candidate::CandidateFuture<
         'a,
         Option<ReceiptSnapshot>,
         Self::Error,
@@ -159,7 +159,7 @@ impl TalentCandidateCommandRepository for Fake {
         &'a mut self,
         _: &'a TalentActor,
         _: &'a str,
-    ) -> erpx_server_talent::public::candidate::CandidateFuture<'a, Option<CandidateRow>, Self::Error>
+    ) -> erpx_talent_server::public::candidate::CandidateFuture<'a, Option<CandidateRow>, Self::Error>
     {
         Box::pin(async move { Ok(self.row.clone()) })
     }
@@ -170,7 +170,7 @@ impl TalentCandidateCommandRepository for Fake {
         _: &'a str,
         plan: &'a CreatePlan,
         _: &'a str,
-    ) -> erpx_server_talent::public::candidate::CandidateFuture<'a, Value, Self::Error> {
+    ) -> erpx_talent_server::public::candidate::CandidateFuture<'a, Value, Self::Error> {
         Box::pin(async move {
             if self.fail_create {
                 return Err(BusinessError::new(
@@ -193,7 +193,7 @@ impl TalentCandidateCommandRepository for Fake {
         _: &'a str,
         plan: &'a PrivacyPlan,
         _: &'a str,
-    ) -> erpx_server_talent::public::candidate::CandidateFuture<'a, Value, Self::Error> {
+    ) -> erpx_talent_server::public::candidate::CandidateFuture<'a, Value, Self::Error> {
         Box::pin(async move {
             self.commits.lock().unwrap().push(format!(
                 "{}:{}:{}:{}",
@@ -221,7 +221,7 @@ impl TalentCandidateReadRepository for Fake {
         _: &'a TalentActor,
         _: bool,
         _: i64,
-    ) -> erpx_server_talent::public::candidate::CandidateFuture<'a, bool, Self::Error> {
+    ) -> erpx_talent_server::public::candidate::CandidateFuture<'a, bool, Self::Error> {
         Box::pin(async move { Ok(self.command_authority) })
     }
 
@@ -229,7 +229,7 @@ impl TalentCandidateReadRepository for Fake {
         &'a mut self,
         _: &'a TalentActor,
         _: i64,
-    ) -> erpx_server_talent::public::candidate::CandidateFuture<'a, bool, Self::Error> {
+    ) -> erpx_talent_server::public::candidate::CandidateFuture<'a, bool, Self::Error> {
         Box::pin(async move { Ok(self.privacy_authority) })
     }
 
@@ -237,7 +237,7 @@ impl TalentCandidateReadRepository for Fake {
         &'a mut self,
         _: &'a TalentActor,
         _: &'a str,
-    ) -> erpx_server_talent::public::candidate::CandidateFuture<'a, Option<CandidateRow>, Self::Error>
+    ) -> erpx_talent_server::public::candidate::CandidateFuture<'a, Option<CandidateRow>, Self::Error>
     {
         Box::pin(async move { Ok(self.row.clone()) })
     }
@@ -246,7 +246,7 @@ impl TalentCandidateReadRepository for Fake {
         &'a mut self,
         _: &'a TalentActor,
         _: &'a str,
-    ) -> erpx_server_talent::public::candidate::CandidateFuture<'a, Vec<PrivacyEventRow>, Self::Error>
+    ) -> erpx_talent_server::public::candidate::CandidateFuture<'a, Vec<PrivacyEventRow>, Self::Error>
     {
         Box::pin(async move { Ok(self.events.clone()) })
     }

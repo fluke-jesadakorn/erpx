@@ -1,2 +1,0 @@
-/** Retained Executive MCP token resolution. Connection create/list/revoke and the shared request budget are native Runtime routes (`./native-connections`). */
-export {connectionEligible,connectionScopes,findExecutiveToken,resolveExecutivePrincipal,recheckExecutivePrincipal,type TokenRow,type ExecutiveConnectionGrant,type ExecutivePrincipal} from "@erpx/server-runtime/adapters/executive/connections";

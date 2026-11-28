@@ -1,7 +1,7 @@
 import {describe,it,expect,vi} from 'vitest';
 vi.mock('server-only',()=>({}));
 import {createServer} from 'node:http';
-import {nativeJournalBatch} from '@erpx/feature-finance/public/server';
+import {nativeJournalBatch} from '@erpx/finance-ui/public/server';
 
 const base = {holdings:[{origin:'https://acme.example.test',holdingSlug:'acme',holdingId:'h001'}],timeoutMs:250} as const;
 const key='batch-review-key-0001';

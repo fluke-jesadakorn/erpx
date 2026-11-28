@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
-import { agentSelectColsFromSql } from '../../../packages/server-agent/src/adapters/read-tail-r26-source-sql';
-import { agentTurnEvidenceSql } from '../../../packages/server-agent/src/adapters/turn-evidence-projection-source';
+import { agentSelectColsFromSql } from '../../../modules/agent/server/src/adapters/read-tail-r26-source-sql';
+import { agentTurnEvidenceSql } from '../../../modules/agent/server/src/adapters/turn-evidence-projection-source';
 
 const src = (name: string) =>
-  readFile(new URL(`../../../packages/server-agent/src/${name}`, import.meta.url), 'utf8');
+  readFile(new URL(`../../../modules/agent/server/src/${name}`, import.meta.url), 'utf8');
 
 async function agentSelectCount(dir: URL): Promise<number> {
   let total = 0;
@@ -147,7 +147,7 @@ describe('Agent read-tail r26 dedupe (BEFORE=47)', () => {
     expect(intake).toContain('agentTurnEvidenceSql("t.user_id,t.company_id');
   });
 
-  it('KPI: TS SELECT tokens in packages/server-agent/src drop from 47 to 42', async () => {
-    expect(await agentSelectCount(new URL('../../../packages/server-agent/src/', import.meta.url))).toBe(38);
+  it('KPI: TS SELECT tokens in modules/agent/server/src drop from 47 to 42', async () => {
+    expect(await agentSelectCount(new URL('../../../modules/agent/server/src/', import.meta.url))).toBe(38);
   });
 });

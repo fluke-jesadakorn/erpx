@@ -1,11 +1,11 @@
 //! Native Benefits enrollment workspace policy, row, bound and ordering tests.
 //! These are owner unit facts, not HTTP, PostgreSQL, command or browser proof.
-use erpx_server_benefits::public::payroll_source::{
+use erpx_benefits_server::public::payroll_source::{
     BenefitPayrollInputRow, BenefitsPayrollQuery, BenefitsPayrollScope,
     BenefitsPayrollSourceRepository, PAYROLL_SOURCE_LIMIT, payroll_benefit_inputs,
     released_payroll_count, released_payroll_inputs, released_payroll_matches,
 };
-use erpx_server_benefits::public::workspace::{
+use erpx_benefits_server::public::workspace::{
     BenefitDependentRow, BenefitElectionDetailSource, BenefitElectionEventRow, BenefitElectionRow,
     BenefitPayrollInputRow as DetailPayrollInputRow, BenefitPlanRow, BenefitWindowRow,
     BenefitsActor, BenefitsDetailRepository, BenefitsEntitlement, BenefitsEntitlementPort,
@@ -13,7 +13,7 @@ use erpx_server_benefits::public::workspace::{
     DEPENDENT_LIMIT, DETAIL_HISTORY_LIMIT, ELECTION_LIMIT, PLAN_LIMIT, WINDOW_LIMIT,
     benefits_election_detail, benefits_workspace,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, FailureKind, TimestampMillis};
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
 
@@ -344,7 +344,7 @@ async fn run(
     repo: &mut Repo,
     people: &mut People,
     packages: &mut Packages,
-) -> Result<erpx_server_benefits::public::workspace::BenefitsWorkspace, BusinessError> {
+) -> Result<erpx_benefits_server::public::workspace::BenefitsWorkspace, BusinessError> {
     benefits_workspace(actor, personal, repo, people, packages, NOW).await
 }
 
@@ -525,7 +525,7 @@ async fn valid_workspace_projects_exact_flags_context_rows_and_purchase() {
     assert_eq!(
         workspace.purchase,
         Some(
-            erpx_server_benefits::public::workspace::BenefitsPurchaseControls {
+            erpx_benefits_server::public::workspace::BenefitsPurchaseControls {
                 new_work: true,
                 settle_existing: false,
                 history: true,
@@ -1338,7 +1338,7 @@ async fn run_detail(
     repo: &mut DetailRepo,
     people: &mut People,
     packages: &mut Packages,
-) -> Result<erpx_server_benefits::public::workspace::BenefitElectionDetail, BusinessError> {
+) -> Result<erpx_benefits_server::public::workspace::BenefitElectionDetail, BusinessError> {
     benefits_election_detail(actor, "election-other", repo, people, packages, NOW).await
 }
 

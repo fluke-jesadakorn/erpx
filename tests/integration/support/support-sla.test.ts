@@ -1,13 +1,13 @@
 import {beforeAll,beforeEach,afterEach,it,expect,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/commerce';
-import {getSupportTicket} from '@erpx/server-support/public/support';
+import {saveMaster,saveOrder,orderSchema} from '@erpx/commerce-server/public/commerce';
+import {getSupportTicket} from '@erpx/support-server/public/support';
 import {seedSupportTicket} from '../../support/helpers/support-ticket-seed';
 import {seedSupportClock,seedSupportPolicy} from '../../support/helpers/support-sla-seed';
-import {startSupportClock} from '@erpx/server-support/public/rules/support-clock';
-import {getSupportPolicy,supportPolicyWork} from "@erpx/server-support/public/support-sla";
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+import {startSupportClock} from '@erpx/support-server/public/rules/support-clock';
+import {getSupportPolicy,supportPolicyWork} from "@erpx/support-server/public/support-sla";
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,order:string;
 const policy={calendar:{timezone:'Asia/Bangkok',weekdays:[1,2,3,4,5],opensAtMinute:540,closesAtMinute:1020,holidays:[]},targetMinutes:60,pauseWhileWaiting:true};
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
@@ -22,7 +22,7 @@ it('reads an approved target and its attached clock with scope isolation',async(
  expect((await supportPolicyWork(f.manager)).find(row=>row.id===p.id)?.queue).toBe('completed');
 });
 it('retains durable breach escalation across retries, checks live routing and records a manager without changing the ticket',async()=>{
- const {supportAlerts,supportAlertWork}=await import("@erpx/server-support/public/support-sla-alerts");
+ const {supportAlerts,supportAlertWork}=await import("@erpx/support-server/public/support-sla-alerts");
  const p=await seedSupportPolicy(db,f.owner,{name:'Escalation target',policy}),id=await ticket(),clock=startSupportClock(policy,Date.parse('2026-09-21T02:00:00Z'));
  await seedSupportClock(db,id,{policyId:p.id,policyVersion:2,clock,actorId:f.owner.userId,reason:'Start observed target'});
  await db.prepare("INSERT INTO support_sla_alerts(id,ticket_id,source_version,breached_at,detected_at) SELECT ?,id,version,?,? FROM support_tickets WHERE id=?").bind(`support-breach-${id}`,Date.parse('2026-09-21T03:00:00Z'),Date.parse('2026-09-21T03:01:00Z'),id).run();

@@ -3,7 +3,7 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     MigrationTrack, WorkerAttestationRequest, attest_worker_database, load_migrations,
     migrate_database, verify_current_migration_inventory,
 };

@@ -1,8 +1,8 @@
-import type {ConnectionRow} from '@erpx/server-identity_access/domain/directories';
-import type {ProviderSnapshot} from '@erpx/server-identity_access/domain/providers';
-import type {IamActor} from '@erpx/server-identity_access/domain/iam-actor';
-import {grantInput} from '@erpx/server-identity_access/domain/iam-service';
-import {emptyDirectoryHierarchy,validateDirectoryHierarchy} from '@erpx/feature-organization/lib/hierarchy';
+import type {ConnectionRow} from '@erpx/identity-access-server/domain/directories';
+import type {ProviderSnapshot} from '@erpx/identity-access-server/domain/providers';
+import type {IamActor} from '@erpx/identity-access-server/domain/iam-actor';
+import {grantInput} from '@erpx/identity-access-server/domain/iam-service';
+import {emptyDirectoryHierarchy,validateDirectoryHierarchy} from '@erpx/organization-ui/lib/hierarchy';
 import type {DirectoryPorts} from './directories';
 export type DirectorySynchronizationPorts = Pick<DirectoryPorts,'error'|'now'|'id'|'apiError'|'read'|'syncFailure'|'snapshotTransaction'|'validateGrant'|'insertGrant'>;
 export function createDirectorySynchronization(ports: DirectorySynchronizationPorts) {

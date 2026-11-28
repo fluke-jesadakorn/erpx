@@ -1,9 +1,9 @@
 //! Actual B0 portable application oracle. Synthetic ports do not prove any
 //! PostgreSQL authorization, purchase admission or stock/journal effect.
-use erpx_server_maintenance::public::{
+use erpx_maintenance_server::public::{
     MaintenanceActorFacts, MaintenanceState, MaintenanceWorkFacts, work_commands::*, work_wire::*,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, CommandKey, FailureKind, RecordId, TimestampMillis, UserId,
 };
 use serde_json::{Value, json};

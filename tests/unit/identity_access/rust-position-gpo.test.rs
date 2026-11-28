@@ -1,6 +1,6 @@
 //! Portable Position GPO policy: input bounds, reviewed preview tokens, delivery
 //! identity and Directory evidence. These are not HTTP or provider journeys.
-use erpx_server_identity_access::public::position_gpo::{
+use erpx_identity_access_server::public::position_gpo::{
     inventory_filters, inventory_links, inventory_object, membership_key, rule_source_id,
     sha256_hex, waiting_key, ConfigRetryInput, FreshMfa, GpoAction, Inventory, InventoryObject,
     JobRetryInput, JobRow, PositionGpoInput, PublishInput, UnmapInput, UnmapPublishInput,
@@ -131,10 +131,10 @@ fn reviewed_preview_token_is_stable_and_binds_directory_evidence() {
     let input = input();
     let result = json!({"version": 1, "revision": 1});
     let evidence = json!({"gpo": {"id": "gpo-1", "version": "7"}, "observedAt": 500});
-    let first = erpx_server_identity_access::public::position_gpo::preview_token(
+    let first = erpx_identity_access_server::public::position_gpo::preview_token(
         &input, &result, &evidence,
     );
-    let mut rerun = erpx_server_identity_access::public::position_gpo::preview_token(
+    let mut rerun = erpx_identity_access_server::public::position_gpo::preview_token(
         &input, &result, &evidence,
     );
     assert_eq!(first, rerun);
@@ -142,7 +142,7 @@ fn reviewed_preview_token_is_stable_and_binds_directory_evidence() {
     assert!(first
         .bytes()
         .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()));
-    rerun = erpx_server_identity_access::public::position_gpo::preview_token(
+    rerun = erpx_identity_access_server::public::position_gpo::preview_token(
         &input,
         &result,
         &json!({"gpo": {"id": "gpo-1", "version": "8"}, "observedAt": 500}),
@@ -152,7 +152,7 @@ fn reviewed_preview_token_is_stable_and_binds_directory_evidence() {
 
 #[test]
 fn authority_requires_it_holding_scope_and_fresh_mfa() {
-    use erpx_server_identity_access::public::position_gpo::GpoAuthority;
+    use erpx_identity_access_server::public::position_gpo::GpoAuthority;
     let it = GpoAuthority { it_holding: true };
     it.require_write(FreshMfa(true)).unwrap();
     assert_eq!(
@@ -190,7 +190,7 @@ fn delivery_source_ids_distinguish_the_legacy_and_rule_paths() {
 
 #[test]
 fn delivery_id_is_stable_for_the_same_effect_and_differs_by_revision() {
-    use erpx_server_identity_access::public::position_gpo::delivery_id;
+    use erpx_identity_access_server::public::position_gpo::delivery_id;
     let parts = vec![
         "add".to_owned(),
         "connection-1".to_owned(),
@@ -295,9 +295,9 @@ fn a_job_is_deliverable_only_with_account_engagement_rule_and_source() {
     assert!(!job.deliverable());
 }
 
-fn overview_actor(role: &str, permissions: &[&str], branch: bool, department: bool) -> erpx_server_identity_access::public::position_gpo::IamRoleActor {
-    use erpx_server_identity_access::public::position_gpo::IamRoleActor;
-    use erpx_server_shared::public::{AssignmentId, CompanyId, HoldingId, RecordId, UserId};
+fn overview_actor(role: &str, permissions: &[&str], branch: bool, department: bool) -> erpx_identity_access_server::public::position_gpo::IamRoleActor {
+    use erpx_identity_access_server::public::position_gpo::IamRoleActor;
+    use erpx_platform_shared_server::public::{AssignmentId, CompanyId, HoldingId, RecordId, UserId};
     let rid = |value: &str| RecordId::new(value).unwrap();
     IamRoleActor {
         user_id: UserId::new("actor").unwrap(),
@@ -326,7 +326,7 @@ fn overview_actor(role: &str, permissions: &[&str], branch: bool, department: bo
 
 #[test]
 fn not_required_input_bounds_and_canonical_json() {
-    use erpx_server_identity_access::public::position_gpo::NotRequiredInput;
+    use erpx_identity_access_server::public::position_gpo::NotRequiredInput;
     let parsed = NotRequiredInput::parse(&json!({
         "positionId": "position-1", "expectedVersion": 2, "reason": "  No Windows policy needed  "
     }))
@@ -351,7 +351,7 @@ fn not_required_input_bounds_and_canonical_json() {
 
 #[test]
 fn overview_read_authority_matches_organization_parity() {
-    use erpx_server_identity_access::public::position_gpo::{gpo_read_allowed, require_gpo_read};
+    use erpx_identity_access_server::public::position_gpo::{gpo_read_allowed, require_gpo_read};
     for permission in ["iam.read", "people.read", "people.manage", "organization.manage"] {
         let actor = overview_actor("employee", &[permission], false, false);
         assert!(gpo_read_allowed(&actor), "{permission}");
@@ -364,7 +364,7 @@ fn overview_read_authority_matches_organization_parity() {
 
 #[test]
 fn can_manage_requires_it_holding_scope_without_branch_or_department() {
-    use erpx_server_identity_access::public::position_gpo::can_manage_gpo_rules;
+    use erpx_identity_access_server::public::position_gpo::can_manage_gpo_rules;
     assert!(can_manage_gpo_rules(&overview_actor(
         "it_admin",
         &["iam.read", "iam.directory.apply"],
@@ -399,7 +399,7 @@ fn can_manage_requires_it_holding_scope_without_branch_or_department() {
 
 #[test]
 fn task_status_and_presentation_follow_the_oracle_precedence() {
-    use erpx_server_identity_access::public::position_gpo::{present_gpo_task, task_status};
+    use erpx_identity_access_server::public::position_gpo::{present_gpo_task, task_status};
     assert_eq!(task_status(Some("not_required"), 3, 2, 2), "not_required");
     assert_eq!(task_status(None, 1, 2, 2), "blocked");
     assert_eq!(task_status(None, 0, 2, 2), "completed");
@@ -423,7 +423,7 @@ fn task_status_and_presentation_follow_the_oracle_precedence() {
 
 #[test]
 fn overview_presentation_defaults_missing_facts_and_keeps_null_reason() {
-    use erpx_server_identity_access::public::position_gpo::present_gpo_task;
+    use erpx_identity_access_server::public::position_gpo::present_gpo_task;
     let sparse = json!({"positionId": "position-2", "positionName": "Staff"});
     assert_eq!(
         present_gpo_task(&sparse),

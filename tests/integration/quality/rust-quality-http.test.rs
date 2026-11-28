@@ -1,19 +1,19 @@
 //! Native Quality HTTP transport facts over a real loopback listener.
-use erpx_server_quality::public::quality_http::{
+use erpx_quality_server::public::quality_http::{
     QualityHttpBackend, QualityHttpCommandRequest, QualityHttpFuture, QualityHttpHistoryReply,
     QualityHttpHistoryRequest, QualityHttpHoldCreateRequest, QualityHttpReadReply,
     QualityHttpReadRequest, QualityHttpSaveSpecRequest, QualityHttpTarget,
     parse_quality_history_query, quality_router,
 };
-use erpx_server_quality::public::quality_commands::{QualityHoldReceipt, QualitySpecReceipt};
-use erpx_server_quality::public::quality_read::{
+use erpx_quality_server::public::quality_commands::{QualityHoldReceipt, QualitySpecReceipt};
+use erpx_quality_server::public::quality_read::{
     CancellationAction, HoldStatus, QualityCancellation, QualityCancellationReceipt, QualityDecision,
     QualityDetail, QualityDetailCore, QualityHold, QualityHoldProduct, QualityHoldView, QualityMetric,
     QualityWorkspace, SpecStatus,
 };
-use erpx_server_runtime::public::http_support::serde_json::{self, Value, json};
-use erpx_server_runtime::public::http_support::{Router, serve};
-use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind, RecordId};
+use erpx_platform_runtime_server::public::http_support::serde_json::{self, Value, json};
+use erpx_platform_runtime_server::public::http_support::{Router, serve};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey, FailureKind, RecordId};
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -74,7 +74,7 @@ fn hold() -> QualityHold {
         status: HoldStatus::AwaitingRelease,
         created_by: "maker".into(),
         last_inspector: Some("inspector".into()),
-        last_result: Some(erpx_server_quality::public::quality_read::InspectionResult::Pass),
+        last_result: Some(erpx_quality_server::public::quality_read::InspectionResult::Pass),
         released_by: None,
         release_reason: None,
         released_at: None,

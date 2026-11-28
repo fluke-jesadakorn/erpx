@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { jsonbAggFact, bindingsExists } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-sql';
+import { jsonbAggFact, bindingsExists } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-customer_authority/src');
+const srcRoot = resolve(__dirname, '../../../modules/customer-authority/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 // Pre-dedupe fragments copied verbatim from HEAD, used only as byte-identity oracles.

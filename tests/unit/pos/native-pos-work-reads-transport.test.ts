@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { nativePosAll } from '../../../packages/server-pos/src/adapters/native-owner-write';
+import { nativePosAll } from '../../../modules/pos/server/src/adapters/native-owner-write';
 
 const config = () => JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:44994', timeoutMs: 1000 });
 const previous = process.env.ERPX_NATIVE_POS_OWNER_CONFIG;

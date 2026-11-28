@@ -4,9 +4,9 @@
 #[path = "../../support/field_service/parts.rs"]
 mod facts;
 use axum::{body::{Body,to_bytes},http::{Request,StatusCode}};
-use erpx_server_commercial::public::purchases::current_package_catalogue;
-use erpx_server_shared::public::{Clock,CompanyId,HoldingId};
-use erpx_service::{field_service_parts::FieldServicePartsEnvironment,field_service_reservation_read::{FieldServiceReservationReadConfiguration,FieldServiceReservationReadService},field_service_reservation_read_http::{field_service_reservation_read_router,FieldServiceReservationReadTarget,FieldServiceReadScopeHeaders},service_initial_physical_stock::CountBindingFeatures};
+use erpx_commercial_server::public::purchases::current_package_catalogue;
+use erpx_platform_shared_server::public::{Clock,CompanyId,HoldingId};
+use erpx_platform_composition::{field_service_parts::FieldServicePartsEnvironment,field_service_reservation_read::{FieldServiceReservationReadConfiguration,FieldServiceReservationReadService},field_service_reservation_read_http::{field_service_reservation_read_router,FieldServiceReservationReadTarget,FieldServiceReadScopeHeaders},service_initial_physical_stock::CountBindingFeatures};
 use facts::*;
 use std::sync::Arc;
 use tower::ServiceExt;

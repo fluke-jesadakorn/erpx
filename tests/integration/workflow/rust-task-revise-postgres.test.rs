@@ -3,15 +3,15 @@
 mod actor_fixture;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, Clock, CompanyId, IdentifierSource, RecordId, TimestampMillis,
 };
-use erpx_server_workflow::public::commands::*;
-use erpx_server_workflow::public::task_revise::{
+use erpx_workflow_server::public::commands::*;
+use erpx_workflow_server::public::task_revise::{
     TaskReviseEligibility, TaskReviseTaskRow, execute_task_revise,
 };
 use sqlx::PgConnection;

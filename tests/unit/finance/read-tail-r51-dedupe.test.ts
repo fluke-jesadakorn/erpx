@@ -1,11 +1,11 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { activeAccountListSql } from '../../../packages/server-finance/src/adapters/finance-read-tail-r51-sql';
-import { financeReferenceListSql } from '../../../packages/server-finance/src/adapters/finance-read-tail-r42-sql';
-import { versionStatusGuardSql } from '../../../packages/server-finance/src/adapters/finance-read-tail-r52-sql';
+import { activeAccountListSql } from '../../../modules/finance/server/src/adapters/finance-read-tail-r51-sql';
+import { financeReferenceListSql } from '../../../modules/finance/server/src/adapters/finance-read-tail-r42-sql';
+import { versionStatusGuardSql } from '../../../modules/finance/server/src/adapters/finance-read-tail-r52-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-finance/src');
+const srcRoot = resolve(__dirname, '../../../modules/finance/server/src');
 const adapters = resolve(srcRoot, 'adapters');
 const read = (name: string) => readFileSync(resolve(adapters, name), 'utf8');
 const count = (src: string, needle: string) => src.split(needle).length - 1;
@@ -111,7 +111,7 @@ describe('Finance read-tail r51 helper definitions and retained guards', () => {
     expect(read('pos-core-facts.ts')).toContain('FOR SHARE');
     expect(read('commerce-facts.ts')).toContain('FOR UPDATE');
     expect(read('finance-tax-register.ts')).toContain('SELECT');
-    expect(readRepo('packages/server-collaboration/src/adapters/native-finance-billing-corrections.ts')).toContain('Native-owned finance billing correction statements.');
+    expect(readRepo('modules/collaboration/server/src/adapters/native-finance-billing-corrections.ts')).toContain('Native-owned finance billing correction statements.');
   });
 
   test('retirement:ts-statements reaches the r56 target of 1718', () => {

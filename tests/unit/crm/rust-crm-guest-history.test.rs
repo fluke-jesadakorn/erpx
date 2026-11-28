@@ -3,11 +3,11 @@
 //! The crate manifest has `autotests = false`; the lead must register this file
 //! as a `[[test]]` target named `crm_guest_history` before `cargo test` picks it
 //! up. No build was run by the worker (BUILD FREEZE).
-use erpx_server_crm::public::guest_history::{
+use erpx_crm_server::public::guest_history::{
     CONTACT_SQL, STAYS_SQL, GuestHistoryActor, GuestHistoryFuture, GuestHistoryRepository,
     GuestHistorySource, crm_guest_history,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, TimestampMillis};
 use std::future::Future;
 use std::pin::Pin;
 
@@ -57,12 +57,12 @@ fn run<T, E>(future: impl Future<Output = Result<T, E>>) -> Result<T, E> {
 fn native_read_returns_the_complete_typescript_payload() {
     let mut fixture = Fixture {
         source: GuestHistorySource {
-            contact: Some(erpx_server_crm::public::guest_history::GuestContactRow {
+            contact: Some(erpx_crm_server::public::guest_history::GuestContactRow {
                 id: "contact-1".to_owned(),
                 name: "Guest Name".to_owned(),
                 account_id: "account-1".to_owned(),
             }),
-            stays: vec![erpx_server_crm::public::guest_history::GuestStayRow {
+            stays: vec![erpx_crm_server::public::guest_history::GuestStayRow {
                 guest_id: "guest-1".to_owned(),
                 reservation_id: "reservation-1".to_owned(),
                 reservation_state: Some("confirmed".to_owned()),

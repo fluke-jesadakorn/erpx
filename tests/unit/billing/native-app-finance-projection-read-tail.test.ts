@@ -9,12 +9,12 @@ const ownerQuery = vi.hoisted(() => vi.fn(async (_client: unknown, _kind: string
 const ownerBind = vi.hoisted(() => vi.fn(async (_db: unknown, _kind: string, _values: unknown[]) => ({
   first: vi.fn(async () => ({ status: 'active' })),
 })));
-vi.mock('../../../packages/server-billing/src/adapters/native-billing-owner-write', () => ({
+vi.mock('../../../modules/billing/server/src/adapters/native-billing-owner-write', () => ({
   nativeBillingOwnerQuery: ownerQuery,
   nativeBillingOwnerBind: ownerBind,
 }));
-const { appBillingFinanceProjection } = await import('@erpx/server-billing/adapters/app-finance-projection-source');
-const { betaManagementFacts } = await import('@erpx/server-billing/adapters/beta-management-facts');
+const { appBillingFinanceProjection } = await import('@erpx/billing-server/adapters/app-finance-projection-source');
+const { betaManagementFacts } = await import('@erpx/billing-server/adapters/beta-management-facts');
 
 describe('Billing owner-local finance projection read tail', () => {
   it('reads the test finance projection by typed kind with invoice and holding binds only and no local SQL', async () => {

@@ -4,11 +4,11 @@
 //! consumers: reference validation, matching source snapshots and the
 //! prepare/revalidate port shape. They do not claim a database adapter or
 //! owner completion.
-use erpx_server_records::public::source_record::{
+use erpx_records_server::public::source_record::{
     PreparedSource, SourceKind, SourceRecord, SourceRecordPort, SourceReference, prepare_source,
     require_matching_source, validate_reference,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::future::Future;
 use std::pin::Pin;
 

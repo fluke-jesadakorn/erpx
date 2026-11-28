@@ -2,7 +2,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-workflow/src');
+const srcRoot = resolve(__dirname, '../../../modules/workflow/server/src');
 const src = (rel: string) => readFile(resolve(srcRoot, rel), 'utf8');
 
 /** Byte oracles captured from the retired r38 generator before the native cut. */

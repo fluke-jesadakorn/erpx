@@ -1,8 +1,8 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { pmsBookingAllocationRefundSql } from '../../../packages/server-pms/src/adapters/pms-read-tail-r32-sql';
+import { pmsBookingAllocationRefundSql } from '../../../modules/pms/server/src/adapters/pms-read-tail-r32-sql';
 
-const dir = new URL('../../../packages/server-pms/src/', import.meta.url);
+const dir = new URL('../../../modules/pms/server/src/', import.meta.url);
 const src = (name: string) => readFile(new URL(name, dir), 'utf8');
 const SHARED = 'adapters/pms-read-tail-r32-sql.ts';
 const CALL_SITE = 'adapters/pms-booking-changes.ts';

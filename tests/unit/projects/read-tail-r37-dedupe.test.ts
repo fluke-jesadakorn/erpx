@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { notExistsRow, projectFactUnionArms } from '../../../packages/server-projects/src/adapters/read-tail-r37';
-import { packageActualSourceProof, projectPackageActualProof, eventFactArm } from '../../../packages/server-projects/src/adapters/package-obligations';
-import { projectReadProjection } from '../../../packages/server-projects/src/adapters/project-read-projections';
+import { notExistsRow, projectFactUnionArms } from '../../../modules/projects/server/src/adapters/read-tail-r37';
+import { packageActualSourceProof, projectPackageActualProof, eventFactArm } from '../../../modules/projects/server/src/adapters/package-obligations';
+import { projectReadProjection } from '../../../modules/projects/server/src/adapters/project-read-projections';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-projects/src');
+const srcRoot = resolve(__dirname, '../../../modules/projects/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 // Verbatim pre-r37 emitted arms captured from HEAD before the edit.

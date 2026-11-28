@@ -1,5 +1,5 @@
-use erpx_server_identity_access::public::work_context::*;
-use erpx_server_shared::public::{
+use erpx_identity_access_server::public::work_context::*;
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, Clock, CompanyId, HoldingId, RecordId, TimestampMillis, UserId,
 };
 struct FixedClock;

@@ -8,7 +8,7 @@ import {
   pmsDocumentsConfigured,
   type PmsDocumentActor,
   type PmsDocumentsTransport,
-} from '../../../packages/feature-pms/src/adapters/server/native-pms-documents';
+} from '../../../modules/pms/ui/src/adapters/server/native-pms-documents';
 
 const raw = JSON.stringify({
   privateBaseUrl: 'http://127.0.0.1:44993',
@@ -109,7 +109,7 @@ describe('strict native PMS document client', () => {
 
   it('carries no SQL, no DB unit and no TypeScript fallback reader', async () => {
     const source = await readFile(
-      new URL('../../../packages/feature-pms/src/adapters/server/native-pms-documents.ts', import.meta.url),
+      new URL('../../../modules/pms/ui/src/adapters/server/native-pms-documents.ts', import.meta.url),
       'utf8',
     );
     expect(source).not.toMatch(/\bSELECT\b|\bdb\.prepare\b|nativePmsReadAll|nativePmsReadFirst/);

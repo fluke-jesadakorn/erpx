@@ -1,11 +1,11 @@
 #[path = "../../support/legal/trust-facts.rs"]
 mod facts;
 
-use erpx_server_legal::public::{
+use erpx_legal_server::public::{
     LegalTrustCommand, LegalTrustInspector, LegalTrustReceipt, PreparedLegalTrustCommand,
     RustTrustMaterialInspector, TrustMaterialKind, TrustMaterialState, prepare_legal_trust_command,
 };
-use erpx_server_shared::public::{CommandKey, CompanyId, RecordId, TimestampMillis, UserId};
+use erpx_platform_shared_server::public::{CommandKey, CompanyId, RecordId, TimestampMillis, UserId};
 use facts::{FixedClock, SyntheticInspector, TrustFacts, actor, material};
 
 fn key() -> CommandKey {

@@ -1,0 +1,2 @@
+/** Compatibility entry; its legacy implementation is tracked in ownership.json. */
+export { payrollRecoveryPolicy, payrollRecoveryRequestSchema, payrollRecoveryConsentSchema, payrollRecoveryReviewSchema, payrollRecoveryRecognizeSchema, requestPayrollRecovery, consentPayrollRecovery, reviewPayrollRecovery, recognizePayrollRecovery, payrollRecoveryPage, payrollRecoveryAgreement, assertPayrollRecoveryDeductionLimits } from "@erpx/people-payroll-server/adapters/payroll-recoveries";

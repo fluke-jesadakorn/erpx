@@ -1,30 +1,30 @@
 import {seedCommerceFulfillment} from "../../support/helpers/commerce-fulfillment-seed";
-import {packageGrantStore} from "@erpx/server-commercial/public/package-grants";
+import {packageGrantStore} from "@erpx/commercial-server/public/package-grants";
 import { afterEach } from "vitest";
 import { reviewedFinanceGrant } from "../../support/helpers/finance-purchase-fixture";
-import {saveMaster,saveOrder,orderSchema,transitionOrder,fulfillmentSchema,invoiceFulfillment} from '@erpx/server-commerce/public/commerce';
-import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
-import type {FinanceRow} from '@erpx/server-finance/public/finance';
+import {saveMaster,saveOrder,orderSchema,transitionOrder,fulfillmentSchema,invoiceFulfillment} from '@erpx/commerce-server/public/commerce';
+import {getOrder} from '@erpx/commerce-server/public/commerce-order-read';
+import type {FinanceRow} from '@erpx/finance-server/public/finance';
 import {beforeAll,beforeEach,afterAll,describe,expect,it,vi} from "vitest";
 import {createHash} from "node:crypto";
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {createInvoice,createParty,postInvoice,createPayment,approvePayment,releasePayment,confirmPayment,confirmPaymentSchema,importBankStatement,reversePayment,exportPaymentFile,calculateCloseReconciliations} from '@erpx/server-finance/public/finance';
-import {getInvoice} from '@erpx/server-finance/public/finance-invoice-read';
-import {prepareTaxIdentity,decideTaxIdentity,taxIdentitySchema,taxIdentityWorkspace} from "@erpx/server-finance/public/finance-tax-identities";
-import {financeLegalSetupWorkspace,financeProductLegalSetupEntry} from "@erpx/server-finance/public/legal-setup";
-import {prepareWithholdingAssessment,decideWithholdingAssessment,withholdingAssessmentSchema,withholdingWorkspace} from "@erpx/server-finance/public/finance-withholding";
-import {issueThaiTaxInvoice,prepareThaiDocumentChange,decideThaiDocumentChange,thaiDocumentDetail,thaiDocumentExport} from "@erpx/server-finance/public/finance-thai-documents";
-import {prepareWithholdingPackage,decideWithholdingPackage,remitWithholdingPackage,reverseWithholdingRemittance,withholdingPackageExport,withholdingMonthlyWorkspace} from "@erpx/server-finance/public/finance-withholding-remittance";
+import {createInvoice,createParty,postInvoice,createPayment,approvePayment,releasePayment,confirmPayment,confirmPaymentSchema,importBankStatement,reversePayment,exportPaymentFile,calculateCloseReconciliations} from '@erpx/finance-server/public/finance';
+import {getInvoice} from '@erpx/finance-server/public/finance-invoice-read';
+import {prepareTaxIdentity,decideTaxIdentity,taxIdentitySchema,taxIdentityWorkspace} from "@erpx/finance-server/public/finance-tax-identities";
+import {financeLegalSetupWorkspace,financeProductLegalSetupEntry} from "@erpx/finance-server/public/legal-setup";
+import {prepareWithholdingAssessment,decideWithholdingAssessment,withholdingAssessmentSchema,withholdingWorkspace} from "@erpx/finance-server/public/finance-withholding";
+import {issueThaiTaxInvoice,prepareThaiDocumentChange,decideThaiDocumentChange,thaiDocumentDetail,thaiDocumentExport} from "@erpx/finance-server/public/finance-thai-documents";
+import {prepareWithholdingPackage,decideWithholdingPackage,remitWithholdingPackage,reverseWithholdingRemittance,withholdingPackageExport,withholdingMonthlyWorkspace} from "@erpx/finance-server/public/finance-withholding-remittance";
 import { assertOwnedCashCannotMatchAgain } from "../../support/helpers/finance-bank-ownership";
-import {thaiFinanceTaxPack,thaiBahtWords} from "@erpx/feature-finance/lib/thai-finance-tax-pack";
-import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
-import {loadIamAuthority} from "@erpx/server-identity_access/public/iam-store";
-import {createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,drainAttachmentScans,bindRecordAttachmentSet,attachmentContent,listAttachmentSets} from "@erpx/server-files/public/attachments/service";
+import {thaiFinanceTaxPack,thaiBahtWords} from "@erpx/finance-ui/lib/thai-finance-tax-pack";
+import {assignFlowPrimary,resolveFlow} from '@erpx/workflow-server/public/flow-routing';
+import {loadIamAuthority} from "@erpx/identity-access-server/public/iam-store";
+import {createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,drainAttachmentScans,bindRecordAttachmentSet,attachmentContent,listAttachmentSets} from "@erpx/files-server/public/attachments/service";
 
 vi.mock("server-only",()=>({}));
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
-vi.mock("@erpx/server-files/public/attachments/scanner",()=>({attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:"Declared synthetic clean scanner",definitionUpdatedAt:Date.now(),error:null}),scanAttachmentBytes:async()=>({clean:true,signature:null,engine:"Declared synthetic clean scanner",definitionUpdatedAt:Date.now()})}));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/files-server/public/attachments/scanner",()=>({attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:"Declared synthetic clean scanner",definitionUpdatedAt:Date.now(),error:null}),scanAttachmentBytes:async()=>({clean:true,signature:null,engine:"Declared synthetic clean scanner",definitionUpdatedAt:Date.now()})}));
 const png=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOQaEj4D8IMMAYAQaQH3RNNL/AAAAAASUVORK5CYII=","base64"),reason="Independent synthetic statutory classification and document source review.",oldGate=process.env.ERPX_ATTACHMENTS_V2;
 let f:Awaited<ReturnType<typeof expenseFixture>>,liability:string;
 function taxId(prefix:string){const sum=[...prefix].reduce((n,v,i)=>n+Number(v)*(13-i),0);return prefix+String((11-sum%11)%10);}
@@ -336,11 +336,11 @@ it('rolls back default-disabled signature approval after deferred File or whole-
 });
 
 it('requires the exact fresh Finance signature parent context and sees a committed Tax source before its first snapshot without retries',async()=>{
- vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','disabled');const payer=await prepareTaxIdentity(f.reviewer,identityInput(null),key()),id=String(payer.id),signature=await attachSigner(id),{inFinanceSignatureParent}=await import('@erpx/server-finance/adapters/tax-signature-read-parent');
+ vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','disabled');const payer=await prepareTaxIdentity(f.reviewer,identityInput(null),key()),id=String(payer.id),signature=await attachSigner(id),{inFinanceSignatureParent}=await import('@erpx/finance-server/adapters/tax-signature-read-parent');
  await expect(db.transaction(async tx=>{await tx.prepare('SELECT 1').first();return attachmentContent(tx,env.H001_FILES,f.manager,signature.linkId,'original');})).rejects.toMatchObject({code:'FINANCE_SIGNATURE_PARENT_REQUIRED'});
  const alternate={...f.manager,role:'holding_owner',assignmentId:await f.grant(f.manager,'holding_owner')};alternate.iam=await loadIamAuthority(db,f.company,alternate.userId,alternate.role);
  await expect(inFinanceSignatureParent(db,f.manager,{key:key(),operation:'finance.tax-signature.read'},tx=>attachmentContent(tx,env.H001_FILES,alternate,signature.linkId,'original'))).rejects.toMatchObject({code:'FINANCE_SIGNATURE_PARENT_REQUIRED'});
- const {committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics'),command=key(),measured=await committedSourceVisibility(db,tx=>tx.prepare("UPDATE finance_tax_identities SET legal_name='Actual committed source identity',version=version+1 WHERE id=?").bind(id).run(),()=>measureReads(async()=>{try{await decideTaxIdentity(f.manager,id,{action:'approve',expectedVersion:2,signatureLinkId:signature.linkId,reason},command);return null;}catch(error){return error;}}));expect(measured.result).toMatchObject({code:'TAX_IDENTITY_CHANGED'});expect(measured.metrics.deadlockFailures??0).toBe(0);expect(measured.metrics.serializationFailures??0).toBe(0);expect(measured.metrics.transactionRetries??0).toBe(0);expect(await db.prepare('SELECT 1 FROM command_receipts WHERE command_id=?').bind(command).first()).toBeNull();expect(await db.prepare('SELECT 1 FROM attachment_access_events WHERE link_id=?').bind(signature.linkId).first()).toBeNull();
+ const {committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{measureReads}=await import('@erpx/platform-runtime-server/public/runtime/read-metrics'),command=key(),measured=await committedSourceVisibility(db,tx=>tx.prepare("UPDATE finance_tax_identities SET legal_name='Actual committed source identity',version=version+1 WHERE id=?").bind(id).run(),()=>measureReads(async()=>{try{await decideTaxIdentity(f.manager,id,{action:'approve',expectedVersion:2,signatureLinkId:signature.linkId,reason},command);return null;}catch(error){return error;}}));expect(measured.result).toMatchObject({code:'TAX_IDENTITY_CHANGED'});expect(measured.metrics.deadlockFailures??0).toBe(0);expect(measured.metrics.serializationFailures??0).toBe(0);expect(measured.metrics.transactionRetries??0).toBe(0);expect(await db.prepare('SELECT 1 FROM command_receipts WHERE command_id=?').bind(command).first()).toBeNull();expect(await db.prepare('SELECT 1 FROM attachment_access_events WHERE link_id=?').bind(signature.linkId).first()).toBeNull();
 });
 
 it('checks the signature after the whole original net payment GL bank allocation and issued certificate then rolls every effect back before exact retry',async()=>{
@@ -354,7 +354,7 @@ it('completes two Companies actual independently approved signer parents with ze
  vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','disabled');const firstFixture=f,first=await prepareTaxIdentity(f.reviewer,identityInput(null),key()),firstSignature=await attachSigner(String(first.id)),other=await expenseFixture();for(const actor of [other.reviewer,other.manager]){actor.modules=['finance'];await db.prepare('UPDATE assignments SET modules_json=? WHERE id=?').bind('["finance"]',actor.assignmentId).run();actor.iam=await loadIamAuthority(db,other.company,actor.userId,actor.role);}
  let second:Awaited<ReturnType<typeof prepareTaxIdentity>>,secondSignature:Awaited<ReturnType<typeof attachSigner>>;try{f=other;second=await prepareTaxIdentity(other.reviewer,identityInput(null),key());secondSignature=await attachSigner(String(second.id));}finally{f=firstFixture;}
  const cases=[{actor:firstFixture.manager,id:String(first.id),file:firstSignature},{actor:other.manager,id:String(second.id),file:secondSignature}],fault=`signature_two_${key().replaceAll('-','')}`;await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(.12);UPDATE finance_tax_identities SET legal_name=legal_name WHERE id=CASE WHEN NEW.link_id='${firstSignature.linkId}' THEN '${first.id}' ELSE '${second.id}' END;RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fault} AFTER INSERT ON attachment_access_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.link_id IN ('${firstSignature.linkId}','${secondSignature.linkId}') AND NEW.outcome='allowed') EXECUTE FUNCTION ${fault}()`);
- try{const {measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics'),measured=await measureReads(()=>Promise.all(cases.map(item=>decideTaxIdentity(item.actor,item.id,{action:'approve',expectedVersion:2,signatureLinkId:item.file.linkId,reason},key()))));expect(measured.result).toHaveLength(2);expect(measured.metrics.deadlockFailures??0).toBe(0);expect(measured.metrics.serializationFailures??0).toBe(0);expect(measured.metrics.transactionRetries??0).toBe(0);for(const item of cases)expect(await db.prepare('SELECT status,signature_link_id,signature_sha256 FROM finance_tax_identities WHERE id=? AND company_id=?').bind(item.id,item.actor.companyId).first()).toEqual({status:'approved',signature_link_id:item.file.linkId,signature_sha256:createHash('sha256').update(png).digest('hex')});}
+ try{const {measureReads}=await import('@erpx/platform-runtime-server/public/runtime/read-metrics'),measured=await measureReads(()=>Promise.all(cases.map(item=>decideTaxIdentity(item.actor,item.id,{action:'approve',expectedVersion:2,signatureLinkId:item.file.linkId,reason},key()))));expect(measured.result).toHaveLength(2);expect(measured.metrics.deadlockFailures??0).toBe(0);expect(measured.metrics.serializationFailures??0).toBe(0);expect(measured.metrics.transactionRetries??0).toBe(0);for(const item of cases)expect(await db.prepare('SELECT status,signature_link_id,signature_sha256 FROM finance_tax_identities WHERE id=? AND company_id=?').bind(item.id,item.actor.companyId).first()).toEqual({status:'approved',signature_link_id:item.file.linkId,signature_sha256:createHash('sha256').update(png).digest('hex')});}
  finally{await db.exec(`DROP TRIGGER ${fault} ON attachment_access_events;DROP FUNCTION ${fault}()`);}
 });
 

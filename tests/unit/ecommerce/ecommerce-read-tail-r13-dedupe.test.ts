@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
 
-const srcRoot = resolve(__dirname, '../../../packages/server-ecommerce/src');
+const srcRoot = resolve(__dirname, '../../../modules/ecommerce/server/src');
 const src = readFileSync(resolve(srcRoot, 'adapters/ecommerce.ts'), 'utf8');
 
 // Deterministic stubs: the interpolations are identical in the pre-dedupe

@@ -3,19 +3,19 @@
 #![allow(dead_code)]
 #[path = "../../support/finance/review-composition.rs"]
 mod review;
-use erpx_server_commercial::public::purchases::current_package_catalogue;
-use erpx_server_identity_access::public::work_context::{
+use erpx_commercial_server::public::purchases::current_package_catalogue;
+use erpx_identity_access_server::public::work_context::{
     ExpectedWorkSelection, HoldingWorkspaceRequest,
 };
-use erpx_server_runtime::public::postgres::DatabasePool;
-use erpx_server_shared::public::{AssignmentId, Clock, CompanyId, HoldingId};
-use erpx_service::inventory_availability_read::InventoryAvailabilityReadService;
+use erpx_platform_runtime_server::public::postgres::DatabasePool;
+use erpx_platform_shared_server::public::{AssignmentId, Clock, CompanyId, HoldingId};
+use erpx_platform_composition::inventory_availability_read::InventoryAvailabilityReadService;
 use std::sync::Arc;
 
 #[derive(Clone)]
 struct TestClock(Arc<review::account::fixture::MutableClock>);
 impl Clock for TestClock {
-    fn now(&self) -> erpx_server_shared::public::TimestampMillis {
+    fn now(&self) -> erpx_platform_shared_server::public::TimestampMillis {
         self.0.now()
     }
 }
@@ -206,7 +206,7 @@ async fn inventory_availability_reads_current_owner_facts_and_scope() {
             .execute(&mut *tx)
             .await
             .unwrap();
-        let scoped = erpx_server_inventory::public::availability_read::read_availability(
+        let scoped = erpx_inventory_server::public::availability_read::read_availability(
             &mut tx,
             "company",
             Some("branch-two"),
@@ -223,7 +223,7 @@ async fn inventory_availability_reads_current_owner_facts_and_scope() {
             .execute(&mut *tx)
             .await
             .unwrap();
-        let foreign = erpx_server_inventory::public::availability_read::read_availability(
+        let foreign = erpx_inventory_server::public::availability_read::read_availability(
             &mut tx,
             "another-company",
             None,
@@ -261,8 +261,8 @@ async fn inventory_availability_requires_current_context_and_purchase() {
             )
             .await
         {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
-                assert!(matches!(error.kind, erpx_server_shared::public::FailureKind::Conflict));
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
+                assert!(matches!(error.kind, erpx_platform_shared_server::public::FailureKind::Conflict));
             }
             other => panic!("stale context must fail: {other:?}"),
         }
@@ -276,7 +276,7 @@ async fn inventory_availability_requires_current_context_and_purchase() {
             )
             .await
         {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                 assert_eq!(error.code, "PACKAGE_REQUIRED");
             }
             other => panic!("missing purchase must fail: {other:?}"),
@@ -291,8 +291,8 @@ async fn inventory_availability_http_route_accepts_real_session_and_rendered_con
         body::{Body, to_bytes},
         http::Request,
     };
-    use erpx_service::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
-    use erpx_service::inventory_availability_http::{
+    use erpx_platform_composition::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
+    use erpx_platform_composition::inventory_availability_http::{
         InventoryAvailabilityHttpTarget, inventory_availability_http_router,
     };
     use tower::ServiceExt;

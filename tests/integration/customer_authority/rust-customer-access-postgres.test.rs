@@ -5,15 +5,15 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_customer_authority::public::access::{
+use erpx_customer_authority_server::public::access::{
     AccessAction, AccessActor, AccessChange, AccessRequest, PgCustomerAccess, access_detail,
     access_workspace, change_access, request_access,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, HoldingId, RecordId, UserId,
 };
 use sqlx::{Connection, Row};

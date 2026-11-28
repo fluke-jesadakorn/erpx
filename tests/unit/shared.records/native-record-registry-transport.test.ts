@@ -7,11 +7,11 @@ import {
   nativeRecordRegistryFailure,
   NativeRecordRegistryError,
   type NativeRecordRegistryTransport,
-} from '../../../packages/server-records/src/public/native-record-registry';
+} from '../../../modules/records/server/src/public/native-record-registry';
 import type {
   NativeRecordView,
   NativeRecordsPageContext,
-} from '../../../packages/server-records/src/public/native-record-context';
+} from '../../../modules/records/server/src/public/native-record-context';
 
 const config = (overrides: Record<string, unknown> = {}) => ({
   privateBaseUrl: 'http://127.0.0.1:44994',

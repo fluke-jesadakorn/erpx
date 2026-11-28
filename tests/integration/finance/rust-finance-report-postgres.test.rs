@@ -7,13 +7,13 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_commercial::public::purchases::current_package_catalogue;
-use erpx_server_identity_access::public::work_context::HoldingWorkspaceRequest;
-use erpx_server_runtime::public::postgres::DatabasePool;
-use erpx_server_shared::public::{CompanyId, HoldingId};
-use erpx_service::finance_journal_detail::*;
-use erpx_service::finance_journal_detail_http::*;
-use erpx_service::finance_journal_review::FinanceJournalEnvironment;
+use erpx_commercial_server::public::purchases::current_package_catalogue;
+use erpx_identity_access_server::public::work_context::HoldingWorkspaceRequest;
+use erpx_platform_runtime_server::public::postgres::DatabasePool;
+use erpx_platform_shared_server::public::{CompanyId, HoldingId};
+use erpx_platform_composition::finance_journal_detail::*;
+use erpx_platform_composition::finance_journal_detail_http::*;
+use erpx_platform_composition::finance_journal_review::FinanceJournalEnvironment;
 use facts::{Prepared, account, setup};
 use std::sync::Arc;
 use tower::ServiceExt;
@@ -34,7 +34,7 @@ fn service(p: &Prepared) -> FinanceJournalDetailService<facts::TestClock> {
 
 fn owned_maker(
     p: &Prepared,
-) -> impl FnOnce() -> Result<HoldingWorkspaceRequest, erpx_server_shared::public::BusinessError>
+) -> impl FnOnce() -> Result<HoldingWorkspaceRequest, erpx_platform_shared_server::public::BusinessError>
        + Send
        + 'static {
     let request = p.maker_selection.clone();
@@ -206,8 +206,8 @@ async fn report_reads_trial_balance_and_statements() {
             .await
         {
             Ok(empty) => assert!(empty.data.trial_balance.is_empty()),
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
-                assert!(matches!(error.kind, erpx_server_shared::public::FailureKind::NotFound));
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
+                assert!(matches!(error.kind, erpx_platform_shared_server::public::FailureKind::NotFound));
             }
             other => panic!("foreign chart must be isolated: {other:?}"),
         }
@@ -223,7 +223,7 @@ async fn report_reads_trial_balance_and_statements() {
             )
             .await
         {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                 assert_eq!(error.code, "FINANCE_REPORT_QUERY_INVALID");
             }
             other => panic!("inverted range must fail: {other:?}"),

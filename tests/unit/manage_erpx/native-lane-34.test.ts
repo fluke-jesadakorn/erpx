@@ -18,7 +18,7 @@ import {
   validEmailReceiptKey,
   validFeedbackCompany,
   type FeedbackPost,
-} from "../../../packages/server-manage_erpx/src/adapters/native-lane-34/client";
+} from "../../../modules/manage-erpx/server/src/adapters/native-lane-34/client";
 
 const root = resolve(process.cwd());
 const read = (path: string) => readFileSync(resolve(root, path), "utf8");
@@ -169,11 +169,11 @@ describe("native manage_erpx lane 34 beta feedback read", () => {
   });
 
   it("pins the owner Rust SQL, router and the deleted TypeScript literal", () => {
-    const domain = read("packages/server-manage_erpx/src/adapters/native_lane_34/domain.rs");
-    const postgres = read("packages/server-manage_erpx/src/adapters/native_lane_34/postgres.rs");
-    const http = read("packages/server-manage_erpx/src/adapters/native_lane_34/http.rs");
-    const api = read("packages/server-manage_erpx/src/adapters/beta-api.ts");
-    const client = read("packages/server-manage_erpx/src/adapters/native-lane-34/client.ts");
+    const domain = read("modules/manage-erpx/server/src/adapters/native_lane_34/domain.rs");
+    const postgres = read("modules/manage-erpx/server/src/adapters/native_lane_34/postgres.rs");
+    const http = read("modules/manage-erpx/server/src/adapters/native_lane_34/http.rs");
+    const api = read("modules/manage-erpx/server/src/adapters/beta-api.ts");
+    const client = read("modules/manage-erpx/server/src/adapters/native-lane-34/client.ts");
     expect(domain).toContain(`pub const FEEDBACK_SQL: &str = "${SQL}";`);
     expect(postgres).toContain("sqlx::query(FEEDBACK_SQL)");
     expect(postgres).toContain(".bind(company.as_str())");
@@ -207,7 +207,7 @@ describe("native manage_erpx lane 34 beta feedback read", () => {
         else if (entry.name.endsWith(".ts")) total += (readFileSync(path, "utf8").match(/SELECT /g) ?? []).length;
       }
     };
-    walk(resolve(root, "packages/server-manage_erpx/src"));
+    walk(resolve(root, "modules/manage-erpx/server/src"));
     expect(total).toBe(11);
   });
 });
@@ -404,11 +404,11 @@ describe("native manage_erpx lane 34 sandbox email receipt read", () => {
   });
 
   it("pins the owner Rust SQL, router and the deleted TypeScript literal", () => {
-    const domain = read("packages/server-manage_erpx/src/adapters/native_lane_34/domain.rs");
-    const postgres = read("packages/server-manage_erpx/src/adapters/native_lane_34/postgres.rs");
-    const http = read("packages/server-manage_erpx/src/adapters/native_lane_34/http.rs");
-    const api = read("packages/server-manage_erpx/src/adapters/beta-email.ts");
-    const client = read("packages/server-manage_erpx/src/adapters/native-lane-34/client.ts");
+    const domain = read("modules/manage-erpx/server/src/adapters/native_lane_34/domain.rs");
+    const postgres = read("modules/manage-erpx/server/src/adapters/native_lane_34/postgres.rs");
+    const http = read("modules/manage-erpx/server/src/adapters/native_lane_34/http.rs");
+    const api = read("modules/manage-erpx/server/src/adapters/beta-email.ts");
+    const client = read("modules/manage-erpx/server/src/adapters/native-lane-34/client.ts");
     expect(domain).toContain('"SELECT delivery_key,recipient,subject,body_text,body_ciphertext,provider_id "');
     expect(domain).toContain('"FROM sandbox_email_deliveries WHERE delivery_key=?"');
     expect(domain).toContain("pub const EMAIL_RECEIPT_SQL: &str = concat!(");

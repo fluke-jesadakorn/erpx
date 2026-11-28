@@ -6,13 +6,13 @@ import {
   createNativeOrganizationClient,
   NativeOrganizationError,
   type NativeOrganizationPageContext,
-} from '../../../packages/feature-organization/src/adapters/server/native-organization';
+} from '../../../modules/organization/ui/src/adapters/server/native-organization';
 import {
   nativeOrganizationFailure,
   nativeOrganizationPositionSave,
   nativeOrganizationSelector,
   nativePositionSelector,
-} from '@erpx/feature-organization/lib/native-organization';
+} from '@erpx/organization-ui/lib/native-organization';
 
 const actor: NativeOrganizationPageContext = {
   userId: 'user-1',

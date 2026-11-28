@@ -1,4 +1,4 @@
-use erpx_server_workflow::public::commands::*;
+use erpx_workflow_server::public::commands::*;
 use serde_json::Value;
 fn corpus() -> Value {
     serde_json::from_str(include_str!(

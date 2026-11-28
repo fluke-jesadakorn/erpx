@@ -1,12 +1,12 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_commercial::public::purchases::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_commercial_server::public::purchases::*;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, HoldingId, TimestampMillis};
-use erpx_server_shared::public::{Clock, FailureKind, UserId};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, HoldingId, TimestampMillis};
+use erpx_platform_shared_server::public::{Clock, FailureKind, UserId};
 use sqlx::{Connection, PgConnection};
 type Error = PgTransactionError<BusinessError>;
 fn holding() -> HoldingId {
@@ -34,9 +34,9 @@ fn history_now() -> TimestampMillis {
 fn node_presentation_revision(database: &str, company: &str, timestamp: i64) -> String {
     let node = std::env::var("ERPX_NODE_BIN").expect("pinned Node required");
     let script = r#"
-import { PostgresDatabase } from '@erpx/server-runtime/adapters/runtime/postgres';
-import { readCompanyPurchaseFacts } from '@erpx/server-commercial/adapters/package-grants';
-import { capabilityRevisionSource } from '@erpx/server-commercial/domain/capability-decision';
+import { PostgresDatabase } from '@erpx/platform-runtime-server/adapters/runtime/postgres';
+import { readCompanyPurchaseFacts } from '@erpx/commercial-server/adapters/package-grants';
+import { capabilityRevisionSource } from '@erpx/commercial-server/domain/capability-decision';
 import { createHash } from 'node:crypto';
 const url = new URL(process.env.ERPX_TEST_ADMIN_URL); url.pathname = '/' + process.argv[1];
 const db = new PostgresDatabase({ connectionString: url.toString() });
@@ -182,9 +182,9 @@ async fn presentation_wire_revision_matches_persisted_node_runtime_snapshot() {
         assert!(version.status.success());
         assert_eq!(String::from_utf8(version.stdout).unwrap().trim(), "v26.11.1");
         let script = r#"
-import { PostgresDatabase } from '@erpx/server-runtime/adapters/runtime/postgres';
-import { readCompanyPurchaseFacts } from '@erpx/server-commercial/adapters/package-grants';
-import { capabilityRevisionSource } from '@erpx/server-commercial/domain/capability-decision';
+import { PostgresDatabase } from '@erpx/platform-runtime-server/adapters/runtime/postgres';
+import { readCompanyPurchaseFacts } from '@erpx/commercial-server/adapters/package-grants';
+import { capabilityRevisionSource } from '@erpx/commercial-server/domain/capability-decision';
 import { createHash } from 'node:crypto';
 const url = new URL(process.env.ERPX_TEST_ADMIN_URL);
 url.pathname = '/' + process.argv[1];
@@ -602,7 +602,7 @@ struct BatchReview;
 /// explicitly synthetic GrantPolicy above; not operator/MFA acceptance.
 #[tokio::test]
 async fn native_lifecycle_review_rolls_back_with_batch_and_replays_original_evidence() {
-    use erpx_server_commercial::public::package_review::*;
+    use erpx_commercial_server::public::package_review::*;
     fixture::with_database(2,|pool|async move {
         let input=setup_batch(&pool,"native-reviewed-lifecycle-001").await;
         let catalogue=current_package_catalogue().unwrap();
@@ -1319,7 +1319,7 @@ async fn purchase_write_fence_can_bind_only_current_strong_transaction_locks() {
 
 #[tokio::test]
 async fn canonical_purchase_write_boundary_retains_public_locks_and_unit() {
-    use erpx_server_commercial::public::canonical_purchase_write::inspect_canonical_purchase_write_boundary;
+    use erpx_commercial_server::public::canonical_purchase_write::inspect_canonical_purchase_write_boundary;
     fixture::with_database(2,|pool|async move {
         setup(&pool).await;
         let mut weak=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *weak).await.unwrap();
@@ -1345,8 +1345,8 @@ async fn canonical_purchase_write_boundary_retains_public_locks_and_unit() {
 // Uses the actual TypeScript SQL generator and the Rust decision's sampled clock.
 #[tokio::test]
 async fn purchase_after_decision_matches_ts_sql_in_same_fenced_unit() {
-    use erpx_server_commercial::public::canonical_purchase_write::inspect_canonical_purchase_write_boundary;
-    use erpx_server_commercial::public::purchase_after::inspect_purchase_after;
+    use erpx_commercial_server::public::canonical_purchase_write::inspect_canonical_purchase_write_boundary;
+    use erpx_commercial_server::public::purchase_after::inspect_purchase_after;
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
         // Real audited facts include ICU-equal identifiers and unsafe BIGINTs.
@@ -1366,7 +1366,7 @@ async fn purchase_after_decision_matches_ts_sql_in_same_fenced_unit() {
         assert!(inspect_purchase_after(&mut tx,None,&catalogue,&company(),"legal.contracts",CapabilityPurpose::NewWork,PackageEnforcementMode::Disabled).await.unwrap().is_none());
         for (purpose,name) in [(CapabilityPurpose::NewWork,"new-work"),(CapabilityPurpose::SettleExisting,"settle-existing"),(CapabilityPurpose::History,"history")] {
             for capability in ["legal.contracts","unknown.capability"] {
-                let script="import {purchasedCapabilityPredicate as p} from '@erpx/server-commercial/adapters/purchased-capability-sql';process.stdout.write(p('s.company_id',process.argv[1],process.argv[2],'s.now_ms'))";
+                let script="import {purchasedCapabilityPredicate as p} from '@erpx/commercial-server/adapters/purchased-capability-sql';process.stdout.write(p('s.company_id',process.argv[1],process.argv[2],'s.now_ms'))";
                 let node=std::env::var("ERPX_NODE_BIN").expect("pinned Node required");
                 let out=std::process::Command::new(node).current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
                     .args(["--conditions=react-server","--import","tsx","--input-type=module","--eval",script,capability,name]).output().unwrap();
@@ -1382,7 +1382,7 @@ async fn purchase_after_decision_matches_ts_sql_in_same_fenced_unit() {
                         let history:serde_json::Value=sqlx::query_scalar("SELECT COALESCE(jsonb_agg(jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'sourceGrantVersion',source_grant_version,'sourceEventId',source_event_id,'retainedAt',retained_at)),'[]'::jsonb) FROM public.company_package_history_rights WHERE company_id='company'").fetch_one(&mut *tx).await.unwrap();
                         assert!(history.as_array().is_some_and(|rows| !rows.is_empty()),"real retained history required");
                         assert!(grants.as_array().is_some_and(|rows| rows.iter().any(|g| g["packageId"]=="é") && rows.iter().any(|g| g["packageId"]=="e\u{301}") && rows.iter().any(|g| g["startsAt"]==9_007_199_254_740_993_i64)));
-                        let script=r#"import {purchasedCapability as p} from '@erpx/server-commercial/domain/packages';import {capabilityRevisionSource as r} from '@erpx/server-commercial/domain/capability-decision';import {createHash} from 'node:crypto';const grants=JSON.parse(process.argv[1]),history=JSON.parse(process.argv[2]),now=Number(process.argv[3]),purpose=process.argv[4];process.stdout.write(JSON.stringify({collationEqual:JSON.stringify(['é',1,1,'active',0,3000,'expired']).localeCompare(JSON.stringify(['e\u0301',1,1,'active',0,3000,'expired']))===0,code:p(grants,'company','legal.contracts',purpose,now,history).code,purchaseRevision:createHash('sha256').update(r('company',grants,now,history)).digest('hex')}));"#;
+                        let script=r#"import {purchasedCapability as p} from '@erpx/commercial-server/domain/packages';import {capabilityRevisionSource as r} from '@erpx/commercial-server/domain/capability-decision';import {createHash} from 'node:crypto';const grants=JSON.parse(process.argv[1]),history=JSON.parse(process.argv[2]),now=Number(process.argv[3]),purpose=process.argv[4];process.stdout.write(JSON.stringify({collationEqual:JSON.stringify(['é',1,1,'active',0,3000,'expired']).localeCompare(JSON.stringify(['e\u0301',1,1,'active',0,3000,'expired']))===0,code:p(grants,'company','legal.contracts',purpose,now,history).code,purchaseRevision:createHash('sha256').update(r('company',grants,now,history)).digest('hex')}));"#;
                         let node=std::env::var("ERPX_NODE_BIN").expect("pinned Node required");let oracle=std::process::Command::new(node).current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")).args(["--conditions=react-server","--import","tsx","--input-type=module","--eval",script,&grants.to_string(),&history.to_string(),&observed.sampled_at.to_string(),name]).output().unwrap();assert!(oracle.status.success(),"actual TS checked decision unavailable");let expected:serde_json::Value=serde_json::from_slice(&oracle.stdout).unwrap();assert_eq!(expected["collationEqual"],true);let actual=serde_json::to_value(observed.shadow.as_ref().expect("checked shadow observation")).unwrap();assert_eq!(actual["phase"],"checked");assert_eq!(actual["code"],expected["code"]);assert_eq!(actual["purchaseRevision"],expected["purchaseRevision"]);
                     }
                     match (mode,actual) { (PackageEnforcementMode::Enforced,false)=>assert_eq!(observed.require_allowed().unwrap_err().code,"PACKAGE_CAPABILITY_CHANGED"), _=>assert!(observed.require_allowed().is_ok()) }
@@ -1402,9 +1402,9 @@ async fn purchase_after_decision_matches_ts_sql_in_same_fenced_unit() {
 
 #[tokio::test]
 async fn writer_shadow_read_matches_actual_typescript_observation() {
-    use erpx_server_commercial::public::canonical_purchase_write::inspect_canonical_purchase_write_boundary;
-    use erpx_server_commercial::public::purchase_shadow_read::{inspect_purchase_shadow_read, write_purchase_shadow_read_observation};
-    use erpx_server_commercial::public::purchase_pre_command::inspect_purchase_pre_command;
+    use erpx_commercial_server::public::canonical_purchase_write::inspect_canonical_purchase_write_boundary;
+    use erpx_commercial_server::public::purchase_shadow_read::{inspect_purchase_shadow_read, write_purchase_shadow_read_observation};
+    use erpx_commercial_server::public::purchase_pre_command::inspect_purchase_pre_command;
     struct CaseClock(i64);
     impl Clock for CaseClock {fn now(&self)->TimestampMillis{now(self.0)}}
     fixture::with_database(3, |pool| async move {
@@ -1412,10 +1412,10 @@ async fn writer_shadow_read_matches_actual_typescript_observation() {
         let database: String = sqlx::query_scalar("SELECT current_database()").fetch_one(pool.raw()).await.unwrap();
         let node = std::env::var("ERPX_NODE_BIN").expect("pinned Node required");
         let script = r#"
-import { PostgresDatabase } from '@erpx/server-runtime/adapters/runtime/postgres';
-import { readCompanyPurchaseFacts } from '@erpx/server-commercial/adapters/package-grants';
-import { purchasedCapability } from '@erpx/server-commercial/domain/packages';
-import { capabilityRevisionSource } from '@erpx/server-commercial/domain/capability-decision';
+import { PostgresDatabase } from '@erpx/platform-runtime-server/adapters/runtime/postgres';
+import { readCompanyPurchaseFacts } from '@erpx/commercial-server/adapters/package-grants';
+import { purchasedCapability } from '@erpx/commercial-server/domain/packages';
+import { capabilityRevisionSource } from '@erpx/commercial-server/domain/capability-decision';
 import { createHash } from 'node:crypto';
 const url=new URL(process.env.ERPX_TEST_ADMIN_URL); url.pathname='/'+process.argv[1];
 const db=new PostgresDatabase({connectionString:url.toString()});
@@ -1466,8 +1466,8 @@ process.stdout.write(JSON.stringify(cases.map(([capability,purpose,now])=>({even
 
 #[tokio::test]
 async fn writer_shadow_read_matches_typescript_bigint_number_boundaries() {
-    use erpx_server_commercial::public::canonical_purchase_write::inspect_canonical_purchase_write_boundary;
-    use erpx_server_commercial::public::purchase_shadow_read::inspect_purchase_shadow_read;
+    use erpx_commercial_server::public::canonical_purchase_write::inspect_canonical_purchase_write_boundary;
+    use erpx_commercial_server::public::purchase_shadow_read::inspect_purchase_shadow_read;
     fixture::with_database(3, |pool| async move {
         setup(&pool).await;
         // Each case is a legal persisted grant with the normal deferred audit
@@ -1488,10 +1488,10 @@ async fn writer_shadow_read_matches_typescript_bigint_number_boundaries() {
         let database:String=sqlx::query_scalar("SELECT current_database()").fetch_one(pool.raw()).await.unwrap();
         let node=std::env::var("ERPX_NODE_BIN").expect("pinned Node required");
         let script=r#"
-import {PostgresDatabase} from '@erpx/server-runtime/adapters/runtime/postgres';
-import {readCompanyPurchaseFacts} from '@erpx/server-commercial/adapters/package-grants';
-import {purchasedCapability} from '@erpx/server-commercial/domain/packages';
-import {capabilityRevisionSource} from '@erpx/server-commercial/domain/capability-decision';
+import {PostgresDatabase} from '@erpx/platform-runtime-server/adapters/runtime/postgres';
+import {readCompanyPurchaseFacts} from '@erpx/commercial-server/adapters/package-grants';
+import {purchasedCapability} from '@erpx/commercial-server/domain/packages';
+import {capabilityRevisionSource} from '@erpx/commercial-server/domain/capability-decision';
 import {createHash} from 'node:crypto';
 const url=new URL(process.env.ERPX_TEST_ADMIN_URL); url.pathname='/'+process.argv[1];
 const db=new PostgresDatabase({connectionString:url.toString()});

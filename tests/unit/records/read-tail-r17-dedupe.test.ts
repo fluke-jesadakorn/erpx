@@ -5,9 +5,9 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { ownerVersionExistsSql } from '../../../packages/server-records/src/adapters/read-tail-sql';
+import { ownerVersionExistsSql } from '../../../modules/records/server/src/adapters/read-tail-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-records/src');
+const srcRoot = resolve(__dirname, '../../../modules/records/server/src');
 const shared = readFileSync(resolve(srcRoot, 'adapters/read-tail-sql.ts'), 'utf8');
 const employee = readFileSync(resolve(srcRoot, 'adapters/employee-requests.ts'), 'utf8');
 const attachments = readFileSync(resolve(srcRoot, 'adapters/attachments-service-facts.ts'), 'utf8');

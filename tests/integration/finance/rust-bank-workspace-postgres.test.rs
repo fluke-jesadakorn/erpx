@@ -5,20 +5,20 @@
 mod review;
 #[path = "../../support/runtime/private-session-config.rs"]
 mod private_fixture;
-use erpx_server_identity_access::public::SystemAuthenticationSecrets;
-use erpx_service::private_development_api::{DevelopmentApiConfiguration, assemble_development_api};
+use erpx_identity_access_server::public::SystemAuthenticationSecrets;
+use erpx_platform_composition::private_development_api::{DevelopmentApiConfiguration, assemble_development_api};
 use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_commercial::public::purchases::current_package_catalogue;
-use erpx_server_finance::public::FinanceActor;
-use erpx_server_finance::public::bank_workspace::{BankWorkspaceQuery, read_bank_workspace};
-use erpx_server_identity_access::public::account_holding_bindings::{
+use erpx_commercial_server::public::purchases::current_package_catalogue;
+use erpx_finance_server::public::FinanceActor;
+use erpx_finance_server::public::bank_workspace::{BankWorkspaceQuery, read_bank_workspace};
+use erpx_identity_access_server::public::account_holding_bindings::{
     ConfiguredAccountHolding, ConfiguredHoldingRegistry,
 };
-use erpx_server_shared::public::{AssignmentId, CompanyId, HoldingId, UserId};
-use erpx_service::finance_bank_workspace::{
+use erpx_platform_shared_server::public::{AssignmentId, CompanyId, HoldingId, UserId};
+use erpx_platform_composition::finance_bank_workspace::{
     BankWorkspaceScopeHeaders, FinanceBankWorkspaceConfiguration, FinanceBankWorkspaceService,
     FinanceBankWorkspaceTarget, finance_bank_workspace_router,
 };
@@ -264,7 +264,7 @@ async fn reads_company_chart_cursor_payments_and_selected_transaction() {
             .await
         };
         match missing {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                 assert_eq!(error.code, "BANK_TRANSACTION_NOT_FOUND")
             }
             Err(other) => panic!("expected BANK_TRANSACTION_NOT_FOUND, got {other:?}"),
@@ -301,7 +301,7 @@ async fn denies_without_the_current_banking_purchase() {
             )
             .await;
         match result {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                 assert_eq!(error.code, "PACKAGE_REQUIRED")
             }
             Err(other) => panic!("expected PACKAGE_REQUIRED, got {other:?}"),
@@ -325,7 +325,7 @@ async fn denies_a_changed_selected_assignment() {
             )
             .await;
         match result {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                 assert!(matches!(
                     error.code,
                     "WORK_CONTEXT_CHANGED" | "WORK_ASSIGNMENT_CHANGED" | "FORBIDDEN"

@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 
 const src = (name: string) =>
-  new URL(`../../../packages/server-work_projection/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/work-projection/server/src/adapters/${name}`, import.meta.url);
 
 const original = {
   purchase:
@@ -27,7 +27,7 @@ describe('work_projection read-tail r22 dedupe', () => {
 
   it('emits the original SQL for both parameterized callers', async () => {
     const { commandReceiptSql } = await import(
-      '../../../packages/server-work_projection/src/adapters/read-tail-sql.ts'
+      '../../../modules/work-projection/server/src/adapters/read-tail-sql.ts'
     );
     expect(commandReceiptSql(' AND record_id=?')).toBe(original.purchase);
     expect(
@@ -74,7 +74,7 @@ describe('work_projection read-tail r22 dedupe', () => {
     const count = Number(
       execFileSync(
         'git',
-        ['grep', '-I', '-o', '-E', 'SELECT', '--', ':(glob)packages/server-work_projection/src/**/*.ts'],
+        ['grep', '-I', '-o', '-E', 'SELECT', '--', ':(glob)modules/work-projection/server/src/**/*.ts'],
         { encoding: 'utf8' },
       )
         .trim()

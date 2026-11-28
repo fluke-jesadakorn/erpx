@@ -459,7 +459,7 @@ describe("test selection contracts", () => {
       const changed={...actual,suites:[{...target,verificationInputs:[...(target.verificationInputs??[]).filter(value=>!value.startsWith('fixtures/maintenance/rust-work')),file]}]};
       expect(()=>validateCatalogue(changed)).toThrow(`INVALID_SUITE_VERIFICATION_INPUT:${id}`);
     }
-    const manifest='packages/server-maintenance/Cargo.toml',test='tests/unit/maintenance/resource.test.rs';
+    const manifest='modules/maintenance/server/Cargo.toml',test='tests/unit/maintenance/resource.test.rs';
     const files=new Map([
       ['Cargo.toml','[workspace]'],['Cargo.lock','version = 4'],['rust-toolchain.toml','[toolchain]'],
       [manifest,'[package]\nname = "erpx-server-maintenance"\n[package.metadata.erpx]\nverification-roots = ["../../fixtures/maintenance/rust-work"]\n[[test]]\nname = "resource"\npath = "../../tests/unit/maintenance/resource.test.rs"\n'],
@@ -683,11 +683,11 @@ describe("conservative base and head impact selection", () => {
     const headOwnership: SourceOwnership = { owners: [...ownership.owners, { id: "people_payroll", modules: ["people_payroll"], source: ["src/server/sales/pricing.ts"] }] };
     expect(impacted([{ status: "M", path: "src/server/sales/pricing.ts" }], base, base, ownership, headOwnership).modules).toEqual(["finance", "people_payroll", "sales"]);
   });
-  it.each(["packages/server-identity_access/src/public/iam-service.ts", "packages/server-identity_access/src/domain/account-recovery.ts", "packages/server-identity_access/src/adapters/legacy/iam-service.ts", "packages/server-finance/src/adapters/legacy/finance-transactions.ts", "packages/server-finance/src/public/finance-transactions.ts", "packages/server-shared/src/application/command.ts", "packages/server-runtime/src/adapters/runtime/postgres.ts", "migrations/postgres/holding-write/0002.sql", "tests/support/helpers/expense-fixture.ts", "tests/config/vitest.unit.config.mts", "scripts/testing/catalogue.ts", "AGENTS.md", "tests/catalogue/engineering-scenarios.json"])("falls back to full for shared/global input %s", path => {
+  it.each(["modules/identity-access/server/src/public/iam-service.ts", "modules/identity-access/server/src/domain/account-recovery.ts", "modules/identity-access/server/src/adapters/legacy/iam-service.ts", "modules/finance/server/src/adapters/legacy/finance-transactions.ts", "modules/finance/server/src/public/finance-transactions.ts", "platform/shared/server/src/application/command.ts", "platform/runtime/server/src/adapters/runtime/postgres.ts", "migrations/postgres/holding-write/0002.sql", "tests/support/helpers/expense-fixture.ts", "tests/config/vitest.unit.config.mts", "scripts/testing/catalogue.ts", "AGENTS.md", "tests/catalogue/engineering-scenarios.json"])("falls back to full for shared/global input %s", path => {
     expect(impacted([{ status: "M", path }]).mode).toBe("full");
   });
   it("forces a full run for relocated IAM and transaction code even with complete ownership and no consumers", () => {
-    for (const path of ["packages/server-identity_access/src/domain/revocation.ts", "packages/server-finance/src/adapters/legacy/finance-transactions.ts", "packages/server-shared/src/domain/error.ts"]) {
+    for (const path of ["modules/identity-access/server/src/domain/revocation.ts", "modules/finance/server/src/adapters/legacy/finance-transactions.ts", "platform/shared/server/src/domain/error.ts"]) {
       const mapped = { owners: [{ id: "finance", modules: ["finance"], source: [path] }] };
       const tree = new Map([[path, "export const rule = 1"]]);
       expect(impacted([{ status: "M", path }], tree, tree, mapped, mapped).reasons).toEqual([`GLOBAL_DEPENDENCY:${path}`]);
@@ -894,7 +894,7 @@ describe("required native cases", () => {
 });
 
 describe("complete UAT source route inventory", () => {
-  const pages = ["packages/workplace/src/routes/page.tsx", "src/app/holdings/[holdingSlug]/people/page.tsx"];
+  const pages = ["platform/workplace/src/routes/page.tsx", "src/app/holdings/[holdingSlug]/people/page.tsx"];
   const entries = [{ source: pages[0], template: "/" }, { source: pages[1], template: "/holdings/[holdingSlug]/people" }];
   it("rejects a missing required page replaced by an unrelated route despite an unchanged count", () => {
     expect(() => assertUatRouteSources({ pageRouteCount: 2, entries: [entries[0], { source: "src/app/optional/page.tsx", template: "/optional" }] }, pages)).toThrow("UAT_ROUTE_SOURCE_INVENTORY_MISMATCH");

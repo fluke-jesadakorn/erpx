@@ -1,6 +1,6 @@
 use base64::{Engine, engine::general_purpose::STANDARD};
-use erpx_server_finance::public::journal_review_wire::*;
-use erpx_server_shared::public::{CommandKey, RecordId};
+use erpx_finance_server::public::journal_review_wire::*;
+use erpx_platform_shared_server::public::{CommandKey, RecordId};
 #[test]
 fn every_actual_b0_node_body_schema_result_matches_exact_normalized_values_and_errors() {
     let oracle: serde_json::Value = serde_json::from_str(include_str!(concat!(
@@ -75,7 +75,7 @@ fn absent_empty_and_null_memo_remain_distinct_and_unknown_fields_cannot_supply_a
 
 #[test]
 fn manual_create_wire_preserves_ordered_normalized_fields_and_forces_manual_source() {
-    use erpx_server_finance::public::journal_create_wire::normalize_manual_journal_create;
+    use erpx_finance_server::public::journal_create_wire::normalize_manual_journal_create;
     let input = br#"{ "lines":[{"accountId":"cash","debit":"1.00","credit":"0","dimensions":{"z":"last","1":"one","a":"first"}},{"accountId":"sales","debit":"0","credit":"1.00"}],"isOpening":true,"sourceId":"untrusted","sourceType":"fiscal_close","currency":"thb","entryDate":"2026-01-05","periodId":"period","chartId":"chart","ignored":1e400 }"#;
     let normalized = normalize_manual_journal_create(input).unwrap();
     assert_eq!(
@@ -94,7 +94,7 @@ fn manual_create_wire_preserves_ordered_normalized_fields_and_forces_manual_sour
 
 #[test]
 fn manual_edit_wire_is_strict_and_normalizes_the_reason_and_defaults() {
-    use erpx_server_finance::public::journal_create_wire::normalize_manual_journal_edit;
+    use erpx_finance_server::public::journal_create_wire::normalize_manual_journal_edit;
     let input = br#"{"chartId":"chart","periodId":"period","entryDate":"2026-01-05","currency":"thb","lines":[{"accountId":"cash","debit":"1","credit":"0"},{"accountId":"sales","debit":"0","credit":"1"}],"expectedVersion":1,"reason":"  correction made  "}"#;
     let edit = normalize_manual_journal_edit(input).unwrap();
     assert_eq!(edit.expected_version(), 1);

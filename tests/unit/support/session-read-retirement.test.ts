@@ -7,28 +7,28 @@ const source = (path: string) => readFile(new URL(`../../../${path}`, import.met
 
 describe('support session read retirement', () => {
   it('keeps the public session barrel type-only', async () => {
-    const barrel = await source('packages/server-support/src/public/support-sessions.ts');
+    const barrel = await source('modules/support/server/src/public/support-sessions.ts');
     expect(barrel).toContain('export type SupportSessionWorkspace');
     expect(barrel).toContain('export type SupportSessionDetail');
     expect(barrel).not.toMatch(/export\s*\{[^}]*supportSession/);
   });
 
   it('leaves no TypeScript session SELECT behind', async () => {
-    const adapter = await source('packages/server-support/src/adapters/support-sessions.ts');
+    const adapter = await source('modules/support/server/src/adapters/support-sessions.ts');
     expect(adapter).not.toContain('SELECT');
   });
 
   it('binds the Collaboration session target to the native Support session reader and drops the Work case', async () => {
-    const notifications = await source('packages/server-collaboration/src/adapters/staff-notifications.ts');
+    const notifications = await source('modules/collaboration/server/src/adapters/staff-notifications.ts');
     expect(notifications).toContain('createNativeSupportReader(raw).session(await headers(), actor.holdingSlug, id)');
-    expect(notifications).not.toContain("import('@erpx/server-support/public/support-sessions')");
-    const work = await source('packages/server-work_projection/src/adapters/work-items.ts');
+    expect(notifications).not.toContain("import('@erpx/support-server/public/support-sessions')");
+    const work = await source('modules/work-projection/server/src/adapters/work-items.ts');
     expect(work).not.toContain('supportSessionWork');
   });
 
   it('preserves native 403/404 denial codes on the session detail target', async () => {
     const { createNativeSupportReader } = await import(
-      '../../../packages/feature-support/src/adapters/server/native-support-read'
+      '../../../modules/support/ui/src/adapters/server/native-support-read'
     );
     const config = JSON.stringify({
       privateBaseUrl: 'http://127.0.0.1:3105',

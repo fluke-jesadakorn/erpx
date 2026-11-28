@@ -6,15 +6,15 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_finance::public::FinanceActor;
-use erpx_server_finance::public::commerce_goods_journal::{
+use erpx_finance_server::public::FinanceActor;
+use erpx_finance_server::public::commerce_goods_journal::{
     CommerceGoodsJournalPosting, CommerceGoodsKind, CommerceGoodsValuationRequest,
     post_commerce_goods_journal, resolve_commerce_goods_valuation,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, Clock, CompanyId, HoldingId, TimestampMillis, UserId,
 };
 use sqlx::PgConnection;
@@ -121,11 +121,11 @@ fn delivery(journal: &str, value: i64) -> CommerceGoodsJournalPosting {
 }
 
 fn denied<T>(
-    result: Result<T, erpx_server_runtime::public::postgres::PgTransactionError<BusinessError>>,
+    result: Result<T, erpx_platform_runtime_server::public::postgres::PgTransactionError<BusinessError>>,
     code: &str,
 ) {
     match result {
-        Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+        Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
             assert_eq!(error.code, code)
         }
         _ => panic!("expected {code}"),
@@ -351,7 +351,7 @@ async fn goods_journal_requires_the_caller_transaction() {
         )
         .await
         {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Persistence(error)) => {
                 assert_eq!(error.code, "GOODS_FINANCE_TRANSACTION_REQUIRED")
             }
             _ => panic!("expected GOODS_FINANCE_TRANSACTION_REQUIRED"),

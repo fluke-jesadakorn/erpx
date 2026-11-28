@@ -3,31 +3,31 @@
   "sourceCommit": "a5ed8737a2f05eff1ee9841fda4a094b3926d732",
   "sources": [
     {
-      "path": "packages/server-shared/src/domain/error.ts",
+      "path": "platform/shared/server/src/domain/error.ts",
       "sha256": "ff9c315f159f7adcff264d6637617b80760f758c7cb0b19e1896f85bb51b798c"
     },
     {
-      "path": "packages/feature-finance/src/lib/finance-money.ts",
+      "path": "modules/finance/ui/src/lib/finance-money.ts",
       "sha256": "c36415b741869d868e321634749ddd97854ccf81dfb32740a0c41789488651b8"
     },
     {
-      "path": "packages/feature-commerce/src/lib/commerce-math.ts",
+      "path": "modules/commerce/ui/src/lib/commerce-math.ts",
       "sha256": "ac385a1604df6e125a3fed58ea5ee52b43459bbb898c280f7b874ae1996d9221"
     },
     {
-      "path": "packages/server-inventory/src/domain/landed-costs.ts",
+      "path": "modules/inventory/server/src/domain/landed-costs.ts",
       "sha256": "9992054d91f4c813bcd02e92837d565f8a80974825696be40f9faa10892ad3c9"
     },
     {
-      "path": "packages/server-inventory/src/domain/transit.ts",
+      "path": "modules/inventory/server/src/domain/transit.ts",
       "sha256": "d23c109072477e514f63ddb962bac14b9d21ae9abec762cd5852b92c0613d6ce"
     },
     {
-      "path": "packages/server-inventory/src/domain/reorder-quantity.ts",
+      "path": "modules/inventory/server/src/domain/reorder-quantity.ts",
       "sha256": "affc253999cc4649704255b84daf26f3779bd5a23f187df940fb275ce84d00ab"
     },
     {
-      "path": "packages/server-inventory/src/application/consumption.ts",
+      "path": "modules/inventory/server/src/application/consumption.ts",
       "sha256": "12f2906f33b342abf67a6a130753e91c9a88dc63c72b48ea8ece64f8d2b95bf3"
     }
   ],

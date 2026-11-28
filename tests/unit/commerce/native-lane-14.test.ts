@@ -14,12 +14,12 @@ import {
   nativeLane14Page,
   nativeLane14ReferenceRows,
   type CommerceLane14Row,
-} from '../../../packages/server-commerce/src/adapters/native-lane-14/client';
+} from '../../../modules/commerce/server/src/adapters/native-lane-14/client';
 import {
   workflowDocument,
   workflowDocumentPage,
   workflowReferenceRows,
-} from '../../../packages/server-commerce/src/adapters/workflow-read-sources';
+} from '../../../modules/commerce/server/src/adapters/workflow-read-sources';
 import {
   NATIVE_LANE14_SALES_CONFIG_ENV,
   SALES_COUNT_KEYS,
@@ -33,14 +33,14 @@ import {
   nativeSalesPricingProduct,
   nativeSalesPricingProducts,
   nativeSalesSupportOrderSource,
-} from '../../../packages/server-commerce/src/adapters/native-lane-14/sales-client';
+} from '../../../modules/commerce/server/src/adapters/native-lane-14/sales-client';
 import {
   salesCustomerOpenOrders,
   salesOrderCounts,
   salesPricingProduct,
   salesPricingProducts,
   salesSupportOrderSource,
-} from '../../../packages/server-commerce/src/adapters/sales-order-sources';
+} from '../../../modules/commerce/server/src/adapters/sales-order-sources';
 
 const root = process.cwd();
 const sha = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -197,7 +197,7 @@ describe('native Commerce lane 14 workflow order reads', () => {
 
   it('removed every owner statement from the TypeScript read source', () => {
     const source = fs.readFileSync(
-      path.join(root, 'packages/server-commerce/src/adapters/workflow-read-sources.ts'),
+      path.join(root, 'modules/commerce/server/src/adapters/workflow-read-sources.ts'),
       'utf8',
     );
     expect(source).not.toMatch(/SELECT /);
@@ -409,7 +409,7 @@ describe('native Commerce lane 14 multi-holding Sales reads', () => {
 
   it('removes the five replaced owner statements from the Sales source', () => {
     const source = fs.readFileSync(
-      path.join(root, 'packages/server-commerce/src/adapters/sales-order-sources.ts'),
+      path.join(root, 'modules/commerce/server/src/adapters/sales-order-sources.ts'),
       'utf8',
     );
     expect(source.split('SELECT ').length - 1).toBe(2);

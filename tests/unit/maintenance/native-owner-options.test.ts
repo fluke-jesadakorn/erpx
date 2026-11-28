@@ -11,7 +11,7 @@ vi.mock('next/headers', () => ({
     ...(io.cookie ? { cookie: io.cookie } : {}),
   }),
 }));
-vi.mock('@erpx/server-runtime/public/http', () => ({
+vi.mock('@erpx/platform-runtime-server/public/http', () => ({
   ApiError: class ApiError extends Error {
     constructor(readonly status: number, readonly code: string, message: string) {
       super(message);
@@ -20,11 +20,11 @@ vi.mock('@erpx/server-runtime/public/http', () => ({
   },
 }));
 
-import { PP_RD18_HR_PEOPLE_PROJ_SQL } from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r18-sources';
-import { assignmentsProjectionCompact } from '../../../packages/server-identity_access/src/adapters/assignment-projection-source';
+import { PP_RD18_HR_PEOPLE_PROJ_SQL } from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r18-sources';
+import { assignmentsProjectionCompact } from '../../../modules/identity-access/server/src/adapters/assignment-projection-source';
 
 const slice = new URL(
-  '../../../packages/server-maintenance/src/adapters/native_owner_options/',
+  '../../../modules/maintenance/server/src/adapters/native_owner_options/',
   import.meta.url,
 );
 const read = (name: string) => readFile(new URL(name, slice), 'utf8');
@@ -105,11 +105,11 @@ describe('native Maintenance owner-option transport', () => {
     authority: { revision: 7, assignmentVersion: 3 },
     iam: { permissions: ['records.read', 'records.write'] },
     ...overrides,
-  }) as unknown as import('@erpx/server-identity_access/public/authorization').WorkContext;
+  }) as unknown as import('@erpx/identity-access-server/public/authorization').WorkContext;
   const ok = (data: unknown) => new Response(JSON.stringify({ data }), {
     status: 200, headers: { 'content-type': 'application/json' },
   });
-  const load = () => import('../../../packages/server-maintenance/src/adapters/native-owner-options-read');
+  const load = () => import('../../../modules/maintenance/server/src/adapters/native-owner-options-read');
   let fetchSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
@@ -184,12 +184,12 @@ describe('native Maintenance owner-option transport', () => {
 
   it('keeps the TS transport SQL-free and on the native route', async () => {
     const source = await readFile(new URL(
-      '../../../packages/server-maintenance/src/adapters/native-owner-options-read.ts', import.meta.url,
+      '../../../modules/maintenance/server/src/adapters/native-owner-options-read.ts', import.meta.url,
     ), 'utf8');
     expect(source).not.toMatch(/\b(?:SELECT|INSERT|UPDATE|DELETE|prepare)\b/i);
     expect(source).toContain('/maintenance/owner-options');
     const pub = await readFile(new URL(
-      '../../../packages/server-maintenance/src/public/asset-maintenance.ts', import.meta.url,
+      '../../../modules/maintenance/server/src/public/asset-maintenance.ts', import.meta.url,
     ), 'utf8');
     expect(pub).toContain('maintenanceOwnerOptions');
   });

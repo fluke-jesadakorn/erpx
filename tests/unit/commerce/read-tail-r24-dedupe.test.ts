@@ -2,13 +2,13 @@ import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { fulfillmentParentGuardSql } from '../../../packages/server-commerce/src/adapters/attachment-parent-guard-sql';
-import { commerceFulfillmentGuardSql } from '../../../packages/server-commerce/src/adapters/guarded-source-dedupe-sql';
-import { COMMERCE_OWNER_WRITE_NOOP_SQL } from '../../../packages/server-commerce/src/adapters/native-owner-write';
+import { fulfillmentParentGuardSql } from '../../../modules/commerce/server/src/adapters/attachment-parent-guard-sql';
+import { commerceFulfillmentGuardSql } from '../../../modules/commerce/server/src/adapters/guarded-source-dedupe-sql';
+import { COMMERCE_OWNER_WRITE_NOOP_SQL } from '../../../modules/commerce/server/src/adapters/native-owner-write';
 
 const root = resolve(import.meta.dirname ?? process.cwd(), '../../..');
-const adapters = resolve(root, 'packages/server-commerce/src/adapters');
-const src = resolve(root, 'packages/server-commerce/src');
+const adapters = resolve(root, 'modules/commerce/server/src/adapters');
+const src = resolve(root, 'modules/commerce/server/src');
 const read = (file: string) => readFileSync(resolve(adapters, file), 'utf8');
 const norm = (s: string) => s.replace(/\s+/g, ' ');
 const sha = (s: string) => createHash('sha256').update(s, 'utf8').digest('hex');

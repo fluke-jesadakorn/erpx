@@ -1,8 +1,8 @@
 //! Native Talent requisition policy, command and read tests.
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, RecordId, UserId,
 };
-use erpx_server_talent::public::requisition::{
+use erpx_talent_server::public::requisition::{
     ChangePlan, CreatePlan, MAX_DESCRIPTION, MAX_REASON, MAX_TITLE, ReceiptSnapshot,
     RequisitionAction, RequisitionChange, RequisitionEventRow, RequisitionFuture,
     RequisitionReceipt, RequisitionRequest, RequisitionRow, TalentActor,

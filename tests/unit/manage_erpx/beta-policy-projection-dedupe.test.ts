@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 vi.mock('server-only', () => ({}));
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-manage_erpx/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/manage-erpx/server/src/adapters/${name}`, import.meta.url);
 const sha256 = (s: string) => createHash('sha256').update(s, 'utf8').digest('hex');
 
 const OLD_IDENTITY_FROM =
@@ -52,10 +52,10 @@ describe('manage_erpx beta_policy projection read family', () => {
 
   it('preserves the exact query text consumed by both existing callers', async () => {
     const { betaPolicyProjection, identitySnapshotSources } = await import(
-      '../../../packages/server-manage_erpx/src/adapters/identity-snapshot-sources'
+      '../../../modules/manage-erpx/server/src/adapters/identity-snapshot-sources'
     );
     const { hospitalityOwnerProjectionSources } = await import(
-      '../../../packages/server-manage_erpx/src/adapters/hospitality-owner-projection-sources'
+      '../../../modules/manage-erpx/server/src/adapters/hospitality-owner-projection-sources'
     );
     expect(identitySnapshotSources().beta_access_beta_policy_from).toBe(OLD_IDENTITY_FROM);
     expect(identitySnapshotSources().iam_api_beta_team_invitations_i_from).toBe(OLD_INVITATIONS_FROM);
@@ -82,7 +82,7 @@ describe('manage_erpx ai-gateway beta_bootstrap scope read family', () => {
 
   it('preserves the exact query text consumed by both existing callers', async () => {
     const { betaBootstrapScope, aiGatewayBootstrapSources } = await import(
-      '../../../packages/server-manage_erpx/src/adapters/ai-gateway-sources'
+      '../../../modules/manage-erpx/server/src/adapters/ai-gateway-sources'
     );
     expect(betaBootstrapScope).toBe(OLD_BOOTSTRAP_SCOPE);
     let prepared = '';
@@ -123,10 +123,10 @@ describe('manage_erpx beta_policy storage-bytes read pair', () => {
 
   it('preserves the exact prepared SQL for both existing callers', async () => {
     const { betaPolicyStorageBytesSql, attachmentServiceManageErpxFacts } = await import(
-      '../../../packages/server-manage_erpx/src/adapters/attachments-service-facts'
+      '../../../modules/manage-erpx/server/src/adapters/attachments-service-facts'
     );
     const { legalPortalStorageAllowance } = await import(
-      '../../../packages/server-manage_erpx/src/adapters/legal-portal-storage-allowance'
+      '../../../modules/manage-erpx/server/src/adapters/legal-portal-storage-allowance'
     );
     expect(betaPolicyStorageBytesSql).toBe(OLD_STORAGE_BYTES_SQL);
     const prepared: string[] = [];
@@ -157,7 +157,7 @@ describe('manage_erpx document page storage-limit projection dedupe', () => {
 
   it('preserves the exact SQL consumed by the server-files attachment derivative guard', async () => {
     const { documentPageStorageLimitSql } = await import(
-      '../../../packages/server-manage_erpx/src/adapters/document-page-storage-limit'
+      '../../../modules/manage-erpx/server/src/adapters/document-page-storage-limit'
     );
     expect(documentPageStorageLimitSql).toBe(OLD_DOCUMENT_PAGE_STORAGE_LIMIT);
   });
@@ -166,7 +166,7 @@ describe('manage_erpx document page storage-limit projection dedupe', () => {
 describe('manage_erpx beta_policy point-read parameterized family', () => {
   it('keeps the retired point-read bytes after whitespace normalization', async () => {
     const { betaPolicyPointSql } = await import(
-      '../../../packages/server-manage_erpx/src/adapters/beta-policy-point-sql'
+      '../../../modules/manage-erpx/server/src/adapters/beta-policy-point-sql'
     );
     const canonical = (value: string) => value.replace(/\s+/g, ' ');
     expect(canonical(betaPolicyPointSql('*'))).toBe(

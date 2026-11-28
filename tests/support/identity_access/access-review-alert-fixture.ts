@@ -2,13 +2,13 @@
  * FIXTURE-ONLY ORACLE — retained pre-cutover access-certification alert notices.
  *
  * Production due-soon/overdue notices now belong to the native
- * `identity_access_review_alerts` worker (src/composition). This copy seeds the
+ * `identity_access_review_alerts` worker (platform/composition). This copy seeds the
  * same notifications for the integration suite without the TS writer.
  *
  * Tracked for removal by `retire.identity_access.residual-writers`: delete once
  * the integration harness drives the native worker result directly.
  */
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
 
 const HEAD = 'INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) ';
 

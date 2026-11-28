@@ -1,10 +1,10 @@
 //! Actual owner-local HTTP router tests for the native Planning workspace read.
-use erpx_server_planning::public::planning_http::{
+use erpx_planning_server::public::planning_http::{
     PlanningHttpBackend, PlanningHttpFuture, PlanningHttpRequest, PlanningHttpResponse,
     PlanningHttpTarget, planning_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Noop;

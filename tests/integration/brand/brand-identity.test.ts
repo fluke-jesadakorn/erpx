@@ -12,23 +12,23 @@
  * independent storefront-edit guard. Rows are seeded as fixture state, never by
  * a TypeScript identity writer.
  */
-import type {BrandIdentity} from "@erpx/server-brand/public/brand-identity";
-import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import type {SqlValue} from "@erpx/server-runtime/public/runtime/types";
-import type {BrandCategoryLock,BrandDraft,BrandPublished} from "@erpx/server-brand/domain/identity";
-import type {BrandIdentityEvent} from "@erpx/server-brand/application/identity-read";
+import type {BrandIdentity} from "@erpx/brand-server/public/brand-identity";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
+import type {SqlValue} from "@erpx/platform-runtime-server/public/runtime/types";
+import type {BrandCategoryLock,BrandDraft,BrandPublished} from "@erpx/brand-server/domain/identity";
+import type {BrandIdentityEvent} from "@erpx/brand-server/application/identity-read";
 import {beforeAll,beforeEach,expect,it,vi} from "vitest";
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {frontCompanyBrand} from "@erpx/server-work_projection/public/front-app";
-import {assertBrandCategoryLocks} from "@erpx/server-brand/domain/policy";
-import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
-import {hasModuleAccess} from "@erpx/catalogue/module-access";
-import {nativeBrandIdentityWorkspace} from "@erpx/feature-brand/lib/native-brand-identity";
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env,holdingBindingBySlug:async(holdingSlug:string)=>({id:"h001",slug:holdingSlug})}));
+import {frontCompanyBrand} from "@erpx/work-projection-server/public/front-app";
+import {assertBrandCategoryLocks} from "@erpx/brand-server/domain/policy";
+import {hasPermission} from "@erpx/identity-access-ui/lib/permissions";
+import {hasModuleAccess} from "@erpx/platform-catalogue/module-access";
+import {nativeBrandIdentityWorkspace} from "@erpx/brand-ui/lib/native-brand-identity";
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env,holdingBindingBySlug:async(holdingSlug:string)=>({id:"h001",slug:holdingSlug})}));
 // Native identity owner stub: reads only the seeded fixture state through the
 // same workspace shape the registered Rust identity read port produces.
-vi.mock("@erpx/feature-brand/lib/native-brand-identity",()=>({
+vi.mock("@erpx/brand-ui/lib/native-brand-identity",()=>({
  nativeBrandIdentityWorkspace:async(actor:WorkContext,holdingSlug:string)=>{
   void holdingSlug;
   const companyId=actor.companyId,now=Date.now();

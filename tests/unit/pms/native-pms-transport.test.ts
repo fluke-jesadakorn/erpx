@@ -1,6 +1,6 @@
 import {existsSync,readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
-import {holdingHosts} from '@erpx/contracts/holding-hosts';
+import {holdingHosts} from '@erpx/platform-contracts/holding-hosts';
 import {describe,it,expect,vi} from 'vitest';
 import {expandNativeApiPaths,loadNativeApiPaths} from '../../../scripts/local/native-api-paths';
 import {nativeApiPath} from '../../../scripts/local/native-api-proxy';
@@ -14,8 +14,8 @@ import {
   type NativePmsPageContext,
   type NativePmsReportData,
   type NativePmsReportEntriesData,
-} from '../../../packages/feature-pms/src/adapters/server/native-pms';
-import {nativePmsAvailable} from '../../../packages/workplace/src/lib/native-pms';
+} from '../../../modules/pms/ui/src/adapters/server/native-pms';
+import {nativePmsAvailable} from '../../../platform/workplace/src/lib/native-pms';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44994',
@@ -344,11 +344,11 @@ describe('PMS reports Next route retirement',()=>{
 
  it('keeps the shared GET handler and both app re-exports unresolvable',()=>{
   for(const file of [
-   'packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/reports/route.ts',
+   'modules/pms/ui/src/routes/api/v1/holdings/[holdingSlug]/pms/reports/route.ts',
    'apps/pms/src/app/api/v1/holdings/[holdingSlug]/pms/reports/route.ts',
    'apps/compat/src/app/api/v1/holdings/[holdingSlug]/pms/reports/route.ts',
   ]) expect(existsSync(fileURLToPath(new URL(`../../../${file}`,import.meta.url))),file).toBe(false);
-  expect(existsSync(fileURLToPath(new URL('../../../packages/server-pms/src/adapters/report_http.rs',import.meta.url)))).toBe(true);
+  expect(existsSync(fileURLToPath(new URL('../../../modules/pms/server/src/adapters/report_http.rs',import.meta.url)))).toBe(true);
  });
 
  it('matches the checked-in reports prefix on every registered Holding',()=>{
@@ -361,7 +361,7 @@ describe('PMS reports Next route retirement',()=>{
  });
 
  it('executes PMS SQL in the native handler and leaves the browser {data} envelope intact',()=>{
-  const http=read('packages/server-pms/src/adapters/report_http.rs');
+  const http=read('modules/pms/server/src/adapters/report_http.rs');
   expect(http).toContain('/api/v1/holdings/{holding_slug}/pms/reports/{report}');
   expect(http).toContain('/api/v1/holdings/{holding_slug}/pms/reports');
   expect(http).toContain('PmsReportKind::parse(view)');
@@ -369,7 +369,7 @@ describe('PMS reports Next route retirement',()=>{
   expect(http).toContain('.fetch_all(&mut *c)');
   expect(http).toContain('.fetch_one(&mut *c)');
   expect(http).toContain('serde_json::json!({"data": self.data, "context": self.context})');
-  const client=read('packages/feature-pms/src/components/range-reports.tsx');
+  const client=read('modules/pms/ui/src/components/range-reports.tsx');
   expect(client).toContain('return json.data;');
   expect(client).not.toContain('canonicalDestinationLinks');
  });

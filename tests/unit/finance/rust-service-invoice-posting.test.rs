@@ -1,4 +1,4 @@
-use erpx_server_finance::public::service_invoice_posting::*;
+use erpx_finance_server::public::service_invoice_posting::*;
 fn facts() -> ServiceInvoicePostFacts<'static> {
     ServiceInvoicePostFacts {
         version: 3,
@@ -177,7 +177,7 @@ fn wire_keeps_schema_order_strips_unknown_and_preserves_logical_utf16_receipt_id
 
 #[test]
 fn controlled_receipt_keeps_three_person_identity_and_ordered_fresh_decisions() {
-    use erpx_server_finance::public::service_receipt::*;
+    use erpx_finance_server::public::service_receipt::*;
     let mut f = ServiceReceiptReviewFacts {
         status: "draft",
         version: 1,
@@ -280,7 +280,7 @@ fn controlled_receipt_keeps_three_person_identity_and_ordered_fresh_decisions() 
 
 #[test]
 fn customer_receipt_retains_the_original_html_export_bytes() {
-    use erpx_server_finance::public::service_receipt::*;
+    use erpx_finance_server::public::service_receipt::*;
     use sha2::{Digest, Sha256};
     let snapshot = CustomerReceiptSnapshot {
         schema: "finance.customer-receipt.v1".into(),
@@ -312,7 +312,7 @@ fn customer_receipt_retains_the_original_html_export_bytes() {
 
 #[test]
 fn covered_service_confirmation_keeps_context_and_independence_order() {
-    use erpx_server_finance::public::service_no_charge::require_no_charge_decision as decide;
+    use erpx_finance_server::public::service_no_charge::require_no_charge_decision as decide;
     assert!(decide(true,1,1,true,true).is_ok());
     for (draft,actual,expected,context) in [(false,1,1,true),(true,2,1,true),(true,1,1,false)] {
         assert_eq!(decide(draft,actual,expected,context,false).unwrap_err().code,"SERVICE_NO_CHARGE_CONTEXT_CHANGED");
@@ -321,7 +321,7 @@ fn covered_service_confirmation_keeps_context_and_independence_order() {
 }
 #[test]
 fn covered_service_wire_keeps_original_trim_order_and_utf16_identity() {
-    use erpx_server_finance::public::service_no_charge::normalize_service_no_charge as parse;
+    use erpx_finance_server::public::service_no_charge::normalize_service_no_charge as parse;
     let hash="a".repeat(64);
     let body=format!(r#"{{"unknown":true,"reason":"\ufeffRetain \ud800 source \u00a0","contextKey":"{hash}","expectedVersion":1.0}}"#);
     let doc=parse(body.as_bytes()).unwrap();
@@ -334,7 +334,7 @@ fn covered_service_wire_keeps_original_trim_order_and_utf16_identity() {
 
 #[test]
 fn field_cost_journal_requires_selected_eligible_reviewer_and_keeps_posted_history_terminal() {
-    use erpx_server_workflow::public::field_journal_flow::field_journal_flow_view as view;
+    use erpx_workflow_server::public::field_journal_flow::field_journal_flow_view as view;
     use serde_json::json;
     let source=json!({"id":"actual-field-cost","status":"draft","version":1});
     let staff=vec![json!({"userId":"reviewer-b","name":"B","teamName":"Finance"}),json!({"userId":"reviewer-c","name":"C","teamName":"Finance"})];
@@ -358,7 +358,7 @@ fn field_cost_journal_requires_selected_eligible_reviewer_and_keeps_posted_histo
 }
 
 mod finance_setup_readiness {
-    use erpx_server_finance::public::finance_setup::{
+    use erpx_finance_server::public::finance_setup::{
         FinanceSetupCounts, finance_setup_checks,
     };
 

@@ -1,10 +1,10 @@
 import {expect,it,vi} from "vitest";
-import {createHandbookService,type HandbookPorts} from "@erpx/server-collaboration/application/handbook";
-import type {Article} from "@erpx/server-collaboration/domain/handbook";
-import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import {ApiError} from "@erpx/server-runtime/public/http";
-import {createHandbookCommands} from '@erpx/feature-collaboration/lib/handbook-command';
-import {handbookCreateHref,handbookCreateReturn} from '@erpx/feature-collaboration/lib/handbook-navigation';
+import {createHandbookService,type HandbookPorts} from "@erpx/collaboration-server/application/handbook";
+import type {Article} from "@erpx/collaboration-server/domain/handbook";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
+import {ApiError} from "@erpx/platform-runtime-server/public/http";
+import {createHandbookCommands} from '@erpx/collaboration-ui/lib/handbook-command';
+import {handbookCreateHref,handbookCreateReturn} from '@erpx/collaboration-ui/lib/handbook-navigation';
 function only<T>(values:Partial<T>):T{return new Proxy(values,{get(target,name){if(name in target)return Reflect.get(target,name);throw Error(`Unexpected port ${String(name)}`);}}) as T;}
 type Ports=HandbookPorts;
 const actor={userId:"editor",companyId:"company",branchId:null,departmentId:null} as WorkContext;

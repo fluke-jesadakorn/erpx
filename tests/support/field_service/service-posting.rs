@@ -1,6 +1,6 @@
 //! Existing shared prerequisite owner fixture, relocated without changing its facts.
 use crate::facts::{account,review};
-use erpx_server_shared::public::Clock;
+use erpx_platform_shared_server::public::Clock;
 
 pub async fn service_posting_finance_fixture(system: account::System) -> review::Prepared {
     let p = review::setup(system).await;

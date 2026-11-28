@@ -3,8 +3,9 @@ import { existsSync, lstatSync, readFileSync, readlinkSync, readdirSync } from "
 import { resolve, posix } from "node:path";
 import { execFileSync } from "node:child_process";
 import { parseWorkspaceSource, type WorkspaceSource } from "./workspace-imports";
+import { ownerWorkspaceDirectories, ownerWorkspacePath } from "../local/workspace-paths";
 import { workspaceSourceCache } from "./workspace-source-cache";
-import { appDefinitions, appDefinition } from "@erpx/contracts/apps";
+import { appDefinitions, appDefinition } from "@erpx/platform-contracts/apps";
 import { verificationSources, resolveImport, type Suite, repositoryRoot } from "./catalogue";
 import { cargoRootInputs, cargoVerificationEdges, cargoResourceRoots, cargoResourcePath, isCargoInput } from './cargo';
 
@@ -25,22 +26,23 @@ function workingRetirementPresence(root:string):Set<string>{
 const resourcePrefix = 'resource-input:';
 export function workspaceInputFile(file: string) { return file.startsWith(resourcePrefix) ? file.slice(resourcePrefix.length) : file; }
 const sourceExtension = /\.(?:[cm]?[jt]sx?|rs|json|css|mjs|md|mdx|yml|yaml|py|sh|plist|toml|html|sql)$/;
-const workspaceDirectories = ["apps", "packages", "src", "scripts", "tests", "fixtures", "public", "docs", ".github", "ops", "migrations", "contracts"];
+const workspaceDirectories = ["apps", ...ownerWorkspaceDirectories, "src", "scripts", "tests", "fixtures", "public", "docs", ".github", "ops", "migrations", "contracts"];
 const rootInputs = new Set(["next.config.ts", "tsconfig.base.json", "tsconfig.json", "postcss.config.mjs", "package.json", "bun.lock", ".env.example", "eslint.config.mjs", "README.md", "AGENTS.md", "CONTEXT.md", "CONTRACT_POLICY.md", "LICENSE", "NOTICE", "LICENSING.md", "CONTRIBUTING.md", "SECURITY.md", "CODE_OF_CONDUCT.md", "GOVERNANCE.md", ".bun-version", ".node-version", "bunfig.toml", "turbo.json", ".gitignore", ".gitattributes", ...cargoRootInputs]);
 // Next metadata and app public assets are inputs even when no JS imports them.
 // A public symlink is inventoried as its target text; never traverse its target.
 const appResource = /^apps\/[^/]+\/(?:public(?:\/|$)|src\/app\/(?:[^/]+\/)*(?:favicon\.ico|(?:icon|apple-icon|opengraph-image|twitter-image)\d*\.(?:ico|jpe?g|png|svg|gif)|robots\.txt|sitemap\.xml|manifest\.webmanifest)$)/;
+const sharedRouteResource = /^(?:packages|platform)\/workplace\/src\/routes\/(?:favicon\.ico|(?:icon|apple-icon|opengraph-image|twitter-image)\d*\.(?:ico|jpe?g|png|svg|gif))$/;
 function resourceMember(file:string,roots:readonly string[]){return roots.some(root=>file===root||file.startsWith(root+'/'));}
 function declaredCargoResource(file:string,roots:readonly string[]){return cargoResourcePath(file)&&resourceMember(file,roots);}
 // `target` is also a real business route name. Only actual Cargo output trees
 // or private subtrees of newly admitted resources are excluded for that name.
-function privateWorkspacePath(file:string){return file.split('/').some(part=>/^\.env(?:\.|$)/.test(part)||['.git','.scratch','.runtime','node_modules','.next','.build','.cache','.turbo'].includes(part))||/^(?:packages\/server-[^/]+|src\/composition)\/target(?:\/|$)/.test(file);}
+function privateWorkspacePath(file:string){return file.split('/').some(part=>/^\.env(?:\.|$)/.test(part)||['.git','.scratch','.runtime','node_modules','.next','.build','.cache','.turbo'].includes(part))||/^(?:packages\/server-[^/]+|src\/composition|platform\/(?:composition|(?:shared|runtime)\/server)|modules\/[^/]+\/server)\/target(?:\/|$)/.test(file);}
 function workspacePath(file: string,roots:readonly string[]=[]) {
   return rootInputs.has(file) || !privateWorkspacePath(file) && (!resourceMember(file,roots)||cargoResourcePath(file)) && workspaceDirectories.some(directory => file.startsWith(directory + '/')) &&
-    (sourceExtension.test(file) || isCargoInput(file) || file === '.github/CODEOWNERS' || /^(?:public|docs|fixtures)\//.test(file) || appResource.test(file)||declaredCargoResource(file,roots));
+    (sourceExtension.test(file) || /(?:^|[/.])Dockerfile$/.test(file) || sharedRouteResource.test(file) || isCargoInput(file) || file === '.github/CODEOWNERS' || /^(?:public|docs|fixtures)\//.test(file) || appResource.test(file)||declaredCargoResource(file,roots));
 }
 function resourceInput(file: string) {
-  return /^(?:public|docs|\.github|ops|migrations)\//.test(file) || appResource.test(file) ||
+  return /^(?:public|docs|\.github|ops|migrations)\//.test(file) || appResource.test(file) || sharedRouteResource.test(file) ||
     file === '.env.example' || file === 'LICENSE' || file === 'NOTICE' || /^[A-Z][A-Z_.-]*\.md$/.test(file);
 }
 function graphContent(file: string, bytes: Buffer, symlink = false,declared=false) {
@@ -62,7 +64,7 @@ function workspaceSourceInventory(root:string){
   const candidates=[...workspaceDirectories.flatMap(visit), ...[...rootInputs].filter(file => existsSync(resolve(root, file)))];
   const manifests=new Map(candidates.filter(file=>file.endsWith('/Cargo.toml')&&workspacePath(file)&&!lstatSync(resolve(root,file)).isSymbolicLink()).map(file=>[file,readFileSync(resolve(root,file),'utf8')]));
   const roots=[...cargoResourceRoots(manifests).values()].flat();
-  return {roots,paths:candidates.filter(file=>workspacePath(file,roots)&&(!lstatSync(resolve(root,file)).isSymbolicLink()||appResource.test(file)||declaredCargoResource(file,roots))).sort()};
+  return {roots,paths:candidates.filter(file=>workspacePath(file,roots)&&(!lstatSync(resolve(root,file)).isSymbolicLink()||appResource.test(file)||sharedRouteResource.test(file)||declaredCargoResource(file,roots))).sort()};
 }
 export function workspaceSourcePaths(root = repositoryRoot): string[] {return workspaceSourceInventory(root).paths;}
 export function createWorkspaceGraph(files: Map<string, string>, parseSource: (file:string,source:string)=>WorkspaceSource = parseWorkspaceSource, options:{excludeStyleSources?:boolean;runtimeOnly?:boolean}={}): WorkspaceGraph {
@@ -70,7 +72,7 @@ export function createWorkspaceGraph(files: Map<string, string>, parseSource: (f
   const names = new Set(files.keys()), imports = new Map<string, Set<string>>(), reverse = new Map<string, Set<string>>();
   const parsed=new Map<string,WorkspaceSource>();
   const resources=new Map<string,Set<string>>();
-  const manifests=new Map<string,{exports?:Record<string,string>}>();
+  const manifests=new Map<string,{directory:string;exports?:Record<string,string>}>();
   // Historical revisions may place a stable app package in a different folder.
   const appDirectories=new Map<string,string>();
   for(const [file,text] of files){
@@ -81,7 +83,12 @@ export function createWorkspaceGraph(files: Map<string, string>, parseSource: (f
     if(appDirectories.has(name))throw new Error(`WORKSPACE_APP_IDENTITY_DUPLICATE:${name}`);
     appDirectories.set(name,directory);
   }
-  for(const [file,text] of files){const owner=/^packages\/([^/]+)\/package\.json$/.exec(file)?.[1];if(owner)manifests.set(owner,JSON.parse(text));}
+  for (const [file, text] of files) {
+    const directory = ownerWorkspacePath(file);
+    if (!directory || file !== directory + "/package.json") continue;
+    const manifest = JSON.parse(text);
+    manifests.set(manifest.name.slice("@erpx/".length), { directory, exports: manifest.exports });
+  }
   const directories = new Map<string, string[]>();
   for (const file of names) {
     const parts = file.split("/");
@@ -105,14 +112,14 @@ export function createWorkspaceGraph(files: Map<string, string>, parseSource: (f
           const exported = manifest.exports?.[subpath.length ? `./${subpath.join("/")}` : "."];
           if (typeof exported !== "string" || !exported.startsWith("./src/") || exported.split("/").includes(".."))
             throw new Error(`WORKSPACE_EXPORT_UNDECLARED:${file}:${specifier}`);
-          target = `packages/${owner}/${exported.slice(2)}`;
+          target = manifest.directory + "/" + exported.slice(2);
           if (!names.has(target)) throw new Error(`WORKSPACE_EXPORT_UNRESOLVED:${file}:${specifier}`);
         }
       }
       if (target) {
         const sourceApp = /^apps\/([^/]+)\//.exec(file)?.[1];
         const targetApp = /^apps\/([^/]+)\//.exec(target)?.[1];
-        if (targetApp && (sourceApp && sourceApp !== targetApp || file.startsWith("packages/")))
+        if (targetApp && (sourceApp && sourceApp !== targetApp || ownerWorkspacePath(file)))
           throw new Error(`WORKSPACE_APP_IMPORT_FORBIDDEN:${file}:${target}`);
         dependencies.add(target);
       }
@@ -128,7 +135,7 @@ export function createWorkspaceGraph(files: Map<string, string>, parseSource: (f
         // imports, so use a leaf input instead of expanding the server graph.
         if (!/\.[cm]?[jt]sx?$|\.html?$/.test(source)) continue;
         const sourceApp = /^apps\/([^/]+)\//.exec(file)?.[1], targetApp = /^apps\/([^/]+)\//.exec(source)?.[1];
-        if (targetApp && (sourceApp && sourceApp !== targetApp || file.startsWith("packages/"))) throw new Error(`WORKSPACE_APP_IMPORT_FORBIDDEN:${file}:${source}`);
+        if (targetApp && (sourceApp && sourceApp !== targetApp || ownerWorkspacePath(file))) throw new Error(`WORKSPACE_APP_IMPORT_FORBIDDEN:${file}:${source}`);
         const resource = resourcePrefix + source;
         files.set(resource, createHash('sha256').update(files.get(source)!).digest('hex'));
         imports.set(resource, new Set());
@@ -165,7 +172,7 @@ export function createWorkspaceGraph(files: Map<string, string>, parseSource: (f
       const executable=new Map<string,boolean>();
       for(const {specifier,runtime:value} of syntax.modules){
         let target=resolveImport(file,specifier,names);
-        if(specifier.startsWith('@erpx/')){const [,owner,...subpath]=specifier.split('/'),exported=manifests.get(owner)?.exports?.[subpath.length?`./${subpath.join('/')}`:'.'];if(typeof exported==='string')target=`packages/${owner}/${exported.slice(2)}`;}
+        if(specifier.startsWith('@erpx/')){const [,owner,...subpath]=specifier.split('/'),manifest=manifests.get(owner),exported=manifest?.exports?.[subpath.length?`./${subpath.join('/')}`:'.'];if(typeof exported==='string')target=manifest!.directory+"/"+exported.slice(2);}
         if(target)executable.set(target,executable.get(target)===true||value);
       }
       executableImports.set(file,new Set([...executable].filter(([,value])=>value).map(([target])=>target)));
@@ -246,8 +253,8 @@ export function appRuntimeFingerprint(graph: WorkspaceGraph, id: string) {
   const runtime = { ...graph, imports: graph.runtimeImports, files:new Map(graph.files) };
   // This file is derived from the runtime identity during artifact assembly;
   // including its previous value would make that identity self-referential.
-  if(runtime.files.has('packages/catalogue/src/release-artifact.json'))runtime.files.set('packages/catalogue/src/release-artifact.json','generated-runtime-release-identity');
-  for (const [file, text] of runtime.files) if (/^(?:apps|packages)\/[^/]+\/package\.json$/.test(file)) {
+  if(runtime.files.has('platform/catalogue/src/release-artifact.json'))runtime.files.set('platform/catalogue/src/release-artifact.json','generated-runtime-release-identity');
+  for (const [file, text] of runtime.files) if (/^apps\/[^/]+\/package\.json$/.test(file) || file === ownerWorkspacePath(file) + "/package.json") {
     const manifest = JSON.parse(text);
     if (manifest.scripts) for (const name of Object.keys(manifest.scripts)) if (/^(?:test(?::|$)|lint(?::|$)|typecheck(?::|$))/.test(name)) delete manifest.scripts[name];
     runtime.files.set(file, JSON.stringify(manifest));
@@ -335,7 +342,7 @@ export function selectCandidateSuites(head: WorkspaceGraph, base: WorkspaceGraph
   for (const suite of suites) if (suite.apps?.some(id => boundaryApps.includes(id)) && suite.lane !== 'provider' && suite.lane !== 'uat') selected.add(suite.id);
   const covered = new Set<string>();
   for (const graph of [head,base]) for (const suite of suites) for (const file of dependencyClosure(graph,verificationSources([suite]))) covered.add(file);
-  const unmapped = known.filter(file => /^(?:packages|src|apps|tests\/(?:unit|integration))\//.test(file) && !covered.has(file) && !affectedApps.length && head.files.has(file));
+  const unmapped = known.filter(file => /^(?:packages|modules|products|platform|src|apps|tests\/(?:unit|integration))\//.test(file) && !covered.has(file) && !affectedApps.length && head.files.has(file));
   if (unmapped.length) throw new Error(`WORKSPACE_TEST_MAPPING_REQUIRED:${unmapped.join(',')}`);
   return { scope: 'development' as const, acceptance: false as const, apps: affectedApps, changed, suites: suites.filter(suite => selected.has(suite.id)), removed: changed.filter(file => base.files.has(file) && !head.files.has(file) || retiredDeletion(file)) };
 }

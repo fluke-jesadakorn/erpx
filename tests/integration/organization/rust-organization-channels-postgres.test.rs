@@ -1,17 +1,17 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_organization::public::organization_nodes::{
+use erpx_organization_server::public::organization_nodes::{
     OrganizationChannelEnsureSummary, PgOrganizationNodes, ensure_organization_channels,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions, load_migrations,
     migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId};
 
 const NOW: i64 = 1_800_000_000_000;
 
-async fn seed(pool: &erpx_server_runtime::public::postgres::DatabasePool) {
+async fn seed(pool: &erpx_platform_runtime_server::public::postgres::DatabasePool) {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
     let files = load_migrations(root, MigrationTrack::HoldingWrite)
         .await
@@ -33,7 +33,7 @@ async fn seed(pool: &erpx_server_runtime::public::postgres::DatabasePool) {
 }
 
 async fn run<T, F>(
-    pool: erpx_server_runtime::public::postgres::DatabasePool,
+    pool: erpx_platform_runtime_server::public::postgres::DatabasePool,
     f: F,
 ) -> Result<T, PgTransactionError<BusinessError>>
 where
@@ -277,7 +277,7 @@ async fn company_ensure_stays_inside_the_caller_transaction() {
                 Box::pin(async move {
                     ensure_organization_channels(connection, &company(), NOW).await?;
                     Err(BusinessError::new(
-                        erpx_server_shared::public::FailureKind::Conflict,
+                        erpx_platform_shared_server::public::FailureKind::Conflict,
                         "SYNTHETIC_ROLLBACK",
                         "Synthetic caller failure.",
                     )

@@ -1,4 +1,4 @@
-use erpx_server_identity_access::public::permission_catalog::*;
+use erpx_identity_access_server::public::permission_catalog::*;
 use std::collections::BTreeSet;
 #[test]
 fn current_permission_catalog_matches_legacy_explicit_iam_scope_and_identity_decisions() {

@@ -1,6 +1,6 @@
 import {describe,it,expect,vi} from 'vitest';
-import {createDirectorySourceAdminClient,DirectorySourceClientError,type DirectorySourceFetch} from '@erpx/contracts/directory-source-admin-client';
-import {fieldFactsFromSnapshot,setFieldFactsForTest} from '@erpx/server-identity_access/adapters/directory-field-mapping';
+import {createDirectorySourceAdminClient,DirectorySourceClientError,type DirectorySourceFetch} from '@erpx/platform-contracts/directory-source-admin-client';
+import {fieldFactsFromSnapshot,setFieldFactsForTest} from '@erpx/identity-access-server/adapters/directory-field-mapping';
 const target={holdingSlug:'acme',connectionId:'source-é'};
 const pins={companyId:'company',revision:7,assignmentId:'source-admin-a',assignmentVersion:3};
 const input={keyId:'reviewed_key',expectedConnectionVersion:1,reason:'  Reviewed exact source  '};

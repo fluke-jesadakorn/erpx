@@ -2,7 +2,7 @@ import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
 
-const adapters = resolve(__dirname, '../../../packages/server-talent/src/adapters');
+const adapters = resolve(__dirname, '../../../modules/talent/server/src/adapters');
 const src = (name: string) => readFileSync(resolve(adapters, name), 'utf8');
 const strip = (s: string) => s.replace(/:\s*string/g, '');
 const grp = (text: string, re: RegExp) => {
@@ -124,7 +124,7 @@ describe('Talent read-tail r39 straggler projection-head family', () => {
         else if (e.name.endsWith('.ts')) files.push(p);
       }
     };
-    walk(resolve(__dirname, '../../../packages/server-talent/src'));
+    walk(resolve(__dirname, '../../../modules/talent/server/src'));
     let count = 0;
     for (const f of files) count += (readFileSync(f, 'utf8').match(/\bSELECT\b/g) ?? []).length;
     expect(count).toBe(10);

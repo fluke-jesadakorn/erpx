@@ -12,16 +12,16 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_procurement::public::supplier_bill_command::{
+use erpx_procurement_server::public::supplier_bill_command::{
     PgSupplierBillCommand, SupplierBillCommandActor, SupplierBillCommandRepository,
     SupplierBillCommandStaging, SupplierBillCommandFuture, SupplierBillDecidePlan,
     capture_supplier_bill, decide_supplier_bill, save_supplier_bill_policy,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CommandKey, CompanyId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey, CompanyId, TimestampMillis};
 use sqlx::Connection;
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
@@ -218,9 +218,9 @@ async fn run_capture(
     actor: SupplierBillCommandActor,
     input: serde_json::Value,
     key: &str,
-) -> Result<(erpx_server_procurement::public::supplier_bill_command::SupplierBillRecordReceipt, Vec<String>), BusinessError> {
+) -> Result<(erpx_procurement_server::public::supplier_bill_command::SupplierBillRecordReceipt, Vec<String>), BusinessError> {
     let calls = PgUnitOfWork::new(pool.clone())
-        .run::<(erpx_server_procurement::public::supplier_bill_command::SupplierBillRecordReceipt, Vec<String>), BusinessError, _>(TransactionOptions::default(), move |connection| {
+        .run::<(erpx_procurement_server::public::supplier_bill_command::SupplierBillRecordReceipt, Vec<String>), BusinessError, _>(TransactionOptions::default(), move |connection| {
             let actor = actor.clone();
             let input = input.clone();
             let key = key.to_owned();
@@ -244,9 +244,9 @@ async fn run_decide(
     match_id: &str,
     input: serde_json::Value,
     key: &str,
-) -> Result<(erpx_server_procurement::public::supplier_bill_command::SupplierBillRecordReceipt, Vec<String>), BusinessError> {
+) -> Result<(erpx_procurement_server::public::supplier_bill_command::SupplierBillRecordReceipt, Vec<String>), BusinessError> {
     PgUnitOfWork::new(pool.clone())
-        .run::<(erpx_server_procurement::public::supplier_bill_command::SupplierBillRecordReceipt, Vec<String>), BusinessError, _>(TransactionOptions::default(), move |connection| {
+        .run::<(erpx_procurement_server::public::supplier_bill_command::SupplierBillRecordReceipt, Vec<String>), BusinessError, _>(TransactionOptions::default(), move |connection| {
             let actor = actor.clone();
             let input = input.clone();
             let key = key.to_owned();
@@ -277,9 +277,9 @@ async fn run_policy(
     actor: SupplierBillCommandActor,
     input: serde_json::Value,
     key: &str,
-) -> Result<erpx_server_procurement::public::supplier_bill_command::SupplierBillRecordReceipt, BusinessError> {
+) -> Result<erpx_procurement_server::public::supplier_bill_command::SupplierBillRecordReceipt, BusinessError> {
     PgUnitOfWork::new(pool.clone())
-        .run::<erpx_server_procurement::public::supplier_bill_command::SupplierBillRecordReceipt, BusinessError, _>(TransactionOptions::default(), move |connection| {
+        .run::<erpx_procurement_server::public::supplier_bill_command::SupplierBillRecordReceipt, BusinessError, _>(TransactionOptions::default(), move |connection| {
             let actor = actor.clone();
             let input = input.clone();
             let key = key.to_owned();

@@ -2,16 +2,16 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('server-only', () => ({}));
-vi.mock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+vi.mock('../../../modules/workflow/server/src/adapters/native-workflow-read', () => ({
   nativeWorkflowReadAll: vi.fn(async () => []),
   nativeWorkflowReadFirst: vi.fn(async () => null),
 }));
-import { nativeWorkflowReadAll } from '../../../packages/server-workflow/src/adapters/native-workflow-read';
-import { nativeApprovalPlanningPorts, expenseApprovalReadBatch } from '../../../packages/server-workflow/src/adapters/approval-planning';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import { nativeWorkflowReadAll } from '../../../modules/workflow/server/src/adapters/native-workflow-read';
+import { nativeApprovalPlanningPorts, expenseApprovalReadBatch } from '../../../modules/workflow/server/src/adapters/approval-planning';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
 
 const readAll = vi.mocked(nativeWorkflowReadAll);
-const srcRoot = resolve(__dirname, '../../../packages/server-workflow/src');
+const srcRoot = resolve(__dirname, '../../../modules/workflow/server/src');
 
 /** Independent reconstruction of the three retired TypeScript literals (r46). */
 const hr = '"id","user_id","company_id","legal_name","preferred_name","email","phone","country_code","status","version","created_by","created_at","updated_at","merged_into_id","work_email","work_phone"';
@@ -41,7 +41,7 @@ beforeEach(() => {
 
 describe('approval-step and expense-batch native cutover (r46)', () => {
   it('registers byte-identical, SELECT-only SQL with two binds for each kind', async () => {
-    const src = await readFile(new URL('../../../packages/server-workflow/src/domain/workflow_wave3.rs', import.meta.url), 'utf8');
+    const src = await readFile(new URL('../../../modules/workflow/server/src/domain/workflow_wave3.rs', import.meta.url), 'utf8');
     for (const [kind, sql] of [
       ['wf_native_approval_steps_approver', approverSql],
       ['wf_native_approval_steps_batch', stepsBatchSql],
@@ -92,7 +92,7 @@ describe('approval-step and expense-batch native cutover (r46)', () => {
   });
 
   it('removes the retired step-approver and expense-batch SELECT literals', async () => {
-    const src = await readFile(new URL('../../../packages/server-workflow/src/adapters/approval-planning.ts', import.meta.url), 'utf8');
+    const src = await readFile(new URL('../../../modules/workflow/server/src/adapters/approval-planning.ts', import.meta.url), 'utf8');
     expect(src).not.toContain('COALESCE(p.legal_name,s.approver_user_id) approver_name');
     expect(src).not.toContain('SELECT DISTINCT ON(record_id) * FROM approval_instances');
     expect(src).not.toContain('approvalStepsApproverSql');

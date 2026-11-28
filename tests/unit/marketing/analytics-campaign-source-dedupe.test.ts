@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-marketing/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/marketing/server/src/adapters/${name}`, import.meta.url);
 
 const enforced =
   'SELECT campaign.*,NULL::text branch_id,NULL::text department_id FROM marketing_campaigns campaign';
@@ -12,7 +12,7 @@ const legacy =
 describe('marketing analytics campaign projection dedupe', () => {
   it('emits byte-identical enforced and legacy campaign projections', async () => {
     const { marketingAnalyticsCampaignSql } = await import(
-      '../../../packages/server-marketing/src/adapters/analytics-campaign-source-sql.ts'
+      '../../../modules/marketing/server/src/adapters/analytics-campaign-source-sql.ts'
     );
     expect(marketingAnalyticsCampaignSql(true)).toBe(enforced);
     expect(marketingAnalyticsCampaignSql(false)).toBe(legacy);

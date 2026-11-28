@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { crmSelectBodySql } from '../../../packages/server-crm/src/adapters/read-tail-r46-sql';
+import { crmSelectBodySql } from '../../../modules/crm/server/src/adapters/read-tail-r46-sql';
 import {
   crmAccountAttachmentSourceSql,
   crmAccountPolicyReadSql,
@@ -11,9 +11,9 @@ import {
   crmLeadOwnerGuardSql,
   crmLeadEligibleOwnerSql,
   crmWorkLeadOwnerProbeSql,
-} from '../../../packages/server-crm/src/adapters/read-tail-r29-sql';
+} from '../../../modules/crm/server/src/adapters/read-tail-r29-sql';
 
-const owner = resolve(__dirname, '../../../packages/server-crm/src');
+const owner = resolve(__dirname, '../../../modules/crm/server/src');
 const src = (name: string) => readFileSync(resolve(owner, 'adapters', name), 'utf8');
 const totalSelects = () => {
   let total = 0;

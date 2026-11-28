@@ -1,11 +1,11 @@
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 import {NextRequest,NextResponse} from 'next/server';
 const fixture=vi.hoisted(()=>({args:[] as string[],queries:0,bindings:0}));
-vi.mock('@erpx/server-runtime/public/runtime',()=>({holdingBindingBySlug:async(slug:string)=>{
+vi.mock('@erpx/platform-runtime-server/public/runtime',()=>({holdingBindingBySlug:async(slug:string)=>{
  fixture.bindings++;
  return slug==='acme'?{id:'h001'}:{id:'foreign'};
 },holdingResources:async()=>({write:{prepare:()=>({bind:(...args:string[])=>({first:async()=>{fixture.args=args;fixture.queries++;return args.includes('foreign')?null:{id:'company',slug:'company'};}})})}})}));
-import {prepareHoldingRequest} from '../../../packages/workplace/src/holding-proxy';
+import {prepareHoldingRequest} from '../../../platform/workplace/src/holding-proxy';
 const request=(path:string,host='acme.jesadakorn.com')=>new NextRequest(`https://${host}${path}`,{headers:{host,'x-erpx-route-company':'spoofed','x-erpx-front-company':'spoofed'}});
 beforeEach(()=>{fixture.args=[];fixture.queries=0;vi.stubEnv('ERPX_HOLDING_ROUTING','enabled');vi.stubEnv('ERPX_ENVIRONMENT','local');vi.stubEnv('ERPX_PRODUCT_ENVIRONMENT','development');vi.stubEnv('ERPX_APP_ID','service');});afterEach(()=>vi.unstubAllEnvs());
 describe('actual Holding entry resolution',()=>{

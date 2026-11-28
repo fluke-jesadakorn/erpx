@@ -4,22 +4,22 @@
 )]
 #[path = "../../support/finance/review-composition.rs"]
 mod facts;
-use erpx_server_finance::public::journal_review::*;
-use erpx_server_identity_access::public::RequestAudience;
-use erpx_server_runtime::public::postgres::PgTransactionError;
-use erpx_server_shared::public::Clock;
-use erpx_service::finance_journal_review::*;
+use erpx_finance_server::public::journal_review::*;
+use erpx_identity_access_server::public::RequestAudience;
+use erpx_platform_runtime_server::public::postgres::PgTransactionError;
+use erpx_platform_shared_server::public::Clock;
+use erpx_platform_composition::finance_journal_review::*;
 use facts::*;
 use sqlx::PgConnection;
 
 async fn counts(
-    pool: &erpx_server_runtime::public::postgres::DatabasePool,
+    pool: &erpx_platform_runtime_server::public::postgres::DatabasePool,
     key: &str,
 ) -> (i64, i64, i64) {
     sqlx::query_as("SELECT(SELECT count(*)FROM command_receipts WHERE command_id=$1),(SELECT count(*)FROM audit_events WHERE command_id=$1),(SELECT count(*)FROM outbox_events WHERE command_id=$1)").bind(key).fetch_one(pool.raw()).await.unwrap()
 }
 async fn journal(
-    pool: &erpx_server_runtime::public::postgres::DatabasePool,
+    pool: &erpx_platform_runtime_server::public::postgres::DatabasePool,
     id: &str,
 ) -> (String, i64) {
     sqlx::query_as("SELECT status,version::bigint FROM finance_journals WHERE id=$1")
@@ -35,7 +35,7 @@ async fn inactive(c: &mut PgConnection, now: i64) {
 }
 
 async fn blocked_by(
-    observer: &erpx_server_runtime::public::postgres::DatabasePool,
+    observer: &erpx_platform_runtime_server::public::postgres::DatabasePool,
     database: &str,
     blocker: i32,
 ) -> Result<(), tokio::time::error::Elapsed> {
@@ -141,7 +141,7 @@ async fn actual_account_retirement_and_binding_withdrawal_wait_for_financial_com
         let waiting=blocked_by(&p.system.control,&database,pid).await;
         if waiting.is_err(){gate.rollback().await.unwrap();}
         else {
-            let auth=p.system.scenario.auth.clone();let central=erpx_server_identity_access::public::PresentedSecrets {
+            let auth=p.system.scenario.auth.clone();let central=erpx_identity_access_server::public::PresentedSecrets {
                 browser:p.reviewer_central.browser.clone(),active:p.reviewer_central.active.clone(),saved:p.reviewer_central.saved.clone(),
             };
             let control=p.system.control.clone();
@@ -235,7 +235,7 @@ async fn exact_replay_uses_retained_history_but_a_new_request_needs_purchase_and
 #[tokio::test]
 async fn full_finance_purchase_cannot_grant_unproved_foreign_sources_or_production() {
     account::with_system(|system|async move{let p=setup(system).await;p.create("foreign-origin",false).await.unwrap();let pool=&p.system.holdings[0];sqlx::query("UPDATE finance_journals SET source_type='payroll',source_id='unproved-payroll'WHERE id='journal-foreign-origin'").execute(pool.raw()).await.unwrap();business(p.review("journal-foreign-origin","foreign-denied",post()).await,"FINANCE_JOURNAL_SOURCE_UNSUPPORTED");
- let denied=FinanceJournalConfiguration::new(FinanceJournalEnvironment::Production,erpx_server_shared::public::HoldingId::new("h001").unwrap(),erpx_server_shared::public::CompanyId::new("company").unwrap(),std::sync::Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap()));assert!(denied.is_ok());assert_eq!(counts(pool,"foreign-denied").await,(0,0,0));
+ let denied=FinanceJournalConfiguration::new(FinanceJournalEnvironment::Production,erpx_platform_shared_server::public::HoldingId::new("h001").unwrap(),erpx_platform_shared_server::public::CompanyId::new("company").unwrap(),std::sync::Arc::new(erpx_commercial_server::public::purchases::current_package_catalogue().unwrap()));assert!(denied.is_ok());assert_eq!(counts(pool,"foreign-denied").await,(0,0,0));
  }).await;
 }
 
@@ -257,9 +257,9 @@ async fn production_release_guard_waits_for_release_writer_before_denial() {
             .unwrap();
         let config = FinanceJournalConfiguration::new(
             FinanceJournalEnvironment::Production,
-            erpx_server_shared::public::HoldingId::new("h001").unwrap(),
-            erpx_server_shared::public::CompanyId::new("company").unwrap(),
-            std::sync::Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap()),
+            erpx_platform_shared_server::public::HoldingId::new("h001").unwrap(),
+            erpx_platform_shared_server::public::CompanyId::new("company").unwrap(),
+            std::sync::Arc::new(erpx_commercial_server::public::purchases::current_package_catalogue().unwrap()),
         ).unwrap();
         let administration = FinanceJournalReviewAdministration::new(
             p.authorizer.clone(), config, p.system.scenario.clock.clone(),

@@ -6,18 +6,18 @@ import {
   sourceImagesHeadSql,
   lotBalanceRowsHeadSql,
   countAuthorityScopeSql,
-} from '../../../packages/server-inventory/src/adapters/read-tail-sql';
+} from '../../../modules/inventory/server/src/adapters/read-tail-sql';
 import {
   posInitialPhysicalStockSourceImages,
-} from '../../../packages/server-inventory/src/adapters/pos-initial-physical-stock-count-source-sql';
+} from '../../../modules/inventory/server/src/adapters/pos-initial-physical-stock-count-source-sql';
 import {
   manufacturingInitialPhysicalStockSourceImages,
-} from '../../../packages/server-inventory/src/adapters/manufacturing-initial-physical-stock-count-source-sql';
+} from '../../../modules/inventory/server/src/adapters/manufacturing-initial-physical-stock-count-source-sql';
 import {
   serviceInitialPhysicalStockSourceImages,
-} from '../../../packages/server-inventory/src/adapters/service-initial-physical-stock-count-source-sql';
+} from '../../../modules/inventory/server/src/adapters/service-initial-physical-stock-count-source-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-inventory/src');
+const srcRoot = resolve(__dirname, '../../../modules/inventory/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, name), 'utf8');
 const adapter = (name: string) => src(`adapters/${name}`);
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;

@@ -1,10 +1,10 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_finance::public::inventory_consumption::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_finance_server::public::inventory_consumption::*;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, Clock, CompanyId, HoldingId, RecordId, TimestampMillis,
 };
 use serde_json::Value;
@@ -76,8 +76,8 @@ async fn config_is_finance_base_currency_and_mapping_validation_remains_a_separa
  let source=read(&mut tx).await;
  // Execute the actual retained TypeScript owner's SQL template, rather than
  // inventing a new config rule in the Rust fixture. This is a test-only oracle.
- let finance_source=include_str!("../../../packages/server-finance/src/adapters/inventory-consumption-sources.ts");
- let commerce_source=include_str!("../../../packages/server-commerce/src/adapters/inventory-read-projections.ts");
+ let finance_source=include_str!("../../../modules/finance/server/src/adapters/inventory-consumption-sources.ts");
+ let commerce_source=include_str!("../../../modules/commerce/server/src/adapters/inventory-read-projections.ts");
  let projection=commerce_source.split("postingSettings: \"").nth(1).unwrap().split('"').next().unwrap();
  let sql=finance_source.split("db.prepare(`").nth(1).unwrap().split('`').next().unwrap().replace("${inventorycommerceProjection.postingSettings}",projection).replace('?',"$1");
  let original:(String,String,String,String,String)=sqlx::query_as(sqlx::AssertSqlSafe(sql)).bind("company").fetch_one(&mut *tx).await.unwrap();
@@ -243,7 +243,7 @@ async fn exact_numeric_evidence_rejects_a_one_unit_insert_mutation_beyond_f64_pr
 
 #[tokio::test]
 async fn service_parts_finance_witness_checks_mapping_defaults_and_same_unit_drift() {
-    use erpx_server_finance::public::service_parts_posting::{
+    use erpx_finance_server::public::service_parts_posting::{
         ServicePartsPostingMapping, lock_service_parts_posting_references,
         read_service_parts_posting_references,
     };
@@ -301,7 +301,7 @@ async fn service_parts_finance_witness_checks_mapping_defaults_and_same_unit_dri
 
 #[tokio::test]
 async fn service_parts_prerequisite_witness_preserves_original_ordered_sources_and_drift() {
-    use erpx_server_finance::public::service_parts_prerequisites::*;
+    use erpx_finance_server::public::service_parts_prerequisites::*;
     use sqlx::Row;
     fixture::with_database(2,|p|async move {
         setup(&p).await;
@@ -336,8 +336,8 @@ async fn service_parts_prerequisite_witness_preserves_original_ordered_sources_a
 
 #[tokio::test]
 async fn service_parts_prerequisite_lock_waits_before_serializable_snapshot() {
-    use erpx_server_finance::public::service_parts_prerequisites::*;
-    use erpx_server_runtime::public::postgres::{PgUnitOfWork, TransactionOptions};
+    use erpx_finance_server::public::service_parts_prerequisites::*;
+    use erpx_platform_runtime_server::public::postgres::{PgUnitOfWork, TransactionOptions};
     fixture::with_database(3,|p|async move {
         setup(&p).await;let mut writer=p.raw().begin().await.unwrap();
         sqlx::query("UPDATE finance_periods SET name='Committed before read' WHERE id='period'").execute(&mut *writer).await.unwrap();
@@ -353,13 +353,13 @@ async fn service_parts_prerequisite_lock_waits_before_serializable_snapshot() {
 
 #[tokio::test]
 async fn service_prerequisite_finance_writers_verify_insert_and_unrelated_source_drift() {
-    use erpx_server_finance::public::{
+    use erpx_finance_server::public::{
         service_parts_posting::{
             lock_service_parts_prerequisite_finance, read_service_parts_prerequisite_finance,
         },
         service_parts_prerequisites::*,
     };
-    use erpx_server_shared::public::UserId;
+    use erpx_platform_shared_server::public::UserId;
     fixture::with_database(2,|p|async move {
         setup(&p).await;
         let cases=[
@@ -386,7 +386,7 @@ async fn service_prerequisite_finance_writers_verify_insert_and_unrelated_source
 
 #[tokio::test]
 async fn service_prerequisite_finance_ignores_unrelated_sales_defaults() {
-    use erpx_server_finance::public::service_parts_posting::*;
+    use erpx_finance_server::public::service_parts_posting::*;
     fixture::with_database(1,|p|async move {
         setup(&p).await;let mut tx=p.raw().begin().await.unwrap();serial(&mut tx).await;
         sqlx::query("INSERT INTO finance_sales_defaults(id,company_id,chart_id,currency,receivable_account_id,revenue_account_id,status,reason,created_by,version,created_at,updated_at) VALUES('large-unrelated','company','chart','THB','inventory','expense','draft',repeat('x',2097153),'fixture',1,1,1)").execute(&mut *tx).await.unwrap();
@@ -398,7 +398,7 @@ async fn service_prerequisite_finance_ignores_unrelated_sales_defaults() {
 
 #[tokio::test]
 async fn stock_master_finance_witness_and_product_money_preserve_owner_sources() {
-    use erpx_server_finance::public::stock_master_money::*;
+    use erpx_finance_server::public::stock_master_money::*;
     fixture::with_database(2, |p| async move {
         setup(&p).await;
         let company = CompanyId::new("company").unwrap();
@@ -518,7 +518,7 @@ async fn stock_master_finance_witness_and_product_money_preserve_owner_sources()
 
 #[tokio::test]
 async fn asset_acquisition_money_snapshots_use_acquired_date_scale_and_same_unit() {
-    use erpx_server_finance::public::asset_acquisition_money::*;
+    use erpx_finance_server::public::asset_acquisition_money::*;
     fixture::with_database(2, |p| async move {
         setup(&p).await;
         let company=CompanyId::new("company").unwrap();

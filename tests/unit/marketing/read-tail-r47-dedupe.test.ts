@@ -2,15 +2,15 @@ import { describe, it, expect } from 'vitest';
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import ts from 'typescript';
-import { marketingAnalyticsRowsSql } from '../../../packages/server-marketing/src/adapters/analytics-null-scope-rows';
+import { marketingAnalyticsRowsSql } from '../../../modules/marketing/server/src/adapters/analytics-null-scope-rows';
 import {
   marketingEvidenceCandidateRows,
   marketingEvidenceEventRows,
-} from '../../../packages/server-marketing/src/adapters/executive-evidence-rows';
-import { marketingMetricBreakdownSql } from '../../../packages/server-marketing/src/adapters/executive-metric-breakdown-sql';
+} from '../../../modules/marketing/server/src/adapters/executive-evidence-rows';
+import { marketingMetricBreakdownSql } from '../../../modules/marketing/server/src/adapters/executive-metric-breakdown-sql';
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-marketing/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/marketing/server/src/adapters/${name}`, import.meta.url);
 const src = (name: string) => readFile(adapter(name), 'utf8');
 
 // Byte oracles frozen at HEAD 77bc573d300d2b870938de0a5d230464d6488d08 (task
@@ -64,7 +64,7 @@ async function ownerSelectTokens(): Promise<number> {
       else if (entry.name.endsWith('.ts')) total += selectTokens(await readFile(path, 'utf8'));
     }
   };
-  await walk(resolve('packages/server-marketing/src'));
+  await walk(resolve('modules/marketing/server/src'));
   return total;
 }
 

@@ -4,15 +4,15 @@
 //! persisted readback. They do not prove a Next/browser journey, the retained
 //! history pagination/report/accounting reads, provider effects or composition
 //! mounting.
-use erpx_server_pos::public::read::{
+use erpx_pos_server::public::read::{
     PgPosWorkspaceRead, PosReadActor, PosWorkspace, PosWorkspaceEntitlements, PosWorkspaceQuery,
     PosWorkspaceRepository, PosWorkspaceTab, pos_workspace,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabaseConfig, DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, PoolLimits,
     TransactionOptions, connect_pool, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, CompanyId, FailureKind, RecordId, TimestampMillis,
 };
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row, postgres::PgConnectOptions};

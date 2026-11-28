@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
-import { ppRd32TwoColProjection } from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r32-sources';
+import { ppRd32TwoColProjection } from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r32-sources';
 
-const src = (name: string) => readFileSync(new URL(`../../../packages/server-people_payroll/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFileSync(new URL(`../../../modules/people-payroll/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const readOnly = (literal: string) => {
   expect(literal).toContain('SELECT ');
   expect(literal).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
@@ -63,7 +63,7 @@ describe('People Payroll read-tail r32 two-column projection family dedupe', () 
   });
 
   test('worktree SELECT count is strictly lower than the recorded 1409 r31 baseline', () => {
-    const root = new URL('../../../packages/server-people_payroll/src/', import.meta.url);
+    const root = new URL('../../../modules/people-payroll/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {

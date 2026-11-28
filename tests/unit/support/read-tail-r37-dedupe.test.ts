@@ -1,21 +1,21 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
 
 vi.mock('server-only', () => ({}));
-vi.mock('@erpx/server-support/adapters/service-access', () => ({ serviceMember: async () => true }));
-vi.mock('@erpx/server-identity_access/public/iam-person', () => ({
+vi.mock('@erpx/support-server/adapters/service-access', () => ({ serviceMember: async () => true }));
+vi.mock('@erpx/identity-access-server/public/iam-person', () => ({
     currentPersonPrincipals: async () => new Map(),
 }));
 
-const srcRoot = resolve(__dirname, '../../../packages/server-support/src');
+const srcRoot = resolve(__dirname, '../../../modules/support/server/src');
 const src = (f: string) => readFileSync(resolve(srcRoot, f), 'utf8');
 const consumer = src('adapters/service-team-reads.ts');
 const bridge = src('adapters/native-support-read.ts');
 const registry = src('adapters/native_support_read_sql.rs');
 const projectionSource = readFileSync(
-    resolve(__dirname, '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r18-sources.ts'),
+    resolve(__dirname, '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r18-sources.ts'),
     'utf8',
 );
 
@@ -24,7 +24,7 @@ const projection = JSON.parse(projectionSource.match(/PP_RD18_HR_PEOPLE_PROJ_SQL
 const retiredSelect = `SELECT m.user_id,m.responsibility,COALESCE(p.legal_name,m.user_id) name FROM service_team_members m JOIN service_teams t ON t.id=m.team_id AND t.company_id=m.company_id LEFT JOIN (${projection}) p ON p.company_id=m.company_id AND p.user_id=m.user_id AND p.merged_into_id IS NULL WHERE t.id=? AND t.company_id=? AND t.active=1 ORDER BY m.user_id`;
 const rustLiteral = retiredSelect.replaceAll('"', '\\"');
 const orgSource = readFileSync(
-    resolve(__dirname, '../../../packages/server-organization/src/adapters/org-sources.ts'),
+    resolve(__dirname, '../../../modules/organization/server/src/adapters/org-sources.ts'),
     'utf8',
 );
 const orgNodes = 'SELECT "id","kind","slug","display_name","parent_id","company_id","branch_id","status","hierarchy_revision" FROM organization_nodes';
@@ -95,7 +95,7 @@ describe('Support read-tail r37 service-team members named kind', () => {
         process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG = config;
         const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(ok(retiredSelect, ['team-1', 'company']));
         try {
-            const { teamHandlers } = await import('@erpx/server-support/adapters/service-team-reads');
+            const { teamHandlers } = await import('@erpx/support-server/adapters/service-team-reads');
             const scope = { company_id: 'company', branch_id: null, department_id: null } as never;
             await expect(teamHandlers(db, scope, 'team-1')).resolves.toEqual([
                 { user_id: 'u1', responsibility: 'lead', name: 'Support Lead' },
@@ -118,7 +118,7 @@ describe('Support read-tail r37 service-team members named kind', () => {
         const db = { prepare: vi.fn(() => ({ bind: vi.fn() })), batch: vi.fn() } as unknown as SqlDatabase;
         try {
             const { nativeSupportReadAll, SUPPORT_RD_SERVICE_TEAM_MEMBERS_NAMED } =
-                await import('@erpx/server-support/adapters/native-support-read');
+                await import('@erpx/support-server/adapters/native-support-read');
             await expect(nativeSupportReadAll(SUPPORT_RD_SERVICE_TEAM_MEMBERS_NAMED, ['team-1'], db))
                 .rejects.toMatchObject({ status: 422, code: 'SUPPORT_NATIVE_READ_BINDS_INVALID' });
             await expect(nativeSupportReadAll(kind, ['team-1', 'company', 'extra'], db))
@@ -160,7 +160,7 @@ describe('Support read-tail r37 service-team members named kind', () => {
         process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG = config;
         const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(ok(workTeamRetired, values));
         try {
-            const { workTeamCoverageFacts } = await import('@erpx/server-support/adapters/work-team-coverage-facts');
+            const { workTeamCoverageFacts } = await import('@erpx/support-server/adapters/work-team-coverage-facts');
             const actor = { companyId: 'company', userId: 'user', branchId: 'branch', departmentId: 'dept' } as never;
             await expect(workTeamCoverageFacts(db).coveredTeam(actor)).resolves.toEqual({ '1': 1 });
             expect(String(fetchMock.mock.calls[0]![0])).toContain('/support/command-plan');

@@ -2,11 +2,11 @@ import { describe, expect, test, vi } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
-import { ecommerceExistsGuard } from '../../../packages/server-ecommerce/src/adapters/read-tail-sql';
-import { commercialOwnerProjectionSources as commerceProjectionSources } from '../../../packages/server-commerce/src/public/commercial-owner-projection-sources';
-import { commercialOwnerProjectionSources as financeProjectionSources } from '../../../packages/server-finance/src/public/commercial-owner-projection-sources';
+import { ecommerceExistsGuard } from '../../../modules/ecommerce/server/src/adapters/read-tail-sql';
+import { commercialOwnerProjectionSources as commerceProjectionSources } from '../../../modules/commerce/server/src/public/commercial-owner-projection-sources';
+import { commercialOwnerProjectionSources as financeProjectionSources } from '../../../modules/finance/server/src/public/commercial-owner-projection-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-ecommerce/src');
+const srcRoot = resolve(__dirname, '../../../modules/ecommerce/server/src');
 const read = (path: string) => readFileSync(resolve(srcRoot, path), 'utf8');
 const src = read('adapters/ecommerce.ts');
 const po = read('adapters/package-obligations.ts');

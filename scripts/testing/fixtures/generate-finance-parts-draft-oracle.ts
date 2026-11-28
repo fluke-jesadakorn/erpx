@@ -9,25 +9,25 @@ const node=process.env.ERPX_NODE_BIN??'node';
 if(execFileSync(node,['--version'],{encoding:'utf8'}).trim()!=='v26.11.1')throw new Error('PINNED_PARTS_NODE_REQUIRED');
 const template=String.raw`// Development-only exact B0 application execution with explicit fact/effect
 // ports. This proves control-flow/error order, not database or authority parity.
-import {createInventoryConsumptionApplication} from "../../../../packages/server-inventory/src/application/consumption";
-import {createJournalPreparation} from "../../../../packages/server-finance/src/application/journal";
-import {createCompanyMoney} from "../../../../packages/server-finance/src/application/company-money";
-import {createFunctionalFx} from "../../../../packages/server-finance/src/application/functional-fx";
+import {createInventoryConsumptionApplication} from "../../../../modules/inventory/server/src/application/consumption";
+import {createJournalPreparation} from "../../../../modules/finance/server/src/application/journal";
+import {createCompanyMoney} from "../../../../modules/finance/server/src/application/company-money";
+import {createFunctionalFx} from "../../../../modules/finance/server/src/application/functional-fx";
 import {createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
 import {execFileSync} from "node:child_process";
 const sourceCommit="a5ed8737a2f05eff1ee9841fda4a094b3926d732";
 if(process.version!=="v26.11.1")throw Error("PINNED_NODE_REQUIRED");
 const paths=[
- "packages/server-inventory/src/application/consumption.ts",
- "packages/server-finance/src/application/journal.ts",
- "packages/server-finance/src/application/company-money.ts",
- "packages/server-finance/src/application/functional-fx.ts",
- "packages/server-finance/src/domain/finance-policy.ts",
- "packages/server-finance/src/domain/company-money.ts",
- "packages/feature-finance/src/lib/finance-money.ts",
- "packages/feature-finance/src/lib/company-money.ts",
- "packages/feature-commerce/src/lib/commerce-math.ts",
+ "modules/inventory/server/src/application/consumption.ts",
+ "modules/finance/server/src/application/journal.ts",
+ "modules/finance/server/src/application/company-money.ts",
+ "modules/finance/server/src/application/functional-fx.ts",
+ "modules/finance/server/src/domain/finance-policy.ts",
+ "modules/finance/server/src/domain/company-money.ts",
+ "modules/finance/ui/src/lib/finance-money.ts",
+ "modules/finance/ui/src/lib/company-money.ts",
+ "modules/commerce/ui/src/lib/commerce-math.ts",
 ];
 const sources=paths.map(path=>{
  const original=execFileSync("git",["show",sourceCommit+":"+path]);

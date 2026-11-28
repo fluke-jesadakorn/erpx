@@ -3,11 +3,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import type { WorkContext } from '@erpx/server-identity_access/domain/authorization';
-import { nativeFinanceAging } from '../../../packages/server-finance/src/public/finance-invoice-read';
+import type { WorkContext } from '@erpx/identity-access-server/domain/authorization';
+import { nativeFinanceAging } from '../../../modules/finance/server/src/public/finance-invoice-read';
 
 const routePath = new URL(
-  '../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts',
+  '../../../platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts',
   import.meta.url,
 );
 const actor = {
@@ -71,7 +71,7 @@ describe('finance catch-all aging cutover', () => {
     expect(branch).toContain('nativeFinanceAging(');
     expect(branch).not.toMatch(/await aging\(|financeReadService|agingBalances|purchasedFinanceRead/);
     expect(branch).not.toMatch(/\bSELECT\b|\bINSERT\b|\bUPDATE\b|\bDELETE\b/);
-    const ownerImport = lines.find((line) => line.includes('@erpx/server-finance/public/finance\''));
+    const ownerImport = lines.find((line) => line.includes('@erpx/finance-server/public/finance\''));
     expect(ownerImport).toBeDefined();
     expect(ownerImport).not.toMatch(/\baging,/);
   });

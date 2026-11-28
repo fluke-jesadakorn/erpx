@@ -6,19 +6,19 @@ use std::{
     time::{Duration, Instant},
 };
 
-use erpx_server_legal::public::{
+use erpx_legal_server::public::{
     ApprovedCompanyTrustMaterial, AuthorizedPdfSnapshot, BoundedPdfVerifier, PDF_BUSINESS_LIMIT,
     PdfProcessLimits, PdfVerificationEvidence, PdfVerificationFailure, PdfVerificationJob,
     PdfVerificationRepository, PdfVerifierProcess, TrustMaterialKind, TrustMaterialState,
     ValidationState, inspect_company_pdf_for_processing, verify_company_pdf,
 };
-use erpx_server_shared::public::{Clock, CompanyId, HoldingId, RecordId, TimestampMillis, UserId};
+use erpx_platform_shared_server::public::{Clock, CompanyId, HoldingId, RecordId, TimestampMillis, UserId};
 use sha2::{Digest, Sha256};
 use tempfile::TempDir;
 
 // Exact same-owner private decision source; no runtime testing/authority export.
 #[cfg(target_os = "macos")]
-#[path = "../../../packages/server-legal/src/adapters/pdf_process/memory_observation.rs"]
+#[path = "../../../modules/legal/server/src/adapters/pdf_process/memory_observation.rs"]
 mod memory_observation;
 
 fn record(value: &str) -> RecordId {
@@ -399,7 +399,7 @@ async fn required_path_proof_is_distinct_from_the_legacy_soft_diagnostic() {
 
 #[tokio::test]
 async fn child_protocol_refuses_valid_without_explicit_required_path_proof() {
-    use erpx_server_legal::public::{OperatorTrustStore, TrustMaterial, validate_signed_pdf};
+    use erpx_legal_server::public::{OperatorTrustStore, TrustMaterial, validate_signed_pdf};
     let corpus: serde_json::Value = serde_json::from_str(include_str!(
         "../../../fixtures/legal/pdf-signatures/conformance.v1.json"
     ))
@@ -877,12 +877,12 @@ fn operator_configuration_cannot_raise_ceilings_or_use_a_public_temp_root() {
 async fn a_reduced_pdf_lease_budget_kills_and_reaps_before_returning() {
     let root = private_tempdir();
     let worker = verifier(helper(), root.path(), 5000, 2 * 1024 * 1024);
-    assert!(erpx_server_legal::public::PdfComputeBudget::new(90_001).is_err());
+    assert!(erpx_legal_server::public::PdfComputeBudget::new(90_001).is_err());
     let result = worker
         .verify_with_budget(
             snapshot(b"sleep"),
             FixedClock.now(),
-            erpx_server_legal::public::PdfComputeBudget::new(300).unwrap(),
+            erpx_legal_server::public::PdfComputeBudget::new(300).unwrap(),
         )
         .await;
     assert!(matches!(result, Err(PdfVerificationFailure::WorkerTimeout)));
@@ -907,7 +907,7 @@ async fn an_adapter_without_reduced_deadline_support_refuses_instead_of_ignoring
             .verify_with_budget(
                 snapshot(b"data"),
                 FixedClock.now(),
-                erpx_server_legal::public::PdfComputeBudget::new(300).unwrap()
+                erpx_legal_server::public::PdfComputeBudget::new(300).unwrap()
             )
             .await,
         Err(PdfVerificationFailure::WorkerTimeout)
@@ -918,7 +918,7 @@ async fn an_adapter_without_reduced_deadline_support_refuses_instead_of_ignoring
             .verify_with_budget(
                 snapshot(b"data"),
                 FixedClock.now(),
-                erpx_server_legal::public::PdfComputeBudget::maximum()
+                erpx_legal_server::public::PdfComputeBudget::maximum()
             )
             .await,
         Err(PdfVerificationFailure::WorkerUnavailable)

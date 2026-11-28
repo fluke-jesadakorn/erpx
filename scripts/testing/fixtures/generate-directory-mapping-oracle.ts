@@ -3,7 +3,7 @@ import {execFileSync} from 'node:child_process';
 import {mkdir,readFile,writeFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import ts from 'typescript';
-const path='packages/server-identity_access/src/application/iam-grants.ts';
+const path='modules/identity-access/server/src/application/iam-grants.ts';
 const baseline='a5ed8737a2f05eff1ee9841fda4a094b3926d732';
 const bytes=await readFile(path);if(!bytes.equals(execFileSync('git',['show',`${baseline}:${path}`])))throw Error('B0_GRANT_POLICY_CHANGED');
 const ast=ts.createSourceFile(path,bytes.toString(),ts.ScriptTarget.Latest,true);

@@ -1,12 +1,12 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_platform_administration::public::legal_release::*;
-use erpx_server_pms::public::scheduled_legal::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_administration_server::public::legal_release::*;
+use erpx_pms_server::public::scheduled_legal::*;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, TimestampMillis};
 use sqlx::Connection;
 type Error = PgTransactionError<BusinessError>;
 const ARTIFACT: &str = "synthetic-native-release";

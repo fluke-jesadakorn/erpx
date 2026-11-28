@@ -2,14 +2,14 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { commandReceiptsProjectionSql } from '../../../packages/server-workflow/src/adapters/closed-projection-sources';
+import { commandReceiptsProjectionSql } from '../../../modules/workflow/server/src/adapters/closed-projection-sources';
 import {
   commandReceiptByCommandSql,
   receiptRecordIdSql,
   exportReceiptResultSql,
-} from '../../../packages/server-workflow/src/adapters/receipt-sql';
+} from '../../../modules/workflow/server/src/adapters/receipt-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-workflow/src');
+const srcRoot = resolve(__dirname, '../../../modules/workflow/server/src');
 const src = (rel: string) => readFile(resolve(srcRoot, rel), 'utf8');
 
 /** Byte oracle captured from HEAD 0146e08219e796645b1706246be7c86eeacc42d6 before the r49 dedupe. */

@@ -1,21 +1,21 @@
 import { afterEach,beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
-import {projectSchema} from '@erpx/server-operations/public/staff-tasks';
-import { listProjectMilestones } from "@erpx/server-projects/public/project-milestones";
+import {projectSchema} from '@erpx/operations-server/public/staff-tasks';
+import { listProjectMilestones } from "@erpx/projects-server/public/project-milestones";
 import {
   listProjectCostAllocations,
   listProjectCostSources,
   listProjectWorkLogs,
-} from "@erpx/server-projects/public/project-actuals";
-import { queryMetric } from "@erpx/server-runtime/public/executive/metrics";
-import { readExecutiveEvidence, searchExecutiveEvidence } from "@erpx/server-runtime/public/executive/evidence";
-import { createReport, saveReport, saveShare, saveSchema } from "@erpx/server-runtime/public/executive/reports";
-import { defaultFilters, definitionSchema, emptyDefinition, shareSchema } from "@erpx/feature-shared/lib/executive/canvas";
+} from "@erpx/projects-server/public/project-actuals";
+import { queryMetric } from "@erpx/platform-runtime-server/public/executive/metrics";
+import { readExecutiveEvidence, searchExecutiveEvidence } from "@erpx/platform-runtime-server/public/executive/evidence";
+import { createReport, saveReport, saveShare, saveSchema } from "@erpx/platform-runtime-server/public/executive/reports";
+import { defaultFilters, definitionSchema, emptyDefinition, shareSchema } from "@erpx/platform-shared-ui/lib/executive/canvas";
 import {enableAttachmentV2ForTest} from "../../support/helpers/attachment-v2";
 import {completeMilestone, seedCostAllocation, seedMilestone, seedProjectFor, seedWorkLog} from "./project-actual-fixtures";
 
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
 
 let f: Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async () => { enableAttachmentV2ForTest();await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });

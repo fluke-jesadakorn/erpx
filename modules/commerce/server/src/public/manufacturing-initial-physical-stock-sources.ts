@@ -1,0 +1,1 @@
+export {manufacturingInitialPhysicalStockCommerceSource,manufacturingInitialPhysicalStockCommerceLocks,initialPhysicalStockMasterChoices,initialPhysicalStockMasterSource} from '@erpx/commerce-server/adapters/manufacturing-initial-physical-stock-sources';

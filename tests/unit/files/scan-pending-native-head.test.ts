@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { scanPendingSql } from '../../../packages/server-files/src/adapters/scan-pending-dedupe-sql';
+import { scanPendingSql } from '../../../modules/files/server/src/adapters/scan-pending-dedupe-sql';
 
 const rootDir = resolve(__dirname, '../../..');
-const srcRoot = resolve(rootDir, 'packages/server-files/src');
+const srcRoot = resolve(rootDir, 'modules/files/server/src');
 const src = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
 
 /** The retired TypeScript literal, pinned byte-exact from before the cut. */

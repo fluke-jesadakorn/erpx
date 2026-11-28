@@ -5,11 +5,11 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { byKey } from '../../../packages/server-sales/src/adapters/by-key';
-import { tableRead } from '../../../packages/server-sales/src/adapters/followup-source-sql';
-import { pointRead } from '../../../packages/server-sales/src/adapters/point-read';
+import { byKey } from '../../../modules/sales/server/src/adapters/by-key';
+import { tableRead } from '../../../modules/sales/server/src/adapters/followup-source-sql';
+import { pointRead } from '../../../modules/sales/server/src/adapters/point-read';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-sales/src');
+const srcRoot = resolve(__dirname, '../../../modules/sales/server/src');
 const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const pointReadSource = read('point-read.ts');
 const followupSource = read('followup-source-sql.ts');
@@ -104,9 +104,9 @@ describe('Sales read-tail r34 retirement check', () => {
     expect(pointReadSource).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
     expect(purchases).toContain('LOCK TABLE customer_followups,customer_followup_events IN SHARE ROW EXCLUSIVE MODE');
     expect(obligations).toContain('LOCK TABLE sales_price_lists,sales_price_list_items,customer_followups,customer_followup_events,customer_contact_notes,customer_contact_note_history,commerce_customer_notifications,commerce_customer_notification_settings,sales_notification_execution_authorizations,sales_notification_execution_attempts,sales_notification_reconciliations,command_receipts,audit_events IN SHARE MODE');
-    expect(followupSource).not.toContain('@erpx/server-people_payroll/public/commercial-owner-projection-sources');
+    expect(followupSource).not.toContain('@erpx/people-payroll-server/public/commercial-owner-projection-sources');
     expect(followupSource).not.toContain('export const clockNowMs=');
-    expect(followupSource).not.toContain('@erpx/server-commercial/public/purchased-capability-sql');
+    expect(followupSource).not.toContain('@erpx/commercial-server/public/purchased-capability-sql');
     expect(followupSource).toContain('export const authorityScopeRead=');
     expect(followupSource).not.toContain('export const clockNowMs=');
     expect(native).toContain('export const SALES_RD_PRICE_LIST_ACTIVE');

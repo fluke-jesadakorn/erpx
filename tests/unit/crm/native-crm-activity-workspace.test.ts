@@ -6,7 +6,7 @@ import {
   createNativeCrmActivityWorkspaceClient,
   nativeCrmActivityWorkspaceConfiguration,
   NativeCrmActivityWorkspaceError,
-} from '../../../packages/server-crm/src/adapters/native-activity-workspace';
+} from '../../../modules/crm/server/src/adapters/native-activity-workspace';
 
 const config = JSON.stringify({
   privateBaseUrl: 'http://127.0.0.1:44997',
@@ -188,7 +188,7 @@ describe('native CRM activity workspace strict client', () => {
  *  crm_activity_workspace unit test); the replaced TS reader and its transport
  *  carry no SQL, no fallback and no new owner statements. */
 describe('CRM activity workspace TS authority retirement', () => {
-  const owner = resolve(__dirname, '../../../packages/server-crm/src');
+  const owner = resolve(__dirname, '../../../modules/crm/server/src');
   const src = (name: string) => readFileSync(resolve(owner, 'adapters', name), 'utf8');
   const sql = /SELECT\s|INSERT\s+INTO|DELETE\s+FROM|UPDATE\s+[a-z_]+\s+SET/i;
 

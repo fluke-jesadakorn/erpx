@@ -1,0 +1,39 @@
+import { finalRootOwnerProjectionSources as commerceProjectionSources } from "@erpx/commerce-server/public/final-root-owner-projection-sources";
+import {assignmentEligibilityExists,assignmentSource} from './assignment-eligibility-source';
+import {accessBindingOrderProjection} from './customer-authority-read-tail-r26-sources';
+import "server-only";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
+import type {SqlDatabase} from "@erpx/platform-runtime-server/public/runtime/types";
+import type {Row} from '@erpx/commerce-server/public/commerce';
+import {holdingResources} from "../../../../../platform/runtime/server/src/public/runtime";
+import {requirePermission} from "@erpx/identity-access-server/public/iam-permissions";
+import {hasPermission} from "@erpx/identity-access-ui/lib/permissions";
+import {ApiError} from "@erpx/platform-runtime-server/public/http";
+import {salesRecipientEligibility} from "@erpx/sales-server/public/sales-recipient";
+import {createCustomerAccessApplication,type AccessRepository} from "@erpx/customer-authority-server/application/access";
+import {CA_RD_ACCESS_EVENTS,CA_RD_ACCESS_IDENTITIES,CA_RD_ACCESS_READS,CA_RD_ACCESS_SOURCES,nativeOwnerReadAll} from './native-owner-read';
+import {requireCustomerAccessPurchasedRead,customerAccessPurchaseControls} from '@erpx/customer-authority-server/adapters/portal-purchases';
+/**
+ * Retained read projections only. The customer access request/change commands
+ * are native-owned (`CustomerAccessHttpCommand::Request|Change`); this module
+ * keeps the bounded workspace/detail/history/work reads consumed by presenters,
+ * Work projection and staff notifications until their native read survives.
+ */
+const scope="o.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?)";
+const args=(a:WorkContext)=>[a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId];
+const eligible=salesRecipientEligibility().replaceAll('c.owner_id','m.user_id');
+const reviewers=`m.company_id=o.company_id AND m.user_id<>b.created_by AND iam_assignment_active(m.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(m.role,m.company_id,'commerce.approve') AND (m.scope_kind='holding' OR (m.scope_kind='branch' AND m.scope_node_id=o.branch_id) OR (m.scope_kind='department' AND m.scope_node_id=o.department_id)) AND ${eligible}`;
+const actorEligible=`CASE WHEN ${assignmentEligibilityExists(`m WHERE ${reviewers} AND m.user_id=?`)} THEN 1 ELSE 0 END actor_eligible`;
+function ports(a:WorkContext) { return {actorId:a.userId,companyScope:!a.branchId&&!a.departmentId,require:(permission:"commerce.read"|"commerce.sales"|"commerce.approve")=>requirePermission(a,permission),canApprove:()=>hasPermission(a,'commerce.approve'),canSales:()=>hasPermission(a,'commerce.sales'),canRead:()=>hasPermission(a,'commerce.read'),clock:{now:()=>Date.now()},error:(status:number,code:string,message:string)=>new ApiError(status,code,message)}; }
+function repository(a:WorkContext,write:SqlDatabase):AccessRepository { return {
+ binding:id=>write.prepare(accessBindingOrderProjection(commerceProjectionSources.commerce_orders,`o.branch_id,o.department_id,${actorEligible}`,`WHERE b.id=? AND ${scope}`)).bind(a.userId,id,...args(a)).first<Row>(),
+ rows:async()=> (await write.prepare(accessBindingOrderProjection(commerceProjectionSources.commerce_orders,`${actorEligible},(${assignmentSource('COUNT(DISTINCT m.user_id)')} m WHERE ${reviewers}) reviewers`,`WHERE ${scope} ORDER BY b.updated_at DESC,b.id`)).bind(a.userId,...args(a)).all<Row>()).results,
+ sources:async()=> (await nativeOwnerReadAll<Row>(CA_RD_ACCESS_SOURCES,args(a),write,a.holdingSlug)).results,
+ events:async id=>(await nativeOwnerReadAll<Row>(CA_RD_ACCESS_EVENTS,[id],write,a.holdingSlug)).results,
+ reads:async id=>(await nativeOwnerReadAll<Row>(CA_RD_ACCESS_READS,[id],write,a.holdingSlug)).results,
+ }; }
+function application(a:WorkContext,write?:SqlDatabase) { return createCustomerAccessApplication({...ports(a),repository:async()=>repository(a,write??(await holdingResources(a.holdingId)).write)}); }
+export async function customerAccessBinding(a:WorkContext,id:string){requirePermission(a,'commerce.read');requirePermission(a,'commerce.sales');const write=(await holdingResources(a.holdingId)).write;await requireCustomerAccessPurchasedRead(write,a,id);const [row,identity]=await Promise.all([application(a,write).customerAccessBinding(id),nativeOwnerReadAll<Row>(CA_RD_ACCESS_IDENTITIES,[id],write,a.holdingSlug).then(result=>result.results[0])]),purchase=await customerAccessPurchaseControls(write,a);return {...row,canInvite:Boolean(row.canInvite&&!identity),...(purchase?{canReview:row.canReview&&purchase.newWork,canReject:row.canReview&&purchase.settleExisting,canRevoke:row.canRevoke&&purchase.settleExisting}: {})};}
+export async function customerAccessWorkspace(a:WorkContext){requirePermission(a,'commerce.read');requirePermission(a,'commerce.sales');const write=(await holdingResources(a.holdingId)).write;await requireCustomerAccessPurchasedRead(write,a);const workspace=await application(a,write).customerAccessWorkspace(),purchase=await customerAccessPurchaseControls(write,a);return {...workspace,...(purchase?{rows:workspace.rows.map(row=>({...row,canReview:row.canReview&&purchase.newWork,canReject:row.canReview&&purchase.settleExisting,canRevoke:row.canRevoke&&purchase.settleExisting})),sources:purchase.newWork?workspace.sources:[],purchase}: {})};}
+export async function customerAccessHistory(a:WorkContext,id:string){const binding=await customerAccessBinding(a,id),write=(await holdingResources(a.holdingId)).write,purchase=await customerAccessPurchaseControls(write,a);return {...await application(a,write).customerAccessHistory(id),binding,...(purchase?{purchase}: {})};}
+export async function customerAccessWork(a:WorkContext){if(!hasPermission(a,'commerce.sales')||!hasPermission(a,'commerce.read'))return [];const write=(await holdingResources(a.holdingId)).write,purchase=await customerAccessPurchaseControls(write,a).catch(error=>{if(error instanceof ApiError&&error.status===403)return {newWork:false,settleExisting:false,history:false,revision:'unavailable'};throw error;});if(purchase&&!purchase.history)return [];const items=await application(a,write).customerAccessWork();return purchase&&!purchase.newWork?items.map(item=>({...item,canAct:false,queue:item.queue==='completed'?'completed' as const:'waiting' as const,relationships:(item.relationships??[]).filter(value=>value!=='approval')})):items;}

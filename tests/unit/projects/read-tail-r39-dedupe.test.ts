@@ -2,12 +2,12 @@ import { describe, expect, test } from 'vitest';
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { scopeBindProjection, projectPointReadSql } from '../../../packages/server-projects/src/adapters/read-tail-r39';
-import { projectAssignmentScopeSql } from '../../../packages/server-projects/src/adapters/package-obligations';
-import { projectAssignmentAuthorityReadSql } from '../../../packages/server-projects/src/adapters/read-tail-r23';
-import { projectMemberScopeGuard } from '../../../packages/server-projects/src/adapters/project-read-projections';
+import { scopeBindProjection, projectPointReadSql } from '../../../modules/projects/server/src/adapters/read-tail-r39';
+import { projectAssignmentScopeSql } from '../../../modules/projects/server/src/adapters/package-obligations';
+import { projectAssignmentAuthorityReadSql } from '../../../modules/projects/server/src/adapters/read-tail-r23';
+import { projectMemberScopeGuard } from '../../../modules/projects/server/src/adapters/project-read-projections';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-projects/src');
+const srcRoot = resolve(__dirname, '../../../modules/projects/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 // Verbatim rendered fragments captured from HEAD before the r39 edits.

@@ -8,23 +8,23 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_files::public::field_visit_upload::LocalFieldQuarantineWriter;
-use erpx_server_files::public::project_attachment_intake::{
+use erpx_files_server::public::field_visit_upload::LocalFieldQuarantineWriter;
+use erpx_files_server::public::project_attachment_intake::{
     ProjectAttachmentFileRequest, ProjectAttachmentIntakeAvailability,
     ProjectAttachmentSetRequest, complete_project_attachment_upload,
     create_project_attachment_set, project_attachment_upload_status,
     reserve_project_attachment_file,
 };
-use erpx_server_files::public::project_attachment::{
+use erpx_files_server::public::project_attachment::{
     ProjectAttachmentScanRead, bind_project_attachment_with_current_facts,
 };
-use erpx_server_projects::public::project_attachment::{
+use erpx_projects_server::public::project_attachment::{
     ProjectAttachmentActor, ProjectAttachmentBindingCommand,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, TimestampMillis};
 
 const NOW: i64 = 1_800_000_000_000;
 const HOLDING: &str = "h001";

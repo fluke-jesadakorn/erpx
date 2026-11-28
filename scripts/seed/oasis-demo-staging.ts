@@ -4,9 +4,9 @@ import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import { Pool } from 'pg';
 import { hashPassword } from 'better-auth/crypto';
-import { businessRoles } from '@erpx/feature-identity_access/lib/business-roles';
-import { migrateDatabase } from '@erpx/server-runtime/adapters/runtime/migrations';
-import { PostgresDatabase } from '@erpx/server-runtime/adapters/runtime/postgres';
+import { businessRoles } from '@erpx/identity-access-ui/lib/business-roles';
+import { migrateDatabase } from '@erpx/platform-runtime-server/adapters/runtime/migrations';
+import { PostgresDatabase } from '@erpx/platform-runtime-server/adapters/runtime/postgres';
 import { seedOasisInterview } from '../../fixtures/sales/builders/oasis-interview';
 
 const scopeNames = ['control', 'h001', 'h002'] as const;

@@ -4,11 +4,11 @@ import { applyMigrations, env } from "../../support/runtime-env";
 import {
   deliverAccountInvitation,
   promoteAccountInvitationDeliveries,
-} from "@erpx/server-identity_access/public/account-invitation-delivery";
-import { sendBetaEmail } from "@erpx/server-manage_erpx/public/beta-email";
-import { accountInvitationList } from "@erpx/server-identity_access/public/account-invitation-list";
-import { setInvitationListForTest } from "@erpx/server-identity_access/adapters/account-invitation-list";
-import type { AccountInvitationListItem } from "@erpx/server-identity_access/domain/account-invitation-list";
+} from "@erpx/identity-access-server/public/account-invitation-delivery";
+import { sendBetaEmail } from "@erpx/manage-erpx-server/public/beta-email";
+import { accountInvitationList } from "@erpx/identity-access-server/public/account-invitation-list";
+import { setInvitationListForTest } from "@erpx/identity-access-server/adapters/account-invitation-list";
+import type { AccountInvitationListItem } from "@erpx/identity-access-server/domain/account-invitation-list";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
 
 const control = env.CONTROL_DB;

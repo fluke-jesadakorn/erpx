@@ -14,11 +14,11 @@ import {describe,it,expect,vi} from 'vitest';
  * replaces it. No SQL-plan/`include_str!` fragment is accepted as execution.
  */
 
-const ROUTE = 'packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/stock-counts/[[...path]]/route.ts';
-const RUST_HTTP = 'src/composition/src/inventory_count_http.rs';
-const RUST_COMMANDS = 'src/composition/src/inventory_count_commands.rs';
-const RUST_SQL = 'packages/server-inventory/src/adapters/counts.rs';
-const TS_CLIENT = 'packages/feature-inventory/src/lib/native-stock-count-command.ts';
+const ROUTE = 'platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/stock-counts/[[...path]]/route.ts';
+const RUST_HTTP = 'platform/composition/src/inventory_count_http.rs';
+const RUST_COMMANDS = 'platform/composition/src/inventory_count_commands.rs';
+const RUST_SQL = 'modules/inventory/server/src/adapters/counts.rs';
+const TS_CLIENT = 'modules/inventory/ui/src/lib/native-stock-count-command.ts';
 
 /**
  * Exact deletion packet for the generic transition family. The catch-all still
@@ -33,16 +33,16 @@ const APP_REEXPORTS = [
   'apps/supply/src/app/api/v1/holdings/[holdingSlug]/stock-counts/[[...path]]/route.ts',
 ];
 const CALLERS_TO_MOVE = [
-  'packages/feature-inventory/src/components/use-count-command.ts',
+  'modules/inventory/ui/src/components/use-count-command.ts',
 ];
 /** Retained legacy: the helper is still authoritative for two other route
  * families outside this claim. Its owner functions are NOT cut over here. */
 const RETAINED_TS_AUTHORITY = [
   {
-    path: 'packages/feature-inventory/src/lib/native-stock-count-command.ts:311',
+    path: 'modules/inventory/ui/src/lib/native-stock-count-command.ts:311',
     consumers: [
-      'packages/feature-pos/src/routes/api/v1/holdings/[holdingSlug]/pos/initial-physical-stock/[[...path]]/route.ts:5,29',
-      'packages/feature-manufacturing/src/routes/api/v1/holdings/[holdingSlug]/production/initial-physical-stock/[[...path]]/route.ts:5,31',
+      'modules/pos/ui/src/routes/api/v1/holdings/[holdingSlug]/pos/initial-physical-stock/[[...path]]/route.ts:5,29',
+      'modules/manufacturing/ui/src/routes/api/v1/holdings/[holdingSlug]/production/initial-physical-stock/[[...path]]/route.ts:5,31',
     ],
     testOracle: 'tests/unit/inventory/initial-physical-stock-client.test.ts:167',
     removalTaskIds: ['migrate.pos', 'migrate.manufacturing'],
@@ -254,7 +254,7 @@ describe('exact route-deletion packet for the generic transition branch', () => 
     }
     for (const path of APP_REEXPORTS) {
       expect(read(path)).toContain(
-        'export { GET, POST } from "@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/stock-counts/[[...path]]/route"',
+        'export { GET, POST } from "@erpx/platform-workplace/routes/api/v1/holdings/[holdingSlug]/stock-counts/[[...path]]/route"',
       );
     }
     expect(read(CALLERS_TO_MOVE[0]!)).toContain('`/api/v1${base}/stock-counts${attempt.path}`');

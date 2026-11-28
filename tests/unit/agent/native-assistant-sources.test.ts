@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const owner = new URL(
-  '../../../packages/server-agent/src/adapters/native_assistant_sources/',
+  '../../../modules/agent/server/src/adapters/native_assistant_sources/',
   import.meta.url,
 );
 const read = (name: string) => readFileSync(new URL(name, owner), 'utf8');

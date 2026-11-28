@@ -2,9 +2,9 @@ import { describe, expect, test } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { FIELD_LINK_EXISTS_SQL } from '../../../packages/server-files/src/adapters/read-tail-r33-source-sql';
+import { FIELD_LINK_EXISTS_SQL } from '../../../modules/files/server/src/adapters/read-tail-r33-source-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-files/src');
+const srcRoot = resolve(__dirname, '../../../modules/files/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const literalSelectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
 const selectCount = (text: string) => (text.match(/SELECT\s/g) ?? []).length;
@@ -33,7 +33,7 @@ describe('Files read-tail r33 parameterized family', () => {
 
   test('advisory locks, native writes and r1-r32 helpers stay untouched', () => {
     const head = (p: string) => execFileSync('git', ['show', `HEAD:${p}`], { encoding: 'utf8' });
-    const sr = 'packages/server-files/src/adapters/attachments/service-repository.ts';
+    const sr = 'modules/files/server/src/adapters/attachments/service-repository.ts';
     expect(head(sr)).toContain('const advisoryLockSql = "SELECT pg_advisory_xact_lock(hashtextextended(?,0))"');
     expect(head(sr)).toContain('const setLockSql = "SELECT state FROM attachment_sets WHERE id=? AND company_id=? FOR UPDATE"');
     expect(src('attachments/service-repository.ts')).toContain('const advisoryLockSql = "SELECT pg_advisory_xact_lock(hashtextextended(?,0))"');
@@ -43,7 +43,7 @@ describe('Files read-tail r33 parameterized family', () => {
       'read-tail-r28-source-sql.ts', 'read-tail-r29-source-sql.ts', 'read-tail-r30-source-sql.ts',
       'read-tail-r31-source-sql.ts', 'read-tail-r32-source-sql.ts',
     ]) {
-      const p = `packages/server-files/src/adapters/${h}`;
+      const p = `modules/files/server/src/adapters/${h}`;
       expect(execFileSync('git', ['rev-parse', `HEAD:${p}`], { encoding: 'utf8' }).trim())
         .toBe(execFileSync('git', ['hash-object', p], { encoding: 'utf8' }).trim());
     }

@@ -1,4 +1,4 @@
-use erpx_server_legal::public::{
+use erpx_legal_server::public::{
     BoundedDocumentExtractor, DocumentExtractionFailure as Failure, DocumentExtractionInput,
     DocumentExtractionSource, DocumentExtractor, DocumentProcessLimits, DocumentToolConfiguration,
     ExtractionStatus, LegalDocumentMediaType,
@@ -163,7 +163,7 @@ async fn authored_inline_text_has_its_own_source_and_never_launches_a_file_parse
     assert_eq!(report.text, body);
     assert_eq!(
         report.method,
-        Some(erpx_server_legal::public::ExtractionMethod::Inline)
+        Some(erpx_legal_server::public::ExtractionMethod::Inline)
     );
     assert!(!report.page_mapping);
     assert!(report.requires_review);
@@ -189,7 +189,7 @@ async fn reduced_lease_budget_is_owned_by_the_supervisor_until_nested_cleanup_fi
         worker
             .extract_with_budget(
                 input(b"nested"),
-                erpx_server_legal::public::DocumentComputeBudget::new(500).unwrap()
+                erpx_legal_server::public::DocumentComputeBudget::new(500).unwrap()
             )
             .await
             .unwrap_err(),

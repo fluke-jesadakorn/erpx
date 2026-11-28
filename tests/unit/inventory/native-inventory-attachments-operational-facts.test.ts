@@ -1,7 +1,7 @@
 import {describe,it,expect,vi,beforeEach,afterEach} from 'vitest';
 vi.mock('server-only',()=>({}));
-import {OperationalAttachmentInventoryFacts} from '../../../packages/server-inventory/src/adapters/attachments-operational-facts';
-import {INVENTORY_RD_ATTACHMENT_OPERATIONAL_TRANSFER} from '../../../packages/server-inventory/src/adapters/native-inventory-read';
+import {OperationalAttachmentInventoryFacts} from '../../../modules/inventory/server/src/adapters/attachments-operational-facts';
+import {INVENTORY_RD_ATTACHMENT_OPERATIONAL_TRANSFER} from '../../../modules/inventory/server/src/adapters/native-inventory-read';
 
 describe('native Inventory attachments-operational-facts caller-unit read',()=>{
   const envKey='ERPX_NATIVE_INVENTORY_CONFIG';

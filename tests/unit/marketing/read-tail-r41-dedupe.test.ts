@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { marketingCompanyListSql } from '../../../packages/server-marketing/src/adapters/marketing-company-list-sql';
-import { marketingClockedReportFrameSql } from '../../../packages/server-marketing/src/adapters/marketing-clocked-report-frame';
-import { marketingPurchaseUnionSql } from '../../../packages/server-marketing/src/adapters/marketing-purchase-union-sql';
+import { marketingCompanyListSql } from '../../../modules/marketing/server/src/adapters/marketing-company-list-sql';
+import { marketingClockedReportFrameSql } from '../../../modules/marketing/server/src/adapters/marketing-clocked-report-frame';
+import { marketingPurchaseUnionSql } from '../../../modules/marketing/server/src/adapters/marketing-purchase-union-sql';
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-marketing/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/marketing/server/src/adapters/${name}`, import.meta.url);
 const src = (name: string) => readFile(adapter(name), 'utf8');
-const srcRoot = resolve('packages/server-marketing/src');
+const srcRoot = resolve('modules/marketing/server/src');
 
 // Byte oracles captured from the original emitters before dedupe.
 const assetList = 'SELECT * FROM marketing_assets WHERE company_id=? ORDER BY updated_at DESC';

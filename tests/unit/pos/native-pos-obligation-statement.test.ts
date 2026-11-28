@@ -4,7 +4,7 @@ import {
   nativePosAddonObligationsStatement,
   nativePosPackageObligationsStatement,
   nativePosPmsPackageObligationsStatement,
-} from '../../../packages/server-pos/src/adapters/native-pos-obligation-statement';
+} from '../../../modules/pos/server/src/adapters/native-pos-obligation-statement';
 
 const config = () => JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:44994', timeoutMs: 1000 });
 const previous = process.env.ERPX_NATIVE_POS_OWNER_CONFIG;

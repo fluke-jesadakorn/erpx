@@ -5,17 +5,17 @@ mod actor_fixture;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, Clock, CompanyId, IdentifierSource, RecordId, TimestampMillis,
 };
-use erpx_server_work_projection::public::work_card_preferences::{
+use erpx_work_projection_server::public::work_card_preferences::{
     execute_work_card_preferences, read_work_card_preferences,
 };
-use erpx_server_workflow::public::commands::{
+use erpx_workflow_server::public::commands::{
     CommandActor, CommandDisposition, CommandJson, CommandOutcome, PgCommandAuthority,
     WorkflowRequest,
 };
@@ -271,7 +271,7 @@ async fn saves_replays_clears_and_guards_version_shortcuts_and_membership() {
         .expect("duplicate pins are refused");
         assert_eq!(business(duplicate).code, "WORK_CARD_PREFERENCES_INVALID");
         let mut outsider = actor();
-        outsider.user_id = erpx_server_shared::public::UserId::new("user-2").unwrap();
+        outsider.user_id = erpx_platform_shared_server::public::UserId::new("user-2").unwrap();
         let denied = execute(
             &pool,
             outsider,
@@ -336,7 +336,7 @@ async fn read_defaults_empty_and_is_company_scoped() {
 
 #[tokio::test]
 async fn capability_probes_read_active_staff_team_and_inventory_gates() {
-    use erpx_server_work_projection::public::work_capability_probes::{
+    use erpx_work_projection_server::public::work_capability_probes::{
         InventoryPreparation, WorkCapabilityScope, read_work_capabilities,
     };
     fixture::with_database(2, |pool| async move {
@@ -418,15 +418,15 @@ async fn capability_probes_read_active_staff_team_and_inventory_gates() {
 
 #[tokio::test]
 async fn save_accepts_exactly_the_composed_work_card_availability() {
-    use erpx_server_work_projection::public::work_card_selection::available_work_cards;
-    use erpx_server_work_projection::public::navigation_destinations::NavigationShortcutFacts;
-    use erpx_server_work_projection::public::work_card_availability::{
+    use erpx_work_projection_server::public::work_card_selection::available_work_cards;
+    use erpx_work_projection_server::public::navigation_destinations::NavigationShortcutFacts;
+    use erpx_work_projection_server::public::work_card_availability::{
         WorkCapabilitiesFact, WorkSnapshotFact,
     };
-    use erpx_server_work_projection::public::work_snapshot_sources::approval_items;
+    use erpx_work_projection_server::public::work_snapshot_sources::approval_items;
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
-        let rows = [erpx_server_workflow::public::approval_oversight::ApprovalQueueRow {
+        let rows = [erpx_workflow_server::public::approval_oversight::ApprovalQueueRow {
             id: "approval-1".into(),
             company_id: "company".into(),
             branch_id: None,
@@ -496,12 +496,12 @@ async fn save_accepts_exactly_the_composed_work_card_availability() {
 
 #[tokio::test]
 async fn availability_source_composes_current_approvals_capabilities_and_shortcuts() {
-    use erpx_server_shared::public::{AssignmentId, HoldingId, UserId};
-    use erpx_server_work_projection::public::work_card_availability_source::{
+    use erpx_platform_shared_server::public::{AssignmentId, HoldingId, UserId};
+    use erpx_work_projection_server::public::work_card_availability_source::{
         WorkCardAvailabilityRequest, read_available_work_cards,
     };
-    use erpx_server_work_projection::public::work_capability_probes::InventoryPreparation;
-    use erpx_server_workflow::public::approval_oversight::ApprovalOversightActor;
+    use erpx_work_projection_server::public::work_capability_probes::InventoryPreparation;
+    use erpx_workflow_server::public::approval_oversight::ApprovalOversightActor;
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
         sqlx::raw_sql(

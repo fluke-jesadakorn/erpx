@@ -7,20 +7,20 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_planning::public::planning::PlanningActor;
-use erpx_server_planning::public::resources::{
+use erpx_planning_server::public::planning::PlanningActor;
+use erpx_planning_server::public::resources::{
     CalendarRequest, PgPlanningResources, ResourceRequest, save_calendar, save_resource,
 };
-use erpx_server_planning::public::scenario::{
+use erpx_planning_server::public::scenario::{
     CalculateRequest, CancelRequest, ManufacturingOrderPlan, PgPlanningScenarios,
     PlanningReleaseFactory, PlanningReleasePort, ReleaseFuture, ReviewRequest, calculate_scenario,
     cancel_scenario, review_recommendation,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CommandKey, CompanyId, RecordId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey, CompanyId, RecordId, TimestampMillis};
 use serde_json::Value;
 use sqlx::PgConnection;
 

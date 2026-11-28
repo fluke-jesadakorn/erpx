@@ -1,13 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 vi.mock('server-only', () => ({}));
-import { NATIVE_OWNER_WRITE_NOOP_SQL, selectOneSql } from '../../../packages/server-platform_administration/src/adapters/native-owner-write';
-import { businessAcceptanceSetupSql, releaseRevisionReadSql, releaseRevisionTable } from '../../../packages/server-platform_administration/src/adapters/release-predicate';
-import { productionScope } from '@erpx/catalogue/production-scope';
-import { platformOwnerProjectionSources as organizationPlatformSources } from '../../../packages/server-organization/src/public/platform-owner-projection-sources';
+import { NATIVE_OWNER_WRITE_NOOP_SQL, selectOneSql } from '../../../modules/platform-administration/server/src/adapters/native-owner-write';
+import { businessAcceptanceSetupSql, releaseRevisionReadSql, releaseRevisionTable } from '../../../modules/platform-administration/server/src/adapters/release-predicate';
+import { productionScope } from '@erpx/platform-catalogue/production-scope';
+import { platformOwnerProjectionSources as organizationPlatformSources } from '../../../modules/organization/server/src/public/platform-owner-projection-sources';
 
 const source = (relative: string) =>
-  readFileSync(new URL(`../../../packages/server-platform_administration/src/${relative}`, import.meta.url), 'utf8');
+  readFileSync(new URL(`../../../modules/platform-administration/server/src/${relative}`, import.meta.url), 'utf8');
 
 describe('platform administration native owner-write no-op dedupe', () => {
   it('keeps exactly one canonical inert no-op SELECT', () => {

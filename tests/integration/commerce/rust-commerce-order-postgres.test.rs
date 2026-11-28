@@ -5,17 +5,17 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_commerce::public::order::{
+use erpx_commerce_server::public::order::{
     CommerceFulfillmentRepository, CommerceOrderActor, CommerceOrderReadRepository, OrderAction,
     PgCommerceOrders, SalesOrderDocument, SaveOrderCommand, SaveOrderInput, SaveOrderLineInput,
     SaveOrderReceipt, ServiceCompletionCommand, ServiceCompletionLineInput, TransitionCommand,
     fulfill_service_order, order_detail, save_order, save_order_outcome, transition_order,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, HoldingId, RecordId, TimestampMillis,
     UserId,
 };
@@ -26,7 +26,7 @@ const NOW: i64 = 1_800_000_000_000;
 
 #[tokio::test]
 async fn quality_masters_prove_active_product_and_scoped_warehouse_in_one_unit() {
-    use erpx_server_commerce::public::quality_masters::{
+    use erpx_commerce_server::public::quality_masters::{
         QualityMasterRequest, inspect_quality_masters, lock_quality_masters,
     };
     fixture::with_database(3,|pool|async move {
@@ -55,7 +55,7 @@ async fn quality_masters_prove_active_product_and_scoped_warehouse_in_one_unit()
 
 #[tokio::test]
 async fn quality_master_lock_waits_for_writer_then_reads_fresh_archival() {
-    use erpx_server_commerce::public::quality_masters::{
+    use erpx_commerce_server::public::quality_masters::{
         QualityMasterRequest, inspect_quality_masters, lock_quality_masters,
     };
     use sqlx::Connection;
@@ -124,10 +124,10 @@ async fn quality_master_lock_waits_for_writer_then_reads_fresh_archival() {
 
 #[tokio::test]
 async fn quality_customer_return_commerce_uses_actual_scoped_untracked_sources() {
-    use erpx_server_commerce::public::quality_return_join::{
+    use erpx_commerce_server::public::quality_return_join::{
         inspect_quality_return_join, lock_quality_return_join,
     };
-    use erpx_server_commerce::public::quality_return_origin::{
+    use erpx_commerce_server::public::quality_return_origin::{
         QualityReturnSelector, inspect_quality_return_commerce, lock_quality_return_commerce,
     };
     fixture::with_database(3, |pool| async move {
@@ -181,7 +181,7 @@ async fn quality_customer_return_commerce_uses_actual_scoped_untracked_sources()
         let source=inspect_quality_return_commerce(&mut tx,&company,None,QualityReturnSelector::UntrackedLine("return-line".into())).await.unwrap();
         assert!(source.facts().is_some());
         sqlx::raw_sql("INSERT INTO commerce_return_lot_allocations(id,return_line_id,fulfillment_allocation_id,lot_id,quantity_milli,value_minor,snapshot_quantity_milli,snapshot_value_minor,snapshot_version) VALUES('lot-b','return-line','original-b','return-lot-b',500,500,0,0,0),('lot-a','return-line','original-a','return-lot-a',500,500,0,0,0)").execute(&mut *tx).await.unwrap();
-        let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const {commerceQualityOriginRows}=await import('./packages/server-commerce/src/adapters/quality-purchase-sources.ts');const found=commerceQualityOriginRows.match(/SELECT \*,row_number\(\) OVER \(PARTITION BY return_line_id ORDER BY id\)-1 lot_ordinal FROM commerce_return_lot_allocations/);if(!found)throw Error('QUALITY_RETURN_ORDINAL_SOURCE_MISSING');process.stdout.write(found[0]);"#;
+        let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const {commerceQualityOriginRows}=await import('./modules/commerce/server/src/adapters/quality-purchase-sources.ts');const found=commerceQualityOriginRows.match(/SELECT \*,row_number\(\) OVER \(PARTITION BY return_line_id ORDER BY id\)-1 lot_ordinal FROM commerce_return_lot_allocations/);if(!found)throw Error('QUALITY_RETURN_ORDINAL_SOURCE_MISSING');process.stdout.write(found[0]);"#;
         let output=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")).args(["--conditions=react-server","-e",script]).output().unwrap();assert!(output.status.success(),"actual Commerce Quality TS source unavailable");let original=String::from_utf8(output.stdout).unwrap();
         let sql=format!("SELECT id,lot_ordinal FROM ({original}) actual WHERE return_line_id='return-line' ORDER BY id");let expected:Vec<(String,i64)>=sqlx::query_as(sqlx::AssertSqlSafe(sql)).fetch_all(&mut *tx).await.unwrap();
         let sql=format!("WITH {} SELECT id,lot_ordinal FROM quality_commerce_return_allocations WHERE return_line_id='return-line' ORDER BY id",join.cte_sql());let actual:Vec<(String,i64)>=sqlx::query_as(sqlx::AssertSqlSafe(sql)).fetch_all(&mut *tx).await.unwrap();assert_eq!(actual,expected);assert_eq!(actual,vec![("lot-a".into(),0),("lot-b".into(),1)]);join.require_current(&mut tx).await.unwrap();
@@ -228,7 +228,7 @@ async fn quality_customer_return_commerce_uses_actual_scoped_untracked_sources()
 
 #[tokio::test]
 async fn quality_receipt_commerce_witness_is_scoped_and_same_unit() {
-    use erpx_server_commerce::public::quality_receipt_origin::{
+    use erpx_commerce_server::public::quality_receipt_origin::{
         inspect_quality_receipt_commerce, lock_quality_receipt_commerce,
     };
     fixture::with_database(3, |pool| async move {
@@ -263,7 +263,7 @@ async fn quality_receipt_commerce_witness_is_scoped_and_same_unit() {
 
 #[tokio::test]
 async fn quality_receipt_source_lock_conflicts_with_real_writers_in_both_orders() {
-    use erpx_server_commerce::public::quality_receipt_origin::lock_quality_receipt_commerce;
+    use erpx_commerce_server::public::quality_receipt_origin::lock_quality_receipt_commerce;
     use sqlx::Connection;
     fixture::with_database(4, |pool| async move {
         setup(&pool).await;
@@ -598,7 +598,7 @@ async fn run_transition(
     actor: CommerceOrderActor,
     command: TransitionCommand,
 ) -> Result<
-    erpx_server_commerce::public::order::CommerceOrderReceipt,
+    erpx_commerce_server::public::order::CommerceOrderReceipt,
     PgTransactionError<BusinessError>,
 > {
     PgUnitOfWork::new(pool.clone())
@@ -659,7 +659,7 @@ async fn run_save_with_money(
     actor: CommerceOrderActor,
     command: SaveOrderCommand,
 ) -> Result<SaveOrderReceipt, PgTransactionError<BusinessError>> {
-    use erpx_server_finance::public::commerce_order_money::{
+    use erpx_finance_server::public::commerce_order_money::{
         CommerceOrderMoneyInput, CommerceOrderMoneyLine, snapshot_commerce_order_revision,
     };
     PgUnitOfWork::new(pool.clone())
@@ -668,7 +668,7 @@ async fn run_save_with_money(
             let command = command.clone();
             Box::pin(async move {
                 let now = TimestampMillis::new(NOW);
-                erpx_server_finance::public::commerce_order_money::lock_commerce_order_money_sources(
+                erpx_finance_server::public::commerce_order_money::lock_commerce_order_money_sources(
                     connection,
                 )
                 .await?;
@@ -713,7 +713,7 @@ async fn run_service_completion(
     actor: CommerceOrderActor,
     command: ServiceCompletionCommand,
 ) -> Result<
-    erpx_server_commerce::public::order::ServiceCompletionOutcome,
+    erpx_commerce_server::public::order::ServiceCompletionOutcome,
     PgTransactionError<BusinessError>,
 > {
     PgUnitOfWork::new(pool.clone())
@@ -722,15 +722,15 @@ async fn run_service_completion(
             let command = command.clone();
             Box::pin(async move {
                 let now = TimestampMillis::new(NOW);
-                erpx_server_finance::public::commerce_order_money::lock_commerce_order_money_sources(connection).await?;
+                erpx_finance_server::public::commerce_order_money::lock_commerce_order_money_sources(connection).await?;
                 let mut repository = PgCommerceOrders::new(connection);
                 let outcome = fulfill_service_order(&actor, &command, &mut repository, now).await?;
                 if outcome.created {
                     let lines = repository.fulfillment_money_lines(&outcome.receipt.fulfillment_id).await?;
-                    let currency = repository.order_currency(command.order_id.as_str()).await?.ok_or_else(|| BusinessError::new(erpx_server_shared::public::FailureKind::NotFound, "NOT_FOUND", "Not found."))?;
+                    let currency = repository.order_currency(command.order_id.as_str()).await?.ok_or_else(|| BusinessError::new(erpx_platform_shared_server::public::FailureKind::NotFound, "NOT_FOUND", "Not found."))?;
                     drop(repository);
-                    let money = lines.into_iter().map(|(id, subtotal, tax)| erpx_server_finance::public::commerce_order_money::CommerceFulfillmentMoneyLine { id, subtotal, tax }).collect::<Vec<_>>();
-                    erpx_server_finance::public::commerce_order_money::snapshot_commerce_fulfillment_money(connection, &actor.company_id, &command.date, &currency, &money, now).await?;
+                    let money = lines.into_iter().map(|(id, subtotal, tax)| erpx_finance_server::public::commerce_order_money::CommerceFulfillmentMoneyLine { id, subtotal, tax }).collect::<Vec<_>>();
+                    erpx_finance_server::public::commerce_order_money::snapshot_commerce_fulfillment_money(connection, &actor.company_id, &command.date, &currency, &money, now).await?;
                 }
                 Ok(outcome)
             })
@@ -763,7 +763,7 @@ fn service_command(
 fn save_command(
     key: &str,
     order_id: Option<&str>,
-    kind: erpx_server_commerce::public::order::OrderKind,
+    kind: erpx_commerce_server::public::order::OrderKind,
     party_id: &str,
     warehouse_id: Option<&str>,
     order_date: &str,
@@ -797,7 +797,7 @@ fn save_command(
 
 #[tokio::test(flavor = "multi_thread")]
 async fn save_creates_priced_quote_and_cas_updates_in_one_serializable_unit() {
-    use erpx_server_commerce::public::order::OrderKind;
+    use erpx_commerce_server::public::order::OrderKind;
     fixture::with_database(4, |pool| async move {
         setup(&pool).await;
         let active: Vec<String> = sqlx::query_scalar(
@@ -1034,7 +1034,7 @@ async fn save_creates_priced_quote_and_cas_updates_in_one_serializable_unit() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn oasis_kitchen_quote_keeps_fractional_measurement_and_document_number() {
-    use erpx_server_commerce::public::order::OrderKind;
+    use erpx_commerce_server::public::order::OrderKind;
     fixture::with_database(3, |pool| async move {
         setup(&pool).await;
         sqlx::query(
@@ -1081,7 +1081,7 @@ async fn oasis_kitchen_quote_keeps_fractional_measurement_and_document_number() 
 
 #[tokio::test(flavor = "multi_thread")]
 async fn save_price_list_and_master_guards_fail_closed() {
-    use erpx_server_commerce::public::order::OrderKind;
+    use erpx_commerce_server::public::order::OrderKind;
     fixture::with_database(4, |pool| async move {
         setup(&pool).await;
         sqlx::query(
@@ -1205,7 +1205,7 @@ async fn save_price_list_and_master_guards_fail_closed() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn save_outcome_and_finance_money_snapshots_share_one_unit_and_replay_skips_money() {
-    use erpx_server_commerce::public::order::OrderKind;
+    use erpx_commerce_server::public::order::OrderKind;
     fixture::with_database(4, |pool| async move {
         setup(&pool).await;
         let key = "commerce-order-money-0001";
@@ -1522,7 +1522,7 @@ async fn service_completion_writes_fulfillment_receipt_money_and_replay() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn save_replay_conflict_and_late_failure_roll_back_exactly() {
-    use erpx_server_commerce::public::order::OrderKind;
+    use erpx_commerce_server::public::order::OrderKind;
     fixture::with_database(4, |pool| async move {
         setup(&pool).await;
         let command = save_command(
@@ -1619,7 +1619,7 @@ async fn save_replay_conflict_and_late_failure_roll_back_exactly() {
 
 #[tokio::test]
 async fn purchase_order_save_uses_supplier_guard_and_po_number_while_transition_stays_retained() {
-    use erpx_server_commerce::public::order::{OrderKind, SaveOrderInput, SaveOrderLineInput};
+    use erpx_commerce_server::public::order::{OrderKind, SaveOrderInput, SaveOrderLineInput};
     fixture::with_database(4, |pool| async move {
         setup(&pool).await;
         let purchase = SaveOrderCommand {
@@ -1804,7 +1804,7 @@ async fn pending_quotation_tile_tracks_approval_and_respects_role_and_workspace(
         assert_eq!(pending_quotation_count(&pool, reviewer()).await.unwrap(), 1);
         assert_eq!(
             business(pending_quotation_count(&pool, creator()).await.unwrap_err()).kind,
-            erpx_server_shared::public::FailureKind::Forbidden,
+            erpx_platform_shared_server::public::FailureKind::Forbidden,
         );
         let mut forged_scope = reviewer();
         forged_scope.branch_id = Some(RecordId::new("other-branch").unwrap());
@@ -2252,7 +2252,7 @@ async fn transaction_and_serializable_guards_fail_closed() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn native_conversion_without_finance_money_port_fails_and_rolls_back() {
-    use erpx_server_commerce::public::order::transition_order_guarded;
+    use erpx_commerce_server::public::order::transition_order_guarded;
     fixture::with_database(4, |pool| async move {
         setup(&pool).await;
         let key = "commerce-conversion-missing-finance-0001";
@@ -2275,7 +2275,7 @@ async fn native_conversion_without_finance_money_port_fails_and_rolls_back() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn conversion_preflight_preserves_actor_replay_and_quote_precedence() {
-    use erpx_server_commerce::public::order::transition_order_guarded;
+    use erpx_commerce_server::public::order::transition_order_guarded;
     fixture::with_database(4, |pool| async move {
         setup(&pool).await;
         for (actor,order,version,key,code) in [
@@ -2306,21 +2306,21 @@ mod composed_goods_receipt {
     //! valuation + `commerce_goods_valuations`, Inventory stock/lot/Quality hold
     //! and the Finance goods journal on one caller-owned serializable unit.
     use super::*;
-    use erpx_server_commerce::public::receipt::{
+    use erpx_commerce_server::public::receipt::{
         CommerceReceipt, CommerceReceiptGoodsValuation, CommerceReceiptRepository,
         GoodsJournalRequest, GoodsValuation, GoodsValuationRequest, PgCommerceReceipt,
         ReceiptAllocationCommand, ReceiptCommand, ReceiptDisposition, ReceiptLineCommand,
         receive_purchase_order_with_goods_valuation,
     };
-    use erpx_server_finance::public::FinanceActor;
-    use erpx_server_finance::public::commerce_goods_journal::{
+    use erpx_finance_server::public::FinanceActor;
+    use erpx_finance_server::public::commerce_goods_journal::{
         CommerceGoodsJournalPosting, CommerceGoodsKind, CommerceGoodsValuation,
         CommerceGoodsValuationRequest, post_commerce_goods_journal,
         resolve_commerce_goods_valuation,
     };
-    use erpx_server_inventory::public::commerce_receipt::InventoryStockReceipt;
-    use erpx_server_runtime::public::postgres::{PgWorkFuture, TransactionOptions};
-    use erpx_server_shared::public::{Clock, FailureKind};
+    use erpx_inventory_server::public::commerce_receipt::InventoryStockReceipt;
+    use erpx_platform_runtime_server::public::postgres::{PgWorkFuture, TransactionOptions};
+    use erpx_platform_shared_server::public::{Clock, FailureKind};
     use sqlx::PgConnection;
     use std::sync::Arc;
 

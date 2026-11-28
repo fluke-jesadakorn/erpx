@@ -1,11 +1,11 @@
 //! Native PMS home hotel-metrics domain and application facts. No database,
 //! HTTP, composition or acceptance claim is inferred here.
 mod domain {
-    #[path = "../../../../packages/server-pms/src/domain/home_metrics.rs"]
+    #[path = "../../../../modules/pms/server/src/domain/home_metrics.rs"]
     pub mod home_metrics;
 }
 mod application {
-    #[path = "../../../../packages/server-pms/src/application/home_metrics.rs"]
+    #[path = "../../../../modules/pms/server/src/application/home_metrics.rs"]
     pub mod home_metrics;
 }
 
@@ -205,7 +205,7 @@ struct FakeRepository {
 }
 
 impl PmsHotelMetricsRepository for FakeRepository {
-    type Error = erpx_server_shared::public::BusinessError;
+    type Error = erpx_platform_shared_server::public::BusinessError;
 
     fn hotel_metrics<'a>(
         &'a mut self,

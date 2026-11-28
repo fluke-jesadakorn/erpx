@@ -1,12 +1,12 @@
 import "server-only";
 
-import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import type {Row} from '@erpx/server-commerce/public/commerce';
-import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
+import type {Row} from '@erpx/commerce-server/public/commerce';
+import type {SqlDatabase,SqlStatement} from "@erpx/platform-runtime-server/public/runtime/types";
 
-import {ApiError} from "@erpx/server-runtime/public/http";
+import {ApiError} from "@erpx/platform-runtime-server/public/http";
 
-import type {ManufacturingMaterialAllocation,ManufacturingOutputAllocation} from './lots-domain';export type {ManufacturingMaterialAllocation,ManufacturingOutputAllocation} from './lots-domain';import {BusinessRuleError} from '@erpx/server-shared/index';import {createManufacturingLotApplication,type ManufacturingLotRepository} from './lots-application';import {manufacturingLotSources} from './manufacturing-lot-sources';async function exposed<T>(action:()=>Promise<T>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
+import type {ManufacturingMaterialAllocation,ManufacturingOutputAllocation} from './lots-domain';export type {ManufacturingMaterialAllocation,ManufacturingOutputAllocation} from './lots-domain';import {BusinessRuleError} from '@erpx/platform-shared-server/index';import {createManufacturingLotApplication,type ManufacturingLotRepository} from './lots-application';import {manufacturingLotSources} from './manufacturing-lot-sources';async function exposed<T>(action:()=>Promise<T>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 function application(db:SqlDatabase){const repository:ManufacturingLotRepository<SqlStatement>={prepareMaterialLotIssue(value:string,orderId:string,orderVersion:number,productId:string,lotId:string,quantity:number,value2:number,userId:string,now:number){return db.prepare("INSERT INTO manufacturing_material_lot_issues VALUES(?,?,?,?,?,?,?,?,?)").bind(value, orderId, orderVersion, productId, lotId, quantity, value2, userId, now);},
 async materialLotIssues(orderId:string){return db.prepare("SELECT * FROM manufacturing_material_lot_issues WHERE order_id=? ORDER BY id").bind(orderId).all<Row>();},
 prepareOutputEvidence(outputId:string,orderId:string,orderVersion:number,lotId:string,quantity:number,value:number,userId:string,now:number){return db.prepare("INSERT INTO manufacturing_output_lots VALUES(?,?,?,?,?,?,?,?)").bind(outputId, orderId, orderVersion, lotId, quantity, value, userId, now);},

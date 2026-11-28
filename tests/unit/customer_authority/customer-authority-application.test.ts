@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
-import { createCustomerAccessApplication, type AccessRepository } from "@erpx/server-customer_authority/application/access";
-import { createCustomerDuplicateApplication, type DuplicateRepository } from "@erpx/server-customer_authority/application/duplicates";
-import { createCustomerIdentityApplication, type IdentityRepository } from "@erpx/server-customer_authority/application/identity";
+import { createCustomerAccessApplication, type AccessRepository } from "@erpx/customer-authority-server/application/access";
+import { createCustomerDuplicateApplication, type DuplicateRepository } from "@erpx/customer-authority-server/application/duplicates";
+import { createCustomerIdentityApplication, type IdentityRepository } from "@erpx/customer-authority-server/application/identity";
 
 function repository<T extends object>(operations: Partial<T>): T { return new Proxy(operations as T, { get(target, name) { if (name === "then") return undefined; if (name in target) return Reflect.get(target, name); return () => { throw new Error(`unexpected operation: ${String(name)}`); }; } }); }
 const error = (_status: number, code: string) => new Error(code);
@@ -22,7 +22,7 @@ it("customer authority Work projections acquire no repository outside Sales/read
 });
 
 it("preserves the customer access schema's Unicode, control and email input rules", async () => {
-  const { customerAccessRequestSchema, customerAccessChangeSchema } = await import("@erpx/server-customer_authority/domain/access");
+  const { customerAccessRequestSchema, customerAccessChangeSchema } = await import("@erpx/customer-authority-server/domain/access");
   const base = { orderId: "order", sourceVersion: 1, email: "Customer@Example.Test", expiresAt: 500, reason: "Verified" };
   const emoji = "😀".repeat(700);
   expect(Buffer.byteLength(emoji, "utf8")).toBeGreaterThan(2000);

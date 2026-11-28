@@ -2,14 +2,14 @@
 //!
 //! Only disposable leased development databases are used. Owner/record
 //! authority is a test port; production authority is owned by composition.
-use erpx_server_files::public::attachment_command::{
+use erpx_files_server::public::attachment_command::{
     AttachmentWithdrawAuthority, WithdrawAttachmentRequest, WithdrawTarget, withdraw_attachment,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, PgWorkFuture,
     TransactionOptions, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use sqlx::{Connection, PgConnection};
 use std::sync::{
     Arc,
@@ -306,7 +306,7 @@ async fn withdraw_is_company_scoped_idempotent_and_audited() {
         assert_eq!(audit.len(), 1);
         assert_eq!(
             audit[0].0,
-            erpx_server_files::public::attachment_command::withdrawal_event_id(
+            erpx_files_server::public::attachment_command::withdrawal_event_id(
                 "company",
                 &own,
                 "withdraw-key-1"
@@ -765,7 +765,7 @@ async fn withdraw_requires_the_owning_owner_read_grant() {
 
 #[test]
 fn generic_owner_read_categories_are_stable() {
-    use erpx_server_files::public::attachment_command::{
+    use erpx_files_server::public::attachment_command::{
         WithdrawOwnerAccess, has_native_owner_command, withdraw_owner_access,
     };
     assert_eq!(
@@ -937,8 +937,8 @@ async fn withdraw_replay_requires_the_original_audit_receipt() {
 mod support_intake {
     use super::*;
     use super::migrate;
-    use erpx_server_files::public::field_visit_upload::LocalFieldQuarantineWriter;
-    use erpx_server_files::public::support_attachment_intake::{
+    use erpx_files_server::public::field_visit_upload::LocalFieldQuarantineWriter;
+    use erpx_files_server::public::support_attachment_intake::{
         SupportAttachmentActor, SupportAttachmentAuthority, SupportAttachmentFileRequest,
         SupportAttachmentIntakeAvailability, SupportAttachmentSetRequest,
         SupportAttachmentStage, SupportAttachmentTarget, SupportAttachmentTicketFacts,
@@ -1236,13 +1236,13 @@ mod support_intake {
 }
 
 mod support_intake_http {
-    use erpx_server_files::public::support_attachment_http::{
+    use erpx_files_server::public::support_attachment_http::{
         SupportAttachmentCompleteHttpRequest, SupportAttachmentCreateHttpRequest,
         SupportAttachmentHttpBackend, SupportAttachmentHttpFuture, SupportAttachmentHttpResponse,
         SupportAttachmentHttpTarget, SupportAttachmentReserveHttpRequest,
         SupportAttachmentScanHttpRequest, support_attachment_router,
     };
-    use erpx_server_runtime::public::http_support::{serde_json, serve};
+    use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
     use std::sync::{Arc, Mutex};
 
     #[derive(Default)]

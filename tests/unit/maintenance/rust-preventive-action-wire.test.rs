@@ -2,7 +2,7 @@
 //! Expectations are the observed Node 26.11.1 Fetch/Zod outcomes recorded for
 //! this bounded slice; the preventive plan save (IANA timezone, recurrence and
 //! asset authority) is not claimed by this wire module.
-use erpx_server_maintenance::public::work_wire::*;
+use erpx_maintenance_server::public::work_wire::*;
 use serde_json::{Value, json};
 
 fn failure(e: MaintenanceWireFailure) -> Value {

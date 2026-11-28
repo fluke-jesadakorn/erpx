@@ -1,7 +1,7 @@
 import {describe,expect,test} from 'vitest';
 import {readFileSync} from 'node:fs';
 
-const src = (name: string) => readFileSync(new URL(`../../../packages/server-commercial/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFileSync(new URL(`../../../modules/commercial/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 describe('Commercial read-tail r3 retired seat-history family', () => {
   test('the r3 TS builder module is deleted and no consumer references it', () => {

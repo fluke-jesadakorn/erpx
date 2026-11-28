@@ -9,7 +9,7 @@
  * Tracked for removal by `migrate.commerce.return-approval-native`: delete once
  * the Quality hold fixture seeds the handoff through the native statement port.
  */
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
 
 const HANDOFF_SQL = `INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)
  SELECT DISTINCT ?||'-'||a.user_id,h.company_id,a.user_id,'quality_hold',h.id,h.version,'Quality handoff: review the source record',h.updated_at

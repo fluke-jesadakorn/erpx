@@ -2,10 +2,10 @@ import { readFile, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { pmsAddonPackageSettlementSources } from '../../../packages/server-pms/src/adapters/addon-package-obligations';
-import { pmsSettlementSourceKeySql } from '../../../packages/server-pms/src/adapters/pms-read-tail-r49-sql';
+import { pmsAddonPackageSettlementSources } from '../../../modules/pms/server/src/adapters/addon-package-obligations';
+import { pmsSettlementSourceKeySql } from '../../../modules/pms/server/src/adapters/pms-read-tail-r49-sql';
 
-const dir = new URL('../../../packages/server-pms/src/', import.meta.url);
+const dir = new URL('../../../modules/pms/server/src/', import.meta.url);
 const src = (name: string) => readFile(new URL(name, dir), 'utf8');
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 

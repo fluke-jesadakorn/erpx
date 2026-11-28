@@ -4,9 +4,9 @@
 #![allow(dead_code)]
 #[path = "../../support/finance/review-composition.rs"]
 mod review;
-use erpx_server_runtime::public::postgres::DatabasePool;
-use erpx_server_shared::public::Clock;
-use erpx_service::inventory_reservation_alerts::run_once;
+use erpx_platform_runtime_server::public::postgres::DatabasePool;
+use erpx_platform_shared_server::public::Clock;
+use erpx_platform_composition::inventory_reservation_alerts::run_once;
 
 async fn seed_masters(pool: &DatabasePool, now: i64) -> i64 {
     let expiring = now + 3_600_000;

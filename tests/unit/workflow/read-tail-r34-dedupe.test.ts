@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { nativeApprovalPlanningPorts } from '../../../packages/server-workflow/src/adapters/approval-planning';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import { nativeApprovalPlanningPorts } from '../../../modules/workflow/server/src/adapters/approval-planning';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
 import { readFile } from 'node:fs/promises';
 
 // Guard descriptors are built synchronously; no DB execution occurs.
@@ -33,8 +33,8 @@ describe('instance-state guard prefix dedupe (r34)', () => {
 
   it('keeps the byte-identical shared prefix head in the native contract, not the caller', async () => {
     const [caller, contract] = await Promise.all([
-      readFile(new URL('../../../packages/server-workflow/src/adapters/approval-planning.ts', import.meta.url), 'utf8'),
-      readFile(new URL('../../../packages/server-workflow/src/workflow-read-fragments-sql.json', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/workflow/server/src/adapters/approval-planning.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../modules/workflow/server/src/workflow-read-fragments-sql.json', import.meta.url), 'utf8'),
     ]);
     const head = /EXISTS\(SELECT 1 FROM approval_instances WHERE id=\? AND version=\? AND state='/g;
     expect(caller.match(head) ?? []).toHaveLength(0);

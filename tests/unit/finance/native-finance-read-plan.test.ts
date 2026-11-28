@@ -3,22 +3,22 @@ import { readFile } from 'node:fs/promises';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
-import { ACTIVE_CHART_BASE_CURRENCY_SQL } from '../../../packages/server-finance/src/adapters/chart-base-currency-dedupe-sql';
-import { FINANCE_JOURNALS_PROJECTION_SQL } from '../../../packages/server-finance/src/adapters/finance-journals-projection-dedupe-sql';
-import { FINANCE_CHARTS_PROJECTION_SQL } from '../../../packages/server-finance/src/adapters/finance-charts-projection-dedupe-sql';
-import { finalRootOwnerProjectionSources } from '../../../packages/server-finance/src/adapters/final-root-owner-projection-sources';
-import { platformOwnerProjectionSources } from '../../../packages/server-finance/src/adapters/platform-owner-projection-sources';
-import { inventoryExecutiveOwnerProjections } from '../../../packages/server-finance/src/adapters/inventory-executive-owner-projections';
-import { commercialOwnerProjectionSources } from '../../../packages/server-finance/src/adapters/commercial-owner-projection-sources';
-import { hospitalityOwnerProjectionSources } from '../../../packages/server-finance/src/adapters/hospitality-owner-projection-sources';
+import { ACTIVE_CHART_BASE_CURRENCY_SQL } from '../../../modules/finance/server/src/adapters/chart-base-currency-dedupe-sql';
+import { FINANCE_JOURNALS_PROJECTION_SQL } from '../../../modules/finance/server/src/adapters/finance-journals-projection-dedupe-sql';
+import { FINANCE_CHARTS_PROJECTION_SQL } from '../../../modules/finance/server/src/adapters/finance-charts-projection-dedupe-sql';
+import { finalRootOwnerProjectionSources } from '../../../modules/finance/server/src/adapters/final-root-owner-projection-sources';
+import { platformOwnerProjectionSources } from '../../../modules/finance/server/src/adapters/platform-owner-projection-sources';
+import { inventoryExecutiveOwnerProjections } from '../../../modules/finance/server/src/adapters/inventory-executive-owner-projections';
+import { commercialOwnerProjectionSources } from '../../../modules/finance/server/src/adapters/commercial-owner-projection-sources';
+import { hospitalityOwnerProjectionSources } from '../../../modules/finance/server/src/adapters/hospitality-owner-projection-sources';
 import {
   POSTING_FINANCE_PERIODS_SQL,
   POSTING_COMPANY_FX_RATES_SQL,
   POSTING_COMPANY_MONEY_IMAGE_SQL,
   POSTING_COMMAND_RECEIPT_RECORD_SQL,
-} from '../../../packages/server-finance/src/adapters/posting-prerequisites-dedupe-sql';
-import { FINANCE_ADVISORY_XACT_LOCK_SQL } from '../../../packages/server-finance/src/adapters/advisory-lock-dedupe-sql';
-import { FINANCE_RECEIPT_IMAGE_SQL, FINANCE_INVOICES_PROJECTION_SQL, FINANCE_PARTIES_PROJECTION_SQL, FINANCE_ACCOUNTS_PROJECTION_SQL } from '../../../packages/server-finance/src/adapters/finance-tail-dedupe-sql';
+} from '../../../modules/finance/server/src/adapters/posting-prerequisites-dedupe-sql';
+import { FINANCE_ADVISORY_XACT_LOCK_SQL } from '../../../modules/finance/server/src/adapters/advisory-lock-dedupe-sql';
+import { FINANCE_RECEIPT_IMAGE_SQL, FINANCE_INVOICES_PROJECTION_SQL, FINANCE_PARTIES_PROJECTION_SQL, FINANCE_ACCOUNTS_PROJECTION_SQL } from '../../../modules/finance/server/src/adapters/finance-tail-dedupe-sql';
 import {
   CHART_BASE_CURRENCY_BY_ID_SQL,
   OPEN_PERIOD_LIST_SQL,
@@ -26,39 +26,39 @@ import {
   FINANCE_JOURNALS_JOIN_SQL,
   COMMAND_RECEIPT_EXISTS_SQL,
   COMMAND_RECEIPT_RECORD_IMAGE_SQL,
-} from '../../../packages/server-finance/src/adapters/finance-read-tail-r15-sql';
-import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from '../../../packages/server-finance/src/adapters/finance-read-tail-r16-sql';
-import { SUPPLIER_RESERVATION_GUARD_SQL, BANK_TRANSACTION_BY_ID_SQL, DIMENSION_DEFINITIONS_SQL } from '../../../packages/server-finance/src/adapters/finance-read-tail-r17-sql';
+} from '../../../modules/finance/server/src/adapters/finance-read-tail-r15-sql';
+import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from '../../../modules/finance/server/src/adapters/finance-read-tail-r16-sql';
+import { SUPPLIER_RESERVATION_GUARD_SQL, BANK_TRANSACTION_BY_ID_SQL, DIMENSION_DEFINITIONS_SQL } from '../../../modules/finance/server/src/adapters/finance-read-tail-r17-sql';
 import {
   MONEY_SETTINGS_IMAGE_SQL, MONEY_TXN_SNAPSHOT_SOURCE_SQL,
   PAYMENT_PROJECTION_SQL, REFUND_OBLIGATION_PROJECTION_SQL,
   ACCOUNT_CHART_ID_SQL, ALLOCATION_PROJECTION_SQL,
   PERIOD_DATES_SQL, COLLECTIONS_TOOL_GUARD_SQL, BANK_STATEMENT_VERSION_GUARD_SQL,
-} from '../../../packages/server-finance/src/adapters/finance-read-tail-r18-sql';
-import { rootOwnerExistsSql, materializedClockCteSql } from '../../../packages/server-finance/src/adapters/finance-read-tail-r19-sql';
-import { idCompanyStatusVersionGuard, aggByCompany } from '../../../packages/server-finance/src/adapters/finance-read-tail-r20-sql';
-import { journalLineEvidenceSql } from '../../../packages/server-finance/src/adapters/finance-read-tail-r22-sql';
-import { bookRootUnionSql, peopleRunsCteSql, peoplePostingsCteSql, journalAggregateCtesSql, netPayableFactSql, payrollUnpostedFactSql, statutoryLiabilityFactSql, statutoryLateralSql, secondaryJournalFactSql } from '../../../packages/server-finance/src/adapters/finance-read-tail-r23-sql';
-import { packageObligationFactsSql, ASSET_DEPRECIATION_COUNT_SQL, ASSET_POLICY_EDITION_PENDING_SQL, ASSET_POLICY_RUN_PENDING_SQL, TAX_SOURCE_APPROVED_INVOICE_SQL, TAX_SOURCE_APPROVED_COMMERCE_RETURN_SQL, TAX_SOURCE_APPROVED_BILLING_CREDIT_SQL } from '../../../packages/server-finance/src/adapters/finance-read-tail-r24-sql';
-import { ACCOUNT_SELECT_PREFIX, INVOICE_EXISTS_PREFIX, JOURNAL_SELECT_PREFIX } from '../../../packages/server-finance/src/adapters/finance-read-tail-r30-sql';
-import { CONSOLIDATION_RUN_BY_ID_SQL, ISSUED_THAI_DOCUMENT_BY_ID_SQL } from '../../../packages/server-finance/src/adapters/finance-read-tail-r31-sql';
-import { ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL } from '../../../packages/server-finance/src/adapters/finance-read-tail-r32-sql';
-import { PERIOD_BY_ID_SQL } from '../../../packages/server-finance/src/adapters/finance-read-tail-r33-sql';
+} from '../../../modules/finance/server/src/adapters/finance-read-tail-r18-sql';
+import { rootOwnerExistsSql, materializedClockCteSql } from '../../../modules/finance/server/src/adapters/finance-read-tail-r19-sql';
+import { idCompanyStatusVersionGuard, aggByCompany } from '../../../modules/finance/server/src/adapters/finance-read-tail-r20-sql';
+import { journalLineEvidenceSql } from '../../../modules/finance/server/src/adapters/finance-read-tail-r22-sql';
+import { bookRootUnionSql, peopleRunsCteSql, peoplePostingsCteSql, journalAggregateCtesSql, netPayableFactSql, payrollUnpostedFactSql, statutoryLiabilityFactSql, statutoryLateralSql, secondaryJournalFactSql } from '../../../modules/finance/server/src/adapters/finance-read-tail-r23-sql';
+import { packageObligationFactsSql, ASSET_DEPRECIATION_COUNT_SQL, ASSET_POLICY_EDITION_PENDING_SQL, ASSET_POLICY_RUN_PENDING_SQL, TAX_SOURCE_APPROVED_INVOICE_SQL, TAX_SOURCE_APPROVED_COMMERCE_RETURN_SQL, TAX_SOURCE_APPROVED_BILLING_CREDIT_SQL } from '../../../modules/finance/server/src/adapters/finance-read-tail-r24-sql';
+import { ACCOUNT_SELECT_PREFIX, INVOICE_EXISTS_PREFIX, JOURNAL_SELECT_PREFIX } from '../../../modules/finance/server/src/adapters/finance-read-tail-r30-sql';
+import { CONSOLIDATION_RUN_BY_ID_SQL, ISSUED_THAI_DOCUMENT_BY_ID_SQL } from '../../../modules/finance/server/src/adapters/finance-read-tail-r31-sql';
+import { ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL } from '../../../modules/finance/server/src/adapters/finance-read-tail-r32-sql';
+import { PERIOD_BY_ID_SQL } from '../../../modules/finance/server/src/adapters/finance-read-tail-r33-sql';
 import {
   OPEN_PERIOD_COVERED_SQL,
   OPEN_PERIOD_LIST_ASC_SQL,
   BANK_TRANSACTION_STATEMENT_SQL,
   ACTIVE_CHART_NAV_SQL,
   ACTIVE_ACCOUNT_CHART_ID_SQL,
-} from '../../../packages/server-finance/src/adapters/finance-read-tail-r34-sql';
-import { WORKFORCE_ACTOR_SCOPE_SQL } from '../../../packages/server-finance/src/adapters/finance-read-tail-r35-sql';
+} from '../../../modules/finance/server/src/adapters/finance-read-tail-r34-sql';
+import { WORKFORCE_ACTOR_SCOPE_SQL } from '../../../modules/finance/server/src/adapters/finance-read-tail-r35-sql';
 import {
   CHART_ID_BY_COMPANY_SQL,
   CHART_EXISTS_BY_COMPANY_SQL,
   CHART_IMAGE_BY_COMPANY_SQL,
   PAYROLL_LINE_IMAGE_SQL,
-} from '../../../packages/server-finance/src/adapters/finance-read-tail-r36-sql';
-import { PERIOD_EXISTS_BY_ID_SQL } from '../../../packages/server-finance/src/adapters/finance-read-tail-r37-sql';
+} from '../../../modules/finance/server/src/adapters/finance-read-tail-r36-sql';
+import { PERIOD_EXISTS_BY_ID_SQL } from '../../../modules/finance/server/src/adapters/finance-read-tail-r37-sql';
 import {
   BILLING_RUN_CHILD_EXISTS_SQL,
   CUSTOMER_PARTY_PROFILE_SQL,
@@ -73,7 +73,7 @@ import {
   POS_CUSTOMER_PARTY_ACTIVE_SQL,
   POS_JOURNAL_LINE_NET_SQL,
   SUPPLIER_RECEIPT_SOURCE_SQL,
-} from '../../../packages/server-finance/src/adapters/finance-read-tail-r38-sql';
+} from '../../../modules/finance/server/src/adapters/finance-read-tail-r38-sql';
 import {
   bankCashLinesSql,
   ASSET_DEPRECIATIONS_SQL,
@@ -83,7 +83,7 @@ import {
   documentNumberSql,
   moneySnapshotExistsSql,
   posDailyAccountNetSql,
-} from '../../../packages/server-finance/src/adapters/finance-read-tail-r39-sql';
+} from '../../../modules/finance/server/src/adapters/finance-read-tail-r39-sql';
 import {
   sourcePartyIdSql,
   commandReceiptReplayProbeSql,
@@ -95,9 +95,9 @@ import {
   bookAccountMappingImageSql,
   thaiDocumentRowsSql,
   PAYMENT_FULL_ROW_SQL,
-} from '../../../packages/server-finance/src/adapters/finance-read-tail-r40-sql';
-import { peoplePayrollFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/people-payroll-final-owner-projections';
-import { workflowFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/workflow-final-owner-projections';
+} from '../../../modules/finance/server/src/adapters/finance-read-tail-r40-sql';
+import { peoplePayrollFinalOwnerProjections } from '../../../modules/finance/server/src/adapters/people-payroll-final-owner-projections';
+import { workflowFinalOwnerProjections } from '../../../modules/finance/server/src/adapters/workflow-final-owner-projections';
 import {
   nativeFinanceReadAll,
   setNativeFinanceReadTransportForTest,
@@ -110,7 +110,7 @@ import {
   FINANCE_RD_INSTRUMENT_RUNS,
   FINANCE_RD_COLLECTION_CASE_ROW,
   FINANCE_RD_BUSINESS_BILL_ROW,
-} from '../../../packages/server-finance/src/adapters/native-finance-read';
+} from '../../../modules/finance/server/src/adapters/native-finance-read';
 
 const envKey = 'ERPX_NATIVE_FINANCE_READ_CONFIG';
 const original = process.env[envKey];
@@ -233,17 +233,17 @@ describe('native Finance caller-unit read plan', () => {
 
 const CHART_SQL = "SELECT base_currency FROM finance_charts WHERE id=? AND company_id=? AND status='active'";
 const CHART_CALL_SITES = [
-  'packages/server-finance/src/adapters/finance-planning.ts',
-  'packages/server-finance/src/adapters/accounting-profiles.ts',
-  'packages/server-finance/src/adapters/payroll-recovery-chart.ts',
-  'packages/server-finance/src/adapters/manufacturing-accounting-sources.ts',
-  'packages/server-finance/src/adapters/refunds.ts',
+  'modules/finance/server/src/adapters/finance-planning.ts',
+  'modules/finance/server/src/adapters/accounting-profiles.ts',
+  'modules/finance/server/src/adapters/payroll-recovery-chart.ts',
+  'modules/finance/server/src/adapters/manufacturing-accounting-sources.ts',
+  'modules/finance/server/src/adapters/refunds.ts',
 ];
 
 describe('finance active-chart base_currency read dedupe', () => {
   it('keeps one byte-identical literal and adopts no share-lock variant', async () => {
     expect(ACTIVE_CHART_BASE_CURRENCY_SQL).toBe(CHART_SQL);
-    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/chart-base-currency-dedupe-sql.ts', import.meta.url), 'utf8');
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/chart-base-currency-dedupe-sql.ts', import.meta.url), 'utf8');
     expect(shared.split(CHART_SQL).length - 1).toBe(1);
     expect(shared).not.toContain('FOR SHARE');
     for (const rel of CHART_CALL_SITES) {
@@ -263,7 +263,7 @@ describe('finance active-chart base_currency read dedupe', () => {
         return { bind(...values: unknown[]) { binds.push(values); return { first: async () => ({ base_currency: 'THB' }) }; } };
       },
     };
-    const { payrollRecoveryChart } = await import('../../../packages/server-finance/src/adapters/payroll-recovery-chart');
+    const { payrollRecoveryChart } = await import('../../../modules/finance/server/src/adapters/payroll-recovery-chart');
     await expect(payrollRecoveryChart(db as never).readRecognizePayrollRecoveryChart('ch-1', 'co-1'))
       .resolves.toEqual({ base_currency: 'THB' });
     expect(prepares).toEqual([CHART_SQL]);
@@ -275,7 +275,7 @@ const POSTED_CHART_SQL = "SELECT 1 FROM finance_journals WHERE chart_id=? AND st
 
 describe('finance books posted-chart existence read dedupe', () => {
   it('keeps one byte-identical literal and two constant-backed reads', async () => {
-    const text = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-books.ts', import.meta.url), 'utf8');
+    const text = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-books.ts', import.meta.url), 'utf8');
     expect(text.split(`"${POSTED_CHART_SQL}"`).length - 1).toBe(0);
     expect(text).toContain("JOURNAL_SELECT_PREFIX + \"s WHERE chart_id=? AND status IN ('posted','reversed')\"");
     expect(text.split('chartPostedSql,').length - 1).toBe(2);
@@ -283,16 +283,16 @@ describe('finance books posted-chart existence read dedupe', () => {
 });
 
 const JOURNALS_CALL_SITES = [
-  'packages/server-finance/src/adapters/final-root-owner-projection-sources.ts',
-  'packages/server-finance/src/adapters/platform-owner-projection-sources.ts',
-  'packages/server-finance/src/adapters/inventory-executive-owner-projections.ts',
-  'packages/server-finance/src/adapters/hospitality-owner-projection-sources.ts',
-  'packages/server-finance/src/adapters/commercial-owner-projection-sources.ts',
+  'modules/finance/server/src/adapters/final-root-owner-projection-sources.ts',
+  'modules/finance/server/src/adapters/platform-owner-projection-sources.ts',
+  'modules/finance/server/src/adapters/inventory-executive-owner-projections.ts',
+  'modules/finance/server/src/adapters/hospitality-owner-projection-sources.ts',
+  'modules/finance/server/src/adapters/commercial-owner-projection-sources.ts',
 ];
 
 describe('finance finance_journals projection dedupe', () => {
   it('keeps one byte-identical literal and backs all five owner projections with it', async () => {
-    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-journals-projection-dedupe-sql.ts', import.meta.url), 'utf8');
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-journals-projection-dedupe-sql.ts', import.meta.url), 'utf8');
     expect(shared.split('FROM finance_journals').length - 1).toBe(1);
     for (const rel of JOURNALS_CALL_SITES) {
       const text = await readFile(new URL(`../../../${rel}`, import.meta.url), 'utf8');
@@ -308,14 +308,14 @@ describe('finance finance_journals projection dedupe', () => {
 });
 
 const CHARTS_CALL_SITES = [
-  'packages/server-finance/src/adapters/platform-owner-projection-sources.ts',
-  'packages/server-finance/src/adapters/inventory-executive-owner-projections.ts',
-  'packages/server-finance/src/adapters/commercial-owner-projection-sources.ts',
+  'modules/finance/server/src/adapters/platform-owner-projection-sources.ts',
+  'modules/finance/server/src/adapters/inventory-executive-owner-projections.ts',
+  'modules/finance/server/src/adapters/commercial-owner-projection-sources.ts',
 ];
 
 describe('finance finance_charts projection dedupe', () => {
   it('keeps one byte-identical literal and backs all three owner projections with it', async () => {
-    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-charts-projection-dedupe-sql.ts', import.meta.url), 'utf8');
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-charts-projection-dedupe-sql.ts', import.meta.url), 'utf8');
     expect(shared.split('FROM finance_charts').length - 1).toBe(1);
     for (const rel of CHARTS_CALL_SITES) {
       const text = await readFile(new URL(`../../../${rel}`, import.meta.url), 'utf8');
@@ -349,7 +349,7 @@ describe('finance posting-prerequisites SQL dedupe', () => {
     expect(POSTING_COMPANY_FX_RATES_SQL).toBe(POSTING_FX_SQL);
     expect(POSTING_COMPANY_MONEY_IMAGE_SQL).toBe(POSTING_MONEY_SQL);
     expect(POSTING_COMMAND_RECEIPT_RECORD_SQL).toBe(POSTING_RECEIPT_SQL);
-    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/posting-prerequisites-dedupe-sql.ts', import.meta.url), 'utf8');
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/posting-prerequisites-dedupe-sql.ts', import.meta.url), 'utf8');
     expect(shared.split(POSTING_PERIODS_SQL).length - 1).toBe(1);
     expect(shared.split(POSTING_FX_SQL).length - 1).toBe(1);
     expect(shared.split(POSTING_MONEY_SQL).length - 1).toBe(1);
@@ -359,7 +359,7 @@ describe('finance posting-prerequisites SQL dedupe', () => {
 
   it('backs every call site with the shared constants and no inline literal', async () => {
     for (const [file, names] of POSTING_CALL_SITES) {
-      const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+      const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
       for (const lit of [POSTING_PERIODS_SQL, POSTING_FX_SQL, POSTING_MONEY_SQL, POSTING_RECEIPT_SQL]) {
         expect(text.split(lit).length - 1).toBe(0);
       }
@@ -378,10 +378,10 @@ const ADVISORY_LOCK_CALL_SITES = [
 describe('finance advisory-lock SQL dedupe', () => {
   it('keeps one byte-identical literal and backs every lock site', async () => {
     expect(FINANCE_ADVISORY_XACT_LOCK_SQL).toBe(ADVISORY_LOCK_SQL);
-    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/advisory-lock-dedupe-sql.ts', import.meta.url), 'utf8');
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/advisory-lock-dedupe-sql.ts', import.meta.url), 'utf8');
     expect(shared.split(ADVISORY_LOCK_SQL).length - 1).toBe(1);
     for (const file of ADVISORY_LOCK_CALL_SITES) {
-      const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+      const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
       expect(text.split(ADVISORY_LOCK_SQL).length - 1).toBe(0);
       expect(text).toContain('from "./advisory-lock-dedupe-sql"');
       expect(text).toContain('FINANCE_ADVISORY_XACT_LOCK_SQL');
@@ -397,10 +397,10 @@ const TAIL_ACCOUNTS_SQL = "SELECT \"id\",\"chart_id\",\"company_id\",\"code\",\"
 describe('finance read-tail r14 group 3 receipt-image dedupe', () => {
   it('keeps one byte-identical literal and backs all six call sites', async () => {
     expect(FINANCE_RECEIPT_IMAGE_SQL).toBe(TAIL_IMAGE_SQL);
-    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-tail-dedupe-sql.ts', import.meta.url), 'utf8');
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-tail-dedupe-sql.ts', import.meta.url), 'utf8');
     expect(shared.split(TAIL_IMAGE_SQL).length - 1).toBe(1);
     for (const file of ['expense-posting-prerequisites.ts', 'payroll-posting-prerequisites.ts']) {
-      const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+      const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
       expect(text.split(TAIL_IMAGE_SQL).length - 1).toBe(0);
       expect(text).toContain('from "./finance-tail-dedupe-sql"');
       expect(text).toContain('FINANCE_RECEIPT_IMAGE_SQL');
@@ -428,7 +428,7 @@ describe('finance read-tail r14 group 4 owner-projection dedupe', () => {
     expect(FINANCE_INVOICES_PROJECTION_SQL).toBe(TAIL_INVOICES_SQL);
     expect(FINANCE_PARTIES_PROJECTION_SQL).toBe(TAIL_PARTIES_SQL);
     expect(FINANCE_ACCOUNTS_PROJECTION_SQL).toBe(TAIL_ACCOUNTS_SQL);
-    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-tail-dedupe-sql.ts', import.meta.url), 'utf8');
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-tail-dedupe-sql.ts', import.meta.url), 'utf8');
     for (const lit of [TAIL_INVOICES_SQL, TAIL_PARTIES_SQL, TAIL_ACCOUNTS_SQL]) {
       expect(shared.split(lit.replace(/"/g, '\\"')).length - 1).toBe(1);
     }
@@ -449,7 +449,7 @@ describe('finance read-tail r14 group 4 owner-projection dedupe', () => {
       FINANCE_PARTIES_PROJECTION_SQL: FINANCE_PARTIES_PROJECTION_SQL,
     } as Record<string, string>;
     for (const [file, name, lit] of TAIL_PROJECTION_CASES) {
-      const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+      const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
       expect(text.split(lit).length - 1).toBe(0);
       expect(text).toContain('from "./finance-tail-dedupe-sql"');
       expect(text).toContain(name);
@@ -477,14 +477,14 @@ const R15_GROUPS: [string, string, string, string[]][] = [
 
 describe('finance read-tail r15 byte-identical SQL dedupe', () => {
   it('keeps one byte-identical literal per family with no inline duplicates', async () => {
-    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r15-sql.ts', import.meta.url), 'utf8');
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r15-sql.ts', import.meta.url), 'utf8');
     expect(shared.split('SELECT ').length - 1).toBe(6);
     for (const [name, actual, literal, files] of R15_GROUPS) {
       expect(actual).toBe(literal);
       const sourceLiteral = literal.includes('"') ? literal.replace(/"/g, '\\"') : literal;
       expect(shared.split(sourceLiteral).length - 1).toBe(1);
       for (const file of files) {
-        const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+        const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
         expect(text.split(literal).length - 1).toBe(0);
         expect(text).toContain(name);
       }
@@ -509,7 +509,7 @@ const R16_GROUPS: [string, string, string, string[]][] = [
 
 describe('finance read-tail r16 byte-identical SQL dedupe', () => {
   it('keeps one byte-identical literal per family', async () => {
-    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r16-sql.ts', import.meta.url), 'utf8');
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r16-sql.ts', import.meta.url), 'utf8');
     expect(shared.split('SELECT ').length - 1).toBe(2);
     for (const [name, actual, literal] of R16_GROUPS) {
       expect(actual).toBe(literal);
@@ -521,7 +521,7 @@ describe('finance read-tail r16 byte-identical SQL dedupe', () => {
   it('backs all 14 call sites with the shared constants and no inline literal', async () => {
     for (const [name, , literal, files] of R16_GROUPS) {
       for (const file of files) {
-        const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+        const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
         expect(text.split(literal).length - 1).toBe(0);
         expect(text).toContain("from './finance-read-tail-r16-sql'");
         expect(text).toContain(name);
@@ -530,9 +530,9 @@ describe('finance read-tail r16 byte-identical SQL dedupe', () => {
   });
 
   it('leaves FOR SHARE inline and delegates the ORDER BY LIMIT variant to r57', async () => {
-    const share = await readFile(new URL('../../../packages/server-finance/src/adapters/pms-command-facts.ts', import.meta.url), 'utf8');
+    const share = await readFile(new URL('../../../modules/finance/server/src/adapters/pms-command-facts.ts', import.meta.url), 'utf8');
     expect(share.split(`${R16_IDS_LITERAL} FOR SHARE`).length - 1).toBe(1);
-    const limit = await readFile(new URL('../../../packages/server-finance/src/adapters/manufacturing-accounting-sources.ts', import.meta.url), 'utf8');
+    const limit = await readFile(new URL('../../../modules/finance/server/src/adapters/manufacturing-accounting-sources.ts', import.meta.url), 'utf8');
     expect(limit.split('finPeriodIdByCompanySql(" AND state=\'open\' AND start_date<=? AND end_date>=? ORDER BY start_date DESC,id LIMIT 1")').length - 1).toBe(1);
     expect(limit).not.toContain(`${R16_IDS_LITERAL} ORDER BY start_date DESC,id LIMIT 1`);
   });
@@ -549,7 +549,7 @@ const R17_GROUPS: [string, string, string, string[]][] = [
 
 describe('finance read-tail r17 byte-identical SQL dedupe', () => {
   it('keeps one byte-identical literal per family', async () => {
-    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r17-sql.ts', import.meta.url), 'utf8');
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r17-sql.ts', import.meta.url), 'utf8');
     expect(shared.split('SELECT ').length - 1).toBe(3);
     for (const [name, actual, literal] of R17_GROUPS) {
       expect(actual).toBe(literal);
@@ -561,7 +561,7 @@ describe('finance read-tail r17 byte-identical SQL dedupe', () => {
   it('backs all 9 call sites with the shared constants and no inline literal', async () => {
     for (const [name, , literal, files] of R17_GROUPS) {
       for (const file of files) {
-        const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+        const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
         expect(text.split(literal).length - 1).toBe(0);
         expect(text).toContain("from './finance-read-tail-r17-sql'");
         expect(text).toContain(name);
@@ -570,7 +570,7 @@ describe('finance read-tail r17 byte-identical SQL dedupe', () => {
   });
 
   it('leaves the FOR UPDATE OF t variants inline', async () => {
-    const pos = await readFile(new URL('../../../packages/server-finance/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    const pos = await readFile(new URL('../../../modules/finance/server/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
     expect(pos.split(`${R17_BANK_LITERAL} FOR UPDATE OF t`).length - 1).toBe(2);
   });
 });
@@ -598,7 +598,7 @@ const R18_GROUPS: [string, string, string, string[]][] = [
 
 describe('finance read-tail r18 byte-identical SQL dedupe', () => {
   it('keeps one byte-identical literal per family with no inline duplicates', async () => {
-    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r18-sql.ts', import.meta.url), 'utf8');
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r18-sql.ts', import.meta.url), 'utf8');
     expect(shared.split('SELECT ').length - 1).toBe(13);
     for (const [name, actual, literal] of R18_GROUPS) {
       expect(actual).toBe(literal);
@@ -618,22 +618,22 @@ describe('finance read-tail r18 byte-identical SQL dedupe', () => {
     ]);
     for (const [name, , literal, files] of R18_GROUPS) {
       for (const file of files) {
-        const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+        const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
         expect(text.split(literal).length - 1).toBe(0);
         expect(text).toContain(name);
         if (bindFiles.has(file)) expect(text).toContain('.bind(');
       }
     }
-    const nativeRecordFacts = await readFile(new URL('../../../packages/server-finance/src/adapters/records-record-details-owned-facts.ts', import.meta.url), 'utf8');
+    const nativeRecordFacts = await readFile(new URL('../../../modules/finance/server/src/adapters/records-record-details-owned-facts.ts', import.meta.url), 'utf8');
     expect(nativeRecordFacts.split(R18_PERIOD_DATES_LITERAL).length - 1).toBe(0);
     expect(nativeRecordFacts).not.toContain('PERIOD_DATES_SQL');
     expect(nativeRecordFacts).toContain('FINANCE_LANE5B_RD_PERIOD');
   });
 
   it('leaves every lock-taking variant inline outside the shared text', async () => {
-    const pos = await readFile(new URL('../../../packages/server-finance/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    const pos = await readFile(new URL('../../../modules/finance/server/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
     expect(pos.split(`${R17_BANK_LITERAL} FOR UPDATE OF t`).length - 1).toBe(2);
-    const pms = await readFile(new URL('../../../packages/server-finance/src/adapters/pms-command-facts.ts', import.meta.url), 'utf8');
+    const pms = await readFile(new URL('../../../modules/finance/server/src/adapters/pms-command-facts.ts', import.meta.url), 'utf8');
     expect(pms.split(`${R16_IDS_LITERAL} FOR SHARE`).length - 1).toBe(1);
   });
 });
@@ -670,14 +670,14 @@ describe('finance read-tail r19 byte-identical SQL dedupe', () => {
   });
 
   it('keeps exactly two SELECT-bearing templates in the shared helper', async () => {
-    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r19-sql.ts', import.meta.url), 'utf8');
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r19-sql.ts', import.meta.url), 'utf8');
     expect(shared.split('SELECT ').length - 1).toBe(2);
   });
 
   it('backs all 22 owner-join sites with the helper and no inline join', async () => {
     let calls = 0;
     for (const file of R19_OWNER_FILES) {
-      const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+      const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
       expect(text).not.toMatch(/EXISTS\(SELECT 1 FROM \(\$\{[^}]*\}\) root JOIN \(\$\{[^}]*\}\) (owner_source|marker|source) ON \1\.id=root\.id AND \1\.company_id=root\.company_id\)/);
       expect(text).toContain('rootOwnerExistsSql');
       calls += (text.match(/rootOwnerExistsSql\(/g) ?? []).length;
@@ -688,7 +688,7 @@ describe('finance read-tail r19 byte-identical SQL dedupe', () => {
   it('backs all 15 WITH-prefixed clock sites with the helper and no inline clock prefix', async () => {
     let calls = 0;
     for (const file of R19_CLOCK_FILES) {
-      const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+      const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
       expect(text).not.toMatch(/WITH \w+ AS MATERIALIZED\(SELECT \$\{packageClockSql\}/);
       expect(text).toContain('materializedClockCteSql');
       calls += (text.match(/materializedClockCteSql\(/g) ?? []).length;
@@ -697,11 +697,11 @@ describe('finance read-tail r19 byte-identical SQL dedupe', () => {
   });
 
   it('leaves the comma-joined clock CTE and lock variants inline', async () => {
-    const doc = await readFile(new URL('../../../packages/server-finance/src/adapters/document-purchases.ts', import.meta.url), 'utf8');
+    const doc = await readFile(new URL('../../../modules/finance/server/src/adapters/document-purchases.ts', import.meta.url), 'utf8');
     expect(doc.split('finance_entry_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms)').length - 1).toBe(1);
     expect(doc.split('root JOIN finance_assets a ON').length - 1).toBe(1);
     expect(doc.split('root JOIN finance_asset_disposals a ON').length - 1).toBe(1);
-    const pos = await readFile(new URL('../../../packages/server-finance/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    const pos = await readFile(new URL('../../../modules/finance/server/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
     expect(pos.split(`${R17_BANK_LITERAL} FOR UPDATE OF t`).length - 1).toBe(2);
   });
 });
@@ -775,14 +775,14 @@ describe('finance read-tail r20 byte-identical SQL dedupe', () => {
   });
 
   it('keeps exactly two SELECT-bearing templates in the shared helper', async () => {
-    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r20-sql.ts', import.meta.url), 'utf8');
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r20-sql.ts', import.meta.url), 'utf8');
     expect(shared.split('SELECT ').length - 1).toBe(2);
   });
 
   it('backs all 28 guard sites with the helper and no inline literal', async () => {
     let calls = 0;
     for (const file of new Set(R20_GUARDS.map(([f]) => f))) {
-      const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+      const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
       expect(text).toContain("from './finance-read-tail-r20-sql'");
       expect(text).toContain('idCompanyStatusVersionGuard');
       for (const [f, table, status] of R20_GUARDS) {
@@ -797,7 +797,7 @@ describe('finance read-tail r20 byte-identical SQL dedupe', () => {
   it('backs the 12 company-only plus 3 variant jsonb_agg sites with the helper and keeps COALESCE outside', async () => {
     let calls = 0;
     for (const file of new Set(R20_AGGS.map(([f]) => f))) {
-      const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+      const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
       expect(text).toContain("from './finance-read-tail-r20-sql'");
       expect(text).toContain('aggByCompany');
       for (const [f, a, table, order] of R20_AGGS) {
@@ -807,21 +807,21 @@ describe('finance read-tail r20 byte-identical SQL dedupe', () => {
       calls += (text.match(/aggByCompany\(/g) ?? []).length;
     }
     expect(calls).toBe(15);
-    const sales = await readFile(new URL('../../../packages/server-finance/src/adapters/sales-service-product-sources.ts', import.meta.url), 'utf8');
+    const sales = await readFile(new URL('../../../modules/finance/server/src/adapters/sales-service-product-sources.ts', import.meta.url), 'utf8');
     expect(sales.split(`COALESCE(\${aggByCompany('c','finance_charts','id')},'[]'::jsonb)`).length - 1).toBe(1);
-    const assets = await readFile(new URL('../../../packages/server-finance/src/adapters/assets-financial-sources.ts', import.meta.url), 'utf8');
+    const assets = await readFile(new URL('../../../modules/finance/server/src/adapters/assets-financial-sources.ts', import.meta.url), 'utf8');
     expect(assets.split(`COALESCE(\${aggByCompany('c','finance_charts','id')}`).length - 1).toBe(0);
   });
 
   it('leaves r18 predicate and lock variants inline; extra predicates now shared', async () => {
-    const tax = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
+    const tax = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
     expect(tax.split("aggByCompany('t','finance_current_tax_entries','id',' AND t.chart_id=? AND t.claim_month=?')").length - 1).toBe(1);
     expect(tax.split('t.company_id=? AND t.chart_id=? AND t.claim_month=?').length - 1).toBe(0);
-    const attach = await readFile(new URL('../../../packages/server-finance/src/adapters/commerce-attachment-sources.ts', import.meta.url), 'utf8');
+    const attach = await readFile(new URL('../../../modules/finance/server/src/adapters/commerce-attachment-sources.ts', import.meta.url), 'utf8');
     expect(attach.split("aggByCompany('p','finance_parties','id',' AND p.id IN(' + jsonbArrayTextSql('') + ')')").length - 1).toBe(1);
-    const r18 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r18-sql.ts', import.meta.url), 'utf8');
+    const r18 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r18-sql.ts', import.meta.url), 'utf8');
     expect(r18.split('r.currency=?)').length - 1).toBeGreaterThan(0);
-    const wh = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-withholding-remittance.ts', import.meta.url), 'utf8');
+    const wh = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-withholding-remittance.ts', import.meta.url), 'utf8');
     expect(wh.split('SELECT id FROM finance_withholding_packages WHERE id=? FOR UPDATE').length - 1).toBe(1);
   });
 });
@@ -876,7 +876,7 @@ describe('finance read-tail r21 byte-identical SQL variants', () => {
 
   it('backs all 5 variant sites with the helper and no inline literal', async () => {
     for (const file of new Set(R21_VARIANTS.map(([f]) => f))) {
-      const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+      const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
       expect(text).toContain("from './finance-read-tail-r20-sql'");
       expect(text).toContain('aggByCompany');
       for (const [f, expected, call] of R21_VARIANTS) {
@@ -888,14 +888,14 @@ describe('finance read-tail r21 byte-identical SQL variants', () => {
   });
 
   it('keeps COALESCE outside the shared register projection and locks inline', async () => {
-    const tax = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
+    const tax = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
     expect(tax.split("COALESCE(${aggByCompany('t','finance_current_tax_entries','id',' AND t.chart_id=? AND t.claim_month=?')},'[]'::jsonb)::text").length - 1).toBe(1);
-    const wh = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-withholding-remittance.ts', import.meta.url), 'utf8');
+    const wh = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-withholding-remittance.ts', import.meta.url), 'utf8');
     expect(wh.split('SELECT id FROM finance_withholding_packages WHERE id=? FOR UPDATE').length - 1).toBe(1);
   });
 
   it('keeps exactly two SELECT-bearing templates in the shared helper', async () => {
-    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r20-sql.ts', import.meta.url), 'utf8');
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r20-sql.ts', import.meta.url), 'utf8');
     expect(shared.split('SELECT ').length - 1).toBe(2);
   });
 });
@@ -923,7 +923,7 @@ describe('finance read-tail r22 byte-identical SQL families', () => {
   it('backs all five evidence sites with the helper and no inline literal', async () => {
     let calls = 0;
     for (const file of new Set(R22_EVIDENCE_SITES.map(([f]) => f))) {
-      const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+      const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
       expect(text).toContain("from './finance-read-tail-r22-sql'");
       expect(text).toContain('journalLineEvidenceSql');
       for (const [f, ref] of R22_EVIDENCE_SITES) {
@@ -937,7 +937,7 @@ describe('finance read-tail r22 byte-identical SQL families', () => {
   });
 
   it('keeps exactly one SELECT-bearing template in the r22 helper', async () => {
-    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r22-sql.ts', import.meta.url), 'utf8');
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r22-sql.ts', import.meta.url), 'utf8');
     expect(shared.split('SELECT ').length - 1).toBe(1);
   });
 
@@ -948,14 +948,14 @@ describe('finance read-tail r22 byte-identical SQL families', () => {
   });
 
   it('backs the manufacturing money site with the shared helper and no inline literal', async () => {
-    const text = await readFile(new URL('../../../packages/server-finance/src/adapters/manufacturing-existing-posting-setup.ts', import.meta.url), 'utf8');
+    const text = await readFile(new URL('../../../modules/finance/server/src/adapters/manufacturing-existing-posting-setup.ts', import.meta.url), 'utf8');
     expect(text).toContain("from './finance-read-tail-r20-sql'");
     expect(text.split(R22_MONEY_SQL).length - 1).toBe(0);
     expect(text.split("aggByCompany('m','money_transaction_snapshots','source_type,source_id,amount_kind',' AND (m.source_id IN(SELECT id FROM journals) OR m.source_id IN(SELECT id FROM owner_orders))')").length - 1).toBe(1);
   });
 
   it('backs the familyEvidence entries projection with the shared helper and no inline literal', async () => {
-    const text = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
+    const text = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
     expect(text.split('(SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id) FROM finance_current_tax_entries t WHERE t.company_id=? AND').length - 1).toBe(0);
     expect(text.split("aggByCompany('t','finance_current_tax_entries','id',` AND").length - 1).toBe(1);
   });
@@ -986,7 +986,7 @@ describe('finance read-tail r23 byte-identical SQL families', () => {
 
   it('backs all three book-root sites with the helper and no inline literal', async () => {
     for (const file of ['pos','manufacturing','service']) {
-      const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}-initial-stock-journal-sources.ts`, import.meta.url), 'utf8');
+      const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}-initial-stock-journal-sources.ts`, import.meta.url), 'utf8');
       expect(text).toContain("from './finance-read-tail-r23-sql'");
       expect(text.split("const roots=").length - 1).toBe(0);
       expect(text.split("bookRootUnionSql(alias)").length - 1).toBe(2);
@@ -995,19 +995,19 @@ describe('finance read-tail r23 byte-identical SQL families', () => {
 
   it('backs both People fact families with the helpers and no inline literal', async () => {
     for (const file of ['people-package-obligations.ts','people-addon-package-obligations.ts']) {
-      const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+      const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
       expect(text).toContain("from './finance-read-tail-r23-sql'");
       for (const literal of [R23_RUNS,R23_POSTINGS,R23_NET_PAYABLE,R23_UNPOSTED,R23_STATUTORY,R23_LATERAL])
         expect(text.split(literal).length - 1).toBe(0);
       expect(text.split('UNION ALL SELECT \'secondary-journal\'').length - 1).toBe(file === 'people-addon-package-obligations.ts' ? 1 : 0);
     }
-    const addon = await readFile(new URL('../../../packages/server-finance/src/adapters/people-addon-package-obligations.ts', import.meta.url), 'utf8');
+    const addon = await readFile(new URL('../../../modules/finance/server/src/adapters/people-addon-package-obligations.ts', import.meta.url), 'utf8');
     expect(addon.split("journalAggregateCtesSql()").length - 1).toBe(2);
     expect(addon.split("SELECT COUNT(*) FROM finance_journal_lines l WHERE l.journal_id=j.id) line_count,COALESCE").length - 1).toBe(0);
   });
 
   it('keeps the r23 helper SELECT count at the deduplicated total', async () => {
-    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r23-sql.ts', import.meta.url), 'utf8');
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r23-sql.ts', import.meta.url), 'utf8');
     expect(shared.split('SELECT ').length - 1).toBe(19);
   });
 });
@@ -1050,32 +1050,32 @@ describe('finance read-tail r24 byte-identical SQL families', () => {
 
   it('backs every call site with the shared r24 text and no inline literal', async () => {
     for (const file of Object.keys(R24_RENDERED)) {
-      const text = await readFile(new URL('../../../packages/server-finance/src/adapters/' + file, import.meta.url), 'utf8');
+      const text = await readFile(new URL('../../../modules/finance/server/src/adapters/' + file, import.meta.url), 'utf8');
       expect(text).toContain('from "./finance-read-tail-r24-sql"');
       expect(text.split(R24_RENDERED[file]).length - 1).toBe(0);
       expect(text.split('packageObligationFactsSql(').length - 1).toBe(1);
     }
-    const asset = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-asset-policies.ts', import.meta.url), 'utf8');
+    const asset = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-asset-policies.ts', import.meta.url), 'utf8');
     expect(asset).toContain("from './finance-read-tail-r24-sql'");
     for (const lit of ["SELECT count(*) n FROM finance_asset_depreciations WHERE asset_id=?", "SELECT 1 FROM finance_asset_policy_editions WHERE asset_id=? AND status='draft'", "SELECT 1 FROM finance_asset_policy_runs WHERE asset_id=? AND status='draft'"]) expect(asset.split(lit).length - 1).toBe(0);
     for (const name of ['ASSET_DEPRECIATION_COUNT_SQL', 'ASSET_POLICY_EDITION_PENDING_SQL', 'ASSET_POLICY_RUN_PENDING_SQL']) expect(asset).toContain(name);
-    const tax = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
+    const tax = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
     expect(tax).toContain("from './finance-read-tail-r24-sql'");
     for (const lit of ["NOT EXISTS(SELECT 1 FROM finance_current_tax_entries t WHERE t.company_id=i.company_id AND t.source_type='invoice' AND t.source_id=i.id AND t.status='approved')", "NOT EXISTS(SELECT 1 FROM finance_current_tax_entries t WHERE t.company_id=r.company_id AND t.source_type='commerce_return' AND t.source_id=r.id AND t.status='approved')", "NOT EXISTS(SELECT 1 FROM finance_current_tax_entries t WHERE t.company_id=r.company_id AND t.source_type='billing_credit' AND t.source_id=r.id AND t.status='approved')"]) expect(tax.split(lit).length - 1).toBe(0);
     for (const name of ['TAX_SOURCE_APPROVED_INVOICE_SQL', 'TAX_SOURCE_APPROVED_COMMERCE_RETURN_SQL', 'TAX_SOURCE_APPROVED_BILLING_CREDIT_SQL']) expect(tax).toContain(name);
   });
 
   it('keeps the transaction locks inline and the shared helper lock-free', async () => {
-    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r24-sql.ts', import.meta.url), 'utf8');
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r24-sql.ts', import.meta.url), 'utf8');
     expect(shared).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE/);
     for (const file of ['pos-package-obligations.ts', 'pms-package-obligations.ts']) {
-      const text = await readFile(new URL('../../../packages/server-finance/src/adapters/' + file, import.meta.url), 'utf8');
+      const text = await readFile(new URL('../../../modules/finance/server/src/adapters/' + file, import.meta.url), 'utf8');
       expect(text.split('LOCK TABLE finance_invoices,finance_payments,finance_journals,finance_journal_lines,finance_allocations IN SHARE MODE').length - 1).toBe(1);
     }
   });
 
   it('retirement:ts-statements stays strictly below the tax-read-port BEFORE=2038 baseline', () => {
-    const root = resolve(__dirname, '../../../packages/server-finance/src');
+    const root = resolve(__dirname, '../../../modules/finance/server/src');
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -1100,7 +1100,7 @@ describe('finance native tax-register read-port cutover', () => {
   ];
 
   it('exposes every tax read kind with the exact registered discriminator', async () => {
-    const bridge = await readFile(new URL('../../../packages/server-finance/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
     for (const kind of TAX_KINDS) {
       expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
     }
@@ -1110,7 +1110,7 @@ describe('finance native tax-register read-port cutover', () => {
   });
 
   it('switches the fixed point and count readers while keeping guards and locks in TS', async () => {
-    const tax = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
+    const tax = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
     expect(tax).toContain('from "./native-finance-read"');
     for (const kind of TAX_KINDS) expect(tax).toContain(kind);
     expect(tax.match(/nativeFinanceReadAll</g)?.length).toBe(1);
@@ -1212,13 +1212,13 @@ describe('finance read-tail r30 byte-identical guard-prefix families', () => {
   });
 
   it('leaves every row-lock suffix inline at its call site', async () => {
-    const pos = await readFile(new URL('../../../packages/server-finance/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    const pos = await readFile(new URL('../../../modules/finance/server/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
     expect(pos.split("AND (currency IS NULL OR currency=?) FOR SHARE").length - 1).toBe(1);
     expect(pos.split("ORDER BY code,id FOR UPDATE").length - 1).toBe(1);
   });
 
   it('keeps the retained tax assertion guard pendingCorrectionsSql inline', async () => {
-    const tax = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
+    const tax = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
     expect(tax).toContain('const pendingCorrectionsSql = "SELECT COUNT(*) FROM finance_vat_corrections');
     expect(tax).toContain('`(${pendingCorrectionsSql})=0`');
   });
@@ -1234,7 +1234,7 @@ describe('finance read-tail r30 byte-identical guard-prefix families', () => {
       'pos-initial-stock-journal-sources.ts', 'service-initial-stock-journal-sources.ts',
     ];
     for (const file of files) {
-      const text = await readFile(new URL('../../../packages/server-finance/src/adapters/' + file, import.meta.url), 'utf8');
+      const text = await readFile(new URL('../../../modules/finance/server/src/adapters/' + file, import.meta.url), 'utf8');
       expect(text).toContain('from \'./finance-read-tail-r30-sql\'');
       expect(text.split(PREFIXES.ACCOUNT_SELECT_PREFIX).length - 1).toBe(0);
       expect(text.split(PREFIXES.INVOICE_EXISTS_PREFIX).length - 1).toBe(0);
@@ -1246,7 +1246,7 @@ describe('finance read-tail r30 byte-identical guard-prefix families', () => {
   });
 
   it('retirement:ts-statements stays strictly below the r30 BEFORE=2027 baseline', () => {
-    const root = resolve(__dirname, '../../../packages/server-finance/src');
+    const root = resolve(__dirname, '../../../modules/finance/server/src');
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -1278,19 +1278,19 @@ describe('finance read-tail r31 byte-identical read families', () => {
       ['finance-consolidation.ts', LITERALS.CONSOLIDATION_RUN_BY_ID_SQL],
       ['finance-thai-documents.ts', LITERALS.ISSUED_THAI_DOCUMENT_BY_ID_SQL],
     ] as const) {
-      const text = await readFile(new URL('../../../packages/server-finance/src/adapters/' + file, import.meta.url), 'utf8');
+      const text = await readFile(new URL('../../../modules/finance/server/src/adapters/' + file, import.meta.url), 'utf8');
       expect(text.split(literal).length - 1).toBe(0);
     }
   });
 
   it('leaves the retained tax assertion guard inline', async () => {
-    const tax = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
+    const tax = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
     expect(tax).toContain('const pendingCorrectionsSql = "SELECT COUNT(*) FROM finance_vat_corrections');
     expect(tax).toContain('`(${pendingCorrectionsSql})=0`');
   });
 
   it('retirement:ts-statements stays strictly below the r31 BEFORE=1989 baseline', () => {
-    const root = resolve(__dirname, '../../../packages/server-finance/src');
+    const root = resolve(__dirname, '../../../modules/finance/server/src');
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -1323,19 +1323,19 @@ describe('finance read-tail r32 byte-identical read families', () => {
 
   it('removes every inline family literal from its call sites', async () => {
     for (const file of ['journal-planning.ts', 'payroll-owner-facts.ts', 'finance.ts']) {
-      const text = await readFile(new URL('../../../packages/server-finance/src/adapters/' + file, import.meta.url), 'utf8');
+      const text = await readFile(new URL('../../../modules/finance/server/src/adapters/' + file, import.meta.url), 'utf8');
       expect(text.split(LITERALS.ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL).length - 1).toBe(0);
       expect(text).toContain('ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL');
     }
   });
 
   it('leaves row-lock variants inline at their adapters', async () => {
-    const pos = await readFile(new URL('../../../packages/server-finance/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    const pos = await readFile(new URL('../../../modules/finance/server/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
     expect(pos).toContain("SELECT id,base_currency FROM finance_charts WHERE id=? AND company_id=? AND status='active' FOR SHARE");
   });
 
   it('retirement:ts-statements stays strictly below the r31 BEFORE=1985 baseline', () => {
-    const root = resolve(__dirname, '../../../packages/server-finance/src');
+    const root = resolve(__dirname, '../../../modules/finance/server/src');
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -1365,7 +1365,7 @@ describe('finance read-tail r33 byte-identical read families', () => {
 
   it('removes every inline family literal from its call sites', async () => {
     for (const file of ['journal-planning.ts', 'finance-engines.ts', 'finance.ts']) {
-      const text = await readFile(new URL('../../../packages/server-finance/src/adapters/' + file, import.meta.url), 'utf8');
+      const text = await readFile(new URL('../../../modules/finance/server/src/adapters/' + file, import.meta.url), 'utf8');
       expect(text.split(`'${LITERALS.PERIOD_BY_ID_SQL}'`).length - 1).toBe(0);
       expect(text.split(`"${LITERALS.PERIOD_BY_ID_SQL}"`).length - 1).toBe(0);
       expect(text).toContain('PERIOD_BY_ID_SQL');
@@ -1373,15 +1373,15 @@ describe('finance read-tail r33 byte-identical read families', () => {
   });
 
   it('leaves the longer state-scoped variant and retained guards inline', async () => {
-    const finance = await readFile(new URL('../../../packages/server-finance/src/adapters/finance.ts', import.meta.url), 'utf8');
+    const finance = await readFile(new URL('../../../modules/finance/server/src/adapters/finance.ts', import.meta.url), 'utf8');
     expect(finance).not.toContain("SELECT * FROM finance_periods WHERE id=? AND company_id=? AND state='open'");
     expect(finance).toContain('FINANCE_RD_FIN_OPEN_PERIOD');
-    const tax = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
+    const tax = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
     expect(tax).toContain('pendingCorrectionsSql');
   });
 
   it('retirement:ts-statements stays strictly below the r32 BEFORE=1983 baseline', () => {
-    const root = resolve(__dirname, '../../../packages/server-finance/src');
+    const root = resolve(__dirname, '../../../modules/finance/server/src');
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -1432,7 +1432,7 @@ describe('finance read-tail r34 byte-identical read families', () => {
     for (const [name, files] of Object.entries(sites)) {
       const literal = LITERALS[name as keyof typeof LITERALS];
       for (const file of files) {
-        const text = await readFile(new URL('../../../packages/server-finance/src/adapters/' + file, import.meta.url), 'utf8');
+        const text = await readFile(new URL('../../../modules/finance/server/src/adapters/' + file, import.meta.url), 'utf8');
         expect(text.split(`'${literal}'`).length - 1).toBe(0);
         expect(text.split(`"${literal}"`).length - 1).toBe(0);
         expect(text).toContain(name);
@@ -1441,22 +1441,22 @@ describe('finance read-tail r34 byte-identical read families', () => {
   });
 
   it('leaves r15-r33 helpers and retained lock variants untouched', async () => {
-    const r15 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r15-sql.ts', import.meta.url), 'utf8');
+    const r15 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r15-sql.ts', import.meta.url), 'utf8');
     expect(r15).toContain('ORDER BY start_date DESC');
-    const r16 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r16-sql.ts', import.meta.url), 'utf8');
+    const r16 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r16-sql.ts', import.meta.url), 'utf8');
     expect(r16).toContain('EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state=\'open\' AND start_date<=? AND end_date>=?)');
-    const r17 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r17-sql.ts', import.meta.url), 'utf8');
+    const r17 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r17-sql.ts', import.meta.url), 'utf8');
     expect(r17).toContain('BANK_TRANSACTION_BY_ID_SQL');
-    const r18 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r18-sql.ts', import.meta.url), 'utf8');
+    const r18 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r18-sql.ts', import.meta.url), 'utf8');
     expect(r18).toContain('SELECT chart_id FROM finance_accounts WHERE id=? AND company_id=?"');
-    const pms = await readFile(new URL('../../../packages/server-finance/src/adapters/pms-command-facts.ts', import.meta.url), 'utf8');
+    const pms = await readFile(new URL('../../../modules/finance/server/src/adapters/pms-command-facts.ts', import.meta.url), 'utf8');
     expect(pms).toContain('FOR SHARE');
-    const pos = await readFile(new URL('../../../packages/server-finance/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    const pos = await readFile(new URL('../../../modules/finance/server/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
     expect(pos).toContain('FOR UPDATE');
   });
 
   it('retirement:ts-statements stays strictly below the r33 BEFORE=1981 baseline', () => {
-    const root = resolve(__dirname, '../../../packages/server-finance/src');
+    const root = resolve(__dirname, '../../../modules/finance/server/src');
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -1486,7 +1486,7 @@ describe('finance read-tail r35 parameterized workforce actor scope family', () 
 
   it('removes every inline prefix from all three call sites', async () => {
     for (const file of SITES) {
-      const text = await readFile(new URL('../../../packages/server-finance/src/adapters/' + file, import.meta.url), 'utf8');
+      const text = await readFile(new URL('../../../modules/finance/server/src/adapters/' + file, import.meta.url), 'utf8');
       expect(text.includes(PREFIX)).toBe(false);
       expect(text).toContain('WORKFORCE_ACTOR_SCOPE_SQL');
       expect(text).toContain('${current.where}');
@@ -1494,18 +1494,18 @@ describe('finance read-tail r35 parameterized workforce actor scope family', () 
   });
 
   it('leaves lock variants, tax assertion guards and r15-r34 helpers untouched', async () => {
-    const r34 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r34-sql.ts', import.meta.url), 'utf8');
+    const r34 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r34-sql.ts', import.meta.url), 'utf8');
     expect(r34).toContain('OPEN_PERIOD_COVERED_SQL');
-    const r24 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r24-sql.ts', import.meta.url), 'utf8');
+    const r24 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r24-sql.ts', import.meta.url), 'utf8');
     expect(r24).toContain('TAX_SOURCE_APPROVED_INVOICE_SQL');
-    const pms = await readFile(new URL('../../../packages/server-finance/src/adapters/pms-command-facts.ts', import.meta.url), 'utf8');
+    const pms = await readFile(new URL('../../../modules/finance/server/src/adapters/pms-command-facts.ts', import.meta.url), 'utf8');
     expect(pms).toContain('FOR SHARE');
-    const pos = await readFile(new URL('../../../packages/server-finance/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    const pos = await readFile(new URL('../../../modules/finance/server/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
     expect(pos).toContain('FOR UPDATE');
   });
 
   it('retirement:ts-statements stays strictly below the r34 BEFORE=1974 baseline', () => {
-    const root = resolve(__dirname, '../../../packages/server-finance/src');
+    const root = resolve(__dirname, '../../../modules/finance/server/src');
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -1557,7 +1557,7 @@ describe('finance read-tail r36 exact duplicate two-site SQL families', () => {
   it('removes every inline literal from its two sites', async () => {
     for (const family of FAMILIES) {
       for (const file of family.sites) {
-        const text = await readFile(new URL('../../../packages/server-finance/src/adapters/' + file, import.meta.url), 'utf8');
+        const text = await readFile(new URL('../../../modules/finance/server/src/adapters/' + file, import.meta.url), 'utf8');
         expect(text.includes('"' + family.sql + '"')).toBe(false);
         expect(text.includes("'" + family.sql + "'")).toBe(false);
         expect(text).toContain('finance-read-tail-r36-sql');
@@ -1566,23 +1566,23 @@ describe('finance read-tail r36 exact duplicate two-site SQL families', () => {
   });
 
   it('leaves lock variants, tax assertion guards and r15-r35 helpers untouched', async () => {
-    const pos = await readFile(new URL('../../../packages/server-finance/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    const pos = await readFile(new URL('../../../modules/finance/server/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
     expect(pos).toContain('FOR SHARE');
     expect(pos).toContain('FOR UPDATE');
-    const acct = await readFile(new URL('../../../packages/server-finance/src/adapters/accounting-profiles.ts', import.meta.url), 'utf8');
+    const acct = await readFile(new URL('../../../modules/finance/server/src/adapters/accounting-profiles.ts', import.meta.url), 'utf8');
     expect(acct).toContain('ACTIVE_THB_CHART_GUARD_SQL');
-    const r45 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r45-sql.ts', import.meta.url), 'utf8');
+    const r45 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r45-sql.ts', import.meta.url), 'utf8');
     expect(r45).toContain("EXISTS(SELECT 1 FROM finance_charts WHERE id=? AND company_id=? AND status='active' AND base_currency='THB')");
-    const r35 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r35-sql.ts', import.meta.url), 'utf8');
+    const r35 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r35-sql.ts', import.meta.url), 'utf8');
     expect(r35).toContain('WORKFORCE_ACTOR_SCOPE_SQL');
-    const r34 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r34-sql.ts', import.meta.url), 'utf8');
+    const r34 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r34-sql.ts', import.meta.url), 'utf8');
     expect(r34).toContain('OPEN_PERIOD_COVERED_SQL');
-    const r24 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r24-sql.ts', import.meta.url), 'utf8');
+    const r24 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r24-sql.ts', import.meta.url), 'utf8');
     expect(r24).toContain('TAX_SOURCE_APPROVED_INVOICE_SQL');
   });
 
   it('retirement:ts-statements stays strictly below the r35 BEFORE=1970 baseline', () => {
-    const root = resolve(__dirname, '../../../packages/server-finance/src');
+    const root = resolve(__dirname, '../../../modules/finance/server/src');
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -1613,7 +1613,7 @@ describe('finance read-tail r37 exact duplicate period-exists read family', () =
 
   it('removes both inline literals from their two sites', async () => {
     for (const file of SITES) {
-      const text = await readFile(new URL('../../../packages/server-finance/src/adapters/' + file, import.meta.url), 'utf8');
+      const text = await readFile(new URL('../../../modules/finance/server/src/adapters/' + file, import.meta.url), 'utf8');
       expect(text.includes('"' + SQL + '"')).toBe(false);
       expect(text.includes("'" + SQL + "'")).toBe(false);
       expect(text).toContain('finance-read-tail-r37-sql');
@@ -1621,22 +1621,22 @@ describe('finance read-tail r37 exact duplicate period-exists read family', () =
   });
 
   it('leaves r16/r34 guarded variants, locks, tax guards and r15-r36 helpers untouched', async () => {
-    const r16 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r16-sql.ts', import.meta.url), 'utf8');
+    const r16 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r16-sql.ts', import.meta.url), 'utf8');
     expect(r16).toContain('OPEN_PERIOD_GUARD_SQL');
     expect(r16).toContain("EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state='open' AND start_date<=? AND end_date>=?)");
-    const r34 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r34-sql.ts', import.meta.url), 'utf8');
+    const r34 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r34-sql.ts', import.meta.url), 'utf8');
     expect(r34).toContain('OPEN_PERIOD_COVERED_SQL');
-    const pos = await readFile(new URL('../../../packages/server-finance/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    const pos = await readFile(new URL('../../../modules/finance/server/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
     expect(pos).toContain('FOR SHARE');
     expect(pos).toContain('FOR UPDATE');
-    const r36 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r36-sql.ts', import.meta.url), 'utf8');
+    const r36 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r36-sql.ts', import.meta.url), 'utf8');
     expect(r36).toContain('CHART_EXISTS_BY_COMPANY_SQL');
-    const r24 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r24-sql.ts', import.meta.url), 'utf8');
+    const r24 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r24-sql.ts', import.meta.url), 'utf8');
     expect(r24).toContain('TAX_SOURCE_APPROVED_INVOICE_SQL');
   });
 
   it('retirement:ts-statements stays strictly below the r36 BEFORE=1966 baseline', () => {
-    const root = resolve(__dirname, '../../../packages/server-finance/src');
+    const root = resolve(__dirname, '../../../modules/finance/server/src');
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -1728,28 +1728,28 @@ describe('finance read-tail r38 byte-identical read families', () => {
   it('removes all 26 inline literals from their 12 sites', async () => {
     expect(Object.values(SITE_OCCURRENCES).reduce((sum, n) => sum + n, 0)).toBe(26);
     for (const [file, lits] of Object.entries(SITE_LITERALS)) {
-      const text = await readFile(new URL('../../../packages/server-finance/src/adapters/' + file, import.meta.url), 'utf8');
+      const text = await readFile(new URL('../../../modules/finance/server/src/adapters/' + file, import.meta.url), 'utf8');
       expect(text).toContain('finance-read-tail-r38-sql');
       for (const lit of lits) expect(text.includes(lit)).toBe(false);
     }
   });
 
   it('leaves locks, tax/assertion SQL and r15-r37 helpers untouched', async () => {
-    const pos = await readFile(new URL('../../../packages/server-finance/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    const pos = await readFile(new URL('../../../modules/finance/server/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
     expect(pos).toContain('FOR SHARE');
     expect(pos).toContain('FOR UPDATE');
-    const bc = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-business-contracts.ts', import.meta.url), 'utf8');
+    const bc = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-business-contracts.ts', import.meta.url), 'utf8');
     expect(bc).toContain('NOT EXISTS(SELECT 1 FROM finance_business_billing_runs WHERE parent_run_id=?)');
-    const tax = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r24-sql.ts', import.meta.url), 'utf8');
+    const tax = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r24-sql.ts', import.meta.url), 'utf8');
     expect(tax).toContain('TAX_SOURCE_APPROVED_INVOICE_SQL');
-    const r37 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r37-sql.ts', import.meta.url), 'utf8');
+    const r37 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r37-sql.ts', import.meta.url), 'utf8');
     expect(r37).toContain('PERIOD_EXISTS_BY_ID_SQL');
-    const r16 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r16-sql.ts', import.meta.url), 'utf8');
+    const r16 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r16-sql.ts', import.meta.url), 'utf8');
     expect(r16).toContain('OPEN_PERIOD_GUARD_SQL');
   });
 
   it('retirement:ts-statements stays strictly below the r37 BEFORE=1965 baseline', () => {
-    const root = resolve(__dirname, '../../../packages/server-finance/src');
+    const root = resolve(__dirname, '../../../modules/finance/server/src');
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -1837,37 +1837,37 @@ describe('finance read-tail r39 read families', () => {
   it('removes all 17 inline literals from their 10 files', async () => {
     expect(Object.values(SITE_OCCURRENCES).reduce((sum, n) => sum + n, 0)).toBe(17);
     for (const [file, lits] of Object.entries(SITE_LITERALS)) {
-      const text = await readFile(new URL('../../../packages/server-finance/src/adapters/' + file, import.meta.url), 'utf8');
+      const text = await readFile(new URL('../../../modules/finance/server/src/adapters/' + file, import.meta.url), 'utf8');
       expect(text).toContain('finance-read-tail-r39-sql');
       for (const lit of lits) expect(text.includes(lit)).toBe(false);
     }
   });
 
   it('leaves locks, tax/assertion SQL and r15-r38 helpers untouched', async () => {
-    const assets = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-assets.ts', import.meta.url), 'utf8');
+    const assets = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-assets.ts', import.meta.url), 'utf8');
     expect(assets).toContain("NOT EXISTS(SELECT 1 FROM finance_asset_disposals WHERE asset_id=? AND status='draft')");
-    const ic = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-intercompany.ts', import.meta.url), 'utf8');
+    const ic = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-intercompany.ts', import.meta.url), 'utf8');
     expect(ic).toContain('EXISTS(SELECT 1 FROM finance_intercompany_transactions WHERE id=? AND holding_id=? AND status=? AND version=?)');
-    const carry = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-asset-carrying.ts', import.meta.url), 'utf8');
+    const carry = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-asset-carrying.ts', import.meta.url), 'utf8');
     expect(carry).toContain("j.source_type='book_opening'");
-    const money = await readFile(new URL('../../../packages/server-finance/src/adapters/finance.ts', import.meta.url), 'utf8');
+    const money = await readFile(new URL('../../../modules/finance/server/src/adapters/finance.ts', import.meta.url), 'utf8');
     expect(money).not.toContain("SELECT 1 AS present FROM money_transaction_snapshots WHERE company_id=? AND source_type='finance_payment' AND source_id=? AND amount_kind='settled'");
     expect(money).toContain('FINANCE_RD_FIN2_SETTLED_MONEY');
-    const effect = await readFile(new URL('../../../packages/server-finance/src/adapters/expense-native-effects.ts', import.meta.url), 'utf8');
+    const effect = await readFile(new URL('../../../modules/finance/server/src/adapters/expense-native-effects.ts', import.meta.url), 'utf8');
     expect(effect).toContain("SELECT 1 FROM money_transaction_snapshots WHERE company_id=? AND source_type=? AND source_id=? AND amount_kind=?");
-    const pos = await readFile(new URL('../../../packages/server-finance/src/adapters/pos-daily-facts.ts', import.meta.url), 'utf8');
+    const pos = await readFile(new URL('../../../modules/finance/server/src/adapters/pos-daily-facts.ts', import.meta.url), 'utf8');
     expect(pos).toContain("accounts_json::jsonb->>'stripe'");
-    const tax = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r24-sql.ts', import.meta.url), 'utf8');
+    const tax = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r24-sql.ts', import.meta.url), 'utf8');
     expect(tax).toContain('TAX_SOURCE_APPROVED_INVOICE_SQL');
-    const r38 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r38-sql.ts', import.meta.url), 'utf8');
+    const r38 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r38-sql.ts', import.meta.url), 'utf8');
     expect(r38).toContain('SUPPLIER_RECEIPT_SOURCE_SQL');
     expect(r38).toContain('POS_JOURNAL_LINE_NET_SQL');
-    const r37 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r37-sql.ts', import.meta.url), 'utf8');
+    const r37 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r37-sql.ts', import.meta.url), 'utf8');
     expect(r37).toContain('PERIOD_EXISTS_BY_ID_SQL');
   });
 
   it('retirement:ts-statements stays strictly below the r38 BEFORE=1951 baseline', () => {
-    const root = resolve(__dirname, '../../../packages/server-finance/src');
+    const root = resolve(__dirname, '../../../modules/finance/server/src');
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -1967,31 +1967,31 @@ describe('finance read-tail r40 read families', () => {
   it('removes all 23 inline literals from their 14 files', async () => {
     expect(Object.values(SITE_OCCURRENCES).reduce((sum, n) => sum + n, 0)).toBe(23);
     for (const [file, lits] of Object.entries(SITE_LITERALS)) {
-      const text = await readFile(new URL('../../../packages/server-finance/src/adapters/' + file, import.meta.url), 'utf8');
+      const text = await readFile(new URL('../../../modules/finance/server/src/adapters/' + file, import.meta.url), 'utf8');
       expect(text).toContain('finance-read-tail-r40-sql');
       for (const lit of lits) expect(text.includes(lit)).toBe(false);
     }
   });
 
   it('leaves locks, tax/assertion SQL and r15-r39 helpers untouched', async () => {
-    const thai = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-thai-documents.ts', import.meta.url), 'utf8');
+    const thai = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-thai-documents.ts', import.meta.url), 'utf8');
     expect(thai).toContain('THAI_DOC_ACTIVE_GUARD_SQL');
     expect(thai).toContain("from './finance-read-tail-r50-sql'");
     expect(thai).toContain("EXISTS(SELECT 1 FROM finance_thai_document_sequences WHERE company_id=? AND document_kind=? AND fiscal_year=? AND last_number=?)");
-    const docs = await readFile(new URL('../../../packages/server-finance/src/adapters/document-purchases.ts', import.meta.url), 'utf8');
+    const docs = await readFile(new URL('../../../modules/finance/server/src/adapters/document-purchases.ts', import.meta.url), 'utf8');
     expect(docs).toContain('FOR SHARE');
     expect(docs).toContain('finance-document-owner');
-    const pay = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-withholding.ts', import.meta.url), 'utf8');
+    const pay = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-withholding.ts', import.meta.url), 'utf8');
     expect(pay).toContain("versionStatusGuardSql('finance_accounts', \"'active'\", \" AND category='liability' AND control_kind='none' AND currency='THB'\")");
     expect(pay).not.toContain("EXISTS(SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND version=? AND status='active' AND category='liability'");
-    const r39 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r39-sql.ts', import.meta.url), 'utf8');
+    const r39 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r39-sql.ts', import.meta.url), 'utf8');
     expect(r39).toContain('bankCashLinesSql');
-    const r15 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r15-sql.ts', import.meta.url), 'utf8');
+    const r15 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r15-sql.ts', import.meta.url), 'utf8');
     expect(r15).toContain('COMMAND_RECEIPT_EXISTS_SQL');
   });
 
   it('retirement:ts-statements stays strictly below the r39 BEFORE=1942 baseline', () => {
-    const root = resolve(__dirname, '../../../packages/server-finance/src');
+    const root = resolve(__dirname, '../../../modules/finance/server/src');
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -2011,10 +2011,10 @@ describe('finance native bank-automation imported-file read-port cutover', () =>
   const SQL = 'SELECT s.statement_number FROM finance_bank_import_files f JOIN finance_bank_statements s ON s.id=f.statement_id AND s.company_id=f.company_id WHERE f.company_id=? AND f.bank_account_id=? AND f.file_hash=?';
 
   it('registers the exact discriminator in the TS bridge and the Rust owner registry', async () => {
-    const bridge = await readFile(new URL('../../../packages/server-finance/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
     expect(bridge).toContain(`export const ${KIND} = 'finance_rd_bank_imported_file'`);
     expect(bridge).toContain('export async function nativeFinanceReadFirst');
-    const rust = await readFile(new URL('../../../packages/server-finance/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
     expect(rust).toContain('pub const RD_BANK_IMPORTED_FILE: &str = "finance_rd_bank_imported_file"');
     expect(rust).toContain(`const SQL_RD_BANK_IMPORTED_FILE: &str = "${SQL}"`);
     expect(rust).toContain('READ_BANK_IMPORTED_FILE,');
@@ -2022,7 +2022,7 @@ describe('finance native bank-automation imported-file read-port cutover', () =>
   });
 
   it('delegates the duplicate probe to the native plan with no TypeScript SQL', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-bank-automation.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-bank-automation.ts', import.meta.url), 'utf8');
     expect(adapter).toContain("import { FINANCE_RD_BANK_IMPORTED_FILE, nativeFinanceReadFirst } from './native-finance-read'");
     expect(adapter).toContain(`nativeFinanceReadFirst<{statement_number:string}>(${KIND},[actor.companyId,accountId,fileHash],write)`);
     expect(adapter.split(SQL).length - 1).toBe(0);
@@ -2045,12 +2045,12 @@ describe('finance native tax-identity read family cutover', () => {
   ];
 
   it('registers every kind in the TS bridge and the Rust owner registry', async () => {
-    const bridge = await readFile(new URL('../../../packages/server-finance/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
     for (const [kind] of FAMILY)
       expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
     expect(bridge).toContain('export async function nativeFinanceReadAll');
     expect(bridge).toContain('export async function nativeFinanceReadFirst');
-    const rust = await readFile(new URL('../../../packages/server-finance/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
     for (const [kind, sql] of FAMILY) {
       const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
       expect(rust).toContain(`pub const ${rustConst}: &str = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`.replace(/'/g, '"'));
@@ -2061,7 +2061,7 @@ describe('finance native tax-identity read family cutover', () => {
   });
 
   it('removes all six literals from the TS adapter while keeping its command guards', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-tax-identities.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-tax-identities.ts', import.meta.url), 'utf8');
     expect(adapter).toContain("from './native-finance-read'");
     for (const [kind] of FAMILY) expect(adapter).toContain(kind);
     expect(adapter.match(/nativeFinanceReadFirst[<(]/g)?.length).toBe(4);
@@ -2094,11 +2094,11 @@ describe('finance native assets point/list read family cutover', () => {
   ];
 
   it('registers every kind in the TS bridge and the Rust owner registry', async () => {
-    const bridge = await readFile(new URL('../../../packages/server-finance/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
     for (const [kind] of FAMILY)
       expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
     expect(bridge).toContain('export async function nativeFinanceReadScalarFirst');
-    const rust = await readFile(new URL('../../../packages/server-finance/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
     for (const [kind, sql] of FAMILY) {
       const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
       expect(rust).toContain(`pub const ${rustConst}: &str = "${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}"`);
@@ -2109,7 +2109,7 @@ describe('finance native assets point/list read family cutover', () => {
   });
 
   it('delegates all eight reads while keeping locks and command guards in TS', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-assets.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-assets.ts', import.meta.url), 'utf8');
     expect(adapter).toContain("from './native-finance-read'");
     for (const [kind] of FAMILY) expect(adapter).toContain(kind);
     expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(5);
@@ -2138,11 +2138,11 @@ describe('finance native reporting point/list read family cutover', () => {
   ];
 
   it('registers every kind in the TS bridge and the Rust owner registry', async () => {
-    const bridge = await readFile(new URL('../../../packages/server-finance/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
     for (const [kind] of FAMILY)
       expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
     expect(bridge).toContain('export async function nativeFinanceReadScalarFirst');
-    const rust = await readFile(new URL('../../../packages/server-finance/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
     for (const [kind, sql] of FAMILY) {
       const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
       expect(rust).toContain(`pub const ${rustConst}: &str = "${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}"`);
@@ -2153,7 +2153,7 @@ describe('finance native reporting point/list read family cutover', () => {
   });
 
   it('delegates all eight reads while keeping locks, guards and other owners in TS', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-reporting.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-reporting.ts', import.meta.url), 'utf8');
     expect(adapter).toContain("from './native-finance-read'");
     for (const [kind] of FAMILY) expect(adapter).toContain(kind);
     expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(4);
@@ -2182,11 +2182,11 @@ describe('finance native withholding point/list read family cutover', () => {
   ];
 
   it('registers every kind in the TS bridge and the Rust owner registry', async () => {
-    const bridge = await readFile(new URL('../../../packages/server-finance/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
     for (const [kind] of FAMILY)
       expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
     expect(bridge).toContain('export async function nativeFinanceReadFirst');
-    const rust = await readFile(new URL('../../../packages/server-finance/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
     for (const [kind, sql] of FAMILY) {
       const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
       expect(rust).toContain(`pub const ${rustConst}: &str = "${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}"`);
@@ -2197,7 +2197,7 @@ describe('finance native withholding point/list read family cutover', () => {
   });
 
   it('delegates all eight reads while keeping guards and larger projections in TS', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-withholding.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-withholding.ts', import.meta.url), 'utf8');
     expect(adapter).toContain("from './native-finance-read'");
     for (const [kind] of FAMILY) expect(adapter).toContain(kind);
     expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(2);
@@ -2225,11 +2225,11 @@ describe('finance native withholding-remittance point/list read family cutover',
   ];
 
   it('registers every kind in the TS bridge and the Rust owner registry', async () => {
-    const bridge = await readFile(new URL('../../../packages/server-finance/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
     for (const [kind] of FAMILY)
       expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
     expect(bridge).toContain('export async function nativeFinanceReadScalarFirst');
-    const rust = await readFile(new URL('../../../packages/server-finance/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
     for (const [kind, sql] of FAMILY) {
       const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
       expect(rust).toContain(`pub const ${rustConst}: &str = "${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}"`);
@@ -2240,7 +2240,7 @@ describe('finance native withholding-remittance point/list read family cutover',
   });
 
   it('delegates all eight reads while keeping assertions and row locks in TS', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-withholding-remittance.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-withholding-remittance.ts', import.meta.url), 'utf8');
     expect(adapter).toContain("from './native-finance-read'");
     for (const [kind] of FAMILY) expect(adapter).toContain(kind);
     expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(2);
@@ -2267,12 +2267,12 @@ describe('finance native planning point/list read family cutover', () => {
   ];
 
   it('registers every kind in the TS bridge and the Rust owner registry', async () => {
-    const bridge = await readFile(new URL('../../../packages/server-finance/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
     for (const [kind] of FAMILY)
       expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
     expect(bridge).toContain('export async function nativeFinanceReadAll');
     expect(bridge).toContain('export async function nativeFinanceReadFirst');
-    const rust = await readFile(new URL('../../../packages/server-finance/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
     for (const [kind, sql] of FAMILY) {
       const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
       expect(rust).toContain(`pub const ${rustConst}: &str = "${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}"`);
@@ -2283,7 +2283,7 @@ describe('finance native planning point/list read family cutover', () => {
   });
 
   it('delegates all eight reads while keeping dynamic ledger projections in TS', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-planning.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-planning.ts', import.meta.url), 'utf8');
     expect(adapter).toContain('from "./native-finance-read"');
     for (const [kind] of FAMILY) expect(adapter).toContain(kind);
     expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(3);
@@ -2310,11 +2310,11 @@ describe('finance native business-contracts point/list read family cutover', () 
   ];
 
   it('registers every kind in the TS bridge and the Rust owner registry', async () => {
-    const bridge = await readFile(new URL('../../../packages/server-finance/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
     for (const [kind] of FAMILY)
       expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
     expect(bridge).toContain('export async function nativeFinanceReadFirst');
-    const rust = await readFile(new URL('../../../packages/server-finance/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
     for (const [kind, sql] of FAMILY) {
       const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
       expect(rust).toContain(`pub const ${rustConst}: &str = "${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}"`);
@@ -2325,7 +2325,7 @@ describe('finance native business-contracts point/list read family cutover', () 
   });
 
   it('delegates all eight reads while keeping guards and dynamic projections in TS', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-business-contracts.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-business-contracts.ts', import.meta.url), 'utf8');
     expect(adapter).toContain("from './native-finance-read'");
     for (const [kind] of FAMILY) expect(adapter).toContain(kind);
     expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(1);
@@ -2350,12 +2350,12 @@ describe('finance native invoice-read point/list family cutover', () => {
   ];
 
   it('registers every kind in the TS bridge and the Rust owner registry', async () => {
-    const bridge = await readFile(new URL('../../../packages/server-finance/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
     for (const [kind] of FAMILY)
       expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
     expect(bridge).toContain('export async function nativeFinanceReadAll');
     expect(bridge).toContain('export async function nativeFinanceReadFirst');
-    const rust = await readFile(new URL('../../../packages/server-finance/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
     for (const [kind, sql] of FAMILY) {
       const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
       expect(rust).toContain(`pub const ${rustConst}: &str = "${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}"`);
@@ -2366,7 +2366,7 @@ describe('finance native invoice-read point/list family cutover', () => {
   });
 
   it('delegates the remaining first-family reads while keeping field-invoice ownership reads in TS', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-invoice-read.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-invoice-read.ts', import.meta.url), 'utf8');
     expect(adapter).toContain("from './native-finance-read'");
     for (const [kind] of FAMILY) expect(adapter).toContain(kind);
     expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(12);
@@ -2392,11 +2392,11 @@ describe('finance native invoice-read second point/list family cutover', () => {
   ];
 
   it('registers every kind in the TS bridge and the Rust owner registry', async () => {
-    const bridge = await readFile(new URL('../../../packages/server-finance/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
     for (const [kind] of FAMILY)
       expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
     expect(bridge).toContain('export async function nativeFinanceReadAll');
-    const rust = await readFile(new URL('../../../packages/server-finance/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
     for (const [kind, sql] of FAMILY) {
       const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
       expect(rust).toContain(`pub const ${rustConst}: &str = "${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}"`);
@@ -2407,7 +2407,7 @@ describe('finance native invoice-read second point/list family cutover', () => {
   });
 
   it('delegates the remaining reads while keeping ownership helpers in TS', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-invoice-read.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-invoice-read.ts', import.meta.url), 'utf8');
     expect(adapter).toContain("from './native-finance-read'");
     for (const [kind] of FAMILY) expect(adapter).toContain(kind);
     expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(12);
@@ -2434,12 +2434,12 @@ describe('finance native AI point/list read family cutover', () => {
   ];
 
   it('registers every kind in the TS bridge and the Rust owner registry', async () => {
-    const bridge = await readFile(new URL('../../../packages/server-finance/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
     for (const [kind] of FAMILY)
       expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
     expect(bridge).toContain('export async function nativeFinanceReadAll');
     expect(bridge).toContain('export async function nativeFinanceReadFirst');
-    const rust = await readFile(new URL('../../../packages/server-finance/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
     for (const [kind, sql] of FAMILY) {
       const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
       expect(rust).toContain(`pub const ${rustConst}: &str = "${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}"`);
@@ -2450,7 +2450,7 @@ describe('finance native AI point/list read family cutover', () => {
   });
 
   it('delegates all eight reads while keeping owner writes and quota helpers in TS', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-ai.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-ai.ts', import.meta.url), 'utf8');
     expect(adapter).toContain("from './native-finance-read'");
     for (const [kind] of FAMILY) expect(adapter).toContain(kind);
     expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(5);
@@ -2475,12 +2475,12 @@ describe('finance native asset-policy point/list read family cutover', () => {
   ];
 
   it('registers every kind in the TS bridge and the Rust owner registry', async () => {
-    const bridge = await readFile(new URL('../../../packages/server-finance/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
     for (const [kind] of FAMILY)
       expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
     expect(bridge).toContain('export async function nativeFinanceReadAll');
     expect(bridge).toContain('export async function nativeFinanceReadFirst');
-    const rust = await readFile(new URL('../../../packages/server-finance/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
     for (const [kind, sql] of FAMILY) {
       const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
       expect(rust).toContain(`pub const ${rustConst}: &str = "${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}"`);
@@ -2491,7 +2491,7 @@ describe('finance native asset-policy point/list read family cutover', () => {
   });
 
   it('delegates all eight reads while keeping owner writes and guards in TS', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-asset-policies.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-asset-policies.ts', import.meta.url), 'utf8');
     expect(adapter).toContain("from './native-finance-read'");
     for (const [kind] of FAMILY) expect(adapter).toContain(kind);
     expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(6);
@@ -2515,12 +2515,12 @@ describe('finance native finance.ts point/list read family cutover', () => {
   ];
 
   it('registers every kind in the TS bridge and the Rust owner registry', async () => {
-    const bridge = await readFile(new URL('../../../packages/server-finance/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
     for (const [kind] of FAMILY)
       expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
     expect(bridge).toContain('export async function nativeFinanceReadAll');
     expect(bridge).toContain('export async function nativeFinanceReadFirst');
-    const rust = await readFile(new URL('../../../packages/server-finance/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
     for (const [kind, sql] of FAMILY) {
       const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
       expect(rust).toContain(`pub const ${rustConst}: &str = "${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}"`);
@@ -2531,7 +2531,7 @@ describe('finance native finance.ts point/list read family cutover', () => {
   });
 
   it('delegates all eight reads while keeping owner writes and locks in TS', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-finance/src/adapters/finance.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance.ts', import.meta.url), 'utf8');
     expect(adapter).toContain("from './native-finance-read'");
     for (const [kind] of FAMILY) expect(adapter).toContain(kind);
     expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(4);
@@ -2556,12 +2556,12 @@ describe('finance native finance.ts second point/list family cutover', () => {
   ];
 
   it('registers every kind in the TS bridge and the Rust owner registry', async () => {
-    const bridge = await readFile(new URL('../../../packages/server-finance/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
     for (const [kind] of FAMILY)
       expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
     expect(bridge).toContain('export async function nativeFinanceReadAll');
     expect(bridge).toContain('export async function nativeFinanceReadFirst');
-    const rust = await readFile(new URL('../../../packages/server-finance/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
     for (const [kind, sql] of FAMILY) {
       const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
       expect(rust).toContain(`pub const ${rustConst}: &str = "${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}"`);
@@ -2572,7 +2572,7 @@ describe('finance native finance.ts second point/list family cutover', () => {
   });
 
   it('delegates all eight reads while keeping owner writes and locks in TS', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-finance/src/adapters/finance.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance.ts', import.meta.url), 'utf8');
     expect(adapter).toContain("from './native-finance-read'");
     for (const [kind] of FAMILY) expect(adapter).toContain(kind);
     expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(4);
@@ -2596,12 +2596,12 @@ describe('finance native finance.ts third point/list family cutover', () => {
   ];
 
   it('registers every kind in the TS bridge and the Rust owner registry', async () => {
-    const bridge = await readFile(new URL('../../../packages/server-finance/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
     for (const [kind] of FAMILY)
       expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
     expect(bridge).toContain('export async function nativeFinanceReadAll');
     expect(bridge).toContain('export async function nativeFinanceReadFirst');
-    const rust = await readFile(new URL('../../../packages/server-finance/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
     for (const [kind, sql] of FAMILY) {
       const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
       expect(rust).toContain(`pub const ${rustConst}: &str = "${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}"`);
@@ -2612,7 +2612,7 @@ describe('finance native finance.ts third point/list family cutover', () => {
   });
 
   it('delegates all eight reads while keeping owner writes and locks in TS', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-finance/src/adapters/finance.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance.ts', import.meta.url), 'utf8');
     expect(adapter).toContain("from './native-finance-read'");
     for (const [kind] of FAMILY) expect(adapter).toContain(kind);
     expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(4);

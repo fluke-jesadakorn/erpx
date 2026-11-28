@@ -2,9 +2,9 @@ import { describe, expect, test } from 'vitest';
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { stockObligationHeadSql } from '../../../packages/server-inventory/src/adapters/read-tail-sql';
+import { stockObligationHeadSql } from '../../../modules/inventory/server/src/adapters/read-tail-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-inventory/src');
+const srcRoot = resolve(__dirname, '../../../modules/inventory/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, name), 'utf8');
 const adapter = (name: string) => src(`adapters/${name}`);
 const sha = (text: string) => createHash('sha256').update(text).digest('hex');

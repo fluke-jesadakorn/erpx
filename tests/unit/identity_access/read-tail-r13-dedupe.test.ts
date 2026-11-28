@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { activeRecipientsSql } from '../../../packages/server-identity_access/src/adapters/iam-probe-sql';
+import { activeRecipientsSql } from '../../../modules/identity-access/server/src/adapters/iam-probe-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-identity_access/src');
+const srcRoot = resolve(__dirname, '../../../modules/identity-access/server/src');
 const sqlSrc = readFileSync(resolve(srcRoot, 'adapters/iam-probe-sql.ts'), 'utf8');
 
 // Pre-dedupe literals copied from HEAD, used only as byte-identity oracles.

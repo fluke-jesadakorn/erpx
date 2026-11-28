@@ -1,6 +1,6 @@
 //! Portable sales-delivery plan guards. These cases do not prove IAM, purchase,
 //! Commerce fulfillment persistence, reservation writes or HTTP behavior.
-use erpx_server_inventory::public::stock_issue::*;
+use erpx_inventory_server::public::stock_issue::*;
 
 fn order(state: &str, kind: &str, version: i64) -> StockIssueOrder {
     StockIssueOrder {
@@ -108,7 +108,7 @@ fn input(quantity: i64, allocations: Vec<(&str, i64)>) -> StockIssueInput {
 }
 
 fn assert_code<T: std::fmt::Debug>(
-    result: Result<T, erpx_server_shared::public::BusinessError>,
+    result: Result<T, erpx_platform_shared_server::public::BusinessError>,
     code: &str,
 ) {
     match result {

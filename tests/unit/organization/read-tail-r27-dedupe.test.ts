@@ -6,9 +6,9 @@ import {
   twoColumnLookup,
   nodeKindByIdCompany,
   versionedNodeActiveGuard,
-} from '../../../packages/server-organization/src/adapters/organization-column-alias-families-r27';
+} from '../../../modules/organization/server/src/adapters/organization-column-alias-families-r27';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+const srcRoot = resolve(__dirname, '../../../modules/organization/server/src');
 const adapters = resolve(srcRoot, 'adapters');
 const read = (name: string) => readFileSync(resolve(adapters, name), 'utf8');
 const helper = read('organization-column-alias-families-r27.ts');

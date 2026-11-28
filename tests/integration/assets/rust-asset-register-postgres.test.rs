@@ -1,11 +1,11 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_assets::public::asset_register::*;
-use erpx_server_assets::public::retirement_work::{AssetRetirementWorkEffect, AssetRetirementWorkSource};
-use erpx_server_runtime::public::postgres::{
+use erpx_assets_server::public::asset_register::*;
+use erpx_assets_server::public::retirement_work::{AssetRetirementWorkEffect, AssetRetirementWorkSource};
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, RecordId, UserId};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, FailureKind, RecordId, UserId};
 use serde_json::{Value, json};
 use std::sync::{
     Arc,
@@ -18,13 +18,13 @@ type Error = PgTransactionError<BusinessError>;
 struct FinanceCurrencyCatalogue;
 impl AssetCurrencyCatalogue for FinanceCurrencyCatalogue {
     fn contains(&self, currency: &str) -> Result<bool, BusinessError> {
-        erpx_server_finance::public::embedded_currency_rules()
+        erpx_finance_server::public::embedded_currency_rules()
             .map(|rules| rules.contains(currency))
-            .map_err(|_| BusinessError::new(erpx_server_shared::public::FailureKind::Unavailable, "ASSET_CURRENCY_CATALOGUE_UNAVAILABLE", "The currency catalogue is unavailable."))
+            .map_err(|_| BusinessError::new(erpx_platform_shared_server::public::FailureKind::Unavailable, "ASSET_CURRENCY_CATALOGUE_UNAVAILABLE", "The currency catalogue is unavailable."))
     }
     fn scale(&self, currency: &str, company_scale: Option<u32>) -> Result<Option<u32>, BusinessError> {
-        let rules=erpx_server_finance::public::embedded_currency_rules()
-            .map_err(|_| BusinessError::new(erpx_server_shared::public::FailureKind::Unavailable,"ASSET_CURRENCY_CATALOGUE_UNAVAILABLE","The currency catalogue is unavailable."))?;
+        let rules=erpx_finance_server::public::embedded_currency_rules()
+            .map_err(|_| BusinessError::new(erpx_platform_shared_server::public::FailureKind::Unavailable,"ASSET_CURRENCY_CATALOGUE_UNAVAILABLE","The currency catalogue is unavailable."))?;
         Ok(rules.scale(currency,company_scale.map(i64::from)).ok().map(u32::from))
     }
 }
@@ -1575,7 +1575,7 @@ async fn registration_uses_iso_scale_and_replays_before_current_scale_lookup() {
 
 #[tokio::test]
 async fn asset_purchase_source_preserves_scope_image_and_writer_fence() {
-    use erpx_server_assets::public::asset_purchase_source::*;
+    use erpx_assets_server::public::asset_purchase_source::*;
     use sqlx::Acquire;
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
@@ -1617,8 +1617,8 @@ async fn asset_purchase_source_preserves_scope_image_and_writer_fence() {
 
 #[tokio::test]
 async fn retained_finance_cost_survives_asset_write_and_deferred_checks() {
-    use erpx_server_finance::public::asset_acquisition_money::{RetainedAssetAcquisitionMoney,lock_asset_acquisition_money_sources,prepare_asset_acquisition_money};
-    use erpx_server_shared::public::{Clock,TimestampMillis};
+    use erpx_finance_server::public::asset_acquisition_money::{RetainedAssetAcquisitionMoney,lock_asset_acquisition_money_sources,prepare_asset_acquisition_money};
+    use erpx_platform_shared_server::public::{Clock,TimestampMillis};
     struct FixedClock;
     impl Clock for FixedClock {fn now(&self)->TimestampMillis {TimestampMillis::new(1_800_000_000_000)}}
     struct FinanceEffect(RetainedAssetAcquisitionMoney);
@@ -1666,8 +1666,8 @@ async fn retained_finance_cost_survives_asset_write_and_deferred_checks() {
 
 #[tokio::test]
 async fn typed_acquisition_cost_preserves_real_lock_conflict_without_legacy_fallback() {
-    use erpx_server_finance::public::asset_acquisition_money::{RetainedAssetAcquisitionMoney,lock_asset_acquisition_money_sources,prepare_asset_acquisition_money};
-    use erpx_server_shared::public::{Clock,TimestampMillis};
+    use erpx_finance_server::public::asset_acquisition_money::{RetainedAssetAcquisitionMoney,lock_asset_acquisition_money_sources,prepare_asset_acquisition_money};
+    use erpx_platform_shared_server::public::{Clock,TimestampMillis};
     struct FixedClock;
     impl Clock for FixedClock {fn now(&self)->TimestampMillis {TimestampMillis::new(1_800_000_000_000)}}
     struct FinanceEffect(RetainedAssetAcquisitionMoney);
@@ -1714,14 +1714,14 @@ async fn typed_acquisition_cost_preserves_real_lock_conflict_without_legacy_fall
 
 #[tokio::test]
 async fn asset_maintenance_join_matches_actual_ts_asset_image() {
-    use erpx_server_assets::public::asset_purchase_source::{inspect_asset_maintenance_join,lock_asset_purchase_sources};
+    use erpx_assets_server::public::asset_purchase_source::{inspect_asset_maintenance_join,lock_asset_purchase_sources};
     fixture::with_database(2,|pool|async move {
         setup(&pool).await;
         insert_asset(&pool,"asset-join-source","company","branch",Some("department"),1000,None).await;
         sqlx::query("INSERT INTO public.maintenance_work_orders(id,company_id,branch_id,department_id,asset_id,title,priority,status,owner_id,created_by,created_at,updated_at) VALUES('asset-join-work','company','branch','department','asset-join-source','Inspect asset','normal','open','user-1','user-1',1,1)").execute(pool.raw()).await.unwrap();
         let oracle=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
             .current_dir(concat!(env!("CARGO_MANIFEST_DIR"),"/../.."))
-            .args(["--conditions=react-server","-e","import {maintenancePurchaseSourceQuery as q} from './packages/server-maintenance/src/adapters/purchase-sources.ts'; let n=0; process.stdout.write(q('work',true).replace(/\\?/g,()=>'$'+(++n)))"])
+            .args(["--conditions=react-server","-e","import {maintenancePurchaseSourceQuery as q} from './modules/maintenance/server/src/adapters/purchase-sources.ts'; let n=0; process.stdout.write(q('work',true).replace(/\\?/g,()=>'$'+(++n)))"])
             .output().unwrap();
         assert!(oracle.status.success(),"actual Maintenance TS source unavailable");
         let legacy=String::from_utf8(oracle.stdout).unwrap();
@@ -1761,7 +1761,7 @@ async fn asset_maintenance_join_matches_actual_ts_asset_image() {
 
 #[tokio::test]
 async fn selected_asset_purchase_ctes_match_actual_ts_source_query() {
-    use erpx_server_assets::public::asset_purchase_source::*;
+    use erpx_assets_server::public::asset_purchase_source::*;
     use sqlx::{Postgres, QueryBuilder};
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
@@ -1770,7 +1770,7 @@ async fn selected_asset_purchase_ctes_match_actual_ts_source_query() {
         // Capture only the query from the actual TS owner function; execution
         // and all data below are real PostgreSQL in the original fenced unit.
         let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const m=await import(process.argv[1]);const db={prepare(sql){return {bind(){return {async first(){return sql}}}}}};const actor={companyId:'company',branchId:'branch',departmentId:'department'};let sqls=[];for(const file of [false,true]){let n=0;const sql=await m.assetOwnerSourceImage(db,actor,{kind:'asset',id:'selected-asset'},file);sqls.push(sql.replace(/\?/g,()=>'$'+(++n)))}process.stdout.write(JSON.stringify(sqls));"#;
-        let path=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/server-assets/src/adapters/purchases.ts");
+        let path=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../modules/assets/server/src/adapters/purchases.ts");
         let out=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).args(["--conditions=react-server","-e",script]).arg(path).output().unwrap();
         assert!(out.status.success(),"actual Assets TS query unavailable");
         let legacy:Vec<String>=serde_json::from_slice(&out.stdout).unwrap();
@@ -1800,7 +1800,7 @@ async fn selected_asset_purchase_ctes_match_actual_ts_source_query() {
 
 #[tokio::test]
 async fn asset_files_descriptor_matches_actual_typescript_owner_sql() {
-    use erpx_server_assets::public::asset_purchase_source::{lock_asset_purchase_sources,observe_asset_attachment_descriptor};
+    use erpx_assets_server::public::asset_purchase_source::{lock_asset_purchase_sources,observe_asset_attachment_descriptor};
     fixture::with_database(3,|pool|async move {
         setup(&pool).await;
         let long_id=format!("descriptor-{}","x".repeat(220));

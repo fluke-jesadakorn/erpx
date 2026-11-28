@@ -3,9 +3,9 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 vi.mock('server-only', () => ({}));
-import { qualityLineageSeedSql, qualityLineageStepSql } from '../../../packages/server-quality/src/adapters/quality-lineage-recursion-sql';
+import { qualityLineageSeedSql, qualityLineageStepSql } from '../../../modules/quality/server/src/adapters/quality-lineage-recursion-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-quality/src');
+const srcRoot = resolve(__dirname, '../../../modules/quality/server/src');
 const read = (path: string) => readFileSync(resolve(srcRoot, path), 'utf8');
 const sha = (sql: string) => createHash('sha256').update(sql).digest('hex');
 

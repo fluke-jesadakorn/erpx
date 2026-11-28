@@ -4,12 +4,12 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_commerce::public::record_source::{lock_record_sources, read_record_source};
-use erpx_server_runtime::public::postgres::{
+use erpx_commerce_server::public::record_source::{lock_record_sources, read_record_source};
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::record_source_contract::SourceKind;
-use erpx_server_shared::public::{BusinessError, CompanyId};
+use erpx_platform_shared_server::public::record_source_contract::SourceKind;
+use erpx_platform_shared_server::public::{BusinessError, CompanyId};
 
 fn persistence_code(error: PgTransactionError<BusinessError>) -> String {
     match error {

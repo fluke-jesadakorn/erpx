@@ -5,11 +5,11 @@ import {
   crmScopedDescListSql,
   crmDistinctOwnerSql,
   crmLeadRowSourceSql,
-} from '../../../packages/server-crm/src/adapters/read-tail-r40-sql';
-import { crmSingleKeySourceSql } from '../../../packages/server-crm/src/adapters/read-tail-r37-sql';
-import { crmSelectBodySql } from '../../../packages/server-crm/src/adapters/read-tail-r46-sql';
+} from '../../../modules/crm/server/src/adapters/read-tail-r40-sql';
+import { crmSingleKeySourceSql } from '../../../modules/crm/server/src/adapters/read-tail-r37-sql';
+import { crmSelectBodySql } from '../../../modules/crm/server/src/adapters/read-tail-r46-sql';
 
-const owner = resolve(__dirname, '../../../packages/server-crm/src');
+const owner = resolve(__dirname, '../../../modules/crm/server/src');
 const src = (name: string) => readFileSync(resolve(owner, 'adapters', name), 'utf8');
 const totalSelects = () => {
   let total = 0;

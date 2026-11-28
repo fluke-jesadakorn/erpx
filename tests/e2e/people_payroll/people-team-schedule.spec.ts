@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { addDays, rosterMonday, type RosterCommand, type RosterData, type RosterWeek } from "@erpx/feature-people_payroll/lib/people-roster";
+import { addDays, rosterMonday, type RosterCommand, type RosterData, type RosterWeek } from "@erpx/people-payroll-ui/lib/people-roster";
 import { organizationSession, readOrganization } from "../../support/helpers/organization-access-browser";
 import { mockPeopleDraft } from "../../support/helpers/people-draft-browser";
 

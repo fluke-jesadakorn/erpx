@@ -3,10 +3,10 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
 
-import { ecommerceScalar } from '../../../packages/server-ecommerce/src/adapters/read-tail-sql';
-import { ecommerceNativeOrderRoots } from '../../../packages/server-ecommerce/src/adapters/package-sources';
+import { ecommerceScalar } from '../../../modules/ecommerce/server/src/adapters/read-tail-sql';
+import { ecommerceNativeOrderRoots } from '../../../modules/ecommerce/server/src/adapters/package-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-ecommerce/src');
+const srcRoot = resolve(__dirname, '../../../modules/ecommerce/server/src');
 const read = (path: string) => readFileSync(resolve(srcRoot, path), 'utf8');
 const src = read('adapters/ecommerce.ts');
 const po = read('adapters/package-obligations.ts');

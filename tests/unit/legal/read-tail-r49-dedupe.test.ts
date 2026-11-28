@@ -5,22 +5,22 @@ vi.mock('server-only', () => ({}));
 import {
   legalCleanDocumentGuardHead,
   legalShareDocumentImageHead,
-} from '../../../packages/server-legal/src/adapters/legal-read-tail-r49-sources';
+} from '../../../modules/legal/server/src/adapters/legal-read-tail-r49-sources';
 import {
   legalShareDocumentReadHead,
-} from '../../../packages/server-legal/src/adapters/legal-read-tail-r41-sources';
+} from '../../../modules/legal/server/src/adapters/legal-read-tail-r41-sources';
 import {
   legalPointByIdSql,
-} from '../../../packages/server-legal/src/adapters/legal-read-tail-r32-sources';
+} from '../../../modules/legal/server/src/adapters/legal-read-tail-r32-sources';
 import {
   legalDisposedGuardSql,
-} from '../../../packages/server-legal/src/adapters/legal-read-tail-r39-sources';
+} from '../../../modules/legal/server/src/adapters/legal-read-tail-r39-sources';
 import {
   legalPortalSourceImageFields,
-} from '../../../packages/server-legal/src/adapters/portal-purchases';
+} from '../../../modules/legal/server/src/adapters/portal-purchases';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-legal/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-legal/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/legal/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/legal/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 /** Fixed share/document spine verbatim from the pre-r49 inline holders. */
 const shareDocumentSpine = 'FROM legal_shares s JOIN legal_items i ON i.id=s.item_id JOIN legal_documents d ON d.id=s.document_id AND d.item_id=i.id';

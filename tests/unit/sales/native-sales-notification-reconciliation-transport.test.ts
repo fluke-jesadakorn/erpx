@@ -7,7 +7,7 @@ import {
   nativeSalesNotificationReconcile,
   salesNotificationReconciliationInput,
   type NativeSalesNotificationPageContext,
-} from '../../../packages/feature-sales/src/public/native-sales-notification-reconciliation';
+} from '../../../modules/sales/ui/src/public/native-sales-notification-reconciliation';
 
 const incoming = (overrides: Record<string, string> = {}) =>
   new Headers({ host: 'acme.example.com', cookie: '__Host-erpx-product=session', ...overrides });

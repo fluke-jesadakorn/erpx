@@ -1,11 +1,11 @@
 #[path = "../../support/rust-postgres.rs"]
 mod database;
-use erpx_server_people_payroll::public::invitation_person_link::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_people_payroll_server::public::invitation_person_link::*;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, RecordId, TimestampMillis, UserId};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, RecordId, TimestampMillis, UserId};
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},

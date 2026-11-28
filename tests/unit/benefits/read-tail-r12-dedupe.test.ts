@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { benefitPackageSettlementSources, materializedScopeCte } from '../../../packages/server-benefits/src/adapters/package-obligations';
+import { benefitPackageSettlementSources, materializedScopeCte } from '../../../modules/benefits/server/src/adapters/package-obligations';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-benefits/src');
+const srcRoot = resolve(__dirname, '../../../modules/benefits/server/src');
 const adapterDir = resolve(srcRoot, 'adapters');
 const src = (name: string) => readFileSync(resolve(adapterDir, name), 'utf8');
 const registry = () => readFileSync(resolve(adapterDir, 'native_owner_read_sql.rs'), 'utf8');

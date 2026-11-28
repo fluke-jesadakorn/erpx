@@ -2,10 +2,10 @@ import { describe, expect, test, vi } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
-import { commercialOwnerProjectionSources as identityAccessProjectionSources } from '@erpx/server-identity_access/public/commercial-owner-projection-sources';
-import { qualityAlertRecipientSql } from '../../../packages/server-quality/src/adapters/quality-alert-recipient-sql';
+import { commercialOwnerProjectionSources as identityAccessProjectionSources } from '@erpx/identity-access-server/public/commercial-owner-projection-sources';
+import { qualityAlertRecipientSql } from '../../../modules/quality/server/src/adapters/quality-alert-recipient-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-quality/src');
+const srcRoot = resolve(__dirname, '../../../modules/quality/server/src');
 const read = (path: string) => readFileSync(resolve(srcRoot, path), 'utf8');
 
 // Pre-dedupe assignment-recipient predicate copied byte-for-byte from HEAD.

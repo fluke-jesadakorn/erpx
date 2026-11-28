@@ -1,11 +1,11 @@
-use erpx_server_customer_360::public::customer_portal::{
+use erpx_customer_360_server::public::customer_portal::{
     CustomerPortalEffects, CustomerPortalRepository, CustomerPortalSharedFiles, CustomerSharedFile,
     PortalAction, PortalActionFact, PortalActionRow, PortalBinding, PortalCommandEvidence,
     PortalCommandFacts, PortalCommandInput, PortalCommandPurpose, PortalCustomerActor,
     PortalFulfillment, PortalHolding, PortalPurchaseScope, PortalEventIdentifiers, customer_portal_command as combined_portal_command,
     customer_portal_projection,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 use std::collections::BTreeMap;
 
 const NOW: i64 = 1_800_000_000_000;
@@ -49,8 +49,8 @@ fn input(action: PortalAction) -> PortalCommandInput {
     }
 }
 
-fn item(binding_id: &str) -> erpx_server_customer_360::public::customer_portal::CustomerPortalItem {
-    erpx_server_customer_360::public::customer_portal::CustomerPortalItem {
+fn item(binding_id: &str) -> erpx_customer_360_server::public::customer_portal::CustomerPortalItem {
+    erpx_customer_360_server::public::customer_portal::CustomerPortalItem {
         binding_id: binding_id.into(),
         binding_version: 3,
         order_id: "order".into(),
@@ -77,7 +77,7 @@ fn item(binding_id: &str) -> erpx_server_customer_360::public::customer_portal::
 
 #[derive(Default)]
 struct Repo {
-    projection: Vec<erpx_server_customer_360::public::customer_portal::CustomerPortalItem>,
+    projection: Vec<erpx_customer_360_server::public::customer_portal::CustomerPortalItem>,
     prior: Option<PortalActionRow>,
     binding: Option<PortalBinding>,
     identity: bool,
@@ -94,9 +94,9 @@ impl CustomerPortalRepository for Repo {
         _scope: &'a PortalPurchaseScope,
         _now: i64,
         _read_id: &'a str,
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<
         'a,
-        Vec<erpx_server_customer_360::public::customer_portal::CustomerPortalItem>,
+        Vec<erpx_customer_360_server::public::customer_portal::CustomerPortalItem>,
         Self::Error,
     > {
         Box::pin(async move { Ok(self.projection.clone()) })
@@ -105,7 +105,7 @@ impl CustomerPortalRepository for Repo {
     fn replay<'a>(
         &'a mut self,
         _key: &'a str,
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<
         'a,
         Option<PortalActionRow>,
         Self::Error,
@@ -117,7 +117,7 @@ impl CustomerPortalRepository for Repo {
         &'a mut self,
         _binding_id: &'a str,
         _email: &'a str,
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<
         'a,
         Option<PortalBinding>,
         Self::Error,
@@ -129,7 +129,7 @@ impl CustomerPortalRepository for Repo {
         &'a mut self,
         _binding_id: &'a str,
         _actor: &'a PortalCustomerActor,
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<'a, bool, Self::Error>
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<'a, bool, Self::Error>
     {
         Box::pin(async move { Ok(self.identity) })
     }
@@ -138,7 +138,7 @@ impl CustomerPortalRepository for Repo {
         &'a mut self,
         _binding_id: &'a str,
         _action: PortalAction,
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<
         'a,
         Option<PortalActionRow>,
         Self::Error,
@@ -149,7 +149,7 @@ impl CustomerPortalRepository for Repo {
     fn record<'a>(
         &'a mut self,
         command: &'a PortalCommandFacts,
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<'a, (), Self::Error> {
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<'a, (), Self::Error> {
         Box::pin(async move {
             self.recorded.push(command.clone());
             Ok(())
@@ -170,7 +170,7 @@ impl CustomerPortalSharedFiles for Files {
         _actor: &'a PortalCustomerActor,
         _binding_ids: &'a [String],
         _now: i64,
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<
         'a,
         BTreeMap<String, Vec<CustomerSharedFile>>,
         Self::Error,
@@ -201,11 +201,11 @@ impl CustomerPortalEffects for Effects {
         _actor: &'a PortalCustomerActor,
         _binding: &'a PortalBinding,
         purpose: PortalCommandPurpose,
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<'a, (), Self::Error> {
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<'a, (), Self::Error> {
         Box::pin(async move {
             if self.fail_authorize {
                 return Err(BusinessError::new(
-                    erpx_server_shared::public::FailureKind::Forbidden,
+                    erpx_platform_shared_server::public::FailureKind::Forbidden,
                     "FEATURE_COMING_SOON",
                     "Not released.",
                 ));
@@ -218,7 +218,7 @@ impl CustomerPortalEffects for Effects {
     fn evidence<'a>(
         &'a mut self,
         _command: &'a PortalCommandFacts,
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<
         'a,
         Option<PortalCommandEvidence>,
         Self::Error,
@@ -235,7 +235,7 @@ impl CustomerPortalEffects for Effects {
         &'a mut self,
         _command: &'a PortalCommandFacts,
         message: &'a str,
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<'a, (), Self::Error> {
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<'a, (), Self::Error> {
         Box::pin(async move {
             self.notified.push(message.into());
             Ok(())
@@ -246,7 +246,7 @@ impl CustomerPortalEffects for Effects {
         &'a mut self,
         _command: &'a PortalCommandFacts,
         event_id: &'a str,
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<'a, (), Self::Error> {
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<'a, (), Self::Error> {
         Box::pin(async move {
             self.audited.push(event_id.into());
             Ok(())
@@ -258,7 +258,7 @@ impl CustomerPortalEffects for Effects {
         _command: &'a PortalCommandFacts,
         event_id: &'a str,
         manifest: &'a [serde_json::Value],
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<'a, (), Self::Error> {
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<'a, (), Self::Error> {
         Box::pin(async move {
             self.outboxed.push((event_id.into(), manifest.len()));
             Ok(())
@@ -278,9 +278,9 @@ impl CustomerPortalRepository for ProjectionUnit<'_> {
         _scope: &'a PortalPurchaseScope,
         _now: i64,
         _read_id: &'a str,
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<
         'a,
-        Vec<erpx_server_customer_360::public::customer_portal::CustomerPortalItem>,
+        Vec<erpx_customer_360_server::public::customer_portal::CustomerPortalItem>,
         Self::Error,
     > {
         Box::pin(async move { Ok(self.repo.projection.clone()) })
@@ -289,7 +289,7 @@ impl CustomerPortalRepository for ProjectionUnit<'_> {
     fn replay<'a>(
         &'a mut self,
         _key: &'a str,
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<
         'a,
         Option<PortalActionRow>,
         Self::Error,
@@ -301,7 +301,7 @@ impl CustomerPortalRepository for ProjectionUnit<'_> {
         &'a mut self,
         _binding_id: &'a str,
         _email: &'a str,
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<
         'a,
         Option<PortalBinding>,
         Self::Error,
@@ -313,7 +313,7 @@ impl CustomerPortalRepository for ProjectionUnit<'_> {
         &'a mut self,
         _binding_id: &'a str,
         _actor: &'a PortalCustomerActor,
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<'a, bool, Self::Error>
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<'a, bool, Self::Error>
     {
         Box::pin(async move { Ok(self.repo.identity) })
     }
@@ -322,7 +322,7 @@ impl CustomerPortalRepository for ProjectionUnit<'_> {
         &'a mut self,
         _binding_id: &'a str,
         _action: PortalAction,
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<
         'a,
         Option<PortalActionRow>,
         Self::Error,
@@ -333,7 +333,7 @@ impl CustomerPortalRepository for ProjectionUnit<'_> {
     fn record<'a>(
         &'a mut self,
         command: &'a PortalCommandFacts,
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<'a, (), Self::Error> {
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<'a, (), Self::Error> {
         Box::pin(async move {
             self.repo.recorded.push(command.clone());
             Ok(())
@@ -348,7 +348,7 @@ impl CustomerPortalSharedFiles for ProjectionUnit<'_> {
         _actor: &'a PortalCustomerActor,
         _binding_ids: &'a [String],
         _now: i64,
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<
         'a,
         BTreeMap<String, Vec<CustomerSharedFile>>,
         Self::Error,
@@ -368,9 +368,9 @@ impl CustomerPortalRepository for Unit<'_> {
         _scope: &'a PortalPurchaseScope,
         _now: i64,
         _read_id: &'a str,
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<
         'a,
-        Vec<erpx_server_customer_360::public::customer_portal::CustomerPortalItem>,
+        Vec<erpx_customer_360_server::public::customer_portal::CustomerPortalItem>,
         Self::Error,
     > {
         Box::pin(async move { Ok(self.repo.projection.clone()) })
@@ -379,7 +379,7 @@ impl CustomerPortalRepository for Unit<'_> {
     fn replay<'a>(
         &'a mut self,
         _key: &'a str,
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<
         'a,
         Option<PortalActionRow>,
         Self::Error,
@@ -391,7 +391,7 @@ impl CustomerPortalRepository for Unit<'_> {
         &'a mut self,
         _binding_id: &'a str,
         _email: &'a str,
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<
         'a,
         Option<PortalBinding>,
         Self::Error,
@@ -403,7 +403,7 @@ impl CustomerPortalRepository for Unit<'_> {
         &'a mut self,
         _binding_id: &'a str,
         _actor: &'a PortalCustomerActor,
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<'a, bool, Self::Error>
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<'a, bool, Self::Error>
     {
         Box::pin(async move { Ok(self.repo.identity) })
     }
@@ -412,7 +412,7 @@ impl CustomerPortalRepository for Unit<'_> {
         &'a mut self,
         _binding_id: &'a str,
         _action: PortalAction,
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<
         'a,
         Option<PortalActionRow>,
         Self::Error,
@@ -423,7 +423,7 @@ impl CustomerPortalRepository for Unit<'_> {
     fn record<'a>(
         &'a mut self,
         command: &'a PortalCommandFacts,
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<'a, (), Self::Error> {
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<'a, (), Self::Error> {
         Box::pin(async move {
             self.repo.recorded.push(command.clone());
             Ok(())
@@ -438,11 +438,11 @@ impl CustomerPortalEffects for Unit<'_> {
         _actor: &'a PortalCustomerActor,
         _binding: &'a PortalBinding,
         purpose: PortalCommandPurpose,
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<'a, (), Self::Error> {
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<'a, (), Self::Error> {
         Box::pin(async move {
             if self.effects.fail_authorize {
                 return Err(BusinessError::new(
-                    erpx_server_shared::public::FailureKind::Forbidden,
+                    erpx_platform_shared_server::public::FailureKind::Forbidden,
                     "FEATURE_COMING_SOON",
                     "Not released.",
                 ));
@@ -455,7 +455,7 @@ impl CustomerPortalEffects for Unit<'_> {
     fn evidence<'a>(
         &'a mut self,
         _command: &'a PortalCommandFacts,
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<
         'a,
         Option<PortalCommandEvidence>,
         Self::Error,
@@ -472,7 +472,7 @@ impl CustomerPortalEffects for Unit<'_> {
         &'a mut self,
         _command: &'a PortalCommandFacts,
         message: &'a str,
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<'a, (), Self::Error> {
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<'a, (), Self::Error> {
         Box::pin(async move {
             self.effects.trace.push("notify".into());
             if self.effects.fail_notify { return Err(BusinessError::invalid("TEST_NOTIFY", "Notification failed.")); }
@@ -485,7 +485,7 @@ impl CustomerPortalEffects for Unit<'_> {
         &'a mut self,
         _command: &'a PortalCommandFacts,
         event_id: &'a str,
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<'a, (), Self::Error> {
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<'a, (), Self::Error> {
         Box::pin(async move {
             self.effects.trace.push("audit".into());
             if self.effects.fail_audit { return Err(BusinessError::invalid("TEST_AUDIT", "Audit failed.")); }
@@ -499,7 +499,7 @@ impl CustomerPortalEffects for Unit<'_> {
         _command: &'a PortalCommandFacts,
         event_id: &'a str,
         manifest: &'a [serde_json::Value],
-    ) -> erpx_server_customer_360::public::customer_portal::PortalFuture<'a, (), Self::Error> {
+    ) -> erpx_customer_360_server::public::customer_portal::PortalFuture<'a, (), Self::Error> {
         Box::pin(async move {
             self.effects.trace.push("outbox".into());
             self.effects.outboxed.push((event_id.into(), manifest.len()));
@@ -515,7 +515,7 @@ impl PortalEventIdentifiers for Unit<'_> {
 async fn customer_portal_command(
  actor: &PortalCustomerActor, input: &PortalCommandInput, key: &str, hash: &str,
  id: &str, now: i64, repo: &mut Repo, effects: &mut Effects,
-) -> Result<erpx_server_customer_360::public::customer_portal::PortalCommandOutcome, BusinessError> {
+) -> Result<erpx_customer_360_server::public::customer_portal::PortalCommandOutcome, BusinessError> {
  combined_portal_command(actor, input, key, hash, id, now, &mut Unit { repo, effects }).await
 }
 

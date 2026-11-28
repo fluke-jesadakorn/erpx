@@ -1,8 +1,8 @@
-use erpx_server_collaboration::public::handbook::{
+use erpx_collaboration_server::public::handbook::{
     Access, ArticleSnapshot, AuthorizedHandbookActor, Category, Change, DraftContent, HandbookUnit,
     OwnerPlan, Receipt, execute,
 };
-use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey, FailureKind};
 
 struct Unit {
     steps: Vec<&'static str>,
@@ -117,7 +117,7 @@ impl HandbookUnit for Unit {
         self.steps.push("apply");
         assert_eq!(actor.company_id, self.actor.company_id);
         assert_eq!(key, &self.key);
-        let receipt = erpx_server_collaboration::public::handbook::plan_receipt(key, &plan)?;
+        let receipt = erpx_collaboration_server::public::handbook::plan_receipt(key, &plan)?;
         self.applied = Some(plan);
         Ok(receipt)
     }
@@ -229,7 +229,7 @@ async fn publishing_requires_both_title_and_body_before_the_plan() {
         Change::ArticleAction {
             id: "article-handbook-command".into(),
             expected_version: 2,
-            action: erpx_server_collaboration::public::handbook::ArticleAction::Publish,
+            action: erpx_collaboration_server::public::handbook::ArticleAction::Publish,
         },
     )
     .await
@@ -248,7 +248,7 @@ async fn publish_and_availability_actions_use_the_current_revision_and_version()
         Change::ArticleAction {
             id: "article-handbook-command".into(),
             expected_version: 2,
-            action: erpx_server_collaboration::public::handbook::ArticleAction::Publish,
+            action: erpx_collaboration_server::public::handbook::ArticleAction::Publish,
         },
     )
     .await
@@ -267,12 +267,12 @@ async fn publish_and_availability_actions_use_the_current_revision_and_version()
     );
     for (action, archived, status) in [
         (
-            erpx_server_collaboration::public::handbook::ArticleAction::Archive,
+            erpx_collaboration_server::public::handbook::ArticleAction::Archive,
             true,
             "archived",
         ),
         (
-            erpx_server_collaboration::public::handbook::ArticleAction::Restore,
+            erpx_collaboration_server::public::handbook::ArticleAction::Restore,
             false,
             "restored",
         ),

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {Pool} from 'pg';
-import {PostgresDatabase} from '@erpx/server-runtime/adapters/runtime/postgres';
+import {PostgresDatabase} from '@erpx/platform-runtime-server/adapters/runtime/postgres';
 // Only the companion network-none Docker qualification supplies this lease.
 const token=process.env.ERPX_FENCE_TOKEN;if(!token||!/^[a-f0-9]{32}$/.test(token))throw Error('OWNED_PROBE_LEASE_REQUIRED');
 const name=`erpx_dev_rust_${token}`,lease=`erpx-rust-test:${token}`,url=`postgresql://erpx_test_admin:synthetic@127.0.0.1:5432/${name}`;

@@ -35,7 +35,7 @@
     "test:e2e:smoke": "playwright test --config tests/config/playwright.config.ts tests/e2e/identity_access/auth-smoke.spec.ts",
     "test:e2e:work": "playwright test --config tests/config/playwright.config.ts tests/journeys/shared.work/work-journeys.spec.ts",
     "test:e2e:ui": "playwright test --config tests/config/playwright.config.ts --ui",
-    "test:e2e:report": "playwright show-report",
+    "test:e2e:report": "playwright show-report .scratch/dev/playwright/report",
     "investor:capture": "bun scripts/testing/investor.ts capture",
     "investor:report": "bun scripts/testing/investor.ts report",
     "uat:route-inventory": "bun scripts/docs/generate-uat-route-inventory.ts",
@@ -94,10 +94,10 @@
     "workspaces:tasks": "bun scripts/testing/workspace-tasks.ts",
     "workspaces:styles": "bun scripts/assets/workspace-styles.ts",
     "console:retirement:dev:check": "bun scripts/local/check-console-retirement.ts --development-workspaces",
-    "rust:check": "cargo check --workspace --all-targets --features erpx-server-legal/pdf-verifier,erpx-server-identity-access/contracts,erpx-service/legal-pdf-worker,erpx-service/legal-document-worker,erpx-service/legal-queue,erpx-server-legal/document-provider,erpx-server-identity-access/mail-providers,erpx-server-identity-access/directory-ldaps,erpx-service/business-http,erpx-service/directory-ldaps,erpx-service/private-development-api,erpx-service/contracts,erpx-server-runtime/owned-process --locked",
+    "rust:check": "cargo check --workspace --all-targets --features erpx-legal-server/pdf-verifier,erpx-identity-access-server/contracts,erpx-platform-composition/legal-pdf-worker,erpx-platform-composition/legal-document-worker,erpx-platform-composition/legal-queue,erpx-legal-server/document-provider,erpx-identity-access-server/mail-providers,erpx-identity-access-server/directory-ldaps,erpx-platform-composition/business-http,erpx-platform-composition/directory-ldaps,erpx-platform-composition/private-development-api,erpx-platform-composition/contracts,erpx-platform-runtime-server/owned-process --locked",
     "rust:test": "bun scripts/testing/rust-unit.ts",
     "rust:fmt": "cargo fmt --all -- --check",
-    "rust:clippy": "cargo clippy --workspace --all-targets --features erpx-server-legal/pdf-verifier,erpx-server-identity-access/contracts,erpx-service/legal-pdf-worker,erpx-service/legal-document-worker,erpx-service/legal-queue,erpx-server-legal/document-provider,erpx-server-identity-access/mail-providers,erpx-server-identity-access/directory-ldaps,erpx-service/business-http,erpx-service/directory-ldaps,erpx-service/private-development-api,erpx-service/contracts,erpx-server-runtime/owned-process --locked -- -D warnings",
+    "rust:clippy": "cargo clippy --workspace --all-targets --features erpx-legal-server/pdf-verifier,erpx-identity-access-server/contracts,erpx-platform-composition/legal-pdf-worker,erpx-platform-composition/legal-document-worker,erpx-platform-composition/legal-queue,erpx-legal-server/document-provider,erpx-identity-access-server/mail-providers,erpx-identity-access-server/directory-ldaps,erpx-platform-composition/business-http,erpx-platform-composition/directory-ldaps,erpx-platform-composition/private-development-api,erpx-platform-composition/contracts,erpx-platform-runtime-server/owned-process --locked -- -D warnings",
     "contracts:work-modules": "bun scripts/docs/generate-work-module-contracts.ts",
     "contracts:work-modules:check": "bun scripts/docs/generate-work-module-contracts.ts --check",
     "contracts:finance-journal-read": "bun scripts/docs/generate-finance-journal-read-contracts.ts",
@@ -145,7 +145,7 @@
     "tailwind-merge": "3.7.0",
     "web-push": "3.6.7",
     "zod": "4.6.7",
-    "@erpx/contracts": "workspace:*"
+    "@erpx/platform-contracts": "workspace:*"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "1.4.7",
@@ -178,7 +178,20 @@
   },
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "modules/*/ui",
+    "modules/*/server",
+    "modules/identity-access/iam-ui",
+    "products/*/ui",
+    "platform/ui",
+    "platform/workplace",
+    "platform/front",
+    "platform/contracts",
+    "platform/native-sdk",
+    "platform/catalogue",
+    "platform/shared/ui",
+    "platform/shared/server",
+    "platform/runtime/ui",
+    "platform/runtime/server"
   ],
   "overrides": {
     "esbuild": "0.28.2",

@@ -5,9 +5,9 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { existsGuardSql } from '../../../packages/server-records/src/adapters/read-tail-exists-sql';
+import { existsGuardSql } from '../../../modules/records/server/src/adapters/read-tail-exists-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-records/src');
+const srcRoot = resolve(__dirname, '../../../modules/records/server/src');
 const shared = readFileSync(resolve(srcRoot, 'adapters/read-tail-exists-sql.ts'), 'utf8');
 const records = readFileSync(resolve(srcRoot, 'adapters/records.ts'), 'utf8');
 const requestAi = readFileSync(resolve(srcRoot, 'adapters/request-ai.ts'), 'utf8');

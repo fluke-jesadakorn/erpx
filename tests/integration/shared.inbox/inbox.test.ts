@@ -1,13 +1,13 @@
-import {notificationsPage,listStaffNotifications} from '@erpx/server-collaboration/public/staff-notifications';
+import {notificationsPage,listStaffNotifications} from '@erpx/collaboration-server/public/staff-notifications';
 import {beforeAll,beforeEach,expect,it,vi} from "vitest";
 import {env,applyMigrations} from "../../support/runtime-env";
 import {seedExpenseCompany} from "../../../fixtures/expenses/company";
-import {calendarCommand} from "@erpx/server-work_projection/public/calendar/index";
-import {publishInboxEvent,inboxPage,inboxSummary,changeInboxState,sendNotice,markStaffNotificationRead} from "@erpx/server-collaboration/public/inbox";
-import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
-const nativeInbox=vi.hoisted(()=>({read:vi.fn(async()=>[] as import("@erpx/server-collaboration/domain/inbox").Candidate[]),state:vi.fn(async(...args:unknown[])=>{void args;return{id:"",readAt:null as number|null,archivedAt:null as number|null};})}));
-vi.mock("../../../packages/server-collaboration/src/adapters/native-field-inbox",()=>({nativeFieldInboxCandidates:nativeInbox.read,nativeFieldInboxState:nativeInbox.state}));
+import {calendarCommand} from "@erpx/work-projection-server/public/calendar/index";
+import {publishInboxEvent,inboxPage,inboxSummary,changeInboxState,sendNotice,markStaffNotificationRead} from "@erpx/collaboration-server/public/inbox";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+const nativeInbox=vi.hoisted(()=>({read:vi.fn(async()=>[] as import("@erpx/collaboration-server/domain/inbox").Candidate[]),state:vi.fn(async(...args:unknown[])=>{void args;return{id:"",readAt:null as number|null,archivedAt:null as number|null};})}));
+vi.mock("../../../modules/collaboration/server/src/adapters/native-field-inbox",()=>({nativeFieldInboxCandidates:nativeInbox.read,nativeFieldInboxState:nativeInbox.state}));
 const db=env.H001_DB,key=()=>crypto.randomUUID();
 let f:Awaited<ReturnType<typeof seedExpenseCompany>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS)});
@@ -67,7 +67,7 @@ it("fans out a scoped manager notice once when the worker retries",async()=>{
   const colleague=await f.member("notice-department-colleague","employee");
   const result=await sendNotice(db,manager,{title:"Department update",body:"Review the schedule.",audience:{kind:"department",id:f.department}},key());
   expect(result.recipientCount).toBeGreaterThan(0);
-  const {drainInboxNotices}=await import("@erpx/server-collaboration/public/inbox");
+  const {drainInboxNotices}=await import("@erpx/collaboration-server/public/inbox");
   await drainInboxNotices(db);await drainInboxNotices(db);
   const page=await inboxPage(db,colleague,{view:"all",category:"notice"});
   expect(page.items.filter(item=>item.sourceId===result.id)).toHaveLength(1);
@@ -78,12 +78,12 @@ it("merges the native Field read model in PostgreSQL tuple order with exact pagi
   const {id:sourceId}=await appointment(f.claimant);
   const eventId=await publishInboxEvent(db,{key:key(),companyId,sourceType:"calendar_removed",sourceId,sourceVersion:1,category:"calendar",preview:"Legacy middle",recipientIds:[userId]});
   await db.prepare("UPDATE inbox_deliveries SET id=?,delivered_at=? WHERE event_id=? AND user_id=?").bind(legacyId,stamp,eventId,userId).run();
-  const make=(id:string,at:number):import("@erpx/server-collaboration/domain/inbox").Candidate=>({id,event_id:"native-"+id,company_id:companyId,user_id:userId,delivered_at:at,read_at:null,archived_at:null,source_type:"field_service_order",source_id:"native-order",source_version:1,category:"work",preview:"Native "+id,native_field_item:{id,eventId:"native-"+id,category:"work",message:"Native "+id,href:"/field-service/native-order",createdAt:at,readAt:null,archivedAt:null,sourceType:"field_service_order",sourceId:"native-order"}});
+  const make=(id:string,at:number):import("@erpx/collaboration-server/domain/inbox").Candidate=>({id,event_id:"native-"+id,company_id:companyId,user_id:userId,delivered_at:at,read_at:null,archived_at:null,source_type:"field_service_order",source_id:"native-order",source_version:1,category:"work",preview:"Native "+id,native_field_item:{id,eventId:"native-"+id,category:"work",message:"Native "+id,href:"/field-service/native-order",createdAt:at,readAt:null,archivedAt:null,sourceType:"field_service_order",sourceId:"native-order"}});
   const rows=[make("z".repeat(201),stamp),make("a-native",stamp)];
   nativeInbox.read.mockImplementation(async(...args:unknown[])=>{const query=args[1] as {category?:string;before?:{at:number;id:string};limit:number};return rows.filter(row=>(!query.category||row.category===query.category)&&(!query.before||row.delivered_at<query.before.at||(row.delivered_at===query.before.at&&row.id<query.before.id))).slice(0,query.limit);});
   // Generic Records must likewise never revive Field policy/reads, even when
   // old package enforcement is disabled. Evaluate its real partition on PG.
-  const {serviceSourceReadScope,requireServiceWorkspaceRecordRead}=await import('@erpx/server-field_service/public/record-purchases');
+  const {serviceSourceReadScope,requireServiceWorkspaceRecordRead}=await import('@erpx/field-service-server/public/record-purchases');
   const partition=await serviceSourceReadScope(db,f.claimant,'records'),genericId='historical-generic-'+key();
   const generic=(await db.prepare(`WITH workspace_records AS(SELECT ?::text id,'field_service'::text module_id UNION ALL SELECT ?::text,'projects'::text) SELECT module_id FROM workspace_records WHERE ${partition.where}`).bind(genericId,genericId,...partition.args).all<{module_id:string}>()).results;
   expect(generic).toEqual([{module_id:'projects'}]);
@@ -119,9 +119,9 @@ it("retains non-Field Staff acknowledgement time and account/Company isolation",
 
 it('preserves Staff native row ordering, bidirectional scoped cursors and the separate top-list tie order',async()=>{
  const stamp=1700000000000,{companyId,userId}=f.claimant;
- const rows:Array<import('@erpx/server-collaboration/domain/inbox').Candidate>=Array.from({length:65},(_,i)=>{const id='native-staff-'+String(i).padStart(3,'0');return{id,event_id:'legacy:'+id,company_id:companyId,user_id:userId,delivered_at:stamp,read_at:null,archived_at:stamp,source_type:'field_service_order',source_id:'native-order',source_version:1,category:'work',preview:'Native Staff '+id,native_field_item:{id,eventId:'legacy:'+id,category:'work',message:'Native Staff '+id,href:'/field-service/native-order',createdAt:stamp,readAt:null,archivedAt:stamp,sourceType:'field_service_order',sourceId:'native-order'}};});
- const queries:import('@erpx/native-sdk/field-service-parts').NativeFieldInboxQuery[]=[];
- nativeInbox.read.mockImplementation(async(...args:unknown[])=>{const q=args[1] as import('@erpx/native-sdk/field-service-parts').NativeFieldInboxQuery;queries.push(q);const order=(a:typeof rows[number],b:typeof rows[number])=>a.id===b.id?0:a.id<b.id?-1:1;let result=[...rows].sort(order);if(q.projection==='staff-list')return result.slice(0,q.limit);if(q.before)result=result.filter(row=>q.reverse?row.id>q.before!.id:row.id<q.before!.id);if(!q.reverse)result.reverse();return result.slice(0,q.limit);});
+ const rows:Array<import('@erpx/collaboration-server/domain/inbox').Candidate>=Array.from({length:65},(_,i)=>{const id='native-staff-'+String(i).padStart(3,'0');return{id,event_id:'legacy:'+id,company_id:companyId,user_id:userId,delivered_at:stamp,read_at:null,archived_at:stamp,source_type:'field_service_order',source_id:'native-order',source_version:1,category:'work',preview:'Native Staff '+id,native_field_item:{id,eventId:'legacy:'+id,category:'work',message:'Native Staff '+id,href:'/field-service/native-order',createdAt:stamp,readAt:null,archivedAt:stamp,sourceType:'field_service_order',sourceId:'native-order'}};});
+ const queries:import('@erpx/platform-native-sdk/field-service-parts').NativeFieldInboxQuery[]=[];
+ nativeInbox.read.mockImplementation(async(...args:unknown[])=>{const q=args[1] as import('@erpx/platform-native-sdk/field-service-parts').NativeFieldInboxQuery;queries.push(q);const order=(a:typeof rows[number],b:typeof rows[number])=>a.id===b.id?0:a.id<b.id?-1:1;let result=[...rows].sort(order);if(q.projection==='staff-list')return result.slice(0,q.limit);if(q.before)result=result.filter(row=>q.reverse?row.id>q.before!.id:row.id<q.before!.id);if(!q.reverse)result.reverse();return result.slice(0,q.limit);});
  const first=await notificationsPage(db,f.claimant,{view:'all'});expect(first.items).toHaveLength(30);expect(first.items[0].id).toBe('native-staff-064');expect(first.items[29].id).toBe('native-staff-035');expect(first.previousCursor).toBeNull();expect(first.hasMore).toBe(true);expect(first.items.every(item=>item.href==='/field-service/native-order'&&!Object.hasOwn(item,'native_target'))).toBe(true);
  const second=await notificationsPage(db,f.claimant,{view:'all',cursor:first.nextCursor!});expect(second.items[0].id).toBe('native-staff-034');expect(second.items[29].id).toBe('native-staff-005');
  const previous=await notificationsPage(db,f.claimant,{view:'all',cursor:second.previousCursor!});expect(previous.items.map(row=>row.id)).toEqual(first.items.map(row=>row.id));expect(queries.some(q=>q.projection==='staff-page'&&q.reverse&&q.before?.key===String(stamp))).toBe(true);

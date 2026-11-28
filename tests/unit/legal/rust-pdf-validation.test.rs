@@ -1,4 +1,4 @@
-use erpx_server_legal::public::{
+use erpx_legal_server::public::{
     OperatorTrustStore, TrustMaterial, ValidationState, read_trust_directory, validate_signed_pdf,
 };
 use std::fs;

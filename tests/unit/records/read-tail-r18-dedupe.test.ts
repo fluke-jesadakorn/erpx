@@ -5,9 +5,9 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { requestAiUsageCountSql } from '../../../packages/server-records/src/adapters/read-tail-count-sql';
+import { requestAiUsageCountSql } from '../../../modules/records/server/src/adapters/read-tail-count-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-records/src');
+const srcRoot = resolve(__dirname, '../../../modules/records/server/src');
 const shared = readFileSync(resolve(srcRoot, 'adapters/read-tail-count-sql.ts'), 'utf8');
 const requestAi = readFileSync(resolve(srcRoot, 'adapters/request-ai.ts'), 'utf8');
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');

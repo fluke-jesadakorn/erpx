@@ -1,15 +1,15 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import type { PermissionActor } from "@erpx/feature-identity_access/lib/iam";
+import type { PermissionActor } from "@erpx/identity-access-ui/lib/iam";
 
 const mocks = vi.hoisted(() => ({
   forbidden: vi.fn((): never => { throw new Error("page-forbidden"); }),
 }));
 vi.mock("next/navigation", () => mocks);
 
-import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
-import { ApiError, errorResponse } from "@erpx/server-runtime/adapters/http";
+import { requirePermission } from "@erpx/identity-access-server/public/iam-permissions";
+import { ApiError, errorResponse } from "@erpx/platform-runtime-server/adapters/http";
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -39,9 +39,9 @@ it("returns permitted page actors unchanged", () => {
 });
 
 import legacyPermissionCases from "../../../fixtures/identity_access/permissions/legacy-explicit-permissions.v1.json";
-import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
+import { hasPermission } from "@erpx/identity-access-ui/lib/permissions";
 import legacyWorkAdmission from "../../../fixtures/identity_access/permissions/legacy-work-admission.v1.json";
-import { effectiveWorkModules } from "@erpx/server-identity_access/domain/work-modules";
+import { effectiveWorkModules } from "@erpx/identity-access-server/domain/work-modules";
 it("keeps generated browser role modules compatible with retained source and verifies oracle provenance", () => {
   for(const source of legacyWorkAdmission.sources){
     const bytes=execFileSync('git',['show',`${source.revision}:${source.path}`]);

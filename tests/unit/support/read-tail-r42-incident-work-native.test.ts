@@ -5,10 +5,10 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { supportIncidentReadPredicate } from '../../../packages/server-support/src/adapters/support-incident-read';
-import { scope, args } from '../../../packages/server-support/src/adapters/support-ticket-read-sources';
+import { supportIncidentReadPredicate } from '../../../modules/support/server/src/adapters/support-incident-read';
+import { scope, args } from '../../../modules/support/server/src/adapters/support-ticket-read-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-support/src');
+const srcRoot = resolve(__dirname, '../../../modules/support/server/src');
 const src = (p: string) => readFileSync(resolve(srcRoot, p), 'utf8');
 const registry = src('adapters/native_support_read_sql.rs');
 const bridge = src('adapters/native-support-read.ts');

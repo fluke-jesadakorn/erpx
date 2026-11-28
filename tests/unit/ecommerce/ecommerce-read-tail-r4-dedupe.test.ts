@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
 
-const root = resolve(__dirname, '../../../packages/server-ecommerce/src');
+const root = resolve(__dirname, '../../../modules/ecommerce/server/src');
 const src = readFileSync(resolve(root, 'adapters/executive-metric-projections.ts'), 'utf8');
 const rust = readFileSync(resolve(root, 'adapters/native_exec_metric/domain.rs'), 'utf8');
 

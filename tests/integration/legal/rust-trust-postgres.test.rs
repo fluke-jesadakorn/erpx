@@ -4,20 +4,20 @@ mod facts;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_legal::public::{
+use erpx_legal_server::public::{
     LegalTrustActor, LegalTrustChangePlan, LegalTrustCommand, LegalTrustCommandRequest,
     LegalTrustReceipt, LegalTrustRecord, PgLegalTrustCommitAuthority, PgLegalTrustStore,
     PgLegalTrustWorkflow, PreparedLegalTrustCommand, RustTrustMaterialInspector, TrustMaterialKind,
     TrustMaterialState, execute_legal_trust_command, prepare_legal_trust_command,
 };
-use erpx_server_legal::public::trust_http::{
+use erpx_legal_server::public::trust_http::{
     LegalTrustIdentityBridge, execute_legal_trust_command_with_owner_bridge,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, RecordId, UserId,
 };
 use sqlx::PgConnection;

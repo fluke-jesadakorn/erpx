@@ -1,7 +1,7 @@
 import {describe,it,expect,vi,beforeEach,afterEach} from 'vitest';
 vi.mock('server-only',()=>({}));
-import {posCoreInventoryFacts} from '../../../packages/server-inventory/src/adapters/pos-core-facts';
-import {INVENTORY_RD_ACTIVE_RESERVATIONS_TOTAL,INVENTORY_RD_LEDGER_MOVEMENT_AFTER} from '../../../packages/server-inventory/src/adapters/native-inventory-read';
+import {posCoreInventoryFacts} from '../../../modules/inventory/server/src/adapters/pos-core-facts';
+import {INVENTORY_RD_ACTIVE_RESERVATIONS_TOTAL,INVENTORY_RD_LEDGER_MOVEMENT_AFTER} from '../../../modules/inventory/server/src/adapters/native-inventory-read';
 
 describe('native Inventory pos-core facts caller-unit reads',()=>{
   const envKey='ERPX_NATIVE_INVENTORY_CONFIG';

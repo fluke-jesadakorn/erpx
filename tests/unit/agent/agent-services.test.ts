@@ -1,18 +1,18 @@
 import {describe,expect,test} from 'vitest';
-import {createAiGatewayApplication,type AiGatewayRepository,type AiGatewayReservationRepository} from "@erpx/server-agent/application/gateway";
-import {reservationAllowed,type AiPolicyFacts,type AiGatewayFacts} from "@erpx/server-agent/domain/gateway";
-import {createAgentGovernanceApplication,createAssistantGovernanceGuards,type AgentGovernanceRepository} from "@erpx/server-agent/application/governance";
-import {createWorkspaceAssistantApplication,type WorkspaceAssistantPorts,type AssistantRepository} from "@erpx/server-agent/application/assistant";
-import type {AssistantGovernance} from "@erpx/server-agent/domain/governance";
-import {scopeKey} from "@erpx/server-agent/domain/assistant";
-import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import {BusinessRuleError} from "@erpx/server-shared/index";
-import {agentHomeAiNameSql,collaborationHomeSources} from '@erpx/server-agent/adapters/collaboration-home-sources';
-import {collaborationTextSources} from '@erpx/server-agent/adapters/collaboration-text-sources';
-import {collaborationAgentSources} from '@erpx/server-agent/adapters/collaboration-agent-sources';
-import {collaborationAiSources} from '@erpx/server-agent/adapters/collaboration-ai-sources';
-import {agentWorkspaceMonthlyUsageSql,recordsAiQuota} from '@erpx/server-agent/adapters/records-ai-quota';
-import {agentAssistantRateGuardSql,GuidedIntakeAgentFacts} from '@erpx/server-agent/adapters/operations-guided-intake-facts';
+import {createAiGatewayApplication,type AiGatewayRepository,type AiGatewayReservationRepository} from "@erpx/agent-server/application/gateway";
+import {reservationAllowed,type AiPolicyFacts,type AiGatewayFacts} from "@erpx/agent-server/domain/gateway";
+import {createAgentGovernanceApplication,createAssistantGovernanceGuards,type AgentGovernanceRepository} from "@erpx/agent-server/application/governance";
+import {createWorkspaceAssistantApplication,type WorkspaceAssistantPorts,type AssistantRepository} from "@erpx/agent-server/application/assistant";
+import type {AssistantGovernance} from "@erpx/agent-server/domain/governance";
+import {scopeKey} from "@erpx/agent-server/domain/assistant";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
+import {BusinessRuleError} from "@erpx/platform-shared-server/index";
+import {agentHomeAiNameSql,collaborationHomeSources} from '@erpx/agent-server/adapters/collaboration-home-sources';
+import {collaborationTextSources} from '@erpx/agent-server/adapters/collaboration-text-sources';
+import {collaborationAgentSources} from '@erpx/agent-server/adapters/collaboration-agent-sources';
+import {collaborationAiSources} from '@erpx/agent-server/adapters/collaboration-ai-sources';
+import {agentWorkspaceMonthlyUsageSql,recordsAiQuota} from '@erpx/agent-server/adapters/records-ai-quota';
+import {agentAssistantRateGuardSql,GuidedIntakeAgentFacts} from '@erpx/agent-server/adapters/operations-guided-intake-facts';
 const actor:WorkContext={userId:'author',name:'Owner',email:'owner@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['agent','collaboration'],assignments:[],workspaces:[]};
 const policy:AiPolicyFacts={platform_enabled:true,monthly_request_limit:10,monthly_spend_cap_satang:100,reservation_satang:10,updated_by:'owner',updated_at:42,monthly_requests:1,monthly_reserved_or_verified_satang:0,pending_platform_cost_requests:0};
 const scope:AiGatewayFacts={holdingId:'holding',companyId:'company',branchId:null,connectionId:null,fundingSource:'erpx',feature:'assistant',requestId:'request'};
@@ -62,7 +62,7 @@ describe('Agent home AI name fixed-SQL read family',()=>{
  test('the canonical owner fixed SQL is the only authored home AI name literal',async()=>{
   expect(agentHomeAiNameSql).toBe(sql);
   const {readFile}=await import('node:fs/promises');
-  const base=new URL('../../../packages/server-agent/src/adapters/',import.meta.url);
+  const base=new URL('../../../modules/agent/server/src/adapters/',import.meta.url);
   for(const name of ['collaboration-home-sources.ts','collaboration-text-sources.ts','collaboration-agent-sources.ts']){
    const source=await readFile(new URL(name,base),'utf8');
    const literals=source.match(/SELECT home_ai_name FROM ai_company_settings/g)??[];
@@ -94,7 +94,7 @@ describe('Agent workspace-turns monthly usage fixed-SQL read family',()=>{
  test('the canonical owner fixed SQL is the only authored monthly usage literal',async()=>{
   expect(agentWorkspaceMonthlyUsageSql).toBe(sql);
   const {readFile}=await import('node:fs/promises');
-  const base=new URL('../../../packages/server-agent/src/adapters/',import.meta.url);
+  const base=new URL('../../../modules/agent/server/src/adapters/',import.meta.url);
   const read=async(name:string)=>(await readFile(new URL(name,base),'utf8'));
   for(const name of ['agent-monthly-usage-source.ts','records-ai-quota.ts','collaboration-agent-sources.ts','collaboration-ai-sources.ts']){
    const source=await read(name);
@@ -126,7 +126,7 @@ describe('Agent assistant-rate fixed-SQL read family',()=>{
  test('the canonical owner fixed SQL is the only authored rate-guard literal',async()=>{
   expect(agentAssistantRateGuardSql).toBe(sql);
   const {readFile}=await import('node:fs/promises');
-  const base=new URL('../../../packages/server-agent/src/adapters/',import.meta.url);
+  const base=new URL('../../../modules/agent/server/src/adapters/',import.meta.url);
   const owner=await readFile(new URL('operations-guided-intake-facts.ts',base),'utf8');
   const consumer=await readFile(new URL('workspace-assistant.ts',base),'utf8');
   expect(owner.match(/\(SELECT count\(\*\) FROM ai_workspace_turns WHERE company_id=\? AND created_at>\?\)<20/g)??[]).toHaveLength(0);

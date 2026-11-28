@@ -5,12 +5,12 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { selectAllWhereSql } from '../../../packages/server-records/src/adapters/read-tail-select-all';
+import { selectAllWhereSql } from '../../../modules/records/server/src/adapters/read-tail-select-all';
 
 const root = resolve(__dirname, '../../..');
 const read = (p: string) => readFileSync(resolve(root, p), 'utf8');
 const sha = (s: string) => createHash('sha256').update(s, 'utf8').digest('hex');
-const shared = read('packages/server-records/src/adapters/read-tail-select-all.ts');
+const shared = read('modules/records/server/src/adapters/read-tail-select-all.ts');
 
 const oracles = [
   ['employeeRequestByRow', 'employee_requests', 'id=? AND company_id=?', '674e1a56dee56828348221ec92c70be361f46d29144f2aad326153215b3cbc42'],
@@ -32,11 +32,11 @@ describe('Records selectAllWhereSql r20 cutover', () => {
     expect(shared).toContain("import { projectionColumnHeadSql } from './read-tail-r32-sql';");
     expect(shared).toContain("projectionColumnHeadSql('*', table, ` WHERE ${predicate}`)");
     for (const consumer of ['employee-requests-read.ts', 'workflow-document-sources.ts']) {
-      const source = read(`packages/server-records/src/adapters/${consumer}`);
+      const source = read(`modules/records/server/src/adapters/${consumer}`);
       expect(source).toContain('selectAllWhereSql(');
       expect(source).not.toContain('SELECT * FROM');
     }
-    expect(read('packages/server-records/src/adapters/workflow-document-sources.ts')).not.toMatch(/SELECT /);
+    expect(read('modules/records/server/src/adapters/workflow-document-sources.ts')).not.toMatch(/SELECT /);
   });
 
   test('owner retirement:ts-statements drops 9 -> 8', () => {
@@ -48,7 +48,7 @@ describe('Records selectAllWhereSql r20 cutover', () => {
         else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
       }
     };
-    walk(resolve(root, 'packages/server-records/src'));
+    walk(resolve(root, 'modules/records/server/src'));
     expect(total).toBe(6);
     expect(total).toBeLessThan(9);
   });

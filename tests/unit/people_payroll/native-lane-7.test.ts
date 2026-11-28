@@ -16,7 +16,7 @@ import {
   type AuthorityQuery,
   type Lane7Actor,
   type Transport,
-} from "../../../packages/server-people_payroll/src/adapters/native-lane-7/client";
+} from "../../../modules/people-payroll/server/src/adapters/native-lane-7/client";
 
 const ENV = "ERPX_NATIVE_PEOPLE_PAYROLL_LANE7_CONFIG";
 const ORIGINAL = process.env[ENV];

@@ -8,16 +8,16 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_commercial::public::purchases::PackageEnforcementMode;
-use erpx_server_customer_authority::public::portal_invitation_delivery::{
+use erpx_commercial_server::public::purchases::PackageEnforcementMode;
+use erpx_customer_authority_server::public::portal_invitation_delivery::{
     InvitationClaims, MAX_ATTEMPTS, PgPortalInvitationDelivery, PortalEmail, PortalEmailFuture,
     PortalInvitationEmailPort, deliver_one, invitation_token, invitation_token_hash,
     require_invitation_token,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use sqlx::Row;
 use std::sync::{Arc, Mutex};
 

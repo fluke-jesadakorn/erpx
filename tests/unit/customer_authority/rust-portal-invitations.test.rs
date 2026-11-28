@@ -3,14 +3,14 @@
 //! Proves the retained decision rules: version, permission, identity binding,
 //! approved/expiring/order-state source, one active invitation, resend
 //! precondition, bounded token expiry, generation and supersession evidence.
-use erpx_server_customer_authority::public::access::AccessActor;
-use erpx_server_customer_authority::public::portal_invitation_delivery::{
+use erpx_customer_authority_server::public::access::AccessActor;
+use erpx_customer_authority_server::public::portal_invitation_delivery::{
     InvitationClaims, invitation_token, invitation_token_hash,
 };
-use erpx_server_customer_authority::public::portal_invitations::{
+use erpx_customer_authority_server::public::portal_invitations::{
     INVITATION_LIFETIME_MILLIS, InvitationAction, InvitationBinding, InvitationCommand, issue_plan,
 };
-use erpx_server_shared::public::{AssignmentId, CompanyId, HoldingId, RecordId, UserId};
+use erpx_platform_shared_server::public::{AssignmentId, CompanyId, HoldingId, RecordId, UserId};
 
 const SECRET: &str = "vector-secret-2026";
 const NOW: i64 = 1_800_000_000_000;
@@ -96,7 +96,7 @@ fn invite_issues_a_bounded_generation_one_token() {
 
 #[test]
 fn resend_supersedes_only_a_live_previous_invitation() {
-    let previous = erpx_server_customer_authority::public::portal_invitations::ActiveInvitation {
+    let previous = erpx_customer_authority_server::public::portal_invitations::ActiveInvitation {
         id: "customer-portal-invitation-previous".into(),
         generation: 3,
         state: "sent".into(),
@@ -148,7 +148,7 @@ fn resend_supersedes_only_a_live_previous_invitation() {
 
 #[test]
 fn invite_refuses_a_live_previous_invitation() {
-    let previous = erpx_server_customer_authority::public::portal_invitations::ActiveInvitation {
+    let previous = erpx_customer_authority_server::public::portal_invitations::ActiveInvitation {
         id: "customer-portal-invitation-previous".into(),
         generation: 1,
         state: "queued".into(),
@@ -247,7 +247,7 @@ fn authority_and_source_preconditions_are_exact() {
     );
 
     let mut accepted =
-        erpx_server_customer_authority::public::portal_invitations::ActiveInvitation {
+        erpx_customer_authority_server::public::portal_invitations::ActiveInvitation {
             id: "customer-portal-invitation-accepted".into(),
             generation: 1,
             state: "accepted".into(),

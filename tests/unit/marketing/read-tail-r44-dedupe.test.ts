@@ -2,14 +2,14 @@ import { describe, it, expect } from 'vitest';
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import ts from 'typescript';
-import { assignmentReadSql } from '@erpx/server-identity_access/public/record-source-authority';
-import { marketingRecordScopeAuthoritySql } from '../../../packages/server-marketing/src/adapters/record-scope-authority';
-import { marketingSourceRowGuardSql } from '../../../packages/server-marketing/src/adapters/attachment-owner-version-guard';
-import { marketingPointExistsSql } from '../../../packages/server-marketing/src/adapters/marketing-point-exists-sql';
-import { publicSubmissionReceiptWitness } from '../../../packages/server-marketing/src/adapters/crm-purchase-sources';
+import { assignmentReadSql } from '@erpx/identity-access-server/public/record-source-authority';
+import { marketingRecordScopeAuthoritySql } from '../../../modules/marketing/server/src/adapters/record-scope-authority';
+import { marketingSourceRowGuardSql } from '../../../modules/marketing/server/src/adapters/attachment-owner-version-guard';
+import { marketingPointExistsSql } from '../../../modules/marketing/server/src/adapters/marketing-point-exists-sql';
+import { publicSubmissionReceiptWitness } from '../../../modules/marketing/server/src/adapters/crm-purchase-sources';
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-marketing/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/marketing/server/src/adapters/${name}`, import.meta.url);
 const src = (name: string) => readFile(adapter(name), 'utf8');
 
 // Oracles are frozen from base 0146e08219e796645b1706246be7c86eeacc42d6 (HEAD
@@ -40,7 +40,7 @@ async function ownerSelectTokens(): Promise<number> {
       else if (entry.name.endsWith('.ts')) total += selectTokens(await readFile(path, 'utf8'));
     }
   };
-  await walk(resolve('packages/server-marketing/src'));
+  await walk(resolve('modules/marketing/server/src'));
   return total;
 }
 

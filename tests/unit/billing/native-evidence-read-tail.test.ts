@@ -6,22 +6,22 @@ vi.mock('server-only', () => ({}));
 // sends; the caller's pool must never receive a TypeScript-authored SELECT.
 const ownerQuery = vi.hoisted(() => vi.fn(async (_client: unknown, _kind: string, _values: unknown[]) => ({ rows: [] } as never)));
 const ownerBind = vi.hoisted(() => vi.fn(async (_db: unknown, _kind: string, _values: readonly unknown[]) => ({ bind: vi.fn(), first: vi.fn(async () => ({})) })));
-vi.mock('../../../packages/server-billing/src/adapters/native-billing-owner-write', () => ({
+vi.mock('../../../modules/billing/server/src/adapters/native-billing-owner-write', () => ({
   nativeBillingOwnerQuery: ownerQuery,
   nativeBillingOwnerBind: ownerBind,
 }));
-vi.mock('../../../packages/server-commercial/src/adapters/native-owner-read', () => ({
+vi.mock('../../../modules/commercial/server/src/adapters/native-owner-read', () => ({
   nativeCommercialOwnerRead: vi.fn(async () => 'SELECT 1 FROM billing_usage_snapshots'),
   COMMERCIAL_RD_USAGE_METER: 'usage.meter',
   COMMERCIAL_RD_USAGE_SNAPSHOT: 'usage.snapshot',
 }));
-const { drainBillingEvidenceScans } = await import('@erpx/server-billing/adapters/billing-attachments');
-const { billingApiRepository } = await import('@erpx/server-billing/adapters/billing-api');
-const { billingLink, applyLegacyStripeEvent } = await import('@erpx/server-billing/adapters/beta-billing');
-const { nativeSeatForecastRepository } = await import('@erpx/server-billing/adapters/billing-forecast');
-const { nativeTargetRolloutRepository } = await import('@erpx/server-billing/adapters/billing-target-rollout');
-const { nativeTargetBillingRepository } = await import('@erpx/server-billing/adapters/billing-target');
-const { nativeBillingRepository } = await import('@erpx/server-billing/adapters/billing');
+const { drainBillingEvidenceScans } = await import('@erpx/billing-server/adapters/billing-attachments');
+const { billingApiRepository } = await import('@erpx/billing-server/adapters/billing-api');
+const { billingLink, applyLegacyStripeEvent } = await import('@erpx/billing-server/adapters/beta-billing');
+const { nativeSeatForecastRepository } = await import('@erpx/billing-server/adapters/billing-forecast');
+const { nativeTargetRolloutRepository } = await import('@erpx/billing-server/adapters/billing-target-rollout');
+const { nativeTargetBillingRepository } = await import('@erpx/billing-server/adapters/billing-target');
+const { nativeBillingRepository } = await import('@erpx/billing-server/adapters/billing');
 
 function env() {
   const query = vi.fn(async () => ({ rows: [] }));

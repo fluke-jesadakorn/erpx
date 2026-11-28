@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { createServer, type Server } from 'node:http';
-import { nativeInitialCountRequest } from '@erpx/native-sdk/field-service-initial-count';
-import { nativeServiceInvoicePaymentEvidenceRequest,nativeServicePackageRequest,nativeFieldOperationsRequest,nativeFieldCollaborationRequest, nativeFieldSupportRequest, nativePartsPrerequisiteRequest, nativePartsStockRequest, nativePartsSetupRequest } from '@erpx/native-sdk/field-service-parts';
+import { nativeInitialCountRequest } from '@erpx/platform-native-sdk/field-service-initial-count';
+import { nativeServiceInvoicePaymentEvidenceRequest,nativeServicePackageRequest,nativeFieldOperationsRequest,nativeFieldCollaborationRequest, nativeFieldSupportRequest, nativePartsPrerequisiteRequest, nativePartsStockRequest, nativePartsSetupRequest } from '@erpx/platform-native-sdk/field-service-parts';
 
 vi.mock('server-only', () => ({}));
 

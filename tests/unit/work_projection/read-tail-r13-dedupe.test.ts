@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 
 const src = (name: string) =>
-  new URL(`../../../packages/server-work_projection/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/work-projection/server/src/adapters/${name}`, import.meta.url);
 
 const original = {
   snapshot: 'SELECT table_name,revision FROM work_cache_revisions ORDER BY table_name',
@@ -24,7 +24,7 @@ describe('work_projection read-tail r13 dedupe', () => {
 
   it('emits the original byte-identical SQL for both callers', async () => {
     const { workCacheRevisionsSql } = await import(
-      '../../../packages/server-work_projection/src/adapters/read-tail-sql.ts'
+      '../../../modules/work-projection/server/src/adapters/read-tail-sql.ts'
     );
     expect(workCacheRevisionsSql()).toBe(original.snapshot);
     expect(workCacheRevisionsSql(['legal_items'])).toBe(original.watermarks(['legal_items']));

@@ -1,8 +1,8 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_identity_access::public::staff_facts::same_person;
-use erpx_server_runtime::public::postgres::{
+use erpx_identity_access_server::public::staff_facts::same_person;
+use erpx_platform_runtime_server::public::postgres::{
     load_migrations, migrate_database, DatabasePool, MigrationTrack,
 };
 

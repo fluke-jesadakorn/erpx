@@ -3,18 +3,18 @@ import { readFile } from 'node:fs/promises';
 import { readFileSync, readdirSync } from 'node:fs';
 
 vi.mock('server-only', () => ({}));
-vi.mock('@erpx/server-support/adapters/support-incident-read', () => ({
+vi.mock('@erpx/support-server/adapters/support-incident-read', () => ({
   getSupportIncident: vi.fn(),
   supportIncidentReadPredicate: vi.fn(),
 }));
 
-import { ApiError } from '@erpx/server-runtime/public/http';
-import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
+import { ApiError } from '@erpx/platform-runtime-server/public/http';
+import type { WorkContext } from '@erpx/identity-access-server/public/authorization';
 import {
   createSupportIncidentReadClient,
   projectSupportIncidentRead,
   type SupportIncidentRead,
-} from '@erpx/server-support/public/support-incident-read';
+} from '@erpx/support-server/public/support-incident-read';
 
 const actor = { companyId: 'company' } as WorkContext;
 const row: SupportIncidentRead = {
@@ -69,7 +69,7 @@ describe('bounded Support incident read client', () => {
 
 describe('Support incident read-tail r16 canonical projection', () => {
   const src = (name: string) =>
-    readFile(new URL(`../../../packages/server-support/src/${name}`, import.meta.url), 'utf8');
+    readFile(new URL(`../../../modules/support/server/src/${name}`, import.meta.url), 'utf8');
 
   it('retires the incident eligibility projection wrapper', async () => {
     const source = await src('adapters/support-incident-read.ts');
@@ -115,7 +115,7 @@ describe('Support incident read-tail r16 canonical projection', () => {
   });
 
   it('retirement:ts-statements stays strictly below the r17 BEFORE=91 baseline', () => {
-    const root = new URL('../../../packages/server-support/src/', import.meta.url);
+    const root = new URL('../../../modules/support/server/src/', import.meta.url);
     let total = 0;
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -145,7 +145,7 @@ describe('Support incident read-tail r16 canonical projection', () => {
 
 describe('Support ticket read-tail r17 canonical eligibility projection', () => {
   const src = (name: string) =>
-    readFile(new URL(`../../../packages/server-support/src/${name}`, import.meta.url), 'utf8');
+    readFile(new URL(`../../../modules/support/server/src/${name}`, import.meta.url), 'utf8');
 
   it('retires the ticket eligibility projection wrapper', async () => {
     const source = await src('adapters/support-ticket-read.ts');
@@ -173,7 +173,7 @@ describe('Support ticket read-tail r17 canonical eligibility projection', () => 
 
 describe('Support evidence read-tail r18 canonical eligibility witness', () => {
   const src = (name: string) =>
-    readFile(new URL(`../../../packages/server-support/src/${name}`, import.meta.url), 'utf8');
+    readFile(new URL(`../../../modules/support/server/src/${name}`, import.meta.url), 'utf8');
 
   it('keeps one canonical evidence eligibility witness projection', async () => {
     const source = await src('adapters/support-evidence.ts');
@@ -193,7 +193,7 @@ describe('Support evidence read-tail r18 canonical eligibility witness', () => {
 
 describe('Support ticket-portal image read-tail r17 parameterized-family dedupe', () => {
   const src = (name: string) =>
-    readFile(new URL(`../../../packages/server-support/src/${name}`, import.meta.url), 'utf8');
+    readFile(new URL(`../../../modules/support/server/src/${name}`, import.meta.url), 'utf8');
 
   it('retires the bound-row image renderer and keeps only the selected-bindings CTE', async () => {
     const shared = await src('adapters/ticket-portal-image-sql.ts');
@@ -217,7 +217,7 @@ describe('Support ticket-portal image read-tail r17 parameterized-family dedupe'
   });
 
   it('retirement:ts-statements stays strictly below the r17 BEFORE=86 baseline', () => {
-    const root = new URL('../../../packages/server-support/src/', import.meta.url);
+    const root = new URL('../../../modules/support/server/src/', import.meta.url);
     let total = 0;
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -233,7 +233,7 @@ describe('Support ticket-portal image read-tail r17 parameterized-family dedupe'
 
 describe('native Support incident read port', () => {
   const src = (name: string) =>
-    readFileSync(new URL(`../../../packages/server-support/src/${name}`, import.meta.url), 'utf8');
+    readFileSync(new URL(`../../../modules/support/server/src/${name}`, import.meta.url), 'utf8');
 
   it('owns one SELECT-only, scope-filtered projection with no writer or transaction', () => {
     const adapter = src('adapters/incident.rs');

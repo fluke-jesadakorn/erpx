@@ -1,6 +1,6 @@
 import {writeFileSync} from 'node:fs';
 import {resolve} from 'node:path';
-import {countActionSchema} from '../../../packages/server-inventory/src/domain/counts';
+import {countActionSchema} from '../../../modules/inventory/server/src/domain/counts';
 const cases:[string,string][]=[
  ['defaults','{"expectedVersion":1}'],
  ['trim','{"reason":"\\ufeff Reviewed \\ufeff","expectedVersion":3}'],

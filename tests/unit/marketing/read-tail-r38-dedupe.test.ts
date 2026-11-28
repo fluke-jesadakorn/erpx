@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { formAssetReadHead } from '../../../packages/server-marketing/src/adapters/form-asset-read-head';
+import { formAssetReadHead } from '../../../modules/marketing/server/src/adapters/form-asset-read-head';
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-marketing/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/marketing/server/src/adapters/${name}`, import.meta.url);
 const src = (name: string) => readFile(adapter(name), 'utf8');
-const srcRoot = resolve('packages/server-marketing/src');
+const srcRoot = resolve('modules/marketing/server/src');
 
 // Byte oracles captured from the three original readers before dedupe.
 const content = (projection: string) =>

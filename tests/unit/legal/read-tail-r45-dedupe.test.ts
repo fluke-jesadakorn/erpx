@@ -2,14 +2,14 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { legalItemsByIdCompanyHead } from '../../../packages/server-legal/src/adapters/legal-read-tail-r45-sources';
-import { legalMembersAggSql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r9-sources';
-import { legalJsonbAggByItemSql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r25-sources';
-import { legalFactDataSql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r38-sources';
-import { legalExternalUploadShareJoinHead } from '../../../packages/server-legal/src/adapters/legal-read-tail-r44-sources';
+import { legalItemsByIdCompanyHead } from '../../../modules/legal/server/src/adapters/legal-read-tail-r45-sources';
+import { legalMembersAggSql } from '../../../modules/legal/server/src/adapters/legal-read-tail-r9-sources';
+import { legalJsonbAggByItemSql } from '../../../modules/legal/server/src/adapters/legal-read-tail-r25-sources';
+import { legalFactDataSql } from '../../../modules/legal/server/src/adapters/legal-read-tail-r38-sources';
+import { legalExternalUploadShareJoinHead } from '../../../modules/legal/server/src/adapters/legal-read-tail-r44-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-legal/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-legal/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/legal/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/legal/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 /** The four member projections are the exact literals that were inline before
  * the head was extracted. Only the trusted projection and trusted key prefix

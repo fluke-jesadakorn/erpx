@@ -8,7 +8,7 @@ import {
   type NativeProcessingStatusActor,
   type NativeProcessingStatusAuthority,
   type NativeProcessingStatusRead,
-} from '../../../packages/server-legal/src/adapters/native-processing-status/client';
+} from '../../../modules/legal/server/src/adapters/native-processing-status/client';
 
 const ENV = 'ERPX_NATIVE_LEGAL_PROCESSING_STATUS_CONFIG';
 const HOLDINGS = [

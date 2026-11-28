@@ -1,8 +1,8 @@
 //! Native Quality manual hold-create admission.
-use erpx_server_quality::public::quality_commands::{
+use erpx_quality_server::public::quality_commands::{
     QualityHoldCommand, normalize_quality_hold,
 };
-use erpx_server_shared::public::{CommandKey, RecordId};
+use erpx_platform_shared_server::public::{CommandKey, RecordId};
 
 fn command() -> QualityHoldCommand {
     QualityHoldCommand {

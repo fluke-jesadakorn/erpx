@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { validateFieldAttachment } from '../../../packages/feature-files/src/lib/attachment-client';
-import { watchFieldContentContext } from '../../../packages/feature-files/src/application/field-content-lifetime';
-import { createFieldUploadAttempt } from '../../../packages/feature-files/src/application/field-upload-attempt';
+import { validateFieldAttachment } from '../../../modules/files/ui/src/lib/attachment-client';
+import { watchFieldContentContext } from '../../../modules/files/ui/src/application/field-content-lifetime';
+import { createFieldUploadAttempt } from '../../../modules/files/ui/src/application/field-upload-attempt';
 
 describe('Field upload attempt', () => {
   it('retains exact reservation identity and bytes after a lost reply and a later rejection', async () => {

@@ -8,14 +8,14 @@
 //! rollback stages nothing.
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_finance::public::due_draft_schedule::{
+use erpx_finance_server::public::due_draft_schedule::{
     DueDraftCommandActor, DueDraftScheduleResult, decide_due_draft, schedule_due_draft,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey, FailureKind};
 use sqlx::Row;
 
 async fn seed(pool: &DatabasePool) {

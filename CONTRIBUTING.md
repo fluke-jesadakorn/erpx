@@ -4,13 +4,15 @@ ERPX is migrating its business backend to a Rust modular monolith while keeping 
 
 ## Start here
 
-Read the [documentation index](docs/TOC.md), [business glossary](CONTEXT.md), [repository instructions](AGENTS.md), [governance](GOVERNANCE.md) and [licensing policy](LICENSING.md). Maintained engineering and community documentation is in English. Preserve exact business names, source quotations and immutable historical evidence where translation would change their meaning.
+Start with the [Service Count quickstart](docs/start-here.md) to run an example with fictional data. Use [Find the code](docs/find-the-code.md) to trace a screen to its owner and run a focused test. The [documentation index](docs/TOC.md) links to the business glossary, repository instructions, and community policies.
 
-Use Issues for reproducible bugs and focused feature proposals. Use a proposal issue before changing an owner boundary, public API, schema, authorization rule, licensing policy or deployment topology. Discuss the decision and add an ADR when the tradeoff meets the repository's ADR criteria. Report vulnerabilities through [SECURITY.md](SECURITY.md), with no exploit or credential in a public issue.
+Write maintained engineering and community documentation in English. Preserve exact business names, source quotations, and immutable historical evidence.
+
+Use Issues for reproducible bugs and focused feature proposals. Use a proposal issue before changing an owner boundary, public API, schema, authorization rule, licensing policy or deployment topology. Discuss the decision and add an ADR when the tradeoff meets the repository's ADR criteria. Report vulnerabilities through [SECURITY.md](.github/SECURITY.md), with no exploit or credential in a public issue.
 
 ## Local development
 
-Use the versions pinned by the repository: Bun 1.4.3, Node.js 26.11.1, PostgreSQL 18.6 and the Rust toolchain declared by `rust-toolchain.toml` when present. Install JavaScript dependencies with `bun install --frozen-lockfile`. Follow the [README](README.md) and [local seed guide](docs/local-seed.md) for the current development path.
+Use the versions pinned by the repository: Bun 1.4.3, Node.js 26.11.1, PostgreSQL 18.6 and the Rust toolchain declared by `rust-toolchain.toml` when present. Install JavaScript dependencies with `bun install --frozen-lockfile`. Follow the [local development guide](docs/development.md) and [local seed guide](docs/local-seed.md) for the current development path.
 
 Create private local configuration from `.env.example`, replace secret placeholders with generated values, and use separate disposable development databases. Examples are not deployment credentials. Keep provider adapters disabled or use their documented synthetic test adapters when no provider account is available. Do not use an operator's saved credentials, production data, private manifests or live provider account to make a public contribution pass.
 
@@ -37,10 +39,10 @@ Use a `codex/` branch for agent work unless the maintainer requests another name
 
 Fork PR verification must work with a read-only token and disposable fixtures. It must not require deployment secrets, a private hostname or a maintainer's local environment. Ordinary PRs do not deploy, publish images, rewrite history or run production acceptance. Do not use `pull_request_target` to execute untrusted contribution code.
 
-Follow the configured review, required-check and merge-queue rules. Do not bypass protections or replace failing checks with receipts from a different SHA. The maintainer decides merge timing; see [GOVERNANCE.md](GOVERNANCE.md).
+Follow the configured review, required-check and merge-queue rules. Do not bypass protections or replace failing checks with receipts from a different SHA. The maintainer decides merge timing; see [GOVERNANCE.md](docs/community/GOVERNANCE.md).
 
 ## Sign off your contributions
 
 Use `git commit -s` to add `Signed-off-by: Your Name <your public contribution email>`. This records your certification under the [Developer Certificate of Origin 1.1](https://developercertificate.org/) that you have the right to submit the contribution under its license. Use your own identity; do not fabricate another person's sign-off. Choose an appropriate public email because Git history retains it.
 
-There is no project-specific copyright assignment or CLA. A sign-off on a new contribution does not retroactively clear historical code. Follow [LICENSING.md](LICENSING.md) for third-party and historical material.
+There is no project-specific copyright assignment or CLA. A sign-off on a new contribution does not retroactively clear historical code. Follow [LICENSING.md](docs/community/LICENSING.md) for third-party and historical material.

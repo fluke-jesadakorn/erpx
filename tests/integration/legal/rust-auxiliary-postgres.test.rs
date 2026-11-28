@@ -4,15 +4,15 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_legal::public::auxiliary::*;
-use erpx_server_runtime::public::http_support::{
+use erpx_legal_server::public::auxiliary::*;
+use erpx_platform_runtime_server::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, StatusCode, body::to_bytes, header,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, Clock, CommandKey, CompanyId, HoldingId, RecordId, TimestampMillis, UserId,
 };
 use serde_json::{Value, json};
@@ -30,7 +30,7 @@ impl Clock for FixedClock {
 fn actor(user: &str, role: &str, permissions: &[&str]) -> LegalAuxiliaryActor {
     LegalAuxiliaryActor {
         user_id: UserId::new(user).unwrap(),
-        assignment_id: erpx_server_shared::public::AssignmentId::new(format!("assignment-{user}"))
+        assignment_id: erpx_platform_shared_server::public::AssignmentId::new(format!("assignment-{user}"))
             .unwrap(),
         holding_id: HoldingId::new("holding-a").unwrap(),
         company_id: CompanyId::new("company-a").unwrap(),
@@ -1142,7 +1142,7 @@ async fn retention_router_receives_actor_and_pool_and_serves_the_native_family()
 }
 
 fn hash(body: &serde_json::Value) -> String {
-    erpx_server_legal::public::legal_records::sha256_hex(body.to_string().as_bytes())
+    erpx_legal_server::public::legal_records::sha256_hex(body.to_string().as_bytes())
 }
 
 #[allow(dead_code)]
@@ -1157,19 +1157,19 @@ mod destruction {
     //! oracle for control/Files effects; it is not a production authority adapter.
     use super::fixture;
 
-    use erpx_server_legal::public::{
+    use erpx_legal_server::public::{
         CurrentDestructionSource, DestructionLedgerEntry, LegalDestructionJournal,
         LegalDestructionManifest, LockedDestructionSource, PgLegalDestructionBridge,
         PgLegalDestructionManifestBridge, LegalQueuedIdentity, LegalDestructionExecution,
         LegalRetentionUnit, read_legal_queued_authority, execute_legal_destruction,
         execute_with_sources, journal_legal_destruction, prepare_legal_destruction_manifest,
     };
-    use erpx_server_legal::public::auxiliary::{LegalRetentionPorts, PgLegalRetention};
-    use erpx_server_runtime::public::postgres::{
+    use erpx_legal_server::public::auxiliary::{LegalRetentionPorts, PgLegalRetention};
+    use erpx_platform_runtime_server::public::postgres::{
         DatabasePool, MigrationTrack, PersistenceError, PgTransactionError, PgUnitOfWork,
         TransactionOptions, load_migrations, migrate_database,
     };
-    use erpx_server_shared::public::{BusinessError, IdentifierSource, RecordId};
+    use erpx_platform_shared_server::public::{BusinessError, IdentifierSource, RecordId};
     use sqlx::PgConnection;
     use std::sync::{
         Arc,

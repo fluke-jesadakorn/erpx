@@ -1,8 +1,8 @@
-use erpx_server_organization::public::organization_nodes::{
+use erpx_organization_server::public::organization_nodes::{
     OrganizationAuthority, OrganizationCommand, OrganizationCommandActor,
 };
-use erpx_server_organization::public::organization_setup::*;
-use erpx_server_shared::public::{
+use erpx_organization_server::public::organization_setup::*;
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, Clock, CompanyId, HoldingId, RecordId, TimestampMillis, UserId,
 };
 use serde_json::{Value, json};
@@ -111,7 +111,7 @@ impl OrganizationSetupRepository for FakeRepository {
         operation: &'a str,
         _record_id: &'a str,
         _input: &'a Value,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<'a, Option<Value>>
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<'a, Option<Value>>
     {
         self.calls.push(format!("replay:{operation}"));
         Box::pin(async move { Ok(self.replay.clone()) })
@@ -121,7 +121,7 @@ impl OrganizationSetupRepository for FakeRepository {
         &'a mut self,
         _company: &'a CompanyId,
         _id: &'a str,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<
         'a,
         Option<TemplateRow>,
     > {
@@ -133,7 +133,7 @@ impl OrganizationSetupRepository for FakeRepository {
         &'a mut self,
         _company: &'a CompanyId,
         _branch: &'a str,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<'a, bool> {
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<'a, bool> {
         Box::pin(async move { Ok(self.branch_active) })
     }
 
@@ -142,14 +142,14 @@ impl OrganizationSetupRepository for FakeRepository {
         _company: &'a CompanyId,
         _department: &'a str,
         _branch: Option<&'a str>,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<'a, bool> {
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<'a, bool> {
         Box::pin(async move { Ok(self.department_active) })
     }
 
     fn levels<'a>(
         &'a mut self,
         _company: &'a CompanyId,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<
         'a,
         Vec<(i64, String)>,
     > {
@@ -159,7 +159,7 @@ impl OrganizationSetupRepository for FakeRepository {
     fn ceo_position<'a>(
         &'a mut self,
         _company: &'a CompanyId,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<'a, Option<String>>
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<'a, Option<String>>
     {
         Box::pin(async move { Ok(self.ceo.clone()) })
     }
@@ -168,7 +168,7 @@ impl OrganizationSetupRepository for FakeRepository {
         &'a mut self,
         command: &'a InstallLevelsCommand,
         _now: i64,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<'a, Value> {
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<'a, Value> {
         self.calls.push(format!("install:{}", command.titles.len()));
         Box::pin(async move { Ok(json!({"id": "company"})) })
     }
@@ -177,7 +177,7 @@ impl OrganizationSetupRepository for FakeRepository {
         &'a mut self,
         command: &'a SaveTemplateCommand,
         _now: i64,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<'a, Value> {
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<'a, Value> {
         self.calls.push(format!("save:{}", command.record_id));
         let id = command.record_id.clone();
         let version = command.version;
@@ -188,7 +188,7 @@ impl OrganizationSetupRepository for FakeRepository {
         &'a mut self,
         command: &'a ApplyTemplateCommand,
         _now: i64,
-    ) -> erpx_server_organization::public::organization_nodes::OrganizationFuture<'a, Value> {
+    ) -> erpx_organization_server::public::organization_nodes::OrganizationFuture<'a, Value> {
         self.calls.push("apply".into());
         self.applied = Some(command.clone());
         let id = command.template_id.clone();

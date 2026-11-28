@@ -1,8 +1,8 @@
-use erpx_server_commercial::public::purchase_command_boundary::{
+use erpx_commercial_server::public::purchase_command_boundary::{
     PurchaseCommandBoundary, PurchaseCommandScope,
 };
-use erpx_server_commercial::public::purchases::{CapabilityPurpose, PackageEnforcementMode};
-use erpx_server_shared::public::{CompanyId, FailureKind};
+use erpx_commercial_server::public::purchases::{CapabilityPurpose, PackageEnforcementMode};
+use erpx_platform_shared_server::public::{CompanyId, FailureKind};
 
 fn scope(capability: &str) -> PurchaseCommandScope {
     PurchaseCommandScope {

@@ -2,18 +2,18 @@
 //! These tests prove owner SQL, Company isolation, exact CAS, command
 //! idempotency, audit/outbox persistence, rollback and committed readback. They
 //! do not prove a Next/browser journey or composition mounting.
-use erpx_server_ecommerce::public::catalog::{
+use erpx_ecommerce_server::public::catalog::{
     EcommerceActor, PgEcommerceCatalogRead, storefront_catalog,
 };
-use erpx_server_ecommerce::public::channel::{CreateChannel, PgEcommerceCommand, create_channel};
-use erpx_server_ecommerce::public::review::{
+use erpx_ecommerce_server::public::channel::{CreateChannel, PgEcommerceCommand, create_channel};
+use erpx_ecommerce_server::public::review::{
     ReviewAction, ReviewCommand, ReviewKind, review_ecommerce_record,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabaseConfig, DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, PoolLimits,
     TransactionOptions, connect_pool, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, RecordId,
     TimestampMillis, UserId,
 };
@@ -210,7 +210,7 @@ async fn run_create(
     actor: EcommerceActor,
     command: CreateChannel,
 ) -> Result<
-    erpx_server_ecommerce::public::channel::EcommerceReceipt,
+    erpx_ecommerce_server::public::channel::EcommerceReceipt,
     PgTransactionError<BusinessError>,
 > {
     PgUnitOfWork::new(pool.clone())
@@ -230,7 +230,7 @@ async fn run_review(
     actor: EcommerceActor,
     command: ReviewCommand,
 ) -> Result<
-    erpx_server_ecommerce::public::channel::EcommerceReceipt,
+    erpx_ecommerce_server::public::channel::EcommerceReceipt,
     PgTransactionError<BusinessError>,
 > {
     PgUnitOfWork::new(pool.clone())
@@ -249,7 +249,7 @@ async fn read_catalog(
     pool: &DatabasePool,
     actor: EcommerceActor,
 ) -> Result<
-    erpx_server_ecommerce::public::catalog::StorefrontCatalog,
+    erpx_ecommerce_server::public::catalog::StorefrontCatalog,
     PgTransactionError<BusinessError>,
 > {
     PgUnitOfWork::new(pool.clone())

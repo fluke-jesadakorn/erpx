@@ -122,5 +122,5 @@ Regenerate/check only as a development tool:
 
 ```sh
 ERPX_NODE_BIN=/path/to/pinned/node bun scripts/testing/fixtures/generate-finance-journal-review-oracle.ts --check
-cargo +1.99.1 test -p erpx-server-finance --test journal_review --locked
+cargo +1.99.1 test -p erpx-finance-server --test journal_review --locked
 ```

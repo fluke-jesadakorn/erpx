@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { describe, expect, test } from 'vitest';
-import { ppRd64TimeEntryIdGuard } from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r64-sources';
+import { ppRd64TimeEntryIdGuard } from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r64-sources';
 
-const src = (name: string) => readFileSync(new URL(`../../../packages/server-people_payroll/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFileSync(new URL(`../../../modules/people-payroll/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const flat = (text: string) => text.replace(/\s+/g, ' ');
 const uses = (name: string, symbol: string) => (src(name).match(new RegExp(symbol + '\\(', 'g')) ?? []).length;
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -125,7 +125,7 @@ describe('People Payroll read-tail r64 dedupe', () => {
   });
 
   test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 1195 (before 1196)', () => {
-    const root = new URL('../../../packages/server-people_payroll/src/', import.meta.url);
+    const root = new URL('../../../modules/people-payroll/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {

@@ -4,10 +4,10 @@ Retained B0 row images for Maintenance notification derivation. Sixteen rows cov
 messages, Work owner recipient, Company/source/version/time, Unicode and the full 8/174/175/180
 byte outer keys. No person/session fallback or notification Clock is introduced.
 
-The TypeScript writer (`packages/server-collaboration/src/adapters/maintenance-notifications.ts`,
+The TypeScript writer (`modules/collaboration/server/src/adapters/maintenance-notifications.ts`,
 retired) produced the `sql`/`parameters` text now stored in `conformance.v1.json`. That module no
 longer exists: the corpus is retained only as data, and the native Collaboration adapter
-(`packages/server-collaboration/src/adapters/maintenance_notifications.rs`, exported from
+(`modules/collaboration/server/src/adapters/maintenance_notifications.rs`, exported from
 `public/maintenance_notifications.rs`) owns the `staff_notifications` insert and the exact
 notification/Inbox after-images. `retiredSources` records the deleted source identity, its
 replacement and the removal condition. The retained `sql`/`parameters` fields are historical
@@ -21,6 +21,6 @@ production default. PostgreSQL component tests use an explicitly synthetic sourc
 actual 0312 Inbox trigger, private source binding, unit identity, rollback and final images. Actual
 Maintenance/IAM/purchase/Workflow integration is a separate owner composition and is not
 established by those synthetic ports. Preventive-plan notices are already written natively by
-`packages/server-maintenance/src/adapters/preventive_plan.rs` (`insert_plan_notification`, unchanged
+`modules/maintenance/server/src/adapters/preventive_plan.rs` (`insert_plan_notification`, unchanged
 row shape); a public Collaboration port for plan notices and general Collaboration migration and
 runtime activation remain pending.

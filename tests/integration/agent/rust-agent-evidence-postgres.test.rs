@@ -3,11 +3,11 @@
 #![allow(dead_code)]
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_platform_administration::public::agent_evidence::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_administration_server::public::agent_evidence::*;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 
 const NOW: i64 = 1_800_000_000_000;
 

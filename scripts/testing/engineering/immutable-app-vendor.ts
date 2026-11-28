@@ -23,7 +23,7 @@ async function validateVendorClosure(modules:string,caseSource:string){
  const lines=(await readFile('/proc/self/mountinfo','utf8')).split('\n');
  for(const line of lines){const [left]=line.split(' - '),parts=left?.split(' ')??[],mount=parts[4];if(mount?.startsWith(modules+'/')&&!parts[5]?.split(',').includes('ro'))throw Error('ENGINEERING_VENDOR_WRITABLE_SUBMOUNT');}
  const pending=[modules];while(pending.length){const dir=pending.pop()!;for(const e of await readdir(dir,{withFileTypes:true})){const path=join(dir,e.name);if(e.isDirectory())pending.push(path);else if(e.isSymbolicLink()){
-  const target=await realpath(path),insideVendor=target.startsWith(modules+sep),workspaceLink=path.startsWith(join(modules,'@erpx')+sep)&&[join(caseSource,'packages')+sep,join(caseSource,'apps')+sep].some(prefix=>target.startsWith(prefix));
+  const target=await realpath(path),insideVendor=target.startsWith(modules+sep),workspaceLink=path.startsWith(join(modules,'@erpx')+sep)&&[join(caseSource,'modules')+sep,join(caseSource,'products')+sep,join(caseSource,'platform')+sep,join(caseSource,'apps')+sep].some(prefix=>target.startsWith(prefix));
   if(!insideVendor&&!workspaceLink)throw Error('ENGINEERING_VENDOR_LINK_OUTSIDE_CASE');
  }}}
 }

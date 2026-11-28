@@ -6,9 +6,9 @@ const root = resolve(import.meta.dirname ?? process.cwd(), '../../..');
 const read = (path: string) => readFileSync(resolve(root, path), 'utf8');
 const norm = (value: string) => value.replace(/\s+/g, '');
 
-const plans = read('packages/server-commerce/src/adapters/native_commerce_read_sql.rs');
-const authority = read('packages/server-commerce/src/adapters/settings-dedupe-sql.ts');
-const client = read('packages/server-commerce/src/adapters/native-commerce-read.ts');
+const plans = read('modules/commerce/server/src/adapters/native_commerce_read_sql.rs');
+const authority = read('modules/commerce/server/src/adapters/settings-dedupe-sql.ts');
+const client = read('modules/commerce/server/src/adapters/native-commerce-read.ts');
 /** Rust string literals escape the double quotes in the posting column aliases. */
 const rustSql = plans.replace(/\\"/g, '"');
 
@@ -58,7 +58,7 @@ describe('commerce read-tail r18 native settings kinds', () => {
       expect(norm(authority), SQL).toContain(norm(SQL));
     }
     // The registry-only plans still pin the same three statements.
-    const registry = read('packages/server-commerce/src/public/native_read.rs');
+    const registry = read('modules/commerce/server/src/public/native_read.rs');
     for (const { SQL } of kinds.slice(0, 2)) expect(norm(registry), SQL).toContain(norm(SQL));
     // The 11-column registry statement is assembled with concat! fragments.
     expect(registry).toContain('SQL_POSTING_MAPPING_STATE');
@@ -86,7 +86,7 @@ describe('commerce read-tail r18 native settings kinds', () => {
       'sales-order-sources.ts',
       'expense-posting-configuration.ts',
     ]) {
-      const text = read(`packages/server-commerce/src/adapters/${file}`);
+      const text = read(`modules/commerce/server/src/adapters/${file}`);
       expect(text, file).toContain('nativeCommerceReadFirst');
       expect(text, file).not.toMatch(
         /prepare\(COMMERCE_(SETTINGS_BY_COMPANY|CURRENCY_BY_COMPANY|POSTING_MAPPING_STATE)_SQL\)/,
@@ -95,8 +95,8 @@ describe('commerce read-tail r18 native settings kinds', () => {
   });
 
   it('leaves the excluded guard and warehouse fragments untouched', () => {
-    const guards = read('packages/server-commerce/src/adapters/guarded-source-dedupe-sql.ts');
-    const registry = read('packages/server-commerce/src/public/native_read.rs');
+    const guards = read('modules/commerce/server/src/adapters/guarded-source-dedupe-sql.ts');
+    const registry = read('modules/commerce/server/src/public/native_read.rs');
     expect(registry).toContain('"settings.posting-absent-guard"');
     expect(registry).toContain('"warehouse.identity"');
     expect(guards).toContain("NOT EXISTS(SELECT 1 FROM commerce_settings WHERE company_id=?)");
@@ -105,7 +105,7 @@ describe('commerce read-tail r18 native settings kinds', () => {
   });
 
   it('pins the owner TypeScript SELECT KPI at 338 (before 339)', () => {
-    const src = resolve(root, 'packages/server-commerce/src');
+    const src = resolve(root, 'modules/commerce/server/src');
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {

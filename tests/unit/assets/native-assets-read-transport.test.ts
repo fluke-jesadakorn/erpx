@@ -6,7 +6,7 @@ import {
   ASSETS_RD_FS_ASSET_ATTACHMENT_IMAGE,
   ASSETS_RD_OBLIGATIONS_BASE,
   ASSETS_RD_PKG_LINKS,
-} from '../../../packages/server-assets/src/adapters/native-assets-read';
+} from '../../../modules/assets/server/src/adapters/native-assets-read';
 
 const CONFIG_KEY = 'ERPX_NATIVE_ASSETS_READ_CONFIG';
 const FALLBACK_KEY = 'ERPX_NATIVE_ASSETS_CONFIG';

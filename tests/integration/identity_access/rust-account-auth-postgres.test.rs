@@ -6,8 +6,8 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_identity_access::public::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_identity_access_server::public::*;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
 use sqlx::Row;
@@ -153,7 +153,7 @@ async fn fresh_sign_in_hashes_proofs_and_switching_invalidates_children_without_
         assert_eq!(devices.revision, 2);
         assert_eq!(devices.accounts.len(), 2);
         let json = serde_json::to_string(
-            &erpx_server_identity_access::public::account_contracts::DeviceAccountsDto::try_from(
+            &erpx_identity_access_server::public::account_contracts::DeviceAccountsDto::try_from(
                 devices,
             )
             .unwrap(),

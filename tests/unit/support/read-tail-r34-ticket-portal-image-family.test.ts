@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-support/src');
+const srcRoot = resolve(__dirname, '../../../modules/support/server/src');
 const src = (f: string) => readFileSync(resolve(srcRoot, f), 'utf8');
 const portalSources = src('adapters/ticket-portal-sources.ts');
 const bridge = src('adapters/native-support-read.ts');
@@ -27,7 +27,7 @@ function selectCount() {
 describe('Support read-tail r34 ticket-portal ticket-image native kind', () => {
     test('the TS wrapper is a bridge call with one bind and no private SELECT', () => {
         expect(portalSources).toContain('SUPPORT_RD_TICKET_PORTAL_TICKET_IMAGE');
-        expect(portalSources).toContain("from '@erpx/server-support/adapters/native-support-read'");
+        expect(portalSources).toContain("from '@erpx/support-server/adapters/native-support-read'");
         expect(portalSources).toContain(
             'export async function supportTicketPortalTicketImage(database:SqlDatabase,ticketId:string){return nativeSupportReadAll<{image:string}>(SUPPORT_RD_TICKET_PORTAL_TICKET_IMAGE,[ticketId],database).then(result => result.results[0]?.image ?? null);}'
         );

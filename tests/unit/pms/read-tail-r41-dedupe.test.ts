@@ -4,10 +4,10 @@ import { describe, expect, it } from 'vitest';
 import {
   pmsGuestIdJoinSql,
   pmsPropertyScopeSql,
-} from '../../../packages/server-pms/src/adapters/pms-read-tail-r41-sql';
-import { pmsHomeGuestAccountSumSql } from '../../../packages/server-pms/src/adapters/pms-read-tail-r39-sql';
+} from '../../../modules/pms/server/src/adapters/pms-read-tail-r41-sql';
+import { pmsHomeGuestAccountSumSql } from '../../../modules/pms/server/src/adapters/pms-read-tail-r39-sql';
 
-const dir = new URL('../../../packages/server-pms/src/', import.meta.url);
+const dir = new URL('../../../modules/pms/server/src/', import.meta.url);
 const src = (name: string) => readFile(new URL(name, dir), 'utf8');
 const SHARED = 'adapters/pms-read-tail-r41-sql.ts';
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');

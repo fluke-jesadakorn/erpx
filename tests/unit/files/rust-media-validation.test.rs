@@ -1,4 +1,4 @@
-use erpx_server_files::public::media_signature::{
+use erpx_files_server::public::media_signature::{
     detected_attachment_media_type, matches_upload_signature,
 };
 

@@ -1,13 +1,13 @@
-use erpx_server_assets::public::asset_register::*;
-use erpx_server_shared::public::UserId;
+use erpx_assets_server::public::asset_register::*;
+use erpx_platform_shared_server::public::UserId;
 use serde_json::json;
 
 struct TestCurrencyCatalogue;
 impl AssetCurrencyCatalogue for TestCurrencyCatalogue {
-    fn contains(&self, currency: &str) -> Result<bool, erpx_server_shared::public::BusinessError> {
+    fn contains(&self, currency: &str) -> Result<bool, erpx_platform_shared_server::public::BusinessError> {
         Ok(matches!(currency, "USD" | "XAU"))
     }
-    fn scale(&self, currency: &str, company_scale: Option<u32>) -> Result<Option<u32>, erpx_server_shared::public::BusinessError> {
+    fn scale(&self, currency: &str, company_scale: Option<u32>) -> Result<Option<u32>, erpx_platform_shared_server::public::BusinessError> {
         Ok(match currency { "USD" => Some(2), "XAU" => company_scale, _ => None })
     }
 }
@@ -25,7 +25,7 @@ fn registration_currency_requires_catalogue_membership_after_normalization() {
 
 #[test]
 fn parsed_wire_input_matches_retained_schema_order_and_normalization() {
-    use erpx_server_assets::public::asset_http::normalized_asset_command_input;
+    use erpx_assets_server::public::asset_http::normalized_asset_command_input;
     let create = json!({"name":"  Laptop  ","branchId":"b","code":" A ","category":" IT ","currency":"uſd","costMinor":0.0,"acquiredDate":"2024-02-29","departmentId":null,"ignored":1});
     assert_eq!(normalized_asset_command_input(&create).unwrap(), r#"{"branchId":"b","departmentId":null,"code":"A","name":"Laptop","category":"IT","currency":"USD","costMinor":0,"acquiredDate":"2024-02-29"}"#);
     let decimal = json!({"branchId":"b","code":"A","name":"Laptop","category":"IT","currency":"thb","cost":"001.20","acquiredDate":"2024-02-29","warrantyEnd":null,"financeAssetId":"f","financeAssetVersion":2.0});
@@ -39,7 +39,7 @@ fn parsed_wire_input_matches_retained_schema_order_and_normalization() {
     for cost in ["", "1.", "1.1234567890123", "-1", "1\n"] {
         let mut invalid=decimal.clone();invalid["cost"]=json!(cost);
         assert!(normalized_asset_command_input(&invalid).is_err(), "cost: {cost:?}");
-        assert!(erpx_server_assets::public::asset_http::decode_asset_command(&invalid).is_err(), "decoder cost: {cost:?}");
+        assert!(erpx_assets_server::public::asset_http::decode_asset_command(&invalid).is_err(), "decoder cost: {cost:?}");
     }
     let mut both=decimal.clone();both["costMinor"]=json!(0);assert!(normalized_asset_command_input(&both).is_err());
     let mut non_string_id=create.clone();non_string_id["id"]=json!(123);
@@ -75,28 +75,28 @@ fn state(
     AssetState {
         version: 3,
         condition: match condition {
-            "good" => erpx_server_assets::public::maintenance::MaintenanceAssetCondition::Good,
+            "good" => erpx_assets_server::public::maintenance::MaintenanceAssetCondition::Good,
             "degraded" => {
-                erpx_server_assets::public::maintenance::MaintenanceAssetCondition::Degraded
+                erpx_assets_server::public::maintenance::MaintenanceAssetCondition::Degraded
             }
-            "unsafe" => erpx_server_assets::public::maintenance::MaintenanceAssetCondition::Unsafe,
+            "unsafe" => erpx_assets_server::public::maintenance::MaintenanceAssetCondition::Unsafe,
             _ => panic!("closed fixture condition"),
         },
         lifecycle: match lifecycle {
             "registered" => {
-                erpx_server_assets::public::maintenance::MaintenanceAssetLifecycle::Registered
+                erpx_assets_server::public::maintenance::MaintenanceAssetLifecycle::Registered
             }
             "in_service" => {
-                erpx_server_assets::public::maintenance::MaintenanceAssetLifecycle::InService
+                erpx_assets_server::public::maintenance::MaintenanceAssetLifecycle::InService
             }
             "maintenance" => {
-                erpx_server_assets::public::maintenance::MaintenanceAssetLifecycle::Maintenance
+                erpx_assets_server::public::maintenance::MaintenanceAssetLifecycle::Maintenance
             }
             "retirement_pending" => {
-                erpx_server_assets::public::maintenance::MaintenanceAssetLifecycle::RetirementPending
+                erpx_assets_server::public::maintenance::MaintenanceAssetLifecycle::RetirementPending
             }
             "retired" => {
-                erpx_server_assets::public::maintenance::MaintenanceAssetLifecycle::Retired
+                erpx_assets_server::public::maintenance::MaintenanceAssetLifecycle::Retired
             }
             _ => panic!("closed fixture lifecycle"),
         },
@@ -232,7 +232,7 @@ fn placement_and_condition_refusals_match_the_retained_owner_rules() {
             &state("retired", "good", 0, None, None),
             &change(AssetAction::Condition {
                 condition:
-                    erpx_server_assets::public::maintenance::MaintenanceAssetCondition::Degraded
+                    erpx_assets_server::public::maintenance::MaintenanceAssetCondition::Degraded
             }),
             None,
             true
@@ -244,7 +244,7 @@ fn placement_and_condition_refusals_match_the_retained_owner_rules() {
     let conditioned = asset_after(
         &state("maintenance", "good", 0, None, None),
         &change(AssetAction::Condition {
-            condition: erpx_server_assets::public::maintenance::MaintenanceAssetCondition::Unsafe,
+            condition: erpx_assets_server::public::maintenance::MaintenanceAssetCondition::Unsafe,
         }),
         None,
         true,
@@ -495,8 +495,8 @@ fn registration_uses_the_selected_scope_and_normalizes_the_exact_fields() {
     assert_eq!(parsed.category, "hardware");
     assert_eq!(parsed.currency, "THB");
     let scoped = parsed.scoped(
-        Some(&erpx_server_shared::public::RecordId::new("branch").unwrap()),
-        Some(&erpx_server_shared::public::RecordId::new("department").unwrap()),
+        Some(&erpx_platform_shared_server::public::RecordId::new("branch").unwrap()),
+        Some(&erpx_platform_shared_server::public::RecordId::new("department").unwrap()),
     );
     assert_eq!(scoped.branch_id.as_str(), "branch");
     assert_eq!(
@@ -570,8 +570,8 @@ fn purchase_requirements_use_parsed_actions_and_matching_receipt_disposition() {
     assert_eq!((replay.capability,replay.purpose,replay.permissions),("assets.register",AssetPurchasePurpose::History,&["records.write","finance.write"][..]));
     struct NoScale;
     impl AssetCurrencyCatalogue for NoScale {
-        fn contains(&self,currency:&str)->Result<bool,erpx_server_shared::public::BusinessError>{Ok(currency=="USD")}
-        fn scale(&self,_currency:&str,_company_scale:Option<u32>)->Result<Option<u32>,erpx_server_shared::public::BusinessError>{panic!("routing must not read a scale")}
+        fn contains(&self,currency:&str)->Result<bool,erpx_platform_shared_server::public::BusinessError>{Ok(currency=="USD")}
+        fn scale(&self,_currency:&str,_company_scale:Option<u32>)->Result<Option<u32>,erpx_platform_shared_server::public::BusinessError>{panic!("routing must not read a scale")}
     }
     let decimal=json!({"id":"ignored-by-create-schema","branchId":"branch","code":"A","name":"Asset","category":"equipment","currency":"usd","cost":"1.234","acquiredDate":"2026-01-01","unknown":true});
     assert_eq!(asset_create_purchase_requirements(&decimal,&NoScale,AssetPurchaseDisposition::Fresh).unwrap().purpose,AssetPurchasePurpose::NewWork);

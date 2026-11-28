@@ -7,15 +7,15 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_identity_access::public::iam_roles::{
+use erpx_identity_access_server::public::iam_roles::{
     AccessReviewCampaignInput, IamRoleActor, PgIamRolesReviews, RoleSaveInput, save_role,
     start_access_review,
 };
-use erpx_server_identity_access::public::permission_catalog::permission_catalog;
-use erpx_server_runtime::public::postgres::{
+use erpx_identity_access_server::public::permission_catalog::permission_catalog;
+use erpx_platform_runtime_server::public::postgres::{
     MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, HoldingId, RecordId, UserId,
 };
 use serde_json::Value;
@@ -85,7 +85,7 @@ fn business(error: PgTransactionError<BusinessError>) -> BusinessError {
     }
 }
 
-async fn setup(pool: &erpx_server_runtime::public::postgres::DatabasePool) {
+async fn setup(pool: &erpx_platform_runtime_server::public::postgres::DatabasePool) {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
     let files = load_migrations(root, MigrationTrack::Control)
         .await
@@ -110,7 +110,7 @@ async fn setup(pool: &erpx_server_runtime::public::postgres::DatabasePool) {
 }
 
 async fn save(
-    pool: &erpx_server_runtime::public::postgres::DatabasePool,
+    pool: &erpx_platform_runtime_server::public::postgres::DatabasePool,
     input: &RoleSaveInput,
     command_key: &str,
 ) -> Result<Value, PgTransactionError<BusinessError>> {
@@ -139,7 +139,7 @@ async fn save(
 }
 
 async fn effects(
-    pool: &erpx_server_runtime::public::postgres::DatabasePool,
+    pool: &erpx_platform_runtime_server::public::postgres::DatabasePool,
     key: &str,
 ) -> (i64, i64) {
     let receipt = sqlx::query_scalar("SELECT count(*)::bigint FROM iam_receipts WHERE id=$1")

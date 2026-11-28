@@ -1,5 +1,5 @@
-use erpx_server_identity_access::public::account_sso::*;
-use erpx_server_identity_access::public::{AccountSession, AccountUser, SESSION_LIFETIME_MS};
+use erpx_identity_access_server::public::account_sso::*;
+use erpx_identity_access_server::public::{AccountSession, AccountUser, SESSION_LIFETIME_MS};
 #[path = "../../support/rust-account.rs"]
 #[allow(
     dead_code,

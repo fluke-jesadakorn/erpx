@@ -1,9 +1,9 @@
 import { readFileSync, writeFileSync } from "node:fs";
-import {holdingHosts,futureHoldingOrigin} from '@erpx/contracts/holding-hosts';
+import {holdingHosts,futureHoldingOrigin} from '@erpx/platform-contracts/holding-hosts';
 import { resolve } from "node:path";
-import { moduleRegistry } from "@erpx/catalogue/module-registry";
-import { developmentProductOrigin, modulePlacement, productIds, products, sharedHostKeys, validateProductRegistry } from "@erpx/contracts/product-registry";
-import { commercialPackages } from "@erpx/server-commercial/domain/packages";
+import { moduleRegistry } from "@erpx/platform-catalogue/module-registry";
+import { developmentProductOrigin, modulePlacement, productIds, products, sharedHostKeys, validateProductRegistry } from "@erpx/platform-contracts/product-registry";
+import { commercialPackages } from "@erpx/commercial-server/domain/packages";
 
 const root = resolve(import.meta.dirname, "../..");
 const errors = validateProductRegistry(moduleRegistry.map(module => module.id));

@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { approvalStepByOrdinalSql } from '../../../packages/server-workflow/src/adapters/approval-projection-sources';
-import { legalApprovalFacts } from '../../../packages/server-workflow/src/adapters/legal-approval-facts';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import { approvalStepByOrdinalSql } from '../../../modules/workflow/server/src/adapters/approval-projection-sources';
+import { legalApprovalFacts } from '../../../modules/workflow/server/src/adapters/legal-approval-facts';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
 
 const pointReadSql = (columns: string) => `SELECT ${columns} FROM approval_steps WHERE instance_id=? AND ordinal=?`;
 
@@ -34,8 +34,8 @@ describe('legal approval ordinal point-read generator family (r30)', () => {
   });
   it('keeps one generator definition delegating to the shared bare head (r52)', async () => {
     const { readFile } = await import('node:fs/promises');
-    const sources = await readFile(new URL('../../../packages/server-workflow/src/adapters/approval-projection-sources.ts', import.meta.url), 'utf8');
-    const facts = await readFile(new URL('../../../packages/server-workflow/src/adapters/legal-approval-facts.ts', import.meta.url), 'utf8');
+    const sources = await readFile(new URL('../../../modules/workflow/server/src/adapters/approval-projection-sources.ts', import.meta.url), 'utf8');
+    const facts = await readFile(new URL('../../../modules/workflow/server/src/adapters/legal-approval-facts.ts', import.meta.url), 'utf8');
     expect(sources.match(/`SELECT \$\{columns\} FROM approval_steps WHERE instance_id=\? AND ordinal=\?`/g) ?? []).toHaveLength(0);
     expect(sources.match(/`\$\{selectHeadSql\}\$\{columns\} FROM approval_steps WHERE instance_id=\? AND ordinal=\?`/g)).toHaveLength(1);
     expect(facts).not.toContain('FROM approval_steps WHERE instance_id=? AND ordinal=?');

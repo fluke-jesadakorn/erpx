@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
-import { ppRdRound5ExistsByIdAndStatus } from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-round5-sources';
-import { PP_RD19_ACTIVE_ENGAGEMENT_EXISTS_SQL } from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r19-sources';
-import { PP_RD23_POSTED_PAYROLL_RUN_GUARD } from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r23-sources';
+import { ppRdRound5ExistsByIdAndStatus } from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-round5-sources';
+import { PP_RD19_ACTIVE_ENGAGEMENT_EXISTS_SQL } from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r19-sources';
+import { PP_RD23_POSTED_PAYROLL_RUN_GUARD } from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r23-sources';
 
 const src = (name: string) => readFileSync(
-  new URL(`../../../packages/server-people_payroll/src/adapters/${name}`, import.meta.url), 'utf8',
+  new URL(`../../../modules/people-payroll/server/src/adapters/${name}`, import.meta.url), 'utf8',
 );
 
 describe('People Payroll round-5 by-id/status guard family', () => {
@@ -40,7 +40,7 @@ describe('People Payroll round-5 by-id/status guard family', () => {
   });
 
   test('the fold lowers the owner SELECT count below 1142', () => {
-    const root = new URL('../../../packages/server-people_payroll/src/', import.meta.url);
+    const root = new URL('../../../modules/people-payroll/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {

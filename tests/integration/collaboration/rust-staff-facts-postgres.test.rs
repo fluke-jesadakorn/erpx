@@ -1,8 +1,8 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_collaboration::public::staff_facts::{readable_post, ReadablePostFact};
-use erpx_server_runtime::public::postgres::{
+use erpx_collaboration_server::public::staff_facts::{readable_post, ReadablePostFact};
+use erpx_platform_runtime_server::public::postgres::{
     load_migrations, migrate_database, DatabasePool, MigrationTrack,
 };
 

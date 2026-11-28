@@ -17,7 +17,7 @@ import {
   MANUFACTURING_RD_ORDER_POSTINGS,
   MANUFACTURING_RD_ORDER_OPERATIONS,
   MANUFACTURING_RD_LOT_GENEALOGY,
-} from '../../../packages/server-manufacturing/src/adapters/native-manufacturing-read';
+} from '../../../modules/manufacturing/server/src/adapters/native-manufacturing-read';
 
 const CONFIG_KEY = 'ERPX_NATIVE_MANUFACTURING_READ_CONFIG';
 const FALLBACK_KEY = 'ERPX_NATIVE_MANUFACTURING_CONFIG';
@@ -178,7 +178,7 @@ describe('native Manufacturing read-plan transport', () => {
   });
 
   it('routes the identity read callers to native kinds with no replaced TS SQL', () => {
-    const caller = readFileSync(resolve(__dirname, '../../../packages/server-manufacturing/src/adapters/production-command-sources.ts'), 'utf8');
+    const caller = readFileSync(resolve(__dirname, '../../../modules/manufacturing/server/src/adapters/production-command-sources.ts'), 'utf8');
     expect(caller).not.toContain('manufacturingAccountingProfileSelect');
     expect(caller).toContain('nativeManufacturingReadFirst<Row>(MANUFACTURING_RD_SPECIFICATION_VERSION');
     expect(caller).toContain('nativeManufacturingReadFirst<Row>(MANUFACTURING_RD_SPECIFICATION,');

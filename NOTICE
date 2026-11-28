@@ -58,6 +58,6 @@ This source tree includes:
   security audit or release qualification. Upstream audit limitations and RSA
   private-key timing warnings remain recorded in that provenance file.
 
-See LICENSING.md and docs/community/provenance.json for the scope of the
+See docs/community/LICENSING.md and docs/community/provenance.json for the scope of the
 current project grant and the incomplete historical and asset review.
 This notice is informational; it does not change any license terms.

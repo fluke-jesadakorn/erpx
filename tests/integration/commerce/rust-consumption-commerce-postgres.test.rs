@@ -3,9 +3,9 @@
 mod facts;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_commerce::public::inventory_consumption::*;
-use erpx_server_runtime::public::postgres::{PgUnitOfWork, TransactionOptions};
-use erpx_server_shared::public::{BusinessError, CommandKey, CompanyId};
+use erpx_commerce_server::public::inventory_consumption::*;
+use erpx_platform_runtime_server::public::postgres::{PgUnitOfWork, TransactionOptions};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey, CompanyId};
 use facts::*;
 use std::sync::Arc;
 fn request() -> ConsumptionCommerceRequest {
@@ -17,7 +17,7 @@ fn request() -> ConsumptionCommerceRequest {
     }
 }
 async fn read(
-    pool: &erpx_server_runtime::public::postgres::DatabasePool,
+    pool: &erpx_platform_runtime_server::public::postgres::DatabasePool,
 ) -> Result<CurrentConsumptionCommerce, Error> {
     PgUnitOfWork::new(pool.clone())
         .run(TransactionOptions::default(), |c| {
@@ -98,7 +98,7 @@ async fn archival_committed_while_utility_fence_waits_is_seen_before_first_snaps
 
 #[tokio::test]
 async fn service_posting_commerce_witness_retains_mapping_history_and_same_unit() {
-    use erpx_server_commerce::public::service_parts_posting::*;
+    use erpx_commerce_server::public::service_parts_posting::*;
     fixture::with_database(2, |pool| async move {
         setup(&pool, "none").await;
         let original = PgUnitOfWork::new(pool.clone())
@@ -167,7 +167,7 @@ async fn service_posting_commerce_witness_retains_mapping_history_and_same_unit(
 
 #[tokio::test]
 async fn service_posting_lock_waits_before_serializable_snapshot() {
-    use erpx_server_commerce::public::service_parts_posting::*;
+    use erpx_commerce_server::public::service_parts_posting::*;
     fixture::with_database(3, |pool| async move {
         setup(&pool, "none").await;
         let mut writer = pool.raw().begin().await.unwrap();
@@ -196,7 +196,7 @@ async fn service_posting_lock_waits_before_serializable_snapshot() {
 
 #[tokio::test]
 async fn service_posting_absent_schema_is_reported_without_leaving_transaction_aborted() {
-    use erpx_server_commerce::public::service_parts_posting::*;
+    use erpx_commerce_server::public::service_parts_posting::*;
     fixture::with_database(2, |pool| async move {
         setup(&pool, "none").await;
         let result = PgUnitOfWork::new(pool.clone()).run::<(), BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
@@ -205,7 +205,7 @@ async fn service_posting_absent_schema_is_reported_without_leaving_transaction_a
             let current=read_service_parts_posting(c,&company()).await?;
             assert!(!current.facts().schema_available);
             assert!(current.facts().source_json.is_none());
-            Err(BusinessError::new(erpx_server_shared::public::FailureKind::Conflict,"FIXTURE_ROLLBACK","Fixture rollback").into())
+            Err(BusinessError::new(erpx_platform_shared_server::public::FailureKind::Conflict,"FIXTURE_ROLLBACK","Fixture rollback").into())
         })).await;
         denied(result, "FIXTURE_ROLLBACK");
         let present:bool=sqlx::query_scalar("SELECT to_regclass('commerce_service_parts_posting_sources') IS NOT NULL").fetch_one(pool.raw()).await.unwrap();
@@ -215,7 +215,7 @@ async fn service_posting_absent_schema_is_reported_without_leaving_transaction_a
 
 #[tokio::test]
 async fn service_stock_master_owner_rows_are_exact_and_same_unit_fenced() {
-    use erpx_server_commerce::public::service_stock_masters::*;
+    use erpx_commerce_server::public::service_stock_masters::*;
     use sqlx::PgConnection;
     // Component-only witness: real IAM, Workflow and Finance are exercised by
     // composition, not asserted by this isolated Commerce owner test.

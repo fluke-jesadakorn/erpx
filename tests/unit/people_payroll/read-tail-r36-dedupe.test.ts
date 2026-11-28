@@ -5,9 +5,9 @@ import {
   ppRd36NumberedTwoPred,
   ppRd36ThreePred,
   ppRd36TwoPredTail,
-} from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r36-sources';
+} from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r36-sources';
 
-const src = (name: string) => readFileSync(new URL(`../../../packages/server-people_payroll/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFileSync(new URL(`../../../modules/people-payroll/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const readOnly = (literal: string) => {
   expect(literal).toContain('SELECT ');
   expect(literal).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
@@ -93,7 +93,7 @@ describe('People Payroll read-tail r36 four-family dedupe', () => {
   });
 
   test('worktree SELECT count is strictly lower than the recorded 1387 r35 baseline', () => {
-    const root = new URL('../../../packages/server-people_payroll/src/', import.meta.url);
+    const root = new URL('../../../modules/people-payroll/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {

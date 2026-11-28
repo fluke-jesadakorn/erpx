@@ -14,21 +14,21 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_collaboration::public::roster_position_notifications::{
+use erpx_collaboration_server::public::roster_position_notifications::{
     ROSTER_POSITION_REQUEST_MESSAGE, ROSTER_POSITION_WEEK_MESSAGE,
     write_roster_position_exit_request_notices, write_roster_position_exit_week_notices,
 };
-use erpx_server_people_payroll::public::roster_position_exit::{
+use erpx_people_payroll_server::public::roster_position_exit::{
     RosterPositionExitInvalidated, RosterPositionExitLocked, RosterPositionExitReleased,
     roster_position_exit_affected, roster_position_exit_plan,
     stage_roster_position_exit_invalidate_requests, stage_roster_position_exit_lock_and_history,
     stage_roster_position_exit_release_and_history,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, TimestampMillis};
 use sqlx::{AssertSqlSafe, Connection};
 
 const NOW: i64 = 1_800_000_000_000;

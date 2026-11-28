@@ -1,4 +1,4 @@
-import type { DirectoryAutomationData } from "@erpx/feature-identity_access/lib/directory-operations";
+import type { DirectoryAutomationData } from "@erpx/identity-access-ui/lib/directory-operations";
 import { selectFixtureAssignment } from "../../support/browser/select-fixture-assignment";
 import { readFile } from "node:fs/promises";
 import { expect, test, type Route } from "@playwright/test";

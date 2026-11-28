@@ -1,11 +1,11 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
 import { seedFinanceCloseCompany } from "../../../fixtures/finance/builders/engineering-finance-close-browser";
-import {calculateCloseReconciliations,postJournalBatch} from '@erpx/server-finance/public/finance';
+import {calculateCloseReconciliations,postJournalBatch} from '@erpx/finance-server/public/finance';
 import {seedFinanceJournal} from '../../support/helpers/finance-journal-seed';
 import { applyMigrations, env } from "../../support/runtime-env";
 
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));

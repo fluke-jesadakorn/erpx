@@ -2,16 +2,16 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { legalMemberEditExistsSql, legalJsonbAggByItemSql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r25-sources';
-import workContract from '../../../packages/server-legal/src/adapters/work-purchases-sources.json' with {
+import { legalMemberEditExistsSql, legalJsonbAggByItemSql } from '../../../modules/legal/server/src/adapters/legal-read-tail-r25-sources';
+import workContract from '../../../modules/legal/server/src/adapters/work-purchases-sources.json' with {
   type: 'json',
 };
-import contract from '../../../packages/server-legal/src/adapters/legal-read-tail-r25-sources.json' with {
+import contract from '../../../modules/legal/server/src/adapters/legal-read-tail-r25-sources.json' with {
   type: 'json',
 };
 
-const srcRoot = resolve(__dirname, '../../../packages/server-legal/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-legal/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/legal/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/legal/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const memberEdit = (alias: string) => `EXISTS(SELECT 1 FROM legal_members ${alias} WHERE ${alias}.item_id=i.id AND ${alias}.user_id=? AND ${alias}.access='edit')`;
 const aggBy = (alias: string, table: string, order = 'id') => `(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.${order}) FROM ${table} ${alias} WHERE ${alias}.item_id=i.id)`;
 

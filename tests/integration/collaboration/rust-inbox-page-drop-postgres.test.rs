@@ -6,15 +6,15 @@
 //! fail the whole page.
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_collaboration::public::inbox::{
+use erpx_collaboration_server::public::inbox::{
     InboxNotificationQuery, InboxScope, InboxTarget, InboxTargetFuture, InboxTargetPort,
     PgInboxTargets, PgInboxUnit,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 
 struct DropProbe;
 
@@ -97,14 +97,14 @@ async fn seed(pool: &DatabasePool) {
 
 async fn page(
     pool: DatabasePool,
-) -> Result<erpx_server_collaboration::public::inbox::InboxPageData, PgTransactionError<BusinessError>> {
+) -> Result<erpx_collaboration_server::public::inbox::InboxPageData, PgTransactionError<BusinessError>> {
     page_with_limit(pool, 10).await
 }
 
 async fn page_with_limit(
     pool: DatabasePool,
     limit: usize,
-) -> Result<erpx_server_collaboration::public::inbox::InboxPageData, PgTransactionError<BusinessError>> {
+) -> Result<erpx_collaboration_server::public::inbox::InboxPageData, PgTransactionError<BusinessError>> {
     PgUnitOfWork::new(pool)
         .run_once(TransactionOptions::default(), move |connection| {
             Box::pin(async move {

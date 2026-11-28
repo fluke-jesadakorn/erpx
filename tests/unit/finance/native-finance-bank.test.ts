@@ -1,6 +1,6 @@
 import {describe,it,expect,vi} from 'vitest';
 vi.mock('server-only',()=>({}));
-import {createNativeFinanceBankCommand} from '../../../packages/feature-finance/src/adapters/server/native-finance-bank';
+import {createNativeFinanceBankCommand} from '../../../modules/finance/ui/src/adapters/server/native-finance-bank';
 const config=JSON.stringify({privateBaseUrl:'http://127.0.0.1:44993',timeoutMs:250,holdings:[{origin:'https://acme.example.test',holdingSlug:'acme',holdingId:'h001'}]});
 const actor={userId:'user',holdingId:'h001',holdingSlug:'acme',companyId:'company',branchId:null,departmentId:null,assignmentId:'assignment',role:'finance',assignmentScope:'holding',scope:{kind:'holding'},authority:{revision:7,assignmentVersion:3},modules:['finance'],iam:{permissions:['finance.write','finance.approve']}} as never;
 const request=(body:unknown)=>new Request('https://acme.example.test/api/finance',{method:'POST',headers:{host:'acme.example.test',origin:'https://acme.example.test',cookie:'opaque','idempotency-key':'bank-key','x-erpx-context-company':'company','x-erpx-context-assignment':'assignment','x-erpx-context-revision':'7','x-erpx-context-assignment-version':'3'},body:JSON.stringify(body)});
@@ -34,7 +34,7 @@ describe('native Finance bank transport',()=>{
  });
  it('leaves the legacy path only when the selector is absent',async()=>{
   delete process.env.ERPX_NATIVE_FINANCE_BANK_CONFIG;
-  const {nativeFinanceBankCommand}=await import('../../../packages/feature-finance/src/adapters/server/native-finance-bank');
+  const {nativeFinanceBankCommand}=await import('../../../modules/finance/ui/src/adapters/server/native-finance-bank');
   expect(await nativeFinanceBankCommand(request({}),actor,'acme',['bank','statements','import'],{})).toBeUndefined();
  });
 });

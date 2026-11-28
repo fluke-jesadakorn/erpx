@@ -11,7 +11,7 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_finance::public::native_finance_read::{
+use erpx_finance_server::public::native_finance_read::{
     read_statement, RD_TAX_CHART, RD_TAX_CLOSE_PROFILE, RD_TAX_CORRECTION,
     RD_TAX_CURRENT_ENTRY, RD_TAX_ENTRY, RD_TAX_ORIGINAL_ENTRY, RD_TAX_PACKAGE,
     RD_TAX_PENDING_CORRECTION_COUNT, RD_TAX_PENDING_FAMILY, RD_TAX_PREVIOUS_ENTRY,
@@ -36,7 +36,7 @@ INSERT INTO finance_tax_entries VALUES ('entry-1','company-1','invoice','inv-1',
 INSERT INTO finance_current_tax_entries VALUES ('cur-1','company-1','invoice','inv-1','approved');";
 
 // Retired TypeScript literals copied verbatim from
-// `packages/server-finance/src/adapters/finance-tax-register.ts`.
+// `modules/finance/server/src/adapters/finance-tax-register.ts`.
 const LIVE_PROFILE: &str = "SELECT * FROM finance_accounting_profiles WHERE company_id=? AND statutory_chart_id=? AND status='approved' AND effective_date<=?";
 const LIVE_PACKAGE: &str = "SELECT * FROM finance_statutory_packages WHERE id=? AND company_id=? AND form_code='PP30' AND filing_month IS NOT NULL";
 const LIVE_CORRECTION: &str = "SELECT * FROM finance_vat_corrections WHERE id=? AND company_id=?";

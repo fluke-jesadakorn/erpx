@@ -4,23 +4,23 @@
 #![allow(dead_code)]
 #[path = "../../support/operations/rust-operations-database.rs"]
 mod fixture;
-use erpx_server_operations::public::routine_occurrences::{
+use erpx_operations_server::public::routine_occurrences::{
     OccurrenceOutcome, OccurrencePolicy, OccurrenceSourceFacts, RoutineOccurrenceFuture,
     RoutineOccurrenceUnit, due_schedules, plan_occurrence, source as occurrence_source,
     stage_occurrence,
 };
-use erpx_server_operations::public::routine_commands::{
+use erpx_operations_server::public::routine_commands::{
     RoutineScheduleRow, next_occurrence,
 };
-use erpx_server_operations::public::staff_tasks::{
+use erpx_operations_server::public::staff_tasks::{
     PgStaffTaskSources, PgStaffTasks, ProjectFact, RouteFact, RoutineTaskWrite, SaveTaskCommand,
     SaveTaskMode, StaffFact, StaffTaskActor, StaffTaskFactDelegates, StaffTaskFuture, TaskScope,
     save_task_mode,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 use sqlx::Row;
 
 type Error = PgTransactionError<BusinessError>;
@@ -113,7 +113,7 @@ impl StaffTaskFactDelegates for TestSources {
         &'a mut self,
         _unit: Option<&'a mut sqlx::PgConnection>,
         _key: &'a str,
-        _task: &'a erpx_server_operations::public::staff_tasks::TaskRow,
+        _task: &'a erpx_operations_server::public::staff_tasks::TaskRow,
         _phase: &'a str,
         _route: &'a RouteFact,
         _version: i64,
@@ -147,14 +147,14 @@ impl RoutineOccurrenceUnit for DisabledUnit {
             }
             let template = source.template.as_ref().ok_or_else(|| {
                 BusinessError::new(
-                    erpx_server_shared::public::FailureKind::Unavailable,
+                    erpx_platform_shared_server::public::FailureKind::Unavailable,
                     "TEMPLATE_UNAVAILABLE",
                     "The published routine template is unavailable.",
                 )
             })?;
             if !template.is_published() {
                 return Err(BusinessError::new(
-                    erpx_server_shared::public::FailureKind::Unavailable,
+                    erpx_platform_shared_server::public::FailureKind::Unavailable,
                     "TEMPLATE_UNAVAILABLE",
                     "The published routine template is unavailable.",
                 )
@@ -189,7 +189,7 @@ impl RoutineOccurrenceUnit for DisabledUnit {
                     start_approvers: plan.start_approvers.clone(),
                     completion_approvers: plan.completion_approvers.clone(),
                     due_at: Some(
-                        erpx_server_operations::public::routine_occurrences::due_at_iso(plan.due_at)
+                        erpx_operations_server::public::routine_occurrences::due_at_iso(plan.due_at)
                             .unwrap(),
                     ),
                     expected_version: 1,
@@ -257,8 +257,8 @@ impl RoutineOccurrenceUnit for DisabledUnit {
 }
 
 fn next(rule: &RoutineScheduleRow, after: i64) -> i64 {
-    let rule = erpx_server_operations::public::routine_commands::RoutineRule {
-        frequency: erpx_server_operations::public::routine_commands::RoutineFrequency::Daily,
+    let rule = erpx_operations_server::public::routine_commands::RoutineRule {
+        frequency: erpx_operations_server::public::routine_commands::RoutineFrequency::Daily,
         timezone: rule.timezone.clone(),
         occurrence_time: rule.occurrence_time.clone(),
         start_date: rule.start_date.clone(),
@@ -275,7 +275,7 @@ async fn generates_bounded_cursor_ordered_tasks_with_creator_schedule_and_due_of
         migrate(&holding).await;
         seed(&holding, "template", "schedule", NOW).await;
         let policy = OccurrencePolicy::default();
-        let first = erpx_server_operations::public::routine_occurrences::generate_due_occurrences(
+        let first = erpx_operations_server::public::routine_occurrences::generate_due_occurrences(
             holding.clone(),
             NOW + 5 * 86_400_000,
             2,
@@ -311,7 +311,7 @@ async fn generates_bounded_cursor_ordered_tasks_with_creator_schedule_and_due_of
         .unwrap();
         assert_eq!(cursor, next(&seed_schedule(&holding).await, NOW + 86_400_000));
 
-        let second = erpx_server_operations::public::routine_occurrences::generate_due_occurrences(
+        let second = erpx_operations_server::public::routine_occurrences::generate_due_occurrences(
             holding.clone(),
             NOW + 5 * 86_400_000,
             20,
@@ -368,7 +368,7 @@ async fn skips_pauses_and_existing_occurrences_while_advancing_the_cursor() {
         .execute(holding.raw())
         .await
         .unwrap();
-        let pass = erpx_server_operations::public::routine_occurrences::generate_due_occurrences(
+        let pass = erpx_operations_server::public::routine_occurrences::generate_due_occurrences(
             holding.clone(),
             NOW + 5 * 86_400_000,
             20,
@@ -401,7 +401,7 @@ async fn skips_pauses_and_existing_occurrences_while_advancing_the_cursor() {
             .execute(holding.raw())
             .await
             .unwrap();
-        let pass = erpx_server_operations::public::routine_occurrences::generate_due_occurrences(
+        let pass = erpx_operations_server::public::routine_occurrences::generate_due_occurrences(
             holding.clone(),
             NOW + 5 * 86_400_000,
             20,
@@ -430,7 +430,7 @@ async fn records_source_errors_and_respects_the_production_rollout_gate() {
             .execute(holding.raw())
             .await
             .unwrap();
-        let pass = erpx_server_operations::public::routine_occurrences::generate_due_occurrences(
+        let pass = erpx_operations_server::public::routine_occurrences::generate_due_occurrences(
             holding.clone(),
             NOW,
             1,
@@ -461,7 +461,7 @@ async fn records_source_errors_and_respects_the_production_rollout_gate() {
             production: true,
             scope_sql: None,
         };
-        let pass = erpx_server_operations::public::routine_occurrences::generate_due_occurrences(
+        let pass = erpx_operations_server::public::routine_occurrences::generate_due_occurrences(
             holding.clone(),
             NOW,
             1,
@@ -480,7 +480,7 @@ async fn records_source_errors_and_respects_the_production_rollout_gate() {
         .execute(holding.raw())
         .await
         .unwrap();
-        let pass = erpx_server_operations::public::routine_occurrences::generate_due_occurrences(
+        let pass = erpx_operations_server::public::routine_occurrences::generate_due_occurrences(
             holding.clone(),
             NOW,
             1,
@@ -547,7 +547,7 @@ async fn stages_the_captured_authorization_cursor_journal_and_contiguous_step() 
             .await
             .unwrap();
         let authorization =
-            erpx_server_operations::public::routine_occurrences::require_authorization(
+            erpx_operations_server::public::routine_occurrences::require_authorization(
                 &mut tx, "schedule", 2,
             )
             .await
@@ -559,10 +559,10 @@ async fn stages_the_captured_authorization_cursor_journal_and_contiguous_step() 
         .fetch_one(&mut *tx)
         .await
         .unwrap();
-        let template: erpx_server_operations::public::routine_commands::RoutineTemplateRow =
+        let template: erpx_operations_server::public::routine_commands::RoutineTemplateRow =
             serde_json::from_str(&template).unwrap();
         let schedule = seed_schedule(&holding).await;
-        erpx_server_operations::public::routine_occurrences::require_authorization_source(
+        erpx_operations_server::public::routine_occurrences::require_authorization_source(
             &mut tx,
             &authorization,
             &template,
@@ -584,7 +584,7 @@ async fn stages_the_captured_authorization_cursor_journal_and_contiguous_step() 
         .execute(&mut *tx)
         .await
         .unwrap();
-        erpx_server_operations::public::routine_occurrences::stage_occurrence(
+        erpx_operations_server::public::routine_occurrences::stage_occurrence(
             &mut tx,
             Some(&authorization),
             "schedule",
@@ -603,7 +603,7 @@ async fn stages_the_captured_authorization_cursor_journal_and_contiguous_step() 
         )
         .await
         .unwrap();
-        erpx_server_operations::public::routine_occurrences::require_lineage(
+        erpx_operations_server::public::routine_occurrences::require_lineage(
             &mut tx,
             &authorization,
             Some(NOW + 55_200_000),
@@ -655,7 +655,7 @@ async fn stages_the_captured_authorization_cursor_journal_and_contiguous_step() 
             .unwrap();
         let mut tx = holding.raw().begin().await.unwrap();
         let schedule = seed_schedule(&holding).await;
-        let error = erpx_server_operations::public::routine_occurrences::require_authorization_source(
+        let error = erpx_operations_server::public::routine_occurrences::require_authorization_source(
             &mut tx,
             &authorization,
             &template,

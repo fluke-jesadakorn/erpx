@@ -8,20 +8,20 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_pos::public::commands_http::{
+use erpx_pos_server::public::commands_http::{
     PosCommandHttpTarget, pos_command_router,
 };
-use erpx_service::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
-use erpx_service::pos::{PosBackend, PosConfiguration, PosService};
+use erpx_platform_composition::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
+use erpx_platform_composition::pos::{PosBackend, PosConfiguration, PosService};
 use std::sync::Arc;
 use tower::ServiceExt;
 
-fn cookie(token: &erpx_server_identity_access::public::OpaqueSecret) -> String {
+fn cookie(token: &erpx_identity_access_server::public::OpaqueSecret) -> String {
     format!("__Host-erpx-product={}", token.expose())
 }
 
 fn request_with(
-    token: &erpx_server_identity_access::public::OpaqueSecret,
+    token: &erpx_identity_access_server::public::OpaqueSecret,
     assignment: &str,
     assignment_version: &str,
     path: &str,
@@ -127,8 +127,8 @@ fn router(p: &review::Prepared) -> axum::Router {
     let service = PosService::new(
         p.authorizer.clone(),
         PosConfiguration::new(
-            erpx_server_shared::public::HoldingId::new("h001").unwrap(),
-            erpx_server_shared::public::CompanyId::new("company").unwrap(),
+            erpx_platform_shared_server::public::HoldingId::new("h001").unwrap(),
+            erpx_platform_shared_server::public::CompanyId::new("company").unwrap(),
         ),
         p.system.scenario.clock.clone(),
     );

@@ -1,4 +1,4 @@
-use erpx_server_shared::public::json_numbers::*;
+use erpx_platform_shared_server::public::json_numbers::*;
 use serde::Deserialize;
 #[derive(Debug, Deserialize, PartialEq)]
 struct Unsigned32(#[serde(deserialize_with = "deserialize_u32")] u32);

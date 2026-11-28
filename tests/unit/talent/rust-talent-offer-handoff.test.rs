@@ -1,14 +1,14 @@
 //! Native Talent offer, Money-snapshot and hire-handoff tests.
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, RecordId, UserId,
 };
-use erpx_server_talent::public::offer::{
+use erpx_talent_server::public::offer::{
     HireHandoffSource, OfferAction, OfferApplicationFact, OfferChange, OfferFuture,
     OfferMoneyRequest, OfferMoneySnapshot, OfferReceipt, OfferRequest, OfferRow, TalentActor,
     TalentHireHandoffReadRepository, TalentOfferCommandRepository, change_offer, create_offer,
     hire_handoff_queue, hire_handoff_source, parse_amount_minor,
 };
-use erpx_server_talent::public::requisition::ReceiptSnapshot;
+use erpx_talent_server::public::requisition::ReceiptSnapshot;
 use serde_json::Value;
 use std::sync::Mutex;
 
@@ -199,7 +199,7 @@ impl TalentOfferCommandRepository for Fake {
         Box::pin(async move {
             self.money
                 .clone()
-                .ok_or_else(erpx_server_talent::public::offer::money_snapshot_unavailable)
+                .ok_or_else(erpx_talent_server::public::offer::money_snapshot_unavailable)
         })
     }
 
@@ -207,7 +207,7 @@ impl TalentOfferCommandRepository for Fake {
         &'a mut self,
         _: &'a TalentActor,
         _: &'a str,
-        plan: &'a erpx_server_talent::public::offer::CreateOfferPlan,
+        plan: &'a erpx_talent_server::public::offer::CreateOfferPlan,
         _: &'a str,
     ) -> OfferFuture<'a, Value, Self::Error> {
         Box::pin(async move {
@@ -231,7 +231,7 @@ impl TalentOfferCommandRepository for Fake {
         &'a mut self,
         _: &'a TalentActor,
         _: &'a str,
-        plan: &'a erpx_server_talent::public::offer::OfferChangePlan,
+        plan: &'a erpx_talent_server::public::offer::OfferChangePlan,
         _: &'a str,
     ) -> OfferFuture<'a, Value, Self::Error> {
         Box::pin(async move {

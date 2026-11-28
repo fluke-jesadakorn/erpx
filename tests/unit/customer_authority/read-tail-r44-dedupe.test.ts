@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { finalRootOwnerProjectionSources as commerce } from '@erpx/server-commerce/public/final-root-owner-projection-sources';
-import { portalBindingOrderCore } from '../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r44-sources';
-import { portalBindingSource } from '../../../packages/server-customer_authority/src/adapters/portal-binding-source';
-import { portalPurchaseBindingSource } from '../../../packages/server-customer_authority/src/adapters/portal-purchase-binding-source';
+import { finalRootOwnerProjectionSources as commerce } from '@erpx/commerce-server/public/final-root-owner-projection-sources';
+import { portalBindingOrderCore } from '../../../modules/customer-authority/server/src/adapters/customer-authority-read-tail-r44-sources';
+import { portalBindingSource } from '../../../modules/customer-authority/server/src/adapters/portal-binding-source';
+import { portalPurchaseBindingSource } from '../../../modules/customer-authority/server/src/adapters/portal-purchase-binding-source';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-customer_authority/src');
+const srcRoot = resolve(__dirname, '../../../modules/customer-authority/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 // Verbatim pre-dedupe literals from source SHA f8ce3948d (G4 read-tail r18/r19).

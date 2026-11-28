@@ -1,4 +1,4 @@
-use erpx_server_people_payroll::public::payroll_accounting::{
+use erpx_people_payroll_server::public::payroll_accounting::{
     PayrollProjectionOutcome, payroll_accounting_lines, payroll_net_cost_shares,
     read_payroll_projection_inputs,
 };
@@ -472,21 +472,21 @@ fn all_117_retained_observations() {
     dead_code,
     reason = "Actual private production modules included for property tests; library checked separately"
 )]
-#[path = "../../../packages/server-people_payroll/src/domain/payroll_accounting.rs"]
+#[path = "../../../modules/people-payroll/server/src/domain/payroll_accounting.rs"]
 mod payroll_accounting;
-#[path = "../../../packages/server-people_payroll/src/domain/payroll_accounting_collation.rs"]
+#[path = "../../../modules/people-payroll/server/src/domain/payroll_accounting_collation.rs"]
 mod payroll_accounting_collation;
 #[expect(
     dead_code,
     reason = "Actual private production modules included for property tests; library checked separately"
 )]
-#[path = "../../../packages/server-people_payroll/src/domain/payroll_accounting_date.rs"]
+#[path = "../../../modules/people-payroll/server/src/domain/payroll_accounting_date.rs"]
 mod payroll_accounting_date;
 #[expect(
     dead_code,
     reason = "Actual private production modules included for property tests; library checked separately"
 )]
-#[path = "../../../packages/server-people_payroll/src/domain/payroll_accounting_operand.rs"]
+#[path = "../../../modules/people-payroll/server/src/domain/payroll_accounting_operand.rs"]
 mod payroll_accounting_operand;
 mod allocation_properties {
     use super::payroll_accounting::*;

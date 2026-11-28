@@ -1,19 +1,19 @@
 //! Native Projects create/edit command policy, replay, validation and
 //! purchase/staff-fact mapping tests.
-use erpx_server_projects::public::project_commands::ProjectCommandProject;
-use erpx_server_projects::public::project_save::{
+use erpx_projects_server::public::project_commands::ProjectCommandProject;
+use erpx_projects_server::public::project_save::{
     ProjectSaveFuture, ProjectSavePurchase, SaveProjectActor, SaveProjectCommand,
     SaveProjectPlan, SaveProjectReceipt, SaveProjectRepository, StoredProjectReceipt,
     save_project,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, RecordId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, RecordId, TimestampMillis};
 use std::collections::BTreeSet;
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
 
 fn actor() -> SaveProjectActor {
     SaveProjectActor {
-        command: erpx_server_projects::public::project_commands::ProjectCommandActor {
+        command: erpx_projects_server::public::project_commands::ProjectCommandActor {
             user_id: "owner".into(),
             company_id: CompanyId::new("company").unwrap(),
             branch_id: None,
@@ -195,7 +195,7 @@ async fn stale_or_ahead_expected_version_is_a_conflict_before_any_write() {
         )
         .await
         .unwrap_err();
-        assert_eq!(error.kind, erpx_server_shared::public::FailureKind::Conflict);
+        assert_eq!(error.kind, erpx_platform_shared_server::public::FailureKind::Conflict);
         assert_eq!(error.code, "CONFLICT");
         assert_eq!(repository.saves, 0);
     }
@@ -215,7 +215,7 @@ async fn only_the_project_owner_may_edit_and_closed_projects_stay_frozen() {
     )
     .await
     .unwrap_err();
-    assert_eq!(error.kind, erpx_server_shared::public::FailureKind::Forbidden);
+    assert_eq!(error.kind, erpx_platform_shared_server::public::FailureKind::Forbidden);
     assert_eq!(error.code, "PROJECT_OWNER_REQUIRED");
     assert_eq!(member.saves, 0);
 
@@ -306,7 +306,7 @@ async fn replay_returns_the_retained_receipt_and_requires_history() {
     let error = save_project(&no_history, &mut replay, None, &input(), "command-1", NOW)
         .await
         .unwrap_err();
-    assert_eq!(error.kind, erpx_server_shared::public::FailureKind::Forbidden);
+    assert_eq!(error.kind, erpx_platform_shared_server::public::FailureKind::Forbidden);
     assert_eq!(error.code, "PACKAGE_REQUIRED");
     assert!(error.message.contains("retained history"));
     assert_eq!(replay.saves, 0);
@@ -388,7 +388,7 @@ async fn purchase_denial_maps_to_the_retained_package_codes() {
     let error = save_project(&denied, &mut repository, None, &input(), "command-1", NOW)
         .await
         .unwrap_err();
-    assert_eq!(error.kind, erpx_server_shared::public::FailureKind::Forbidden);
+    assert_eq!(error.kind, erpx_platform_shared_server::public::FailureKind::Forbidden);
     assert_eq!(error.code, "PACKAGE_REQUIRED");
     assert_eq!(repository.saves, 0);
 
@@ -421,7 +421,7 @@ async fn every_member_requires_a_current_active_staff_row() {
         .unwrap_err();
     assert_eq!(
         error.kind,
-        erpx_server_shared::public::FailureKind::Conflict
+        erpx_platform_shared_server::public::FailureKind::Conflict
     );
     assert_eq!(error.code, "STAFF_LINK_REQUIRED");
     assert_eq!(repository.saves, 0);

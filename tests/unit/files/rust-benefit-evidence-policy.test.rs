@@ -1,13 +1,13 @@
 //! Files-owned Benefits dependent/election evidence policy mapping. No
 //! database or bytes involved.
-use erpx_server_benefits::public::command::{
+use erpx_benefits_server::public::command::{
     BenefitEvidenceRequest, BenefitRecordKind, benefit_evidence_binding_type,
     benefit_evidence_policy,
 };
-use erpx_server_files::public::benefit_evidence::{
+use erpx_files_server::public::benefit_evidence::{
     BENEFITS_EVIDENCE_COMPONENT_KIND, BENEFITS_EVIDENCE_POLICY_VERSION, benefits_business_request,
 };
-use erpx_server_shared::public::FailureKind;
+use erpx_platform_shared_server::public::FailureKind;
 
 fn request(kind: BenefitRecordKind, action: &str) -> BenefitEvidenceRequest {
     let policy = benefit_evidence_policy(kind, action).unwrap();

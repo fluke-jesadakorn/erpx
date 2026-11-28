@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
-import { jsonbAggBy } from '../../../packages/server-procurement/src/adapters/read-tail-r21';
+import { jsonbAggBy } from '../../../modules/procurement/server/src/adapters/read-tail-r21';
 
 const src = (name: string) => readFileSync(
-  new URL(`../../../packages/server-procurement/src/adapters/${name}`, import.meta.url), 'utf8',
+  new URL(`../../../modules/procurement/server/src/adapters/${name}`, import.meta.url), 'utf8',
 );
 
 describe('Procurement read-tail r21 byte-identical / parameterized dedupe', () => {
@@ -43,7 +43,7 @@ describe('Procurement read-tail r21 byte-identical / parameterized dedupe', () =
   });
 
   test('worktree SELECT count is strictly lower than the recorded BEFORE=163', () => {
-    const root = new URL('../../../packages/server-procurement/src/', import.meta.url);
+    const root = new URL('../../../modules/procurement/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {

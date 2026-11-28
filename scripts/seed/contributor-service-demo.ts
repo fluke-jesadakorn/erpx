@@ -2,7 +2,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { getLocalProxy } from '../local/fixtures';
-import { readCompanyPackageGrants } from '@erpx/server-commercial/public/package-grants';
+import { readCompanyPackageGrants } from '@erpx/commercial-server/public/package-grants';
 const root='/workspace/erpx', config=`${root}/.runtime/local/config`, key=process.env.ERPX_DEV_WORKSPACE_KEY??'';
 function privateFile(path: string) { if (!existsSync(path) || (statSync(path).mode & 0o077) !== 0) throw Error('CONTRIBUTOR_PRIVATE_FILE_REQUIRED'); return readFileSync(path, 'utf8').trim(); }
 function assertFixture() {
@@ -20,7 +20,7 @@ function assertFixture() {
 assertFixture();
 const fixture=await getLocalProxy();
 try {
- const db=fixture.env.H001_DB as import('@erpx/server-runtime/public/runtime/postgres').PostgresDatabase;
+ const db=fixture.env.H001_DB as import('@erpx/platform-runtime-server/public/runtime/postgres').PostgresDatabase;
  for(const packageId of ['service','service-parts-assets'] as const){
   const grant={companyId:'acme-co',packageId,packageVersion:1,state:'active' as const,startsAt:0,endsAt:null,version:1,reason:'Synthetic contributor Service demonstration',evidence:'fixture:contributor-service-v1'};
   const before=(await readCompanyPackageGrants(db,'acme-co')).find(g=>g.packageId===packageId);

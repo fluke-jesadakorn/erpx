@@ -6,8 +6,8 @@ import {
   nativePeoplePayrollConfiguration,
   NativePeoplePayrollError,
   type NativePeoplePayrollPageContext,
-} from '../../../packages/feature-people_payroll/src/public/native-payroll-summary';
-import { nativePeoplePayrollFailure } from '../../../packages/feature-people_payroll/src/public/native-payroll-summary-page';
+} from '../../../modules/people-payroll/ui/src/public/native-payroll-summary';
+import { nativePeoplePayrollFailure } from '../../../modules/people-payroll/ui/src/public/native-payroll-summary-page';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44992',
@@ -273,7 +273,7 @@ describe('native People Payroll command transport',()=>{
  it('fails closed without the native configuration so the route returns 503 instead of a TS writer',async()=>{
   const previous=process.env.ERPX_NATIVE_PEOPLE_PAYROLL_CONFIG;
   delete process.env.ERPX_NATIVE_PEOPLE_PAYROLL_CONFIG;
-  const {nativePeoplePayrollCommand}=await import('../../../packages/feature-people_payroll/src/public/native-payroll-summary-page');
+  const {nativePeoplePayrollCommand}=await import('../../../modules/people-payroll/ui/src/public/native-payroll-summary-page');
   expect(await nativePeoplePayrollCommand(incoming(),actor,'acme','runs',{},'command-key-1','https://acme.example.com'))
     .toBeUndefined();
   expect(await nativePeoplePayrollCommand(incoming(),actor,'acme','runs/run/calculate',{},'command-key-1','https://acme.example.com'))
@@ -286,7 +286,7 @@ describe('native People Payroll owned reads',()=>{
  it('leaves the recorded payroll month detail native-only when the owner reader is unconfigured',async()=>{
   const previous=process.env.ERPX_NATIVE_PEOPLE_PAYROLL_CONFIG;
   delete process.env.ERPX_NATIVE_PEOPLE_PAYROLL_CONFIG;
-  const {ownedPeoplePayrollRuns,ownedPeoplePayrollSummary}=await import('../../../packages/feature-people_payroll/src/public/native-payroll-summary-owned');
+  const {ownedPeoplePayrollRuns,ownedPeoplePayrollSummary}=await import('../../../modules/people-payroll/ui/src/public/native-payroll-summary-owned');
   // The Records payroll-month drawer and the Payroll history fallback raise
   // NATIVE_PEOPLE_PAYROLL_UNAVAILABLE instead of consulting a TypeScript reader.
   expect(await ownedPeoplePayrollSummary(actor as never,'acme','2026-10')).toBeUndefined();

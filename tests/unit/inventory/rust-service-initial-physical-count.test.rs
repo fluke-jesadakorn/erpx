@@ -1,4 +1,4 @@
-use erpx_server_inventory::public::service_initial_physical_count::*;
+use erpx_inventory_server::public::service_initial_physical_count::*;
 
 fn actor() -> CountAuthority {
     CountAuthority {

@@ -4,22 +4,22 @@
 //! configured.
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_collaboration::public::collaboration_work::{
+use erpx_collaboration_server::public::collaboration_work::{
     AuthorizedActor, CardAction, Change, CollaborationScope, CollaborationSourcePort,
     PgCollaborationUnit, RelationKind, execute_scope, read_scope_card,
 };
-use erpx_server_collaboration::public::inbox::{
+use erpx_collaboration_server::public::inbox::{
     InboxNotificationQuery, InboxScope, InboxTarget, InboxTargetFuture, InboxTargetPort,
     PgInboxTargets, PgInboxUnit,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::record_source_contract::{
+use erpx_platform_shared_server::public::record_source_contract::{
     SourceKind, SourceRecord, SourceReference,
 };
-use erpx_server_shared::public::{BusinessError, CommandKey};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey};
 
 type Error = PgTransactionError<BusinessError>;
 
@@ -390,7 +390,7 @@ async fn pg_collaboration_unit_applies_reads_and_replays_owner_commands() {
                     let key = key.clone();
                     let change = change.clone();
                     Box::pin(async move {
-                        erpx_server_collaboration::public::collaboration_work::lock_collaboration_work_sources(c).await?;
+                        erpx_collaboration_server::public::collaboration_work::lock_collaboration_work_sources(c).await?;
                         let mut sources = Sources;
                         execute_scope(c, scope, key, &mut sources, change).await
                     })
@@ -413,7 +413,7 @@ async fn pg_collaboration_unit_applies_reads_and_replays_owner_commands() {
                     let key = key.clone();
                     let change = change.clone();
                     Box::pin(async move {
-                        erpx_server_collaboration::public::collaboration_work::lock_collaboration_work_sources(c).await?;
+                        erpx_collaboration_server::public::collaboration_work::lock_collaboration_work_sources(c).await?;
                         let mut sources = Sources;
                         execute_scope(c, scope, key, &mut sources, change).await
                     })
@@ -453,7 +453,7 @@ async fn pg_collaboration_unit_applies_reads_and_replays_owner_commands() {
                     let scope = scope.clone();
                     let key = key.clone();
                     Box::pin(async move {
-                        erpx_server_collaboration::public::collaboration_work::lock_collaboration_work_sources(c).await?;
+                        erpx_collaboration_server::public::collaboration_work::lock_collaboration_work_sources(c).await?;
                         let mut sources = Sources;
                         execute_scope(
                             c,
@@ -525,7 +525,7 @@ async fn pg_collaboration_unit_applies_reads_and_replays_owner_commands() {
                 .run(TransactionOptions::default(), move |c| {
                     let reviewer = reviewer.clone();
                     Box::pin(async move {
-                        erpx_server_collaboration::public::collaboration_work::lock_collaboration_work_sources(c).await?;
+                        erpx_collaboration_server::public::collaboration_work::lock_collaboration_work_sources(c).await?;
                         let mut sources = Sources;
                         execute_scope(
                             c,

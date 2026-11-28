@@ -5,15 +5,15 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_people_payroll::public::payroll_run::{
+use erpx_people_payroll_server::public::payroll_run::{
     PayrollCommandActor, PayrollJournalPort, PayrollJournalRequest, PayrollPreparedJournal,
     PgPayrollCommand, calculate_payroll_run, cancel_payroll_run, create_payroll_run, post_payroll,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, CommandKey, CompanyId, HoldingId, TimestampMillis,
 };
 use serde_json::json;
@@ -92,7 +92,7 @@ impl PayrollJournalPort for Journal {
         &'a mut self,
         _connection: &'a mut sqlx::PgConnection,
         request: &'a PayrollJournalRequest,
-    ) -> erpx_server_people_payroll::public::payroll_run::PayrollCommandFuture<
+    ) -> erpx_people_payroll_server::public::payroll_run::PayrollCommandFuture<
         'a,
         PayrollPreparedJournal,
         BusinessError,
@@ -302,7 +302,7 @@ async fn in_process_detail_projects_owner_audit_columns_the_stored_error_and_pay
             .run::<(), BusinessError, _>(TransactionOptions::default(), move |connection| {
                 let reader = reader.clone();
                 Box::pin(async move {
-                    let detail = erpx_server_people_payroll::public::payroll_run::payroll_run_detail_on(
+                    let detail = erpx_people_payroll_server::public::payroll_run::payroll_run_detail_on(
                         &mut *connection,
                         &reader,
                         "run-detail",
@@ -331,7 +331,7 @@ async fn in_process_detail_projects_owner_audit_columns_the_stored_error_and_pay
                         permissions: vec!["payroll.payment.read".into()],
                         ..reader.clone()
                     };
-                    let redacted = erpx_server_people_payroll::public::payroll_run::payroll_run_detail_on(
+                    let redacted = erpx_people_payroll_server::public::payroll_run::payroll_run_detail_on(
                         &mut *connection,
                         &payment_only,
                         "run-detail",
@@ -347,7 +347,7 @@ async fn in_process_detail_projects_owner_audit_columns_the_stored_error_and_pay
 
                     let mut foreign = reader.clone();
                     foreign.company_id = CompanyId::new("foreign").unwrap();
-                    let missing = erpx_server_people_payroll::public::payroll_run::payroll_run_detail_on(
+                    let missing = erpx_people_payroll_server::public::payroll_run::payroll_run_detail_on(
                         &mut *connection,
                         &foreign,
                         "run-detail",
@@ -363,7 +363,7 @@ async fn in_process_detail_projects_owner_audit_columns_the_stored_error_and_pay
             .unwrap();
 
         let mut outside = pool.raw().acquire().await.unwrap();
-        let error = erpx_server_people_payroll::public::payroll_run::payroll_run_detail_on(
+        let error = erpx_people_payroll_server::public::payroll_run::payroll_run_detail_on(
             &mut outside,
             &actor(),
             "run-detail",

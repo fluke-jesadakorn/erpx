@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { createInvitationDeliveryApplication, type InvitationDeliveryPorts } from "@erpx/server-identity_access/application/invitation-delivery";
-import { createOrganizationAccessApplication } from "@erpx/server-organization/application/access";
-import type { OrganizationAccessActor, OrganizationAccessSnapshot } from "@erpx/server-organization/domain/access";
-import { createResourceCleanupApplication } from "@erpx/server-manage_erpx/application/resource-cleanup";
+import { createInvitationDeliveryApplication, type InvitationDeliveryPorts } from "@erpx/identity-access-server/application/invitation-delivery";
+import { createOrganizationAccessApplication } from "@erpx/organization-server/application/access";
+import type { OrganizationAccessActor, OrganizationAccessSnapshot } from "@erpx/organization-server/domain/access";
+import { createResourceCleanupApplication } from "@erpx/manage-erpx-server/application/resource-cleanup";
 
 function invitationFixture() {
   const job = { id: "job-1", invitation_id: "invite-1", attempts: 1, lease_token: "lease-1" };

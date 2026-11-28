@@ -4,9 +4,9 @@ import { describe, expect, test } from 'vitest';
 import {
   socialPostTopicExists,
   socialCommentTopicExists,
-} from '../../../packages/server-collaboration/src/adapters/read-tail-sql';
+} from '../../../modules/collaboration/server/src/adapters/read-tail-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-collaboration/src');
+const srcRoot = resolve(__dirname, '../../../modules/collaboration/server/src');
 const adapters = resolve(srcRoot, 'adapters');
 const shared = readFileSync(resolve(adapters, 'read-tail-sql.ts'), 'utf8');
 const socialText = readFileSync(resolve(adapters, 'social-text.ts'), 'utf8');

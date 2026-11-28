@@ -3,8 +3,8 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_agent::public::gateway::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_agent_server::public::gateway::*;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };

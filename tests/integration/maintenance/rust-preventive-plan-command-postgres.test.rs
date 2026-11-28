@@ -7,15 +7,15 @@
 #![allow(dead_code)]
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_maintenance::public::preventive_plan::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_maintenance_server::public::preventive_plan::*;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, Clock, CommandKey, CompanyId, HoldingId, IdentifierSource,
     RecordId, TimestampMillis, UserId,
 };
-use erpx_server_workflow::public::commands::{
+use erpx_workflow_server::public::commands::{
     CommandActor, CommandDisposition, CommandField, CommandJson, CommandOutcome, PgCommandAuthority,
     WorkflowRequest,
 };
@@ -69,7 +69,7 @@ impl PgCommandAuthority for Authority {
     ) -> Result<(), PgTransactionError<BusinessError>> {
         if actor != &self.actor {
             return Err(BusinessError::new(
-                erpx_server_shared::public::FailureKind::Conflict,
+                erpx_platform_shared_server::public::FailureKind::Conflict,
                 "PREVENTIVE_TEST_AUTHORITY_CHANGED",
                 "The test authority changed.",
             )

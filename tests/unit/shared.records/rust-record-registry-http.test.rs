@@ -1,11 +1,11 @@
 //! Actual owner-local HTTP router tests for the native Records registry read.
-use erpx_server_records::public::record_registry_http::{
+use erpx_records_server::public::record_registry_http::{
     RecordsRegistryHttpBackend, RecordsRegistryHttpCommand, RecordsRegistryHttpFuture,
     RecordsRegistryHttpRequest, RecordsRegistryHttpResponse, RecordsRegistryHttpTarget,
     records_registry_http_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Probe {

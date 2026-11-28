@@ -1,13 +1,13 @@
 //! Native Procurement supplier promise detail policy and retained-shape tests.
 //! These prove owner projection facts only; purchase admission, Account session
 //! and PostgreSQL remain separate.
-use erpx_server_procurement::public::supplier_promise_history::{
+use erpx_procurement_server::public::supplier_promise_history::{
     OpenPromiseRow, SupplierPromiseHistoryFuture, SupplierPromiseHistoryRepository,
     SupplierPromiseLineRow, SupplierPromiseOrderRow, SupplierPromisePurchaseAccess,
     SupplierPromiseReadActor, SupplierPromiseRow, SupplierPromiseSourceLineRow,
     supplier_promise_detail,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, RecordId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, FailureKind, RecordId, TimestampMillis};
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
 

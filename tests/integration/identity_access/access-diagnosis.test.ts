@@ -1,10 +1,10 @@
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
-import { assignmentApplies, isRoleValidAtScope } from "@erpx/server-identity_access/public/rules/workspace-access";
+import { assignmentApplies, isRoleValidAtScope } from "@erpx/identity-access-server/public/rules/workspace-access";
 const mocked = vi.hoisted(() => ({ session: vi.fn(), work: vi.fn(), platform: vi.fn(), scope: vi.fn() }));
-vi.mock("@erpx/server-identity_access/public/authorization", () => ({ currentSession: mocked.session, requireWorkContext: mocked.work, requirePlatformContext: mocked.platform, resolveWorkspaceScope: mocked.scope, assignmentApplies, isRoleValidAtScope }));
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB }), runtimeEnv: async () => env }));
-import { accessDiagnosis } from "@erpx/server-identity_access/public/access-diagnosis";
+vi.mock("@erpx/identity-access-server/public/authorization", () => ({ currentSession: mocked.session, requireWorkContext: mocked.work, requirePlatformContext: mocked.platform, resolveWorkspaceScope: mocked.scope, assignmentApplies, isRoleValidAtScope }));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB }), runtimeEnv: async () => env }));
+import { accessDiagnosis } from "@erpx/identity-access-server/public/access-diagnosis";
 let company: string, branch: string, department: string, user: string;
 let from: string;
 const db = env.H001_DB;

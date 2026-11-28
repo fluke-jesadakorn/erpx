@@ -1,11 +1,11 @@
 //! Actual owner-local HTTP router tests for native IAM roles/reviews.
-use erpx_server_identity_access::public::iam_roles_http::{
+use erpx_identity_access_server::public::iam_roles_http::{
     IamRolesReviewsHttpBackend, IamRolesReviewsHttpCommand, IamRolesReviewsHttpFuture,
     IamRolesReviewsHttpRequest, IamRolesReviewsHttpResponse, IamRolesReviewsHttpTarget,
     iam_roles_reviews_http_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Probe {

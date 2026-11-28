@@ -4,8 +4,8 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_pms::public::room_board::PmsBoardActor;
-use erpx_server_pms::public::room_command::{
+use erpx_pms_server::public::room_board::PmsBoardActor;
+use erpx_pms_server::public::room_command::{
     MAX_ROOMS, PgPmsRoomCommandRepository, PmsBlockCreateInput, PmsBoardFuture,
     PmsMaintenanceOpenInput, PmsRoomAssigneeScopePort, PmsRoomCommand, PmsRoomCommandActor,
     PmsRoomCommandHttpBackend, PmsRoomCommandHttpCommandRequest, PmsRoomCommandHttpFuture,
@@ -14,11 +14,11 @@ use erpx_server_pms::public::room_command::{
     PmsTaskKind, PmsTaskPriority, lock_room_command_sources, pms_room_command,
     pms_room_command_router, room_command_request_hash,
 };
-use erpx_server_runtime::public::http_support::serve;
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::http_support::serve;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CommandKey};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey};
 use serde_json::{Value, json};
 use sqlx::Row;
 use std::sync::{
@@ -554,7 +554,7 @@ async fn execute(
     command: &PmsRoomCommand,
     now: i64,
 ) -> Result<
-    erpx_server_pms::public::room_command::PmsRoomCommandResult,
+    erpx_pms_server::public::room_command::PmsRoomCommandResult,
     PgTransactionError<BusinessError>,
 > {
     execute_as(tx, &actor(), key, command, now, true).await
@@ -568,7 +568,7 @@ async fn execute_as(
     now: i64,
     assignee_allowed: bool,
 ) -> Result<
-    erpx_server_pms::public::room_command::PmsRoomCommandResult,
+    erpx_pms_server::public::room_command::PmsRoomCommandResult,
     PgTransactionError<BusinessError>,
 > {
     let mut repository = PgPmsRoomCommandRepository::new(&mut **tx);

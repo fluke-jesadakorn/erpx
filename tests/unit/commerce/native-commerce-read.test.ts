@@ -7,8 +7,8 @@ import {
   nativeCommerceReadAll,
   nativeCommerceReadFirst,
   NativeCommerceReadError,
-} from '../../../packages/server-commerce/src/adapters/native-commerce-read';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+} from '../../../modules/commerce/server/src/adapters/native-commerce-read';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
 import { readFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import {
@@ -26,16 +26,16 @@ import {
   COMMERCE_WAREHOUSE_ACTIVE_SQL,
   COMMERCE_WAREHOUSE_BRANCH_ACTIVE_SQL,
   COMMERCE_WAREHOUSE_IDENTITY_SQL,
-} from '../../../packages/server-commerce/src/adapters/guarded-source-dedupe-sql';
-import { COMMERCE_BRANCH_LABEL_SQL, COMMERCE_FLOW_PARENT_SQL, COMMERCE_FULFILLMENT_ORDER_ID_SQL } from '../../../packages/server-commerce/src/adapters/projection-source-dedupe-sql';
-import { COMMERCE_STOCK_PRODUCT_FOR_UPDATE_SQL, COMMERCE_STOCK_WAREHOUSE_FOR_UPDATE_SQL } from '../../../packages/server-commerce/src/adapters/stock-source-dedupe-sql';
-import { COMMERCE_POSTING_MAPPING_STATE_SQL } from '../../../packages/server-commerce/src/adapters/settings-dedupe-sql';
-import { COMMERCE_SETTLEMENT_BY_ORDER_SQL } from '../../../packages/server-commerce/src/adapters/read-tail-r15-dedupe-sql';
-import { ecommerceCommerceSettlementSources } from '@erpx/server-commerce/public/ecommerce-package-sources';
-import { salesCommerceSettlementSources } from '@erpx/server-commerce/public/sales-package-sources';
-import { ecommerceNativeOrderRoots } from '@erpx/server-ecommerce/public/package-sources';
-import { commercialOwnerProjectionSources } from '@erpx/server-inventory/public/commercial-owner-projection-sources';
-import { commercialOwnerProjectionSources as financeProjectionSources } from '@erpx/server-finance/public/commercial-owner-projection-sources';
+} from '../../../modules/commerce/server/src/adapters/guarded-source-dedupe-sql';
+import { COMMERCE_BRANCH_LABEL_SQL, COMMERCE_FLOW_PARENT_SQL, COMMERCE_FULFILLMENT_ORDER_ID_SQL } from '../../../modules/commerce/server/src/adapters/projection-source-dedupe-sql';
+import { COMMERCE_STOCK_PRODUCT_FOR_UPDATE_SQL, COMMERCE_STOCK_WAREHOUSE_FOR_UPDATE_SQL } from '../../../modules/commerce/server/src/adapters/stock-source-dedupe-sql';
+import { COMMERCE_POSTING_MAPPING_STATE_SQL } from '../../../modules/commerce/server/src/adapters/settings-dedupe-sql';
+import { COMMERCE_SETTLEMENT_BY_ORDER_SQL } from '../../../modules/commerce/server/src/adapters/read-tail-r15-dedupe-sql';
+import { ecommerceCommerceSettlementSources } from '@erpx/commerce-server/public/ecommerce-package-sources';
+import { salesCommerceSettlementSources } from '@erpx/commerce-server/public/sales-package-sources';
+import { ecommerceNativeOrderRoots } from '@erpx/ecommerce-server/public/package-sources';
+import { commercialOwnerProjectionSources } from '@erpx/inventory-server/public/commercial-owner-projection-sources';
+import { commercialOwnerProjectionSources as financeProjectionSources } from '@erpx/finance-server/public/commercial-owner-projection-sources';
 
 const host = 'acme.example.com';
 const origin = `https://${host}`;
@@ -169,7 +169,7 @@ describe('native Commerce command-plan read transport', () => {
 });
 
 const adapters = (file: string) =>
-  new URL(`../../../packages/server-commerce/src/adapters/${file}`, import.meta.url);
+  new URL(`../../../modules/commerce/server/src/adapters/${file}`, import.meta.url);
 
 const readTailCases = [
   {

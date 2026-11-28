@@ -1,6 +1,6 @@
 import {writeFileSync} from 'node:fs';
 import {resolve} from 'node:path';
-import {countSchema} from '../../../packages/server-inventory/src/domain/counts';
+import {countSchema} from '../../../modules/inventory/server/src/domain/counts';
 const base=(extra='')=>`{"warehouseId":"w","countDate":"2026-09-01","reason":"  first count  ",${extra}"lines":[{"productId":"p","countedQuantity":"2.00"}]}`;
 const cases:[string,string][]=[
  ['defaults',base()],

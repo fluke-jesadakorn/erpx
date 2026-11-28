@@ -1,4 +1,4 @@
-use erpx_server_finance::public::{
+use erpx_finance_server::public::{
     JournalLineInput, JournalStatus, ManualJournalCreateInput, PreparedJournalResult,
 };
 use ts_rs::{Config, TS};

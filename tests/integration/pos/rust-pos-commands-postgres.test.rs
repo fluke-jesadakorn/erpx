@@ -1,18 +1,18 @@
 //! Native POS register-session, bill, void and refund commands on migrated
 //! PostgreSQL. Cross-owner Finance/Inventory/PMS effects are recording ports;
 //! these tests prove POS-owned persistence, CAS, idempotency and readback.
-use erpx_server_pos::public::commands::{
+use erpx_pos_server::public::commands::{
     PgPosCommandRepository, PosActor, PosBankTransaction, PosCatalogProduct, PosCatalogSnapshot,
     PosCommand, PosConsumptionPart, PosFinancePort, PosFuture, PosHospitalityPort, PosInventoryPort,
     PosInvoiceAllocationRequest, PosInvoiceRequest, PosJournalRequest, PosOperation,
     PosOrganizationPort, PosRefundPaymentRequest, PosReceiptRequest, PosResult, PosReturnPart,
     PosSaleMoneyRequest, PosStockRow, execute_pos_command,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabaseConfig, DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, PoolLimits,
     TransactionOptions, connect_pool, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, HoldingId, RecordId, TimestampMillis,
     UserId,
 };
@@ -1625,7 +1625,7 @@ fn settings_accounting_table_and_discount_commands_persist_and_reject_stale_vers
 
 #[test]
 fn day_close_native_repository_persists_unique_snapshot_and_confirms_by_version() {
-    use erpx_server_pos::public::day_close::{NewDayClose, PgPosDayClose};
+    use erpx_pos_server::public::day_close::{NewDayClose, PgPosDayClose};
     with_database(|pool| Box::pin(async move {
         setup(&pool).await;
         let mut connection = pool.raw().acquire().await.unwrap();
@@ -1656,7 +1656,7 @@ fn day_close_native_repository_persists_unique_snapshot_and_confirms_by_version(
 
 #[test]
 fn day_close_native_repository_rejects_non_serializable_transaction() {
-    use erpx_server_pos::public::day_close::PgPosDayClose;
+    use erpx_pos_server::public::day_close::PgPosDayClose;
     with_database(|pool| Box::pin(async move {
         let mut connection = pool.raw().acquire().await.unwrap();
         let mut tx = connection.begin().await.unwrap();
@@ -1671,7 +1671,7 @@ fn day_close_native_repository_rejects_non_serializable_transaction() {
 
 #[test]
 fn day_report_native_sources_are_scoped_ordered_and_keep_jsonb_as_text() {
-    use erpx_server_pos::public::day_report::PgPosDayReportSources;
+    use erpx_pos_server::public::day_report::PgPosDayReportSources;
     with_database(|pool| Box::pin(async move {
         setup(&pool).await;
         sqlx::raw_sql("UPDATE pos_shifts SET denominations_json='{\"100\": 2}'::jsonb WHERE id='shift'; INSERT INTO pos_sales(id,company_id,branch_id,register_id,shift_id,number,currency,business_date,state,created_by,created_at,updated_at,accounts_json) VALUES ('sale-b','company','branch','register','shift','บิล ๒','THB','2027-01-15','open','cashier',1,1,'{}'),('sale-a','company','branch','register','shift','บิล ๑','THB','2027-01-15','open','cashier',1,1,'{}'); INSERT INTO pos_payments(id,sale_id,company_id,method,amount_minor,tendered_minor,state,created_by,created_at,updated_at) VALUES ('payment','sale-a','company','cash',100,100,'succeeded','cashier',1,1);").execute(pool.raw()).await.unwrap();
@@ -1698,7 +1698,7 @@ fn day_report_native_sources_are_scoped_ordered_and_keep_jsonb_as_text() {
 
 #[test]
 fn day_report_retained_sources_reject_own_unit_drift_and_cross_unit_reuse() {
-    use erpx_server_pos::public::day_report::PgPosDayReportSources;
+    use erpx_pos_server::public::day_report::PgPosDayReportSources;
     with_database(|pool| Box::pin(async move {
         setup(&pool).await;
         sqlx::query("INSERT INTO pos_sales(id,company_id,branch_id,register_id,shift_id,number,currency,business_date,state,created_by,created_at,updated_at,accounts_json) VALUES('witness-sale','company','branch','register','shift','original','THB','2027-01-15','open','cashier',1,1,'{}')").execute(pool.raw()).await.unwrap();
@@ -1728,7 +1728,7 @@ fn day_report_retained_sources_reject_own_unit_drift_and_cross_unit_reuse() {
 
 #[test]
 fn day_close_company_lock_contends_with_the_legacy_writer_key() {
-    use erpx_server_pos::public::day_close::PgPosDayClose;
+    use erpx_pos_server::public::day_close::PgPosDayClose;
     with_database(|pool| Box::pin(async move {
         let mut first = pool.raw().acquire().await.unwrap();
         let mut second = pool.raw().acquire().await.unwrap();
@@ -1750,9 +1750,9 @@ fn day_close_company_lock_contends_with_the_legacy_writer_key() {
 
 #[test]
 fn day_close_receipt_sha256_roundtrip_conflict_and_rollback() {
-    use erpx_server_pos::public::day_close::{NewDayClose, PgPosDayClose};
-    use erpx_server_pos::public::day_receipt::PosDayReceiptIdentity;
-    use erpx_server_workflow::public::commands::CommandJson;
+    use erpx_pos_server::public::day_close::{NewDayClose, PgPosDayClose};
+    use erpx_pos_server::public::day_receipt::PosDayReceiptIdentity;
+    use erpx_workflow_server::public::commands::CommandJson;
     with_database(|pool| Box::pin(async move {
         setup(&pool).await;
         let raw=r###"{"2":"สอง","extra":{"folioId":"f","1":1e21,"z":-0},"branchId":"branch","businessDate":"2026-11-15","x":1.0}"###;

@@ -9,7 +9,7 @@ import {
   LANE_01_POSTING_ACCOUNTS,
   nativeLane1Configured,
   type Lane1Actor,
-} from '../../../packages/server-finance/src/adapters/native-lane-1/client';
+} from '../../../modules/finance/server/src/adapters/native-lane-1/client';
 import {
   documentPostingAccounts,
   documentPostingJournalLines,
@@ -17,7 +17,7 @@ import {
   DOC_ACCOUNTS,
   DOC_JOURNAL_LINES,
   DOC_STOCK_CONFIGURATION,
-} from '../../../packages/server-finance/src/adapters/native-lane-1/doc-preview-client';
+} from '../../../modules/finance/server/src/adapters/native-lane-1/doc-preview-client';
 
 const ENV = 'ERPX_NATIVE_LANE_1_READ_CONFIG';
 const original = process.env[ENV];
@@ -141,7 +141,7 @@ describe('native Finance lane 1 expense posting projection', () => {
 
   it('pins the SQL and result oracles shared with the Rust lane', () => {
     const src = readFileSync(
-      'packages/server-finance/src/adapters/native_lane_1/postgres.rs',
+      'modules/finance/server/src/adapters/native_lane_1/postgres.rs',
       'utf8',
     );
     const journalSql = src.match(/pub const SQL_JOURNAL_LINES: &str\s*=\s*"([^"]+)"/)?.[1];
@@ -165,10 +165,10 @@ describe('native Finance lane 1 expense posting projection', () => {
 
   it('emits no SQL from the TypeScript adapter or client', () => {
     for (const path of [
-      'packages/server-finance/src/adapters/expense-posting-projection.ts',
-      'packages/server-finance/src/adapters/native-lane-1/client.ts',
-      'packages/server-finance/src/adapters/document-posting-preview.ts',
-      'packages/server-finance/src/adapters/native-lane-1/doc-preview-client.ts',
+      'modules/finance/server/src/adapters/expense-posting-projection.ts',
+      'modules/finance/server/src/adapters/native-lane-1/client.ts',
+      'modules/finance/server/src/adapters/document-posting-preview.ts',
+      'modules/finance/server/src/adapters/native-lane-1/doc-preview-client.ts',
     ]) {
       const src = readFileSync(path, 'utf8');
       expect(src).not.toMatch(/SELECT\s|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|pg_advisory/i);
@@ -290,7 +290,7 @@ describe('native Finance lane 1 document posting preview', () => {
 
   it('pins the document preview SQL and result oracles', () => {
     const src = readFileSync(
-      'packages/server-finance/src/adapters/native_lane_1/doc_preview/postgres.rs',
+      'modules/finance/server/src/adapters/native_lane_1/doc_preview/postgres.rs',
       'utf8',
     );
     const constant = (name: string) => src.match(new RegExp(`pub const ${name}: &str\\s*=\\s*"([^"]+)"`))?.[1];

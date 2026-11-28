@@ -7,7 +7,7 @@ import ts from 'typescript';
 vi.mock('server-only', () => ({}));
 
 
-const srcRoot = resolve(__dirname, '../../../packages/server-sales/src');
+const srcRoot = resolve(__dirname, '../../../modules/sales/server/src');
 const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const helper = read('read-tail-r29-sql.ts');
 const source = read('followup-source-sql.ts');

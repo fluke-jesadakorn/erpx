@@ -1,8 +1,8 @@
 //! Explicit disposable-only source seed/rotation policy for component tests.
 //! It proves the native adapter transaction, not real admin/review/MFA admission.
-use erpx_server_identity_access::public::directory::*;
-use erpx_server_runtime::public::postgres::PgWorkFuture;
-use erpx_server_shared::public::BusinessError;
+use erpx_identity_access_server::public::directory::*;
+use erpx_platform_runtime_server::public::postgres::PgWorkFuture;
+use erpx_platform_shared_server::public::BusinessError;
 use sqlx::{PgConnection, Row};
 use std::sync::Arc;
 pub struct SyntheticSourcePolicy {
@@ -137,7 +137,7 @@ pub async fn select(
     key: &str,
 ) -> Result<i64, BusinessError> {
     let request = DirectorySourceChangeRequest::new(
-        erpx_server_shared::public::RecordId::new(id)?,
+        erpx_platform_shared_server::public::RecordId::new(id)?,
         key.into(),
         connection_version,
         previous

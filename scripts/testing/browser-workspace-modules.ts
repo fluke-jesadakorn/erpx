@@ -1,11 +1,17 @@
+import { ownerWorkspaceDirectories, workspaceManifests } from "../local/workspace-paths";
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, realpath, symlink } from 'node:fs/promises';
 import { copyWorkspaceSnapshot, workspaceCopyInput } from '../local/workspace-copy-input';
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
 
 async function workspaces(root: string) {
-  const found=new Map<string,string>();
-  for(const category of ['packages','apps']){
+  const found = new Map<string,string>();
+  for (const [name, path] of workspaceManifests(root)) {
+    const directory = join(root, path);
+    if (!/^@erpx\/[^/]+$/.test(name) || await realpath(directory) !== directory) throw Error('EXACT_BROWSER_WORKSPACE_PACKAGE_REQUIRED');
+    found.set(name, directory);
+  }
+  for(const category of ['apps']){
     if(!existsSync(join(root,category)))continue;
     for(const entry of await readdir(join(root,category),{withFileTypes:true})){
       if(!entry.isDirectory())continue;
@@ -37,7 +43,7 @@ async function assertCompilerDependencies(root:string) {
 export async function linkBrowserWorkspaceModules(template: string, target: string, bundler:'webpack'|'turbopack'='webpack') {
   if (!['webpack','turbopack'].includes(bundler)) throw new Error('EXPLICIT_BROWSER_WORKSPACE_COMPILER_REQUIRED');
   const parent=dirname(dirname(template));
-  const ownedRoots=[template,target].every(path=>/^[a-f0-9]{12}$/.test(basename(dirname(path)))&&existsSync(join(path,'package.json'))&&existsSync(join(path,'packages')));
+  const ownedRoots=[template,target].every(path=>/^[a-f0-9]{12}$/.test(basename(dirname(path)))&&existsSync(join(path,'package.json'))&&ownerWorkspaceDirectories.some(directory => existsSync(join(path,directory))));
   if(!isAbsolute(template)||!isAbsolute(target)||template===target||basename(template)!=='app'||basename(target)!=='app'||dirname(dirname(target))!==parent||basename(parent)!=='browser'||basename(dirname(parent))!=='.runtime'||!ownedRoots)throw new Error('OWNED_BROWSER_WORKSPACE_ROOTS_REQUIRED');
   for(const root of [template,target])if(await realpath(root)!==root||JSON.parse(await readFile(join(root,'package.json'),'utf8')).name!=='erpx')throw new Error('OWNED_BROWSER_WORKSPACE_ROOTS_REQUIRED');
   const source=join(template,'node_modules'),destination=join(target,'node_modules');

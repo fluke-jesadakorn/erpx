@@ -1,13 +1,13 @@
-use erpx_server_procurement::public::rfq_award::*;
-use erpx_server_procurement::public::rfq_request_status::rfq_source_blocked;
-use erpx_server_procurement::public::rfq_transition::*;
-use erpx_server_procurement::public::rfq_transition_normalization::normalize_rfq_transition;
-use erpx_server_records::public::rfq_request_source::RfqRequestFacts;
-use erpx_server_shared::public::{BusinessError, FailureKind};
-use erpx_server_workflow::public::source_ordered_json::SourceOrderedJson;
-#[path = "../../../src/composition/src/procurement_rfq_approval.rs"]
+use erpx_procurement_server::public::rfq_award::*;
+use erpx_procurement_server::public::rfq_request_status::rfq_source_blocked;
+use erpx_procurement_server::public::rfq_transition::*;
+use erpx_procurement_server::public::rfq_transition_normalization::normalize_rfq_transition;
+use erpx_records_server::public::rfq_request_source::RfqRequestFacts;
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
+use erpx_workflow_server::public::source_ordered_json::SourceOrderedJson;
+#[path = "../../../platform/composition/src/procurement_rfq_approval.rs"]
 mod rfq_approval;
-#[path = "../../../src/composition/src/procurement_rfq_quantity.rs"]
+#[path = "../../../platform/composition/src/procurement_rfq_quantity.rs"]
 mod rfq_quantity;
 
 #[test]
@@ -33,7 +33,7 @@ fn requisition_quantities_match_typescript_math_and_exception_classes() {
         r#"{}"#,
         "[",
     ];
-    let script = r#"const {quantityMilli}=require('./packages/feature-commerce/src/lib/commerce-math.ts');const cases=JSON.parse(process.argv[1]);process.stdout.write(JSON.stringify(cases.map(raw=>{try{const items=JSON.parse(raw);return {values:items.map(item=>quantityMilli(item.quantity))}}catch(e){return {name:e.name,...(e.name==='Error'?{message:e.message}:{})}}})))"#;
+    let script = r#"const {quantityMilli}=require('./modules/commerce/ui/src/lib/commerce-math.ts');const cases=JSON.parse(process.argv[1]);process.stdout.write(JSON.stringify(cases.map(raw=>{try{const items=JSON.parse(raw);return {values:items.map(item=>quantityMilli(item.quantity))}}catch(e){return {name:e.name,...(e.name==='Error'?{message:e.message}:{})}}})))"#;
     let output =
         std::process::Command::new(std::env::var("ERPX_NODE_BIN").expect("pinned Node required"))
             .current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
@@ -67,7 +67,7 @@ fn requisition_quantities_match_typescript_math_and_exception_classes() {
 
 #[test]
 fn quotation_allocation_numeric_and_duplicate_keys_match_javascript() {
-    use erpx_server_procurement::public::rfq_request_allocations::RfqRequestAllocation;
+    use erpx_procurement_server::public::rfq_request_allocations::RfqRequestAllocation;
     use rfq_quantity::rfq_quotation_allocation_amounts;
     let rows = vec![
         RfqRequestAllocation {
@@ -107,13 +107,13 @@ fn quotation_allocation_numeric_and_duplicate_keys_match_javascript() {
 
 #[test]
 fn allocation_materialization_uses_postgres_adapter_safe_number_before_item_mapping() {
-    use erpx_server_procurement::public::rfq_request_allocations::RfqRequestAllocation;
+    use erpx_procurement_server::public::rfq_request_allocations::RfqRequestAllocation;
     use rfq_quantity::{rfq_quotation_items_json,RfqItemMapError};
     let rows=vec![RfqRequestAllocation{ordinal:Some(99),allocated_milli_decimal:"9007199254740992".into()}];
     assert!(matches!(rfq_quotation_items_json(r#"[{"quantity":"bad"}]"#,&rows),Err(RfqItemMapError::DatabaseNumberOutOfRange)));
     let output=std::process::Command::new(std::env::var("ERPX_NODE_BIN").expect("pinned Node required"))
         .current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
-        .args(["--conditions=react-server","--import=tsx","-e","const {safeNumber}=require('./packages/server-runtime/src/adapters/runtime/postgres.ts');try{safeNumber('9007199254740992')}catch(e){process.stdout.write(e.name+':'+e.message)}"])
+        .args(["--conditions=react-server","--import=tsx","-e","const {safeNumber}=require('./platform/runtime/server/src/adapters/runtime/postgres.ts');try{safeNumber('9007199254740992')}catch(e){process.stdout.write(e.name+':'+e.message)}"])
         .output().unwrap();
     assert!(output.status.success());
     assert_eq!(String::from_utf8(output.stdout).unwrap(),"RangeError:DATABASE_NUMBER_OUT_OF_RANGE");
@@ -121,7 +121,7 @@ fn allocation_materialization_uses_postgres_adapter_safe_number_before_item_mapp
 
 #[test]
 fn quotation_items_preserve_full_javascript_spread_and_unit_fallback() {
-    use erpx_server_procurement::public::rfq_request_allocations::RfqRequestAllocation;
+    use erpx_procurement_server::public::rfq_request_allocations::RfqRequestAllocation;
     use rfq_quantity::rfq_quotation_items_json;
     let raw = r#"[{"z":"extra","2":"integer-key","quantity":"1.5","unit":"old","requestedMilli":"old","nested":{"x":"\ud800"},"unit":"","\ud800":"key"},{"unit":{"custom":1},"quantity":"2.0000","allocatedMilli":"old","remainingMilli":null,"name":"quoted"},{"quantity":"1","unit":true,"1":3,"__proto__":{"safe":true}},{"quantity":"1","unit":1e999}]"#;
     let huge = "9007199254740991".to_owned();
@@ -140,7 +140,7 @@ fn quotation_items_preserve_full_javascript_spread_and_unit_fallback() {
         },
     ];
     let actual = rfq_quotation_items_json(raw, &rows).unwrap();
-    let script = r#"const {quantityMilli}=require('./packages/feature-commerce/src/lib/commerce-math.ts');const items=JSON.parse(process.argv[1]), m=new Map([[0,1500],[1,1],[2,Number(process.argv[2])]]);const mapped=items.map((item,index)=>{const requestedMilli=quantityMilli(item.quantity),allocatedMilli=m.get(index)??0;return {...item,unit:item.unit||'each',requestedMilli,allocatedMilli,remainingMilli:Math.max(0,requestedMilli-allocatedMilli)}});process.stdout.write(JSON.stringify({json:JSON.stringify(mapped),fullyAllocated:mapped.every(x=>x.remainingMilli===0),unitMatchesEach:mapped.map(x=>x.unit==='each')}))"#;
+    let script = r#"const {quantityMilli}=require('./modules/commerce/ui/src/lib/commerce-math.ts');const items=JSON.parse(process.argv[1]), m=new Map([[0,1500],[1,1],[2,Number(process.argv[2])]]);const mapped=items.map((item,index)=>{const requestedMilli=quantityMilli(item.quantity),allocatedMilli=m.get(index)??0;return {...item,unit:item.unit||'each',requestedMilli,allocatedMilli,remainingMilli:Math.max(0,requestedMilli-allocatedMilli)}});process.stdout.write(JSON.stringify({json:JSON.stringify(mapped),fullyAllocated:mapped.every(x=>x.remainingMilli===0),unitMatchesEach:mapped.map(x=>x.unit==='each')}))"#;
     let output =
         std::process::Command::new(std::env::var("ERPX_NODE_BIN").expect("pinned Node required"))
             .current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
@@ -387,7 +387,7 @@ fn award_comparison_preserves_error_precedence_and_edit_rules() {
 #[test]
 fn award_comparison_matches_typescript_source() {
     let script = r#"
-const {assertRfqOrder}=require('./packages/server-procurement/src/domain/rfqs.ts');
+const {assertRfqOrder}=require('./modules/procurement/server/src/domain/rfqs.ts');
 const detail={rfq:{status:'approved',request_id:'request',selected_offer_id:'offer',order_id:'order',warehouse_id:'warehouse',needed_date:'2026-12-01'},lines:[{id:'line',product_id:'product',quantity_milli:1250}],offers:[{id:'offer',supplier_id:'supplier',valid_until:'2026-11-30'}],offerLines:[{offer_id:'offer',rfq_line_id:'line',price_minor:1234,tax_bps:700}]};
 const base={kind:'purchase',requestId:'request',partyId:'supplier',warehouseId:'warehouse',dueDate:'2026-12-01',orderDate:'2026-11-29',lines:[{productId:'product',quantity:'1.250',price:'12.34',taxBps:700}]};
 const cases=[[{},false,'order','2026-11-30'],[{kind:'sale',requestId:undefined},false,'order','2026-12-01'],[{requestId:undefined},false,'order','2026-12-01'],[{lines:[{...base.lines[0],taxBps:701}]},false,'order','2026-12-01'],[{},false,'order','2026-12-01'],[{requestId:undefined},true,'order','2027-01-01'],[{},true,'different','2027-01-01']];
@@ -458,7 +458,7 @@ console.log(JSON.stringify(cases.map(([change,editing,id,today])=>{try{return as
 #[test]
 fn transition_order_matches_typescript_application() {
     let script = r#"
-const {createRfqApplication}=require('./packages/server-procurement/src/application/rfqs.ts');
+const {createRfqApplication}=require('./modules/procurement/server/src/application/rfqs.ts');
 const cases=[['submit','collecting',false,true,false,false],['submit','collecting',false,true,false,true],['submit','approved',true,true,false,false],['approve','review',false,true,false,false],['approve','review',false,false,false,false],['approve','collecting',false,true,true,false],['return','collecting',false,true,false,false],['cancel','approved',true,true,false,false],['cancel','approved',false,true,false,false],['cancel','ordered',false,true,true,false],['approve','review',false,true,true,false]];
 (async()=>{const out=[];for(const [action,status,blocked,canApprove,deny,expired] of cases){let calls=0;const rfq={id:'rfq',status,request_id:blocked?'request':null,selected_offer_id:'offer',created_by:'creator',submitted_by:'submitter'};const offer={id:'offer',supplier_id:'supplier',recorded_by:'recorder',valid_until:expired?'2026-01-01':'2026-12-01'};const ports={clock:{now:()=>Date.parse('2026-11-15T00:00:00Z')},canPurchase:true,canApprove,canRead:true,samePerson:()=>false,authorizeRead:async()=>{},authorizePurchase:async()=>{},authorizeApprove:async()=>{calls++;if(deny){const e=new Error();e.code='DENIED';throw e}},replay:async()=>null,rfq:async()=>rfq,detail:async()=>({lines:[],offers:[offer],offerLines:[],events:[]}),sourceState:async()=>null,currentQuotationSource:async()=>null,commit:async(m)=>({status:m.status,selected:m.offerId})};try{const result=await createRfqApplication(ports).act('rfq',{action,expectedVersion:1,reason:'reason',offerId:'offer'},'key');out.push({status:result.status,selected:result.selected,calls})}catch(e){out.push({error:e.code,calls})}}console.log(JSON.stringify(out))})().catch(e=>{console.error(e);process.exit(1)});
 "#;
@@ -522,7 +522,7 @@ const cases=[['submit','collecting',false,true,false,false],['submit','collectin
 #[test]
 fn normalized_transition_matches_actual_zod_property_order_and_boundaries() {
     let cases=vec![r#"{"reason":"  reason  ","extra":true,"offerId":"id","expectedVersion":3,"action":"submit"}"#.to_owned(),r#"{"action":"cancel","expectedVersion":1,"reason":"\ufeff😀ab\u00a0"}"#.into(),r#"{"action":"return","expectedVersion":9007199254740991,"offerId":"\ud800","reason":"abc"}"#.into(),r#"{"action":"offer","expectedVersion":1,"reason":"abc"}"#.into(),r#"{"action":"submit","expectedVersion":0,"reason":"abc"}"#.into(),r#"{"action":"submit","expectedVersion":1.5,"reason":"abc"}"#.into(),r#"{"action":"submit","expectedVersion":9007199254740992,"reason":"abc"}"#.into(),r#"{"action":"submit","expectedVersion":1,"offerId":"","reason":"abc"}"#.into(),r#"{"action":"submit","expectedVersion":1,"reason":"😀a"}"#.into(),format!("{{\"action\":\"submit\",\"expectedVersion\":1,\"offerId\":\"{}\",\"reason\":\"abc\"}}","x".repeat(2*1024*1024+20))];
-    let script = r#"const fs=require('node:fs');const {rfqActionSchema}=require('./packages/server-procurement/src/domain/rfqs.ts');const cases=JSON.parse(fs.readFileSync(0,'utf8'));process.stdout.write(JSON.stringify(cases.map(raw=>{try{return JSON.stringify(rfqActionSchema.parse(JSON.parse(raw)))}catch{return null}})));"#;
+    let script = r#"const fs=require('node:fs');const {rfqActionSchema}=require('./modules/procurement/server/src/domain/rfqs.ts');const cases=JSON.parse(fs.readFileSync(0,'utf8'));process.stdout.write(JSON.stringify(cases.map(raw=>{try{return JSON.stringify(rfqActionSchema.parse(JSON.parse(raw)))}catch{return null}})));"#;
     use std::io::Write;
     let mut child =
         std::process::Command::new(std::env::var("ERPX_NODE_BIN").expect("pinned Node required"))
@@ -554,7 +554,7 @@ fn normalized_transition_matches_actual_zod_property_order_and_boundaries() {
 
 #[test]
 fn request_status_matches_typescript_short_circuit_and_json_semantics() {
-    let script = r#"const {sourceBlocked}=require('./packages/server-procurement/src/domain/rfqs.ts');const base={request_id:'request',status:'review',request_evidence_version:7,request_items_json:'[]'},s={state:'in_progress',evidence_version:7,items_json:'[]',approval_json:'{\"decision\":\"approved\"}'};const cases=[[{},s],[{status:'ordered'},{...s,approval_json:'invalid'}],[{request_id:''},null],[{},null],[{},{...s,state:'draft',approval_json:'invalid'}],[{},{...s,evidence_version:8,approval_json:'invalid'}],[{},{...s,items_json:'[ ]',approval_json:'invalid'}],[{},{...s,approval_json:'{\"decision\":\"denied\",\"decision\":\"approved\"}'}],[{},{...s,approval_json:'{\"x\":\"\\ud800\",\"decision\":\"approved\"}'}],[{},{...s,approval_json:'null'}],[{},{...s,approval_json:'invalid'}],[{request_evidence_version:9007199254740992},{...s,evidence_version:9007199254740993}]];console.log(JSON.stringify(cases.map(([r,v])=>{try{return sourceBlocked({...base,...r},v)}catch{return 'error'}})));"#;
+    let script = r#"const {sourceBlocked}=require('./modules/procurement/server/src/domain/rfqs.ts');const base={request_id:'request',status:'review',request_evidence_version:7,request_items_json:'[]'},s={state:'in_progress',evidence_version:7,items_json:'[]',approval_json:'{\"decision\":\"approved\"}'};const cases=[[{},s],[{status:'ordered'},{...s,approval_json:'invalid'}],[{request_id:''},null],[{},null],[{},{...s,state:'draft',approval_json:'invalid'}],[{},{...s,evidence_version:8,approval_json:'invalid'}],[{},{...s,items_json:'[ ]',approval_json:'invalid'}],[{},{...s,approval_json:'{\"decision\":\"denied\",\"decision\":\"approved\"}'}],[{},{...s,approval_json:'{\"x\":\"\\ud800\",\"decision\":\"approved\"}'}],[{},{...s,approval_json:'null'}],[{},{...s,approval_json:'invalid'}],[{request_evidence_version:9007199254740992},{...s,evidence_version:9007199254740993}]];console.log(JSON.stringify(cases.map(([r,v])=>{try{return sourceBlocked({...base,...r},v)}catch{return 'error'}})));"#;
     let output =
         std::process::Command::new(std::env::var("ERPX_NODE_BIN").expect("pinned Node required"))
             .current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))

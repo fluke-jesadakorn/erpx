@@ -12,7 +12,7 @@ import {
   nativePosStripeRefundIdStatement,
   nativePosSettlementByJournalStatement,
   nativePosStripeJobsContextStatement,
-} from '../../../packages/server-pos/src/adapters/native-pos-stripe-reads';
+} from '../../../modules/pos/server/src/adapters/native-pos-stripe-reads';
 
 const config = () => JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:44994', timeoutMs: 1000 });
 const previous = process.env.ERPX_NATIVE_POS_OWNER_CONFIG;
@@ -163,7 +163,7 @@ describe('native POS Stripe settlement/provider read bridge', () => {
   });
 
   it('keeps no retired Stripe read SQL literal in the TS adapter', () => {
-    const stripe = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-stripe.ts', import.meta.url), 'utf8');
+    const stripe = readFileSync(new URL('../../../modules/pos/server/src/adapters/pos-stripe.ts', import.meta.url), 'utf8');
     for (const item of cases) expect(stripe).not.toContain(item.sql);
     for (const fn of [
       'nativePosSettlementStateStatement', 'nativePosSettlementBalanceStateStatement',
@@ -172,7 +172,7 @@ describe('native POS Stripe settlement/provider read bridge', () => {
       'nativePosStripeRefundStatement', 'nativePosStripeRefundIdStatement',
       'nativePosStripeJobsContextStatement',
     ]) expect(stripe).toMatch(new RegExp(`${fn}(?:<PosRow>)?\\(db`));
-    const core = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-core.ts', import.meta.url), 'utf8');
+    const core = readFileSync(new URL('../../../modules/pos/server/src/adapters/pos-core.ts', import.meta.url), 'utf8');
     expect(core).not.toContain('SELECT id FROM pos_settlements WHERE journal_id=?');
     expect(core).toContain('nativePosSettlementByJournalStatement(db, facts.journalId)');
     expect(stripe).not.toContain("to_regclass('pos_jobs')");
@@ -180,10 +180,10 @@ describe('native POS Stripe settlement/provider read bridge', () => {
   });
 
   it('keeps row locks and the day-report registry inline', () => {
-    const stripe = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-stripe.ts', import.meta.url), 'utf8');
+    const stripe = readFileSync(new URL('../../../modules/pos/server/src/adapters/pos-stripe.ts', import.meta.url), 'utf8');
     expect(stripe).toContain("SELECT * FROM pos_oauth_states WHERE id=? AND company_id=? AND user_id=? AND used_at IS NULL AND expires_at>? FOR UPDATE");
     expect(stripe).toContain('SELECT * FROM pos_sales WHERE id=? AND company_id=? FOR UPDATE');
-    const owner = readFileSync(new URL('../../../packages/server-pos/src/adapters/owner_writes.rs', import.meta.url), 'utf8');
+    const owner = readFileSync(new URL('../../../modules/pos/server/src/adapters/owner_writes.rs', import.meta.url), 'utf8');
     expect(owner).toContain('crate::adapters::day_report_reads::SETTLEMENTS');
     expect(owner).toContain('STRIPE_READPOSPAYMENTSBYID_527 => r#"SELECT * FROM pos_payments WHERE id=? FOR UPDATE"#');
   });

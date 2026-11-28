@@ -2,21 +2,21 @@ import { describe, expect, test, vi } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
-import { qualitySourceArmHead } from '../../../packages/server-quality/src/adapters/quality-source-arm-head';
-import { qualitySourceRows } from '../../../packages/server-quality/src/adapters/quality-source-rows-sql';
-import { evidenceHead, inspectionEvidenceSource, holdEvidenceSource, inspectionMetricSource } from '../../../packages/server-quality/src/adapters/inspection-evidence-source-sql';
-import { hospitalityOwnerProjectionSources } from '../../../packages/server-quality/src/adapters/hospitality-owner-projection-sources';
-import { QUALITY_HOLD_SOURCE_SELECT, inventoryExecutiveOwnerProjections } from '../../../packages/server-quality/src/adapters/inventory-executive-owner-projections';
-import { collaborationNotificationSnapshotSources } from '../../../packages/server-quality/src/adapters/collaboration-notification-snapshot-sources';
-import { inventoryQualityHoldReadSource } from '../../../packages/server-quality/src/adapters/inventory-hold-read-source';
-import { qualityAttachmentReadSourceImage } from '../../../packages/server-quality/src/adapters/attachment-read-sources';
-import { qualityHoldPurchaseSource, qualityPurchaseSourceRows } from '../../../packages/server-quality/src/adapters/purchase-sources';
-import { executiveMainEvidenceSources } from '../../../packages/server-quality/src/adapters/executive-main-evidence-sources';
-import { readExecutiveMetricProjection } from '../../../packages/server-quality/src/adapters/executive-metric-projections';
-import { calendarQualityQualityFacts } from '../../../packages/server-quality/src/adapters/calendar-quality-facts';
-import { qualityProductSourceEntry } from '../../../packages/server-quality/src/adapters/product-entry';
+import { qualitySourceArmHead } from '../../../modules/quality/server/src/adapters/quality-source-arm-head';
+import { qualitySourceRows } from '../../../modules/quality/server/src/adapters/quality-source-rows-sql';
+import { evidenceHead, inspectionEvidenceSource, holdEvidenceSource, inspectionMetricSource } from '../../../modules/quality/server/src/adapters/inspection-evidence-source-sql';
+import { hospitalityOwnerProjectionSources } from '../../../modules/quality/server/src/adapters/hospitality-owner-projection-sources';
+import { QUALITY_HOLD_SOURCE_SELECT, inventoryExecutiveOwnerProjections } from '../../../modules/quality/server/src/adapters/inventory-executive-owner-projections';
+import { collaborationNotificationSnapshotSources } from '../../../modules/quality/server/src/adapters/collaboration-notification-snapshot-sources';
+import { inventoryQualityHoldReadSource } from '../../../modules/quality/server/src/adapters/inventory-hold-read-source';
+import { qualityAttachmentReadSourceImage } from '../../../modules/quality/server/src/adapters/attachment-read-sources';
+import { qualityHoldPurchaseSource, qualityPurchaseSourceRows } from '../../../modules/quality/server/src/adapters/purchase-sources';
+import { executiveMainEvidenceSources } from '../../../modules/quality/server/src/adapters/executive-main-evidence-sources';
+import { readExecutiveMetricProjection } from '../../../modules/quality/server/src/adapters/executive-metric-projections';
+import { calendarQualityQualityFacts } from '../../../modules/quality/server/src/adapters/calendar-quality-facts';
+import { qualityProductSourceEntry } from '../../../modules/quality/server/src/adapters/product-entry';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-quality/src');
+const srcRoot = resolve(__dirname, '../../../modules/quality/server/src');
 const read = (path: string) => readFileSync(resolve(srcRoot, path), 'utf8');
 
 // Pre-dedupe byte oracles captured from the r25 source before this pass.
@@ -165,7 +165,7 @@ describe('quality read-tail r26 evidence-head family (R)', () => {
     expect(read('adapters/supply-package-obligations.ts')).toContain('LOCK TABLE inventory_quality_holds,inventory_quality_inspections,inventory_quality_cancellations');
     expect(read('adapters/attachments-service-facts.ts')).toContain('UPDATE ${descriptor.table} SET version=version+1');
     const calendar = read('adapters/calendar-quality-facts.ts');
-    expect(calendar).toContain("import {qualityClockCte,scopeSql} from \"@erpx/server-quality/adapters/quality-scope-sql\";");
+    expect(calendar).toContain("import {qualityClockCte,scopeSql} from \"@erpx/quality-server/adapters/quality-scope-sql\";");
     expect(calendar).toContain("IN ${scopeSql('jsonb_array_elements_text(?::jsonb)')}");
     expect(calendar).toContain('EXISTS${scopeSql(`1 FROM (${qualityPurchaseSourceRows}) quality_calendar_source');
     expect(calendar).not.toContain('EXISTS(SELECT 1 FROM (${qualityPurchaseSourceRows})');
@@ -178,7 +178,7 @@ describe('quality read-tail r26 evidence-head family (R)', () => {
     expect(purchase).toContain('EXISTS${scopeSql(`1 FROM (${source(scope.kind)}) quality_file_source');
     expect(purchase).not.toContain('EXISTS(SELECT 1 FROM (${source(scope.kind)})');
     const recorded = read('adapters/record-purchases.ts');
-    expect(recorded).toContain('import {qualityClockCte,withScopeSql} from "@erpx/server-quality/adapters/quality-scope-sql";');
+    expect(recorded).toContain('import {qualityClockCte,withScopeSql} from "@erpx/quality-server/adapters/quality-scope-sql";');
     expect(recorded).toContain('EXISTS${withScopeSql(`${qualityClockCte("quality_source_clock")} ${evidenceHead(\'1\',` FROM (${native}) quality_source');
     expect(recorded).not.toContain('EXISTS(${qualityClockCte("quality_source_clock")} SELECT 1 FROM');
     expect(read('adapters/customer_return_hold_statement.rs')).toContain('customer_return_hold_statements');

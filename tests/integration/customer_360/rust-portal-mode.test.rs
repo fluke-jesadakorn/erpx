@@ -1,9 +1,9 @@
 //! Independent vectors from the TS development-package-enforcement policy.
 //! These do not establish trusted configuration propagation or release/purchase authority.
-#[path = "../../../src/composition/src/customer_portal_mode.rs"]
+#[path = "../../../platform/composition/src/customer_portal_mode.rs"]
 mod mode;
-use erpx_server_commercial::public::purchases::PackageEnforcementMode as Mode;
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_commercial_server::public::purchases::PackageEnforcementMode as Mode;
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::cell::Cell;
 
 #[test]

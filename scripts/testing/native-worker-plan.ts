@@ -16,7 +16,13 @@ export function nativePrerequisitePlan(native:readonly Suite[],changed:readonly 
   const command=scopedCargoQualityCommand(native,changed,files,suites);
   const index=command?.indexOf('--features')??-1;
   const features=index<0?[]:command![index+1].split(',');
-  const requiring=features.filter(feature=>feature==='erpx-server-files/preview-provider'||feature==='erpx-service/files-scan-worker');
+  const workerFeatures = new Set([
+    "erpx-files-server/preview-provider",
+    "erpx-platform-composition/files-scan-worker",
+    "erpx-server-files/preview-provider",
+    "erpx-service/files-scan-worker",
+  ]);
+  const requiring = features.filter(feature => workerFeatures.has(feature));
   return {version:1,required:requiring.length>0,requiringFeatures:requiring,qualityCommand:command,acceptance:false};
 }
 export function planSelectedNativeWorker(input:readonly string[]) {

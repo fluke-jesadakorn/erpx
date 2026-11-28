@@ -1,8 +1,8 @@
 //! Lock-only Portal purchase fence. No purchase decision or authority is made.
 #![allow(dead_code)]
 #[path = "../../support/rust-postgres.rs"] mod fixture;
-use erpx_server_commercial::public::purchase_command_boundary::lock_portal_purchase_writer_fence;
-use erpx_server_runtime::public::postgres::{MigrationTrack,load_migrations,migrate_database};
+use erpx_commercial_server::public::purchase_command_boundary::lock_portal_purchase_writer_fence;
+use erpx_platform_runtime_server::public::postgres::{MigrationTrack,load_migrations,migrate_database};
 use sqlx::Connection;
 #[tokio::test]
 async fn purchase_fence_waits_for_writer_and_reads_committed_grant() {

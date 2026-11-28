@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
-import {holdingFetch} from '@erpx/contracts/holding-fetch';
-import {canonicalUiHref} from '@erpx/feature-work_projection/lib/destination-registry';
-import {isProductHandoffHref} from '@erpx/feature-work_projection/lib/product-navigation';
+import {holdingFetch} from '@erpx/platform-contracts/holding-fetch';
+import {canonicalUiHref} from '@erpx/work-projection-ui/lib/destination-registry';
+import {isProductHandoffHref} from '@erpx/work-projection-ui/lib/product-navigation';
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Drive the real provider's state and request callbacks without a DOM or server.
@@ -38,11 +38,11 @@ vi.mock("next/navigation", () => ({
   usePathname: () => hooks.pathname,
   useSearchParams: () => new URLSearchParams(),
 }));
-vi.mock("@erpx/feature-work_projection/lib/work-fetch", () => ({ workFetch: vi.fn() }));
-vi.mock("@erpx/feature-work_projection/lib/work-refresh", () => ({scheduleWorkRefresh: () => () => {}}));
-vi.mock("@erpx/feature-work_projection/lib/context-switch", () => ({contextIsSwitching: () => false}));
-import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
-import { NavigationCountsProvider, useNavigationCounts } from "@erpx/workplace/components/navigation-counts";
+vi.mock("@erpx/work-projection-ui/lib/work-fetch", () => ({ workFetch: vi.fn() }));
+vi.mock("@erpx/work-projection-ui/lib/work-refresh", () => ({scheduleWorkRefresh: () => () => {}}));
+vi.mock("@erpx/work-projection-ui/lib/context-switch", () => ({contextIsSwitching: () => false}));
+import { workFetch } from "@erpx/work-projection-ui/lib/work-fetch";
+import { NavigationCountsProvider, useNavigationCounts } from "@erpx/platform-workplace/components/navigation-counts";
 
 type Navigation = ReturnType<typeof useNavigationCounts>;
 
@@ -163,8 +163,8 @@ describe("streamed badge retry",()=>{
 
 // Work-context hydration uses its actual hook/effect body. Network, clock and
 // browser event ports are controlled; no server authority is fabricated here.
-vi.mock("@erpx/workplace/components/context-switch-provider",()=>({useContextSwitch:()=>({busy:false,switchContext:async()=>false})}));
-import {WorkContextBoundary,type InitialWorkContextSnapshot} from '@erpx/workplace/components/work-context-boundary';
+vi.mock("@erpx/platform-workplace/components/context-switch-provider",()=>({useContextSwitch:()=>({busy:false,switchContext:async()=>false})}));
+import {WorkContextBoundary,type InitialWorkContextSnapshot} from '@erpx/platform-workplace/components/work-context-boundary';
 import type {ComponentProps} from 'react';
 type BoundaryProps=ComponentProps<typeof WorkContextBoundary>;
 const boundaryIdentity={base:'/holdings/acme',userId:'current-user',companyId:'current-company',assignmentId:'current-role',revision:7,assignmentVersion:3};
@@ -276,52 +276,52 @@ it('keeps an actual Work purchase request title when product navigation is held 
    const text=await readFile(new URL(`../../../${path}`,import.meta.url),'utf8'),code=ts.transpileModule(text,{compilerOptions:{esModuleInterop: false, jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,loadedModule={exports:{} as Record<string,unknown>};
    new Function('require','module','exports',code)((name:string)=>name==='react'?reactHooks:name==='react/jsx-runtime'?require(name):dependencies(name),loadedModule,loadedModule.exports);return loadedModule.exports[exportName] as (props:Record<string,unknown>)=>React.ReactNode;
   };
- const requestEditor=await compile('packages/workplace/src/components/request-controls-content.tsx','RequestEditor',name=>{
-  if(name.endsWith("@erpx/ui/components/foundation"))return controls;
-  if(name.endsWith("@erpx/workplace/components/request-validation"))return{RequestValidation:({children}:{children:React.ReactNode})=>children};
-  if(name.endsWith("@erpx/feature-work_projection/lib/request-draft-create"))return{createRequestDraftOnce:()=>createAttempt,createRequestUploader:()=>upload};
-  if(name.endsWith("@erpx/workplace/components/review-decision"))return{ReviewDecisionForm:()=>null};
-  if(name.endsWith("@erpx/workplace/components/request-experience"))return{RequestSteps:()=>null,RoutePreview:()=>null};
-  if(name.endsWith("@erpx/feature-work_projection/lib/destination-registry"))return{canonicalUiHref};
-  if(name.endsWith("@erpx/feature-work_projection/lib/work-fetch"))return{workFetch};
-  if(name.endsWith("@erpx/workplace/components/workspace-link"))return{default:newWorkLink};
-  if(name.endsWith("@erpx/feature-shared/lib/destination-router"))return{useRouter:()=>router};
-  if(name.endsWith("@erpx/ui/components/use-hydrated"))return{useHydrated:()=>true};
-  if(name.endsWith("@erpx/feature-shared/components/use-recoverable-draft"))return{useRecoverableDraft};
+ const requestEditor=await compile('platform/workplace/src/components/request-controls-content.tsx','RequestEditor',name=>{
+  if(name.endsWith("@erpx/platform-ui/components/foundation"))return controls;
+  if(name.endsWith("@erpx/platform-workplace/components/request-validation"))return{RequestValidation:({children}:{children:React.ReactNode})=>children};
+  if(name.endsWith("@erpx/work-projection-ui/lib/request-draft-create"))return{createRequestDraftOnce:()=>createAttempt,createRequestUploader:()=>upload};
+  if(name.endsWith("@erpx/platform-workplace/components/review-decision"))return{ReviewDecisionForm:()=>null};
+  if(name.endsWith("@erpx/platform-workplace/components/request-experience"))return{RequestSteps:()=>null,RoutePreview:()=>null};
+  if(name.endsWith("@erpx/work-projection-ui/lib/destination-registry"))return{canonicalUiHref};
+  if(name.endsWith("@erpx/work-projection-ui/lib/work-fetch"))return{workFetch};
+  if(name.endsWith("@erpx/platform-workplace/components/workspace-link"))return{default:newWorkLink};
+  if(name.endsWith("@erpx/platform-shared-ui/lib/destination-router"))return{useRouter:()=>router};
+  if(name.endsWith("@erpx/platform-ui/components/use-hydrated"))return{useHydrated:()=>true};
+  if(name.endsWith("@erpx/platform-shared-ui/components/use-recoverable-draft"))return{useRecoverableDraft};
   if(name.endsWith('/guided-intake'))return{clearGuidedIntakeHandoff:vi.fn(),readGuidedIntakeHandoff:()=>null};
-  if(name.endsWith("@erpx/feature-people_payroll/components/time/time-preference-context"))return{TimeText:()=>null};
-  if(name.endsWith("@erpx/feature-work_projection/components/use-staff-command"))return{useStaffCommand:()=>({send,busy:false,error:''})};
-  if(name.endsWith("@erpx/feature-people_payroll/lib/employee-services"))return{serviceCategories:[],requestStateLabels:{}};
+  if(name.endsWith("@erpx/people-payroll-ui/components/time/time-preference-context"))return{TimeText:()=>null};
+  if(name.endsWith("@erpx/work-projection-ui/components/use-staff-command"))return{useStaffCommand:()=>({send,busy:false,error:''})};
+  if(name.endsWith("@erpx/people-payroll-ui/lib/employee-services"))return{serviceCategories:[],requestStateLabels:{}};
   if(name.endsWith('.module.css'))return{default:new Proxy({},{get:(_target,key)=>String(key)})};
   throw Error('Unexpected actual RequestEditor import '+name);
  });
- const NewWork=await compile('packages/workplace/src/components/new-work.tsx','NewWork',name=>{
-  if(name.endsWith("@erpx/ui/components/foundation"))return controls;
-  if(name.endsWith("@erpx/ui/components/button"))return buttons;
+ const NewWork=await compile('platform/workplace/src/components/new-work.tsx','NewWork',name=>{
+  if(name.endsWith("@erpx/platform-ui/components/foundation"))return controls;
+  if(name.endsWith("@erpx/platform-ui/components/button"))return buttons;
   if(name==='next/dynamic')return{default:()=>++dynamicCount.value===3?requestEditor:()=>null};
-  if(name.endsWith("@erpx/workplace/components/workspace-link"))return{default:newWorkLink};
-  if(name.endsWith("@erpx/feature-work_projection/lib/work-fetch"))return{workFetch};
-  if(name.endsWith("@erpx/ui/components/dialog"))return{Dialog:newWorkDialog};
+  if(name.endsWith("@erpx/platform-workplace/components/workspace-link"))return{default:newWorkLink};
+  if(name.endsWith("@erpx/work-projection-ui/lib/work-fetch"))return{workFetch};
+  if(name.endsWith("@erpx/platform-ui/components/dialog"))return{Dialog:newWorkDialog};
   if(name.endsWith('/work-cards'))return{newWorkHref:(base:string)=>base+'/requests/new?kind=purchase'};
-  if(name.endsWith("@erpx/feature-work_projection/lib/request-actions"))return{requestActions:{purchase_request:{label:'Purchase request',objective:'Describe the item.'}}};
-  if(name.endsWith("@erpx/ui/components/use-hydrated"))return{useHydrated:()=>true};
-  if(name.endsWith("@erpx/ui/components/draft-form-drawer"))return{DraftFormDrawer:drawer};
+  if(name.endsWith("@erpx/work-projection-ui/lib/request-actions"))return{requestActions:{purchase_request:{label:'Purchase request',objective:'Describe the item.'}}};
+  if(name.endsWith("@erpx/platform-ui/components/use-hydrated"))return{useHydrated:()=>true};
+  if(name.endsWith("@erpx/platform-ui/components/draft-form-drawer"))return{DraftFormDrawer:drawer};
   if(name.endsWith('.module.css'))return{default:{}};
-  if(name.endsWith("@erpx/feature-work_projection/lib/destination-registry"))return{canonicalUiHref};
+  if(name.endsWith("@erpx/work-projection-ui/lib/destination-registry"))return{canonicalUiHref};
   throw Error('Unexpected actual NewWork import '+name);
  });
- const WorkBoundary=await compile('packages/workplace/src/components/work-context-boundary.tsx','WorkContextBoundary',name=>{
-  if(name==='@erpx/contracts/holding-fetch')return{holdingFetch};
-  if(name.endsWith("@erpx/ui/components/foundation"))return controls;
-  if(name.endsWith("@erpx/workplace/components/context-switch-provider"))return{useContextSwitch:()=>contextPort};
+ const WorkBoundary=await compile('platform/workplace/src/components/work-context-boundary.tsx','WorkContextBoundary',name=>{
+  if(name==='@erpx/platform-contracts/holding-fetch')return{holdingFetch};
+  if(name.endsWith("@erpx/platform-ui/components/foundation"))return controls;
+  if(name.endsWith("@erpx/platform-workplace/components/context-switch-provider"))return{useContextSwitch:()=>contextPort};
   throw Error('Unexpected actual WorkContextBoundary import '+name);
  });
- const ProductBoundary=await compile('packages/workplace/src/components/product-navigation-boundary.tsx','ProductNavigationBoundary',name=>{
-  if(name.endsWith("@erpx/feature-work_projection/lib/product-navigation"))return{isProductHandoffHref};
+ const ProductBoundary=await compile('platform/workplace/src/components/product-navigation-boundary.tsx','ProductNavigationBoundary',name=>{
+  if(name.endsWith("@erpx/work-projection-ui/lib/product-navigation"))return{isProductHandoffHref};
   if(name==='next/navigation')return{useRouter:()=>router};
-  if(name.endsWith("@erpx/feature-work_projection/lib/context-switch"))return contextSwitch;
-  if(name.endsWith("@erpx/ui/components/dialog"))return{Dialog:newWorkDialog};
-  if(name.endsWith("@erpx/ui/components/button"))return buttons;
+  if(name.endsWith("@erpx/work-projection-ui/lib/context-switch"))return contextSwitch;
+  if(name.endsWith("@erpx/platform-ui/components/dialog"))return{Dialog:newWorkDialog};
+  if(name.endsWith("@erpx/platform-ui/components/button"))return buttons;
   throw Error('Unexpected actual ProductNavigationBoundary import '+name);
  });
  const attributes=new Map<string,string>(),rootListeners=new Map<string,Set<(event:{target:unknown})=>void>>(),root={

@@ -13,9 +13,9 @@ import {
   projectionSourceHeadSql,
   latestReleaseIdSql,
   releaseCurrencyPredicate,
-} from '../../../packages/server-platform_administration/src/adapters/release-predicate';
+} from '../../../modules/platform-administration/server/src/adapters/release-predicate';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-platform_administration/src');
+const srcRoot = resolve(__dirname, '../../../modules/platform-administration/server/src');
 const source = (relative: string) => readFileSync(resolve(srcRoot, relative), 'utf8');
 
 // Byte oracles captured from the BEFORE=31 source of this task. They are

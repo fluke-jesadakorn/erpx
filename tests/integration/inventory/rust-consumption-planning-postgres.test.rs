@@ -5,19 +5,19 @@ mod facts;
 mod finance;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_finance::public::inventory_consumption::CurrentConsumptionFinance;
-use erpx_server_inventory::public::{consumption::*, postgres_consumption::*};
-use erpx_server_runtime::public::postgres::{DatabasePool, PgUnitOfWork, TransactionOptions};
-use erpx_server_shared::public::BusinessError;
+use erpx_finance_server::public::inventory_consumption::CurrentConsumptionFinance;
+use erpx_inventory_server::public::{consumption::*, postgres_consumption::*};
+use erpx_platform_runtime_server::public::postgres::{DatabasePool, PgUnitOfWork, TransactionOptions};
+use erpx_platform_shared_server::public::BusinessError;
 use facts::*;
 use finance::FinanceFacts;
 use std::sync::Arc;
 
 #[tokio::test]
 async fn quality_lineage_uses_actual_inventory_posted_count_witness() {
-    use erpx_server_inventory::public::quality_disposition_count::{CurrentQualityDispositionCount, QualityDispositionCountRequest, inspect_quality_disposition_count, lock_quality_disposition_count_sources};
-    use erpx_server_quality::public::purchase_lineage::{CountLineageRequest, QualityLineageCountPort, QualityLineageRequest, inspect_quality_purchase_lineage, lock_quality_purchase_lineage};
-    use erpx_server_runtime::public::postgres::PgWorkFuture;
+    use erpx_inventory_server::public::quality_disposition_count::{CurrentQualityDispositionCount, QualityDispositionCountRequest, inspect_quality_disposition_count, lock_quality_disposition_count_sources};
+    use erpx_quality_server::public::purchase_lineage::{CountLineageRequest, QualityLineageCountPort, QualityLineageRequest, inspect_quality_purchase_lineage, lock_quality_purchase_lineage};
+    use erpx_platform_runtime_server::public::postgres::PgWorkFuture;
     struct InventoryCount;
     impl QualityLineageCountPort for InventoryCount {
         type Witness=CurrentQualityDispositionCount;
@@ -50,7 +50,7 @@ async fn quality_lineage_uses_actual_inventory_posted_count_witness() {
 
 #[tokio::test]
 async fn posted_quality_count_witness_retains_scope_reciprocal_hold_and_unit() {
-    use erpx_server_inventory::public::quality_disposition_count::{QualityDispositionCountRequest, inspect_quality_disposition_count, lock_quality_disposition_count_sources};
+    use erpx_inventory_server::public::quality_disposition_count::{QualityDispositionCountRequest, inspect_quality_disposition_count, lock_quality_disposition_count_sources};
     fixture::with_database(2, |pool| async move {
         setup(&pool,"none").await;
         sqlx::raw_sql("INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,created_by,created_at,updated_at) VALUES('quality-hold','company','branch','warehouse','product','Quality','2026-01-10','maker',0,0); INSERT INTO inventory_counts(id,company_id,branch_id,warehouse_id,number,count_date,reason,status,quality_hold_id,created_by,prepared_by,created_at,updated_at) VALUES('quality-count','company','branch','warehouse','QC-1','2026-01-10','Quality','posted','quality-hold','maker','maker',0,0),('draft-count','company','branch','warehouse','QC-2','2026-01-10','Quality','draft','quality-hold','maker','maker',0,0)").execute(pool.raw()).await.unwrap();
@@ -60,7 +60,7 @@ async fn posted_quality_count_witness_retains_scope_reciprocal_hold_and_unit() {
         let request=|| QualityDispositionCountRequest {company_id:company(),branch_id:"branch".into(),warehouse_id:"warehouse".into(),count_id:"quality-count".into(),hold_id:"quality-hold".into()};
         let source=inspect_quality_disposition_count(&mut tx,request()).await.unwrap().unwrap();
         source.require_current(&mut tx).await.unwrap();
-        for bad in [QualityDispositionCountRequest {count_id:"draft-count".into(),..request()},QualityDispositionCountRequest {hold_id:"other".into(),..request()},QualityDispositionCountRequest {branch_id:"other".into(),..request()},QualityDispositionCountRequest {warehouse_id:"other".into(),..request()},QualityDispositionCountRequest {company_id:erpx_server_shared::public::CompanyId::new("foreign").unwrap(),..request()}] {
+        for bad in [QualityDispositionCountRequest {count_id:"draft-count".into(),..request()},QualityDispositionCountRequest {hold_id:"other".into(),..request()},QualityDispositionCountRequest {branch_id:"other".into(),..request()},QualityDispositionCountRequest {warehouse_id:"other".into(),..request()},QualityDispositionCountRequest {company_id:erpx_platform_shared_server::public::CompanyId::new("foreign").unwrap(),..request()}] {
             assert!(inspect_quality_disposition_count(&mut tx,bad).await.unwrap().is_none());
         }
         sqlx::query("UPDATE inventory_counts SET status='cancelled' WHERE id='quality-count'").execute(&mut *tx).await.unwrap();
@@ -327,9 +327,9 @@ async fn reservation_mutation_after_preparation_cannot_reuse_the_original_stock_
 // Journal/Work rows are explicit synthetic fixture effects, not native owner
 // authorization, Finance composition, a command receipt or cutover acceptance.
 struct EffectClock;
-impl erpx_server_shared::public::Clock for EffectClock {
-    fn now(&self) -> erpx_server_shared::public::TimestampMillis {
-        erpx_server_shared::public::TimestampMillis::new(1_800_000_000_003)
+impl erpx_platform_shared_server::public::Clock for EffectClock {
+    fn now(&self) -> erpx_platform_shared_server::public::TimestampMillis {
+        erpx_platform_shared_server::public::TimestampMillis::new(1_800_000_000_003)
     }
 }
 async fn effect_work(pool: &DatabasePool) {
@@ -343,7 +343,7 @@ async fn apply_component(
     PgUnitOfWork::new(pool.clone()).run::<_,BusinessError,_>(TransactionOptions::default(),move |c| {
         let input=input.clone();
         Box::pin(async move {
-            use erpx_server_shared::public::{CommandKey,TimestampMillis,UserId};
+            use erpx_platform_shared_server::public::{CommandKey,TimestampMillis,UserId};
             let mut finance=FinanceFacts;
             // Match the actual writer's strongest intent order before first SELECT.
             sqlx::query("LOCK TABLE finance_journals,finance_journal_lines,money_transaction_snapshots IN SHARE ROW EXCLUSIVE MODE").execute(&mut *c).await?;
@@ -355,7 +355,7 @@ async fn apply_component(
                 department_id:None,actor_id:UserId::new("maker")?,reason:"Synthetic part issue".into(),
                 created_at:TimestampMillis::new(1_800_000_000_001),journal_id:id("parts-journal"),
             }).await?;
-            let money=erpx_server_finance::public::inventory_consumption::prepare_consumption_stock_cost_money(c,effects.finance_source(),id(effects.consumption_id()),effects.plan().valuation.value_minor,&EffectClock).await?;
+            let money=erpx_finance_server::public::inventory_consumption::prepare_consumption_stock_cost_money(c,effects.finance_source(),id(effects.consumption_id()),effects.plan().valuation.value_minor,&EffectClock).await?;
             effects.require_before(c,&mut finance).await?;
             // A fixture DRAFT with the exact source and totals. Production must
             // use the mandatory current-owner Finance bridge instead.
@@ -460,7 +460,7 @@ async fn depletion_retains_other_warehouse_balances_and_keeps_the_shared_lot_act
 
 #[tokio::test]
 async fn service_posting_inventory_history_uses_verified_warehouse_scope_and_detects_drift() {
-    use erpx_server_inventory::public::service_parts_posting::*;
+    use erpx_inventory_server::public::service_parts_posting::*;
     fixture::with_database(2, |pool| async move {
         setup(&pool, "none").await;
         let outcome = PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
@@ -483,7 +483,7 @@ async fn service_posting_inventory_history_uses_verified_warehouse_scope_and_det
 
 #[tokio::test]
 async fn service_posting_inventory_locks_before_first_serializable_snapshot() {
-    use erpx_server_inventory::public::service_parts_posting::*;
+    use erpx_inventory_server::public::service_parts_posting::*;
     fixture::with_database(3, |pool| async move {
         setup(&pool, "none").await;
         let mut writer=pool.raw().begin().await.unwrap();
@@ -505,7 +505,7 @@ async fn service_posting_inventory_locks_before_first_serializable_snapshot() {
 
 #[tokio::test]
 async fn service_initial_stock_schema_presence_is_same_unit_and_absence_safe() {
-    use erpx_server_inventory::public::service_parts_posting::{
+    use erpx_inventory_server::public::service_parts_posting::{
         lock_service_initial_stock_schema, read_service_initial_stock_schema,
     };
     fixture::with_database(2,|pool|async move{
@@ -519,9 +519,9 @@ async fn service_initial_stock_schema_presence_is_same_unit_and_absence_safe() {
 
 #[tokio::test]
 async fn field_journal_consumption_marker_retains_global_routing_predicate() {
-    use erpx_server_inventory::public::field_journal_consumption_marker::*;
-    use erpx_server_inventory::public::field_history_consumption::*;
-    use erpx_server_runtime::public::postgres::PgTransactionError;
+    use erpx_inventory_server::public::field_journal_consumption_marker::*;
+    use erpx_inventory_server::public::field_history_consumption::*;
+    use erpx_platform_runtime_server::public::postgres::PgTransactionError;
     use sqlx::Acquire;
     async fn compare_1097(c:&mut sqlx::PgConnection,source:&CurrentFieldHistoryConsumptionJoin,journal:&str,company:Option<&str>) -> bool {
         source.require_current(&mut *c).await.unwrap();
@@ -549,7 +549,7 @@ async fn field_journal_consumption_marker_retains_global_routing_predicate() {
         // TS SQL boundary, not a reproduced predicate.
         let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const m=await import(process.argv[1]);let query='';const db={prepare(sql){return {bind(){return {async first(){query=sql;return {marker:false}}}}}}};await m.fieldJournalFilesTargetInDatabase(db,'shadow-journal');if(!query)throw Error('JOURNAL_TARGET_QUERY_MISSING');process.stdout.write(query.replace(/\?/g,()=>'$1'));"#;
         let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let path=root.join("packages/server-files/src/adapters/field-file-writer-owner.ts");
+        let path=root.join("modules/files/server/src/adapters/field-file-writer-owner.ts");
         let output=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(&root).arg("--conditions=react-server").arg("-e").arg(script).arg(path).output().unwrap();
         assert!(output.status.success(),"actual TS journal target query unavailable: {}",String::from_utf8_lossy(&output.stderr));
         let ts_sql=String::from_utf8(output.stdout).unwrap();
@@ -629,8 +629,8 @@ async fn field_journal_consumption_marker_retains_global_routing_predicate() {
 
 #[tokio::test]
 async fn field_history_consumption_join_preserves_sql_candidates_without_temp() {
-    use erpx_server_inventory::public::field_history_consumption::*;
-    use erpx_server_runtime::public::postgres::PgTransactionError;
+    use erpx_inventory_server::public::field_history_consumption::*;
+    use erpx_platform_runtime_server::public::postgres::PgTransactionError;
     use sqlx::Acquire;
     fixture::with_database(2,|pool|async move {
         setup(&pool,"none").await;
@@ -663,8 +663,8 @@ async fn field_history_consumption_join_preserves_sql_candidates_without_temp() 
 
 #[tokio::test]
 async fn initial_count_history_join_matches_actual_marker_sql() {
-    use erpx_server_inventory::public::initial_count_history_source::*;
-    use erpx_server_workflow::public::record_origin::*;
+    use erpx_inventory_server::public::initial_count_history_source::*;
+    use erpx_workflow_server::public::record_origin::*;
     use sqlx::Acquire;
     fixture::with_database(2, |pool| async move {
         setup(&pool,"none").await;
@@ -711,7 +711,7 @@ async fn initial_count_history_join_matches_actual_marker_sql() {
 
 #[tokio::test]
 async fn initial_count_history_inventory_predicates_match_actual_service_sql() {
-    use erpx_server_inventory::public::initial_count_history_source::*;
+    use erpx_inventory_server::public::initial_count_history_source::*;
     fixture::with_database(2,|pool|async move {
         setup(&pool,"none").await;
         let mut tx=pool.raw().begin().await.unwrap();
@@ -746,8 +746,8 @@ async fn initial_count_history_inventory_predicates_match_actual_service_sql() {
 
 #[tokio::test]
 async fn count_terminal_decision_source_matches_actual_inventory_ts_branch() {
-    use erpx_server_inventory::public::{count_terminal_history_source::*,initial_count_history_source::*};
-    use erpx_server_workflow::public::record_origin::*;
+    use erpx_inventory_server::public::{count_terminal_history_source::*,initial_count_history_source::*};
+    use erpx_workflow_server::public::record_origin::*;
     fixture::with_database(2,|pool|async move {
         setup(&pool,"none").await;
         let mut unlocked=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unlocked).await.unwrap();assert!(inspect_count_terminal_history_source(&mut unlocked).await.is_err());unlocked.rollback().await.unwrap();

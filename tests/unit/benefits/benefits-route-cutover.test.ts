@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
-import { holdingHosts } from '../../../packages/contracts/src/holding-hosts';
+import { holdingHosts } from '../../../platform/contracts/src/holding-hosts';
 import { expandNativeApiPaths, loadNativeApiPaths } from '../../../scripts/local/native-api-paths';
 import { nativeApiPath } from '../../../scripts/local/native-api-proxy';
 vi.mock('server-only', () => ({}));
@@ -9,7 +9,7 @@ import {
   createNativeBenefitsClient,
   nativeBenefitsConfiguration,
   type NativeBenefitsPageContext,
-} from '../../../packages/feature-benefits/src/public/native-benefits-workspace';
+} from '../../../modules/benefits/ui/src/public/native-benefits-workspace';
 
 const read = (file: string) => readFileSync(fileURLToPath(new URL(`../../../${file}`, import.meta.url)), 'utf8');
 const exists = (file: string) => existsSync(fileURLToPath(new URL(`../../../${file}`, import.meta.url)));
@@ -79,12 +79,12 @@ const ok = (value: unknown) => new Response(JSON.stringify(value), { status: 200
 describe('Benefits Next route retirement', () => {
   it('keeps the shared GET/POST handler and both app re-exports unresolvable', () => {
     for (const file of [
-      'packages/feature-people/src/routes/api/v1/holdings/[holdingSlug]/benefits/route.ts',
+      'products/people/ui/src/routes/api/v1/holdings/[holdingSlug]/benefits/route.ts',
       'apps/people/src/app/api/v1/holdings/[holdingSlug]/benefits/route.ts',
       'apps/compat/src/app/api/v1/holdings/[holdingSlug]/benefits/route.ts',
     ]) expect(exists(file), file).toBe(false);
-    expect(exists('packages/server-benefits/src/adapters/workspace_http.rs')).toBe(true);
-    expect(exists('packages/server-benefits/src/adapters/command_http.rs')).toBe(true);
+    expect(exists('modules/benefits/server/src/adapters/workspace_http.rs')).toBe(true);
+    expect(exists('modules/benefits/server/src/adapters/command_http.rs')).toBe(true);
   });
 
   it('matches the checked-in benefits prefix for every served method and exact detail path', () => {
@@ -101,26 +101,26 @@ describe('Benefits Next route retirement', () => {
   });
 
   it('executes Benefits SQL in the native owner and keeps the exact {data, context} payload', () => {
-    const workspaceSql = read('packages/server-benefits/src/adapters/workspace.rs');
+    const workspaceSql = read('modules/benefits/server/src/adapters/workspace.rs');
     expect(workspaceSql).toContain('sqlx::query(');
     expect(workspaceSql).toContain('.fetch_all(&mut *self.connection)');
-    const commandSql = read('packages/server-benefits/src/adapters/command.rs');
+    const commandSql = read('modules/benefits/server/src/adapters/command.rs');
     expect(commandSql).toContain('sqlx::query(');
     expect(commandSql).toContain('.execute(&mut *self.connection)');
-    const reads = read('packages/server-benefits/src/adapters/workspace_http.rs');
+    const reads = read('modules/benefits/server/src/adapters/workspace_http.rs');
     expect(reads).toContain('"/api/v1/holdings/{holding_slug}/benefits"');
     expect(reads).toContain('"/api/v1/holdings/{holding_slug}/benefits/{id}"');
     expect(reads).toContain('get(read_detail)');
     expect(reads).toContain('"data": self.data, "context": self.context');
-    const commands = read('packages/server-benefits/src/adapters/command_http.rs');
+    const commands = read('modules/benefits/server/src/adapters/command_http.rs');
     expect(commands).toContain('"/api/v1/holdings/{holding_slug}/benefits"');
     expect(commands).toContain('post(run_command)');
     expect(commands).toContain('"data": self.data, "context": self.context');
-    const client = read('packages/feature-benefits/src/public/native-benefits-workspace.ts');
+    const client = read('modules/benefits/ui/src/public/native-benefits-workspace.ts');
     expect(client).toContain('/benefits/${encodeURIComponent(detail)}');
     expect(client).toContain("exact(value, ['data', 'context'])");
     expect(client).not.toContain('?id=');
-    const browser = read('packages/feature-benefits/src/lib/command.ts');
+    const browser = read('modules/benefits/ui/src/lib/command.ts');
     expect(browser).toContain('/api/v1${base}/benefits');
   });
 

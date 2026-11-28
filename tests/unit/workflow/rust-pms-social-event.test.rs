@@ -1,5 +1,5 @@
 //! Retained PMS social event table, business day, identity and body facts.
-use erpx_server_workflow::public::job_projector::{
+use erpx_workflow_server::public::job_projector::{
     PMS_SOCIAL_EVENTS, PmsSocialSource, pms_social_body, pms_social_day, pms_social_event,
     pms_social_notice_id, pms_social_post_id,
 };

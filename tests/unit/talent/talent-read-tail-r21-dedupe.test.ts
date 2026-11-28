@@ -2,9 +2,9 @@ import { readFileSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
-const file = new URL('../../../packages/server-talent/src/adapters/attachment-read-sources.ts', import.meta.url);
-const srcDir = new URL('../../../packages/server-talent/src/', import.meta.url);
-const headUrl = new URL('../../../packages/server-talent/src/adapters/talent-read-tail-r37-sources.ts', import.meta.url);
+const file = new URL('../../../modules/talent/server/src/adapters/attachment-read-sources.ts', import.meta.url);
+const srcDir = new URL('../../../modules/talent/server/src/', import.meta.url);
+const headUrl = new URL('../../../modules/talent/server/src/adapters/talent-read-tail-r37-sources.ts', import.meta.url);
 const headDecl = readFileSync(headUrl, 'utf8').match(/export const selectProjection = [\s\S]*?;\n/)![0].replace('export const', 'const').replace(/:\s*string/g, '');
 const selectProjection = new Function(headDecl + ' return selectProjection;')();
 

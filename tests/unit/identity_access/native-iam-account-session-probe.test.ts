@@ -3,10 +3,10 @@ import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 const { native } = vi.hoisted(() => ({ native: vi.fn() }));
-vi.mock('@erpx/server-identity_access/public/native-session-list', () => ({
+vi.mock('@erpx/identity-access-server/public/native-session-list', () => ({
   nativeSessionList: native,
 }));
-import { nativeIamSessionProbe } from '../../../packages/server-identity_access/src/adapters/native-iam-session-probe';
+import { nativeIamSessionProbe } from '../../../modules/identity-access/server/src/adapters/native-iam-session-probe';
 
 const row = {
   id: 'session-1',
@@ -74,7 +74,7 @@ describe('account IAM catch-all session probe native cutover', () => {
 
 describe('owner source retirement', () => {
   const src = (rel: string) =>
-    readFileSync(resolve(__dirname, '../../../packages/server-identity_access/src', rel), 'utf8');
+    readFileSync(resolve(__dirname, '../../../modules/identity-access/server/src', rel), 'utf8');
 
   it('routes the account IAM catch-all sessions probe through the native helper', () => {
     const api = src('adapters/iam-api.ts');

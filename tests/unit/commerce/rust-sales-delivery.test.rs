@@ -2,12 +2,12 @@
 //! validation, replay identity, tracking/allocation invariants, Inventory plan
 //! cross-checks, fulfillment ordering, persisted readback and wire output.
 #![allow(dead_code)]
-use erpx_server_commerce::public::receipt::{
+use erpx_commerce_server::public::receipt::{
     CommerceReceipt, CommerceReceiptLine, GoodsValuation, ReceiptFulfillmentLineReadback,
     ReceiptFulfillmentReadback, ReceiptOrder, ReceiptOrderLine, ReceiptReadback,
     ReceiptReadbackLine, ReceiptStockMoveReadback, ReceiptStockReadback,
 };
-use erpx_server_commerce::public::sales_delivery::{
+use erpx_commerce_server::public::sales_delivery::{
     PreparedSalesDelivery, SalesDeliveryAllocationCommand, SalesDeliveryCommand,
     SalesDeliveryDisposition, SalesDeliveryFulfillmentPlan, SalesDeliveryLineCommand,
     SalesDeliveryLineValue, SalesDeliveryMode, SalesDeliveryOrder, SalesDeliveryPlanAllocation,
@@ -16,14 +16,14 @@ use erpx_server_commerce::public::sales_delivery::{
     sales_delivery_stock_request, sales_delivery_valuation_plan, sales_delivery_values,
     sales_delivery_wire, validate_sales_delivery_readback,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, CommandKey, CompanyId, HoldingId, RecordId, TimestampMillis, UserId,
 };
 
 const NOW: i64 = 1_800_000_000_000;
 
-fn actor() -> erpx_server_commerce::public::order::CommerceOrderActor {
-    erpx_server_commerce::public::order::CommerceOrderActor {
+fn actor() -> erpx_commerce_server::public::order::CommerceOrderActor {
+    erpx_commerce_server::public::order::CommerceOrderActor {
         user_id: UserId::new("seller").unwrap(),
         person_user_ids: vec![],
         holding_id: HoldingId::new("holding").unwrap(),
@@ -157,7 +157,7 @@ fn command(key: &str, mode: SalesDeliveryMode) -> SalesDeliveryCommand {
     }
 }
 
-fn code(error: erpx_server_shared::public::BusinessError) -> String {
+fn code(error: erpx_platform_shared_server::public::BusinessError) -> String {
     error.code.to_owned()
 }
 
@@ -645,13 +645,13 @@ fn mixed_readback_accepts_service_lines_and_rejects_tampering() {
 }
 
 mod http_ingress {
-    use erpx_server_commerce::public::order_http::{
+    use erpx_commerce_server::public::order_http::{
         CommerceOrderHttpBackend, CommerceOrderHttpCommand, CommerceOrderHttpFuture,
         CommerceOrderHttpRequest, CommerceOrderHttpResponse, CommerceOrderHttpState,
         CommerceOrderHttpTarget, CommerceOriginPolicy, CommerceSalesDeliveryHttpBackend,
         CommerceSalesDeliveryHttpRequest, CommerceSalesDeliveryHttpTarget,
     };
-    use erpx_server_runtime::public::http_support::{
+    use erpx_platform_runtime_server::public::http_support::{
         HeaderMap, HeaderValue, StatusCode, body::to_bytes, serde_json,
     };
     use std::sync::{Arc, Mutex};
@@ -776,7 +776,7 @@ mod http_ingress {
     }
 
     async fn body(
-        response: erpx_server_runtime::public::http_support::Response,
+        response: erpx_platform_runtime_server::public::http_support::Response,
     ) -> (StatusCode, serde_json::Value) {
         let status = response.status();
         let bytes = to_bytes(response.into_body(), 1 << 20).await.unwrap();

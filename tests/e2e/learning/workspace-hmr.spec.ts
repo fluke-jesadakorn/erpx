@@ -33,9 +33,9 @@ test('Learn client edits preserve the draft through twenty measured HMR updates'
   const reason=page.locator('form').filter({has:heading}).locator('[name="reason"]');
   await reason.fill(draft);
   // Only the owned disposable copy is ever edited; restore it before teardown.
-  const file=join(snapshot,'packages/feature-learning/src/components/learning-console.tsx');
+  const file=join(snapshot,'modules/learning/ui/src/components/learning-console.tsx');
   expect(await realpath(file)).toBe(file);
-  expect(await realpath(join(snapshot,'node_modules/@erpx/feature-learning'))).toBe(join(snapshot,'packages/feature-learning'));
+  expect(await realpath(join(snapshot,'node_modules/@erpx/learning-ui'))).toBe(join(snapshot,'modules/learning/ui'));
   const original=await readFile(file,'utf8'),needle='<h2>Start course</h2>';
   expect(original.split(needle)).toHaveLength(2);
   let reloads=0,peakAppRssBytes=0;

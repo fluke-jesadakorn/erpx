@@ -6,14 +6,14 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_identity_access::public::account_holding_bindings::{
+use erpx_identity_access_server::public::account_holding_bindings::{
     ConfiguredAccountHolding, ConfiguredHoldingRegistry,
 };
-use erpx_server_shared::public::{CompanyId, HoldingId};
-use erpx_service::finance_bank_http::{FinanceBankTarget, finance_bank_router};
-use erpx_service::finance_journal_create::FinanceJournalCreateConfiguration;
-use erpx_service::finance_journal_review::FinanceJournalEnvironment;
-use erpx_server_commercial::public::purchases::current_package_catalogue;
+use erpx_platform_shared_server::public::{CompanyId, HoldingId};
+use erpx_platform_composition::finance_bank_http::{FinanceBankTarget, finance_bank_router};
+use erpx_platform_composition::finance_journal_create::FinanceJournalCreateConfiguration;
+use erpx_platform_composition::finance_journal_review::FinanceJournalEnvironment;
+use erpx_commercial_server::public::purchases::current_package_catalogue;
 use std::sync::Arc;
 use tower::ServiceExt;
 

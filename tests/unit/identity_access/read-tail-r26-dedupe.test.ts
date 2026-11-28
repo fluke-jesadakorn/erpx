@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { pmsRecipientProjectionSql } from '../../../packages/server-identity_access/src/adapters/pms-recipient-projection-family-r26';
+import { pmsRecipientProjectionSql } from '../../../modules/identity-access/server/src/adapters/pms-recipient-projection-family-r26';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-identity_access/src');
+const srcRoot = resolve(__dirname, '../../../modules/identity-access/server/src');
 const read = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
 const helperSrc = read('adapters/pms-recipient-projection-family-r26.ts');
 const commandSrc = read('adapters/pms-command-facts.ts');

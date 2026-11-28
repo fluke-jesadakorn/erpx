@@ -1,13 +1,13 @@
 import { readFile } from 'node:fs/promises';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('server-only', () => ({}));
-vi.mock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+vi.mock('../../../modules/workflow/server/src/adapters/native-workflow-read', () => ({
   nativeWorkflowReadAll: vi.fn(async () => []),
   nativeWorkflowReadFirst: vi.fn(async () => null),
 }));
-import { nativeWorkflowReadAll, nativeWorkflowReadFirst } from '../../../packages/server-workflow/src/adapters/native-workflow-read';
-import { nativeApprovalPlanningPorts, expenseApprovalReadBatch } from '../../../packages/server-workflow/src/adapters/approval-planning';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import { nativeWorkflowReadAll, nativeWorkflowReadFirst } from '../../../modules/workflow/server/src/adapters/native-workflow-read';
+import { nativeApprovalPlanningPorts, expenseApprovalReadBatch } from '../../../modules/workflow/server/src/adapters/approval-planning';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
 
 const readAll = vi.mocked(nativeWorkflowReadAll);
 const readFirst = vi.mocked(nativeWorkflowReadFirst);
@@ -47,7 +47,7 @@ beforeEach(() => {
 
 describe('approval point-read native cutover (r44)', () => {
   it('registers byte-identical, SELECT-only SQL with unchanged binds', async () => {
-    const src = await readFile(new URL('../../../packages/server-workflow/src/domain/workflow_wave3.rs', import.meta.url), 'utf8');
+    const src = await readFile(new URL('../../../modules/workflow/server/src/domain/workflow_wave3.rs', import.meta.url), 'utf8');
     for (const [sql, binds] of [
       [previousCycleSql, 3],
       [singleHistorySql, 3],
@@ -91,7 +91,7 @@ describe('approval point-read native cutover (r44)', () => {
   });
 
   it('removes all three retired point-read SELECT literals from the adapter', async () => {
-    const src = await readFile(new URL('../../../packages/server-workflow/src/adapters/approval-planning.ts', import.meta.url), 'utf8');
+    const src = await readFile(new URL('../../../modules/workflow/server/src/adapters/approval-planning.ts', import.meta.url), 'utf8');
     expect(src).not.toContain('SELECT COALESCE(MAX(cycle),0) cycle FROM approval_instances');
     expect(src).not.toContain('COALESCE(p.legal_name,d.actor_user_id) actor_name');
     expect(src).not.toContain('batch_record_id,d.*');

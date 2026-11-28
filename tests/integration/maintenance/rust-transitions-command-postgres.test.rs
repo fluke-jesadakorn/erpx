@@ -11,13 +11,13 @@ mod auth;
 #[path = "../../support/maintenance/parts-facts.rs"]
 mod facts;
 use auth::*;
-use erpx_server_commercial::public::purchases::PackageEnforcementMode;
-use erpx_server_maintenance::public::{
+use erpx_commercial_server::public::purchases::PackageEnforcementMode;
+use erpx_maintenance_server::public::{
     work_commands::MaintenanceWorkCommand, work_wire::normalize_maintenance_change,
 };
-use erpx_server_runtime::public::postgres::{DatabasePool, PgTransactionError};
-use erpx_server_shared::public::{BusinessError, CommandKey, IdentifierSource, RecordId};
-use erpx_service::maintenance_transitions::{
+use erpx_platform_runtime_server::public::postgres::{DatabasePool, PgTransactionError};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey, IdentifierSource, RecordId};
+use erpx_platform_composition::maintenance_transitions::{
     MaintenanceTransitionsSourcePreparation, execute_maintenance_transition,
 };
 use facts::*;
@@ -167,7 +167,7 @@ async fn actual_cancel_preserves_missing_epoch_zero_and_nonzero_downtime_without
 #[tokio::test]
 async fn actual_parts_draft_blocks_close_after_late_cas_then_independent_post_enables_original_issuer_complete()
  {
-    use erpx_server_shared::public::Clock;
+    use erpx_platform_shared_server::public::Clock;
     settlement_facts::account::with_system(|system|async move{
   let p=settlement_facts::setup_parts(system).await;let journal=p.issue("close-source-real-parts",1).await;
   let before=counts(p.pool()).await;
@@ -191,7 +191,7 @@ async fn actual_parts_draft_blocks_close_after_late_cas_then_independent_post_en
 }
 #[tokio::test]
 async fn factual_journal_scan_binds_actual_complete_images_missing_rows_and_original_transaction() {
-    use erpx_server_finance::public::journal_settlement::*;
+    use erpx_finance_server::public::journal_settlement::*;
     settlement_facts::account::with_system(|system| async move {
         let p = settlement_facts::setup_parts(system).await;
         let journal = p.issue("settlement-image-real-part", 1).await;

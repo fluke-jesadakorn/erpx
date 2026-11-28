@@ -1,12 +1,12 @@
 //! Actual owner-local Platform AI-gateway HTTP router tests. These prove
 //! ingress facts only; Platform authority, the target Holding database and all
 //! owner effects remain composition responsibilities.
-use erpx_server_agent::public::gateway::{
+use erpx_agent_server::public::gateway::{
     AiGatewayHttpBackend, AiGatewayHttpCommand, AiGatewayHttpCommandRequest, AiGatewayHttpFuture,
     AiGatewayHttpReadRequest, AiGatewayHttpTarget, ai_gateway_http_router,
 };
-use erpx_server_runtime::public::http_support::serve;
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::serve;
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Noop;

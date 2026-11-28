@@ -2,19 +2,19 @@ import { describe, expect, test } from 'vitest';
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { selectProjectionFrom } from '../../../packages/server-projects/src/adapters/read-tail-r40';
-import { finalRootOwnerProjectionSources } from '../../../packages/server-projects/src/adapters/final-root-owner-projection-sources';
-import { assignmentViewerSelect } from '../../../packages/server-projects/src/adapters/read-tail-r28';
-import { orderedImageAggregateHead } from '../../../packages/server-projects/src/adapters/read-tail-r29';
-import { clockNowMsHead } from '../../../packages/server-projects/src/adapters/read-tail-r41';
-import { selectBodySql } from '../../../packages/server-projects/src/adapters/read-tail-r45';
-import { nativeSources } from '../../../packages/server-projects/src/adapters/evaluation-source-policy';
-import { projectPointReadHead } from '../../../packages/server-projects/src/adapters/read-tail-r33';
+import { selectProjectionFrom } from '../../../modules/projects/server/src/adapters/read-tail-r40';
+import { finalRootOwnerProjectionSources } from '../../../modules/projects/server/src/adapters/final-root-owner-projection-sources';
+import { assignmentViewerSelect } from '../../../modules/projects/server/src/adapters/read-tail-r28';
+import { orderedImageAggregateHead } from '../../../modules/projects/server/src/adapters/read-tail-r29';
+import { clockNowMsHead } from '../../../modules/projects/server/src/adapters/read-tail-r41';
+import { selectBodySql } from '../../../modules/projects/server/src/adapters/read-tail-r45';
+import { nativeSources } from '../../../modules/projects/server/src/adapters/evaluation-source-policy';
+import { projectPointReadHead } from '../../../modules/projects/server/src/adapters/read-tail-r33';
 import {
   staffTaskPointHead, staffProjectByRefHead,
-} from '../../../packages/server-projects/src/adapters/read-tail-r34';
+} from '../../../modules/projects/server/src/adapters/read-tail-r34';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-projects/src');
+const srcRoot = resolve(__dirname, '../../../modules/projects/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 

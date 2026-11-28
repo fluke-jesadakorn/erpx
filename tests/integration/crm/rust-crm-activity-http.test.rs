@@ -2,19 +2,19 @@
 //! These prove ingress facts only; composition, Account session, purchase,
 //! Workflow, Sales recipient, notification and PostgreSQL remain separate
 //! responsibilities.
-use erpx_server_crm::public::activities_http::{
+use erpx_crm_server::public::activities_http::{
     CrmActivityCommandHttpBackend, CrmActivityCommandHttpRequest, CrmActivityCommandHttpTarget,
     crm_activity_command_http_router,
 };
-use erpx_server_crm::public::activity_workspace_http::{
+use erpx_crm_server::public::activity_workspace_http::{
     CrmActivityWorkspaceHttpBackend, CrmActivityWorkspaceHttpFuture,
     CrmActivityWorkspaceHttpResponse, CrmActivityWorkspaceHttpTarget,
     CrmActivityWorkspaceReadKind, CrmActivityWorkspaceReadRequest,
     crm_activity_workspace_http_router,
 };
-use erpx_server_crm::public::commands_http::{CommandHttpFuture, CrmCommandHttpReply};
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_crm_server::public::commands_http::{CommandHttpFuture, CrmCommandHttpReply};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Noop;

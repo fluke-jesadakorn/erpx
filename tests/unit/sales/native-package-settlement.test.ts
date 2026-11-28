@@ -8,9 +8,9 @@ vi.mock('server-only', () => ({}));
 import {
   SALES_RD_PACKAGE_SETTLEMENT_SALES,
   SALES_RD_PACKAGE_SETTLEMENT_ECOMMERCE,
-} from '../../../packages/server-sales/src/adapters/native-sales-read';
+} from '../../../modules/sales/server/src/adapters/native-sales-read';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-sales/src');
+const srcRoot = resolve(__dirname, '../../../modules/sales/server/src');
 const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const registry = read('native_sales_read_sql.rs');
 const obligations = read('package-obligations.ts');

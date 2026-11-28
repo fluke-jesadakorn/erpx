@@ -1,7 +1,7 @@
-use erpx_server_people_payroll::public::identity_facts::{
+use erpx_people_payroll_server::public::identity_facts::{
     EngagementAuthorityWitness, PersonAuthorityFacts,
 };
-use erpx_server_shared::public::{CompanyId, RecordId, UserId};
+use erpx_platform_shared_server::public::{CompanyId, RecordId, UserId};
 
 fn facts() -> PersonAuthorityFacts {
     PersonAuthorityFacts {

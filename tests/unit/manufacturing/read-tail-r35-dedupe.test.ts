@@ -3,11 +3,11 @@ import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
-import { manufacturingFinanceRecordSources } from '../../../packages/server-manufacturing/src/adapters/finance-record-sources';
-import { manufacturingSumSelect } from '../../../packages/server-manufacturing/src/adapters/manufacturing-read-tail-r35-sql';
+import { manufacturingFinanceRecordSources } from '../../../modules/manufacturing/server/src/adapters/finance-record-sources';
+import { manufacturingSumSelect } from '../../../modules/manufacturing/server/src/adapters/manufacturing-read-tail-r35-sql';
 
-const adapter = (name: string) => new URL(`../../../packages/server-manufacturing/src/adapters/${name}`, import.meta.url);
-const publicSrc = (name: string) => new URL(`../../../packages/server-manufacturing/src/public/${name}`, import.meta.url);
+const adapter = (name: string) => new URL(`../../../modules/manufacturing/server/src/adapters/${name}`, import.meta.url);
+const publicSrc = (name: string) => new URL(`../../../modules/manufacturing/server/src/public/${name}`, import.meta.url);
 const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
 
 /** Byte oracles captured from the pre-fold HEAD balance subqueries. The debit/
@@ -120,7 +120,7 @@ describe('manufacturing read-tail r35 sum-subquery head-family fold', () => {
 
   it('pins the manufacturing owner SELECT KPI at 45 after the r22 native detail-read cut (46->45)', async () => {
     let total = 0;
-    for (const file of await tsFiles(new URL('../../../packages/server-manufacturing/src/', import.meta.url))) {
+    for (const file of await tsFiles(new URL('../../../modules/manufacturing/server/src/', import.meta.url))) {
       total += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     }
     expect(total).toBe(42); // package-obligation owner-table heads 45->42.

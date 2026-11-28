@@ -1,6 +1,6 @@
 //! Owner-local HTTP router tests for native Sales notification commands.
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_sales::public::notification_commands::{
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_sales_server::public::notification_commands::{
     NotificationHttpBackend, NotificationHttpCommand, NotificationHttpFuture,
     NotificationHttpRequest, NotificationHttpResponse, NotificationHttpTarget,
     sales_notification_commands_router,

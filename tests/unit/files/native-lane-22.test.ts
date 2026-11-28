@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
-vi.mock('@erpx/server-runtime/public/http', () => ({
+vi.mock('@erpx/platform-runtime-server/public/http', () => ({
   ApiError: class ApiError extends Error {
     constructor(
       readonly status: number,
@@ -15,7 +15,7 @@ vi.mock('@erpx/server-runtime/public/http', () => ({
   },
 }));
 
-import { ApiError } from '@erpx/server-runtime/public/http';
+import { ApiError } from '@erpx/platform-runtime-server/public/http';
 import {
   createWorkEvidenceClient,
   nativeWorkEvidenceConfigured,
@@ -24,12 +24,12 @@ import {
   workEvidenceHttpTransport,
   type WorkEvidenceActor,
   type WorkEvidenceTransport,
-} from '../../../packages/server-files/src/adapters/native-lane-22/client';
+} from '../../../modules/files/server/src/adapters/native-lane-22/client';
 import {
   createPersonnelEvidenceClient,
   type PersonnelEvidenceArgs,
   type PersonnelEvidenceKind,
-} from '../../../packages/server-files/src/adapters/native-lane-22/personnel-client';
+} from '../../../modules/files/server/src/adapters/native-lane-22/personnel-client';
 
 const ENV = 'ERPX_NATIVE_FILES_CONFIG';
 
@@ -91,7 +91,7 @@ const rows = [
   },
 ];
 const payload = { kind: 'sets', rows };
-const db = {} as import('@erpx/server-runtime/public/runtime/types').SqlDatabase;
+const db = {} as import('@erpx/platform-runtime-server/public/runtime/types').SqlDatabase;
 const ok: WorkEvidenceTransport = async () => ({ status: 200, value: payload });
 
 async function expect503(call: () => Promise<unknown>, code?: string) {
@@ -290,7 +290,7 @@ describe('native Files work-evidence lane 22 contract', () => {
 
   it('retired the TypeScript SQL: the adapter is a transport only', () => {
     const source = readFileSync(
-      new URL('../../../packages/server-files/src/adapters/work-read-facts.ts', import.meta.url),
+      new URL('../../../modules/files/server/src/adapters/work-read-facts.ts', import.meta.url),
       'utf8',
     );
     expect(source).not.toMatch(/SELECT /i);
@@ -393,7 +393,7 @@ describe('native Files personnel-evidence lane 22 contract', () => {
       ['records-employee-requests-owned-facts.ts', 'readNativePersonnelEvidence'],
     ] as const) {
       const source = readFileSync(
-        new URL(`../../../packages/server-files/src/adapters/${file}`, import.meta.url),
+        new URL(`../../../modules/files/server/src/adapters/${file}`, import.meta.url),
         'utf8',
       );
       expect(source).not.toMatch(/SELECT /i);

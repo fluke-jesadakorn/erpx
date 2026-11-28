@@ -7,7 +7,7 @@ import {
   nativeIamAssignmentsFailure,
   type NativeIamAssignmentsConfiguration,
   type NativeIamPageContext,
-} from '../../../packages/server-identity_access/src/public/native-iam-assignments';
+} from '../../../modules/identity-access/server/src/public/native-iam-assignments';
 
 const config = (overrides: Record<string, unknown> = {}) =>
   JSON.stringify({
@@ -345,7 +345,7 @@ describe('native Identity Access assignment transport', () => {
 
   it('maps owner and configuration failures to the retained page/route policy', async () => {
     const { NativeIamAssignmentsError } = await import(
-      '../../../packages/server-identity_access/src/public/native-iam-assignments'
+      '../../../modules/identity-access/server/src/public/native-iam-assignments'
     );
     expect(
       nativeIamAssignmentsFailure(
@@ -389,7 +389,7 @@ describe('native Identity Access assignment transport', () => {
 describe('retired access-review command routes', () => {
   const route = () =>
     import(
-      '../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/iam/[[...path]]/route'
+      '../../../platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/iam/[[...path]]/route'
     );
   afterEach(() => {
     delete process.env.ERPX_NATIVE_IAM_CONFIG;
@@ -443,7 +443,7 @@ describe('retired access-review command routes', () => {
 describe('retired role-save command route', () => {
   const route = () =>
     import(
-      '../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/iam/[[...path]]/route'
+      '../../../platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/iam/[[...path]]/route'
     );
   afterEach(() => {
     delete process.env.ERPX_NATIVE_IAM_CONFIG;

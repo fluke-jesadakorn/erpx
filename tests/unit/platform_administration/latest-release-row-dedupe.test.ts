@@ -4,9 +4,9 @@ import { resolve } from 'node:path';
 
 vi.mock('server-only', () => ({}));
 
-import { latestReleaseRowSql } from '../../../packages/server-platform_administration/src/adapters/release-predicate';
+import { latestReleaseRowSql } from '../../../modules/platform-administration/server/src/adapters/release-predicate';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-platform_administration/src');
+const srcRoot = resolve(__dirname, '../../../modules/platform-administration/server/src');
 const source = (relative: string) => readFileSync(resolve(srcRoot, relative), 'utf8');
 
 // Pre-dedupe literals copied verbatim from HEAD (r13 baseline, BEFORE=35). Used

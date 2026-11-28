@@ -2,10 +2,10 @@ import {describe,it,expect,vi} from 'vitest';
 import {readFile} from 'node:fs/promises';
 import {readFileSync,readdirSync} from 'node:fs';
 import {resolve} from 'node:path';
-import {capabilityDelivery} from '../../../packages/catalogue/src/capability-delivery';
+import {capabilityDelivery} from '../../../platform/catalogue/src/capability-delivery';
 vi.mock('server-only',()=>({}));
 vi.mock('next/headers',()=>({headers:async()=>new Headers({host:'acme.example.com',cookie:'__Host-erpx-product=session'})}));
-import {createNativeAssetsClient,type NativeAssetsPageContext} from '../../../packages/feature-assets/src/adapters/server/native-assets';
+import {createNativeAssetsClient,type NativeAssetsPageContext} from '../../../modules/assets/ui/src/adapters/server/native-assets';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44991',
@@ -162,24 +162,24 @@ describe('native Assets transport',()=>{
  });
 
  it('keeps the financial-assets accounting seam Finance-owned and outside the asset-register API',async()=>{
-  const routeUrl=new URL('../../../packages/feature-assets/src/routes/api/v1/holdings/[holdingSlug]/assets/financial-assets/route.ts',import.meta.url);
-  const pathUrl=new URL('../../../packages/feature-assets/src/routes/api/v1/holdings/[holdingSlug]/assets/financial-assets/[...path]/route.ts',import.meta.url);
-  const assetUrl=new URL('../../../packages/feature-assets/src/routes/api/v1/holdings/[holdingSlug]/assets/route.ts',import.meta.url);
+  const routeUrl=new URL('../../../modules/assets/ui/src/routes/api/v1/holdings/[holdingSlug]/assets/financial-assets/route.ts',import.meta.url);
+  const pathUrl=new URL('../../../modules/assets/ui/src/routes/api/v1/holdings/[holdingSlug]/assets/financial-assets/[...path]/route.ts',import.meta.url);
+  const assetUrl=new URL('../../../modules/assets/ui/src/routes/api/v1/holdings/[holdingSlug]/assets/route.ts',import.meta.url);
   const [route,pathRoute,assetRoute]=await Promise.all([routeUrl,pathUrl,assetUrl].map(url=>readFile(url,'utf8')));
-  expect(capabilityDelivery('assets','asset-register')?.api).toBe('packages/feature-assets/src/routes/api/v1/holdings/[holdingSlug]/assets/route.ts');
+  expect(capabilityDelivery('assets','asset-register')?.api).toBe('modules/assets/ui/src/routes/api/v1/holdings/[holdingSlug]/assets/route.ts');
   expect(assetRoute).toContain('ownedAssetCommand');
   expect(assetRoute).not.toContain('financial-assets');
   expect(route).toContain('Finance-owned Assets accounting seam');
-  expect(route).toContain('@erpx/server-finance/public/assets-financial-workflow');
-  expect(route).not.toContain('@erpx/server-assets/');
+  expect(route).toContain('@erpx/finance-server/public/assets-financial-workflow');
+  expect(route).not.toContain('@erpx/assets-server/');
   expect(pathRoute).toContain('Finance-owned Assets accounting seam');
-  expect(pathRoute).toContain('@erpx/server-finance/public/assets-financial-workflow');
-  expect(pathRoute).not.toContain('@erpx/server-assets/');
+  expect(pathRoute).toContain('@erpx/finance-server/public/assets-financial-workflow');
+  expect(pathRoute).not.toContain('@erpx/assets-server/');
  });
 
  it('routes maintenance creation through the native owner command without a TS create branch',async()=>{
-  const routeUrl=new URL('../../../packages/feature-assets/src/routes/api/v1/holdings/[holdingSlug]/maintenance/route.ts',import.meta.url);
-  const ownedUrl=new URL('../../../packages/feature-assets/src/adapters/server/native-maintenance-owned.ts',import.meta.url);
+  const routeUrl=new URL('../../../modules/assets/ui/src/routes/api/v1/holdings/[holdingSlug]/maintenance/route.ts',import.meta.url);
+  const ownedUrl=new URL('../../../modules/assets/ui/src/adapters/server/native-maintenance-owned.ts',import.meta.url);
   const [route,owned]=await Promise.all([readFile(routeUrl,'utf8'),readFile(ownedUrl,'utf8')]);
   expect(route).toContain('ownedMaintenanceCommand');
   expect(route).not.toContain('createMaintenanceWork');
@@ -201,15 +201,15 @@ describe('Asset source-record policy is native-only',()=>{
   userId:'owner',holdingId:'h001',holdingSlug:'acme',companyId:'company',branchId:null,departmentId:null,
   assignmentId:'assignment',role:'owner',assignmentScope:'holding',scope:{kind:'holding'},
   authority:{revision:7,assignmentVersion:3},modules:['assets'],iam:{permissions:['records.read']},
- } as unknown as import('@erpx/server-identity_access/public/authorization').WorkContext;
+ } as unknown as import('@erpx/identity-access-server/public/authorization').WorkContext;
  const context={userId:'owner',holdingId:'h001',companyId:'company',branchId:null,departmentId:null,
   branchSlug:null,departmentSlug:null,assignmentId:'assignment',assignmentVersion:3,revision:7,
   role:'owner',assignmentScopeKind:'holding',modules:['assets'],permissions:['records.read'],expiresAt:9_007_199_254_740_991};
  const row=(id='source',version=3)=>({id,company_id:'company',branch_id:null,department_id:null,
   name:'Asset source',lifecycle_status:'in_service',version});
  const ok=(data:unknown)=>new Response(JSON.stringify({data,context}),{status:200,headers:{'content-type':'application/json'}});
- const policy=async()=>await import('../../../packages/server-records/src/adapters/source-record-policy');
- const mockRuntime=()=>vi.doMock('../../../packages/server-runtime/src/public/runtime',()=>({
+ const policy=async()=>await import('../../../modules/records/server/src/adapters/source-record-policy');
+ const mockRuntime=()=>vi.doMock('../../../platform/runtime/server/src/public/runtime',()=>({
   holdingResources:async()=>({write:{prepare:()=>{throw Error('Legacy Asset source SQL must not execute');}}}),
  }));
  let spy:ReturnType<typeof vi.spyOn>;
@@ -222,13 +222,13 @@ describe('Asset source-record policy is native-only',()=>{
    expect(source).toMatchObject({id:'source',version:3,title:'Asset source',status:'in_service',href:'/assets/source'});
    expect(spy).toHaveBeenCalledTimes(2);
    expect(String(spy.mock.calls[0][0])).toBe('http://127.0.0.1:44991/api/v1/holdings/acme/assets?id=source');
-  }finally{spy.mockRestore();vi.unstubAllEnvs();vi.doUnmock('../../../packages/server-runtime/src/public/runtime');vi.resetModules();}
+  }finally{spy.mockRestore();vi.unstubAllEnvs();vi.doUnmock('../../../platform/runtime/server/src/public/runtime');vi.resetModules();}
  });
  it('fails closed for same-unit callers, source guards and a changed digest',async()=>{
   vi.resetModules();mockRuntime();vi.stubEnv(key,config());
   try{
    const p=await policy();
-   const db={prepare:vi.fn()} as unknown as import('@erpx/server-runtime/public/runtime/types').SqlDatabase;
+   const db={prepare:vi.fn()} as unknown as import('@erpx/platform-runtime-server/public/runtime/types').SqlDatabase;
    await expect(p.readSourceRecord(sourceActor,{kind:'asset',id:'source'},db)).rejects.toMatchObject({status:503,code:'ASSET_RECORD_SOURCE_NATIVE_UNIT_REQUIRED'});
    await expect(p.sourceRecordGuards(db,sourceActor,'key',{kind:'asset',id:'source',version:3,href:'/assets/'} as never)).rejects.toMatchObject({status:503,code:'ASSET_RECORD_SOURCE_NATIVE_UNIT_REQUIRED'});
    spy=vi.spyOn(globalThis,'fetch').mockImplementation(async()=>ok({asset:row()}));
@@ -237,13 +237,13 @@ describe('Asset source-record policy is native-only',()=>{
    spy=vi.spyOn(globalThis,'fetch').mockImplementation(async()=>ok({asset:row()}));
    spy.mockResolvedValueOnce(ok({asset:row()})).mockResolvedValueOnce(ok({asset:row('source',4)}));
    await expect(p.readSourceRecord(sourceActor,{kind:'asset',id:'source'})).rejects.toMatchObject({status:409,code:'SOURCE_RECORD_CHANGED'});
-  }finally{spy?.mockRestore();vi.unstubAllEnvs();vi.doUnmock('../../../packages/server-runtime/src/public/runtime');vi.resetModules();}
+  }finally{spy?.mockRestore();vi.unstubAllEnvs();vi.doUnmock('../../../platform/runtime/server/src/public/runtime');vi.resetModules();}
  });
  it('uses native asset identifiers in the support ticket source predicate',async()=>{
   vi.stubEnv(key,config());
   spy=vi.spyOn(globalThis,'fetch').mockImplementation(async()=>ok({items:[row('asset-1'),row('asset-2')]}));
   try{
-   const {supportTicketSourceReadPredicate}=await import('../../../packages/server-support/src/adapters/ticket-source-read-policy');
+   const {supportTicketSourceReadPredicate}=await import('../../../modules/support/server/src/adapters/ticket-source-read-policy');
    const predicate=await supportTicketSourceReadPredicate(sourceActor);
    expect(predicate.sql).toContain("'asset'");
    expect(predicate.bindings).toContain('asset-1');
@@ -255,9 +255,9 @@ describe('Asset source-record policy is native-only',()=>{
 });
 it('retires the TS Service asset picker read now served by the mounted native workspace port',async()=>{
  const {readFile}=await import('node:fs/promises');
- const adapter=await readFile(new URL('../../../packages/server-assets/src/adapters/field-service-references.ts',import.meta.url),'utf8');
- const barrel=await readFile(new URL('../../../packages/server-assets/src/public/field-service-references.ts',import.meta.url),'utf8');
- const native=await readFile(new URL('../../../packages/server-assets/src/adapters/field_service_workspace.rs',import.meta.url),'utf8');
+ const adapter=await readFile(new URL('../../../modules/assets/server/src/adapters/field-service-references.ts',import.meta.url),'utf8');
+ const barrel=await readFile(new URL('../../../modules/assets/server/src/public/field-service-references.ts',import.meta.url),'utf8');
+ const native=await readFile(new URL('../../../modules/assets/server/src/adapters/field_service_workspace.rs',import.meta.url),'utf8');
  for(const retired of ['fieldServiceAssets','fieldServiceAssetReferencePredicate','fieldServiceAssetSourceReadLocks','ServiceAssetReference']){
   expect(adapter).not.toContain(retired);
   expect(barrel).not.toContain(retired);
@@ -273,7 +273,7 @@ it('retires the TS Service asset picker read now served by the mounted native wo
 });
 it('shares one parameterized org-node label projection across the Assets executive breakdowns (50->49)',async()=>{
  const {readFile}=await import('node:fs/promises');
- const adapter=await readFile(new URL('../../../packages/server-assets/src/adapters/executive-metric-projections.ts',import.meta.url),'utf8');
+ const adapter=await readFile(new URL('../../../modules/assets/server/src/adapters/executive-metric-projections.ts',import.meta.url),'utf8');
  const count=(text:string,needle:string)=>text.split(needle).length-1;
  expect(adapter).toContain('const assetNodeDisplayNameLabel = (column: "branch_id" | "department_id", fallback: string) =>');
  // r32 delegates the org-node label head to assetProjectionFromSql; the raw
@@ -289,9 +289,9 @@ it('shares one parameterized org-node label projection across the Assets executi
 });
 it('shares one canonical permission-probe SQL with the purchase and metric callers (52->50)',async()=>{
  const {readFile}=await import('node:fs/promises');
- const helper=await readFile(new URL('../../../packages/server-assets/src/adapters/asset-scope-probe.ts',import.meta.url),'utf8');
- const purchases=await readFile(new URL('../../../packages/server-assets/src/adapters/purchases.ts',import.meta.url),'utf8');
- const metrics=await readFile(new URL('../../../packages/server-assets/src/adapters/metric-purchases.ts',import.meta.url),'utf8');
+ const helper=await readFile(new URL('../../../modules/assets/server/src/adapters/asset-scope-probe.ts',import.meta.url),'utf8');
+ const purchases=await readFile(new URL('../../../modules/assets/server/src/adapters/purchases.ts',import.meta.url),'utf8');
+ const metrics=await readFile(new URL('../../../modules/assets/server/src/adapters/metric-purchases.ts',import.meta.url),'utf8');
  const count=(text:string,needle:string)=>text.split(needle).length-1;
  const probe="allowed FROM ${assetScopeTupleSql(alias)}";
  expect(helper).toContain('export const assetPermissionProbeSql = (alias: string, permission: string) =>');
@@ -307,8 +307,8 @@ it('shares one canonical permission-probe SQL with the purchase and metric calle
 });
 it('shares one parameterized asset descriptor SQL across the policy and remaining-operational reads (49->48)',async()=>{
  const {readFile}=await import('node:fs/promises');
- const policy=await readFile(new URL('../../../packages/server-assets/src/adapters/attachments-policy-facts.ts',import.meta.url),'utf8');
- const operational=await readFile(new URL('../../../packages/server-assets/src/adapters/attachments-operational-facts.ts',import.meta.url),'utf8');
+ const policy=await readFile(new URL('../../../modules/assets/server/src/adapters/attachments-policy-facts.ts',import.meta.url),'utf8');
+ const operational=await readFile(new URL('../../../modules/assets/server/src/adapters/attachments-operational-facts.ts',import.meta.url),'utf8');
  const count=(text:string,needle:string)=>text.split(needle).length-1;
  const literal='SELECT ${projection} FROM ${from} WHERE id=? AND company_id=?${tail}';
  expect(policy).toContain('export const assetAttachmentDescriptorSql = (table:string,branch:string,department:string,version:string,extra="") =>');
@@ -324,7 +324,7 @@ it('shares one parameterized asset descriptor SQL across the policy and remainin
 });
 it('shares one canonical source-probe projection across the Assets record-purchase reads (46->44)',async()=>{
  const {readFile}=await import('node:fs/promises');
- const adapter=await readFile(new URL('../../../packages/server-assets/src/adapters/record-purchases.ts',import.meta.url),'utf8');
+ const adapter=await readFile(new URL('../../../modules/assets/server/src/adapters/record-purchases.ts',import.meta.url),'utf8');
  const count=(text:string,needle:string)=>text.split(needle).length-1;
  // The clock CTE head is now owner-planned in Rust; no token remains here.
  expect((adapter.match(/SELECT/g)??[])).toHaveLength(0);
@@ -346,7 +346,7 @@ it('shares one canonical source-probe projection across the Assets record-purcha
 });
 it('shares one canonical aggregate projection across the Assets executive breakdowns (45->44)',async()=>{
  const {readFile}=await import('node:fs/promises');
- const adapter=await readFile(new URL('../../../packages/server-assets/src/adapters/executive-metric-projections.ts',import.meta.url),'utf8');
+ const adapter=await readFile(new URL('../../../modules/assets/server/src/adapters/executive-metric-projections.ts',import.meta.url),'utf8');
  const count=(text:string,needle:string)=>text.split(needle).length-1;
  const literal='SELECT ${label} label,count(*)::text value FROM';
  // The canonical helper owns the single aggregate projection; its comment adds
@@ -369,7 +369,7 @@ it('shares one canonical aggregate projection across the Assets executive breakd
 });
 it('shares one fixed owner predicate for attachment owner version guards (46->45)',async()=>{
   const {readFile}=await import('node:fs/promises');
-  const base=new URL('../../../packages/server-assets/src/adapters/',import.meta.url);
+  const base=new URL('../../../modules/assets/server/src/adapters/',import.meta.url);
   const guard=await readFile(new URL('attachment-owner-version-guard.ts',base),'utf8');
   const service=await readFile(new URL('attachments-service-facts.ts',base),'utf8');
   const operational=await readFile(new URL('attachments-operational-facts.ts',base),'utf8');
@@ -388,7 +388,7 @@ it('shares one fixed owner predicate for attachment owner version guards (46->45
 });
 it('shares one canonical existence probe across the Assets package-settlement read (11->1 after r26 native cutover)',async()=>{
   const {readFile}=await import('node:fs/promises');
-  const adapter=await readFile(new URL('../../../packages/server-assets/src/adapters/package-obligations.ts',import.meta.url),'utf8');
+  const adapter=await readFile(new URL('../../../modules/assets/server/src/adapters/package-obligations.ts',import.meta.url),'utf8');
   const count=(text:string,needle:string)=>text.split(needle).length-1;
   // The owner-local source probe is the single existence statement; neither this
   // adapter nor its comments may smuggle another "SELECT" token into the KPI.
@@ -425,7 +425,7 @@ it('shares one canonical existence probe across the Assets package-settlement re
 });
 it('shares one canonical lineage aggregate projection across the Assets financial source (42->39)',async()=>{
    const {readFile}=await import('node:fs/promises');
-   const adapter=await readFile(new URL('../../../packages/server-assets/src/adapters/financial-workflow-sources.ts',import.meta.url),'utf8');
+   const adapter=await readFile(new URL('../../../modules/assets/server/src/adapters/financial-workflow-sources.ts',import.meta.url),'utf8');
    const count=(text:string,needle:string)=>text.split(needle).length-1;
    // r33 folds the JSON aggregate head into the generic projection-from head and
    // r34 folds the image witness into the universal head; both render byte-identically
@@ -456,7 +456,7 @@ it('shares one canonical lineage aggregate projection across the Assets financia
 });
 it('shares one canonical current-assignment scope probe across the Assets private attachment authority and current-scope checks (35->33)',async()=>{
  const {readFile}=await import('node:fs/promises');
- const base=new URL('../../../packages/server-assets/src/adapters/',import.meta.url);
+ const base=new URL('../../../modules/assets/server/src/adapters/',import.meta.url);
  const helper=await readFile(new URL('asset-scope-tuple.ts',base),'utf8');
  const authority=await readFile(new URL('attachment-purchases.ts',base),'utf8');
  const read=await readFile(new URL('attachment-read.ts',base),'utf8');
@@ -490,7 +490,7 @@ it('shares one canonical current-assignment scope probe across the Assets privat
 });
 it('shares the canonical lineage aggregate with the Assets purchase owner source (36->35)',async()=>{
  const {readFile}=await import('node:fs/promises');
- const base=new URL('../../../packages/server-assets/src/adapters/',import.meta.url);
+ const base=new URL('../../../modules/assets/server/src/adapters/',import.meta.url);
  const aggregate=await readFile(new URL('financial-workflow-sources.ts',base),'utf8');
  const purchases=await readFile(new URL('purchases.ts',base),'utf8');
  const count=(text:string,needle:string)=>text.split(needle).length-1;
@@ -510,10 +510,10 @@ it('shares the canonical lineage aggregate with the Assets purchase owner source
  expect(count(aggregate,'assetPhysicalAggSql(')).toBe(4);
 });
 describe('Assets read-tail r17 byte-identical family dedupe',()=>{
- const adapters=new URL('../../../packages/server-assets/src/adapters/',import.meta.url);
+ const adapters=new URL('../../../modules/assets/server/src/adapters/',import.meta.url);
  it('keeps the scope tuple byte-identical while removing the duplicated literal',async()=>{
   const {readFile}=await import('node:fs/promises');
-  const {assetScopeTupleSql}=await import('../../../packages/server-assets/src/adapters/asset-scope-tuple');
+  const {assetScopeTupleSql}=await import('../../../modules/assets/server/src/adapters/asset-scope-tuple');
   const tuple='(SELECT ?::text company_id,?::text branch_id,?::text department_id)';
   expect(assetScopeTupleSql('asset_scope')).toBe(`${tuple} asset_scope`);
   const probe=await readFile(new URL('asset-scope-probe.ts',adapters),'utf8');
@@ -524,8 +524,8 @@ describe('Assets read-tail r17 byte-identical family dedupe',()=>{
  });
  it('keeps every r17 row-existence probe byte-identical to its pre-dedupe literal',async()=>{
   const {readFile}=await import('node:fs/promises');
-  const {assetSourceProbeSql}=await import('../../../packages/server-assets/src/adapters/record-purchases');
-  const {attachmentOwnerVersionGuardSql}=await import('../../../packages/server-assets/src/adapters/attachment-owner-version-guard');
+  const {assetSourceProbeSql}=await import('../../../modules/assets/server/src/adapters/record-purchases');
+  const {attachmentOwnerVersionGuardSql}=await import('../../../modules/assets/server/src/adapters/attachment-owner-version-guard');
   const probe=(from:string,where:string)=>`SELECT 1 FROM ${from} WHERE ${where}`;
   const cases:[string,string,string][]=[
    ['operational_assets','id=? AND company_id=? AND version=?','SELECT 1 FROM operational_assets WHERE id=? AND company_id=? AND version=?'],
@@ -578,9 +578,9 @@ describe('Assets read-tail r17 byte-identical family dedupe',()=>{
 });
 
 describe('Assets read-tail r21 id+company keyed-row family',()=>{
- const base=new URL('../../../packages/server-assets/src/adapters/',import.meta.url);
+ const base=new URL('../../../modules/assets/server/src/adapters/',import.meta.url);
  it('renders both callers byte-identically from one parameterized statement',async()=>{
-  const {assetIdCompanyReadSql,assetAttachmentDescriptorSql}=await import('../../../packages/server-assets/src/adapters/attachments-policy-facts');
+  const {assetIdCompanyReadSql,assetAttachmentDescriptorSql}=await import('../../../modules/assets/server/src/adapters/attachments-policy-facts');
   expect(assetIdCompanyReadSql("id","assignments"," FOR SHARE"))
    .toBe('SELECT id FROM assignments WHERE id=? AND company_id=? FOR SHARE');
   expect(assetIdCompanyReadSql("company_id,branch_id AS branch_id,department_id AS department_id,version AS version","operational_assets"))
@@ -625,11 +625,11 @@ describe('Assets read-tail r21 id+company keyed-row family',()=>{
 });
 
 describe('Assets read-tail r19 clock-CTE family native cutover',()=>{
-  const base=new URL('../../../packages/server-assets/src/adapters/',import.meta.url);
+  const base=new URL('../../../modules/assets/server/src/adapters/',import.meta.url);
   it('keeps both materialized clock CTEs byte-identical from the owner clock plan',async()=>{
     const {readFile}=await import('node:fs/promises');
-    const {packageClockSql}=await import('@erpx/server-commercial/public/purchased-capability-sql');
-    const {nativeAssetsClockScalar}=await import('../../../packages/server-assets/src/adapters/native-assets-read');
+    const {packageClockSql}=await import('@erpx/commercial-server/public/purchased-capability-sql');
+    const {nativeAssetsClockScalar}=await import('../../../modules/assets/server/src/adapters/native-assets-read');
     const key='ERPX_NATIVE_ASSETS_READ_CONFIG',original=process.env[key];
     const clockSql='SELECT '+packageClockSql+' now_ms';
     process.env[key]=JSON.stringify({privateBaseUrl:'http://127.0.0.1:44997',timeoutMs:1000,holdings:[{origin:'https://acme.example.com',holdingSlug:'acme'}]});
@@ -660,8 +660,8 @@ describe('Assets read-tail r19 clock-CTE family native cutover',()=>{
 describe('Assets read-tail r22 Finance-link keyed read family',()=>{
  it('shares one parameterized Finance-link keyed asset read, byte-identical at both call sites',async()=>{
   const {readFile}=await import('node:fs/promises');
-  const {assetFinanceLinkReadSql}=await import('../../../packages/server-assets/src/adapters/financial-workflow-sources');
-  const text=await readFile(new URL('../../../packages/server-assets/src/adapters/financial-workflow-sources.ts',import.meta.url),'utf8');
+  const {assetFinanceLinkReadSql}=await import('../../../modules/assets/server/src/adapters/financial-workflow-sources');
+  const text=await readFile(new URL('../../../modules/assets/server/src/adapters/financial-workflow-sources.ts',import.meta.url),'utf8');
   expect(text).toContain('export const assetFinanceLinkReadSql = (projection:string,alias="",tail="") =>');
   expect((text.match(/SELECT/g)??[])).toHaveLength(0);
   // r32 folds the keyed-read head into the generic projection-from head; the
@@ -681,7 +681,7 @@ describe('Assets read-tail r22 Finance-link keyed read family',()=>{
 });
 
 describe('Assets read-tail r20 source-image witness family',()=>{
- const base=new URL('../../../packages/server-assets/src/adapters/',import.meta.url);
+ const base=new URL('../../../modules/assets/server/src/adapters/',import.meta.url);
  it('shares one parameterized image witness and keeps both call sites byte-identical',async()=>{
   const {readFile}=await import('node:fs/promises');
   const financial=await readFile(new URL('financial-workflow-sources.ts',base),'utf8');
@@ -708,14 +708,14 @@ describe('Assets read-tail r20 source-image witness family',()=>{
 });
 
 describe('Assets read-tail r23 all-rows projection family',()=>{
- const base=new URL('../../../packages/server-assets/src/adapters/',import.meta.url);
+ const base=new URL('../../../modules/assets/server/src/adapters/',import.meta.url);
  const src=(file:string)=>readFileSync(new URL(file,base),'utf8');
  const readOnly=(sql:string)=>{
   expect(sql).toContain('SELECT ');
   expect(sql).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
  };
  it('renders byte-identically to both pre-dedupe all-rows literals',async()=>{
-  const {assetAllRowsSql}=await import('../../../packages/server-assets/src/adapters/asset-all-rows-sql');
+  const {assetAllRowsSql}=await import('../../../modules/assets/server/src/adapters/asset-all-rows-sql');
   const preDedupeLinks='SELECT * FROM operational_asset_finance_links';
   const preDedupeMetric=(table:string)=>`SELECT * FROM ${table}`;
   expect(assetAllRowsSql('operational_asset_finance_links')).toBe(preDedupeLinks);
@@ -756,14 +756,14 @@ describe('Assets read-tail r23 all-rows projection family',()=>{
 });
 
 describe('Assets read-tail r24 fixed operational_assets projection family',()=>{
- const base=new URL('../../../packages/server-assets/src/adapters/',import.meta.url);
+ const base=new URL('../../../modules/assets/server/src/adapters/',import.meta.url);
  const src=(file:string)=>readFileSync(new URL(file,base),'utf8');
  const readOnly=(sql:string)=>{
   expect(sql).toContain('SELECT ');
   expect(sql).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
  };
  it('renders byte-identically to both pre-dedupe operational_assets projections',async()=>{
-  const {assetOperationalRowsSql}=await import('../../../packages/server-assets/src/adapters/asset-operational-rows-sql');
+  const {assetOperationalRowsSql}=await import('../../../modules/assets/server/src/adapters/asset-operational-rows-sql');
   const preField='SELECT id,company_id,branch_id,department_id,lifecycle_status,warranty_end,version FROM operational_assets';
   const preRoot='SELECT "id","company_id","branch_id","department_id","code","name","category","currency","cost_minor","condition","lifecycle_status","placement","custodian_id","acquired_date","warranty_end","retirement_reason","version","created_by","created_at","updated_at","finance_asset_id","finance_asset_version" FROM operational_assets';
   expect(assetOperationalRowsSql('id,company_id,branch_id,department_id,lifecycle_status,warranty_end,version')).toBe(preField);
@@ -772,8 +772,8 @@ describe('Assets read-tail r24 fixed operational_assets projection family',()=>{
   readOnly(preRoot);
  });
  it('keeps one owner literal and routes both callers through it',async()=>{
-  const {fieldServiceAssetSourceRows}=await import('../../../packages/server-assets/src/adapters/field-service-references');
-  const {finalRootOwnerProjectionSources}=await import('../../../packages/server-assets/src/adapters/final-root-owner-projection-sources');
+  const {fieldServiceAssetSourceRows}=await import('../../../modules/assets/server/src/adapters/field-service-references');
+  const {finalRootOwnerProjectionSources}=await import('../../../modules/assets/server/src/adapters/final-root-owner-projection-sources');
   const helper=src('asset-operational-rows-sql.ts');
   const field=src('field-service-references.ts');
   const root=src('final-root-owner-projection-sources.ts');
@@ -810,7 +810,7 @@ describe('Assets read-tail r24 fixed operational_assets projection family',()=>{
 
 describe('Assets read-tail r25 byte-identical field-service image family',()=>{
  const retired='SELECT to_jsonb(source)::text image FROM operational_assets source WHERE source.id=? AND source.company_id=?';
- const root=resolve(__dirname,'../../../packages/server-assets/src');
+ const root=resolve(__dirname,'../../../modules/assets/server/src');
  const read=(p:string)=>readFileSync(resolve(root,p),'utf8');
  const ownerSelectCount=()=>{
   let selects=0;
@@ -842,7 +842,7 @@ describe('Assets read-tail r25 byte-identical field-service image family',()=>{
 
 describe('Assets read-tail r26 package-obligation native cutover',()=>{
  const retired='WITH scope AS(SELECT ?::text company_id,?::boolean is_base)';
- const root=resolve(__dirname,'../../../packages/server-assets/src');
+ const root=resolve(__dirname,'../../../modules/assets/server/src');
  const read=(p:string)=>readFileSync(resolve(root,p),'utf8');
  const ownerSelectCount=()=>{
   let selects=0;
@@ -890,9 +890,9 @@ describe('Assets read-tail r26 package-obligation native cutover',()=>{
 });
 
 describe('Assets read-tail r27 parameterized projection-head family',()=>{
-  const base=new URL('../../../packages/server-assets/src/adapters/',import.meta.url);
+  const base=new URL('../../../modules/assets/server/src/adapters/',import.meta.url);
   const src=(file:string)=>readFileSync(new URL(file,base),'utf8');
-  const root=resolve(__dirname,'../../../packages/server-assets/src');
+  const root=resolve(__dirname,'../../../modules/assets/server/src');
   const ownerSelectCount=()=>{
     let selects=0;
     const walk=(dir:string)=>{
@@ -906,8 +906,8 @@ describe('Assets read-tail r27 parameterized projection-head family',()=>{
     return selects;
   };
   it('renders the new parameterized head family byte-identically from one literal',async()=>{
-    const {assetProjectionFromSql,assetScopeTupleSql,assetCurrentScopeProbeSql}=await import('../../../packages/server-assets/src/adapters/asset-scope-tuple');
-    const {assetOperationalRowsSql}=await import('../../../packages/server-assets/src/adapters/asset-operational-rows-sql');
+    const {assetProjectionFromSql,assetScopeTupleSql,assetCurrentScopeProbeSql}=await import('../../../modules/assets/server/src/adapters/asset-scope-tuple');
+    const {assetOperationalRowsSql}=await import('../../../modules/assets/server/src/adapters/asset-operational-rows-sql');
     const head=(projection:string,from:string,tail="")=>`SELECT ${projection} FROM${from}${tail}`;
     const tuple=assetScopeTupleSql("workforce_actor_scope");
     // Member 1 (current-assignment scope probe) - no-space and leading-space FROM.
@@ -940,9 +940,9 @@ describe('Assets read-tail r27 parameterized projection-head family',()=>{
 });
 
 describe('Assets read-tail r28 all-rows/projection-from head family',()=>{
- const base=new URL('../../../packages/server-assets/src/adapters/',import.meta.url);
+ const base=new URL('../../../modules/assets/server/src/adapters/',import.meta.url);
  const src=(file:string)=>readFileSync(new URL(file,base),'utf8');
- const root=resolve(__dirname,'../../../packages/server-assets/src');
+ const root=resolve(__dirname,'../../../modules/assets/server/src');
  const ownerSelectCount=()=>{
   let selects=0;
   const walk=(dir:string)=>{
@@ -956,8 +956,8 @@ describe('Assets read-tail r28 all-rows/projection-from head family',()=>{
   return selects;
  };
  it('renders the all-rows head byte-identically from the projection-from head',async()=>{
-  const {assetAllRowsSql}=await import('../../../packages/server-assets/src/adapters/asset-all-rows-sql');
-  const {assetProjectionFromSql}=await import('../../../packages/server-assets/src/adapters/asset-scope-tuple');
+  const {assetAllRowsSql}=await import('../../../modules/assets/server/src/adapters/asset-all-rows-sql');
+  const {assetProjectionFromSql}=await import('../../../modules/assets/server/src/adapters/asset-scope-tuple');
   for(const table of ['operational_assets','operational_asset_finance_links','maintenance_work_orders','maintenance_preventive_plans']){
    expect(assetAllRowsSql(table)).toBe(`SELECT * FROM ${table}`);
    expect(assetAllRowsSql(table)).toBe(assetProjectionFromSql('*',` ${table}`));
@@ -977,9 +977,9 @@ describe('Assets read-tail r28 all-rows/projection-from head family',()=>{
 });
 
 describe('Assets read-tail r29 keyed-row/projection-from head family',()=>{
- const base=new URL('../../../packages/server-assets/src/adapters/',import.meta.url);
+ const base=new URL('../../../modules/assets/server/src/adapters/',import.meta.url);
  const src=(file:string)=>readFileSync(new URL(file,base),'utf8');
- const root=resolve(__dirname,'../../../packages/server-assets/src');
+ const root=resolve(__dirname,'../../../modules/assets/server/src');
  const ownerSelectCount=()=>{
   let selects=0;
   const walk=(dir:string)=>{
@@ -993,8 +993,8 @@ describe('Assets read-tail r29 keyed-row/projection-from head family',()=>{
   return selects;
  };
  it('renders the keyed-row head byte-identically from the projection-from head',async()=>{
-  const {assetIdCompanyReadSql,assetAttachmentDescriptorSql}=await import('../../../packages/server-assets/src/adapters/attachments-policy-facts');
-  const {assetProjectionFromSql}=await import('../../../packages/server-assets/src/adapters/asset-scope-tuple');
+  const {assetIdCompanyReadSql,assetAttachmentDescriptorSql}=await import('../../../modules/assets/server/src/adapters/attachments-policy-facts');
+  const {assetProjectionFromSql}=await import('../../../modules/assets/server/src/adapters/asset-scope-tuple');
   for(const [projection,from,tail] of [
    ['id','assignments',' FOR SHARE'],
    ['company_id,branch_id AS branch_id,department_id AS department_id,version AS version','operational_assets',''],
@@ -1023,9 +1023,9 @@ describe('Assets read-tail r29 keyed-row/projection-from head family',()=>{
 });
 
 describe('Assets read-tail r31 permission-probe/projection-from head family',()=>{
- const base=new URL('../../../packages/server-assets/src/adapters/',import.meta.url);
+ const base=new URL('../../../modules/assets/server/src/adapters/',import.meta.url);
  const src=(file:string)=>readFileSync(new URL(file,base),'utf8');
- const root=resolve(__dirname,'../../../packages/server-assets/src');
+ const root=resolve(__dirname,'../../../modules/assets/server/src');
  const ownerSelectCount=()=>{
   let selects=0;
   const walk=(dir:string)=>{
@@ -1039,9 +1039,9 @@ describe('Assets read-tail r31 permission-probe/projection-from head family',()=
   return selects;
  };
  it('renders the permission probe byte-identically from the projection-from head with unchanged binds',async()=>{
-  const {assetPermissionProbeSql}=await import('../../../packages/server-assets/src/adapters/asset-scope-probe');
-  const {assetProjectionFromSql,assetScopeTupleSql}=await import('../../../packages/server-assets/src/adapters/asset-scope-tuple');
-  const {assignmentReadSql}=await import('@erpx/server-identity_access/public/record-source-authority');
+  const {assetPermissionProbeSql}=await import('../../../modules/assets/server/src/adapters/asset-scope-probe');
+  const {assetProjectionFromSql,assetScopeTupleSql}=await import('../../../modules/assets/server/src/adapters/asset-scope-tuple');
+  const {assignmentReadSql}=await import('@erpx/identity-access-server/public/record-source-authority');
   for(const [alias,permission] of [['assets_scope','records.read'],['asset_metric_scope','records.read']] as const){
    const before=`SELECT ${assignmentReadSql(alias,permission)} allowed FROM ${assetScopeTupleSql(alias)}`;
    expect(assetPermissionProbeSql(alias,permission)).toBe(before);
@@ -1068,7 +1068,7 @@ describe('Assets read-tail r31 permission-probe/projection-from head family',()=
 });
 
 describe('Assets read-tail r32 projection-from head family',()=>{
- const srcRoot=resolve(__dirname,'../../../packages/server-assets/src');
+ const srcRoot=resolve(__dirname,'../../../modules/assets/server/src');
  const src=(p:string)=>readFileSync(resolve(srcRoot,p),'utf8');
  const ownerSelectCount=()=>{
   let selects=0;
@@ -1083,10 +1083,10 @@ describe('Assets read-tail r32 projection-from head family',()=>{
   return selects;
  };
  it('renders all three retired heads byte-identically from the one projection-from base',async()=>{
-  const {assetProjectionFromSql}=await import('../../../packages/server-assets/src/adapters/asset-scope-tuple');
-  const {assetFinanceLinkReadSql}=await import('../../../packages/server-assets/src/adapters/financial-workflow-sources');
-  const {assetMetricBreakdownProjectionSql,assetNodeDisplayNameLabel}=await import('../../../packages/server-assets/src/adapters/executive-metric-projections');
-  const {finalRootOwnerProjectionSources}=await import('../../../packages/server-organization/src/adapters/final-root-owner-projection-sources');
+  const {assetProjectionFromSql}=await import('../../../modules/assets/server/src/adapters/asset-scope-tuple');
+  const {assetFinanceLinkReadSql}=await import('../../../modules/assets/server/src/adapters/financial-workflow-sources');
+  const {assetMetricBreakdownProjectionSql,assetNodeDisplayNameLabel}=await import('../../../modules/assets/server/src/adapters/executive-metric-projections');
+  const {finalRootOwnerProjectionSources}=await import('../../../modules/organization/server/src/adapters/final-root-owner-projection-sources');
 
   // Member 1: the Finance-link keyed read (both callers, aliased and tailed).
   const financeBefore=(projection:string,alias="",tail="")=>{

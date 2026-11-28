@@ -5,14 +5,14 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_finance::public::commerce_order_money::{
+use erpx_finance_server::public::commerce_order_money::{
     CommerceOrderMoneyInput, CommerceOrderMoneyLine, lock_commerce_order_money_sources,
     snapshot_commerce_order_revision,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, TimestampMillis};
 use sqlx::{PgConnection, Row};
 
 const NOW: i64 = 1_800_000_000_000;
@@ -329,7 +329,7 @@ async fn usd_and_effective_dates_select_the_exact_quote() {
 
 #[tokio::test]
 async fn retained_order_money_revalidates_late_effects_and_same_unit() {
-    use erpx_server_finance::public::commerce_order_money::snapshot_commerce_order_revision_retained;
+    use erpx_finance_server::public::commerce_order_money::snapshot_commerce_order_revision_retained;
     fixture::with_database(2,|pool|async move {
         setup(&pool).await;
         let mut tx=pool.raw().begin().await.unwrap();serial(&mut tx).await;lock_commerce_order_money_sources(&mut tx).await.unwrap();
@@ -352,7 +352,7 @@ async fn retained_order_money_revalidates_late_effects_and_same_unit() {
 
 #[tokio::test]
 async fn retained_order_money_rejects_quote_changed_during_its_write() {
-    use erpx_server_finance::public::commerce_order_money::snapshot_commerce_order_revision_retained;
+    use erpx_finance_server::public::commerce_order_money::snapshot_commerce_order_revision_retained;
     fixture::with_database(2,|pool|async move {
         setup(&pool).await;
         // Trigger is test-owned and transactional; it inserts a legitimate
@@ -365,7 +365,7 @@ async fn retained_order_money_rejects_quote_changed_during_its_write() {
         let fired:i64=sqlx::query_scalar("SELECT count(*) FROM public.company_fx_rates WHERE id='rate-during-write'").fetch_one(&mut *tx).await.unwrap();assert_eq!(fired,1,"the rate-changing trigger must have run");
         sqlx::query("ROLLBACK TO SAVEPOINT before_money_write").execute(&mut *tx).await.unwrap();
         let remaining:(i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM public.company_fx_rates WHERE id='rate-during-write'),(SELECT count(*) FROM public.money_transaction_snapshots WHERE source_id LIKE 'during-rate-order%')").fetch_one(&mut *tx).await.unwrap();assert_eq!(remaining,(0,0));
-        let prepared=erpx_server_finance::public::commerce_order_money::prepare_commerce_order_revision_money(&mut tx,&company(),&input("prepared-rate-order",1,"2026-07-15","THB"),TimestampMillis::new(NOW)).await.unwrap();
+        let prepared=erpx_finance_server::public::commerce_order_money::prepare_commerce_order_revision_money(&mut tx,&company(),&input("prepared-rate-order",1,"2026-07-15","THB"),TimestampMillis::new(NOW)).await.unwrap();
         sqlx::query("SAVEPOINT before_prepared_write").execute(&mut *tx).await.unwrap();
         denied(prepared.apply(&mut tx).await,"COMMERCE_ORDER_MONEY_CHANGED");
         let fired:i64=sqlx::query_scalar("SELECT count(*) FROM public.company_fx_rates WHERE id='rate-during-write'").fetch_one(&mut *tx).await.unwrap();assert_eq!(fired,1);
@@ -377,7 +377,7 @@ async fn retained_order_money_rejects_quote_changed_during_its_write() {
 
 #[tokio::test]
 async fn commerce_money_preflight_preserves_quote_and_performs_no_writes() {
-    use erpx_server_finance::public::commerce_order_money::prepare_commerce_order_revision_money;
+    use erpx_finance_server::public::commerce_order_money::prepare_commerce_order_revision_money;
     fixture::with_database(2,|pool|async move {
         setup(&pool).await;
         let mut tx=pool.raw().begin().await.unwrap();serial(&mut tx).await;lock_commerce_order_money_sources(&mut tx).await.unwrap();
@@ -397,7 +397,7 @@ async fn commerce_money_preflight_preserves_quote_and_performs_no_writes() {
 
 #[tokio::test]
 async fn prepared_order_money_uses_complete_unique_key_and_defers_duplicate_to_apply() {
-    use erpx_server_finance::public::commerce_order_money::prepare_commerce_order_revision_money;
+    use erpx_finance_server::public::commerce_order_money::prepare_commerce_order_revision_money;
     fixture::with_database(2,|pool|async move {
         setup(&pool).await;let mut tx=pool.raw().begin().await.unwrap();serial(&mut tx).await;lock_commerce_order_money_sources(&mut tx).await.unwrap();
         sqlx::query("INSERT INTO public.money_transaction_snapshots(company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at) VALUES('company','commerce_fulfillment_line','cross-order:1','total','2026-07-15','THB',2,100,3,'rate-new',false,1)").execute(&mut *tx).await.unwrap();

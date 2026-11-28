@@ -4,16 +4,16 @@
 #![allow(dead_code)]
 #[path = "../../support/finance/review-composition.rs"]
 mod facts;
-use erpx_server_files::public::business_evidence::{
+use erpx_files_server::public::business_evidence::{
     PgBusinessEvidenceFiles, PreparedBusinessEvidence, evidence_context, policy_fact,
 };
-use erpx_server_finance::public::period_close::*;
-use erpx_server_finance::public::sales_invoice_create::SalesInvoiceCommandActor;
-use erpx_server_records::public::business_evidence::{
+use erpx_finance_server::public::period_close::*;
+use erpx_finance_server::public::sales_invoice_create::SalesInvoiceCommandActor;
+use erpx_records_server::public::business_evidence::{
     BusinessEvidenceRequest, prepare_business_evidence,
 };
-use erpx_server_runtime::public::postgres::{DatabasePool, PgTransactionError};
-use erpx_server_shared::public::{BusinessError, CommandKey, CompanyId, TimestampMillis};
+use erpx_platform_runtime_server::public::postgres::{DatabasePool, PgTransactionError};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey, CompanyId, TimestampMillis};
 use facts::{account, setup};
 use serde_json::Value;
 use sqlx::PgConnection;

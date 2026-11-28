@@ -4,9 +4,9 @@ import {
   ppRd46ByIdCompanyStatusIn,
   ppRd46NamedJoinSource,
   ppRd46OwnerFileProbe,
-} from '../../../packages/server-people_payroll/src/adapters/pp-read-tail-r46-sources';
+} from '../../../modules/people-payroll/server/src/adapters/pp-read-tail-r46-sources';
 
-const src = (name: string) => readFileSync(new URL(`../../../packages/server-people_payroll/src/adapters/${name}`, import.meta.url), 'utf8');
+const src = (name: string) => readFileSync(new URL(`../../../modules/people-payroll/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const readOnly = (literal: string) => {
   expect(literal).toContain('SELECT ');
   expect(literal).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
@@ -139,7 +139,7 @@ describe('People Payroll read-tail r46 three-family dedupe', () => {
   });
 
   test('retirement:ts-statements stays strictly below the recorded BEFORE=1265', () => {
-    const root = new URL('../../../packages/server-people_payroll/src/', import.meta.url);
+    const root = new URL('../../../modules/people-payroll/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {

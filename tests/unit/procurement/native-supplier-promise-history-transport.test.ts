@@ -6,8 +6,8 @@ import {
   nativeProcurementConfiguration,
   NativeProcurementError,
   type NativeProcurementPageContext,
-} from '../../../packages/feature-procurement/src/public/native-supplier-promise-history';
-import { nativeProcurementFailure } from '../../../packages/feature-procurement/src/public/native-supplier-promise-history-page';
+} from '../../../modules/procurement/ui/src/public/native-supplier-promise-history';
+import { nativeProcurementFailure } from '../../../modules/procurement/ui/src/public/native-supplier-promise-history-page';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44992',

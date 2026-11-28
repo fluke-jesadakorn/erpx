@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 
 const src = (name: string) =>
-  new URL(`../../../packages/server-work_projection/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/work-projection/server/src/adapters/${name}`, import.meta.url);
 
 const norm = (sql: string) => sql.replace(/\s+/g, ' ').trim();
 
@@ -51,7 +51,7 @@ describe('work_projection read-tail r14 dedupe', () => {
     expect(norm(original.participantOverlap)).toContain('p.person_id IN (SELECT jsonb_array_elements_text(?::jsonb)) LIMIT 1');
     expect(norm(original.attendeeOverlap)).toContain("p.response!='declined' AND p.user_id IN (");
     const { occurrenceExceptionPointSql } = await import(
-      '../../../packages/server-work_projection/src/adapters/read-tail-sql.ts'
+      '../../../modules/work-projection/server/src/adapters/read-tail-sql.ts'
     );
     expect(occurrenceExceptionPointSql('start_local,end_local,cancelled')).toBe(
       original.exceptionReads.availability,

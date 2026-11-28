@@ -1,0 +1,49 @@
+{
+  "name": "@erpx/field-service-ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/service-reference-fields": "./src/components/service-reference-fields.tsx",
+    "./components/service-spare-form": "./src/components/service-spare-form.tsx",
+    "./components/service-navigation": "./src/components/service-navigation.tsx",
+    "./components/use-field-service-command": "./src/components/use-field-service-command.ts",
+    "./components/initial-physical-stock-count": "./src/components/initial-physical-stock-count.tsx",
+    "./components/parts-setup": "./src/components/parts-setup.tsx",
+    "./components/service-editor-context": "./src/components/service-editor-context.ts",
+    "./components/field-service-console": "./src/components/field-service-console.tsx",
+    "./components/customer-preparation": "./src/components/customer-preparation.tsx",
+    "./components/parts-entry-link": "./src/components/parts-entry-link.tsx",
+    "./lib/customer-preparation-command": "./src/lib/customer-preparation-command.ts",
+    "./lib/initial-physical-stock-count-command": "./src/lib/initial-physical-stock-count-command.ts",
+    "./public/native-parts-setup": "./src/public/native-parts-setup.ts",
+    "./public/native-workspace": "./src/public/native-workspace.ts",
+    "./lib/workspace": "./src/lib/workspace.ts",
+    "./lib/command": "./src/lib/command.ts",
+    "./lib/native-reserve-command": "./src/lib/native-reserve-command.ts",
+    "./lib/parts-setup-command": "./src/lib/parts-setup-command.ts",
+    "./public/native-initial-count": "./src/public/native-initial-count.ts",
+    "./lib/customer-preparation-model": "./src/lib/customer-preparation-model.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/platform-contracts": "workspace:*",
+    "@erpx/platform-native-sdk": "workspace:*",
+    "@erpx/commerce-ui": "workspace:*",
+    "@erpx/files-ui": "workspace:*",
+    "@erpx/finance-ui": "workspace:*",
+    "@erpx/identity-access-ui": "workspace:*",
+    "@erpx/inventory-ui": "workspace:*",
+    "@erpx/people-payroll-ui": "workspace:*",
+    "@erpx/platform-shared-ui": "workspace:*",
+    "@erpx/work-projection-ui": "workspace:*",
+    "@erpx/platform-ui": "workspace:*",
+    "@erpx/platform-workplace": "workspace:*",
+    "react": "19.3.1",
+    "@erpx/collaboration-ui": "workspace:*",
+    "@erpx/operations-ui": "workspace:*"
+  }
+}

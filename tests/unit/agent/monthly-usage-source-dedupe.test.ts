@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFile } from 'node:fs/promises';
 
 const src = (name: string) =>
-  readFile(new URL(`../../../packages/server-agent/src/${name}`, import.meta.url), 'utf8');
+  readFile(new URL(`../../../modules/agent/server/src/${name}`, import.meta.url), 'utf8');
 
 /** Verbatim pre-dedupe monthly-usage column projection (records ↔ finance). */
 const monthlyUsageCols = "SELECT company_id,to_char(to_timestamp(created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM')";
@@ -26,7 +26,7 @@ describe('Agent read-tail r8 monthly-usage source dedupe', () => {
   });
 
   it('renders the exact pre-dedupe statement text for every caller', async () => {
-    const { agentMonthlyUsageColsSql } = await import('../../../packages/server-agent/src/adapters/agent-monthly-usage-source');
+    const { agentMonthlyUsageColsSql } = await import('../../../modules/agent/server/src/adapters/agent-monthly-usage-source');
     expect(agentMonthlyUsageColsSql).toBe(monthlyUsageCols);
     expect(`${agentMonthlyUsageColsSql} AS month FROM ai_workspace_turns`).toBe(
       `${monthlyUsageCols} AS month FROM ai_workspace_turns`,

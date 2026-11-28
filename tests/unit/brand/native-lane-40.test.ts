@@ -8,9 +8,9 @@ import {
   nativeBrandManagementBranch,
   nativeBrandManagementCompanyExists,
   type NativeActiveBranch,
-} from "../../../packages/server-brand/src/adapters/native-brand-management";
-import { LANE39_CONFIG_ENV } from "../../../packages/server-brand/src/adapters/native-lane-39/client";
-import type { NativeLane39Transport } from "../../../packages/server-brand/src/adapters/native-lane-39/client";
+} from "../../../modules/brand/server/src/adapters/native-brand-management";
+import { LANE39_CONFIG_ENV } from "../../../modules/brand/server/src/adapters/native-lane-39/client";
+import type { NativeLane39Transport } from "../../../modules/brand/server/src/adapters/native-lane-39/client";
 
 /** Same registered private config as lane 39; lane 40 reuses the Holding set. */
 const DEV_CONFIG = {
@@ -44,7 +44,7 @@ const json = (body: unknown) =>
 
 const adapter = resolve(
   process.cwd(),
-  "packages/server-brand/src/adapters/native-brand-management.ts",
+  "modules/brand/server/src/adapters/native-brand-management.ts",
 );
 const source = readFileSync(adapter, "utf8");
 

@@ -1,6 +1,6 @@
 import {describe,it,expect,vi} from 'vitest';
 vi.mock('server-only',()=>({}));
-import {createNativeSupportSessionWriter} from '../../../packages/feature-support/src/adapters/server/native-support-session';
+import {createNativeSupportSessionWriter} from '../../../modules/support/ui/src/adapters/server/native-support-session';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44991',

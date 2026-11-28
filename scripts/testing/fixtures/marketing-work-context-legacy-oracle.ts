@@ -1,8 +1,8 @@
 /** Temporary mapper differential, removed under retire.marketing.asset-writers. */
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
-import {createNativeWorkRoleTransport} from '@erpx/server-identity_access/public/native-work-role-transport';
-import {nativeAccountReadModel,nativeWorkReadModel} from '../../../packages/server-identity_access/src/adapters/native-account-context';
+import {createNativeWorkRoleTransport} from '@erpx/identity-access-server/public/native-work-role-transport';
+import {nativeAccountReadModel,nativeWorkReadModel} from '../../../modules/identity-access/server/src/adapters/native-account-context';
 async function main(){
  if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');
  const input=JSON.parse(readFileSync(0,'utf8')) as {response:unknown;identity:{sessionId:string;userId:string;companyId:string};user:{name:string;email:string}};

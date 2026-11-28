@@ -2,15 +2,15 @@ import { describe, expect, test, vi } from "vitest";
 
 const m = vi.hoisted(() => ({ native: vi.fn(), sources: vi.fn() }));
 vi.mock("server-only", () => ({}));
-vi.mock("../../../packages/server-ecommerce/src/adapters/native-exec-metric/client", () => ({
+vi.mock("../../../modules/ecommerce/server/src/adapters/native-exec-metric/client", () => ({
   nativeExecutiveMetric: (...args: unknown[]) => m.native(...args),
 }));
-vi.mock("@erpx/server-runtime/public/executive/metric-sources", () => ({
+vi.mock("@erpx/platform-runtime-server/public/executive/metric-sources", () => ({
   readMetricSources: (...args: unknown[]) => m.sources(...args),
 }));
 
-import { specs } from "@erpx/server-runtime/public/executive/metric-projection-contract";
-import { readExecutiveMetricProjection } from "../../../packages/server-ecommerce/src/adapters/executive-metric-projections";
+import { specs } from "@erpx/platform-runtime-server/public/executive/metric-projection-contract";
+import { readExecutiveMetricProjection } from "../../../modules/ecommerce/server/src/adapters/executive-metric-projections";
 
 const SQL =
   "SELECT c.status label,count(*)::text value FROM ecommerce_carts c WHERE c.company_id=? AND (?::text IS NULL OR c.branch_id=?) AND (?::text IS NULL OR c.department_id=?) AND c.status='open' GROUP BY 1 ORDER BY 1";

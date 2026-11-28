@@ -1,12 +1,12 @@
 //! Native Projects graph read policy and projection tests.
-use erpx_server_projects::public::project_graph::{
+use erpx_projects_server::public::project_graph::{
     GraphActual, GraphTask, ProjectGraphActor, ProjectGraphReadRepository, ProjectGraphFuture,
     project_graph,
 };
-use erpx_server_projects::public::project_wbs::{
+use erpx_projects_server::public::project_wbs::{
     MilestoneRow, ProjectReadActor, ProjectRow, ProjectWbsReadFuture, ProjectWbsReadRepository,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, CompanyId, FailureKind, TimestampMillis,
 };
 
@@ -21,8 +21,8 @@ fn actor(permissions: &[&str], modules: &[&str], costs: bool) -> ProjectGraphAct
         read: ProjectReadActor {
             user_id: "owner".into(),
             company_id: company(),
-            branch_id: Some(erpx_server_shared::public::RecordId::new("branch").unwrap()),
-            department_id: Some(erpx_server_shared::public::RecordId::new("department").unwrap()),
+            branch_id: Some(erpx_platform_shared_server::public::RecordId::new("branch").unwrap()),
+            department_id: Some(erpx_platform_shared_server::public::RecordId::new("department").unwrap()),
             permissions: permissions.iter().map(|value| (*value).to_owned()).collect(),
             modules: modules.iter().map(|value| (*value).to_owned()).collect(),
             expires_at: NOW.get() + 60_000,
@@ -535,7 +535,7 @@ async fn graph_task_titles_count_chars_and_trim_only_js_whitespace() {
 
 #[test]
 fn graph_serialization_uses_bounded_camel_case_summary_fields() {
-    let graph = erpx_server_projects::public::project_graph::ProjectGraph {
+    let graph = erpx_projects_server::public::project_graph::ProjectGraph {
         project: project(),
         packages: Vec::new(),
         tasks: Vec::new(),
@@ -544,7 +544,7 @@ fn graph_serialization_uses_bounded_camel_case_summary_fields() {
         unassigned_tasks: Vec::new(),
         can_read_costs: true,
         is_project_owner: true,
-        totals: erpx_server_projects::public::project_graph::GraphTotals {
+        totals: erpx_projects_server::public::project_graph::GraphTotals {
             approved_minutes: 60,
             cost_by_currency: Default::default(),
         },

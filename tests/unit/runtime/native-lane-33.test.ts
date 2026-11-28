@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { ApiError } from "@erpx/server-runtime/public/http";
+import { ApiError } from "@erpx/platform-runtime-server/public/http";
 import {
   nativeHoldingBindingReadConfigured,
   parseNativeConfig,
   validateBinding,
-} from "../../../packages/server-runtime/src/adapters/native-lane-33/client";
+} from "../../../platform/runtime/server/src/adapters/native-lane-33/client";
 
-const root = resolve(__dirname, "../../../packages/server-runtime/src");
+const root = resolve(__dirname, "../../../platform/runtime/server/src");
 const src = (relative: string) => readFileSync(resolve(root, relative), "utf8");
 const sha = (value: string) => createHash("sha256").update(value).digest("hex");
 

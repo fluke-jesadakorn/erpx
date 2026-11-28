@@ -3,12 +3,12 @@
 #![allow(dead_code)]
 #[path = "../../support/finance/review-composition.rs"]
 mod facts;
-use erpx_server_finance::public::payment_correction::*;
-use erpx_server_shared::public::{AssignmentId, CompanyId, HoldingId, UserId};
+use erpx_finance_server::public::payment_correction::*;
+use erpx_platform_shared_server::public::{AssignmentId, CompanyId, HoldingId, UserId};
 use facts::{account, setup};
 
-fn actor(user: &str) -> erpx_server_finance::public::FinanceActor {
-    erpx_server_finance::public::FinanceActor {
+fn actor(user: &str) -> erpx_finance_server::public::FinanceActor {
+    erpx_finance_server::public::FinanceActor {
         user_id: UserId::new(user).unwrap(),
         holding_id: HoldingId::new("h001").unwrap(),
         company_id: CompanyId::new("company").unwrap(),
@@ -16,7 +16,7 @@ fn actor(user: &str) -> erpx_server_finance::public::FinanceActor {
     }
 }
 
-async fn seed(pool: &erpx_server_runtime::public::postgres::DatabasePool) {
+async fn seed(pool: &erpx_platform_runtime_server::public::postgres::DatabasePool) {
     sqlx::raw_sql(
         "INSERT INTO finance_charts(id,company_id,name,base_currency,created_by,created_at,updated_at)VALUES('chart','company','Primary','THB','fixture-a',0,0) ON CONFLICT DO NOTHING;\
          INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,currency,is_control,control_kind,status,version,created_at,updated_at)VALUES\
@@ -227,7 +227,7 @@ async fn reversal_rejects_creator_closed_period_and_stale_version() {
             )
             .await
             {
-                Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e)) => {
+                Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e)) => {
                     assert_eq!(e.code, code)
                 }
                 Err(other) => panic!("expected business denial {code}, got {other:?}"),
@@ -244,7 +244,7 @@ async fn reversal_rejects_creator_closed_period_and_stale_version() {
 // are exercised directly; the composition receipt/IAM/purchase/HTTP gates are
 // separate and supplied by the lead's mount.
 // ---------------------------------------------------------------------------
-use erpx_server_finance::public::supplier_batch::{
+use erpx_finance_server::public::supplier_batch::{
     NoSupplierBatchNotifications, SupplierBatchCreateInput, SupplierBatchDecisionInput,
     SupplierBatchExportInput, SupplierBatchItemInput, SupplierInstructionConfirmInput,
     SupplierInstructionResultInput, UnmountedSupplierInstructionEvidence,
@@ -252,7 +252,7 @@ use erpx_server_finance::public::supplier_batch::{
     export_supplier_batch, record_supplier_instruction_result, recover_supplier_export,
     supplier_export_content,
 };
-use erpx_server_finance::public::sales_invoice_create::SalesInvoiceCommandActor;
+use erpx_finance_server::public::sales_invoice_create::SalesInvoiceCommandActor;
 
 fn batch_actor(user: &str) -> SalesInvoiceCommandActor {
     SalesInvoiceCommandActor {
@@ -271,7 +271,7 @@ fn batch_actor(user: &str) -> SalesInvoiceCommandActor {
     }
 }
 
-async fn seed_supplier_batch(pool: &erpx_server_runtime::public::postgres::DatabasePool) {
+async fn seed_supplier_batch(pool: &erpx_platform_runtime_server::public::postgres::DatabasePool) {
     sqlx::raw_sql(
         "INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,base_total_minor,base_outstanding_minor,debit_account_id,credit_account_id,fx_rate_micros,journal_id,status,version,created_by,created_at,updated_at,source_type)VALUES\
          ('supplier-bill-open','company','supplier','payable','SUP-1','2026-01-02','2026-01-31','THB',1000,0,1000,1000,1000,1000,'bank','ap',1000000,'journal-invoice','posted',1,'fixture-a',0,0,'standalone')\
@@ -334,7 +334,7 @@ async fn supplier_batch_create_approve_export_and_confirm_settle_the_invoice() {
         let creator = batch_actor("fixture-a");
         let approver = batch_actor("fixture-b");
         let payer = batch_actor("fixture-c");
-        let key = erpx_server_shared::public::CommandKey::new("supbatch-1").unwrap();
+        let key = erpx_platform_shared_server::public::CommandKey::new("supbatch-1").unwrap();
         let mut tx = pool.raw().begin().await.unwrap();
         sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
             .execute(&mut *tx)
@@ -370,7 +370,7 @@ async fn supplier_batch_create_approve_export_and_confirm_settle_the_invoice() {
         let approved = decide_supplier_batch(
             &mut tx,
             &approver,
-            &erpx_server_shared::public::CommandKey::new("supbatch-1-approve").unwrap(),
+            &erpx_platform_shared_server::public::CommandKey::new("supbatch-1-approve").unwrap(),
             "supplier-batch-supbatch-1",
             &SupplierBatchDecisionInput { expected_version: 1, reason: "Independent review of source and beneficiary".into() },
             "approve",
@@ -391,7 +391,7 @@ async fn supplier_batch_create_approve_export_and_confirm_settle_the_invoice() {
         let exported = export_supplier_batch(
             &mut tx,
             &payer,
-            &erpx_server_shared::public::CommandKey::new("supbatch-1-export").unwrap(),
+            &erpx_platform_shared_server::public::CommandKey::new("supbatch-1-export").unwrap(),
             "supplier-batch-supbatch-1",
             &SupplierBatchExportInput { expected_version: 2 },
             &mut NoSupplierBatchNotifications,
@@ -416,7 +416,7 @@ async fn supplier_batch_create_approve_export_and_confirm_settle_the_invoice() {
         let confirmed = confirm_supplier_instruction(
             &mut tx,
             &payer,
-            &erpx_server_shared::public::CommandKey::new("supbatch-1-confirm").unwrap(),
+            &erpx_platform_shared_server::public::CommandKey::new("supbatch-1-confirm").unwrap(),
             "supplier-batch-supbatch-1-0",
             &SupplierInstructionConfirmInput {
                 expected_version: 2,
@@ -502,7 +502,7 @@ async fn supplier_batch_replay_is_idempotent_and_independence_guards_hold() {
         seed(pool).await;
         seed_supplier_batch(pool).await;
         let creator = batch_actor("fixture-a");
-        let key = erpx_server_shared::public::CommandKey::new("supbatch-replay").unwrap();
+        let key = erpx_platform_shared_server::public::CommandKey::new("supbatch-replay").unwrap();
         let mut tx = pool.raw().begin().await.unwrap();
         sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
             .execute(&mut *tx)
@@ -543,7 +543,7 @@ async fn supplier_batch_replay_is_idempotent_and_independence_guards_hold() {
         let forbidden = decide_supplier_batch(
             &mut tx,
             &creator,
-            &erpx_server_shared::public::CommandKey::new("supbatch-replay-approve").unwrap(),
+            &erpx_platform_shared_server::public::CommandKey::new("supbatch-replay-approve").unwrap(),
             "supplier-batch-supbatch-replay",
             &SupplierBatchDecisionInput { expected_version: 1, reason: "Self approval must fail".into() },
             "approve",
@@ -557,7 +557,7 @@ async fn supplier_batch_replay_is_idempotent_and_independence_guards_hold() {
         let cancelled = decide_supplier_batch(
             &mut tx,
             &creator,
-            &erpx_server_shared::public::CommandKey::new("supbatch-replay-cancel").unwrap(),
+            &erpx_platform_shared_server::public::CommandKey::new("supbatch-replay-cancel").unwrap(),
             "supplier-batch-supbatch-replay",
             &SupplierBatchDecisionInput { expected_version: 1, reason: "Cancel before retry".into() },
             "cancel",
@@ -598,7 +598,7 @@ async fn supplier_instruction_result_records_unknown_and_failed_retry_states() {
         create_supplier_batch(
             &mut tx,
             &creator,
-            &erpx_server_shared::public::CommandKey::new("supbatch-result").unwrap(),
+            &erpx_platform_shared_server::public::CommandKey::new("supbatch-result").unwrap(),
             &batch_input(),
             false,
             &mut NoSupplierBatchNotifications,
@@ -609,7 +609,7 @@ async fn supplier_instruction_result_records_unknown_and_failed_retry_states() {
         decide_supplier_batch(
             &mut tx,
             &approver,
-            &erpx_server_shared::public::CommandKey::new("supbatch-result-approve").unwrap(),
+            &erpx_platform_shared_server::public::CommandKey::new("supbatch-result-approve").unwrap(),
             "supplier-batch-supbatch-result",
             &SupplierBatchDecisionInput { expected_version: 1, reason: "Independent approval".into() },
             "approve",
@@ -622,7 +622,7 @@ async fn supplier_instruction_result_records_unknown_and_failed_retry_states() {
         export_supplier_batch(
             &mut tx,
             &payer,
-            &erpx_server_shared::public::CommandKey::new("supbatch-result-export").unwrap(),
+            &erpx_platform_shared_server::public::CommandKey::new("supbatch-result-export").unwrap(),
             "supplier-batch-supbatch-result",
             &SupplierBatchExportInput { expected_version: 2 },
             &mut NoSupplierBatchNotifications,
@@ -633,7 +633,7 @@ async fn supplier_instruction_result_records_unknown_and_failed_retry_states() {
         let unknown = record_supplier_instruction_result(
             &mut tx,
             &payer,
-            &erpx_server_shared::public::CommandKey::new("supbatch-result-unknown").unwrap(),
+            &erpx_platform_shared_server::public::CommandKey::new("supbatch-result-unknown").unwrap(),
             "supplier-batch-supbatch-result-0",
             &SupplierInstructionResultInput {
                 expected_version: 2,
@@ -650,7 +650,7 @@ async fn supplier_instruction_result_records_unknown_and_failed_retry_states() {
         let failed = record_supplier_instruction_result(
             &mut tx,
             &approver,
-            &erpx_server_shared::public::CommandKey::new("supbatch-result-failed").unwrap(),
+            &erpx_platform_shared_server::public::CommandKey::new("supbatch-result-failed").unwrap(),
             "supplier-batch-supbatch-result-0",
             &SupplierInstructionResultInput {
                 expected_version: 3,
@@ -686,14 +686,14 @@ use axum::{
     body::to_bytes,
     http::{Request, StatusCode},
 };
-use erpx_server_commercial::public::purchases::current_package_catalogue;
-use erpx_service::finance_journal_detail::{
+use erpx_commercial_server::public::purchases::current_package_catalogue;
+use erpx_platform_composition::finance_journal_detail::{
     FinanceJournalDetailService, FinanceJournalReadConfiguration,
 };
-use erpx_service::finance_journal_detail_http::{
+use erpx_platform_composition::finance_journal_detail_http::{
     FinanceJournalReadScopeHeaders, FinanceJournalReadTarget, finance_journal_read_router,
 };
-use erpx_service::finance_journal_review::FinanceJournalEnvironment;
+use erpx_platform_composition::finance_journal_review::FinanceJournalEnvironment;
 use std::sync::Arc;
 use tower::ServiceExt;
 
@@ -716,7 +716,7 @@ fn supplier_batch_service(
 fn supplier_batch_request(
     method: &str,
     uri: &str,
-    token: &erpx_server_identity_access::public::OpaqueSecret,
+    token: &erpx_identity_access_server::public::OpaqueSecret,
     assignment: &str,
     key: Option<&str>,
     body: Option<serde_json::Value>,

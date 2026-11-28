@@ -8,8 +8,8 @@
  * order. It never mints a command receipt.
  */
 import {createHash} from 'node:crypto';
-import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
-import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
+import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/platform-runtime-server/public/runtime/types';
+import type {WorkContext} from '@erpx/identity-access-server/public/authorization';
 import {seedQualityHandoffNotice} from './handoff-notice-oracle';
 
 export type QualityHoldSeed = {

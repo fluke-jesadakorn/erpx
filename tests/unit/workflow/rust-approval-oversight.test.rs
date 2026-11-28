@@ -1,8 +1,8 @@
 //! Portable Workflow approval oversight domain and application tests.
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CompanyId, HoldingId, RecordId, UserId,
 };
-use erpx_server_workflow::public::approval_oversight::{
+use erpx_workflow_server::public::approval_oversight::{
     ApprovalAuditEvent, ApprovalCommandReceipt, ApprovalEvidence, ApprovalEvidenceDecision,
     ApprovalEvidenceInstance, ApprovalEvidenceQuery, ApprovalEvidenceStep, ApprovalKind,
     ApprovalOutboxEvent, ApprovalOversightActor, ApprovalOversightFuture,

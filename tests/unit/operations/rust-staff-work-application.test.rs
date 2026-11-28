@@ -1,6 +1,6 @@
 //! Staff Work application use cases over in-memory owner ports. No database is
 //! implied: the real PostgreSQL adapter has its own companion test.
-use erpx_server_operations::public::staff_tasks::{
+use erpx_operations_server::public::staff_tasks::{
     AlertPlan, AlertTask, ApprovalView, AttachmentRow, DecisionFact, DelegateTaskCommand,
     DelegationFact, DelegationHistoryRow, PgStaffTaskSources, PostFact, ProjectFact,
     RevokeTaskDelegationCommand, RouteFact, SaveTaskCommand, StaffFact, StaffTaskActor,
@@ -9,7 +9,7 @@ use erpx_server_operations::public::staff_tasks::{
     TransitionTaskCommand, delegate_task, escalate_staff_tasks, list_tasks,
     revoke_task_delegation, save_task, task_detail, transition_task,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
@@ -111,7 +111,7 @@ impl StaffTaskRepository for Repo {
     }
     fn save<'a>(
         &'a mut self,
-        plan: erpx_server_operations::public::staff_tasks::SaveTaskPlan,
+        plan: erpx_operations_server::public::staff_tasks::SaveTaskPlan,
     ) -> StaffTaskFuture<'a, TaskReceipt, Self::Error> {
         Box::pin(async move {
             let row = TaskRow {
@@ -162,7 +162,7 @@ impl StaffTaskRepository for Repo {
     }
     fn transition<'a>(
         &'a mut self,
-        plan: erpx_server_operations::public::staff_tasks::TransitionTaskPlan,
+        plan: erpx_operations_server::public::staff_tasks::TransitionTaskPlan,
     ) -> StaffTaskFuture<'a, TaskReceipt, Self::Error> {
         Box::pin(async move {
             let row = self.tasks.get_mut(&plan.record_id).unwrap();
@@ -184,7 +184,7 @@ impl StaffTaskRepository for Repo {
     }
     fn delegate<'a>(
         &'a mut self,
-        plan: erpx_server_operations::public::staff_tasks::DelegateTaskPlan,
+        plan: erpx_operations_server::public::staff_tasks::DelegateTaskPlan,
     ) -> StaffTaskFuture<'a, TaskReceipt, Self::Error> {
         Box::pin(async move {
             let row = self.tasks.get_mut(&plan.task_id).unwrap();
@@ -209,7 +209,7 @@ impl StaffTaskRepository for Repo {
     }
     fn revoke<'a>(
         &'a mut self,
-        plan: erpx_server_operations::public::staff_tasks::RevokeDelegationPlan,
+        plan: erpx_operations_server::public::staff_tasks::RevokeDelegationPlan,
     ) -> StaffTaskFuture<'a, TaskReceipt, Self::Error> {
         Box::pin(async move {
             let row = self.tasks.get_mut(&plan.task_id).unwrap();
@@ -322,7 +322,7 @@ impl StaffTaskSources for Sources {
     fn task_route<'a>(
         &'a mut self,
         _unit: Option<&'a mut sqlx::PgConnection>,
-        _scope: &'a erpx_server_operations::public::staff_tasks::TaskScope,
+        _scope: &'a erpx_operations_server::public::staff_tasks::TaskScope,
         _creator: &'a str,
         _assignee: &'a str,
         _phase: &'a str,

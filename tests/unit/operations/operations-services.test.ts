@@ -1,19 +1,19 @@
 import {describe,expect,test,vi} from 'vitest';
-import {createStaffPolicyApplication,type StaffPolicyPorts,type StaffPolicyRepository} from "@erpx/server-operations/application/staff-policy";
-import {createStaffTasksApplication,type StaffTasksPorts,type StaffTasksRepository} from "@erpx/server-operations/application/staff-tasks";
-import {createStaffTaskAlertsApplication,type StaffTaskAlertsPorts} from "@erpx/server-operations/application/staff-task-alerts";
-import {createHandoverApplication,type HandoverPorts} from "@erpx/server-operations/application/handover";
-import {createOperationsExceptionsApplication,type OperationsExceptionsPorts} from "@erpx/server-operations/application/operations-exceptions";
-import {createGuidedIntakeApplication,type GuidedIntakePorts,type GuidedIntakeRepository} from "@erpx/server-operations/application/guided-intake";
-import {reportingChain,type StaffPerson} from "@erpx/server-operations/domain/staff-policy";
-import type {TaskRow} from "@erpx/server-operations/domain/staff-tasks";
-import {cleanDraft,explicitPurchaseQuantity} from "@erpx/server-operations/domain/guided-intake";
-import {handoverPublishSchema,peopleInScope,type HandoverView} from "@erpx/server-operations/domain/handover";
-import {bangkokToday} from "@erpx/server-operations/domain/handover-time";
-import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import type {WorkSnapshot} from "@erpx/server-work_projection/public/work-items";
-import type {OperationsCommands} from "@erpx/server-operations/domain/commands";
-import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
+import {createStaffPolicyApplication,type StaffPolicyPorts,type StaffPolicyRepository} from "@erpx/operations-server/application/staff-policy";
+import {createStaffTasksApplication,type StaffTasksPorts,type StaffTasksRepository} from "@erpx/operations-server/application/staff-tasks";
+import {createStaffTaskAlertsApplication,type StaffTaskAlertsPorts} from "@erpx/operations-server/application/staff-task-alerts";
+import {createHandoverApplication,type HandoverPorts} from "@erpx/operations-server/application/handover";
+import {createOperationsExceptionsApplication,type OperationsExceptionsPorts} from "@erpx/operations-server/application/operations-exceptions";
+import {createGuidedIntakeApplication,type GuidedIntakePorts,type GuidedIntakeRepository} from "@erpx/operations-server/application/guided-intake";
+import {reportingChain,type StaffPerson} from "@erpx/operations-server/domain/staff-policy";
+import type {TaskRow} from "@erpx/operations-server/domain/staff-tasks";
+import {cleanDraft,explicitPurchaseQuantity} from "@erpx/operations-server/domain/guided-intake";
+import {handoverPublishSchema,peopleInScope,type HandoverView} from "@erpx/operations-server/domain/handover";
+import {bangkokToday} from "@erpx/operations-server/domain/handover-time";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
+import type {WorkSnapshot} from "@erpx/work-projection-server/public/work-items";
+import type {OperationsCommands} from "@erpx/operations-server/domain/commands";
+import type {SqlDatabase} from "@erpx/platform-runtime-server/public/runtime/types";
 const actor:WorkContext={userId:'owner',name:'Owner',email:'owner@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['operations'],assignments:[],workspaces:[],authority:{sessionId:'session',revision:1,assignmentVersion:1}};
 function strict<Ports extends object>(facts:Partial<Ports>):Ports{return new Proxy(facts,{get(target,name){if(name in target)return target[name as keyof Ports];return ()=>{throw Error('Unexpected port: '+String(name));};}}) as Ports;}
 const commands:OperationsCommands<string>={replay:async()=>null,commit:async(_a,_key,_operation,_input,_id,_version,result)=>result};
@@ -38,7 +38,7 @@ describe('Workflow projection source native read',()=>{
   process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG=JSON.stringify({privateBaseUrl:'http://127.0.0.1:3999',timeoutMs:1000,holdings:[{origin:'https://acme.jesadakorn.com',holdingSlug:'acme',holdingId:'h1',companyId:'company'}]});
   const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify({data:{statements:[{sql:'SELECT state,version FROM staff_tasks WHERE id=?',values:['task']}]}}),{status:200,headers:{'content-type':'application/json'}}));
   try{
-   const {taskProjectionSource}=await import('@erpx/server-operations/adapters/workflow-projection-source');
+   const {taskProjectionSource}=await import('@erpx/operations-server/adapters/workflow-projection-source');
    await expect(taskProjectionSource(db,'task')).resolves.toMatchObject({state:'ready',version:3});
    const call=fetchMock.mock.calls[0]!;
    expect(String(call[0])).toContain('/operations/command-plan');
@@ -60,7 +60,7 @@ describe('App upload task state native read',()=>{
   const plannedSql='SELECT state FROM staff_tasks WHERE id=? AND company_id=?';
   const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify({data:{statements:[{sql:plannedSql,values:['task','company']}]}}),{status:200,headers:{'content-type':'application/json'}}));
   try{
-   const {appUploadTaskState}=await import('@erpx/server-operations/adapters/app-upload-task-source');
+   const {appUploadTaskState}=await import('@erpx/operations-server/adapters/app-upload-task-source');
    await expect(appUploadTaskState(db,'task','company')).resolves.toMatchObject({state:'ready'});
    const call=fetchMock.mock.calls[0]!;
    expect(String(call[0])).toContain('/operations/command-plan');
@@ -81,7 +81,7 @@ describe('Collaboration home task state native read dedupe',()=>{
   const plannedSql='SELECT state FROM staff_tasks WHERE id=? AND company_id=?';
   const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify({data:{statements:[{sql:plannedSql,values:['task','company']}]}}),{status:200,headers:{'content-type':'application/json'}}));
   try{
-   const {collaborationHomeSources}=await import('@erpx/server-operations/adapters/collaboration-home-sources');
+   const {collaborationHomeSources}=await import('@erpx/operations-server/adapters/collaboration-home-sources');
    await expect(collaborationHomeSources(db).trackingState('task','company')).resolves.toBe('ready');
    expect(fetchMock).toHaveBeenCalledTimes(1);
    const call=fetchMock.mock.calls[0]!;
@@ -104,7 +104,7 @@ describe('Flow routing delegation native read',()=>{
    const plannedSql="SELECT delegate_user_id FROM staff_task_delegations WHERE company_id=? AND task_id=? AND status='active' AND starts_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint ORDER BY created_at DESC,id DESC LIMIT 1";
    const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify({data:{statements:[{sql:plannedSql,values:['company','task']}]}}),{status:200,headers:{'content-type':'application/json'}}));
    try{
-    const {createFlowRoutingSourceRepository}=await import('@erpx/server-operations/adapters/workflow-flow-routing-facts');
+    const {createFlowRoutingSourceRepository}=await import('@erpx/operations-server/adapters/workflow-flow-routing-facts');
     const repo=createFlowRoutingSourceRepository(db);
     await expect(repo.readDefinitionsDelegation('company','task')).resolves.toMatchObject({delegate_user_id:'delegate'});
     const call=fetchMock.mock.calls[0]!;
@@ -129,7 +129,7 @@ describe('Beta management task owner native reads',()=>{
   const plannedSql='SELECT company_id FROM staff_tasks WHERE id=?';
   const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(plan(plannedSql,['task']));
   try{
-   const {betaManagementTaskSources}=await import('@erpx/server-operations/adapters/beta-management-sources');
+   const {betaManagementTaskSources}=await import('@erpx/operations-server/adapters/beta-management-sources');
    await expect(betaManagementTaskSources(db).taskCompany('task')).resolves.toMatchObject({company_id:'company'});
    const call=fetchMock.mock.calls[0]!;
    expect(String(call[0])).toContain('/operations/command-plan');
@@ -145,7 +145,7 @@ describe('Beta management task owner native reads',()=>{
   process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG=nativeConfig;
   const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(plan(fragment,[]));
   try{
-   const {betaManagementTaskSources}=await import('@erpx/server-operations/adapters/beta-management-sources');
+   const {betaManagementTaskSources}=await import('@erpx/operations-server/adapters/beta-management-sources');
    await expect(betaManagementTaskSources(db).taskFileOwner()).resolves.toBe(fragment);
    expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({kind:'operations_rd_beta_management_task_file_owner',values:[]});
   }finally{
@@ -161,7 +161,7 @@ describe('Beta management task owner native reads',()=>{
   process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG=nativeConfig;
   const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(plan(fragment,[]));
   try{
-   const {betaManagementFacts}=await import('@erpx/server-files/adapters/beta-management-facts');
+   const {betaManagementFacts}=await import('@erpx/files-server/adapters/beta-management-facts');
    await expect(betaManagementFacts(db).files('c1','c2','c3','c4','c5','c6')).resolves.toEqual({bytes:42});
    expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({kind:'operations_rd_beta_management_task_file_owner',values:[]});
    const sql=String((prepare.mock.calls[0] as unknown as [string])[0]);
@@ -184,8 +184,8 @@ describe('Routine template schedules native read',()=>{
   process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG=nativeConfig;
   const fetchMock=vi.spyOn(globalThis,'fetch').mockImplementation(async()=>new Response(JSON.stringify({data:{statements:[{sql:plannedSql,values:['tpl','company']}]}}),{status:200,headers:{'content-type':'application/json'}}));
   try{
-   const {routineTemplateSchedules}=await import('@erpx/server-operations/adapters/people-app-entrypoint-facts');
-   const {workUiStaffFacts}=await import('@erpx/server-operations/adapters/work-ui-staff-facts');
+   const {routineTemplateSchedules}=await import('@erpx/operations-server/adapters/people-app-entrypoint-facts');
+   const {workUiStaffFacts}=await import('@erpx/operations-server/adapters/work-ui-staff-facts');
    await expect(routineTemplateSchedules(db,'tpl','company')).resolves.toMatchObject({results:[{id:'schedule'}]});
    await expect(workUiStaffFacts(db).templateSchedules('tpl','company')).resolves.toMatchObject({results:[{id:'schedule'}]});
    expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -213,15 +213,15 @@ describe('Field command owner native reads',()=>{
   const db={prepare,batch} as unknown as SqlDatabase;
   process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG=nativeConfig;
   vi.resetModules();
-  vi.doMock('@erpx/server-runtime/public/runtime',()=>({holdingResources:async()=>({write:db})}));
+  vi.doMock('@erpx/platform-runtime-server/public/runtime',()=>({holdingResources:async()=>({write:db})}));
   return {prepare,batch};
  };
- const restore=()=>{vi.doUnmock('@erpx/server-runtime/public/runtime');vi.resetModules();delete process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG;};
+ const restore=()=>{vi.doUnmock('@erpx/platform-runtime-server/public/runtime');vi.resetModules();delete process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG;};
  test('exception routing delegates to the native owner plan and keeps no local SQL',async()=>{
   const {prepare}=harness([{source_kind:'field_service_order'}]);
   const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(plan(exceptionSql,['ex','company']));
   try{
-   const {nativeFieldException}=await import('../../../packages/server-operations/src/adapters/field-command-owner');
+   const {nativeFieldException}=await import('../../../modules/operations/server/src/adapters/field-command-owner');
    await expect(nativeFieldException(fieldActor,'ex')).resolves.toBe(true);
    expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({kind:'operations_rd_field_exception',values:['ex','company']});
    expect(prepare).toHaveBeenCalledWith(exceptionSql);
@@ -231,7 +231,7 @@ describe('Field command owner native reads',()=>{
   harness([{source_kind:'staff_task'}]);
   const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(plan(exceptionSql,['ex','company']));
   try{
-   const {nativeFieldException}=await import('../../../packages/server-operations/src/adapters/field-command-owner');
+   const {nativeFieldException}=await import('../../../modules/operations/server/src/adapters/field-command-owner');
    await expect(nativeFieldException(fieldActor,'ex')).resolves.toBe(false);
   }finally{fetchMock.mockRestore();restore();}
  });
@@ -239,7 +239,7 @@ describe('Field command owner native reads',()=>{
   const {prepare}=harness([{source_kinds_json:'["field_service_order"]'}]);
   const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(plan(policySql,['pol','company']));
   try{
-   const {nativeFieldPolicy}=await import('../../../packages/server-operations/src/adapters/field-command-owner');
+   const {nativeFieldPolicy}=await import('../../../modules/operations/server/src/adapters/field-command-owner');
    await expect(nativeFieldPolicy(fieldActor,'pol')).resolves.toBe(true);
    expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({kind:'operations_rd_field_policy',values:['pol','company']});
    expect(prepare).toHaveBeenCalledWith(policySql);
@@ -249,7 +249,7 @@ describe('Field command owner native reads',()=>{
   harness([]);
   const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(plan(policySql,['pol','company']));
   try{
-   const {nativeFieldPolicy}=await import('../../../packages/server-operations/src/adapters/field-command-owner');
+   const {nativeFieldPolicy}=await import('../../../modules/operations/server/src/adapters/field-command-owner');
    await expect(nativeFieldPolicy(fieldActor,'pol')).resolves.toBe(false);
   }finally{fetchMock.mockRestore();restore();}
  });
@@ -264,7 +264,7 @@ describe('Legacy routine access native read',()=>{
   const db={prepare,batch} as unknown as SqlDatabase;
   process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG=nativeConfig;
   vi.resetModules();
-  vi.doMock('@erpx/server-identity_access/public/operations-staff-policy-facts',()=>({
+  vi.doMock('@erpx/identity-access-server/public/operations-staff-policy-facts',()=>({
    StaffPolicyIdentityAccessFacts:()=>({
     readReadActiveStaffResults:async()=>({results:[{person_id:'p',engagement_id:'e',engagement_version:1,company_id:'company',branch_id:null,department_id:null,start_date:0,end_date:null}]}),
     readCompanyAuthorityEffect:async()=>owner,
@@ -272,12 +272,12 @@ describe('Legacy routine access native read',()=>{
   }));
   return {db,prepare};
  };
- const restore=()=>{vi.doUnmock('@erpx/server-identity_access/public/operations-staff-policy-facts');vi.resetModules();delete process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG;};
+ const restore=()=>{vi.doUnmock('@erpx/identity-access-server/public/operations-staff-policy-facts');vi.resetModules();delete process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG;};
  test('owner templates delegate to the native owner plan and keep no local SQL',async()=>{
   const {db,prepare}=harness([{id:'tpl',title:'Template'}],true);
   const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(plan(['company','owner',1]));
   try{
-   const {legacyRoutineAccess}=await import('../../../packages/server-operations/src/adapters/legacy-routine-access');
+   const {legacyRoutineAccess}=await import('../../../modules/operations/server/src/adapters/legacy-routine-access');
    const result=await legacyRoutineAccess(db,'company',{id:'assignment',userId:'owner'},0);
    expect(result).toMatchObject({source:'operations/original-routines/v1',activeStaff:true,retainedTemplates:1,revision:expect.any(String)});
    const call=fetchMock.mock.calls[0]!;
@@ -290,7 +290,7 @@ describe('Legacy routine access native read',()=>{
   const {db}=harness([],false);
   const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(plan(['company','owner',0]));
   try{
-   const {legacyRoutineAccess}=await import('../../../packages/server-operations/src/adapters/legacy-routine-access');
+   const {legacyRoutineAccess}=await import('../../../modules/operations/server/src/adapters/legacy-routine-access');
    const result=await legacyRoutineAccess(db,'company',{id:'assignment',userId:'owner'},0);
    expect(result.retainedTemplates).toBe(0);
    expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({kind:'operations_rd_legacy_routine_templates',values:['company','owner',0]});
@@ -312,17 +312,17 @@ describe('Operations exceptions native reads',()=>{
    const db={prepare,batch} as unknown as SqlDatabase;
    process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG=nativeConfig;
    vi.resetModules();
-   vi.doMock('@erpx/server-runtime/public/runtime',()=>({holdingResources:async()=>({write:db})}));
-   vi.doMock('@erpx/server-identity_access/public/operations-operations-exceptions-facts',()=>({OperationsExceptionsIdentityAccessFacts:()=>({readOperationsWorkspaceCandidatespoliciespeople3:async()=>({results:[]})})}));
-   vi.doMock('@erpx/server-identity_access/public/iam-permissions',()=>({requirePermission:()=>{}}));
-   vi.doMock('@erpx/server-records/public/source-record-policy',()=>({visibleSourceRecord:async()=>({kind:'staff_task',id:'src'})}));
+   vi.doMock('@erpx/platform-runtime-server/public/runtime',()=>({holdingResources:async()=>({write:db})}));
+   vi.doMock('@erpx/identity-access-server/public/operations-operations-exceptions-facts',()=>({OperationsExceptionsIdentityAccessFacts:()=>({readOperationsWorkspaceCandidatespoliciespeople3:async()=>({results:[]})})}));
+   vi.doMock('@erpx/identity-access-server/public/iam-permissions',()=>({requirePermission:()=>{}}));
+   vi.doMock('@erpx/records-server/public/source-record-policy',()=>({visibleSourceRecord:async()=>({kind:'staff_task',id:'src'})}));
    return {db,prepare,batch};
   };
   const restore=()=>{
-   vi.doUnmock('@erpx/server-runtime/public/runtime');
-   vi.doUnmock('@erpx/server-identity_access/public/operations-operations-exceptions-facts');
-   vi.doUnmock('@erpx/server-identity_access/public/iam-permissions');
-   vi.doUnmock('@erpx/server-records/public/source-record-policy');
+   vi.doUnmock('@erpx/platform-runtime-server/public/runtime');
+   vi.doUnmock('@erpx/identity-access-server/public/operations-operations-exceptions-facts');
+   vi.doUnmock('@erpx/identity-access-server/public/iam-permissions');
+   vi.doUnmock('@erpx/records-server/public/source-record-policy');
    vi.resetModules();
    delete process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG;
   };
@@ -330,7 +330,7 @@ describe('Operations exceptions native reads',()=>{
    harness([{area:'a'}],[]);
    const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(plan(policiesSql,['company']));
    try{
-    const {operationsWorkspace}=await import('../../../packages/server-operations/src/adapters/operations-exceptions');
+    const {operationsWorkspace}=await import('../../../modules/operations/server/src/adapters/operations-exceptions');
     const result=await operationsWorkspace(actor);
     expect(result.policies).toHaveLength(1);
     expect(String(fetchMock.mock.calls[0]![0])).toContain('/operations/command-plan');
@@ -344,7 +344,7 @@ describe('Operations exceptions native reads',()=>{
     return plan(kind==='operations_rd_operations_exception_events'?eventsSql:policiesSql,['ex']);
    });
    try{
-    const {operationsExceptionDetail}=await import('../../../packages/server-operations/src/adapters/operations-exceptions');
+    const {operationsExceptionDetail}=await import('../../../modules/operations/server/src/adapters/operations-exceptions');
     const result=await operationsExceptionDetail(actor,'ex');
     expect(result.history).toHaveLength(1);
     const kinds=fetchMock.mock.calls.map(call=>JSON.parse(String(call[1]!.body)).kind);
@@ -369,13 +369,13 @@ test('overdue notifications deduplicate recipients, preserve explicit time and c
 
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {createRoutineCommands,validRoutineReceipt,type RoutineAttempt} from '@erpx/feature-operations/lib/routine-command';
-import {routineSourcePurchase} from '@erpx/feature-operations/lib/routine-purchase-controls';
-import {RoutineSchedules} from '@erpx/feature-operations/components/routine-schedule-controls';
-import {RoutineCommandFeedback} from '@erpx/feature-operations/components/routine-command-feedback';
-import type {useRoutineCommand} from '@erpx/feature-operations/components/use-routine-command';
-import type {TemplateRow,ScheduleRow} from '@erpx/server-operations/domain/routines';
-import {createStaffApiService,type StaffApiPorts} from '@erpx/server-work_projection/application/staff-api';
+import {createRoutineCommands,validRoutineReceipt,type RoutineAttempt} from '@erpx/operations-ui/lib/routine-command';
+import {routineSourcePurchase} from '@erpx/operations-ui/lib/routine-purchase-controls';
+import {RoutineSchedules} from '@erpx/operations-ui/components/routine-schedule-controls';
+import {RoutineCommandFeedback} from '@erpx/operations-ui/components/routine-command-feedback';
+import type {useRoutineCommand} from '@erpx/operations-ui/components/use-routine-command';
+import type {TemplateRow,ScheduleRow} from '@erpx/operations-server/domain/routines';
+import {createStaffApiService,type StaffApiPorts} from '@erpx/work-projection-server/application/staff-api';
 vi.mock('next/navigation',()=>({useRouter:()=>({push:vi.fn(),replace:vi.fn(),refresh:vi.fn()}),usePathname:()=>'/holdings/holding/projects-routines/routines',useSearchParams:()=>new URLSearchParams()}));
 const routineBase='/holdings/holding',routineContext='opaque-original-context',routineResponse=(data:unknown,status=200)=>Response.json({data},{status});
 const routineAttempt=(path:string,input:Record<string,unknown>={}):RoutineAttempt=>({path,input,body:JSON.stringify(input),key:'key',context:routineContext,existing:false});
@@ -406,8 +406,8 @@ describe('Routine minimal actual source and server presentation',()=>{
  test('does not answer any retired routine writer on the staff API after the native run mount',async()=>{const app=createStaffApiService(strict<StaffApiPorts>({requireWorkContext:async()=>actor,prepare:async()=>{},error:(status,code)=>Object.assign(new Error(code),{status,code})})),request=(path:string[],body:unknown)=>app('routine-templates' as Parameters<typeof app>[0],new Request('https://console-dev-erpx.jesadakorn.com/api/owner',{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':'original-key'},body:JSON.stringify(body)}),{params:Promise.resolve({holdingSlug:'holding',path})});for(const [path,body] of [[['template','run'],{dueAt:'2026-12-01T02:00:00Z'}],[[],{title:'Gone writer'}],[['template'],{expectedVersion:1}],[['template','clone'],{}],[['template','schedules'],{}]] as const)await expect(request([...path],body)).rejects.toMatchObject({status:404,code:'NOT_FOUND'});});
 });
 
-import {createHandoverReceiptCommands,handoverReceiptMatches} from '@erpx/feature-work_projection/lib/handover-acknowledgement';
-import {HandoverAcknowledgement as HandoverReceiptView} from '@erpx/feature-work_projection/components/today/handover-acknowledgement';
+import {createHandoverReceiptCommands,handoverReceiptMatches} from '@erpx/work-projection-ui/lib/handover-acknowledgement';
+import {HandoverAcknowledgement as HandoverReceiptView} from '@erpx/work-projection-ui/components/today/handover-acknowledgement';
 const handoverEndpoint='/api/v1/holdings/test/handover/post/acknowledgement';
 describe('Handover current seed and exact submitted receipt',()=>{
  test('renders the matching original server receipt and draining control before hydration without a status-loading placeholder',()=>{const html=renderToStaticMarkup(createElement(HandoverReceiptView,{api:'/api/v1/holdings/test',postId:'post',version:3,contextToken:'opaque',initial:{postId:'post',postVersion:3,canAcknowledge:true,acknowledged:false,recipientCount:2,acknowledgedCount:1},purchase:{newWork:false,settleExisting:true,history:true,revision:'opaque-purchase'}}));expect(html).toContain('1 of 2 recipients confirmed receipt');expect(html).toContain('Confirm receipt');expect(html).not.toContain('Loading handover receipt');expect(html).not.toContain('authority_json');});
@@ -418,7 +418,7 @@ describe('Handover current seed and exact submitted receipt',()=>{
  test('a first definitive current denial allows review but later denial cannot erase an uncertain original result',async()=>{let count=0;const commands=createHandoverReceiptCommands(async()=>Response.json({error:{message:'Original current recipient'}},{status:++count===1?503:403}),()=> 'key'),attempt=commands.prepare(handoverEndpoint,'post',3,'original');await expect(commands.execute(attempt,()=> 'original')).rejects.toThrow('Original current recipient');await expect(commands.execute(attempt,()=> 'original')).rejects.toThrow('Original current recipient');expect(commands.pending()).toEqual(attempt);const denied=createHandoverReceiptCommands(async()=>Response.json({error:{message:'Original current recipient'}},{status:403}),()=> 'key');await expect(denied.execute(denied.prepare(handoverEndpoint,'post',3,'original'),()=> 'original')).rejects.toThrow('Original current recipient');expect(denied.pending()).toBeNull();});
 });
 
-import {createHandoverPublishCommands,handoverPublishReceiptMatches,handoverViewMatches,type HandoverInput} from '@erpx/feature-work_projection/lib/handover-command';
+import {createHandoverPublishCommands,handoverPublishReceiptMatches,handoverViewMatches,type HandoverInput} from '@erpx/work-projection-ui/lib/handover-command';
 const handoverPublishInput:HandoverInput={date:'2026-10-16',body:'Original reviewed handover',sources:[{id:'task',sourceVersion:3,kind:'staff_task'}],recipientIds:['receiver']},handoverPublishKey='11111111-1111-4111-8111-111111111111';
 const publishedHandover={id:`post-post-draft-${handoverPublishKey}`,version:1};
 describe('Handover publication exact recovery and retained newer drafts',()=>{
@@ -431,7 +431,7 @@ describe('Handover publication exact recovery and retained newer drafts',()=>{
  test('rejects a partial source snapshot rather than replacing the current draft or licensing missing work',()=>{const view:HandoverView={date:'2026-10-16',ownerKey:'same-owner',items:[{id:'task',title:'Task',status:'ready',href:'/staff-tasks/task',updatedAt:1,kind:'pending',sourceVersion:3,planned:false,sourceKind:'staff_task'}],defaultIds:['task'],people:[{id:'receiver',name:'Receiver'}],unavailable:false,reason:null};expect(handoverViewMatches(view)).toBe(true);expect(handoverViewMatches({...view,defaultIds:['missing']})).toBe(false);expect(handoverViewMatches({...view,items:[{...view.items[0],sourceVersion:'3'}]})).toBe(false);expect(handoverViewMatches({...view,people:[{id:'receiver'}]})).toBe(false);});
 });
 
-import {matchesOperationsReceipt} from '@erpx/feature-operations/lib/operations-work-model';
+import {matchesOperationsReceipt} from '@erpx/operations-ui/lib/operations-work-model';
 describe('original Operations acknowledgement identity',()=>{
  test('new policy and exception acknowledgements bind to their original key',()=>{
   expect(matchesOperationsReceipt('{"entity":"policy"}','original',{id:'queue-policy-original',version:1,status:'draft'})).toBe(true);
@@ -456,14 +456,14 @@ describe('original Operations acknowledgement identity',()=>{
  });
 });
 
-import {fieldOnlyPolicy} from '../../../packages/server-operations/src/domain/field-ownership';
+import {fieldOnlyPolicy} from '../../../modules/operations/server/src/domain/field-ownership';
 test('legacy policy partition excludes only Field-only policies and retains mixed consumers',()=>{
  expect(fieldOnlyPolicy(['field_service_order'])).toBe(true);expect(fieldOnlyPolicy(['field_service_order','field_service_order'])).toBe(true);
  for(const kinds of [[],['support_ticket'],['field_service_order','support_ticket'],['asset','field_service_order'],null,'field_service_order'])expect(fieldOnlyPolicy(kinds)).toBe(false);
 });
 
-import {OPERATIONS_STAFF_TASKS_SOURCE_SQL,identitySnapshotSources} from '../../../packages/server-operations/src/adapters/identity-snapshot-sources';
-import {collaborationNotificationSnapshotSources} from '../../../packages/server-operations/src/adapters/collaboration-notification-snapshot-sources';
+import {OPERATIONS_STAFF_TASKS_SOURCE_SQL,identitySnapshotSources} from '../../../modules/operations/server/src/adapters/identity-snapshot-sources';
+import {collaborationNotificationSnapshotSources} from '../../../modules/operations/server/src/adapters/collaboration-notification-snapshot-sources';
 describe('Operations staff_tasks snapshot sources share one canonical projection',()=>{
  test('the canonical projection owns a single fixed read over staff_tasks',()=>{
   expect(OPERATIONS_STAFF_TASKS_SOURCE_SQL.match(/SELECT /g)).toHaveLength(1);
@@ -479,23 +479,23 @@ describe('Operations staff_tasks snapshot sources share one canonical projection
 
 import {readFileSync,readdirSync} from 'node:fs';
 import {resolve} from 'node:path';
-import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL,operationsActiveDelegationSql,operationsChildJsonSql,operationsChildAggJsonSql,operationsChildJsonByBoundId} from '../../../packages/server-operations/src/adapters/task-delegation-source';
-import {workforceActorScopeSql,OPERATIONS_VIEWER_CLOCK_SQL,operationsActorScopeInput,operationsActorScopeInputExists,operationsPurchasedActorScopeClockExists} from '../../../packages/server-operations/src/adapters/workforce-actor-scope-source';
-import {operationsOwnerVersionExists} from '../../../packages/server-operations/src/adapters/identity-policy-version-guard';
-import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/feature-availability';
-import {OPERATIONS_TASK_START_APPROVER_SQL,OPERATIONS_TASK_COMPLETION_APPROVER_SQL,approverJsonExistsSql} from '../../../packages/server-operations/src/adapters/task-approver-access-source';
-import {handoverTaskAccessSql} from '../../../packages/server-operations/src/adapters/handover-policy';
-import {taskParticipantReadPolicy} from '../../../packages/server-operations/src/adapters/project-task-record-policy';
-import {projectSourceProbe} from '../../../packages/server-operations/src/adapters/record-purchases';
-import {operationsOverdueAlertSql} from '../../../packages/server-operations/src/adapters/executive-task-cohort';
-import {workCacheOperationsDeadlines} from '../../../packages/server-operations/src/adapters/work-cache-deadlines';
-import {operationsSocialTaskOriginExists} from '../../../packages/server-operations/src/adapters/social-task-origin-exists';
-import {operationsReceiptVersionExists} from '../../../packages/server-operations/src/adapters/operations-receipt-version-exists';
-import {operationsStaffTaskExists} from '../../../packages/server-operations/src/adapters/operations-staff-task-exists';
-import {operationsProjectSourceExists} from '../../../packages/server-operations/src/adapters/project-source-exists';
-import {operationsAliasSelectAll} from '../../../packages/server-operations/src/adapters/operations-alias-select-all';
-import {finalRootOwnerProjectionSources as collaborationProjectionSources} from '@erpx/server-collaboration/public/final-root-owner-projection-sources';
+import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL,operationsActiveDelegationSql,operationsChildJsonSql,operationsChildAggJsonSql,operationsChildJsonByBoundId} from '../../../modules/operations/server/src/adapters/task-delegation-source';
+import {workforceActorScopeSql,OPERATIONS_VIEWER_CLOCK_SQL,operationsActorScopeInput,operationsActorScopeInputExists,operationsPurchasedActorScopeClockExists} from '../../../modules/operations/server/src/adapters/workforce-actor-scope-source';
+import {operationsOwnerVersionExists} from '../../../modules/operations/server/src/adapters/identity-policy-version-guard';
+import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/commercial-server/public/purchased-capability-sql';
+import {scheduledFeaturePredicate} from '@erpx/pms-server/public/feature-availability';
+import {OPERATIONS_TASK_START_APPROVER_SQL,OPERATIONS_TASK_COMPLETION_APPROVER_SQL,approverJsonExistsSql} from '../../../modules/operations/server/src/adapters/task-approver-access-source';
+import {handoverTaskAccessSql} from '../../../modules/operations/server/src/adapters/handover-policy';
+import {taskParticipantReadPolicy} from '../../../modules/operations/server/src/adapters/project-task-record-policy';
+import {projectSourceProbe} from '../../../modules/operations/server/src/adapters/record-purchases';
+import {operationsOverdueAlertSql} from '../../../modules/operations/server/src/adapters/executive-task-cohort';
+import {workCacheOperationsDeadlines} from '../../../modules/operations/server/src/adapters/work-cache-deadlines';
+import {operationsSocialTaskOriginExists} from '../../../modules/operations/server/src/adapters/social-task-origin-exists';
+import {operationsReceiptVersionExists} from '../../../modules/operations/server/src/adapters/operations-receipt-version-exists';
+import {operationsStaffTaskExists} from '../../../modules/operations/server/src/adapters/operations-staff-task-exists';
+import {operationsProjectSourceExists} from '../../../modules/operations/server/src/adapters/project-source-exists';
+import {operationsAliasSelectAll} from '../../../modules/operations/server/src/adapters/operations-alias-select-all';
+import {finalRootOwnerProjectionSources as collaborationProjectionSources} from '@erpx/collaboration-server/public/final-root-owner-projection-sources';
 describe('Operations task delegation source dedupe',()=>{
  const fragment='(SELECT jsonb_agg(to_jsonb(delegation) ORDER BY delegation.id) FROM staff_task_delegations delegation WHERE delegation.task_id=t.id AND delegation.company_id=t.company_id)';
  test('the canonical projection owns a single byte-identical delegation read',()=>{
@@ -503,13 +503,13 @@ describe('Operations task delegation source dedupe',()=>{
   expect(OPERATIONS_TASK_DELEGATION_SOURCE_SQL.match(/SELECT /g)).toHaveLength(1);
  });
  test('the remaining TypeScript builder composes the canonical interpolation and the native plan freezes it',()=>{
-  const reader=readFileSync(new URL('../../../packages/server-operations/src/adapters/task-attachment-read.ts',import.meta.url),'utf8');
+  const reader=readFileSync(new URL('../../../modules/operations/server/src/adapters/task-attachment-read.ts',import.meta.url),'utf8');
   expect(reader).toContain('${OPERATIONS_TASK_DELEGATION_SOURCE_SQL}');
   expect(reader).not.toContain(fragment);
-  const purchaser=readFileSync(new URL('../../../packages/server-operations/src/adapters/task-attachment-purchases.ts',import.meta.url),'utf8');
+  const purchaser=readFileSync(new URL('../../../modules/operations/server/src/adapters/task-attachment-purchases.ts',import.meta.url),'utf8');
   expect(purchaser).not.toMatch(/SELECT /);
   expect(purchaser).toContain('OPERATIONS_RD_TASK_ATTACHMENT_PURCHASE_WITNESS');
-  const native=readFileSync(new URL('../../../packages/server-operations/src/adapters/native_operations_read_sql.rs',import.meta.url),'utf8');
+  const native=readFileSync(new URL('../../../modules/operations/server/src/adapters/native_operations_read_sql.rs',import.meta.url),'utf8');
   expect(native).toContain(fragment);
   expect(native).toContain('operations_rd_task_attachment_purchase_witness');
  });
@@ -525,15 +525,15 @@ describe('Operations task image template/schedule source dedupe',()=>{
   expect(OPERATIONS_TASK_SCHEDULE_SOURCE_SQL.match(/SELECT /g)).toHaveLength(1);
  });
  test('the remaining TypeScript builder composes the canonical interpolations and the native plan freezes them',()=>{
-  const reader=readFileSync(new URL('../../../packages/server-operations/src/adapters/task-attachment-read.ts',import.meta.url),'utf8');
+  const reader=readFileSync(new URL('../../../modules/operations/server/src/adapters/task-attachment-read.ts',import.meta.url),'utf8');
   expect(reader).toContain('${OPERATIONS_TASK_TEMPLATE_SOURCE_SQL}');
   expect(reader).toContain('${OPERATIONS_TASK_SCHEDULE_SOURCE_SQL}');
   expect(reader).not.toContain(templateFragment);
   expect(reader).not.toContain(scheduleFragment);
-  const purchaser=readFileSync(new URL('../../../packages/server-operations/src/adapters/task-attachment-purchases.ts',import.meta.url),'utf8');
+  const purchaser=readFileSync(new URL('../../../modules/operations/server/src/adapters/task-attachment-purchases.ts',import.meta.url),'utf8');
   expect(purchaser).not.toMatch(/SELECT /);
   expect(purchaser).toContain('OPERATIONS_RD_TASK_ATTACHMENT_PURCHASE_WITNESS_OWNED');
-  const native=readFileSync(new URL('../../../packages/server-operations/src/adapters/native_operations_read_sql.rs',import.meta.url),'utf8');
+  const native=readFileSync(new URL('../../../modules/operations/server/src/adapters/native_operations_read_sql.rs',import.meta.url),'utf8');
   expect(native).toContain(templateFragment);
   expect(native).toContain(scheduleFragment);
   expect(native).toContain('operations_rd_task_attachment_purchase_witness_owned');
@@ -548,7 +548,7 @@ describe('Operations workforce actor scope dedupe',()=>{
  });
  test('both source readers compose the canonical clause and keep no local literal',()=>{
   for(const name of ['record-purchases.ts','task-attachment-read.ts']){
-   const source=readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+   const source=readFileSync(new URL(`../../../modules/operations/server/src/adapters/${name}`,import.meta.url),'utf8');
    expect(source).toContain('workforceActorScopeSql(');
    expect(source).not.toContain(fragment);
   }
@@ -566,7 +566,7 @@ describe('Operations task approver access dedupe',()=>{
  });
  test('both owner readers compose the canonical clauses and keep no local literal',()=>{
   for(const name of ['staff-task-read.ts','executive-task-cohort.ts']){
-   const source=readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+   const source=readFileSync(new URL(`../../../modules/operations/server/src/adapters/${name}`,import.meta.url),'utf8');
    expect(source).toContain('${OPERATIONS_TASK_START_APPROVER_SQL}');
    expect(source).toContain('${OPERATIONS_TASK_COMPLETION_APPROVER_SQL}');
    expect(source).not.toContain(startFragment);
@@ -590,7 +590,7 @@ describe('Operations approver JSON exists alias/column family dedupe',()=>{
   expect(project).toContain(canonical('project_task_record','start','v.user_id'));
   expect(project).toContain(canonical('project_task_record','completion','v.user_id'));
   for(const name of ['handover-policy.ts','project-task-record-policy.ts']){
-   const source=readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+   const source=readFileSync(new URL(`../../../modules/operations/server/src/adapters/${name}`,import.meta.url),'utf8');
    expect(source).toContain('approverJsonExistsSql(');
    expect(source).not.toContain('erpx_json_each(');
   }
@@ -599,15 +599,15 @@ describe('Operations approver JSON exists alias/column family dedupe',()=>{
 
 describe('Operations approval-instance image retirement',()=>{
  test('the dead image renderer is gone and the native plan owns both literals',()=>{
-  const delegation=readFileSync(new URL('../../../packages/server-operations/src/adapters/task-delegation-source.ts',import.meta.url),'utf8');
+  const delegation=readFileSync(new URL('../../../modules/operations/server/src/adapters/task-delegation-source.ts',import.meta.url),'utf8');
   expect(delegation).not.toContain('operationsApprovalImageSql');
   expect(delegation).not.toContain("(SELECT jsonb_agg(jsonb_build_object('instance'");
-  const native=readFileSync(new URL('../../../packages/server-operations/src/adapters/native_operations_read_sql.rs',import.meta.url),'utf8');
+  const native=readFileSync(new URL('../../../modules/operations/server/src/adapters/native_operations_read_sql.rs',import.meta.url),'utf8');
   for(const [name,literal] of [
    ['work-task-alert-purchases.ts',"'approval',(SELECT jsonb_agg(jsonb_build_object('instance',to_jsonb(instance)"],
    ['work-task-purchases.ts',"'approvals',(SELECT jsonb_agg(jsonb_build_object('instance',to_jsonb(a)"],
   ] as const){
-   const source=readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+   const source=readFileSync(new URL(`../../../modules/operations/server/src/adapters/${name}`,import.meta.url),'utf8');
    expect(source).not.toContain(literal);
    expect(native).toContain(literal);
   }
@@ -630,7 +630,7 @@ describe('Operations active-delegation clock window dedupe',()=>{
  });
  test('all four readers compose the canonical window and keep no local literal',()=>{
   for(const name of ['executive-task-cohort.ts','project-task-record-policy.ts','task-attachment-purchases.ts','staff-task-read.ts']){
-   const source=readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+   const source=readFileSync(new URL(`../../../modules/operations/server/src/adapters/${name}`,import.meta.url),'utf8');
    expect(source).toContain('operationsActiveDelegationSql(');
    expect(source).not.toContain('FROM staff_task_delegations sd WHERE sd.task_id=');
    expect(source).not.toContain('FROM staff_task_delegations delegation WHERE delegation.task_id=');
@@ -648,7 +648,7 @@ describe('Operations project-source history probe dedupe',()=>{
   expect(projectSourceProbe('staff_tasks',workWhere).match(/SELECT /g)).toHaveLength(1);
  });
  test('both metric gates compose the canonical probe and keep no local literal',()=>{
-  const source=readFileSync(new URL('../../../packages/server-operations/src/adapters/record-purchases.ts',import.meta.url),'utf8');
+  const source=readFileSync(new URL('../../../modules/operations/server/src/adapters/record-purchases.ts',import.meta.url),'utf8');
   expect(source).toContain("projectSourceProbe('staff_tasks',source.where)");
   expect(source).toContain("projectSourceProbe('routine_templates',routineScope.where)");
   expect(source).not.toContain('SELECT 1 FROM staff_tasks t WHERE t.company_id=? AND t.project_id IS NOT NULL AND');
@@ -670,14 +670,14 @@ describe('Operations task-image child JSON projection dedupe',()=>{
   for(const sql of [operationsChildJsonSql('t','a','b','c'),operationsChildAggJsonSql('t','a','c')])expect(sql.match(/SELECT /g)).toHaveLength(1);
  });
  test('the image readers compose the canonical projections and keep no local literal',()=>{
-  const evalSrc=readFileSync(new URL('../../../packages/server-operations/src/adapters/people-evaluation-work-facts.ts',import.meta.url),'utf8');
+  const evalSrc=readFileSync(new URL('../../../modules/operations/server/src/adapters/people-evaluation-work-facts.ts',import.meta.url),'utf8');
   expect(evalSrc).toContain("operationsChildJsonSql('routine_templates','template','template_id','evaluation_task')");
   expect(evalSrc).toContain("operationsChildJsonSql('routine_schedules','schedule','schedule_id','evaluation_task')");
   expect(evalSrc).toContain("operationsChildAggJsonSql('staff_task_delegations','d','evaluation_task')");
   expect(evalSrc).not.toContain('(SELECT to_jsonb(template) FROM routine_templates template WHERE template.id=evaluation_task');
   expect(evalSrc).not.toContain('(SELECT to_jsonb(schedule) FROM routine_schedules schedule WHERE schedule.id=evaluation_task');
   expect(evalSrc).not.toContain('(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM staff_task_delegations d WHERE d.task_id=evaluation_task');
-  const srcSrc=readFileSync(new URL('../../../packages/server-operations/src/adapters/task-delegation-source.ts',import.meta.url),'utf8');
+  const srcSrc=readFileSync(new URL('../../../modules/operations/server/src/adapters/task-delegation-source.ts',import.meta.url),'utf8');
   expect(srcSrc).toContain("operationsChildJsonSql('routine_templates','template','template_id','t')");
   expect(srcSrc).toContain("operationsChildAggJsonSql('staff_task_delegations','delegation','t')");
  });
@@ -691,7 +691,7 @@ describe('Operations bound-parameter child JSON and viewer clock dedupe',()=>{
   expect(operationsChildJsonByBoundId('t','a').match(/SELECT /g)).toHaveLength(1);
  });
  test('the routine reference image composes the canonical projection and keeps no local literal',()=>{
-  const src=readFileSync(new URL('../../../packages/server-operations/src/adapters/work-task-purchases.ts',import.meta.url),'utf8');
+  const src=readFileSync(new URL('../../../modules/operations/server/src/adapters/work-task-purchases.ts',import.meta.url),'utf8');
   expect(src).toContain("operationsChildJsonByBoundId('routine_templates','t')");
   expect(src).toContain("operationsChildJsonByBoundId('routine_schedules','s')");
   expect(src).not.toContain("(SELECT to_jsonb(t) FROM routine_templates t WHERE t.id=?");
@@ -699,8 +699,8 @@ describe('Operations bound-parameter child JSON and viewer clock dedupe',()=>{
  });
  test('the projection and attachment guards compose the canonical viewer clock and keep no local literal',()=>{
   expect(OPERATIONS_VIEWER_CLOCK_SQL).toBe('(SELECT ?::text user_id,?::text assignment_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms)');
-  const src=readFileSync(new URL('../../../packages/server-operations/src/adapters/record-purchases.ts',import.meta.url),'utf8');
-  const attachment=readFileSync(new URL('../../../packages/server-operations/src/adapters/task-attachment-purchases.ts',import.meta.url),'utf8');
+  const src=readFileSync(new URL('../../../modules/operations/server/src/adapters/record-purchases.ts',import.meta.url),'utf8');
+  const attachment=readFileSync(new URL('../../../modules/operations/server/src/adapters/task-attachment-purchases.ts',import.meta.url),'utf8');
   expect(src).toContain("operationsViewerClockHead(viewer,' ')");
   expect(attachment).toContain('operationsViewerClockHead(viewer)');
   expect(src).not.toContain('MATERIALIZED(SELECT ?::text user_id,?::text assignment_id,floor(');
@@ -709,7 +709,7 @@ describe('Operations bound-parameter child JSON and viewer clock dedupe',()=>{
 });
 
 describe('Operations read-tail r38 dedupe',()=>{
- const source=(name:string)=>readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+ const source=(name:string)=>readFileSync(new URL(`../../../modules/operations/server/src/adapters/${name}`,import.meta.url),'utf8');
  const clock=`,${packageClockSql} now_ms`;
  test('actor scope input family renders every inline variant byte-identically',()=>{
   expect(operationsActorScopeInput('a.company_id','?::text branch_id','?::text department_id')).toBe('(SELECT a.company_id,?::text branch_id,?::text department_id)');
@@ -748,7 +748,7 @@ test('owner-version guard family renders all four sites byte-identically',()=>{
   for(const name of ['identity-policy-version-guard.ts','attachments-service-facts.ts','staff-policy.ts','staff-tasks.ts'])expect(source(name)).toContain('operationsOwnerVersionExists(');
  });
  test('retirement:ts-statements stays strictly below the r38 BEFORE=125 baseline',()=>{
-  const root=resolve(__dirname,'../../../packages/server-operations/src');
+  const root=resolve(__dirname,'../../../modules/operations/server/src');
   let space=0;
   const walk=(dir:string)=>{
    for(const entry of readdirSync(dir,{withFileTypes:true})){
@@ -766,7 +766,7 @@ test('owner-version guard family renders all four sites byte-identically',()=>{
 });
 
 describe('Operations read-tail r39 retirement',()=>{
-  const source=(name:string)=>readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+  const source=(name:string)=>readFileSync(new URL(`../../../modules/operations/server/src/adapters/${name}`,import.meta.url),'utf8');
   test('purchased actor-scope clock probe renders both readers byte-identically',()=>{
     const where='<WHERE>';
     const purchased=` AND ${purchasedCapabilityPredicate('workforce_actor_scope.company_id','work.actions','history','workforce_actor_scope.now_ms')}`;
@@ -795,7 +795,7 @@ describe('Operations read-tail r39 retirement',()=>{
     expect(queued).toContain('LOCK TABLE staff_tasks,staff_task_delegations,routine_templates,routine_schedules IN SHARE ROW EXCLUSIVE MODE');
   });
   test('retirement:ts-statements stays strictly below the r39 BEFORE=117 baseline',()=>{
-    const root=resolve(__dirname,'../../../packages/server-operations/src');
+    const root=resolve(__dirname,'../../../modules/operations/server/src');
     let space=0;
     const walk=(dir:string)=>{
      for(const entry of readdirSync(dir,{withFileTypes:true})){
@@ -813,7 +813,7 @@ describe('Operations read-tail r39 retirement',()=>{
 });
 
 describe('Operations read-tail r40 retirement',()=>{
-  const source=(name:string)=>readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+  const source=(name:string)=>readFileSync(new URL(`../../../modules/operations/server/src/adapters/${name}`,import.meta.url),'utf8');
   const sn=collaborationProjectionSources.staff_notifications;
   test('overdue-alert family renders both readers byte-identically',()=>{
     expect(`(${operationsOverdueAlertSql('min(n.created_at)','t')})`).toBe(`(SELECT min(n.created_at) FROM (${sn}) n WHERE n.company_id=t.company_id AND n.user_id=? AND n.record_type='staff_task_alert' AND n.record_id=t.id AND n.record_version=t.version AND n.id LIKE 'staff-task-alert-overdue-%')`);
@@ -838,7 +838,7 @@ describe('Operations read-tail r40 retirement',()=>{
     expect(metric).not.toContain("SELECT 'Published' label,count(*)::text value FROM routine_templates t WHERE");
   });
   test('retirement:ts-statements stays strictly below the r40 BEFORE=114 baseline',()=>{
-    const root=resolve(__dirname,'../../../packages/server-operations/src');
+    const root=resolve(__dirname,'../../../modules/operations/server/src');
     let space=0;
     const walk=(dir:string)=>{
       for(const entry of readdirSync(dir,{withFileTypes:true})){
@@ -856,7 +856,7 @@ describe('Operations read-tail r40 retirement',()=>{
 });
 
 describe('Operations read-tail r41 retirement',()=>{
-  const source=(name:string)=>readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+  const source=(name:string)=>readFileSync(new URL(`../../../modules/operations/server/src/adapters/${name}`,import.meta.url),'utf8');
   const branch=(column:string)=>`SELECT ${column} FROM staff_task_delegations WHERE status='active'`;
   test('the two cache-fence deadline branches render byte-identically',()=>{
     expect(workCacheOperationsDeadlines()).toBe(`${branch('starts_at')} UNION ALL ${branch('expires_at')}`);
@@ -876,7 +876,7 @@ describe('Operations read-tail r41 retirement',()=>{
     expect(source('executive-task-cohort.ts')).toContain('operationsOverdueAlertSql');
   });
   test('retirement:ts-statements stays strictly below the r41 BEFORE=111 baseline',()=>{
-    const root=resolve(__dirname,'../../../packages/server-operations/src');
+    const root=resolve(__dirname,'../../../modules/operations/server/src');
     let space=0;
     const walk=(dir:string)=>{
       for(const entry of readdirSync(dir,{withFileTypes:true})){
@@ -894,7 +894,7 @@ describe('Operations read-tail r41 retirement',()=>{
 });
 
 describe('Operations read-tail r42 retirement',()=>{
-  const source=(name:string)=>readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+  const source=(name:string)=>readFileSync(new URL(`../../../modules/operations/server/src/adapters/${name}`,import.meta.url),'utf8');
   const probe=(alias:string,task:string)=>`EXISTS(SELECT 1 FROM (${collaborationProjectionSources.social_task_origins}) ${alias} WHERE ${alias}.task_id=${task})`;
   test('the two social task-origin probes render byte-identically',()=>{
     expect(operationsSocialTaskOriginExists('ox','t.id')).toBe(probe('ox','t.id'));
@@ -918,7 +918,7 @@ describe('Operations read-tail r42 retirement',()=>{
     expect(source('work-cache-deadlines.ts')).toContain('activeDelegationDeadline');
   });
   test('retirement:ts-statements stays strictly below the r42 BEFORE=110 baseline',()=>{
-    const root=resolve(__dirname,'../../../packages/server-operations/src');
+    const root=resolve(__dirname,'../../../modules/operations/server/src');
     let space=0;
     const walk=(dir:string)=>{
       for(const entry of readdirSync(dir,{withFileTypes:true})){
@@ -934,7 +934,7 @@ describe('Operations read-tail r42 retirement',()=>{
 });
 
 describe('Operations read-tail r43 retirement',()=>{
-  const source=(name:string)=>readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+  const source=(name:string)=>readFileSync(new URL(`../../../modules/operations/server/src/adapters/${name}`,import.meta.url),'utf8');
   const guard=(prefix:string,company:string,idClause:string,state:string,version:string)=>`EXISTS(SELECT 1 FROM command_receipts receipt WHERE ${prefix} AND receipt.authority_json::jsonb->>'companyId'=${company}${idClause} AND receipt.result_json::jsonb->>'state'=${state} AND (receipt.result_json::jsonb->>'version')::bigint<=${version})`;
   const taskPrefix="receipt.record_id=t.id AND receipt.operation IN ('task.complete','task.approve','task.cancel')";
   const schedulePrefix="receipt.operation='routine.schedule.end' AND receipt.record_id=s.id";
@@ -963,7 +963,7 @@ describe('Operations read-tail r43 retirement',()=>{
     expect(source('executive-task-cohort.ts')).toContain('operationsOverdueAlertSql');
   });
   test('retirement:ts-statements stays strictly below the r43 BEFORE=109 baseline',()=>{
-    const root=resolve(__dirname,'../../../packages/server-operations/src');
+    const root=resolve(__dirname,'../../../modules/operations/server/src');
     let space=0;
     const walk=(dir:string)=>{
       for(const entry of readdirSync(dir,{withFileTypes:true})){
@@ -979,7 +979,7 @@ describe('Operations read-tail r43 retirement',()=>{
 });
 
 describe('Operations read-tail r44 retirement',()=>{
-  const source=(name:string)=>readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+  const source=(name:string)=>readFileSync(new URL(`../../../modules/operations/server/src/adapters/${name}`,import.meta.url),'utf8');
   const exists=(alias:string,id:string,tail:string)=>`EXISTS(SELECT 1 FROM staff_tasks ${alias} WHERE ${alias}.id=${id} AND ${tail})`;
   test('the project and non-project workspace guards render byte-identically',()=>{
     expect(operationsStaffTaskExists('work_record_project','workspace_records.id','work_record_project.company_id=workspace_records.company_id AND work_record_project.project_id IS NOT NULL')).toBe(exists('work_record_project','workspace_records.id','work_record_project.company_id=workspace_records.company_id AND work_record_project.project_id IS NOT NULL'));
@@ -1008,7 +1008,7 @@ describe('Operations read-tail r44 retirement',()=>{
     expect(source('work-cache-deadlines.ts')).toContain('activeDelegationDeadline');
   });
   test('retirement:ts-statements stays strictly below the r44 BEFORE=108 baseline',()=>{
-    const root=resolve(__dirname,'../../../packages/server-operations/src');
+    const root=resolve(__dirname,'../../../modules/operations/server/src');
     let space=0;
     const walk=(dir:string)=>{
       for(const entry of readdirSync(dir,{withFileTypes:true})){
@@ -1024,7 +1024,7 @@ describe('Operations read-tail r44 retirement',()=>{
 });
 
 describe('Operations read-tail r45 retirement',()=>{
-  const source=(name:string)=>readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+  const source=(name:string)=>readFileSync(new URL(`../../../modules/operations/server/src/adapters/${name}`,import.meta.url),'utf8');
   const probe=(source:string,alias:string,predicate:string)=>`EXISTS(SELECT 1 FROM (${source}) ${alias} WHERE ${predicate})`;
   const ownerPredicate=`sp.id=t.project_id AND sp.company_id=t.company_id
       AND iam_same_person(sp.owner_user_id,?,t.company_id)`;
@@ -1057,7 +1057,7 @@ describe('Operations read-tail r45 retirement',()=>{
     expect(source('operations-staff-task-exists.ts')).toContain('operationsStaffTaskExists');
   });
   test('retirement:ts-statements stays strictly below the r45 BEFORE=107 baseline',()=>{
-    const root=resolve(__dirname,'../../../packages/server-operations/src');
+    const root=resolve(__dirname,'../../../modules/operations/server/src');
     let space=0;
     const walk=(dir:string)=>{
       for(const entry of readdirSync(dir,{withFileTypes:true})){
@@ -1073,7 +1073,7 @@ describe('Operations read-tail r45 retirement',()=>{
 });
 
 describe('Operations read-tail r46 retirement',()=>{
-  const source=(name:string)=>readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+  const source=(name:string)=>readFileSync(new URL(`../../../modules/operations/server/src/adapters/${name}`,import.meta.url),'utf8');
   const head=(alias:string,table:string,tail:string)=>`SELECT ${alias}.* FROM ${table} ${alias} WHERE ${tail}`;
   const opsTail=`\${scope} AND e.source_kind<>'field_service_order' ORDER BY e.updated_at DESC LIMIT 200`;
   const metricTail='${visibility.sql} AND ${cohort.sql} AND ${purchase.where}';
@@ -1105,7 +1105,7 @@ describe('Operations read-tail r46 retirement',()=>{
     expect(source('work-cache-deadlines.ts')).toContain('activeDelegationDeadline');
   });
   test('retirement:ts-statements stays strictly below the r46 BEFORE=106 baseline',()=>{
-    const root=resolve(__dirname,'../../../packages/server-operations/src');
+    const root=resolve(__dirname,'../../../modules/operations/server/src');
     let space=0;
     const walk=(dir:string)=>{
       for(const entry of readdirSync(dir,{withFileTypes:true})){

@@ -5,17 +5,17 @@
 //! source and the Finance Money capture are implemented here as the producer
 //! ports composition will supply; their owner SQL is not exercised. These tests
 //! do not prove a Next/browser journey or composition mounting.
-use erpx_server_ecommerce::public::listing::{
+use erpx_ecommerce_server::public::listing::{
     ChangeListing, CreateListing, EcommerceActor, EcommerceFunctionalCurrency,
     EcommerceListingMoneyRequest, EcommerceListingMoneySnapshot, PgEcommerceListing,
     PgEcommerceListingCommerceSource, PgEcommerceListingMoneyCapture, change_listing,
     create_listing,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabaseConfig, DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, PoolLimits,
     TransactionOptions, connect_pool, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, RecordId,
     TimestampMillis, UserId,
 };
@@ -358,7 +358,7 @@ async fn run_create(
     command: CreateListing,
     commerce: &'static dyn PgEcommerceListingCommerceSource,
 ) -> Result<
-    erpx_server_ecommerce::public::listing::EcommerceReceipt,
+    erpx_ecommerce_server::public::listing::EcommerceReceipt,
     PgTransactionError<BusinessError>,
 > {
     PgUnitOfWork::new(pool.clone())
@@ -379,7 +379,7 @@ async fn run_create_without_sources(
     actor: EcommerceActor,
     command: CreateListing,
 ) -> Result<
-    erpx_server_ecommerce::public::listing::EcommerceReceipt,
+    erpx_ecommerce_server::public::listing::EcommerceReceipt,
     PgTransactionError<BusinessError>,
 > {
     PgUnitOfWork::new(pool.clone())
@@ -399,7 +399,7 @@ async fn run_change(
     actor: EcommerceActor,
     command: ChangeListing,
 ) -> Result<
-    erpx_server_ecommerce::public::listing::EcommerceReceipt,
+    erpx_ecommerce_server::public::listing::EcommerceReceipt,
     PgTransactionError<BusinessError>,
 > {
     PgUnitOfWork::new(pool.clone())

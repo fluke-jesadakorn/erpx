@@ -2,13 +2,13 @@
 //! recording fake: real PostgreSQL CAS/rollback cases live in the integration
 //! target, while this target proves validation, authority, scope, replay and
 //! no-fallback order before any owner write.
-use erpx_server_operations::public::field_exceptions::Exception;
-use erpx_server_operations::public::field_policy::QueuePolicy;
-use erpx_server_operations::public::operations_commands::*;
-use erpx_server_shared::public::record_source_contract::{
+use erpx_operations_server::public::field_exceptions::Exception;
+use erpx_operations_server::public::field_policy::QueuePolicy;
+use erpx_operations_server::public::operations_commands::*;
+use erpx_platform_shared_server::public::record_source_contract::{
     SourceKind, SourceRecord, SourceReference,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::collections::{HashMap, HashSet};
 
 struct Repo {

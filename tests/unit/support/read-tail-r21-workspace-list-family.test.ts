@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-support/src');
+const srcRoot = resolve(__dirname, '../../../modules/support/server/src');
 const incidents = readFileSync(resolve(srcRoot, 'adapters/support-incidents.ts'), 'utf8');
 const src = (p: string) => readFileSync(resolve(srcRoot, p), 'utf8');
 

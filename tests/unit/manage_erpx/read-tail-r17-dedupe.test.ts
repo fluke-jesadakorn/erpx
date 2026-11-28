@@ -1,13 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
 import { readFile, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { usageHeadSql } from '../../../packages/server-manage_erpx/src/adapters/usage-head-sql';
+import { usageHeadSql } from '../../../modules/manage-erpx/server/src/adapters/usage-head-sql';
 
 vi.mock('server-only', () => ({}));
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-manage_erpx/src/adapters/${name}`, import.meta.url);
-const srcDir = new URL('../../../packages/server-manage_erpx/src/', import.meta.url);
+  new URL(`../../../modules/manage-erpx/server/src/adapters/${name}`, import.meta.url);
+const srcDir = new URL('../../../modules/manage-erpx/server/src/', import.meta.url);
 const sha256 = (s: string) => createHash('sha256').update(s, 'utf8').digest('hex');
 
 async function tsSources(dir: URL): Promise<string[]> {

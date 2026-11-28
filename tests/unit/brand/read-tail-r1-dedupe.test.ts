@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 vi.mock("server-only", () => ({}));
-import { LANE39_CONFIG_ENV } from "../../../packages/server-brand/src/adapters/native-lane-39/client";
+import { LANE39_CONFIG_ENV } from "../../../modules/brand/server/src/adapters/native-lane-39/client";
 
 /**
  * G4 / retire.brand.read-tail-r2: the two Brand management authority guards were
@@ -14,7 +14,7 @@ import { LANE39_CONFIG_ENV } from "../../../packages/server-brand/src/adapters/n
  * exact axum targets and the owner KPI.
  */
 const root = resolve(__dirname, "../../../");
-const srcRoot = resolve(root, "packages/server-brand/src");
+const srcRoot = resolve(root, "modules/brand/server/src");
 const adapters = resolve(srcRoot, "adapters");
 const read = (name: string) => readFileSync(resolve(adapters, name), "utf8");
 const count = (s: string, needle: string) => s.split(needle).length - 1;
@@ -74,7 +74,7 @@ describe("Brand management guard native cutover (lane 40)", () => {
   });
 
   test("both guards execute on the owner axum route with no TypeScript statement", async () => {
-    const ports = await import("../../../packages/server-brand/src/adapters/native-brand-management");
+    const ports = await import("../../../modules/brand/server/src/adapters/native-brand-management");
     const db = fakeDb();
     expect(await ports.nativeBrandManagementBranch(db, actor, "br-1"))
       .toEqual({ id: "br-1", display_name: "North" });
@@ -95,7 +95,7 @@ describe("Brand management guard native cutover (lane 40)", () => {
   });
 
   test("native guard failures and malformed rows fail closed without a TS fallback", async () => {
-    const ports = await import("../../../packages/server-brand/src/adapters/native-brand-management");
+    const ports = await import("../../../modules/brand/server/src/adapters/native-brand-management");
     const db = fakeDb();
     await expect(ports.nativeBrandManagementBranch(db, actor, "bad/id"))
       .rejects.toMatchObject({ code: "BRAND_MANAGEMENT_REQUEST_INVALID", status: 422 });
@@ -167,7 +167,7 @@ describe("Brand management guard native cutover (lane 40)", () => {
     for (const kind of ["workspace", "document", "profiles", "storefront", "evidence", "record-branch"])
       expect(router).toContain(`"${kind}"`);
     const composition = readFileSync(
-      resolve(root, "src/composition/src/private_development_api.rs"),
+      resolve(root, "platform/composition/src/private_development_api.rs"),
       "utf8",
     );
     expect(composition).toContain("branding_http_router(branding_targets)");
@@ -181,10 +181,10 @@ describe("Brand management guard native cutover (lane 40)", () => {
     );
     expect(fragment).toContain('storefrontBrandJoin="LEFT JOIN storefront_app_brands b ON b.company_id=c.id"');
     const consumer = readFileSync(
-      resolve(root, "packages/server-organization/src/adapters/front-company-facts.ts"),
+      resolve(root, "modules/organization/server/src/adapters/front-company-facts.ts"),
       "utf8",
     );
-    expect(consumer).toContain("@erpx/server-brand/public/front-brand-projection");
+    expect(consumer).toContain("@erpx/brand-server/public/front-brand-projection");
     const publicBranding = readFileSync(resolve(srcRoot, "public/branding.ts"), "utf8");
     expect(publicBranding).toContain("nativeReadStorefrontAppBrand");
     // The three native consumer switches stay explicit; an unset switch fails

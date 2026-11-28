@@ -13,11 +13,11 @@ import {
   INVENTORY_RD_TRANSIT_DISPATCH_LINES,
   INVENTORY_RD_TRANSIT_DETAIL_LOTS,
   INVENTORY_RD_SELECTABLE_TRANSIT_LOTS,
-} from '../../../packages/server-inventory/src/adapters/native-inventory-read';
+} from '../../../modules/inventory/server/src/adapters/native-inventory-read';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-inventory/src/adapters');
+const srcRoot = resolve(__dirname, '../../../modules/inventory/server/src/adapters');
 const src = (name: string) => readFileSync(resolve(srcRoot, name), 'utf8');
-const srcDir = resolve(__dirname, '../../../packages/server-inventory/src');
+const srcDir = resolve(__dirname, '../../../modules/inventory/server/src');
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
 
 /** Byte oracles captured verbatim from the retired HEAD TypeScript literals. */

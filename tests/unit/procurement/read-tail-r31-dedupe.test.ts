@@ -1,14 +1,14 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
-import { receiptImage } from '../../../packages/server-procurement/src/adapters/read-tail-r19';
-import { branchDepartmentScope } from '../../../packages/server-procurement/src/adapters/read-tail-sql';
-import { billReceiptBinding } from '../../../packages/server-procurement/src/adapters/read-tail-r23';
-import { foreignBillReceiptWitness } from '../../../packages/server-procurement/src/adapters/read-tail-r25';
-import { supplierBillOwnerPredicate } from '../../../packages/server-procurement/src/adapters/bill-source-sql';
-import { sourceImage } from '../../../packages/server-procurement/src/adapters/read-tail-r31';
+import { receiptImage } from '../../../modules/procurement/server/src/adapters/read-tail-r19';
+import { branchDepartmentScope } from '../../../modules/procurement/server/src/adapters/read-tail-sql';
+import { billReceiptBinding } from '../../../modules/procurement/server/src/adapters/read-tail-r23';
+import { foreignBillReceiptWitness } from '../../../modules/procurement/server/src/adapters/read-tail-r25';
+import { supplierBillOwnerPredicate } from '../../../modules/procurement/server/src/adapters/bill-source-sql';
+import { sourceImage } from '../../../modules/procurement/server/src/adapters/read-tail-r31';
 
 const src = (name: string) => readFileSync(
-  new URL(`../../../packages/server-procurement/src/adapters/${name}`, import.meta.url), 'utf8',
+  new URL(`../../../modules/procurement/server/src/adapters/${name}`, import.meta.url), 'utf8',
 );
 
 describe('Procurement read-tail r31 parameterized family dedupe', () => {
@@ -70,7 +70,7 @@ describe('Procurement read-tail r31 parameterized family dedupe', () => {
   });
 
   test('worktree SELECT count is strictly lower than the recorded BEFORE=125', () => {
-    const root = new URL('../../../packages/server-procurement/src/', import.meta.url);
+    const root = new URL('../../../modules/procurement/server/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {

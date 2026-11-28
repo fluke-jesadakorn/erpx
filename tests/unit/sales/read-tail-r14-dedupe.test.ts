@@ -6,7 +6,7 @@ import { describe, expect, test, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 
 
-const srcRoot = resolve(__dirname, '../../../packages/server-sales/src');
+const srcRoot = resolve(__dirname, '../../../modules/sales/server/src');
 const src = readFileSync(resolve(srcRoot, 'adapters/package-obligations.ts'), 'utf8');
 
 // SHA-256 of the full statement rendered by HEAD before the r14 dedupe, for

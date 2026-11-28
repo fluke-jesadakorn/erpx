@@ -5,7 +5,7 @@ import {
   isThaiHotelAiMockEnabled,
   isThaiHotelBrowserSimulation,
   isThaiHotelPayrollMockEnabled,
-} from "@erpx/server-runtime/adapters/simulation-only-adapters";
+} from "@erpx/platform-runtime-server/adapters/simulation-only-adapters";
 
 afterEach(() => vi.unstubAllEnvs());
 

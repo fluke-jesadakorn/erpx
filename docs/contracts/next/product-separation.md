@@ -276,16 +276,16 @@ Current boundary inventory:
 
 | Source | Boundary | Responsibility / remaining limit |
 | --- | --- | --- |
-| [packages/workplace/src/routes/product-entry/page.tsx](../../../packages/workplace/src/routes/product-entry/page.tsx) | Server | Host selection, identity, private entry and rendered links; no mount fetch |
-| [packages/server-work_projection/src/adapters/product-launcher.ts](../../../packages/server-work_projection/src/adapters/product-launcher.ts) | Server | Typed current authority/package reads; minimal link projection |
-| [packages/workplace/src/components/product-navigation-boundary.tsx](../../../packages/workplace/src/components/product-navigation-boundary.tsx) | Client | Dirty link guard and revalidation on focus; receives rendered children |
-| [packages/workplace/src/routes/login/page.tsx](../../../packages/workplace/src/routes/login/page.tsx) | Server | Account-host transaction continuation and existing sign-in choices |
-| [packages/workplace/src/routes/login/login-form.tsx](../../../packages/workplace/src/routes/login/login-form.tsx) | Client, existing | Credential form interaction; central SSO navigation/hydration still needs product-host browser acceptance |
-| [SSO route handler](../../../packages/workplace/src/routes/sso/[action]/route.ts) and identity owner adapters | Server | Cookies, state/PKCE/grants/session validation; no secret Client imports |
-| [packages/feature-identity_access/src/components/account-home.tsx](../../../packages/feature-identity_access/src/components/account-home.tsx) | Server | Own profile projection and dedicated inline Account form |
-| [packages/feature-identity_access/src/components/account-profile-form.tsx](../../../packages/feature-identity_access/src/components/account-profile-form.tsx) | Client | Name/language/theme draft, optimistic witness, context abort and explicit conflict recovery |
-| [packages/server-identity_access/src/public/account-preference-snapshot.ts](../../../packages/server-identity_access/src/public/account-preference-snapshot.ts) | Server | Request-private, cached opaque account key and language/theme seed; host defaults remain until the first saved preference |
-| [packages/feature-identity_access/src/components/account-preferences-context.tsx](../../../packages/feature-identity_access/src/components/account-preferences-context.tsx) | Client | Existing appearance controls, Front language, serialized preference saves and keyed peer/focus refresh; no matching-seed mount GET or business-tree remount |
+| [platform/workplace/src/routes/product-entry/page.tsx](../../../platform/workplace/src/routes/product-entry/page.tsx) | Server | Host selection, identity, private entry and rendered links; no mount fetch |
+| [modules/work-projection/server/src/adapters/product-launcher.ts](../../../modules/work-projection/server/src/adapters/product-launcher.ts) | Server | Typed current authority/package reads; minimal link projection |
+| [platform/workplace/src/components/product-navigation-boundary.tsx](../../../platform/workplace/src/components/product-navigation-boundary.tsx) | Client | Dirty link guard and revalidation on focus; receives rendered children |
+| [platform/workplace/src/routes/login/page.tsx](../../../platform/workplace/src/routes/login/page.tsx) | Server | Account-host transaction continuation and existing sign-in choices |
+| [platform/workplace/src/routes/login/login-form.tsx](../../../platform/workplace/src/routes/login/login-form.tsx) | Client, existing | Credential form interaction; central SSO navigation/hydration still needs product-host browser acceptance |
+| [SSO route handler](../../../platform/workplace/src/routes/sso/[action]/route.ts) and identity owner adapters | Server | Cookies, state/PKCE/grants/session validation; no secret Client imports |
+| [modules/identity-access/ui/src/components/account-home.tsx](../../../modules/identity-access/ui/src/components/account-home.tsx) | Server | Own profile projection and dedicated inline Account form |
+| [modules/identity-access/ui/src/components/account-profile-form.tsx](../../../modules/identity-access/ui/src/components/account-profile-form.tsx) | Client | Name/language/theme draft, optimistic witness, context abort and explicit conflict recovery |
+| [modules/identity-access/server/src/public/account-preference-snapshot.ts](../../../modules/identity-access/server/src/public/account-preference-snapshot.ts) | Server | Request-private, cached opaque account key and language/theme seed; host defaults remain until the first saved preference |
+| [modules/identity-access/ui/src/components/account-preferences-context.tsx](../../../modules/identity-access/ui/src/components/account-preferences-context.tsx) | Client | Existing appearance controls, Front language, serialized preference saves and keyed peer/focus refresh; no matching-seed mount GET or business-tree remount |
 | Existing owner presenters and root providers | Mixed, retained | Product-by-product inventory, provider separation and initial-snapshot measurements still open |
 
 This inventory describes the new foundation; it does not certify the broader product graphs.

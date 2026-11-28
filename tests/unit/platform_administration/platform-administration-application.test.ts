@@ -1,10 +1,10 @@
 import { expect, it } from "vitest";
-import { productionScope, legalProductionScope, criteriaForScope } from "@erpx/catalogue/production-scope";
-import { createReleaseAcceptanceApplication, type ReleaseRepository } from "@erpx/server-platform_administration/application/release-acceptance";
-import type { ReleaseRow } from "@erpx/server-platform_administration/domain/release-acceptance";
-import { createSystemEvidenceApplication, type SystemEvidenceTransaction } from "@erpx/server-platform_administration/application/system-evidence";
-import { createEngineeringVerificationApplication } from "@erpx/server-platform_administration/application/engineering-verification";
-import { isEngineeringVerificationOrigin, type EngineeringAttestationFacts } from "@erpx/server-platform_administration/domain/engineering-verification";
+import { productionScope, legalProductionScope, criteriaForScope } from "@erpx/platform-catalogue/production-scope";
+import { createReleaseAcceptanceApplication, type ReleaseRepository } from "@erpx/platform-administration-server/application/release-acceptance";
+import type { ReleaseRow } from "@erpx/platform-administration-server/domain/release-acceptance";
+import { createSystemEvidenceApplication, type SystemEvidenceTransaction } from "@erpx/platform-administration-server/application/system-evidence";
+import { createEngineeringVerificationApplication } from "@erpx/platform-administration-server/application/engineering-verification";
+import { isEngineeringVerificationOrigin, type EngineeringAttestationFacts } from "@erpx/platform-administration-server/domain/engineering-verification";
 
 function repository<T extends object>(operations: Partial<T>): T { return new Proxy(operations as T, { get(target, name) { if (name === "then") return undefined; if (name in target) return Reflect.get(target, name); return () => { throw new Error(`unexpected operation: ${String(name)}`); }; } }); }
 const error = (_status: number, code: string) => new Error(code);
@@ -74,7 +74,7 @@ const attestation = { scope: "isolated-engineering" as const, run, sourceFingerp
 const attestationFacts: EngineeringAttestationFacts = { directory, release: `${directory}/release`, attestationPath: `${directory}/engineering-attestation.json`, manifestPath: `${directory}/release/release-files.json`, attestation, releaseInfo: attestation, digest };
 const environment = { ERPX_ENGINEERING_VERIFICATION_RUN: run, ERPX_ENVIRONMENT: "local", PORT: "3104", ERPX_BROWSER_SIMULATION_PORT: "3104", ERPX_DATA_DIR: directory };
 it("native engineering rosters require eight distinct run-bound lease identities", async () => {
-  const {nativeEngineeringBindings,validateNativeEngineeringRoster}=await import('@erpx/server-runtime/public/native-engineering-roster');
+  const {nativeEngineeringBindings,validateNativeEngineeringRoster}=await import('@erpx/platform-runtime-server/public/native-engineering-roster');
   const roster={version:1,run,sourceFingerprint:fingerprint,fileManifestSha256:digest,postmasterStartedMs:123456,entries:nativeEngineeringBindings.map((binding,i)=>({binding,token:(i+1).toString(16).padStart(32,'0'),oid:100+i}))};
   expect(validateNativeEngineeringRoster(roster,run,fingerprint,digest)).toBe(true);
   for(const changed of [
@@ -89,7 +89,7 @@ it("engineering verification requires the exact isolated port before reading any
   expect(application.engineeringVerificationContext({ ...environment, ERPX_ENVIRONMENT: "production" })).toBeNull();
 });
 it("only a verified native Service child can use its exact owned app port", async () => {
-  const {nativeEngineeringBindings}=await import('@erpx/server-runtime/public/native-engineering-roster');
+  const {nativeEngineeringBindings}=await import('@erpx/platform-runtime-server/public/native-engineering-roster');
   const roster={version:1 as const,run,sourceFingerprint:fingerprint,fileManifestSha256:digest,postmasterStartedMs:123456,entries:nativeEngineeringBindings.map((binding,i)=>({binding,token:(i+1).toString(16).padStart(32,'0'),oid:100+i}))};
   const child={...environment,NODE_ENV:'production',ERPX_PRODUCT_ENVIRONMENT:'development',PORT:'3213',HOSTNAME:'127.0.0.1',ERPX_APP_ID:'service',ERPX_APP_PORT:'3213'};
   const valid={...attestationFacts,attestation:{...attestation,nativeRoster:roster},nativeServiceChildVerified:true};

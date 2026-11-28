@@ -1,6 +1,6 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     MigrationFile, MigrationTrack, inspect_migrations, load_migrations, migrate_database,
 };
 use fixture::with_database;
@@ -176,7 +176,7 @@ INSERT INTO field_service_orders(id,company_id,branch_id,ticket_id,ticket_versio
 INSERT INTO field_service_order_events(id,order_id,version,action,actor_id,reason,status,technician_id,scheduled_at,details_json,created_at)VALUES('order-create','order',1,'create','creator','Declared populated migration fixture','scheduled','technician',60001,'{}',1);
 "#).execute(&mut *tx).await.unwrap();tx.commit().await.unwrap();
         let shapes:Vec<(String,Vec<String>)>=sqlx::query_as("SELECT t.tablename::text,array_agg(c.column_name::text ORDER BY c.ordinal_position) FROM pg_tables t JOIN information_schema.columns c ON c.table_schema=t.schemaname AND c.table_name=t.tablename WHERE t.schemaname='public' AND t.tablename<>'erpx_migrations' GROUP BY t.tablename ORDER BY t.tablename").fetch_all(pool.raw()).await.unwrap();
-        async fn snapshot(pool:&erpx_server_runtime::public::postgres::DatabasePool,shapes:&[(String,Vec<String>)])->Vec<(String,i64,String)>{
+        async fn snapshot(pool:&erpx_platform_runtime_server::public::postgres::DatabasePool,shapes:&[(String,Vec<String>)])->Vec<(String,i64,String)>{
             let mut result=Vec::new();
             for(table,columns)in shapes{
                 assert!(std::iter::once(table).chain(columns).all(|v|!v.is_empty()&&v.bytes().all(|b|b.is_ascii_lowercase()||b.is_ascii_digit()||b==b'_')));

@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { organizationGpoRulesProjection } from '../../../packages/server-identity_access/src/adapters/assignment-projection-source';
-import { platformOwnerProjectionSources } from '../../../packages/server-identity_access/src/adapters/platform-owner-projection-sources';
-import { peoplePayrollFinalOwnerProjections } from '../../../packages/server-identity_access/src/adapters/people-payroll-final-owner-projections';
+import { organizationGpoRulesProjection } from '../../../modules/identity-access/server/src/adapters/assignment-projection-source';
+import { platformOwnerProjectionSources } from '../../../modules/identity-access/server/src/adapters/platform-owner-projection-sources';
+import { peoplePayrollFinalOwnerProjections } from '../../../modules/identity-access/server/src/adapters/people-payroll-final-owner-projections';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-identity_access/src');
+const srcRoot = resolve(__dirname, '../../../modules/identity-access/server/src');
 const read = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
 const helperSrc = read('adapters/assignment-projection-source.ts');
 const platformSrc = read('adapters/platform-owner-projection-sources.ts');

@@ -3,17 +3,17 @@
   "sources": [
     {
       "revision": "b4db260cd029707886e82ac958daab3b4fab1509",
-      "path": "packages/feature-identity_access/src/lib/business-roles.ts",
+      "path": "modules/identity-access/ui/src/lib/business-roles.ts",
       "sha256": "8758596273e2c051d0ed68afea55356e19dacda71f332b097265bf002ee1aff8"
     },
     {
       "revision": "b4db260cd029707886e82ac958daab3b4fab1509",
-      "path": "packages/server-identity_access/src/domain/work-modules.ts",
+      "path": "modules/identity-access/server/src/domain/work-modules.ts",
       "sha256": "ae73a749d596e1565df84851987b03e63815b64eb8852a9b4a3c6f7daf013b9a"
     },
     {
       "revision": "b4db260cd029707886e82ac958daab3b4fab1509",
-      "path": "packages/server-identity_access/src/domain/beta-access.ts",
+      "path": "modules/identity-access/server/src/domain/beta-access.ts",
       "sha256": "87406d52284c238c6dfd4ffeb56a12d42615823f93622bcac90449239145c2f4"
     }
   ],

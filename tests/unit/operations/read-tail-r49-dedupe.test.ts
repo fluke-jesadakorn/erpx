@@ -2,12 +2,12 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { packageClockSql } from '@erpx/server-commercial/public/purchased-capability-sql';
-import { operationsTableExists, operationsOwnerVersionExists } from '../../../packages/server-operations/src/adapters/identity-policy-version-guard';
-import { OPERATIONS_CLOCK_CTE_SQL, OPERATIONS_VIEWER_CLOCK_SQL, operationsViewerClockHead } from '../../../packages/server-operations/src/adapters/workforce-actor-scope-source';
+import { packageClockSql } from '@erpx/commercial-server/public/purchased-capability-sql';
+import { operationsTableExists, operationsOwnerVersionExists } from '../../../modules/operations/server/src/adapters/identity-policy-version-guard';
+import { OPERATIONS_CLOCK_CTE_SQL, OPERATIONS_VIEWER_CLOCK_SQL, operationsViewerClockHead } from '../../../modules/operations/server/src/adapters/workforce-actor-scope-source';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-operations/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-operations/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/operations/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/operations/server/src/adapters/${name}`, import.meta.url), 'utf8');
 
 describe('operations read-tail r49 EXISTS/CTE-head retirement', () => {
   it('renders the three family-1 EXISTS probes byte-identically through operationsTableExists', () => {

@@ -1,7 +1,7 @@
-// FIXTURE-ONLY ORACLE: copied from the retired packages/server-planning writer so the
+// FIXTURE-ONLY ORACLE: copied from the retired modules/planning/server writer so the
 // PostgreSQL integration suite retains its exact pre-cutover SQL semantics.
 // Production code must never import this module. See tests/support/planning/index.ts.
-import {z} from 'zod';import {decimalToMinor} from "@erpx/feature-finance/lib/finance-money";import type {PlanningContext} from '@erpx/server-planning/domain/capacity';export const reason = z.string().trim().min(3).max(3000),
+import {z} from 'zod';import {decimalToMinor} from "@erpx/finance-ui/lib/finance-money";import type {PlanningContext} from '@erpx/planning-server/domain/capacity';export const reason = z.string().trim().min(3).max(3000),
   version = z.number().int().positive(),
   date = z.string().date(),
   qty = z.string().regex(/^\d+(\.\d{1,3})?$/);

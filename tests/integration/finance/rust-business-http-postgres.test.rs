@@ -9,12 +9,12 @@ use axum::{
     body::{Body, to_bytes},
     http::{HeaderMap, HeaderValue, Request, StatusCode},
 };
-use erpx_server_commercial::public::purchases::current_package_catalogue;
-use erpx_server_legal::public::record_policy::LegalCommercialMode;
-use erpx_server_platform_administration::public::legal_release::current_legal_release_catalogue;
-use erpx_server_pms::public::scheduled_legal::ScheduledReleaseMode;
-use erpx_server_shared::public::{BusinessError, Clock, CompanyId, HoldingId};
-use erpx_service::{business_http::*, legal_owner_policy::*, legal_queue_administration::*};
+use erpx_commercial_server::public::purchases::current_package_catalogue;
+use erpx_legal_server::public::record_policy::LegalCommercialMode;
+use erpx_platform_administration_server::public::legal_release::current_legal_release_catalogue;
+use erpx_pms_server::public::scheduled_legal::ScheduledReleaseMode;
+use erpx_platform_shared_server::public::{BusinessError, Clock, CompanyId, HoldingId};
+use erpx_platform_composition::{business_http::*, legal_owner_policy::*, legal_queue_administration::*};
 use facts::{account, *};
 use std::sync::Arc;
 use tower::ServiceExt;

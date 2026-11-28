@@ -1,8 +1,8 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { billingStoredLedgerSql } from '../../../packages/server-billing/src/adapters/billing-read-tail-r28-sql';
+import { billingStoredLedgerSql } from '../../../modules/billing/server/src/adapters/billing-read-tail-r28-sql';
 
-const dir = new URL('../../../packages/server-billing/src/adapters/', import.meta.url);
+const dir = new URL('../../../modules/billing/server/src/adapters/', import.meta.url);
 const src = (name: string) => readFile(new URL(name, dir), 'utf8');
 
 /** Verbatim pre-r28 storage-ledger statements. Byte-identity oracle only. */
@@ -57,7 +57,7 @@ describe('billing read-tail r28 storage-ledger parameterized family dedupe', () 
   });
 
   it('lowers the billing owner SELECT KPI strictly below the recorded BEFORE=59 baseline', async () => {
-    const files = await tsFiles(new URL('../../../packages/server-billing/src/', import.meta.url));
+    const files = await tsFiles(new URL('../../../modules/billing/server/src/', import.meta.url));
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThan(59);

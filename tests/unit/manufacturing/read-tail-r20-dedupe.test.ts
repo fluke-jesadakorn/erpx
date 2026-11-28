@@ -1,10 +1,10 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { manufacturingExistsGuard } from '../../../packages/server-manufacturing/src/adapters/manufacturing-read-tail-r20-sql';
-import { manufacturingExistsSelect } from '../../../packages/server-manufacturing/src/adapters/manufacturing-read-sql-fragments';
+import { manufacturingExistsGuard } from '../../../modules/manufacturing/server/src/adapters/manufacturing-read-tail-r20-sql';
+import { manufacturingExistsSelect } from '../../../modules/manufacturing/server/src/adapters/manufacturing-read-sql-fragments';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-manufacturing/src');
+const srcRoot = resolve(__dirname, '../../../modules/manufacturing/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
 /** The five pre-dedupe EXISTS-guard literals, captured verbatim from HEAD.

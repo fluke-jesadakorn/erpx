@@ -1,26 +1,26 @@
 //! Unmounted staged native command with actual Account and selected IAM.
 #![allow(dead_code)]
-#[path = "../../../src/composition/src/finance_journal_actor.rs"]
+#[path = "../../../platform/composition/src/finance_journal_actor.rs"]
 mod real_command_actor;
 #[path = "../../support/finance/review-composition.rs"]
 mod review;
-use erpx_server_commerce::public::supplier_promise_source::{
+use erpx_commerce_server::public::supplier_promise_source::{
     SupplierPromiseSourceMode, inspect_supplier_promise_source, lock_supplier_promise_sources,
 };
-use erpx_server_commerce::public::supplier_promise_version::{
+use erpx_commerce_server::public::supplier_promise_version::{
     lock_supplier_promise_order, prepare_supplier_promise_order,
 };
-use erpx_server_identity_access::public::effective_authority::{
+use erpx_identity_access_server::public::effective_authority::{
     HoldingWorkSourcePreparation, WorkAuthorizationRequest,
 };
-use erpx_server_procurement::public::supplier_promise_command::{
+use erpx_procurement_server::public::supplier_promise_command::{
     RecordSupplierPromiseCommand, SupplierPromiseLineCommand, lock_supplier_promise_history_writes,
 };
-use erpx_server_procurement::public::supplier_promise_staged::{
+use erpx_procurement_server::public::supplier_promise_staged::{
     SupplierPromiseBegin, begin_supplier_promise_stage,
 };
-use erpx_server_runtime::public::postgres::PgWorkFuture;
-use erpx_server_shared::public::{BusinessError, Clock};
+use erpx_platform_runtime_server::public::postgres::PgWorkFuture;
+use erpx_platform_shared_server::public::{BusinessError, Clock};
 use sqlx::PgConnection;
 #[derive(Clone)]
 struct Sources;
@@ -57,7 +57,7 @@ async fn staged_native_command_uses_current_account_and_same_unit() {
    assert_eq!(projected.assignment_id, current.selection().assignment().id);
    assert_eq!(projected.role, current.selection().assignment().role);
    assert_eq!(projected.company_id, current.selection().workspace().company_id);
-   use erpx_server_workflow::public::commands::{CommandField,CommandJson,WorkAuthority,command_fingerprint};
+   use erpx_workflow_server::public::commands::{CommandField,CommandJson,WorkAuthority,command_fingerprint};
    assert_eq!(projected.branch_id,CommandField::Null);
    assert_eq!(projected.department_id,CommandField::Null);
    assert_eq!(projected.authority,CommandField::Value(WorkAuthority {session_id:current.session_id().as_str().into(),revision:current.selection().revision(),assignment_version:current.selection().assignment().version}));
@@ -97,10 +97,10 @@ async fn staged_native_command_uses_current_account_and_same_unit() {
 // are fixtures, not production feature configuration or purchase authority.
 mod evidence_bridge {
     use super::*;
-    use erpx_server_commerce::public::supplier_promise_source::CurrentSupplierPromiseSource;
-    use erpx_server_files::public::supplier_promise_binding::*;
-    use erpx_server_identity_access::public::effective_authority::AuthorizedWorkContext;
-    use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
+    use erpx_commerce_server::public::supplier_promise_source::CurrentSupplierPromiseSource;
+    use erpx_files_server::public::supplier_promise_binding::*;
+    use erpx_identity_access_server::public::effective_authority::AuthorizedWorkContext;
+    use erpx_platform_runtime_server::public::postgres::{PersistenceError, PgTransactionError};
 
     type FilesError = PgTransactionError<SupplierPromiseEvidenceError>;
     fn bridge_error() -> FilesError { PersistenceError::new("TEST_EVIDENCE_OWNER_CHANGED").into() }
@@ -123,8 +123,8 @@ mod evidence_bridge {
     }
     pub struct After<'a> {
         pub facts: SupplierPromiseEvidenceFacts,
-        pub order: &'a erpx_server_commerce::public::supplier_promise_version::RetainedSupplierPromiseOrder,
-        pub record: &'a erpx_server_procurement::public::supplier_promise_command::CurrentSupplierPromiseRecord,
+        pub order: &'a erpx_commerce_server::public::supplier_promise_version::RetainedSupplierPromiseOrder,
+        pub record: &'a erpx_procurement_server::public::supplier_promise_command::CurrentSupplierPromiseRecord,
     }
     impl SupplierPromiseEvidenceOwner for After<'_> {
         fn facts(&self) -> &SupplierPromiseEvidenceFacts { &self.facts }
@@ -144,11 +144,11 @@ impl HoldingWorkSourcePreparation for EvidenceSources {
     fn prepare<'a>(&'a self, c: &'a mut PgConnection) -> PgWorkFuture<'a, (), BusinessError> {
         Box::pin(async move {
             // Test-only stronger purchase fence; not a statement of TS mode parity.
-            erpx_server_commercial::public::purchases::lock_purchase_read_sources(c).await?;
+            erpx_commercial_server::public::purchases::lock_purchase_read_sources(c).await?;
             lock_supplier_promise_order(c).await?;
             lock_supplier_promise_sources(c).await?;
             lock_supplier_promise_history_writes(c).await?;
-            erpx_server_files::public::supplier_promise_binding::lock_supplier_promise_evidence_sources(c).await.map_err(|_| erpx_server_runtime::public::postgres::PersistenceError::new("TEST_FILES_LOCK"))?;
+            erpx_files_server::public::supplier_promise_binding::lock_supplier_promise_evidence_sources(c).await.map_err(|_| erpx_platform_runtime_server::public::postgres::PersistenceError::new("TEST_FILES_LOCK"))?;
             Ok(())
         })
     }
@@ -156,12 +156,12 @@ impl HoldingWorkSourcePreparation for EvidenceSources {
 
 #[tokio::test]
 async fn staged_evidence_joins_real_owners_and_purchased_authority() {
-    use erpx_server_commercial::public::purchases::{current_package_catalogue, CapabilityPurpose, PackageEnforcementMode, PgCompanyPurchaseReader, PurchaseRequest};
-    use erpx_server_files::public::supplier_promise_binding::*;
-    use erpx_server_procurement::public::supplier_promise_command::inspect_supplier_promise_record;
-    use erpx_server_procurement::public::supplier_promise_staged::begin_supplier_promise_evidence_stage;
-    use erpx_server_runtime::public::postgres::PersistenceError;
-    use erpx_server_shared::public::HoldingId;
+    use erpx_commercial_server::public::purchases::{current_package_catalogue, CapabilityPurpose, PackageEnforcementMode, PgCompanyPurchaseReader, PurchaseRequest};
+    use erpx_files_server::public::supplier_promise_binding::*;
+    use erpx_procurement_server::public::supplier_promise_command::inspect_supplier_promise_record;
+    use erpx_procurement_server::public::supplier_promise_staged::begin_supplier_promise_evidence_stage;
+    use erpx_platform_runtime_server::public::postgres::PersistenceError;
+    use erpx_platform_shared_server::public::HoldingId;
     review::account::with_system(|system| async move {
         let mut p=review::setup_with_finance(system,false).await;
         let pool=&p.system.holdings[0];

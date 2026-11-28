@@ -1,4 +1,4 @@
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
+import type {SqlDatabase} from '@erpx/platform-runtime-server/public/runtime/types';
 
 /**
  * Test-only fixture sources for the retired TypeScript material-issue and
@@ -7,7 +7,7 @@ import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
  * The native Manufacturing order command owns these lot, cost, move and
  * genealogy effects in production. The PostgreSQL integration oracle still
  * needs their exact pre-cutover writes, so they live here instead of in
- * `@erpx/server-manufacturing/adapters/production-command-sources`.
+ * `@erpx/manufacturing-server/adapters/production-command-sources`.
  */
 export function legacyProductionCommandSources(db: SqlDatabase) {
   return {

@@ -1,9 +1,9 @@
 import { beforeEach, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 const mocks = vi.hoisted(() => ({ session: vi.fn(), read: vi.fn(), native: vi.fn() }));
-vi.mock("@erpx/server-identity_access/adapters/authorization", () => ({ currentSession: mocks.session }));
-vi.mock("@erpx/server-runtime/public/native-http", () => ({ nativeRequest: mocks.native }));
-import { accountTimePreference, accountTimePreferenceSnapshot, setTimePreferenceReadForTest } from "@erpx/server-identity_access/public/account-time-preference";
+vi.mock("@erpx/identity-access-server/adapters/authorization", () => ({ currentSession: mocks.session }));
+vi.mock("@erpx/platform-runtime-server/public/native-http", () => ({ nativeRequest: mocks.native }));
+import { accountTimePreference, accountTimePreferenceSnapshot, setTimePreferenceReadForTest } from "@erpx/identity-access-server/public/account-time-preference";
 
 beforeEach(() => { mocks.session.mockReset(); mocks.read.mockReset(); setTimePreferenceReadForTest(id => mocks.read(id)); });
 it("seeds only the current authenticated account's preference without serializing identity or session facts", async () => {
@@ -60,7 +60,7 @@ it("reads the time preference with the exact Holding cookie and no asserted user
 
 import {createElement,type ReactNode} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {TimeText} from '@erpx/feature-people_payroll/components/time/time-preference-context';
+import {TimeText} from '@erpx/people-payroll-ui/components/time/time-preference-context';
 const timeContextProbe=vi.hoisted(()=>({wrap:null as null|((ready:boolean,children:ReactNode)=>ReactNode)}));
 vi.mock('react',async importOriginal=>{
  const actual=await importOriginal<typeof import('react')>();

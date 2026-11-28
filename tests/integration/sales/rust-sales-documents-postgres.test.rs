@@ -7,14 +7,14 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_sales::public::sales_documents::{
+use erpx_sales_server::public::sales_documents::{
     PgSalesDocumentRead, SalesDocumentKind, SalesDocumentReadActor, sales_documents,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, CompanyId, FailureKind, RecordId, TimestampMillis,
 };
 
@@ -22,7 +22,7 @@ const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
 
 #[tokio::test]
 async fn recipient_composes_current_identity_and_dated_people_in_one_unit() {
-    use erpx_server_sales::public::sales_recipient::{SalesRecipientRequest, inspect_sales_recipient, prepare_sales_recipient_sources};
+    use erpx_sales_server::public::sales_recipient::{SalesRecipientRequest, inspect_sales_recipient, prepare_sales_recipient_sources};
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
         sqlx::raw_sql("INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status) VALUES('*','sales_recipient_test','Sales recipient',false,1,'active'); INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','sales_recipient_test',1,'[\"commerce.read\",\"commerce.sales\"]','[]','[\"holding\",\"branch\",\"department\"]','fixture',0); INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind) VALUES('sales-recipient-grant','sales-user','sales_recipient_test','[]','company',0,9007199254740991,1,'holding'); INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,created_by,created_at,updated_at) VALUES('sales-person','sales-user','company','Sales','TH','fixture',0,0); INSERT INTO hr_engagements(id,person_id,company_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at) VALUES('sales-engagement','sales-person','company','employee','salaried','active','2000-01-01','Sales','THB','fixture',0,0)").execute(pool.raw()).await.unwrap();

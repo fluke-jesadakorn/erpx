@@ -3,7 +3,7 @@ import {createHash,randomBytes} from 'node:crypto';
 import {lstat,realpath,readFile,writeFile,rm} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import {Pool} from 'pg';
-import {nativeEngineeringBindings,type NativeEngineeringRoster} from '@erpx/server-runtime/public/native-engineering-roster';
+import {nativeEngineeringBindings,type NativeEngineeringRoster} from '@erpx/platform-runtime-server/public/native-engineering-roster';
 
 const ident=(s:string)=>{if(!/^erpx_dev_rust_[a-f0-9]{32}$/.test(s))throw Error('NATIVE_COHORT_NAME_INVALID');return `"${s}"`;};
 export async function createNativeEngineeringCohort(input:{directory:string;run:string;sourceFingerprint:string;fileManifestSha256:string;adminUrl:string}){

@@ -1,4 +1,4 @@
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
 
 /**
  * SQL-only seeding for finance journals in fixtures and tests.

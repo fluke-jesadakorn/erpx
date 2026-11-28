@@ -7,17 +7,17 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_commercial::public::purchases::current_package_catalogue;
-use erpx_server_finance::public::finance_setup::{
+use erpx_commercial_server::public::purchases::current_package_catalogue;
+use erpx_finance_server::public::finance_setup::{
     AccountImportRow, ChangeAccountStatusInput, CreateAccountInput, CreateChartInput,
     CreatePeriodInput, ImportAccountsInput,
 };
-use erpx_server_identity_access::public::work_context::HoldingWorkspaceRequest;
-use erpx_server_runtime::public::postgres::DatabasePool;
-use erpx_server_shared::public::{CommandKey, CompanyId, HoldingId};
-use erpx_service::finance_journal_detail::*;
-use erpx_service::finance_journal_detail_http::*;
-use erpx_service::finance_journal_review::FinanceJournalEnvironment;
+use erpx_identity_access_server::public::work_context::HoldingWorkspaceRequest;
+use erpx_platform_runtime_server::public::postgres::DatabasePool;
+use erpx_platform_shared_server::public::{CommandKey, CompanyId, HoldingId};
+use erpx_platform_composition::finance_journal_detail::*;
+use erpx_platform_composition::finance_journal_detail_http::*;
+use erpx_platform_composition::finance_journal_review::FinanceJournalEnvironment;
 use facts::{Prepared, account, setup};
 use std::sync::Arc;
 use tower::ServiceExt;
@@ -38,7 +38,7 @@ fn service(p: &Prepared) -> FinanceJournalDetailService<facts::TestClock> {
 
 fn owned_maker(
     p: &Prepared,
-) -> impl FnOnce() -> Result<HoldingWorkspaceRequest, erpx_server_shared::public::BusinessError>
+) -> impl FnOnce() -> Result<HoldingWorkspaceRequest, erpx_platform_shared_server::public::BusinessError>
 + Send
 + 'static {
     let request = p.maker_selection.clone();
@@ -154,7 +154,7 @@ async fn chart_accounts_read_and_chart_create_replay() {
             )
             .await
         {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                 assert_eq!(error.code, "CHART_EXISTS");
             }
             other => panic!("duplicate chart must conflict: {other:?}"),
@@ -204,7 +204,7 @@ async fn account_create_import_and_status_guards() {
             )
             .await
         {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                 assert_eq!(error.code, "ACCOUNT_CODE_EXISTS");
             }
             other => panic!("duplicate account code must conflict: {other:?}"),
@@ -291,7 +291,7 @@ async fn account_create_import_and_status_guards() {
             )
             .await
         {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                 assert_eq!(error.code, "ACCOUNT_STATUS_UNCHANGED");
             }
             other => panic!("unchanged status must conflict: {other:?}"),
@@ -308,7 +308,7 @@ async fn account_create_import_and_status_guards() {
             )
             .await
         {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                 assert_eq!(error.code, "VERSION_CONFLICT");
             }
             other => panic!("stale status must conflict: {other:?}"),
@@ -388,7 +388,7 @@ async fn account_inactive_rejects_draft_journals_and_open_invoices() {
             )
             .await
         {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                 assert_eq!(error.code, "ACCOUNT_HAS_DRAFT_JOURNAL");
             }
             other => panic!("draft journal must block inactivity: {other:?}"),
@@ -417,7 +417,7 @@ async fn account_inactive_rejects_draft_journals_and_open_invoices() {
             )
             .await
         {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                 assert_eq!(error.code, "ACCOUNT_HAS_OPEN_INVOICES");
             }
             other => panic!("open invoice must block inactivity: {other:?}"),
@@ -515,7 +515,7 @@ async fn setup_readiness_requires_current_finance_read_authority() {
             .finance_setup_workspace("acme.example.test", p.maker.clone(), owned_maker(&p))
             .await
         {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                 assert_eq!(error.code, "PERMISSION_REQUIRED");
             }
             other => panic!("missing finance.read must be denied: {other:?}"),
@@ -560,7 +560,7 @@ async fn period_create_and_http_setup_routes() {
             )
             .await
         {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                 assert_eq!(error.code, "PERIOD_EXISTS");
             }
             other => panic!("duplicate period must conflict: {other:?}"),
@@ -579,7 +579,7 @@ async fn period_create_and_http_setup_routes() {
             )
             .await
         {
-            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+            Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error)) => {
                 assert_eq!(error.code, "INVALID_PERIOD");
             }
             other => panic!("invalid period must fail: {other:?}"),

@@ -4,12 +4,12 @@ import {readFile,writeFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {createHmac} from 'node:crypto';
 import type {WorkplacePlatformUatUser} from "../../../fixtures/shared/builders/engineering-workplace-platform-browser";
-import type {operationsWorkspace,operationsExceptionDetail} from "@erpx/server-operations/public/operations-exceptions";
-import type {agentWorkspace} from "@erpx/server-agent/public/agent-governance";
-import type {brandIdentityWorkspace} from "@erpx/server-brand/public/brand-identity";
-import type {GuidedIntakeResult} from "@erpx/feature-shared/lib/ai/guided-intake";
-import type {TargetBillingPeriodView} from "@erpx/server-billing/public/billing-target";
-import type {connectionInput} from "@erpx/server-identity_access/domain/directories";
+import type {operationsWorkspace,operationsExceptionDetail} from "@erpx/operations-server/public/operations-exceptions";
+import type {agentWorkspace} from "@erpx/agent-server/public/agent-governance";
+import type {brandIdentityWorkspace} from "@erpx/brand-server/public/brand-identity";
+import type {GuidedIntakeResult} from "@erpx/platform-shared-ui/lib/ai/guided-intake";
+import type {TargetBillingPeriodView} from "@erpx/billing-server/public/billing-target";
+import type {connectionInput} from "@erpx/identity-access-server/domain/directories";
 import type {z} from 'zod';
 
 type Credentials={run:string;password:string;users:WorkplacePlatformUatUser[]};

@@ -1,8 +1,0 @@
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
-import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {benefitOwnerExistsGuard} from "@erpx/server-benefits/adapters/benefits-read-sql";
-import {benefitPayrollInputs} from './native-lane-32/client';
-export function payrollBenefitSources(database:SqlDatabase){return {
-readSourceBlockersBenefits(engagementId:string,currency:string,period_end:string,period_start:string,companyId?:string){return benefitPayrollInputs(database,{engagementId,currency,periodEnd:period_end,periodStart:period_start},companyId);},
-guard29(key:string,value:string,engagement_id:string,currency:string,period_end:string,period_start:string,length:number){return assertion(database,key,value,"(SELECT COUNT(*) FROM benefit_payroll_inputs WHERE engagement_id=? AND currency=? AND status='released' AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?))=?",[engagement_id,currency,period_end,period_start,length]);},
-guard30(key:string,value:string,id:string,engagement_id:string,employee_deduction_minor:number,employer_cost_minor:number){return assertion(database,key,value,benefitOwnerExistsGuard('benefit_payroll_inputs',"engagement_id=? AND status='released' AND employee_deduction_minor=? AND employer_cost_minor=?"),[id,engagement_id,employee_deduction_minor,employer_cost_minor]);}};}

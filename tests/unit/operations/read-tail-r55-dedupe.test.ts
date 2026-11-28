@@ -3,16 +3,16 @@ import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { OPERATIONS_EXISTS_HEAD } from '../../../packages/server-operations/src/adapters/read-tail-r55-sources';
-import { operationsOwnerVersionExists, operationsTableExists } from '../../../packages/server-operations/src/adapters/identity-policy-version-guard';
-import { operationsProjectSourceExists } from '../../../packages/server-operations/src/adapters/project-source-exists';
-import { operationsJoinSourceExists } from '../../../packages/server-operations/src/adapters/join-source-exists';
+import { OPERATIONS_EXISTS_HEAD } from '../../../modules/operations/server/src/adapters/read-tail-r55-sources';
+import { operationsOwnerVersionExists, operationsTableExists } from '../../../modules/operations/server/src/adapters/identity-policy-version-guard';
+import { operationsProjectSourceExists } from '../../../modules/operations/server/src/adapters/project-source-exists';
+import { operationsJoinSourceExists } from '../../../modules/operations/server/src/adapters/join-source-exists';
 import {
   OPERATIONS_VIEWER_CLOCK_SQL, operationsActorScopeInputExists, workforceActorScopeSql,
-} from '../../../packages/server-operations/src/adapters/workforce-actor-scope-source';
+} from '../../../modules/operations/server/src/adapters/workforce-actor-scope-source';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-operations/src');
-const src = (name: string) => readFile(new URL(`../../../packages/server-operations/src/adapters/${name}`, import.meta.url), 'utf8');
+const srcRoot = resolve(__dirname, '../../../modules/operations/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/operations/server/src/adapters/${name}`, import.meta.url), 'utf8');
 const sha = (sql: string) => createHash('sha256').update(sql).digest('hex');
 const binds = (sql: string) => (sql.match(/\?/g) ?? []).length;
 

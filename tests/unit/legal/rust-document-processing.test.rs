@@ -1,4 +1,4 @@
-use erpx_server_legal::public::{
+use erpx_legal_server::public::{
     DocumentComputeBudget, document_processing::extraction_compute_budget,
 };
 

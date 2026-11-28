@@ -1,10 +1,10 @@
 // Synthetic leased-database fixture. Never run against an unverified database.
 import {randomUUID} from 'node:crypto';
-import {PostgresDatabase} from '@erpx/server-runtime/adapters/runtime/postgres';
+import {PostgresDatabase} from '@erpx/platform-runtime-server/adapters/runtime/postgres';
 import {Pool} from 'pg';
 import {readFileSync,statSync,writeFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
-import type {WorkContext as ServicePartsFixtureActor} from '@erpx/server-identity_access/public/authorization';
+import type {WorkContext as ServicePartsFixtureActor} from '@erpx/identity-access-server/public/authorization';
 const key=()=>randomUUID();
 export async function seedZeroReferencePartsCompany(db:PostgresDatabase,options:{fieldOwner?:boolean}={}) {
   // Seed organization and actual native worker/assignment authority only.
@@ -27,12 +27,12 @@ export async function seedZeroReferencePartsCompany(db:PostgresDatabase,options:
     ]);
     const scope:ServicePartsFixtureActor['scope']=scopeKind==='department'?{kind:'department',holdingId:'h001',holdingSlug:'acme',holdingName:'Test',companyId:company,branchId:branch,departmentId:department,departmentSlug:department,departmentName:'Native Service parts team'}:scopeKind==='branch'?{kind:'branch',holdingId:'h001',holdingSlug:'acme',holdingName:'Test',companyId:company,branchId:branch,branchSlug:branch,branchName:'Native service branch'}:{kind:'holding',holdingId:'h001',holdingSlug:'acme',holdingName:'Test',companyId:company};
     const context:ServicePartsFixtureActor={userId,assignmentId,role,companyId:company,branchId:scopeKind==='holding'?null:branch,departmentId:scopeKind==='department'?department:null,holdingId:'h001',holdingSlug:'acme',holdingName:'Test',name,email:`${name}@example.test`,assignmentScope:scopeKind,inherited:false,modules:actorModules,assignments:[],workspaces:[],scope};
-    const {loadIamAuthority}=await import('@erpx/server-identity_access/public/iam-store');
+    const {loadIamAuthority}=await import('@erpx/identity-access-server/public/iam-store');
     context.iam=await loadIamAuthority(db,company,userId,role);
     return context;
   }
   const owner=await actor('owner','holding_owner'),reviewer=await actor('reviewer','finance_preparer'),manager=await actor('manager','finance_approver'),serviceReviewer=await actor('service-reviewer','holding_owner'),technician=await actor('technician','employee');
-  const {positionSchema}=await import('@erpx/server-organization/public/organization');const {savePosition}=await import('../../../tests/support/helpers/organization-positions');const {installStaffLevels}=await import('../../../tests/support/helpers/organization-levels');
+  const {positionSchema}=await import('@erpx/organization-server/public/organization');const {savePosition}=await import('../../../tests/support/helpers/organization-positions');const {installStaffLevels}=await import('../../../tests/support/helpers/organization-levels');
   await installStaffLevels(db,owner,key());
   const ceo=String((await savePosition(db,owner,null,positionSchema.parse({title:'Fixture accountable owner',levelId:`org-level-${company}-1`,branchId:null,departmentId:null,isCeo:true,reportsToPositionId:null,expectedVersion:0,reason:'Native organizational authority fixture'}),key())).id);
   for(const [member,rank] of [[owner,1],[reviewer,5],[manager,4],[serviceReviewer,3],[technician,4]] as const){
@@ -45,7 +45,7 @@ export async function seedZeroReferencePartsCompany(db:PostgresDatabase,options:
   // The held native fixture creates the two declared synthetic initial grants
   // through Rust Commercial after validating this leased Company activation.
   // This TS bootstrap supplies organization/assignment facts only.
-  for(const person of [owner,reviewer,manager,serviceReviewer,technician]){const {loadIamAuthority}=await import('@erpx/server-identity_access/public/iam-store');person.iam=await loadIamAuthority(db,company,person.userId,person.role);}
+  for(const person of [owner,reviewer,manager,serviceReviewer,technician]){const {loadIamAuthority}=await import('@erpx/identity-access-server/public/iam-store');person.iam=await loadIamAuthority(db,company,person.userId,person.role);}
   return {company,companyName,branch,department,owner,reviewer,manager,serviceReviewer,technician,counts,actor};
 }
 

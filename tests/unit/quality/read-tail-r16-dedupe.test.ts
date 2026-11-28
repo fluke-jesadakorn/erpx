@@ -2,12 +2,12 @@ import { describe, expect, test, vi } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
-import { qualityWorkScopeTuple } from '../../../packages/server-quality/src/adapters/quality-work-scope-sql';
-import { nativeSourceWhere } from '../../../packages/server-quality/src/adapters/native-source-wrapper-sql';
-import { inspectionEvidenceSource } from '../../../packages/server-quality/src/adapters/inspection-evidence-source-sql';
-import { commercialOwnerProjectionSources as commerce } from '@erpx/server-commerce/public/commercial-owner-projection-sources';
+import { qualityWorkScopeTuple } from '../../../modules/quality/server/src/adapters/quality-work-scope-sql';
+import { nativeSourceWhere } from '../../../modules/quality/server/src/adapters/native-source-wrapper-sql';
+import { inspectionEvidenceSource } from '../../../modules/quality/server/src/adapters/inspection-evidence-source-sql';
+import { commercialOwnerProjectionSources as commerce } from '@erpx/commerce-server/public/commercial-owner-projection-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-quality/src');
+const srcRoot = resolve(__dirname, '../../../modules/quality/server/src');
 const read = (path: string) => readFileSync(resolve(srcRoot, path), 'utf8');
 
 describe('quality work-scope tuple family dedupe (r16)', () => {

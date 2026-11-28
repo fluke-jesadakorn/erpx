@@ -13,7 +13,7 @@ import {
   nativePosDayCashMovementsStatement,
   nativePosDaySettlementsStatement,
   nativePosPaymentMixStatement,
-} from '../../../packages/server-pos/src/adapters/native-pos-day-report';
+} from '../../../modules/pos/server/src/adapters/native-pos-day-report';
 
 const config = () => JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:44994', timeoutMs: 1000 });
 const previous = process.env.ERPX_NATIVE_POS_OWNER_CONFIG;
@@ -180,7 +180,7 @@ describe('native POS day-report business-date list read bridge', () => {
 
   it('keeps no byte-identical day-report SQL literal in the TS adapter', () => {
     const source = readFileSync(
-      new URL('../../../packages/server-pos/src/adapters/pos-daily.ts', import.meta.url),
+      new URL('../../../modules/pos/server/src/adapters/pos-daily.ts', import.meta.url),
       'utf8',
     );
     for (const item of cases) {
@@ -193,7 +193,7 @@ describe('native POS day-report business-date list read bridge', () => {
     expect(source.match(/nativePosDay(?!Planner)[A-Za-z]+Statement\(db/g)).toHaveLength(10);
     expect(source.match(/nativePosDayPlanner(Lines|Payments)Statement\(db/g)).toHaveLength(2);
     const pos = readFileSync(
-      new URL('../../../packages/server-pos/src/adapters/pos.ts', import.meta.url),
+      new URL('../../../modules/pos/server/src/adapters/pos.ts', import.meta.url),
       'utf8',
     );
     expect(pos).not.toContain('SUM(p.amount_minor) received_minor');
@@ -202,7 +202,7 @@ describe('native POS day-report business-date list read bridge', () => {
 
   it('keeps lock-bearing and PMS point-lookup reads inline in pos-daily.ts', () => {
     const source = readFileSync(
-      new URL('../../../packages/server-pos/src/adapters/pos-daily.ts', import.meta.url),
+      new URL('../../../modules/pos/server/src/adapters/pos-daily.ts', import.meta.url),
       'utf8',
     );
     expect(source).toContain('SELECT * FROM pos_day_closes WHERE id=? FOR UPDATE');

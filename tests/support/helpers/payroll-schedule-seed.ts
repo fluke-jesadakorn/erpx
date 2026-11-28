@@ -1,6 +1,6 @@
 import { expenseDb } from "./expense-fixture";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { sha256 } from "@erpx/server-runtime/public/crypto";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import { sha256 } from "@erpx/platform-runtime-server/public/crypto";
 
 /** Test-only payroll schedule save seed. The production save command is
  * native (the payroll_schedule owner port mounted in the People Payroll

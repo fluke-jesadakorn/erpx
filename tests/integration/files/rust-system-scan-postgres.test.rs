@@ -4,10 +4,10 @@
 )]
 #[path = "../../support/files/system-scan-facts.rs"]
 mod system;
-use erpx_server_files::public::attachment_scan::{AttachmentScanScope, AttachmentScanTransactions};
-use erpx_server_runtime::public::postgres::PgTransactionError;
-use erpx_server_shared::public::{CompanyId, HoldingId};
-use erpx_service::files_system_scan::*;
+use erpx_files_server::public::attachment_scan::{AttachmentScanScope, AttachmentScanTransactions};
+use erpx_platform_runtime_server::public::postgres::PgTransactionError;
+use erpx_platform_shared_server::public::{CompanyId, HoldingId};
+use erpx_platform_composition::files_system_scan::*;
 use std::collections::BTreeMap;
 use system::{clock, config, facts, fixture, lease, missing, state};
 #[tokio::test]
@@ -204,7 +204,7 @@ mod field_cleanup_composition_tests;
 async fn ts_link_route(c:&mut sqlx::PgConnection,company:&str,link:&str)->serde_json::Value {
     use std::io::{BufRead,BufReader,Write};use std::process::Stdio;
     let script=r#"import {createInterface} from 'node:readline';if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const m=await import(process.argv[1]);const lines=createInterface({input:process.stdin})[Symbol.asyncIterator]();const first=await lines.next();const [company,id]=JSON.parse(first.value);const db={prepare(sql){return {bind(...args){return {async first(){process.stdout.write(JSON.stringify({sql,args})+'\n');const r=await lines.next();return JSON.parse(r.value)}}}}}};try{const route=await m.fieldFileWriterOwnerInDatabase(db,{companyId:company},{kind:'link',id});process.stdout.write(JSON.stringify({route})+'\n')}catch(e){process.stdout.write(JSON.stringify({error:e.code,status:e.status})+'\n')}"#;
-    let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");let module=root.join("packages/server-files/src/adapters/field-file-writer-owner.ts");
+    let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");let module=root.join("modules/files/server/src/adapters/field-file-writer-owner.ts");
     let mut child=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(root).args(["--conditions=react-server","-e",script]).arg(module).stdin(Stdio::piped()).stdout(Stdio::piped()).spawn().unwrap();
     let mut input=child.stdin.take().unwrap();let mut output=BufReader::new(child.stdout.take().unwrap());writeln!(input,"{}",serde_json::json!([company,link])).unwrap();input.flush().unwrap();
     let result=loop {let mut line=String::new();assert!(output.read_line(&mut line).unwrap()>0,"TS routing oracle ended early");let value:serde_json::Value=serde_json::from_str(&line).unwrap();if let Some(sql)=value.get("sql").and_then(serde_json::Value::as_str){let args=value["args"].as_array().unwrap();let mut index=0;let mut adapted=String::new();for ch in sql.chars(){if ch=='?'{index+=1;adapted.push('$');adapted.push_str(&index.to_string());}else{adapted.push(ch);}}assert_eq!(index,args.len());let mut query=sqlx::query_as::<_,(bool,bool)>(sqlx::AssertSqlSafe(adapted));for arg in args{query=query.bind(arg.as_str().expect("routing SQL binds are strings").to_owned());}let (marker,scoped)=query.fetch_one(&mut *c).await.unwrap();writeln!(input,"{}",serde_json::json!({"marker":marker,"scoped":scoped})).unwrap();input.flush().unwrap();}else{break value}};
@@ -213,27 +213,27 @@ async fn ts_link_route(c:&mut sqlx::PgConnection,company:&str,link:&str)->serde_
 
 #[tokio::test]
 async fn global_field_attachment_marker_matches_installed_1093_1097() {
-    use erpx_server_files::public::field_attachment_routing::{inspect_field_attachment_routing,lock_field_attachment_routing_sources,observe_global_attachment_ancestry};
-    use erpx_server_finance::public::field_attachment_routing::{lock_field_attachment_finance_routing,inspect_global_field_payment_finance_sources,inspect_global_field_journal_finance_source};
-    use erpx_server_inventory::public::field_history_consumption::{lock_field_history_consumption_join_sources,inspect_field_history_consumption_join};
-    use erpx_server_workflow::public::record_origin::{lock_field_history_receipt_join_sources,inspect_field_history_receipt_join};
-    use erpx_service::field_attachment_global_marker::FieldAttachmentMarkerSources;
-    use erpx_service::field_attachment_link_routing::{validate_field_link_selector,FieldLinkRoute,FieldLinkRoutingSources};
-    use erpx_server_files::public::field_attachment_routing::{observe_unscoped_attachment_link,observe_unscoped_global_attachment_ancestry};
-    for id in ["","bad\0id"] {let error=validate_field_link_selector(id).unwrap_err();assert_eq!(error.code,"ATTACHMENT_NOT_FOUND");assert_eq!(error.kind,erpx_server_shared::public::FailureKind::NotFound);}
+    use erpx_files_server::public::field_attachment_routing::{inspect_field_attachment_routing,lock_field_attachment_routing_sources,observe_global_attachment_ancestry};
+    use erpx_finance_server::public::field_attachment_routing::{lock_field_attachment_finance_routing,inspect_global_field_payment_finance_sources,inspect_global_field_journal_finance_source};
+    use erpx_inventory_server::public::field_history_consumption::{lock_field_history_consumption_join_sources,inspect_field_history_consumption_join};
+    use erpx_workflow_server::public::record_origin::{lock_field_history_receipt_join_sources,inspect_field_history_receipt_join};
+    use erpx_platform_composition::field_attachment_global_marker::FieldAttachmentMarkerSources;
+    use erpx_platform_composition::field_attachment_link_routing::{validate_field_link_selector,FieldLinkRoute,FieldLinkRoutingSources};
+    use erpx_files_server::public::field_attachment_routing::{observe_unscoped_attachment_link,observe_unscoped_global_attachment_ancestry};
+    for id in ["","bad\0id"] {let error=validate_field_link_selector(id).unwrap_err();assert_eq!(error.code,"ATTACHMENT_NOT_FOUND");assert_eq!(error.kind,erpx_platform_shared_server::public::FailureKind::NotFound);}
     fixture::account::with_system(|system|async move {
         let db=&system.holdings[0];let attachment=facts::seed_managed(db,"global-marker").await;let attachment_id=attachment.as_str().to_owned();
         let mut tx=db.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();sqlx::query("SET LOCAL search_path TO pg_catalog, public, pg_temp").execute(&mut *tx).await.unwrap();
         lock_field_history_receipt_join_sources(&mut tx).await.unwrap();lock_field_attachment_finance_routing(&mut tx).await.unwrap();lock_field_history_consumption_join_sources(&mut tx).await.unwrap();lock_field_attachment_routing_sources(&mut tx).await.unwrap();
         let workflow=inspect_field_history_receipt_join(&mut tx).await.unwrap();let payments=inspect_global_field_payment_finance_sources(&mut tx).await.unwrap();let journals=inspect_global_field_journal_finance_source(&mut tx).await.unwrap();let inventory=inspect_field_history_consumption_join(&mut tx).await.unwrap();let company=CompanyId::new("company-owned").unwrap();
         assert!(inspect_field_attachment_routing(&mut tx,&company,"missing").await.unwrap().is_none());assert!(inspect_field_attachment_routing(&mut tx,&CompanyId::new("foreign").unwrap(),"link-global-marker").await.unwrap().is_none());
-        async fn check(c:&mut sqlx::PgConnection,company:&CompanyId,link:&str,attachment:Option<&str>,workflow:&erpx_server_workflow::public::record_origin::CurrentFieldHistoryReceiptJoin,payments:&erpx_server_finance::public::field_attachment_routing::CurrentGlobalFieldPaymentFinanceSources,journals:&erpx_server_finance::public::field_attachment_routing::CurrentGlobalFieldJournalFinanceSource,inventory:&erpx_server_inventory::public::field_history_consumption::CurrentFieldHistoryConsumptionJoin)->bool{
+        async fn check(c:&mut sqlx::PgConnection,company:&CompanyId,link:&str,attachment:Option<&str>,workflow:&erpx_workflow_server::public::record_origin::CurrentFieldHistoryReceiptJoin,payments:&erpx_finance_server::public::field_attachment_routing::CurrentGlobalFieldPaymentFinanceSources,journals:&erpx_finance_server::public::field_attachment_routing::CurrentGlobalFieldJournalFinanceSource,inventory:&erpx_inventory_server::public::field_history_consumption::CurrentFieldHistoryConsumptionJoin)->bool{
             let file=inspect_field_attachment_routing(&mut *c,company,link).await.unwrap().unwrap();let ancestry=observe_global_attachment_ancestry(&mut *c,&file).await.unwrap();let sources=FieldAttachmentMarkerSources{files:&ancestry,workflow,payments,journals,inventory};let observed=sources.inspect(&mut *c).await.unwrap();let actual:bool=sqlx::query_scalar("SELECT public.erpx_files_field_attachment_owned($1)").bind(attachment).fetch_one(&mut *c).await.unwrap();assert_eq!(observed.is_field_marker(),actual);observed.require_current(c).await.unwrap();actual
         }
-        async fn compare_link(c:&mut sqlx::PgConnection,company:&CompanyId,link:&str,workflow:&erpx_server_workflow::public::record_origin::CurrentFieldHistoryReceiptJoin,payments:&erpx_server_finance::public::field_attachment_routing::CurrentGlobalFieldPaymentFinanceSources,journals:&erpx_server_finance::public::field_attachment_routing::CurrentGlobalFieldJournalFinanceSource,inventory:&erpx_server_inventory::public::field_history_consumption::CurrentFieldHistoryConsumptionJoin)->serde_json::Value{
+        async fn compare_link(c:&mut sqlx::PgConnection,company:&CompanyId,link:&str,workflow:&erpx_workflow_server::public::record_origin::CurrentFieldHistoryReceiptJoin,payments:&erpx_finance_server::public::field_attachment_routing::CurrentGlobalFieldPaymentFinanceSources,journals:&erpx_finance_server::public::field_attachment_routing::CurrentGlobalFieldJournalFinanceSource,inventory:&erpx_inventory_server::public::field_history_consumption::CurrentFieldHistoryConsumptionJoin)->serde_json::Value{
             let expected=ts_link_route(&mut *c,company.as_str(),link).await;
             let selector=observe_unscoped_attachment_link(&mut *c,company,link).await.unwrap();let ancestry=observe_unscoped_global_attachment_ancestry(&mut *c,&selector).await.unwrap();let sources=FieldLinkRoutingSources{files:&ancestry,workflow,payments,journals,inventory};
-            let actual=match sources.inspect(&mut *c).await {Ok(value)=>{let route=match value.route(){FieldLinkRoute::Field=>"field",FieldLinkRoute::Other=>"other"};value.require_current(&mut *c).await.unwrap();serde_json::json!({"route":route})},Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e))=>serde_json::json!({"error":e.code,"status":match e.kind{erpx_server_shared::public::FailureKind::NotFound=>404,_=>panic!("unexpected link routing error")}}),Err(e)=>panic!("link routing persistence error: {e:?}")};assert_eq!(actual,expected,"link={link}");actual
+            let actual=match sources.inspect(&mut *c).await {Ok(value)=>{let route=match value.route(){FieldLinkRoute::Field=>"field",FieldLinkRoute::Other=>"other"};value.require_current(&mut *c).await.unwrap();serde_json::json!({"route":route})},Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e))=>serde_json::json!({"error":e.code,"status":match e.kind{erpx_platform_shared_server::public::FailureKind::NotFound=>404,_=>panic!("unexpected link routing error")}}),Err(e)=>panic!("link routing persistence error: {e:?}")};assert_eq!(actual,expected,"link={link}");actual
         }
         for id in ["","bad\0id"] {let expected=ts_link_route(&mut tx,company.as_str(),id).await;assert_eq!(expected,serde_json::json!({"error":"ATTACHMENT_NOT_FOUND","status":404}));}
         assert_eq!(compare_link(&mut tx,&company,"link-global-marker",&workflow,&payments,&journals,&inventory).await["route"],"other");
@@ -250,7 +250,7 @@ async fn global_field_attachment_marker_matches_installed_1093_1097() {
         let selected_field=observe_unscoped_attachment_link(&mut tx,&company,"link-global-marker").await.unwrap();let field_ancestry=observe_unscoped_global_attachment_ancestry(&mut tx,&selected_field).await.unwrap();let field_sources=FieldLinkRoutingSources{files:&field_ancestry,workflow:&workflow,payments:&payments,journals:&journals,inventory:&inventory};let retained_field=field_sources.inspect(&mut tx).await.unwrap();assert_eq!(retained_field.route(),FieldLinkRoute::Field);
         sqlx::query("SAVEPOINT selected_scope_drift").execute(&mut *tx).await.unwrap();sqlx::query("INSERT INTO public.attachment_sets(id,company_id,target_type,target_id,component_kind,purpose_key,expected_target_version,policy_version,classification,audience_json,state,created_by,created_at,updated_at) VALUES('foreign-rehomed-set','foreign','expense_claim','scope-change','record','receipt',1,1,'confidential','{}','draft','fixture',0,0)").execute(&mut *tx).await.unwrap();sqlx::query("UPDATE public.attachment_links SET set_id='foreign-rehomed-set' WHERE id='link-global-marker'").execute(&mut *tx).await.unwrap();
         assert_eq!(compare_link(&mut tx,&company,"link-global-marker",&workflow,&payments,&journals,&inventory).await,serde_json::json!({"error":"ATTACHMENT_NOT_FOUND","status":404}));
-        let error=retained_field.require_current(&mut tx).await.err().expect("scope drift must conflict");assert!(matches!(error,erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e) if e.kind==erpx_server_shared::public::FailureKind::Conflict && e.code=="FILES_ATTACHMENT_ROUTING_CHANGED"));
+        let error=retained_field.require_current(&mut tx).await.err().expect("scope drift must conflict");assert!(matches!(error,erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(ref e) if e.kind==erpx_platform_shared_server::public::FailureKind::Conflict && e.code=="FILES_ATTACHMENT_ROUTING_CHANGED"));
         sqlx::query("ROLLBACK TO SAVEPOINT selected_scope_drift").execute(&mut *tx).await.unwrap();retained_field.require_current(&mut tx).await.unwrap();
         sqlx::query("ROLLBACK TO SAVEPOINT visit_marker").execute(&mut *tx).await.unwrap();absent.require_current(&mut tx).await.unwrap();retained_link.require_current(&mut tx).await.unwrap();
         // Real installed 1092/1097 branches below are synthetic rollback-only

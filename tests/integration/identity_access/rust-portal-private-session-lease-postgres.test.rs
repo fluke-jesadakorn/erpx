@@ -1,9 +1,9 @@
 //! Real Control rows; lease requires a proof obtained by normal authentication.
 #![allow(dead_code)]
 #[path = "../../support/rust-postgres.rs"] mod fixture;
-use erpx_server_identity_access::public::portal_private_session_lease::{AuthenticatedPortalLease,PortalPrivateSessionLease};
-use erpx_server_identity_access::public::portal_session::{verify_portal_session,PortalSessionReadRequest};
-use erpx_server_runtime::public::postgres::{DatabasePool,MigrationTrack,load_migrations,migrate_database};
+use erpx_identity_access_server::public::portal_private_session_lease::{AuthenticatedPortalLease,PortalPrivateSessionLease};
+use erpx_identity_access_server::public::portal_session::{verify_portal_session,PortalSessionReadRequest};
+use erpx_platform_runtime_server::public::postgres::{DatabasePool,MigrationTrack,load_migrations,migrate_database};
 const NOW:i64=1_800_000_000_000;
 async fn setup(pool: &DatabasePool) {
         let root =
@@ -135,7 +135,7 @@ async fn lease_lock_timeout_returns_busy_and_rolls_back_control_transaction() {
   setup(&pool).await;let mut c=pool.raw().acquire().await.unwrap();let request=PortalSessionReadRequest{token:"child-valid-token",audience:Some("portal"),environment:"development"};let proof=verify_portal_session(&mut c,&request,NOW).await.unwrap().unwrap();drop(c);
   let mut writer=pool.raw().begin().await.unwrap();sqlx::query("LOCK TABLE session IN ROW EXCLUSIVE MODE").execute(&mut *writer).await.unwrap();
   let error=match tokio::time::timeout(std::time::Duration::from_secs(8),PortalPrivateSessionLease::begin(&pool,proof.clone(),Some("portal".into()),NOW)).await.unwrap(){Ok(_)=>panic!("lease unexpectedly acquired"),Err(error)=>error};
-  assert!(matches!(error,erpx_server_runtime::public::postgres::PgTransactionError::Business(error) if error.code=="SESSION_AUTHORITY_BUSY"));
+  assert!(matches!(error,erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error) if error.code=="SESSION_AUTHORITY_BUSY"));
   writer.rollback().await.unwrap();let lease=PortalPrivateSessionLease::begin(&pool,proof,Some("portal".into()),NOW).await.unwrap();lease.rollback().await.unwrap();
  }).await;
 }
@@ -146,14 +146,14 @@ async fn removed_child_parent_or_binding_rejects_previously_authenticated_sessio
    setup(&pool).await;let mut c=pool.raw().acquire().await.unwrap();let request=PortalSessionReadRequest{token:"child-valid-token",audience:Some("portal"),environment:"development"};let proof=verify_portal_session(&mut c,&request,NOW).await.unwrap().unwrap();drop(c);
    sqlx::query(mutation).execute(pool.raw()).await.unwrap();
    let error=match PortalPrivateSessionLease::begin(&pool,proof,Some("portal".into()),NOW).await {Ok(_)=>panic!("revoked session accepted"),Err(error)=>error};
-   assert!(matches!(error,erpx_server_runtime::public::postgres::PgTransactionError::Business(error) if error.code=="SESSION_REVOKED"));
+   assert!(matches!(error,erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(error) if error.code=="SESSION_REVOKED"));
   }).await;
  }
 }
 
 // Temporary TS assertion oracle; its lease and role checks run before source
 // queries. It does not run the global runtime wrapper or normal authentication.
-fn legacy_assertion(database:&str,proof:&erpx_server_identity_access::public::portal_session::PortalSessionProof,audience:Option<&str>,now:i64)->serde_json::Value {
+fn legacy_assertion(database:&str,proof:&erpx_identity_access_server::public::portal_session::PortalSessionProof,audience:Option<&str>,now:i64)->serde_json::Value {
  use std::process::{Command,Stdio};
  let token=database.strip_prefix("erpx_dev_rust_").expect("leased database");
  let node=std::env::var("ERPX_NODE_BIN").expect("pinned Node required");
@@ -162,7 +162,7 @@ fn legacy_assertion(database:&str,proof:&erpx_server_identity_access::public::po
  serde_json::to_writer(child.stdin.take().unwrap(),&serde_json::json!({"database":database,"token":token,"actor":{"userId":proof.user_id,"sessionId":proof.session_id,"email":proof.email,"audience":audience},"now":now})).unwrap();
  let out=child.wait_with_output().unwrap();let stderr=String::from_utf8_lossy(&out.stderr); let stage=["input","lease-check","transaction","begin","session-lock","sso-lock","assertion","rollback"].into_iter().find(|stage|stderr.contains(&format!("PORTAL_PRIVATE_SESSION_ORACLE_FAILED:{stage}"))).unwrap_or("startup"); assert!(out.status.success(),"legacy assertion oracle failed at {stage}");serde_json::from_slice(&out.stdout).expect("bounded oracle result")
 }
-async fn legacy_assertion_async(database:&str,proof:&erpx_server_identity_access::public::portal_session::PortalSessionProof,audience:Option<&str>,now:i64)->serde_json::Value {
+async fn legacy_assertion_async(database:&str,proof:&erpx_identity_access_server::public::portal_session::PortalSessionProof,audience:Option<&str>,now:i64)->serde_json::Value {
  let db=database.to_owned();let proof=proof.clone();let audience=audience.map(str::to_owned);
  tokio::task::spawn_blocking(move||legacy_assertion(&db,&proof,audience.as_deref(),now)).await.unwrap()
 }

@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 #[path = "../../support/rust-postgres.rs"] mod fixture;
-use erpx_server_customer_authority::public::portal_evidence::{prepare_portal_evidence_change,record_portal_evidence_change};
-use erpx_server_customer_authority::public::portal_session::{PgPortalEnrollment,PortalEnrollmentSource,PortalSessionEvidence,PortalCustomerRequest};
-use erpx_server_runtime::public::postgres::{DatabasePool,MigrationTrack,load_migrations,migrate_database};
+use erpx_customer_authority_server::public::portal_evidence::{prepare_portal_evidence_change,record_portal_evidence_change};
+use erpx_customer_authority_server::public::portal_session::{PgPortalEnrollment,PortalEnrollmentSource,PortalSessionEvidence,PortalCustomerRequest};
+use erpx_platform_runtime_server::public::postgres::{DatabasePool,MigrationTrack,load_migrations,migrate_database};
 use sqlx::Connection;
 const NOW:i64=1_800_000_000_000;
 async fn setup(pool: &DatabasePool) {

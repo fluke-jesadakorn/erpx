@@ -2,10 +2,10 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { commercialOwnerProjectionSources as commerceProjectionSources } from '../../../packages/server-commerce/src/public/commercial-owner-projection-sources';
-import { crmCommerceOrderReadSql } from '../../../packages/server-crm/src/adapters/read-tail-r32-sql';
+import { commercialOwnerProjectionSources as commerceProjectionSources } from '../../../modules/commerce/server/src/public/commercial-owner-projection-sources';
+import { crmCommerceOrderReadSql } from '../../../modules/crm/server/src/adapters/read-tail-r32-sql';
 
-const owner = resolve(__dirname, '../../../packages/server-crm/src');
+const owner = resolve(__dirname, '../../../modules/crm/server/src');
 const src = (name: string) => readFileSync(resolve(owner, 'adapters', name), 'utf8');
 const totalSelects = () => {
   let total = 0;

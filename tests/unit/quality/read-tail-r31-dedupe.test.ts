@@ -2,10 +2,10 @@ import { describe, expect, test, vi } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
-import { qualityPackageScopeCte, qualityClockCte } from '../../../packages/server-quality/src/adapters/quality-scope-sql';
-import { packageClockSql } from '@erpx/server-commercial/public/purchased-capability-sql';
+import { qualityPackageScopeCte, qualityClockCte } from '../../../modules/quality/server/src/adapters/quality-scope-sql';
+import { packageClockSql } from '@erpx/commercial-server/public/purchased-capability-sql';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-quality/src');
+const srcRoot = resolve(__dirname, '../../../modules/quality/server/src');
 const read = (path: string) => readFileSync(resolve(srcRoot, path), 'utf8');
 
 // Pre-dedupe byte oracles captured from the r30 source. The two package-scope

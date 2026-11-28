@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { ownerWorkspaceDirectories, ownerWorkspacePath } from "./workspace-paths";
 import {lstatSync,readFileSync,readdirSync,realpathSync,watch} from 'node:fs';
 import {isAbsolute,relative,resolve} from 'node:path';
 import {parseWorkspaceSource} from '../testing/workspace-imports';
@@ -5,7 +7,9 @@ import {refreshWorkspaceStyles} from '../assets/workspace-styles';
 
 const privatePart=(part:string)=>/^\.env(?:\.|$)/.test(part)||['node_modules','.next','.build','.cache','.turbo','.scratch','.runtime','.git'].includes(part);
 export function workspaceStyleWatchInput(file:string){
- return /^(?:apps|packages)\/[^/]+\/(?:src\/.+\.[cm]?[jt]sx?|package\.json)$/.test(file)&&!file.split('/').some(privatePart);
+ const workspace = ownerWorkspacePath(file) ?? /^apps\/[^/]+/.exec(file)?.[0];
+ return !!workspace && /^\/(?:src\/.+\.[cm]?[jt]sx?|package\.json)$/.test(file.slice(workspace.length))
+   && !file.split("/").some(privatePart);
 }
 export function workspaceStyleGraphChanged(file:string,previous:string|undefined,current:string|undefined){
  if(previous===current)return false;
@@ -22,7 +26,9 @@ export const subscribeWorkspaceStyleSources:WorkspaceStyleSubscription=(director
 const missing=(error:unknown)=>['ENOENT','ENOTDIR'].includes((error as NodeJS.ErrnoException).code??'');
 function sourceDirectory(file:string){
  const parts=file.split('/');
- return !parts.some(privatePart)&&(['apps','packages'].includes(parts[0])&&parts.length<=2||/^(?:apps|packages)\/[^/]+\/src(?:\/|$)/.test(file));
+  const workspace = ownerWorkspacePath(file);
+ const ownerSource = workspace && (file === workspace || file.startsWith(workspace + "/src"));
+ return !parts.some(privatePart) && (ownerSource || parts.length <= 2 && ["apps", ...ownerWorkspaceDirectories].includes(parts[0]) || /^apps\/[^/]+\/src(?:\/|$)/.test(file));
 }
 
 /** One watcher belongs to the existing development supervisor. Reconcile only
@@ -74,7 +80,8 @@ export function watchWorkspaceStyleSources(root:string,initial:ReadonlyMap<strin
  const schedule=()=>{if(timer)clearTimeout(timer);timer=setTimeout(flush,options.delayMs??100);};
  const subscribe=options.subscribe??subscribeWorkspaceStyleSources;
  const watchers:ReturnType<WorkspaceStyleSubscription>[]=[];
- try{for(const directory of ['apps','packages'])watchers.push(subscribe(resolve(canonicalRoot,directory),name=>{
+ const directories = ["apps", ...ownerWorkspaceDirectories].filter(directory => existsSync(resolve(canonicalRoot, directory)));
+ try{for(const directory of directories)watchers.push(subscribe(resolve(canonicalRoot,directory),name=>{
   if(closed)return;
   // macOS may report the watched basename, a subtree, or no filename at all.
   // Ambiguous/out-of-scope names reconcile this watched root without following
@@ -90,7 +97,8 @@ export function watchWorkspaceStyleSources(root:string,initial:ReadonlyMap<strin
  catch(error){closed=true;for(const watcher of watchers)watcher.close();throw error;}
  // Close the gap between the caller's initial graph and native subscription.
  // This is a single event-independent startup reconciliation, not a poll loop.
- scopes.add('apps');scopes.add('packages');schedule();
+ for (const directory of directories) scopes.add(directory);
+ schedule();
  return{
   whenSettled(){return timer?new Promise<void>(done=>settlers.add(done)):Promise.resolve();},
   close(){if(closed)return;closed=true;if(timer)clearTimeout(timer);timer=undefined;for(const watcher of watchers)watcher.close();pending.clear();scopes.clear();settle();},

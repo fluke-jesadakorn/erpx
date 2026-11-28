@@ -12,17 +12,17 @@ mod facts;
 mod fixture;
 
 use auth::*;
-use erpx_server_identity_access::public::effective_authority::{
+use erpx_identity_access_server::public::effective_authority::{
     HoldingWorkSourcePreparation, WorkAuthorizationRequest,
 };
-use erpx_server_identity_access::public::work_context::HoldingWorkspaceRequest;
-use erpx_server_runtime::public::postgres::{DatabasePool, PgWorkFuture};
-use erpx_server_shared::public::{BusinessError, Clock};
-use erpx_server_work_projection::public::work_capability_probes::InventoryPreparation;
-use erpx_server_work_projection::public::work_navigation_read::{
+use erpx_identity_access_server::public::work_context::HoldingWorkspaceRequest;
+use erpx_platform_runtime_server::public::postgres::{DatabasePool, PgWorkFuture};
+use erpx_platform_shared_server::public::{BusinessError, Clock};
+use erpx_work_projection_server::public::work_capability_probes::InventoryPreparation;
+use erpx_work_projection_server::public::work_navigation_read::{
     NativeWorkNavigationRequest, read_native_work_navigation,
 };
-use erpx_server_work_projection::public::work_navigation_http::navigation_snapshot_json;
+use erpx_work_projection_server::public::work_navigation_http::navigation_snapshot_json;
 
 /// Expense admission and flow routing have no native owner port yet. The
 /// regression below pins that they stay explicit gaps instead of a count.
@@ -110,7 +110,7 @@ async fn composes_native_navigation_with_explicit_unknown_sources() {
                             assert!(attention.incomplete);
                             assert!(!attention.items.is_empty());
                             assert!(attention.total >= attention.items.len());
-                            let cards = erpx_server_work_projection::public::work_navigation_http::attention_items_json(Some(&attention));
+                            let cards = erpx_work_projection_server::public::work_navigation_http::attention_items_json(Some(&attention));
                             let maintenance = cards.iter().find(|row| row["id"] == "work").expect("real Maintenance card");
                             assert_eq!(maintenance["type"], "maintenance_work");
                             assert_eq!(maintenance["href"], "/maintenance/work");

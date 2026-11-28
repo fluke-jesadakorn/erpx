@@ -12,8 +12,8 @@ import {
   nativeAttachmentReadConfiguration,
   nativeAttachmentReadFailure,
   NativeAttachmentReadError,
-} from '../../../packages/server-files/src/public/native-attachments';
-import type { NativeAttachmentPageContext } from '../../../packages/server-files/src/public/native-attachments';
+} from '../../../modules/files/server/src/public/native-attachments';
+import type { NativeAttachmentPageContext } from '../../../modules/files/server/src/public/native-attachments';
 
 const config = (overrides: Record<string, unknown> = {}) =>
   JSON.stringify({

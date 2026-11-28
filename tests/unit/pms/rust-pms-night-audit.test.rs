@@ -1,15 +1,15 @@
 // Native PMS day-close command domain/application facts. No database, browser,
 // adapter, persisted receipt or HTTP acceptance is inferred.
 mod domain {
-    #[path = "../../../../packages/server-pms/src/domain/night_audit.rs"]
+    #[path = "../../../../modules/pms/server/src/domain/night_audit.rs"]
     pub mod night_audit;
-    #[path = "../../../../packages/server-pms/src/domain/room_board.rs"]
+    #[path = "../../../../modules/pms/server/src/domain/room_board.rs"]
     pub mod room_board;
 }
 mod application {
-    #[path = "../../../../packages/server-pms/src/application/night_audit.rs"]
+    #[path = "../../../../modules/pms/server/src/application/night_audit.rs"]
     pub mod night_audit;
-    #[path = "../../../../packages/server-pms/src/application/room_board.rs"]
+    #[path = "../../../../modules/pms/server/src/application/room_board.rs"]
     pub mod room_board;
 }
 
@@ -21,7 +21,7 @@ use domain::night_audit::{
     require_setup,
 };
 use domain::room_board::{PmsBoardActor, PmsPropertyRow, PmsRecord};
-use erpx_server_shared::public::CommandKey;
+use erpx_platform_shared_server::public::CommandKey;
 use serde_json::{Value, json};
 
 fn key(value: &str) -> CommandKey {

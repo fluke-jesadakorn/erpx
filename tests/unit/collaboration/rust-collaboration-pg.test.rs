@@ -1,13 +1,13 @@
 //! Owner-local tests for the production PostgreSQL collaboration units that do
 //! not require a database: scope facts, stable keys, cursors and port shapes.
-use erpx_server_collaboration::public::inbox::{
+use erpx_collaboration_server::public::inbox::{
     InboxCursor, InboxScope, InboxTargetPort, PgInboxUnit,
 };
-use erpx_server_collaboration::public::messaging_native::{
+use erpx_collaboration_server::public::messaging_native::{
     MessagingScope, PgMessagingUnit, direct_key_input,
 };
-use erpx_server_collaboration::public::messaging_teams::PgMessagingTeamUnit;
-use erpx_server_collaboration::public::social::{
+use erpx_collaboration_server::public::messaging_teams::PgMessagingTeamUnit;
+use erpx_collaboration_server::public::social::{
     PgSocialUnit, SocialRecordPort, SocialScope, SocialUnit, UnavailableSocialRecords,
 };
 

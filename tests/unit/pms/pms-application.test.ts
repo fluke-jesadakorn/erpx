@@ -1,27 +1,27 @@
-import {holdingRoutingEnabled,holdingHosts} from '@erpx/contracts/holding-hosts';
-import { ownedReleaseReadDiagnostics } from "@erpx/server-runtime/adapters/runtime/read-request";
+import {holdingRoutingEnabled,holdingHosts} from '@erpx/platform-contracts/holding-hosts';
+import { ownedReleaseReadDiagnostics } from "@erpx/platform-runtime-server/adapters/runtime/read-request";
 import {expect,it,vi} from "vitest";
-import {pmsPackageCommandAllowed} from "@erpx/feature-pms/lib/package-access";
-import {ApiError,errorResponse} from "@erpx/server-runtime/adapters/http";
+import {pmsPackageCommandAllowed} from "@erpx/pms-ui/lib/package-access";
+import {ApiError,errorResponse} from "@erpx/platform-runtime-server/adapters/http";
 
-import {createGuestBookingDocument,type GuestDocumentUnit} from "@erpx/server-pms/application/guest-document";
-import {createStaffBookingChange} from "@erpx/server-pms/application/staff-booking-changes";
-import {createPmsRollout,type PmsRolloutRepository} from "@erpx/server-pms/application/hospitality-rollout";
-import {createPmsImport,type PmsImportRepository} from "@erpx/server-pms/application/import";
-import {createPmsBookingRefund,type PmsBookingRefundPorts,type PmsBookingRefundRepository} from "@erpx/server-pms/application/pms-booking-refunds";
-import {productionAccepted} from "@erpx/server-pms/application/hospitality-evidence";
-import {pmsSourceAllowed,type PmsSource} from "@erpx/server-pms/domain/source";
-import {newProperty,executePms} from "@erpx/feature-pms/lib/pms-engine";
-import {createPmsApplication,type PmsUnit} from "@erpx/server-pms/application/pms";
-import {createPmsBooking,type PmsBookingUnit,type PmsBookingRepository} from "@erpx/server-pms/application/pms-booking";
-import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
+import {createGuestBookingDocument,type GuestDocumentUnit} from "@erpx/pms-server/application/guest-document";
+import {createStaffBookingChange} from "@erpx/pms-server/application/staff-booking-changes";
+import {createPmsRollout,type PmsRolloutRepository} from "@erpx/pms-server/application/hospitality-rollout";
+import {createPmsImport,type PmsImportRepository} from "@erpx/pms-server/application/import";
+import {createPmsBookingRefund,type PmsBookingRefundPorts,type PmsBookingRefundRepository} from "@erpx/pms-server/application/pms-booking-refunds";
+import {productionAccepted} from "@erpx/pms-server/application/hospitality-evidence";
+import {pmsSourceAllowed,type PmsSource} from "@erpx/pms-server/domain/source";
+import {newProperty,executePms} from "@erpx/pms-ui/lib/pms-engine";
+import {createPmsApplication,type PmsUnit} from "@erpx/pms-server/application/pms";
+import {createPmsBooking,type PmsBookingUnit,type PmsBookingRepository} from "@erpx/pms-server/application/pms-booking";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
 function repository<T extends object>(operations:Partial<T>):T{return new Proxy(operations as T,{get(target,name){if(name==="then")return undefined;if(name in target)return Reflect.get(target,name);return ()=>{throw new Error(`unexpected operation: ${String(name)}`);};}});}
 const error=(_status:number,code:string)=>new Error(code),clock={now:()=>100};
 const actor:WorkContext={userId:"reviewer",name:"Reviewer",email:"reviewer@example.test",assignmentId:"assignment",role:"holding_owner",companyId:"company",branchId:null,departmentId:null,holdingId:"H001",holdingSlug:"test",holdingName:"Test",scope:{kind:"holding",holdingId:"H001",holdingSlug:"test",holdingName:"Test",companyId:"company"},assignmentScope:"holding",inherited:false,modules:["pms"],assignments:[],workspaces:[]};
 const snapshot=()=>newProperty("hotel","company","branch","Hotel","2026-10-05");
 it("the actual PMS endpoint rejects a Finance reservation command before acquiring the Holding database and retains the unchanged transfer command",async()=>{
  const command=vi.fn(async()=>({id:"transfer",version:2})),resources=vi.fn(async()=>({write:{}}));
- const modules=["@erpx/server-pms/public/pms","@erpx/server-identity_access/public/authorization","@erpx/server-runtime/public/runtime","@erpx/server-runtime/public/runtime/types","@erpx/server-manage_erpx/public/public-origin","@erpx/server-runtime/public/runtime/read-request","@erpx/server-runtime/public/runtime/read-metrics"];
+ const modules=["@erpx/pms-server/public/pms","@erpx/identity-access-server/public/authorization","@erpx/platform-runtime-server/public/runtime","@erpx/platform-runtime-server/public/runtime/types","@erpx/manage-erpx-server/public/public-origin","@erpx/platform-runtime-server/public/runtime/read-request","@erpx/platform-runtime-server/public/runtime/read-metrics"];
  vi.stubEnv("ERPX_PRODUCT_ROUTING","enabled");vi.stubEnv("ERPX_PRODUCT_SSO","enabled");vi.stubEnv("ERPX_PRODUCT_ENVIRONMENT","development");vi.stubEnv("ERPX_ENVIRONMENT","local");
  vi.doMock(modules[0],()=>({pmsCommand:command,pmsWorkspace:vi.fn()}));
  vi.doMock(modules[1],()=>({requireWorkContext:async()=>actor}));
@@ -31,7 +31,7 @@ it("the actual PMS endpoint rejects a Finance reservation command before acquiri
  vi.doMock(modules[5],()=>({measureReadRequest:async(_name:string,read:()=>Promise<unknown>)=>read()}));
  vi.doMock(modules[6],()=>({measureReadPhase:async(_name:string,read:()=>Promise<unknown>)=>read()}));
  try{
-  const {POST}=await import("@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/pms/route");
+  const {POST}=await import("@erpx/platform-workplace/routes/api/v1/holdings/[holdingSlug]/pms/route");
   const request=(body:unknown)=>new Request("https://finance-dev-erpx.jesadakorn.com/api/v1/holdings/test/pms",{method:"POST",headers:{host:"finance-dev-erpx.jesadakorn.com",origin:"https://finance-dev-erpx.jesadakorn.com","Content-Type":"application/json","Idempotency-Key":"same-native-key"},body:JSON.stringify(body)});
   const denied=await POST(request({operation:"reservation.check_in",propertyId:"hotel",input:{id:"reservation"}}),{params:Promise.resolve({holdingSlug:"test"})});
   expect(denied.status).toBe(404);expect(await denied.json()).toMatchObject({error:{code:"NOT_FOUND"}});expect(resources).not.toHaveBeenCalled();expect(command).not.toHaveBeenCalled();
@@ -124,8 +124,8 @@ for(const operation of ['charge','reverse'] as const)it(`stale POS ${operation} 
  await expect(promise).rejects.toMatchObject({code:'PMS_VERSION_CONFLICT',details:{currentVersion:2}});
 });
 
-import { availability, groupPickupCount, stayTypeOnDate } from "@erpx/feature-pms/lib/pms-inventory-domain";
-import { record, records, type DataMap, type Kind, type Snapshot } from "@erpx/server-pms/public/rules/pms";
+import { availability, groupPickupCount, stayTypeOnDate } from "@erpx/pms-ui/lib/pms-inventory-domain";
+import { record, records, type DataMap, type Kind, type Snapshot } from "@erpx/pms-server/public/rules/pms";
 it("inactive Hotel controls retain frozen-mail retry without permitting new booking or settlement",()=>{
  const purchases={"pms.reservations":{newWork:false,settleExisting:false,history:true}};
  expect(pmsPackageCommandAllowed(purchases,"booking.retry_email",{id:"existing-failed-mail"})).toBe(true);
@@ -267,7 +267,7 @@ it('keeps a quota-only revision claim from consuming physical room capacity twic
   expect(availability(s, 'standard', '2026-09-04')).toMatchObject({ occupied: 1, held: 0, available: 0 });
 });
 
-import {createPmsHomeApi,type PmsHomeApiRepository} from '@erpx/server-pms/application/home-api';
+import {createPmsHomeApi,type PmsHomeApiRepository} from '@erpx/pms-server/application/home-api';
 function handoverApi(r:Partial<PmsHomeApiRepository>){return createPmsHomeApi({repository:async()=>repository<PmsHomeApiRepository>(r),require:()=>{},error,postDraft:()=>{throw Error('unused');},mentions:()=>[],pmsHotelSources:async()=>{throw Error('unused');},pmsWorkspace:async()=>{throw Error('unused');},pmsHome:async()=>{throw Error('unused');}});}
 it('PMS keeps headerless handover compatibility while the versioned path uses exactly the originally displayed version and key after native scope authorization',async()=>{
  const calls:unknown[][]=[],post:Awaited<ReturnType<PmsHomeApiRepository['readablePost']>>={id:'post',kind:'team',company_id:actor.companyId,branch_id:null,department_id:null,author_id:'author',author_name:'Author',body:'Actual read handover',mentions_json:'[]',content_json:null,rich_content_json:null,audience_kind:'participants',audience_id:null,purpose:'handover',edited_at:null,retracted_at:null,version:4,state:'published',linked_module:null,created_at:1},app=handoverApi({readablePost:async()=>{calls.push(['scope']);return post;},acknowledgeHandover:async(...args)=>{calls.push(['legacy',...args]);return {postId:'post',postVersion:4,acknowledged:true,canAcknowledge:true,acknowledgedCount:1,recipientCount:1};},acknowledgeHandoverVersion:async(...args)=>{calls.push(['versioned',...args]);return {postId:'post',postVersion:3,acknowledged:true};}});
@@ -282,14 +282,14 @@ it('PMS current native post scope failure precedes every handover confirmation i
 import {createElement,type ReactNode} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {PathnameContext,SearchParamsContext} from 'next/dist/shared/lib/hooks-client-context.shared-runtime';
-import {StandardPmsToday as PmsToday} from '@erpx/feature-pms/components/standard-pms-today';
-import {PmsHotelSources} from '@erpx/feature-records/components/pms-hotel-sources';
-import {CollectionRecordLink} from '@erpx/feature-records/components/record-collection';
-import {CurrencyProvider} from '@erpx/feature-finance/components/money/currency-provider';
-import type {PmsHome} from '@erpx/server-pms/public/pms/home';
+import {StandardPmsToday as PmsToday} from '@erpx/pms-ui/components/standard-pms-today';
+import {PmsHotelSources} from '@erpx/records-ui/components/pms-hotel-sources';
+import {CollectionRecordLink} from '@erpx/records-ui/components/record-collection';
+import {CurrencyProvider} from '@erpx/finance-ui/components/money/currency-provider';
+import type {PmsHome} from '@erpx/pms-server/public/pms/home';
 const hotelDrawer=vi.hoisted(()=>({reads:[] as Array<{kind:string;endpoint:string}>}));
-vi.mock("@erpx/feature-records/components/record-collection",async importOriginal=>{
- const actual=await importOriginal<typeof import("@erpx/feature-records/components/record-collection")>();
+vi.mock("@erpx/records-ui/components/record-collection",async importOriginal=>{
+ const actual=await importOriginal<typeof import("@erpx/records-ui/components/record-collection")>();
  return {...actual,RecordCollectionDrawer:(props:Parameters<typeof actual.RecordCollectionDrawer>[0])=>{hotelDrawer.reads.push({kind:props.kind,endpoint:props.endpoint});return null;}};
 });
 const sourceHotel:PmsHome['hotels'][number]={id:'original-hotel',name:'Original source hotel',branchId:'branch',businessDate:'2026-10-16',state:'open',currency:'THB',capacity:10,sold:2,inspected:8,roomCount:10,arrivals:1,departures:0,occupancy:0.2,roomRevenue:20000,adr:10000,revpar:2000,receivable:0,advance:0,deposit:0};
@@ -344,8 +344,8 @@ it('keeps malformed canonical metric and date rejected by the original owner API
 
 
 it("the actual PMS worker uses Booking for newly reconciled guest mail while preserving isolated origins and disabled routing",async()=>{
- const {readFileSync}=await import('node:fs'),ts=await import('typescript'),{applicationOrigin}=await import('@erpx/feature-runtime/lib/application-origins');
- const source=readFileSync('packages/server-runtime/src/adapters/runtime/jobs.ts','utf8'),file=ts.createSourceFile('jobs.ts',source,ts.ScriptTarget.Latest,true),declaration=file.statements.find((node):node is import('typescript').FunctionDeclaration=>ts.isFunctionDeclaration(node)&&node.name?.text==='pmsWork');
+ const {readFileSync}=await import('node:fs'),ts=await import('typescript'),{applicationOrigin}=await import('@erpx/platform-runtime-ui/lib/application-origins');
+ const source=readFileSync('platform/runtime/server/src/adapters/runtime/jobs.ts','utf8'),file=ts.createSourceFile('jobs.ts',source,ts.ScriptTarget.Latest,true),declaration=file.statements.find((node):node is import('typescript').FunctionDeclaration=>ts.isFunctionDeclaration(node)&&node.name?.text==='pmsWork');
  if(!declaration)throw Error('The original PMS worker is required');
  const code=ts.transpileModule(declaration.getText(file).replace(/^export\s+/,''),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText.replace(/import\(/g,'modules(');
  const db={},payment=vi.fn(async()=>{}),mail=vi.fn(async()=>{}),drain=vi.fn(async()=>{}),stripe=vi.fn(async()=>{}),send=vi.fn();
@@ -373,7 +373,7 @@ it("the actual PMS worker uses Booking for newly reconciled guest mail while pre
 
 
 it("delivers queued legacy Booking links on Booking without replacing their token, tenant, query or unrelated destinations",async()=>{
- const {bookingEmailDeliveryPayload}=await import('@erpx/server-pms/adapters/booking-email-delivery');
+ const {bookingEmailDeliveryPayload}=await import('@erpx/pms-server/adapters/booking-email-delivery');
  const old='https://console-dev-erpx.jesadakorn.com/book/tenant%20one/manage?lang=th#token=original%2Ftoken',other='https://outside.example.test/book/tenant/manage#token=foreign',input=JSON.stringify({from:'hotel@example.test',to:['guest@example.test'],subject:'Original confirmation',text:`Original policy\n${old}\n${other}\nExpires in seven days.`});
  try{
   vi.stubEnv('ERPX_PUBLIC_ORIGIN','https://console-dev-erpx.jesadakorn.com');vi.stubEnv('ERPX_ENVIRONMENT','local');vi.stubEnv('ERPX_PRODUCT_ENVIRONMENT','development');vi.stubEnv('ERPX_PRODUCT_ROUTING','enabled');vi.stubEnv('ERPX_PRODUCT_SSO','enabled');
@@ -395,7 +395,7 @@ function correctedReceiptFixture(){
  return {s,run,shift,bill:stay.data.guestAccountId};
 }
 it('a paid native charge correction releases only its consumed original receipt and never funds a second refund',async()=>{
- const {availableReceiptSources}=await import('@erpx/feature-pms/lib/pms-receipt-funding');
+ const {availableReceiptSources}=await import('@erpx/pms-ui/lib/pms-receipt-funding');
  const {s,run,shift,bill}=correctedReceiptFixture(),charge=run('charge.add',{guestAccountId:bill,price:1000,description:'Original paid service'}).id,receipt=run('payment.receive',{guestAccountId:bill,amount:1000,method:'cash',shiftId:shift}).id;
  const original=JSON.stringify(records(s,'entry'));expect(availableReceiptSources(s,bill,'advance')).toEqual([]);
  run('charge.reverse',{id:charge,reason:'Independently corrected original service'},'reviewer');expect(availableReceiptSources(s,bill,'advance')).toEqual([{entryId:receipt,amount:1000}]);expect(JSON.stringify(records(s,'entry').slice(0,JSON.parse(original).length))).toBe(original);
@@ -405,13 +405,13 @@ it('a paid native charge correction releases only its consumed original receipt 
  const last=refund(800);expect(record(s,'entry',last).data.funding).toEqual([{entryId:receipt,amount:800}]);expect(availableReceiptSources(s,bill,'advance')).toEqual([]);expect(record(s,'guest_account',bill).data.advance).toBe(0);expect(()=>refund(1)).toThrow();
 });
 it('a partial paid correction releases only its actual credit, retaining unrelated consumed source and refund holds',async()=>{
- const {availableReceiptSources}=await import('@erpx/feature-pms/lib/pms-receipt-funding');const {s,run,shift,bill}=correctedReceiptFixture();
+ const {availableReceiptSources}=await import('@erpx/pms-ui/lib/pms-receipt-funding');const {s,run,shift,bill}=correctedReceiptFixture();
  const corrected=run('charge.add',{guestAccountId:bill,price:1000,description:'Partially refundable service'}).id;run('charge.add',{guestAccountId:bill,price:1000,description:'Unchanged actual service'});const receipt=run('payment.receive',{guestAccountId:bill,amount:1500,method:'cash',shiftId:shift}).id;
  const outcome=run('charge.reverse',{id:corrected,reason:'Independent partial credit'},'reviewer');expect(outcome.effects.postings.find(row=>row.source===`${outcome.id}:credit-balance`)?.lines).toEqual([{account:'receivable',debit:500,credit:0},{account:'advance',debit:0,credit:500}]);expect(availableReceiptSources(s,bill,'advance')).toEqual([{entryId:receipt,amount:500}]);
  record(s,'guest_account',bill).data.refundHolds=[{entryId:receipt,amount:200,pocket:'advance'}];expect(availableReceiptSources(s,bill,'advance')).toEqual([{entryId:receipt,amount:300}]);expect(availableReceiptSources(s,bill,'advance',false)).toEqual([{entryId:receipt,amount:500}]);expect(availableReceiptSources(s,bill,'deposit')).toEqual([]);
 });
 it('a cloned legacy correction needs exact owned credit evidence and cannot release another bill or allocation twice',async()=>{
- const {availableReceiptSources,captureReceiptAllocationCredit}=await import('@erpx/feature-pms/lib/pms-receipt-funding');const {s,run,shift,bill}=correctedReceiptFixture(),charge=run('charge.add',{guestAccountId:bill,price:1000,description:'Historical paid charge'}).id,receipt=run('payment.receive',{guestAccountId:bill,amount:1000,method:'cash',shiftId:shift}).id,correction=run('charge.reverse',{id:charge,reason:'Historical independently corrected charge'},'reviewer').id;
+ const {availableReceiptSources,captureReceiptAllocationCredit}=await import('@erpx/pms-ui/lib/pms-receipt-funding');const {s,run,shift,bill}=correctedReceiptFixture(),charge=run('charge.add',{guestAccountId:bill,price:1000,description:'Historical paid charge'}).id,receipt=run('payment.receive',{guestAccountId:bill,amount:1000,method:'cash',shiftId:shift}).id,correction=run('charge.reverse',{id:charge,reason:'Historical independently corrected charge'},'reviewer').id;
  const restored=structuredClone(s),before=JSON.stringify(restored);expect(availableReceiptSources(restored,bill,'advance')).toEqual([]);expect(availableReceiptSources(s,bill,'advance')).toEqual([{entryId:receipt,amount:1000}]);
  captureReceiptAllocationCredit(restored,correction,1000);captureReceiptAllocationCredit(restored,correction,1000);expect(availableReceiptSources(restored,bill,'advance')).toEqual([{entryId:receipt,amount:1000}]);expect(JSON.stringify(restored)).toBe(before);expect(()=>captureReceiptAllocationCredit(restored,correction,1001)).toThrow('PMS_RECEIPT_CREDIT_CHANGED');
  const wrongBill=structuredClone(s);record(wrongBill,'entry',correction).data.guestAccountId='other-bill';captureReceiptAllocationCredit(wrongBill,correction,1000);expect(availableReceiptSources(wrongBill,bill,'advance')).toEqual([]);expect(availableReceiptSources(wrongBill,'other-bill','advance')).toEqual([]);
@@ -420,14 +420,14 @@ it('a cloned legacy correction needs exact owned credit evidence and cannot rele
 });
 
 for(const lock of [false,true])it(`the actual Booking ${lock?'locked refund':'read quote'} snapshot rehydrates only native correction proof without serializing it`,async()=>{
- const {availableReceiptSources}=await import('@erpx/feature-pms/lib/pms-receipt-funding');const {s,run,shift,bill}=correctedReceiptFixture(),charge=run('charge.add',{guestAccountId:bill,price:1000,description:'Actual prior corrected charge'}).id,receipt=run('payment.receive',{guestAccountId:bill,amount:1000,method:'cash',shiftId:shift}).id,credit=run('charge.reverse',{id:charge,reason:'Prior independent correction'},'reviewer').id;
+ const {availableReceiptSources}=await import('@erpx/pms-ui/lib/pms-receipt-funding');const {s,run,shift,bill}=correctedReceiptFixture(),charge=run('charge.add',{guestAccountId:bill,price:1000,description:'Actual prior corrected charge'}).id,receipt=run('payment.receive',{guestAccountId:bill,amount:1000,method:'cash',shiftId:shift}).id,credit=run('charge.reverse',{id:charge,reason:'Prior independent correction'},'reviewer').id;
  const native=vi.fn(async(facts:Parameters<PmsUnit<never>['readReceiptAllocationCredits']>[0])=>{expect(facts).toEqual({companyId:s.property.companyId,propertyId:s.property.id,branchId:s.property.branchId,chartId:s.property.config.chartId,currency:s.property.config.currency,receivableAccountId:s.property.config.accounts.receivable,advanceAccountId:s.property.config.accounts.advance,entries:[{id:credit,date:s.property.businessDate}]});return [{entryId:credit,amount:1000}];});
  const owner=main(),db=repository<PmsBookingUnit<never>>({readPmsProperties1:async facts=>{expect(facts).toEqual({propertyId:s.property.id,lock});const p=s.property;return {id:p.id,company_id:p.companyId,branch_id:p.branchId,name:p.name,business_date:p.businessDate,state:p.state,version:p.version,config_json:JSON.stringify(p.config)};},readPmsRecords2:async()=>s.records.map(row=>({id:row.id,kind:row.kind,data_json:JSON.stringify(row.data),version:row.version,updated_at:row.updatedAt})),hydrateReceiptAllocationCredits:async snapshot=>owner.hydrateReceiptAllocationCredits(repository<PmsUnit<never>>({readReceiptAllocationCredits:native}),snapshot)});
  const loaded=await createPmsBooking(bookingPorts()).bookingSnapshot(db,s.property.id,undefined,lock);expect(native).toHaveBeenCalledOnce();expect(loaded).not.toBe(s);expect(availableReceiptSources(loaded,bill,'advance')).toEqual([{entryId:receipt,amount:1000}]);expect(availableReceiptSources(JSON.parse(JSON.stringify(loaded)),bill,'advance')).toEqual([]);expect(Object.keys(loaded)).toEqual(['property','records']);
 });
 
-import {StandardPmsHomeEditor} from '@erpx/feature-pms/components/standard-pms-today';
-import {DraftFormDrawer} from '@erpx/ui/components/draft-form-drawer';
+import {StandardPmsHomeEditor} from '@erpx/pms-ui/components/standard-pms-today';
+import {DraftFormDrawer} from '@erpx/platform-ui/components/draft-form-drawer';
 import {Children,isValidElement,type ComponentProps} from 'react';
 it.each([{busy:true,pending:false},{busy:false,pending:true}])('actual standard PMS Home editor retains its native draft/recovery and refuses dismissal for %j',state=>{
  const close=vi.fn(),fields=createElement('textarea',{defaultValue:'Newer unsent handover text'}),recovery=createElement('button',{type:'button'},'Retry original request');

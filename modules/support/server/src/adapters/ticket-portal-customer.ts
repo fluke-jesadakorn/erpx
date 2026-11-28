@@ -1,0 +1,20 @@
+import 'server-only';
+import {randomUUID} from 'node:crypto';
+import type {SqlDatabase,FileStore} from '@erpx/platform-runtime-server/public/runtime/types';
+import type {CustomerPortalSessionActor} from '@erpx/customer-360-server/public/portal-contract';
+import {ApiError} from '@erpx/platform-runtime-server/public/http';
+import { scheduledFeaturePredicate } from "@erpx/pms-server/public/feature-availability";
+import {nativeSupportReadFragment,SUPPORT_RD_TICKET_PORTAL_CUSTOMER_PURCHASE} from '@erpx/support-server/adapters/native-support-read';
+import {supportTicketPortalPreviewSource,supportTicketPortalFileAccessImage} from '@erpx/files-server/public/support-ticket-portal-files';
+import {bufferedAttachmentRead} from '@erpx/files-server/public/private-attachment-reads';
+import {portalValidBindingRead,supportTicketPortalImage} from '@erpx/support-server/adapters/ticket-portal-sources';
+import {type TicketPortalRow} from '@erpx/support-server/adapters/ticket-portal';
+import {ticketPortalCapability,ticketPortalChanged,ticketPortalDigest,withSupportTicketPortalUnit} from '@erpx/support-server/adapters/ticket-portal-unit';
+import { supportTicketPortalFileAccess } from '@erpx/collaboration-server/adapters/native-attachment-access-event';
+type CustomerActor=Pick<CustomerPortalSessionActor,'userId'|'email'|'holdingId'>;
+const normalized=(actor:CustomerActor)=>({...actor,email:actor.email.toLowerCase()});
+const identityKey=(actor:CustomerActor)=>ticketPortalDigest({userId:actor.userId,email:actor.email.toLowerCase(),holdingId:actor.holdingId??null});
+const missing=()=>new ApiError(404,'SUPPORT_PORTAL_NOT_FOUND','This verified customer ticket is unavailable.');
+async function publicScope(){const purchase=await nativeSupportReadFragment(SUPPORT_RD_TICKET_PORTAL_CUSTOMER_PURCHASE,0);return `(${purchase} AND ${scheduledFeaturePredicate('binding.company_id','support')})`;}
+async function customerBinding(database:SqlDatabase,actor:CustomerActor,id:string){const head=await portalValidBindingRead('binding.*',4),scope=await publicScope(),row=await database.prepare(`${head} JOIN support_ticket_portal_identities identity ON identity.binding_id=binding.id AND identity.user_id=? AND identity.email=binding.email WHERE binding.id=? AND binding.email=? AND binding.status='approved' AND binding.expires_at>? AND ${scope}`).bind(actor.userId,id,actor.email.toLowerCase(),Date.now()).first<TicketPortalRow>();if(!row)throw missing();await ticketPortalCapability(database,row.company_id,'history');return row;}
+export async function supportTicketPortalPreview(owner:SqlDatabase,files:FileStore,actor:CustomerActor,id:string,linkId:string,assertCurrent?:()=>Promise<void>){const context=identityKey(actor);return withSupportTicketPortalUnit(owner,async(database,register)=>{const binding=await customerBinding(database,actor,id),before=await supportTicketPortalImage(database,[id]),preview=await supportTicketPortalPreviewSource(database,binding.company_id,binding.ticket_id,linkId);if(!preview)throw new ApiError(404,'SUPPORT_PORTAL_FILE_NOT_FOUND','This sanitized Support preview is unavailable.');const object=await files.get(preview.objectKey);if(!object)throw new ApiError(503,'FILE_UNAVAILABLE','The shared preview is temporarily unavailable.');const bytes=await object.arrayBuffer(),eventId=`support-portal-file-${randomUUID()}`;await (await supportTicketPortalFileAccess(database,{id:eventId,companyId:binding.company_id,attachmentId:preview.attachmentId,linkId,userId:actor.userId,now:Date.now()})).run();const event=await supportTicketPortalFileAccessImage(database,eventId);register(async()=>{await customerBinding(database,actor,id);const current=await supportTicketPortalPreviewSource(database,binding.company_id,binding.ticket_id,linkId);if(context!==identityKey(actor)||before!==await supportTicketPortalImage(database,[id])||current?.witness!==preview.witness||!event||event!==await supportTicketPortalFileAccessImage(database,eventId))throw ticketPortalChanged();});return bufferedAttachmentRead({object,mediaType:preview.mediaType},bytes);},undefined,assertCurrent);}

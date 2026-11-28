@@ -1,7 +1,7 @@
 //! Parse frozen synthetic Node-oracle actors only. These explicit test facts
 //! are never a production IAM projection or permission-bearing authority.
-use erpx_server_shared::public::{AssignmentId, CompanyId, UserId};
-use erpx_server_workflow::public::commands::{
+use erpx_platform_shared_server::public::{AssignmentId, CompanyId, UserId};
+use erpx_workflow_server::public::commands::{
     CommandActor, CommandField, CommandJson, WorkAuthority,
 };
 use serde_json::Value;

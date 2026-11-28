@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { attachmentPolicy } from "@erpx/server-files/public/attachments/policy";
-import { assertSanitizedEvidenceMetadata, financeOperationsAttachmentPolicies } from "@erpx/server-files/public/attachments/finance-operations-policy";
-import { FinanceAttachmentFinanceFacts } from "@erpx/server-finance/public/attachments-finance-facts";
-import { attachmentServiceFinanceFacts } from "@erpx/server-finance/public/attachments-service-facts";
-import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import { attachmentPolicy } from "@erpx/files-server/public/attachments/policy";
+import { assertSanitizedEvidenceMetadata, financeOperationsAttachmentPolicies } from "@erpx/files-server/public/attachments/finance-operations-policy";
+import { FinanceAttachmentFinanceFacts } from "@erpx/finance-server/public/attachments-finance-facts";
+import { attachmentServiceFinanceFacts } from "@erpx/finance-server/public/attachments-service-facts";
+import type { SqlDatabase } from "@erpx/platform-runtime-server/public/runtime/types";
 
-vi.mock("@erpx/server-workflow/public/command-assertions", () => ({
+vi.mock("@erpx/workflow-server/public/command-assertions", () => ({
   assertion: () => { throw new Error("The TypeScript attachment guard assertion was retired."); },
 }));
 

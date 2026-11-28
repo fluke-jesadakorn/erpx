@@ -1,14 +1,14 @@
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { expenseFixture, expenseDb as db, key } from "../../support/helpers/expense-fixture";
-import { organizationAccessData } from "@erpx/server-organization/public/organization-access";
-import { getPerson } from "@erpx/server-people_payroll/public/people-payroll";
-import {positionSchema} from '@erpx/server-organization/public/organization';
+import { organizationAccessData } from "@erpx/organization-server/public/organization-access";
+import { getPerson } from "@erpx/people-payroll-server/public/people-payroll";
+import {positionSchema} from '@erpx/organization-server/public/organization';
 import {savePosition} from '../../support/helpers/organization-positions';
 import {installStaffLevels} from '../../support/helpers/organization-levels';
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
 
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: db, files: env.H001_FILES }), runtimeEnv: async () => env }));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({ holdingResources: async () => ({ write: db, files: env.H001_FILES }), runtimeEnv: async () => env }));
 let fixture: Awaited<ReturnType<typeof expenseFixture>>;
 let hr: WorkContext;
 let positionId: string;

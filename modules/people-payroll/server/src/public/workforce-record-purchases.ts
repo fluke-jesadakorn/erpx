@@ -1,0 +1,1 @@
+export {hasWorkforceProductRecordHistory,workforceSourceReadScope,requireWorkforceWorkspaceRecordRead,filterWorkforceWork,requireWorkforceFlowHistory,workforceDocumentFlow,withWorkforceFlowAssignment} from '@erpx/people-payroll-server/adapters/workforce-record-purchases';

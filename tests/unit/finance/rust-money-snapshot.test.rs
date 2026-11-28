@@ -1,7 +1,7 @@
 //! Unit coverage for the generic Finance Money snapshot producer: retained
 //! identity/amount validation, ISO and Company scales, exact USD conversion and
 //! the effective-date/fallback rate ordering.
-use erpx_server_finance::public::money_snapshot::{
+use erpx_finance_server::public::money_snapshot::{
     MoneyRateCandidate, MoneyRateSelector, MoneySnapshotInput, money_snapshot_scale,
     money_snapshot_usd, require_money_snapshot_scale, validate_money_snapshot_input,
 };

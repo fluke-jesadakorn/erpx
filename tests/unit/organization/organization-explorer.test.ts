@@ -1,16 +1,16 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PeopleStructureWorkspace } from "@erpx/feature-people_payroll/components/people-structure-workspace";
-import type { PeopleOrganizationProps } from "@erpx/feature-people_payroll/components/people-organization-contracts";
-import { emptyDraft } from "@erpx/feature-organization/lib/organization-draft";
-import { organizationMoveDenial } from "@erpx/feature-people_payroll/components/organization-explorer";
-import type { HoldingPeopleDirectory } from "@erpx/server-organization/public/holding-people-directory";
-import { organizationUnitOverview, organizationLocationPath } from "@erpx/feature-organization/lib/organization-presentation";
+import { PeopleStructureWorkspace } from "@erpx/people-payroll-ui/components/people-structure-workspace";
+import type { PeopleOrganizationProps } from "@erpx/people-payroll-ui/components/people-organization-contracts";
+import { emptyDraft } from "@erpx/organization-ui/lib/organization-draft";
+import { organizationMoveDenial } from "@erpx/people-payroll-ui/components/organization-explorer";
+import type { HoldingPeopleDirectory } from "@erpx/organization-server/public/holding-people-directory";
+import { organizationUnitOverview, organizationLocationPath } from "@erpx/organization-ui/lib/organization-presentation";
 
 const navigation = vi.hoisted(() => ({query: ""}));
-vi.mock("@erpx/feature-shared/lib/destination-search", () => ({useSearchParams: () => new URLSearchParams(navigation.query)}));
-vi.mock("@erpx/feature-shared/lib/destination-router", () => ({useRouter: () => ({push: vi.fn(), replace: vi.fn(), refresh: vi.fn()})}));
+vi.mock("@erpx/platform-shared-ui/lib/destination-search", () => ({useSearchParams: () => new URLSearchParams(navigation.query)}));
+vi.mock("@erpx/platform-shared-ui/lib/destination-router", () => ({useRouter: () => ({push: vi.fn(), replace: vi.fn(), refresh: vi.fn()})}));
 afterEach(() => {navigation.query = "";});
 
 const directory: HoldingPeopleDirectory = {

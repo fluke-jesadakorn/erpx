@@ -2,16 +2,16 @@ import { describe, it, expect } from 'vitest';
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import ts from 'typescript';
-import { assignmentReadSql } from '@erpx/server-identity_access/public/record-source-authority';
-import { marketingSourceRowGuardSql, attachmentOwnerVersionGuardSql } from '../../../packages/server-marketing/src/adapters/attachment-owner-version-guard';
-import { marketingPointExistsSql } from '../../../packages/server-marketing/src/adapters/marketing-point-exists-sql';
-import { marketingSelectHeadSql } from '../../../packages/server-marketing/src/adapters/select-head-sql';
-import { marketingModuleMemberSql } from '../../../packages/server-marketing/src/adapters/module-membership';
-import { publicFormImageSql } from '../../../packages/server-marketing/src/adapters/public-form-image-sql';
-import { marketingRecordScopeAuthoritySql } from '../../../packages/server-marketing/src/adapters/record-scope-authority';
+import { assignmentReadSql } from '@erpx/identity-access-server/public/record-source-authority';
+import { marketingSourceRowGuardSql, attachmentOwnerVersionGuardSql } from '../../../modules/marketing/server/src/adapters/attachment-owner-version-guard';
+import { marketingPointExistsSql } from '../../../modules/marketing/server/src/adapters/marketing-point-exists-sql';
+import { marketingSelectHeadSql } from '../../../modules/marketing/server/src/adapters/select-head-sql';
+import { marketingModuleMemberSql } from '../../../modules/marketing/server/src/adapters/module-membership';
+import { publicFormImageSql } from '../../../modules/marketing/server/src/adapters/public-form-image-sql';
+import { marketingRecordScopeAuthoritySql } from '../../../modules/marketing/server/src/adapters/record-scope-authority';
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-marketing/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/marketing/server/src/adapters/${name}`, import.meta.url);
 const src = (name: string) => readFile(adapter(name), 'utf8');
 
 // Oracles frozen from base e313f4375f2100a8db74a4851395530db948f3ad (HEAD at
@@ -43,7 +43,7 @@ async function ownerSelectTokens(): Promise<number> {
       else if (entry.name.endsWith('.ts')) total += selectTokens(await readFile(path, 'utf8'));
     }
   };
-  await walk(resolve('packages/server-marketing/src'));
+  await walk(resolve('modules/marketing/server/src'));
   return total;
 }
 

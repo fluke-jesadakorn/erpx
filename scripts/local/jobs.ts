@@ -1,12 +1,12 @@
-import {fieldOutboxQuarantine as financeCustomerOutbox} from '@erpx/server-finance/public/field-outbox-predicate';
-import {fieldOutboxQuarantine as filesOutbox} from '@erpx/server-files/public/field-outbox-predicate';
-import {fieldOutboxQuarantine as fieldOutbox} from '@erpx/server-field_service/public/field-outbox-predicate';
-import {fieldOutboxQuarantine as operationsOutbox} from '@erpx/server-operations/public/field-outbox-predicate';
-import {fieldOutboxQuarantine as collaborationOutbox} from '@erpx/server-collaboration/public/field-outbox-predicate';
-import {serviceCountOutboxQuarantine} from '@erpx/server-inventory/public/service-count-outbox-predicate';
-import { getRuntime, closeRuntime } from "@erpx/server-runtime/adapters/runtime/env";
-import { activeSlots, maintenance, runOne, scheduledWork, expenseAiWork, directoryWork, billingWork, pmsWork, posQueueWork, legalWork, customerNotificationWork,attachmentWork } from "@erpx/server-runtime/adapters/runtime/jobs";
-import { attachmentRuntimeReadiness } from "@erpx/server-files/public/attachments/readiness";
+import {fieldOutboxQuarantine as financeCustomerOutbox} from '@erpx/finance-server/public/field-outbox-predicate';
+import {fieldOutboxQuarantine as filesOutbox} from '@erpx/files-server/public/field-outbox-predicate';
+import {fieldOutboxQuarantine as fieldOutbox} from '@erpx/field-service-server/public/field-outbox-predicate';
+import {fieldOutboxQuarantine as operationsOutbox} from '@erpx/operations-server/public/field-outbox-predicate';
+import {fieldOutboxQuarantine as collaborationOutbox} from '@erpx/collaboration-server/public/field-outbox-predicate';
+import {serviceCountOutboxQuarantine} from '@erpx/inventory-server/public/service-count-outbox-predicate';
+import { getRuntime, closeRuntime } from "@erpx/platform-runtime-server/adapters/runtime/env";
+import { activeSlots, maintenance, runOne, scheduledWork, expenseAiWork, directoryWork, billingWork, pmsWork, posQueueWork, legalWork, customerNotificationWork,attachmentWork } from "@erpx/platform-runtime-server/adapters/runtime/jobs";
+import { attachmentRuntimeReadiness } from "@erpx/files-server/public/attachments/readiness";
 
 let stopping=false;
 for(const signal of ['SIGINT','SIGTERM'] as const) process.on(signal,()=>{stopping=true;});

@@ -1,9 +1,9 @@
 //! Native Projects detail and WBS read policy tests.
-use erpx_server_projects::public::project_wbs::{
+use erpx_projects_server::public::project_wbs::{
     MilestoneRow, ProjectReadActor, ProjectRow, ProjectWbsReadFuture, ProjectWbsReadRepository,
     project_wbs,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, CompanyId, FailureKind, RecordId, TimestampMillis,
 };
 
@@ -645,7 +645,7 @@ async fn stored_text_counts_chars_and_trims_only_js_whitespace() {
 
 #[test]
 fn serialization_contains_only_declared_wbs_facts() {
-    let value = serde_json::to_value(erpx_server_projects::public::project_wbs::ProjectWbs {
+    let value = serde_json::to_value(erpx_projects_server::public::project_wbs::ProjectWbs {
         project: project(),
         milestones: vec![milestone("a", "Package A", None, 0, 1, "planned", &[], &[])],
     })

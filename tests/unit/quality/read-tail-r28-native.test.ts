@@ -9,11 +9,11 @@ const norm = (value: string) => value.replace(/\s+/g, '');
 const KIND = 'quality_rd_alert_hold_id';
 const SQL = 'SELECT hold_id FROM inventory_quality_alerts WHERE id=?';
 
-const plans = read('packages/server-quality/src/adapters/native_quality_read_sql.rs');
-const http = read('packages/server-quality/src/adapters/quality_http.rs');
-const purchases = read('packages/server-quality/src/adapters/purchases.ts');
-const records = read('packages/server-quality/src/adapters/record-purchases.ts');
-const client = read('packages/server-quality/src/adapters/native-quality-read.ts');
+const plans = read('modules/quality/server/src/adapters/native_quality_read_sql.rs');
+const http = read('modules/quality/server/src/adapters/quality_http.rs');
+const purchases = read('modules/quality/server/src/adapters/purchases.ts');
+const records = read('modules/quality/server/src/adapters/record-purchases.ts');
+const client = read('modules/quality/server/src/adapters/native-quality-read.ts');
 
 /** G4 / retire.quality.native-read-r28: the alert-to-hold point read moves from
  * a TypeScript SELECT to a closed native kind planned by the existing Quality
@@ -67,7 +67,7 @@ describe('quality read-tail r28 native alert-to-hold point read', () => {
   });
 
   it('pins the owner TypeScript SELECT KPI at 33 (before 34)', () => {
-    const src = resolve(root, 'packages/server-quality/src');
+    const src = resolve(root, 'modules/quality/server/src');
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {

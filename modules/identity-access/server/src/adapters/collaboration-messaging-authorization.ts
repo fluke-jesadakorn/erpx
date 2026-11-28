@@ -1,0 +1,6 @@
+import type {SqlDatabase} from '@erpx/platform-runtime-server/public/runtime/types';import {messagingTeamMemberPredicate} from '@erpx/collaboration-server/public/messaging-owner-projections';
+import {assignmentCompanyProbeSql} from './read-tail-family-r30';
+import {assignmentCompanyUsersSql} from './read-tail-family-r33';
+export function messagingActiveAccountSql(alias:string){return `EXISTS(SELECT 1 FROM assignments a WHERE a.company_id=${alias}.company_id AND a.user_id=? AND a.revoked_at IS NULL AND a.valid_from<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND a.valid_until>floor(extract(epoch FROM clock_timestamp())*1000)::bigint)`;}
+export const messagingCurrentAccountSql=`EXISTS(${assignmentCompanyProbeSql("user_id=? AND revoked_at IS NULL AND valid_from<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND valid_until>floor(extract(epoch FROM clock_timestamp())*1000)::bigint")})`;
+export function activeMessagingPeople(db:SqlDatabase,companyId:string,now:number,now2:number,values:string[],teamId?:string){return db.prepare(assignmentCompanyUsersSql(`a.revoked_at IS NULL AND a.valid_from<=? AND a.valid_until>? ${teamId?messagingTeamMemberPredicate:''}`)).bind(companyId,now,now2,...values).all<{user_id:string}>();}

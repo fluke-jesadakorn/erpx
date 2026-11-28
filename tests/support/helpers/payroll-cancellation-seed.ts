@@ -1,4 +1,4 @@
-import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
+import type {SqlDatabase} from "@erpx/platform-runtime-server/public/runtime/types";
 
 /** Seed the exact native cancellation receipt + immutable evidence for tests.
  * Mirrors the owner command's transaction shape; does not bypass the trigger. */

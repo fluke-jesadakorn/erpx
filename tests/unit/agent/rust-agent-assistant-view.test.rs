@@ -1,13 +1,13 @@
 //! Native Agent assistant-view application behavior: canonical page scope,
 //! conversation privacy, stale/source-drift turn hiding, unavailable fallback,
 //! and the exact response field set. Wire as a `[[test]]` target named
-//! `agent_assistant_view` in packages/server-agent/Cargo.toml (lead-owned).
-use erpx_server_agent::public::assistant_view::{
+//! `agent_assistant_view` in modules/agent/server/Cargo.toml (lead-owned).
+use erpx_agent_server::public::assistant_view::{
     AssistantGovernanceFacts, AssistantTurnRow, AssistantViewContext, AssistantViewMode,
     AssistantViewPorts, AssistantViewRequest, assistant_view,
 };
-use erpx_server_runtime::public::http_support::serde_json::{Value, json};
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_runtime_server::public::http_support::serde_json::{Value, json};
+use erpx_platform_shared_server::public::BusinessError;
 use std::collections::BTreeMap;
 use std::future::Future;
 use std::pin::Pin;

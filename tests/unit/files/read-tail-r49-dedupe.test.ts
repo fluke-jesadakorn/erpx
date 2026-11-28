@@ -6,10 +6,10 @@ import {
   SUM_BYTES_ATTACHMENT_HEAD_SQL,
   LEAVE_COUNT_HEAD_SQL,
   UPLOAD_INTENT_STAR_WHERE_HEAD_SQL,
-} from '../../../packages/server-files/src/adapters/read-tail-r49-source-sql';
+} from '../../../modules/files/server/src/adapters/read-tail-r49-source-sql';
 
 const rootDir = resolve(__dirname, '../../..');
-const srcRoot = resolve(rootDir, 'packages/server-files/src');
+const srcRoot = resolve(rootDir, 'modules/files/server/src');
 const BASE = '3e0e2620b59118d6312a06f67695545b0c4b7f6c';
 const HELPER = 'adapters/read-tail-r49-source-sql.ts';
 const BETA = 'adapters/beta-management-facts.ts';
@@ -19,7 +19,7 @@ const SR = 'adapters/attachments/service-repository.ts';
 const CLEANUP = 'adapters/social-upload-cleanup.ts';
 const src = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
 const git = (...a: string[]) => execFileSync('git', a, { cwd: rootDir, encoding: 'utf8' });
-const before = (rel: string) => git('show', `${BASE}:packages/server-files/src/${rel}`);
+const before = (rel: string) => git('show', `${BASE}:modules/files/server/src/${rel}`);
 const count = (text: string, needle: string) => text.split(needle).length - 1;
 
 /** Verbatim byte oracles: B splits an identifier, D carries a newline and two

@@ -2,16 +2,16 @@
 // not an HTTP/authentication or compiler benchmark. Never use a staging manifest.
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { holdingResources } from "../../packages/server-runtime/src/adapters/runtime";
-import { closeRuntime } from "@erpx/server-runtime/adapters/runtime/env";
-import { closeRedisCache } from "@erpx/server-runtime/adapters/runtime/redis-cache";
-import { measureReads, type ReadMeasurement } from "@erpx/server-runtime/adapters/runtime/read-metrics";
-import { loadIamAuthority } from "@erpx/server-identity_access/public/iam-store";
-import { modulesForRole } from "@erpx/feature-identity_access/lib/business-roles";
-import { getWorkPage } from "@erpx/server-work_projection/public/work-summary";
-import { holdingPeopleDirectory } from "@erpx/server-organization/public/holding-people-directory";
-import { pmsWorkspace } from "../../packages/server-pms/src/public/pms";
-import type { WorkAssignment, WorkContext } from "@erpx/server-identity_access/public/authorization";
+import { holdingResources } from "../../platform/runtime/server/src/adapters/runtime";
+import { closeRuntime } from "@erpx/platform-runtime-server/adapters/runtime/env";
+import { closeRedisCache } from "@erpx/platform-runtime-server/adapters/runtime/redis-cache";
+import { measureReads, type ReadMeasurement } from "@erpx/platform-runtime-server/adapters/runtime/read-metrics";
+import { loadIamAuthority } from "@erpx/identity-access-server/public/iam-store";
+import { modulesForRole } from "@erpx/identity-access-ui/lib/business-roles";
+import { getWorkPage } from "@erpx/work-projection-server/public/work-summary";
+import { holdingPeopleDirectory } from "@erpx/organization-server/public/holding-people-directory";
+import { pmsWorkspace } from "../../modules/pms/server/src/public/pms";
+import type { WorkAssignment, WorkContext } from "@erpx/identity-access-server/public/authorization";
 
 if (process.env.NODE_ENV !== "development" || !["local", "development"].includes(process.env.ERPX_ENVIRONMENT ?? ""))
   throw new Error("DEVELOPMENT_BENCHMARK_ONLY");

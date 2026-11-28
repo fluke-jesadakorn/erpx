@@ -1,8 +1,8 @@
-use erpx_server_identity_access::public::*;
-use erpx_server_runtime::public::postgres::{
+use erpx_identity_access_server::public::*;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{Clock, TimestampMillis};
+use erpx_platform_shared_server::public::{Clock, TimestampMillis};
 use std::sync::{
     Arc,
     atomic::{AtomicI64, Ordering},

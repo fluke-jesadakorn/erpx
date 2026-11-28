@@ -1,6 +1,6 @@
 //! Retained Workflow projection classification over portable facts.
-use erpx_server_shared::public::{BusinessError, FailureKind};
-use erpx_server_workflow::public::job_projector::{
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
+use erpx_workflow_server::public::job_projector::{
     EventMessage, EventPayload, ProjectionSideEffect, ProjectionSideEffects, SideEffectFuture,
     WorkQueue, event_work, projection_side_effects, projection_work, run_side_effects,
 };

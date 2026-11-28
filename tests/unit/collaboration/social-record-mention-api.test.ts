@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { createMentionRecordRead } from "@erpx/feature-records/lib/mention-read";
+import { createMentionRecordRead } from "@erpx/records-ui/lib/mention-read";
 
 const base = "/holdings/acme";
 const record = { title: "Record title", description: "Record body", status: "approved", version: 2,

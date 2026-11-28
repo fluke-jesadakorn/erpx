@@ -1,10 +1,10 @@
 import {beforeEach,expect,it,vi} from 'vitest';
-import {workSocialBetaPathAllowed} from '@erpx/contracts/work-social-api';
-import {officeApiAllowed} from '@erpx/feature-runtime/lib/product-api-policy';
+import {workSocialBetaPathAllowed} from '@erpx/platform-contracts/work-social-api';
+import {officeApiAllowed} from '@erpx/platform-runtime-ui/lib/product-api-policy';
 const mocks=vi.hoisted(()=>({native:vi.fn()}));
-vi.mock('@erpx/server-manage_erpx/public/beta-api',()=>({betaHandler:(resource:string)=>{if(resource!=='beta')throw Error('NATIVE_RESOURCE_CHANGED');return mocks.native;}}));
-vi.mock('@erpx/feature-runtime/lib/product-hosts',()=>({productHostForHost:(host:string)=>host==='apps-dev-erpx.jesadakorn.com'?'apps':host==='admin-dev-erpx.jesadakorn.com'?'admin':null}));
-import {workSocialRequest} from '@erpx/feature-apps/routes/api/v1/holdings/[holdingSlug]/beta/[[...path]]/route';
+vi.mock('@erpx/manage-erpx-server/public/beta-api',()=>({betaHandler:(resource:string)=>{if(resource!=='beta')throw Error('NATIVE_RESOURCE_CHANGED');return mocks.native;}}));
+vi.mock('@erpx/platform-runtime-ui/lib/product-hosts',()=>({productHostForHost:(host:string)=>host==='apps-dev-erpx.jesadakorn.com'?'apps':host==='admin-dev-erpx.jesadakorn.com'?'admin':null}));
+import {workSocialRequest} from '@erpx/product-apps-ui/routes/api/v1/holdings/[holdingSlug]/beta/[[...path]]/route';
 const host='apps-dev-erpx.jesadakorn.com',prefix='/api/v1/holdings/simulation/beta/';
 beforeEach(()=>mocks.native.mockReset());
 

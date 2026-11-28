@@ -2,7 +2,7 @@
 mod fixture;
 
 use base64::{Engine, engine::general_purpose::STANDARD};
-use erpx_server_legal::public::{
+use erpx_legal_server::public::{
     AuthorizedPdfSnapshot, BoundedPdfVerifier, LegalInspectionDocument, LegalOriginalRead,
     LegalProcessingActor, LegalProcessingDocument, LegalProcessingJob, LegalProcessingKind,
     LegalProcessingLease, LegalProcessingQueueAuthority, LegalProcessingReceipt,
@@ -13,11 +13,11 @@ use erpx_server_legal::public::{
     inspect_current_legal_pdf, load_current_legal_processing_source, prepare_current_legal_pdf,
     retain_current_legal_pdf, verify_company_pdf,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, IdentifierSource,
     RecordId, TimestampMillis, UserId,
 };

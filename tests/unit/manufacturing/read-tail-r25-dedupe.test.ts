@@ -6,9 +6,9 @@ import {
   manufacturingOperationAggSql,
   manufacturingSpecificationLineAggSql,
   manufacturingSpecificationProductsAggSql,
-} from '../../../packages/server-manufacturing/src/adapters/manufacturing-read-sql-fragments';
+} from '../../../modules/manufacturing/server/src/adapters/manufacturing-read-sql-fragments';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-manufacturing/src');
+const srcRoot = resolve(__dirname, '../../../modules/manufacturing/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const S = 'MANUFACTURING_PRODUCT_SOURCES';
 

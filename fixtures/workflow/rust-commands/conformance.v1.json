@@ -3,27 +3,27 @@
   "sourceCommit": "a5ed8737a2f05eff1ee9841fda4a094b3926d732",
   "sources": [
     {
-      "path": "packages/server-workflow/src/application/commands.ts",
+      "path": "modules/workflow/server/src/application/commands.ts",
       "sha256": "665c8e957951a7748c0211e58b2001a133d4479bf546fc986f61d1cc6920ea98"
     },
     {
-      "path": "packages/server-workflow/src/domain/commands.ts",
+      "path": "modules/workflow/server/src/domain/commands.ts",
       "sha256": "c610e8a5dcd72dec347f6c2e842d469cf37a5e0eac428d82dfe5f50c6c76f92b"
     },
     {
-      "path": "packages/server-workflow/src/adapters/commands.ts",
+      "path": "modules/workflow/server/src/adapters/commands.ts",
       "sha256": "2d950d2517c96c434f4b85aff10d0fcb1f3e53d1348ad512f24f6bdc072b2d05"
     },
     {
-      "path": "packages/feature-identity_access/src/lib/guest-account-compat.ts",
+      "path": "modules/identity-access/ui/src/lib/guest-account-compat.ts",
       "sha256": "9cb447b63957b7a91f6bbc85f2074a531e5e8bb3e14dac7d58cd17d61b5b6e80"
     },
     {
-      "path": "packages/server-shared/src/index.ts",
+      "path": "platform/shared/server/src/index.ts",
       "sha256": "166f366fc1e11990b97e7b52e1ad0224767b1b7473f5d95977c344d886ee28ea"
     },
     {
-      "path": "packages/server-shared/src/domain/error.ts",
+      "path": "platform/shared/server/src/domain/error.ts",
       "sha256": "ff9c315f159f7adcff264d6637617b80760f758c7cb0b19e1896f85bb51b798c"
     }
   ],

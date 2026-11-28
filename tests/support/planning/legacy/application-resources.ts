@@ -1,7 +1,7 @@
-// FIXTURE-ONLY ORACLE: copied from the retired packages/server-planning writer so the
+// FIXTURE-ONLY ORACLE: copied from the retired modules/planning/server writer so the
 // PostgreSQL integration suite retains its exact pre-cutover SQL semantics.
 // Production code must never import this module. See tests/support/planning/index.ts.
-import type {WorkContext} from '@erpx/server-identity_access/public/authorization';import type {PlanningContext} from '@erpx/server-planning/domain/capacity';import {hasModuleAccess} from '@erpx/catalogue/module-access';import {BusinessRuleError,type Clock} from '@erpx/server-shared/index';import {resourceSchema,calendarSchema} from './domain-resources';export interface PlanningResourceRepository<Effect>{guardBranch(key:string,value:"branch",branchId:string,companyId:string):Effect;
+import type {WorkContext} from '@erpx/identity-access-server/public/authorization';import type {PlanningContext} from '@erpx/planning-server/domain/capacity';import {hasModuleAccess} from '@erpx/platform-catalogue/module-access';import {BusinessRuleError,type Clock} from '@erpx/platform-shared-server/index';import {resourceSchema,calendarSchema} from './domain-resources';export interface PlanningResourceRepository<Effect>{guardBranch(key:string,value:"branch",branchId:string,companyId:string):Effect;
 guardResourceVersion(key:string,value:"resource",id:string,companyId:string,branchId:string,expectedVersion:number):Effect;
 guardNoActiveAllocation(key:string,value:"active-resource-allocation",id:string):Effect;
 prepareResourceRevision(code:string,name:string,dailyMinutes:number,value:string,status:"active" | "archived",now:number,id:string):Effect;

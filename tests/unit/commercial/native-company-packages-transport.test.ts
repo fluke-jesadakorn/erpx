@@ -7,7 +7,7 @@ import {
   nativeCompanyPackagesFailure,
   NativeCompanyPackagesError,
   type NativeCompanyPackageActor,
-} from '../../../packages/server-commercial/src/adapters/native-company-packages';
+} from '../../../modules/commercial/server/src/adapters/native-company-packages';
 import {
   createNativePackageGrantsClient,
   nativePackageGrantsConfigured,
@@ -15,7 +15,7 @@ import {
   nativePackageGrantsFailure,
   NativePackageGrantsError,
   type NativePackageGrantActor,
-} from '../../../packages/feature-platform_administration/src/adapters/server/native-platform-administration';
+} from '../../../modules/platform-administration/ui/src/adapters/server/native-platform-administration';
 
 const actor: NativeCompanyPackageActor = {
   userId: 'operator',

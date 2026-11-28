@@ -4,9 +4,9 @@ import { describe, expect, test } from 'vitest';
 import {
   companyIdProjection,
   nodeTreeCte,
-} from '../../../packages/server-organization/src/adapters/organization-column-alias-families';
+} from '../../../modules/organization/server/src/adapters/organization-column-alias-families';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+const srcRoot = resolve(__dirname, '../../../modules/organization/server/src');
 const adapters = resolve(srcRoot, 'adapters');
 const helper = readFileSync(resolve(adapters, 'organization-column-alias-families.ts'), 'utf8');
 const directoryFacts = readFileSync(resolve(adapters, 'directory-projection-facts.ts'), 'utf8');

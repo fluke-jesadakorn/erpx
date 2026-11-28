@@ -2,11 +2,11 @@
 mod facts;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_finance::public::JournalError;
-use erpx_server_finance::public::journal_batch::*;
-use erpx_server_finance::public::journal_batch_wire::normalize_journal_batch;
-use erpx_server_runtime::public::postgres::{DatabasePool, PgTransactionError};
-use erpx_server_shared::public::CommandKey;
+use erpx_finance_server::public::JournalError;
+use erpx_finance_server::public::journal_batch::*;
+use erpx_finance_server::public::journal_batch_wire::normalize_journal_batch;
+use erpx_platform_runtime_server::public::postgres::{DatabasePool, PgTransactionError};
+use erpx_platform_shared_server::public::CommandKey;
 use facts::*;
 use tokio::sync::Mutex;
 

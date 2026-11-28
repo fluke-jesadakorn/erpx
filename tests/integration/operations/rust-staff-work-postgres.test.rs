@@ -2,16 +2,16 @@
 #![allow(dead_code)]
 #[path = "../../support/operations/rust-operations-database.rs"]
 mod fixture;
-use erpx_server_operations::public::staff_tasks::{
+use erpx_operations_server::public::staff_tasks::{
     AlertPlan, PgStaffTaskSources, PgStaffTasks, SaveTaskCommand, SaveTaskPlan, StaffTaskActor,
     StaffTaskFactDelegates, StaffTaskFuture, StaffTaskRepository, TaskReceipt,
     TransitionTaskCommand, TransitionTaskPlan, list_tasks, lock_staff_task_sources,
     plan_transition,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::CommandKey;
+use erpx_platform_shared_server::public::CommandKey;
 use std::sync::atomic::{AtomicI64, Ordering};
 
 static NOW: AtomicI64 = AtomicI64::new(1_790_000_000_000);
@@ -125,12 +125,12 @@ async fn creates_transitions_and_replays_staff_tasks_with_a_ledger() {
         assert_eq!(row.due_at, Some(1_790_820_000_000));
 
         let input = TransitionTaskCommand {
-            action: erpx_server_operations::public::staff_tasks::TaskAction::Start,
+            action: erpx_operations_server::public::staff_tasks::TaskAction::Start,
             expected_version: 1,
             note: String::new(),
             attachment_set_ids: Vec::new(),
         };
-        let facts = erpx_server_operations::public::staff_tasks::TaskAccessFacts {
+        let facts = erpx_operations_server::public::staff_tasks::TaskAccessFacts {
             same_assignee: true,
             ..Default::default()
         };
@@ -198,8 +198,8 @@ async fn rejects_a_replayed_key_with_a_different_fingerprint() {
         assert!(
             matches!(
                 error,
-                erpx_server_runtime::public::postgres::PgTransactionError::Business(
-                    erpx_server_shared::public::BusinessError {
+                erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(
+                    erpx_platform_shared_server::public::BusinessError {
                         code: "IDEMPOTENCY_CONFLICT",
                         ..
                     }
@@ -223,7 +223,7 @@ impl StaffTaskFactDelegates for SameUnitDelegates {
         unit: Option<&'a mut sqlx::PgConnection>,
         actor: &'a StaffTaskActor,
         user_id: &'a str,
-    ) -> StaffTaskFuture<'a, bool, erpx_server_shared::public::BusinessError> {
+    ) -> StaffTaskFuture<'a, bool, erpx_platform_shared_server::public::BusinessError> {
         Box::pin(async move {
             let Some(connection) = unit else {
                 return Ok(false);

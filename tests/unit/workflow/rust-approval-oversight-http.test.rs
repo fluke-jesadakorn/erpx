@@ -1,7 +1,7 @@
 //! Actual owner-local HTTP router tests for Workflow approval oversight.
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
-use erpx_server_workflow::public::approval_oversight_http::{
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
+use erpx_workflow_server::public::approval_oversight_http::{
     ApprovalOversightHttpBackend, ApprovalOversightHttpCommand, ApprovalOversightHttpFuture,
     ApprovalOversightHttpRequest, ApprovalOversightHttpResponse, ApprovalOversightHttpTarget,
     approval_oversight_http_router,

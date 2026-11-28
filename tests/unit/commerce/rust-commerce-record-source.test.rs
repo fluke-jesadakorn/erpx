@@ -1,6 +1,6 @@
 //! Commerce record-source payload shape and portable contract validation.
-use erpx_server_commerce::public::record_source::CONTRACT_VERSION;
-use erpx_server_shared::public::record_source_contract::{SourceKind, SourceRecord};
+use erpx_commerce_server::public::record_source::CONTRACT_VERSION;
+use erpx_platform_shared_server::public::record_source_contract::{SourceKind, SourceRecord};
 
 #[test]
 fn commerce_source_payload_matches_the_shared_collaboration_contract() {

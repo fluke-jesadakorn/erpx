@@ -3,9 +3,9 @@
 mod facts;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_inventory::public::service_initial_physical_count::*;
-use erpx_server_runtime::public::postgres::{PgUnitOfWork, TransactionOptions};
-use erpx_server_shared::public::BusinessError;
+use erpx_inventory_server::public::service_initial_physical_count::*;
+use erpx_platform_runtime_server::public::postgres::{PgUnitOfWork, TransactionOptions};
+use erpx_platform_shared_server::public::BusinessError;
 
 #[tokio::test]
 async fn history_observes_any_stock_row_and_rejects_a_changed_source_in_the_same_unit() {
@@ -50,13 +50,13 @@ async fn inventory_effects_follow_versions_and_rollback_with_the_enclosing_unit(
                 let effects=apply_initial_count_transition(c,&transition,&before).await.expect("transition effects");
                 effects.require_current(c).await?;
                 let stale=apply_initial_count_transition(c,&transition,&before).await;
-                assert!(matches!(stale,Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e)) if e.code=="SERVICE_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED"));
+                assert!(matches!(stale,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e)) if e.code=="SERVICE_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED"));
             }
             let actual:(String,i64,i64,i64) = sqlx::query_as("SELECT c.status,c.version,s.quantity_milli,s.value_minor FROM inventory_counts c JOIN commerce_stock s ON s.warehouse_id=c.warehouse_id WHERE c.id='count-cmd' AND s.product_id='product'").fetch_one(&mut *c).await?;
             assert_eq!(actual,("posted".into(),4,0,0));
-            Err(BusinessError::new(erpx_server_shared::public::FailureKind::Conflict,"FIXTURE_ABORT","Rollback after verifying inventory effects.").into())
+            Err(BusinessError::new(erpx_platform_shared_server::public::FailureKind::Conflict,"FIXTURE_ABORT","Rollback after verifying inventory effects.").into())
         })).await;
-        assert!(matches!(&result, Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e)) if e.code == "FIXTURE_ABORT"), "unexpected result: {result:?}");
+        assert!(matches!(&result, Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e)) if e.code == "FIXTURE_ABORT"), "unexpected result: {result:?}");
         let counts:(i64,i64,i64) = sqlx::query_as("SELECT (SELECT count(*) FROM inventory_counts WHERE id='count-cmd'),(SELECT count(*) FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='product'),(SELECT count(*) FROM inventory_adjustment_moves WHERE count_id='count-cmd')").fetch_one(pool.raw()).await.unwrap();
         assert_eq!(counts,(0,0,0));
     }).await;
@@ -107,11 +107,11 @@ async fn before_stock_update_tamper_fails_planned_witness_and_rolls_back_every_e
                 let effects=apply_initial_count_transition(c,&transition,&before).await.expect("transition effects");
                 effects.require_current(c).await?;
                 let stale=apply_initial_count_transition(c,&transition,&before).await;
-                assert!(matches!(stale,Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e)) if e.code=="SERVICE_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED"));
+                assert!(matches!(stale,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e)) if e.code=="SERVICE_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED"));
             }
             let actual:(String,i64,i64,i64) = sqlx::query_as("SELECT c.status,c.version,s.quantity_milli,s.value_minor FROM inventory_counts c JOIN commerce_stock s ON s.warehouse_id=c.warehouse_id WHERE c.id='count-cmd' AND s.product_id='product'").fetch_one(&mut *c).await?;
             assert_eq!(actual,("posted".into(),4,0,0));
-            Err(BusinessError::new(erpx_server_shared::public::FailureKind::Conflict,"FIXTURE_ABORT","Rollback after verifying inventory effects.").into())
+            Err(BusinessError::new(erpx_platform_shared_server::public::FailureKind::Conflict,"FIXTURE_ABORT","Rollback after verifying inventory effects.").into())
         })).await;
         facts::denied(result, "SERVICE_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED");
         let counts:(i64,i64,i64) = sqlx::query_as("SELECT (SELECT count(*) FROM inventory_counts WHERE id='count-cmd'),(SELECT count(*) FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='product'),(SELECT count(*) FROM inventory_adjustment_moves WHERE count_id='count-cmd')").fetch_one(pool.raw()).await.unwrap();
@@ -125,7 +125,7 @@ async fn oversized_history_is_rejected_before_image_transfer() {
   facts::setup(&pool,"none").await;
   sqlx::raw_sql("INSERT INTO inventory_counts(id,company_id,branch_id,warehouse_id,number,count_date,reason,created_by,prepared_by,created_at,updated_at) VALUES('large-count','company','branch','warehouse','LARGE','2026-01-10',repeat('x',2097153),'maker','maker',0,0); INSERT INTO inventory_count_lines(id,count_id,product_id,product_version,description,unit,snapshot_quantity_milli,snapshot_value_minor,snapshot_version,counted_quantity_milli,counted_value_minor,ordinal) VALUES('large-line','large-count','product',1,'Product','piece',0,0,0,0,0,0)").execute(pool.raw()).await.unwrap();
   let result=PgUnitOfWork::new(pool.clone()).run::<(),BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move{lock_initial_count_inventory_sources(c).await?;let _=read_initial_count_inventory_history(c,"warehouse","product",None).await?;Ok(())})).await;
-  assert!(matches!(result,Err(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(_))));
+  assert!(matches!(result,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Persistence(_))));
  }).await;
 }
 
@@ -157,13 +157,13 @@ async fn tracked_positive_stock_effects_match_plan_and_roll_back_with_unit() {
                 let effects=apply_initial_count_transition(c,&transition,&before).await.expect("transition effects");
                 effects.require_current(c).await?;
                 let stale=apply_initial_count_transition(c,&transition,&before).await;
-                assert!(matches!(stale,Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e)) if e.code=="SERVICE_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED"));
+                assert!(matches!(stale,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e)) if e.code=="SERVICE_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED"));
             }
             let actual:(String,i64,i64,i64) = sqlx::query_as("SELECT c.status,c.version,s.quantity_milli,s.value_minor FROM inventory_counts c JOIN commerce_stock s ON s.warehouse_id=c.warehouse_id WHERE c.id='count-cmd' AND s.product_id='product'").fetch_one(&mut *c).await?;
             assert_eq!(actual,("posted".into(),4,1500,150));
-            Err(BusinessError::new(erpx_server_shared::public::FailureKind::Conflict,"FIXTURE_ABORT","Rollback after verifying inventory effects.").into())
+            Err(BusinessError::new(erpx_platform_shared_server::public::FailureKind::Conflict,"FIXTURE_ABORT","Rollback after verifying inventory effects.").into())
         })).await;
-        assert!(matches!(&result, Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e)) if e.code == "FIXTURE_ABORT"), "unexpected result: {result:?}");
+        assert!(matches!(&result, Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(e)) if e.code == "FIXTURE_ABORT"), "unexpected result: {result:?}");
         let counts:(i64,i64,i64) = sqlx::query_as("SELECT (SELECT count(*) FROM inventory_counts WHERE id='count-cmd'),(SELECT count(*) FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='product'),(SELECT count(*) FROM inventory_adjustment_moves WHERE count_id='count-cmd')").fetch_one(pool.raw()).await.unwrap();
         assert_eq!(counts,(0,0,0));
     }).await;
@@ -227,7 +227,7 @@ async fn blocked_source_lock_sees_the_committed_stock_change_before_first_snapsh
 
 #[tokio::test]
 async fn ordered_decision_detail_detects_changed_pre_action_values_and_rolls_back() {
-    use erpx_server_inventory::public::service_initial_count_decision::read_initial_count_decision_detail;
+    use erpx_inventory_server::public::service_initial_count_decision::read_initial_count_decision_detail;
     fixture::with_database(2,|pool|async move {
         facts::setup(&pool,"none").await;
         let result=PgUnitOfWork::new(pool.clone()).run::<(),BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move {
@@ -283,7 +283,7 @@ async fn unicode_initial_count_owner_draft_lots_and_decision_rollback() {
                 let actual:(String,i64,String)=sqlx::query_as("SELECT c.status,c.version,d.reason FROM inventory_counts c JOIN inventory_count_decisions d ON d.count_id=c.id WHERE c.id='count-cmd' AND d.id='unicode-decision'").fetch_one(&mut *c).await?;assert_eq!(actual,("cancelled".into(),2,reason));
                 Err(BusinessError::invalid("ROLLBACK_FIXTURE","Roll back synthetic sources.").into())
             })).await;
-            assert!(matches!(result,Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e)) if e.code=="ROLLBACK_FIXTURE"));
+            assert!(matches!(result,Err(erpx_platform_runtime_server::public::postgres::PgTransactionError::Business(ref e)) if e.code=="ROLLBACK_FIXTURE"));
             let counts:(i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM inventory_counts WHERE id='count-cmd'),(SELECT count(*) FROM command_receipts WHERE command_id IN ('cmd','setup'))").fetch_one(pool.raw()).await.unwrap();assert_eq!(counts,(0,0));
         }).await;
     }

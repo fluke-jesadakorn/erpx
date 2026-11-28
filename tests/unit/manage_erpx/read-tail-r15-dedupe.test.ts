@@ -5,8 +5,8 @@ import { createHash } from 'node:crypto';
 vi.mock('server-only', () => ({}));
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-manage_erpx/src/adapters/${name}`, import.meta.url);
-const srcDir = new URL('../../../packages/server-manage_erpx/src/', import.meta.url);
+  new URL(`../../../modules/manage-erpx/server/src/adapters/${name}`, import.meta.url);
+const srcDir = new URL('../../../modules/manage-erpx/server/src/', import.meta.url);
 const sha256 = (s: string) => createHash('sha256').update(s, 'utf8').digest('hex');
 
 async function tsSources(dir: URL): Promise<string[]> {
@@ -43,7 +43,7 @@ describe('manage_erpx beta point-by-key native cutover (r8)', () => {
 
   it('exports closed native kind constants with no statement text in TypeScript', async () => {
     const { ME_RD_SLOT_ACTIVE, ME_RD_SLOT_OWNER, ME_RD_INVITATION_BY_TOKEN, ME_RD_INVITATION_ACCEPTED_USER } =
-      await import('../../../packages/server-manage_erpx/src/adapters/native-owner-read');
+      await import('../../../modules/manage-erpx/server/src/adapters/native-owner-read');
     expect([ME_RD_SLOT_ACTIVE, ME_RD_SLOT_OWNER, ME_RD_INVITATION_BY_TOKEN, ME_RD_INVITATION_ACCEPTED_USER]).toEqual(
       ORACLES.map(([kind]) => kind),
     );
@@ -94,7 +94,7 @@ describe('manage_erpx Company provisioning attachment image native cutover', () 
     expect(source).not.toContain('company_provisioning_events event');
     expect(source).toContain('LOCK TABLE company_provisioning,company_provisioning_events IN SHARE ROW EXCLUSIVE MODE');
     const { ME_RD_COMPANY_PROVISIONING_ATTACHMENT_IMAGE } =
-      await import('../../../packages/server-manage_erpx/src/adapters/native-owner-read');
+      await import('../../../modules/manage-erpx/server/src/adapters/native-owner-read');
     expect(ME_RD_COMPANY_PROVISIONING_ATTACHMENT_IMAGE).toBe(
       'manage_rd_company_provisioning_attachment_image',
     );

@@ -6,11 +6,11 @@ import {
   nativePosCashConfiguration,
   NativePosCashError,
   type NativePosCashActor,
-} from '../../../packages/feature-pos/src/adapters/server/native-pos-cash';
+} from '../../../modules/pos/ui/src/adapters/server/native-pos-cash';
 import {
   nativePosWorkspace,
   nativePosWorkspaceEligible,
-} from '../../../packages/feature-pos/src/adapters/server/native-pos-workspace';
+} from '../../../modules/pos/ui/src/adapters/server/native-pos-workspace';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44994',
@@ -174,7 +174,7 @@ describe('native POS cash command transport',()=>{
  });
 
  it('maps transport failures to the retained POS route status policy',async()=>{
-  const {nativePosCashFailure}=await import('../../../packages/feature-pos/src/adapters/server/native-pos-cash');
+  const {nativePosCashFailure}=await import('../../../modules/pos/ui/src/adapters/server/native-pos-cash');
   expect(nativePosCashFailure(new NativePosCashError('NATIVE_POS_CASH_CONTEXT_CHANGED')))
     .toMatchObject({status:409,code:'WORK_CONTEXT_CHANGED'});
   expect(nativePosCashFailure(new NativePosCashError('NATIVE_POS_CASH_REQUEST_INVALID')))
@@ -237,7 +237,7 @@ describe('native POS cash command transport',()=>{
 
  it('maps the closed native command set to retained package scopes',async()=>{
   const {NATIVE_POS_COMMANDS,nativePosCommandAvailable,nativePosCommandCapability,nativePosCommandScope,nativePosWorkflowOperation} =
-    await import('../../../packages/feature-pos/src/adapters/server/native-pos-cash');
+    await import('../../../modules/pos/ui/src/adapters/server/native-pos-cash');
   expect([...NATIVE_POS_COMMANDS]).toEqual([
     'shift.open','shift.close','shift.review','cash.approve',
     'sale.create','sale.add','sale.update_line','sale.customer','sale.move_table','sale.remove',

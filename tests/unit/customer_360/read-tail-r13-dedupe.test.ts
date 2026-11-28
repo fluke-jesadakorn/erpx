@@ -8,9 +8,9 @@ vi.mock('server-only', () => ({}));
 import {
   customerVisiblePredicate,
   scopedProjection,
-} from '../../../packages/server-customer_360/src/adapters/customer-read-sources';
+} from '../../../modules/customer-360/server/src/adapters/customer-read-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-customer_360/src');
+const srcRoot = resolve(__dirname, '../../../modules/customer-360/server/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 

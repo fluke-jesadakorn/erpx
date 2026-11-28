@@ -8,16 +8,16 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_sales::public::sales_price_lists::{
+use erpx_sales_server::public::sales_price_lists::{
     PgPriceLists, PriceListActor, PriceListCommandRepository, PriceListDecision,
     PriceListDecisionAction, PriceListInput, PriceListItemInput, PriceListReceipt, PriceListUpdate,
     create_price_list, decide_price_list, update_price_list,
 };
-use erpx_server_shared::public::{
+use erpx_platform_shared_server::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, RecordId, TimestampMillis, UserId,
 };
 use sqlx::Row;
@@ -977,9 +977,9 @@ async fn transaction_and_serializable_guards_fail_before_owner_sql() {
 
 #[tokio::test]
 async fn commerce_price_guard_matches_actual_typescript_sql() {
-    use erpx_server_sales::public::commerce_order_price_guard::{lock_commerce_order_price_source,observe_commerce_order_price_guard};
+    use erpx_sales_server::public::commerce_order_price_guard::{lock_commerce_order_price_source,observe_commerce_order_price_guard};
     let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let source=root.join("packages/server-sales/src/adapters/commerce-facts.ts");
+    let source=root.join("modules/sales/server/src/adapters/commerce-facts.ts");
     let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const m=await import(process.argv[1]);const db={prepare(sql){return{bind(...values){return{sql,values}}}}};const s=m.CommerceSalesFacts(db).guardRule18({key:'price-oracle',guardId:'price-list',values:['list','company',3,'2026-11-01','2026-11-01']});process.stdout.write(JSON.stringify(s));"#;
     let oracle=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(root).args(["--conditions=react-server","-e",script]).arg(source).output().unwrap();
     assert!(oracle.status.success(),"actual Sales TS oracle: {}",String::from_utf8_lossy(&oracle.stderr));
@@ -1015,20 +1015,20 @@ async fn commerce_price_guard_matches_actual_typescript_sql() {
 
 #[tokio::test]
 async fn commerce_selected_pricing_matches_actual_typescript_and_retains_absence() {
-    use erpx_server_sales::public::commerce_selected_pricing::{inspect_commerce_selected_pricing,lock_commerce_selected_pricing};
+    use erpx_sales_server::public::commerce_selected_pricing::{inspect_commerce_selected_pricing,lock_commerce_selected_pricing};
     let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let script=r#"
 if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');
-const {commercialOwnerProjectionSources:commerceProjectionSources}=await import('./packages/server-commerce/src/adapters/commercial-owner-projection-sources.ts');
+const {commercialOwnerProjectionSources:commerceProjectionSources}=await import('./modules/commerce/server/src/adapters/commercial-owner-projection-sources.ts');
 const transpiler=new Bun.Transpiler({loader:'ts'});
 const extract=(source,name)=>{const start=source.indexOf(`export function ${name}(`);if(start<0)throw Error(`${name}_SOURCE_MISSING`);return source.slice(start);};
-const domain=await Bun.file('./packages/server-sales/src/domain/pricing.ts').text();
+const domain=await Bun.file('./modules/sales/server/src/domain/pricing.ts').text();
 const domainFn=extract(domain,'evaluateSalesDiscounts').replace(/^export /,'');
 const evaluateSalesDiscounts=Function('decimalToMinor','BusinessRuleError',transpiler.transformSync(domainFn)+'\nreturn evaluateSalesDiscounts;')(()=>{throw Error('UNEXPECTED_PRICE_EVALUATION')},class extends Error{});
-const application=await Bun.file('./packages/server-sales/src/application/pricing.ts').text();
+const application=await Bun.file('./modules/sales/server/src/application/pricing.ts').text();
 const applicationFn=extract(application,'createSalesPricingApplication').replace(/^export /,'');
 const createSalesPricingApplication=Function('evaluateSalesDiscounts','BusinessRuleError',transpiler.transformSync(applicationFn)+'\nreturn createSalesPricingApplication;')(evaluateSalesDiscounts,class extends Error{});
-const adapter=await Bun.file('./packages/server-sales/src/adapters/pricing.ts').text();
+const adapter=await Bun.file('./modules/sales/server/src/adapters/pricing.ts').text();
 const start=adapter.indexOf('export async function resolveSalesPricing(');if(start<0)throw Error('SALES_RESOLVER_SOURCE_MISSING');
 const resolver=adapter.slice(start).replace(/^export /,'');
 const resolveSalesPricing=Function('createSalesPricingApplication','commerceProjectionSources','BusinessRuleError','ApiError',transpiler.transformSync(resolver)+'\nreturn resolveSalesPricing;')(createSalesPricingApplication,commerceProjectionSources,class extends Error{},class extends Error{});

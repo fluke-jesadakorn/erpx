@@ -5,7 +5,7 @@
 mod cases;
 
 use cases::{request, Enrollment, Session};
-use erpx_server_customer_authority::public::portal_session::{
+use erpx_customer_authority_server::public::portal_session::{
     resolve_portal_customer, session_required, PortalCustomerRequest, PortalSessionEvidence,
 };
 

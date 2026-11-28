@@ -1,6 +1,6 @@
-use erpx_server_organization::public::organization_access::*;
-use erpx_server_organization::public::organization_nodes::OrganizationScopeKind;
-use erpx_server_shared::public::FailureKind;
+use erpx_organization_server::public::organization_access::*;
+use erpx_organization_server::public::organization_nodes::OrganizationScopeKind;
+use erpx_platform_shared_server::public::FailureKind;
 
 fn actor(scope: OrganizationScopeKind) -> OrganizationAccessActor {
     OrganizationAccessActor {

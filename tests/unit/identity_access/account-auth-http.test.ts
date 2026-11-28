@@ -1,6 +1,6 @@
 import { expect, it, vi } from "vitest";
-import { createAccountAuthHttpPort } from "@erpx/feature-identity_access/adapters/http/account-auth";
-import {createAccountSecurityHttpPort} from '@erpx/feature-identity_access/adapters/http/account-security';
+import { createAccountAuthHttpPort } from "@erpx/identity-access-ui/adapters/http/account-auth";
+import {createAccountSecurityHttpPort} from '@erpx/identity-access-ui/adapters/http/account-security';
 
 const user = { id: "synthetic-user", name: "Synthetic User", email: "synthetic@example.test", emailVerified: true, image: null };
 const handle = "00000000-0000-4000-8000-000000000001";
@@ -156,7 +156,7 @@ it("carries the read-only lost-group revision into initialization without accept
 });
 
 it('uses the typed Directory wire without adopting response credentials or hiding native throttle and CAS failures',async()=>{
- const {createAccountDirectoryHttpPort}=await import('@erpx/feature-identity_access/public/client');
+ const {createAccountDirectoryHttpPort}=await import('@erpx/identity-access-ui/public/client');
  const fetcher=vi.fn<(input:string,init:RequestInit)=>Promise<Response>>(async()=>response({success:true}));const directory=createAccountDirectoryHttpPort(fetcher);
  const input={connectionId:'11111111-1111-4111-8111-111111111111',username:'alice',password:'synthetic-directory-only',revision:12};expect(await directory.signIn(input)).toEqual({data:{success:true},error:null});expect(fetcher.mock.calls[0]).toEqual(['/api/auth/directory/sign-in',expect.objectContaining({method:'POST',credentials:'include',cache:'no-store',redirect:'error',body:JSON.stringify(input)})]);
  for(const value of [{success:true,token:'untrusted'},{success:false},{data:{success:true}},null]){fetcher.mockResolvedValueOnce(response(value));expect((await directory.signIn(input)).error?.code).toBe('ACCOUNT_RESPONSE_INVALID');}

@@ -6,18 +6,18 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_customer_360::public::customer_activity::{
+use erpx_customer_360_server::public::customer_activity::{
     ExecutiveCustomerActivityQuery, executive_customer_activity,
 };
-use erpx_server_customer_360::public::customer_timeline::{
+use erpx_customer_360_server::public::customer_timeline::{
     CustomerTimelineActor, CustomerTimelineCursor, CustomerTimelineFuture, CustomerTimelineQuery,
     CustomerTimelineSupportEntitlement, PgCustomerTimelineRead, customer_timeline,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, TimestampMillis};
 use sqlx::Row;
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
@@ -36,9 +36,9 @@ fn actor(
     CustomerTimelineActor {
         user_id: user.into(),
         company_id: CompanyId::new(company).unwrap(),
-        branch_id: branch.map(|value| erpx_server_shared::public::RecordId::new(value).unwrap()),
+        branch_id: branch.map(|value| erpx_platform_shared_server::public::RecordId::new(value).unwrap()),
         department_id: department
-            .map(|value| erpx_server_shared::public::RecordId::new(value).unwrap()),
+            .map(|value| erpx_platform_shared_server::public::RecordId::new(value).unwrap()),
         role: role.into(),
         permissions: permissions
             .iter()
@@ -174,7 +174,7 @@ async fn read_page(
     customer_id: &str,
     query: CustomerTimelineQuery,
     purchased: bool,
-) -> Result<erpx_server_customer_360::public::customer_timeline::CustomerTimelinePage, BusinessError>
+) -> Result<erpx_customer_360_server::public::customer_timeline::CustomerTimelinePage, BusinessError>
 {
     PgUnitOfWork::new(pool.clone())
         .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
@@ -354,7 +354,7 @@ async fn reads_the_full_federation_and_pages_without_duplicates() {
         assert_eq!(page.items[16].title, "sales · SO-100");
         assert_eq!(
             page.limitations,
-            erpx_server_customer_360::public::customer_timeline::LIMITATIONS
+            erpx_customer_360_server::public::customer_timeline::LIMITATIONS
         );
 
         let all = paged_ids(&pool, &owner, 5).await;
@@ -835,7 +835,7 @@ async fn read_activity(
     actor: &CustomerTimelineActor,
     query: ExecutiveCustomerActivityQuery,
     purchased: bool,
-) -> Result<Vec<erpx_server_customer_360::public::customer_activity::ExecutiveCustomerActivityRow>, BusinessError> {
+) -> Result<Vec<erpx_customer_360_server::public::customer_activity::ExecutiveCustomerActivityRow>, BusinessError> {
     PgUnitOfWork::new(pool.clone())
         .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
             let actor = actor.clone();

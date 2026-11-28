@@ -12,8 +12,8 @@ import {
   validateOwnerScope,
   type HoldingsConfig,
   type Transport,
-} from '../../../packages/server-records/src/adapters/native-lane-35/multi-holding-client';
-import { ApiError } from '@erpx/server-runtime/public/http';
+} from '../../../modules/records/server/src/adapters/native-lane-35/multi-holding-client';
+import { ApiError } from '@erpx/platform-runtime-server/public/http';
 
 const root = resolve(__dirname, '../../..');
 const read = (p: string) => readFileSync(resolve(root, p), 'utf8');
@@ -105,7 +105,7 @@ describe('wave 2 oracles and KPI pins', () => {
   });
 
   test('replaced adapter has no SQL and delegates to the native client', () => {
-    const source = read('packages/server-records/src/adapters/attachment-migration-owner.ts');
+    const source = read('modules/records/server/src/adapters/attachment-migration-owner.ts');
     expect(source).not.toMatch(/SELECT\s|INSERT\s+INTO|DELETE\s+FROM|UPDATE\s+\w+\s+SET/);
     expect(source).not.toContain('.prepare(');
     expect(source).toContain('native-lane-35/multi-holding-client');
@@ -187,18 +187,18 @@ describe('consumer scope wiring', () => {
     const scopeRow = { company_id: 'acme', branch_id: 'b1', department_id: null, version: 7 };
     const recordsReader = vi.fn(async () => scopeRow);
     const payrollReader = vi.fn(async () => ({ company_id: 'acme', branch_id: null, department_id: null, version: 1 }));
-    vi.doMock('@erpx/server-records/public/attachment-migration-owner', () => ({
+    vi.doMock('@erpx/records-server/public/attachment-migration-owner', () => ({
       legacyAttachmentScoperecords: recordsReader,
     }));
     const stubs: Array<[string, string[]]> = [
-      ['@erpx/server-support/public/attachment-migration-owner', ['legacyAttachmentScopesupport']],
-      ['@erpx/server-people_payroll/public/attachment-migration-owner', ['legacyAttachmentScopepeoplepayroll', 'legacyExpensePaymentScope']],
-      ['@erpx/server-finance/public/attachment-migration-owner', ['legacyAttachmentScopefinance']],
-      ['@erpx/server-operations/public/attachment-migration-owner', ['legacyAttachmentScopeoperations']],
-      ['@erpx/server-collaboration/public/attachment-migration-owner', ['legacyAttachmentScopecollaboration']],
-      ['@erpx/server-quality/public/attachment-migration-owner', ['legacyAttachmentScopequality']],
-      ['@erpx/server-commerce/public/attachment-migration-owner', ['legacyAttachmentScopecommerce']],
-      ['@erpx/server-organization/public/attachment-migration-owner', ['legacyBranchBrandScope', 'legacyCompanyBrandScope', 'legacyHoldingBrandCompanies']],
+      ['@erpx/support-server/public/attachment-migration-owner', ['legacyAttachmentScopesupport']],
+      ['@erpx/people-payroll-server/public/attachment-migration-owner', ['legacyAttachmentScopepeoplepayroll', 'legacyExpensePaymentScope']],
+      ['@erpx/finance-server/public/attachment-migration-owner', ['legacyAttachmentScopefinance']],
+      ['@erpx/operations-server/public/attachment-migration-owner', ['legacyAttachmentScopeoperations']],
+      ['@erpx/collaboration-server/public/attachment-migration-owner', ['legacyAttachmentScopecollaboration']],
+      ['@erpx/quality-server/public/attachment-migration-owner', ['legacyAttachmentScopequality']],
+      ['@erpx/commerce-server/public/attachment-migration-owner', ['legacyAttachmentScopecommerce']],
+      ['@erpx/organization-server/public/attachment-migration-owner', ['legacyBranchBrandScope', 'legacyCompanyBrandScope', 'legacyHoldingBrandCompanies']],
     ];
     for (const [module, names] of stubs) {
       const exports = Object.fromEntries(
@@ -207,7 +207,7 @@ describe('consumer scope wiring', () => {
       vi.doMock(module, () => exports);
     }
     const { legacyAttachmentOwnerScope } = await import(
-      '../../../packages/server-files/src/adapters/attachments/migration-owner-sources'
+      '../../../modules/files/server/src/adapters/attachments/migration-owner-sources'
     );
     const db = {} as never;
     const source = { owner_type: 'employee_request', owner_id: 'r1' } as Parameters<
@@ -226,7 +226,7 @@ describe('consumer scope wiring', () => {
   });
 
   test('the backfill entrypoint forwards the identity into the owner-scope port', () => {
-    const migration = read('packages/server-files/src/adapters/attachments/migration.ts');
+    const migration = read('modules/files/server/src/adapters/attachments/migration.ts');
     expect(migration).toContain('function application(db: SqlDatabase, context?: HoldingIdentity)');
     expect(migration).toContain('legacyAttachmentOwnerScope(db, source, context)');
     expect(migration).toContain('}, context?: HoldingIdentity) { return application(db, context).backfillLegacyAttachments(options); }');

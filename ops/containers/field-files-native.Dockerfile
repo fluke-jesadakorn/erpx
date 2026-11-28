@@ -12,8 +12,8 @@ RUN mkdir -p /cache && bun --no-env-file scripts/testing/provision-native-worker
 ENV PKG_CONFIG_PATH=/cache/erpx-native-vips-8.18.7/lib/pkgconfig
 COPY . .
 RUN test -n "$ERPX_SOURCE_KEY" && test -n "$TARGETARCH" && test "$(pkg-config --modversion vips)" = 8.18.7 && test "$(pkg-config --modversion lcms2)" = 2.19 \
-    && RUSTFLAGS='-C link-arg=-Wl,-rpath,/usr/local/lib' cargo build --locked --release -p erpx-service --no-default-features --features private-field-api,files-scan-worker --bin erpx-server \
-    && RUSTFLAGS='-C link-arg=-Wl,-rpath,/usr/local/lib' cargo build --locked --release -p erpx-server-files --features preview-provider --bin erpx-render-preview \
+    && RUSTFLAGS='-C link-arg=-Wl,-rpath,/usr/local/lib' cargo build --locked --release -p erpx-platform-composition --no-default-features --features private-field-api,files-scan-worker --bin erpx-server \
+    && RUSTFLAGS='-C link-arg=-Wl,-rpath,/usr/local/lib' cargo build --locked --release -p erpx-files-server --features preview-provider --bin erpx-render-preview \
     && install -D -m 0755 target/release/erpx-server /out/erpx-server \
     && install -D -m 0755 target/release/erpx-render-preview /out/erpx-render-preview \
     && printf '%s\n%s\n' "$ERPX_SOURCE_KEY" "$TARGETARCH" > /out/build-identity \
@@ -45,7 +45,7 @@ COPY --from=runtime-libraries /usr/bin/pdftoppm /usr/bin/pdftoppm
 COPY --from=runtime-libraries /usr/local/bin/erpx-render-preview /usr/local/bin/erpx-render-preview
 COPY --from=build /out/erpx-server /usr/local/bin/erpx-server
 COPY --from=build /workspace/erpx/migrations/postgres /workspace/erpx/migrations/postgres
-COPY --from=build /out/manifest-path /workspace/erpx/src/composition
+COPY --from=build /out/manifest-path /workspace/erpx/platform/composition
 USER 65532:65532
 ENTRYPOINT ["/usr/local/bin/erpx-server"]
 
@@ -55,6 +55,6 @@ ARG ERPX_SOURCE_KEY
 LABEL org.opencontainers.image.revision="$ERPX_SOURCE_KEY" org.erpx.target-architecture="$TARGETARCH"
 WORKDIR /workspace/erpx
 COPY --from=build /workspace/erpx/migrations/postgres /workspace/erpx/migrations/postgres
-COPY --from=build /out/manifest-path /workspace/erpx/src/composition
+COPY --from=build /out/manifest-path /workspace/erpx/platform/composition
 USER 65532:65532
 ENTRYPOINT ["/usr/local/bin/erpx-server"]

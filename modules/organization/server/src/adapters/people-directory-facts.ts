@@ -1,0 +1,39 @@
+import { platformOwnerProjectionSources as people_payrollPlatformSources } from "@erpx/people-payroll-server/public/platform-owner-projection-sources";
+import type { SqlDatabase } from "@erpx/platform-runtime-server/public/runtime/types";
+import {assertion} from "@erpx/workflow-server/public/command-assertions";
+import {NODE_BRANCH_ACTIVE_EXISTS} from './organization-read-tail-sources';
+import {twoColumnLookup} from './organization-column-alias-families-r27';
+import {activeLevelAbsent} from './organization-column-alias-families-r30';
+import {activeNodeKindList} from './organization-read-tail-sources-r43';
+import {nodeExistsGuard} from './organization-read-tail-sources-r50';
+import {latestEmployeeEngagementId} from './organization-read-tail-sources-r55';
+const ROSTER_REQUIRED_SOURCE = twoColumnLookup('roster_required','organization_positions','company_id','id');
+export function peopleDirectoryOrganizationFacts(database: SqlDatabase) {
+    return { readDirectoryOptionsNodes(companyId: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) {
+            return database.prepare(activeNodeKindList("'branch','department'", " AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR kind='branch' OR id=?) ORDER BY display_name"))
+                .bind(companyId, branchId, branchId2, departmentId, departmentId2)
+                .all();
+        },
+        readDirectoryPersonPerson(value: string | null, value2: string | null, personId: string, companyId: string, value3: string | null, value4: string | null, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) {
+            return database.prepare(`SELECT p.*,e.id AS engagement_id,e.version AS engagement_version,e.branch_id,e.department_id,e.job_title,e.worker_type,e.employment_type,e.start_date,e.end_date,e.currency,e.status AS engagement_status,e.manager_person_id,e.pay_group_id,e.position_id,e.level_id,(SELECT name FROM staff_levels WHERE id=e.level_id) level_name,(SELECT level_number FROM staff_levels WHERE id=e.level_id) level_number
+    FROM (${people_payrollPlatformSources.hr_people}) p LEFT JOIN (${people_payrollPlatformSources.hr_engagements}) e ON e.id=${latestEmployeeEngagementId("AND x.worker_type='employee' AND (?::text IS NULL OR x.id=?) ")}
+    WHERE p.id=? AND p.company_id=? AND p.merged_into_id IS NULL AND e.worker_type='employee' AND (?::text IS NULL OR e.id=?) AND (?::text IS NULL OR e.branch_id=?) AND (?::text IS NULL OR e.department_id=?)`)
+                .bind(value, value2, personId, companyId, value3, value4, branchId, branchId2, departmentId, departmentId2)
+                .first<Record<string, string | number | null>>();
+        },
+        guard3(id: string, value: "branch", branchId: string, companyId: string) {
+            return assertion(database, id, value, NODE_BRANCH_ACTIVE_EXISTS, [branchId, companyId]);
+        },
+        guard4(id: string, value: "department", departmentId: string | null, departmentId2: string | null, companyId: string, branchId: string) {
+            return assertion(database, id, value, `?::text IS NULL OR ${nodeExistsGuard("branch_id=? AND kind='department' AND status='active'")}`, [departmentId, departmentId2, companyId, branchId]);
+        },
+        readSaveDirectoryPersonPrevious(companyId: string, position_id: string | number) { return database.prepare(ROSTER_REQUIRED_SOURCE).bind(companyId, position_id).first<{
+            roster_required: number;
+        }>(); },
+        readSaveDirectoryPersonNext(companyId: string, positionId: string) { return database.prepare(ROSTER_REQUIRED_SOURCE).bind(companyId, positionId).first<{
+            roster_required: number;
+        }>(); },
+        guard27(commandId: string, value: "active-level", personId: string) {
+            return assertion(database, commandId, value, `NOT EXISTS(${activeLevelAbsent(people_payrollPlatformSources.hr_engagements, `e.person_id=? AND e.status!='ended' AND (e.level_id IS NULL OR l.active IS DISTINCT FROM 1)`)})`, [personId]);
+        } };
+}

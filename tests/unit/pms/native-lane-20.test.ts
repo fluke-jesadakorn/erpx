@@ -2,21 +2,21 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
-import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import type { SqlDatabase } from "@erpx/platform-runtime-server/public/runtime/types";
 import {
   nativeLane20Configured,
   propertyReadinessFacts,
   type LaneActor,
   type PropertyReadiness,
-} from "../../../packages/server-pms/src/adapters/native-lane-20/client";
+} from "../../../modules/pms/server/src/adapters/native-lane-20/client";
 import {
   roomSummaryFacts,
   type RoomSummary,
-} from "../../../packages/server-pms/src/adapters/native-lane-20/room-summary-client";
+} from "../../../modules/pms/server/src/adapters/native-lane-20/room-summary-client";
 import {
   importBatches,
   type ImportBatchRow,
-} from "../../../packages/server-pms/src/adapters/native-lane-20/import-batch-client";
+} from "../../../modules/pms/server/src/adapters/native-lane-20/import-batch-client";
 
 const ENV = "ERPX_NATIVE_LANE_20_CONFIG";
 const db = {} as SqlDatabase;

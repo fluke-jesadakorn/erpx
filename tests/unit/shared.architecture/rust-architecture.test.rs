@@ -65,7 +65,7 @@ fn rejects_layer_backdoors_and_private_cross_owner_imports() {
         ("use crate::application::Service;", "domain/model.rs"),
         ("use crate::public::runtime;", "domain/model.rs"),
         (
-            "use erpx_server_finance::adapters::sql;",
+            "use erpx_finance_server::adapters::sql;",
             "adapters/query.rs",
         ),
     ] {
@@ -78,7 +78,7 @@ fn rejects_layer_backdoors_and_private_cross_owner_imports() {
     }
     assert!(
         architecture::inspect_source(
-            "use erpx_server_shared::public::BusinessError;",
+            "use erpx_platform_shared_server::public::BusinessError;",
             "application/command.rs"
         )
         .unwrap()
@@ -253,7 +253,7 @@ fn test_only_code_and_pure_json_values_do_not_expand_the_portable_core() {
     for source in [
         "fn x(){ let _ = json!({\"path\": std::env::var(\"SECRET\")}); }",
         "fn x(){ let _ = json!({\"path\": sqlx::query(\"x\")}); }",
-        "fn x(){ let _ = json!({\"path\": erpx_server_workflow::public::commands::CommandJson::parse(\"x\")}); }",
+        "fn x(){ let _ = json!({\"path\": erpx_workflow_server::public::commands::CommandJson::parse(\"x\")}); }",
         "fn x(){ let _ = json!({\"path\": env!(\"HOME\")}); }",
         "#[cfg(any(test, feature = \"x\"))] fn helper(){ std::env::var(\"X\"); }",
         "#[cfg(not(test))] fn helper(){ std::env::var(\"X\"); }",

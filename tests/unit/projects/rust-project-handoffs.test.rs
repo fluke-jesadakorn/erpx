@@ -1,13 +1,13 @@
 //! Native Projects handoff-view read: application handler + payload parity.
 //!
-//! This target must be registered in `packages/server-projects/Cargo.toml` as a
+//! This target must be registered in `modules/projects/server/Cargo.toml` as a
 //! `[[test]]` entry by the lead (the Cargo manifest is outside worker paths).
 //! The in-crate `#[cfg(test)]` modules cover the same projection without the
 //! extra registration.
-use erpx_server_projects::public::project_handoffs::{
+use erpx_projects_server::public::project_handoffs::{
     HandoffRow, HandoffViewActor, HandoffViewFuture, HandoffViewRepository, read_handoff_views,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 use serde_json::json;
 use std::sync::Arc;
 

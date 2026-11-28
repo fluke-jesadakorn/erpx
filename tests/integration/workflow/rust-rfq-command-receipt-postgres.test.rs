@@ -1,15 +1,15 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_workflow::public::commands::CommandField;
-use erpx_server_workflow::public::rfq_command_receipt::*;
-use erpx_server_workflow::public::source_ordered_json::{
+use erpx_workflow_server::public::commands::CommandField;
+use erpx_workflow_server::public::rfq_command_receipt::*;
+use erpx_workflow_server::public::source_ordered_json::{
     ScopedWorkAuthority, SourceOrderedFingerprintActor, SourceOrderedJson,
 };
 use sqlx::Connection;
 
 #[tokio::test]
 async fn exact_typescript_fingerprint_and_receipt_source_are_retained() {
-    let script = r#"const {rfqActionSchema}=require('./packages/server-procurement/src/domain/rfqs.ts');const crypto=require('node:crypto');const input=rfqActionSchema.parse({reason:'  reason  ',action:'submit',expectedVersion:1,offerId:'x'.repeat(2*1024*1024+20)});const fingerprint={actor:'user',assignment:'assignment',role:'r'.repeat(129),authority:{sessionId:'session',revision:0,assignmentVersion:1},company:'company',branch:null,department:null,operation:'procurement.rfq.submit',recordId:'rfq',input};process.stdout.write(JSON.stringify({input:JSON.stringify(input),hash:crypto.createHash('sha256').update(JSON.stringify(fingerprint)).digest('hex')}));"#;
+    let script = r#"const {rfqActionSchema}=require('./modules/procurement/server/src/domain/rfqs.ts');const crypto=require('node:crypto');const input=rfqActionSchema.parse({reason:'  reason  ',action:'submit',expectedVersion:1,offerId:'x'.repeat(2*1024*1024+20)});const fingerprint={actor:'user',assignment:'assignment',role:'r'.repeat(129),authority:{sessionId:'session',revision:0,assignmentVersion:1},company:'company',branch:null,department:null,operation:'procurement.rfq.submit',recordId:'rfq',input};process.stdout.write(JSON.stringify({input:JSON.stringify(input),hash:crypto.createHash('sha256').update(JSON.stringify(fingerprint)).digest('hex')}));"#;
     let output =
         std::process::Command::new(std::env::var("ERPX_NODE_BIN").expect("pinned Node required"))
             .current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))

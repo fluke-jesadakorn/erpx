@@ -7,7 +7,7 @@
 //! reconstructs the retired literals verbatim, asserts byte equality with the
 //! mounted owner statements, then executes both on a seeded database so an
 //! invalid SQL shape or a caller-scope leak cannot pass as "ported".
-use erpx_server_pos::public::core_reads as mounted;
+use erpx_pos_server::public::core_reads as mounted;
 use serde_json::Value;
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row, postgres::PgConnectOptions};
 use std::str::FromStr;
@@ -192,23 +192,23 @@ where
         let owned = admin_options.clone().database(&name);
         let mut connection = PgConnection::connect_with(&owned).await.unwrap();
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
-        let files = erpx_server_runtime::public::postgres::load_migrations(
+        let files = erpx_platform_runtime_server::public::postgres::load_migrations(
             root,
-            erpx_server_runtime::public::postgres::MigrationTrack::HoldingWrite,
+            erpx_platform_runtime_server::public::postgres::MigrationTrack::HoldingWrite,
         )
         .await
         .unwrap();
-        erpx_server_runtime::public::postgres::migrate_database(
-            &erpx_server_runtime::public::postgres::connect_pool(
-                &erpx_server_runtime::public::postgres::DatabaseConfig::from_options(owned).unwrap(),
-                erpx_server_runtime::public::postgres::PoolLimits {
+        erpx_platform_runtime_server::public::postgres::migrate_database(
+            &erpx_platform_runtime_server::public::postgres::connect_pool(
+                &erpx_platform_runtime_server::public::postgres::DatabaseConfig::from_options(owned).unwrap(),
+                erpx_platform_runtime_server::public::postgres::PoolLimits {
                     max_connections: 2,
                     acquire_timeout: std::time::Duration::from_secs(5),
                 },
             )
             .await
             .unwrap(),
-            erpx_server_runtime::public::postgres::MigrationTrack::HoldingWrite,
+            erpx_platform_runtime_server::public::postgres::MigrationTrack::HoldingWrite,
             &files,
         )
         .await
@@ -343,7 +343,7 @@ fn core_read_statements_execute_and_scope_on_postgres() {
 // --- Round 29 keyed core settings/receipt/day-close/reversal family ---------
 // The retired inline TypeScript literals are reconstructed verbatim below so
 // the transport and integration oracles cannot drift from the runtime registry.
-use erpx_server_pos::public::core_keyed_reads as keyed_mounted;
+use erpx_pos_server::public::core_keyed_reads as keyed_mounted;
 
 const KEYED_CORE_READ_KINDS: &[&str] = &[
     "pos_core_keyed_settings",

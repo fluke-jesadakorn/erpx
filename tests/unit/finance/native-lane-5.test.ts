@@ -9,14 +9,14 @@ import {
   nativeCustomerRead,
   nativeCustomerReadConfigured,
   FINANCE_LANE5_RD_CUSTOMER_DIRECTORY,
-} from '../../../packages/server-finance/src/adapters/native-lane-5/client';
+} from '../../../modules/finance/server/src/adapters/native-lane-5/client';
 import {
   salesPricingCustomers,
   salesPricingCustomerValid,
   salesCustomerProfile,
   salesCustomerDirectory,
   salesNoteCustomer,
-} from '../../../packages/server-finance/src/adapters/sales-customer-sources';
+} from '../../../modules/finance/server/src/adapters/sales-customer-sources';
 
 const ENV = 'ERPX_NATIVE_FINANCE_CUSTOMER_READ_CONFIG';
 const root = fileURLToPath(new URL('../../../', import.meta.url));
@@ -248,7 +248,7 @@ describe('native Finance lane 5 customer read transport', () => {
 describe('native Finance lane 5 SQL/result oracle', () => {
   it('replaced TS reads contain no SQL and delegate to the native client', () => {
     const src = readFileSync(
-      new URL('../../../packages/server-finance/src/adapters/sales-customer-sources.ts', import.meta.url),
+      new URL('../../../modules/finance/server/src/adapters/sales-customer-sources.ts', import.meta.url),
       'utf8',
     );
     expect(src).toContain("from './native-lane-5/client'");
@@ -259,7 +259,7 @@ describe('native Finance lane 5 SQL/result oracle', () => {
 
   it('pins the byte-identical statement heads executed by Rust', () => {
     const domain = readFileSync(
-      new URL('../../../packages/server-finance/src/adapters/native_lane_5/domain.rs', import.meta.url),
+      new URL('../../../modules/finance/server/src/adapters/native_lane_5/domain.rs', import.meta.url),
       'utf8',
     );
     const oracles: Record<string, string> = {

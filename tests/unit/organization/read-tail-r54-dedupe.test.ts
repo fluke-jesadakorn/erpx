@@ -1,20 +1,20 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
-import { activeNodeByKind } from '../../../packages/server-organization/src/adapters/organization-column-alias-families-r27';
+import { activeNodeByKind } from '../../../modules/organization/server/src/adapters/organization-column-alias-families-r27';
 
-vi.mock('@erpx/server-workflow/public/command-assertions', () => ({
+vi.mock('@erpx/workflow-server/public/command-assertions', () => ({
   assertion: (db: unknown, commandId: string, step: string, query: string, args: (string | number | null)[]) => ({
     commandId, step, query, args,
   }),
 }));
 
-import { attachmentServiceOrganizationFacts } from '../../../packages/server-organization/src/adapters/attachments-service-facts';
-import { ORG_BRANCH_COMPANY_SOURCE } from '../../../packages/server-organization/src/adapters/org-sources';
+import { attachmentServiceOrganizationFacts } from '../../../modules/organization/server/src/adapters/attachments-service-facts';
+import { ORG_BRANCH_COMPANY_SOURCE } from '../../../modules/organization/server/src/adapters/org-sources';
 
 const db = {} as never;
 type Captured = { commandId: string; step: string; query: string; args: (string | number | null)[] };
-const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+const srcRoot = resolve(__dirname, '../../../modules/organization/server/src');
 const adapters = resolve(srcRoot, 'adapters');
 const read = (name: string) => readFileSync(resolve(adapters, name), 'utf8');
 const helper = read('organization-column-alias-families-r27.ts');

@@ -13,7 +13,7 @@ import type { Suite } from '../../../scripts/testing/catalogue';
 import { workspaceStyleSheet } from '../../../scripts/assets/workspace-styles';
 import { Scanner } from '@tailwindcss/oxide';
 import {subscribeWorkspaceStyleSources,watchWorkspaceStyleSources,workspaceStyleGraphChanged,workspaceStyleWatchInput,type WorkspaceStyleSubscription} from '../../../scripts/local/workspace-style-watcher';
-const suite=(id:string,app:string,file:string):Suite=>({id,lane:'unit',owner:'shared.testing',modules:['finance'],files:[file],fixture:'none',requires:{jobs:false,scanner:false},apps:[app],packages:['@erpx/contracts']});
+const suite=(id:string,app:string,file:string):Suite=>({id,lane:'unit',owner:'shared.testing',modules:['finance'],files:[file],fixture:'none',requires:{jobs:false,scanner:false},apps:[app],packages:['@erpx/platform-contracts']});
 it('passes pinned toolchain paths through actual Turbo strict mode and binds their cache identity without admitting unrelated environment',()=>{
  const root=join(import.meta.dirname,'../../..');
  const run=(node:string,sensitive:string)=>JSON.parse(execFileSync(process.execPath,[join(root,'node_modules/turbo/bin/turbo'),'run','typecheck','--filter=@erpx/app-legal-portal','--dry=json'],{
@@ -28,14 +28,14 @@ it('passes pinned toolchain paths through actual Turbo strict mode and binds the
  expect(JSON.stringify(first.globalCacheInputs.environmentVariables)).not.toContain('ERPX_UNDECLARED_SECRET');
 });
 function sources(){return new Map([
- ['apps/finance/src/app/page.tsx','import "@erpx/contracts/finance";'],
- ['apps/people/src/app/page.tsx','import "@erpx/contracts/people";'],
- ['packages/contracts/src/finance.ts','import { currency } from "./money"; import type { Person } from "./person"; export {currency};'],
- ['packages/contracts/src/people.ts','export const employee=1;'],
- ['packages/contracts/src/person.ts','export type Person={name:string};'],
- ['packages/contracts/src/money.ts','export const currency="THB";'],
- ['tests/unit/shared.testing/finance.test.ts','import "@erpx/contracts/finance";'],
- ['tests/unit/shared.testing/people.test.ts','import "@erpx/contracts/people";'],
+ ['apps/finance/src/app/page.tsx','import "@erpx/platform-contracts/finance";'],
+ ['apps/people/src/app/page.tsx','import "@erpx/platform-contracts/people";'],
+ ['platform/contracts/src/finance.ts','import { currency } from "./money"; import type { Person } from "./person"; export {currency};'],
+ ['platform/contracts/src/people.ts','export const employee=1;'],
+ ['platform/contracts/src/person.ts','export type Person={name:string};'],
+ ['platform/contracts/src/money.ts','export const currency="THB";'],
+ ['tests/unit/shared.testing/finance.test.ts','import "@erpx/platform-contracts/finance";'],
+ ['tests/unit/shared.testing/people.test.ts','import "@erpx/platform-contracts/people";'],
  ['public/brand/icon.svg','asset-sha256:one'],
  ['bun.lock','locked'],['tsconfig.base.json','{}']]);}
 const suites=[suite('finance','finance','tests/unit/shared.testing/finance.test.ts'),suite('people','people','tests/unit/shared.testing/people.test.ts')];
@@ -47,7 +47,7 @@ it('keeps CSS invalidation within actual clients even when another app shares th
  files.set('packages/feature-example/src/people.tsx','export const Panel=()=> <div className="p-5"/>;');
  files.set('packages/feature-example/src/types.ts','export type Data={label:string};');
  files.set('packages/feature-example/src/lazy.tsx','export const Lazy=()=> <div className="p-6"/>;');
- files.set('packages/workplace/src/routes/globals.css','');
+ files.set('platform/workplace/src/routes/globals.css','');
  // Empty styles allow deriving the initial executable graph without any broad scan.
  for(const id of ['finance','people'])files.set(`apps/${id}/src/app/globals.css`,'');
  const executable=createWorkspaceGraph(files);
@@ -75,15 +75,15 @@ it('scans an exact Next route filename with literal brackets using the installed
 });
 
 it('refreshes style membership for executable edges, additions and deletion while ignoring ordinary HMR edits',()=>{
- const file='packages/ui/src/panel.tsx';
+ const file='platform/ui/src/panel.tsx';
  expect(workspaceStyleGraphChanged(file,'import "./button"; const label="Old";','import "./button"; const label="New";')).toBe(false);
  expect(workspaceStyleGraphChanged(file,'import type {Data} from "./old";','import type {Data} from "./new";')).toBe(false);
  expect(workspaceStyleGraphChanged(file,'import "./old";','import "./new";')).toBe(true);
  expect(workspaceStyleGraphChanged(file,'const load=()=>null;','const load=()=>import("./new");')).toBe(true);
  expect(workspaceStyleGraphChanged(file,undefined,'export const label="New";')).toBe(true);
  expect(workspaceStyleGraphChanged(file,'export const label="Old";',undefined)).toBe(true);
- expect(workspaceStyleGraphChanged('packages/ui/package.json','{"exports":{}}','{"exports":{"./new":"./src/new.tsx"}}')).toBe(true);
- for(const path of ['apps/account/.next/types/routes.ts','packages/ui/node_modules/example/src/ui.tsx','apps/account/src/app/globals.css'])expect(workspaceStyleWatchInput(path)).toBe(false);
+ expect(workspaceStyleGraphChanged('platform/ui/package.json','{"exports":{}}','{"exports":{"./new":"./src/new.tsx"}}')).toBe(true);
+ for(const path of ['apps/account/.next/types/routes.ts','platform/ui/node_modules/example/src/ui.tsx','apps/account/src/app/globals.css'])expect(workspaceStyleWatchInput(path)).toBe(false);
 });
 
 it('regenerates style inputs after a rename without weakening normal missing-source validation',()=>{
@@ -91,7 +91,7 @@ it('regenerates style inputs after a rename without weakening normal missing-sou
  files.set('apps/finance/src/app/page.tsx','import "./globals.css"; import "@erpx/feature-example/renamed";');
  files.set('apps/finance/src/app/globals.css','@source "../../../../packages/feature-example/src/removed.tsx";');
  files.set('packages/feature-example/src/renamed.tsx','export const Panel=()=> <div className="p-7"/>;');
- files.set('packages/workplace/src/routes/globals.css','');
+ files.set('platform/workplace/src/routes/globals.css','');
  expect(()=>createWorkspaceGraph(files)).toThrow('WORKSPACE_STYLE_SOURCE_UNRESOLVED');
  const derivation=createWorkspaceGraph(files,undefined,{excludeStyleSources:true}),css=workspaceStyleSheet(derivation,'apps/finance');
  expect(css).toContain('feature-example/src/renamed.tsx');expect(css).not.toContain('removed.tsx');
@@ -108,10 +108,10 @@ it('reconciles sparse directory and nullable watch events against observed and n
  try{
   await watcher.whenSettled();expect(refresh).not.toHaveBeenCalled();
   await writeFile(join(root,file),initial.replace('p-4','p-8'));changed.get('apps')!('account/src');await watcher.whenSettled();expect(refresh).not.toHaveBeenCalled();
-  await writeFile(join(root,file),'import "@erpx/ui/new";'+initial);changed.get('apps')!(null);await watcher.whenSettled();expect(refresh).toHaveBeenCalledTimes(1);
-  const added='packages/ui/src/nested/new.tsx';await mkdir(dirname(join(root,added)),{recursive:true});await writeFile(join(root,added),'export const New=()=>null;');changed.get('packages')!('ui/src/nested');await watcher.whenSettled();expect(refresh).toHaveBeenCalledTimes(2);
+  await writeFile(join(root,file),'import "@erpx/platform-ui/new";'+initial);changed.get('apps')!(null);await watcher.whenSettled();expect(refresh).toHaveBeenCalledTimes(1);
+  const added='platform/ui/src/nested/new.tsx';await mkdir(dirname(join(root,added)),{recursive:true});await writeFile(join(root,added),'export const New=()=>null;');changed.get('packages')!('ui/src/nested');await watcher.whenSettled();expect(refresh).toHaveBeenCalledTimes(2);
   await writeFile(join(root,added),'import "./other";');changed.get('packages')!('packages');await watcher.whenSettled();expect(refresh).toHaveBeenCalledTimes(3);
-  await rm(join(root,'packages/ui/src/nested'),{recursive:true});changed.get('packages')!('ui/src/nested');await watcher.whenSettled();expect(refresh).toHaveBeenCalledTimes(4);
+  await rm(join(root,'platform/ui/src/nested'),{recursive:true});changed.get('packages')!('ui/src/nested');await watcher.whenSettled();expect(refresh).toHaveBeenCalledTimes(4);
   // Ambiguous paths can trigger reconciliation, but never read outside/root
   // private/generated directories or follow a source-directory symlink.
   const outside=await realpath(await mkdtemp(join(tmpdir(),'erpx-style-watch-outside-')));
@@ -133,10 +133,10 @@ it('closes a successful source subscription when the next native subscription ca
 });
 it('updates newly imported sources during a live watch and closes its owned watchers',async()=>{
  const root=await realpath(await mkdtemp(join(tmpdir(),'erpx-style-watch-'))),file='apps/account/src/panel.tsx',initial='export const Panel=()=> <div className="p-4"/>;',report=vi.fn();
- const inputs=sources();inputs.set(file,initial);inputs.set('packages/ui/src/new.tsx','export const New=()=> <div className="p-7"/>;');
+ const inputs=sources();inputs.set(file,initial);inputs.set('platform/ui/src/new.tsx','export const New=()=> <div className="p-7"/>;');
  let css=workspaceStyleSheet(createWorkspaceGraph(inputs),'apps/account');
  const refresh=vi.fn(()=>{const current=new Map(inputs);current.set(file,readFileSync(join(root,file),'utf8'));css=workspaceStyleSheet(createWorkspaceGraph(current),'apps/account');});
- expect(css).not.toContain('packages/ui/src/new.tsx');
+ expect(css).not.toContain('platform/ui/src/new.tsx');
  await mkdir(join(root,'apps/account/src'),{recursive:true});await mkdir(join(root,'packages'),{recursive:true});await writeFile(join(root,file),initial);
  let nativeEvents=0;
  const subscribe:WorkspaceStyleSubscription=(directory,changed,failed)=>subscribeWorkspaceStyleSources(directory,name=>{changed(name);nativeEvents++;},failed);
@@ -149,9 +149,9 @@ it('updates newly imported sources during a live watch and closes its owned watc
   let probe=0;
   await vi.waitFor(async()=>{if(nativeEvents===0)await writeFile(join(root,file),initial.replace('p-4','p-8')+`// native readiness ${++probe}\n`);expect(nativeEvents).toBeGreaterThan(0);},{timeout:10_000,interval:50});
   await watcher.whenSettled();expect(refresh).not.toHaveBeenCalled();
-  await writeFile(join(root,file),'import "@erpx/ui/new";'+initial);
+  await writeFile(join(root,file),'import "@erpx/platform-ui/new";'+initial);
   await vi.waitFor(()=>expect(refresh).toHaveBeenCalledTimes(1),{timeout:10_000});
-  expect(css).toContain('packages/ui/src/new.tsx');
+  expect(css).toContain('platform/ui/src/new.tsx');
   const delivered=nativeEvents;watcher.close();await writeFile(join(root,file),'import "./other";'+initial);
   await new Promise(done=>setTimeout(done,80));expect(nativeEvents).toBe(delivered);expect(refresh).toHaveBeenCalledTimes(1);expect(report).not.toHaveBeenCalled();
  }finally{watcher.close();await rm(root,{recursive:true,force:true});}
@@ -203,38 +203,38 @@ describe('workspace impact boundaries',()=>{
  it('preserves historical app identity across a folder rename and a deleted dependency',()=>{
   const original=sources(),next=sources();
   original.set('apps/apps/package.json','{"name":"@erpx/app-apps"}');
-  original.set('apps/apps/src/app/page.tsx','import "@erpx/contracts/old-launcher";');
-  original.set('packages/contracts/src/old-launcher.ts','export const label="Apps";');
+  original.set('apps/apps/src/app/page.tsx','import "@erpx/platform-contracts/old-launcher";');
+  original.set('platform/contracts/src/old-launcher.ts','export const label="Apps";');
   next.set('apps/launcher/package.json','{"name":"@erpx/app-apps"}');
   next.set('apps/launcher/src/app/page.tsx','export default function Page(){return "Apps";}');
   const base=createWorkspaceGraph(original),head=createWorkspaceGraph(next);
-  expect(base.apps.get('apps')).toContain('packages/contracts/src/old-launcher.ts');
-  const edited=new Map(original);edited.set('packages/contracts/src/old-launcher.ts','export const label="Changed";');
+  expect(base.apps.get('apps')).toContain('platform/contracts/src/old-launcher.ts');
+  const edited=new Map(original);edited.set('platform/contracts/src/old-launcher.ts','export const label="Changed";');
   expect(appRuntimeFingerprint(createWorkspaceGraph(edited),'apps')).not.toBe(appRuntimeFingerprint(base,'apps'));
   expect(head.apps.get('apps')).toContain('apps/launcher/src/app/page.tsx');
-  const selected=selectCandidateSuites(head,base,suites,['packages/contracts/src/old-launcher.ts']);
+  const selected=selectCandidateSuites(head,base,suites,['platform/contracts/src/old-launcher.ts']);
   expect(selected.apps).toEqual(['apps']);
-  expect(selected.removed).toEqual(['packages/contracts/src/old-launcher.ts']);
+  expect(selected.removed).toEqual(['platform/contracts/src/old-launcher.ts']);
   next.set('apps/duplicate/package.json','{"name":"@erpx/app-apps"}');
   expect(()=>createWorkspaceGraph(next)).toThrow('WORKSPACE_APP_IDENTITY_DUPLICATE:@erpx/app-apps');
  });
  it('selects only the real consumers and does not expand app selection through common helpers',()=>{
   const graph=createWorkspaceGraph(sources());
-  expect(selectWorkspaceSuites(graph,suites,{changed:['packages/contracts/src/money.ts']}).suites.map(x=>x.id)).toEqual(['finance']);
+  expect(selectWorkspaceSuites(graph,suites,{changed:['platform/contracts/src/money.ts']}).suites.map(x=>x.id)).toEqual(['finance']);
   expect(selectWorkspaceSuites(graph,suites,{apps:['people']}).suites.map(x=>x.id)).toEqual(['people']);
  });
  it('uses both revision graphs for deleted and renamed imports',()=>{
-  const original=sources(),next=sources();next.delete('packages/contracts/src/money.ts');next.set('packages/contracts/src/currency.ts','export const currency="USD";');next.set('packages/contracts/src/finance.ts','import "./currency";');
-  const selected=selectCandidateSuites(createWorkspaceGraph(next),createWorkspaceGraph(original),suites,['packages/contracts/src/money.ts','packages/contracts/src/currency.ts']);
-  expect(selected.suites.map(x=>x.id)).toEqual(['finance']);expect(selected.removed).toEqual(['packages/contracts/src/money.ts']);
+  const original=sources(),next=sources();next.delete('platform/contracts/src/money.ts');next.set('platform/contracts/src/currency.ts','export const currency="USD";');next.set('platform/contracts/src/finance.ts','import "./currency";');
+  const selected=selectCandidateSuites(createWorkspaceGraph(next),createWorkspaceGraph(original),suites,['platform/contracts/src/money.ts','platform/contracts/src/currency.ts']);
+  expect(selected.suites.map(x=>x.id)).toEqual(['finance']);expect(selected.removed).toEqual(['platform/contracts/src/money.ts']);
  });
  it('keeps runtime fingerprints independent of test and type-only inputs while invalidating assets',()=>{
-  const original=sources(),next=sources();next.set('tests/unit/shared.testing/finance.test.ts','changed test');next.set('packages/contracts/src/person.ts','export type Person={name:string;age:number};');
+  const original=sources(),next=sources();next.set('tests/unit/shared.testing/finance.test.ts','changed test');next.set('platform/contracts/src/person.ts','export type Person={name:string;age:number};');
   expect(appRuntimeFingerprint(createWorkspaceGraph(original),'finance')).toBe(appRuntimeFingerprint(createWorkspaceGraph(next),'finance'));
   next.set('public/brand/icon.svg','asset-sha256:two');expect(appRuntimeFingerprint(createWorkspaceGraph(original),'finance')).not.toBe(appRuntimeFingerprint(createWorkspaceGraph(next),'finance'));
  });
  it('stops on a missing workspace export or unregistered source instead of invoking acceptance',()=>{
-  const files=sources();files.set('apps/finance/src/app/page.tsx','import "@erpx/contracts/missing";');
+  const files=sources();files.set('apps/finance/src/app/page.tsx','import "@erpx/platform-contracts/missing";');
   expect(()=>createWorkspaceGraph(files)).toThrow('WORKSPACE_EXPORT_UNRESOLVED');
   const graph=createWorkspaceGraph(sources());expect(()=>selectCandidateSuites(graph,graph,suites,['unregistered-source.ts'])).toThrow('WORKSPACE_CHANGE_UNMAPPED');
  });
@@ -243,14 +243,14 @@ describe('workspace impact boundaries',()=>{
 it('rejects application internals across application and shared-package boundaries',()=>{
   const files=sources();files.set('apps/finance/src/app/page.tsx','import "../../../people/src/app/page";');
   expect(()=>createWorkspaceGraph(files)).toThrow('WORKSPACE_APP_IMPORT_FORBIDDEN');
-  files.set('apps/finance/src/app/page.tsx','import "@erpx/contracts/finance";');
-  files.set('packages/contracts/src/finance.ts','import "../../../apps/people/src/app/page";');
+  files.set('apps/finance/src/app/page.tsx','import "@erpx/platform-contracts/finance";');
+  files.set('platform/contracts/src/finance.ts','import "../../../apps/people/src/app/page";');
   expect(()=>createWorkspaceGraph(files)).toThrow('WORKSPACE_APP_IMPORT_FORBIDDEN');
 });
 it('resolves only declared package subpath exports when a manifest is present',()=>{
- const files=sources();files.set('packages/contracts/package.json',JSON.stringify({exports:{'./finance':'./src/finance.ts','./people':'./src/people.ts'}}));
- expect(createWorkspaceGraph(files).imports.get('apps/finance/src/app/page.tsx')).toContain('packages/contracts/src/finance.ts');
- files.set('apps/finance/src/app/page.tsx','import "@erpx/contracts/money";');
+ const files=sources();files.set('platform/contracts/package.json',JSON.stringify({exports:{'./finance':'./src/finance.ts','./people':'./src/people.ts'}}));
+ expect(createWorkspaceGraph(files).imports.get('apps/finance/src/app/page.tsx')).toContain('platform/contracts/src/finance.ts');
+ files.set('apps/finance/src/app/page.tsx','import "@erpx/platform-contracts/money";');
  expect(()=>createWorkspaceGraph(files)).toThrow('WORKSPACE_EXPORT_UNDECLARED');
 });
 
@@ -356,7 +356,7 @@ describe('development process ownership',()=>{
  });
 });
 
-import { runtimeResourcePath } from '@erpx/server-runtime/public/runtime/resources';
+import { runtimeResourcePath } from '@erpx/platform-runtime-server/public/runtime/resources';
 it('resolves runtime resources from the composition root and refuses path traversal',()=>{
  const original=process.env.ERPX_RESOURCE_ROOT,repository=process.env.ERPX_REPOSITORY_ROOT;
  try {
@@ -384,17 +384,17 @@ it('invalidates verification for assembled documentation paths without changing 
 
 it('tracks CSS imports and Tailwind text inputs without executing imports from scanned files',()=>{
  const files=sources();files.set('apps/finance/src/app/page.tsx','import "./globals.css";');
- files.set('apps/finance/src/app/globals.css','@import "@erpx/ui/components/tokens.css"; @source "./"; @source "../../../../packages/feature-finance/src";');
- files.set('packages/ui/src/components/tokens.css',':root{--brand:blue}');
- files.set('packages/feature-finance/src/panel.tsx','import "@erpx/server-finance/private"; export const Panel=()=> <div className="p-4"/>;');
- files.set('packages/server-finance/src/private.ts','export const query="initial";');
+ files.set('apps/finance/src/app/globals.css','@import "@erpx/platform-ui/components/tokens.css"; @source "./"; @source "../../../../modules/finance/ui/src";');
+ files.set('platform/ui/src/components/tokens.css',':root{--brand:blue}');
+ files.set('modules/finance/ui/src/panel.tsx','import "@erpx/finance-server/private"; export const Panel=()=> <div className="p-4"/>;');
+ files.set('modules/finance/server/src/private.ts','export const query="initial";');
  const initial=createWorkspaceGraph(files),fingerprint=appRuntimeFingerprint(initial,'finance');
- const backend=new Map(files);backend.set('packages/server-finance/src/private.ts','changed server code');
+ const backend=new Map(files);backend.set('modules/finance/server/src/private.ts','changed server code');
  expect(appRuntimeFingerprint(createWorkspaceGraph(backend),'finance')).toBe(fingerprint);
- const ui=new Map(files);ui.set('packages/feature-finance/src/panel.tsx','export const Panel=()=> <div className="p-8"/>;');
+ const ui=new Map(files);ui.set('modules/finance/ui/src/panel.tsx','export const Panel=()=> <div className="p-8"/>;');
  const graph=createWorkspaceGraph(ui);expect(appRuntimeFingerprint(graph,'finance')).not.toBe(fingerprint);
- expect(selectCandidateSuites(graph,initial,suites,['packages/feature-finance/src/panel.tsx']).apps).toEqual(['finance']);
- const tokens=new Map(files);tokens.set('packages/ui/src/components/tokens.css',':root{--brand:red}');
+ expect(selectCandidateSuites(graph,initial,suites,['modules/finance/ui/src/panel.tsx']).apps).toEqual(['finance']);
+ const tokens=new Map(files);tokens.set('platform/ui/src/components/tokens.css',':root{--brand:red}');
  expect(appRuntimeFingerprint(createWorkspaceGraph(tokens),'finance')).not.toBe(fingerprint);
  files.set('apps/finance/src/app/globals.css','@source "../../../people/src";');
  expect(()=>createWorkspaceGraph(files)).toThrow('WORKSPACE_APP_IMPORT_FORBIDDEN');
@@ -402,11 +402,11 @@ it('tracks CSS imports and Tailwind text inputs without executing imports from s
 
 it('keys copied migration resources but keeps generated release metadata out of runtime identity', () => {
   const original = sources();
-  original.set('packages/contracts/src/finance.ts', 'import "../../catalogue/src/release-artifact.json";');
-  original.set('packages/catalogue/src/release-artifact.json', '{"softwareVersion":"old"}');
+  original.set('platform/contracts/src/finance.ts', 'import "../../catalogue/src/release-artifact.json";');
+  original.set('platform/catalogue/src/release-artifact.json', '{"softwareVersion":"old"}');
   original.set('migrations/postgres/control/0001.sql', 'CREATE TABLE original(id int);');
   const before = appRuntimeFingerprint(createWorkspaceGraph(original), 'finance');
-  const metadata = new Map(original); metadata.set('packages/catalogue/src/release-artifact.json', '{"softwareVersion":"new"}');
+  const metadata = new Map(original); metadata.set('platform/catalogue/src/release-artifact.json', '{"softwareVersion":"new"}');
   expect(appRuntimeFingerprint(createWorkspaceGraph(metadata), 'finance')).toBe(before);
   const migration = new Map(original); migration.set('migrations/postgres/control/0001.sql', 'CREATE TABLE changed(id int);');
   expect(appRuntimeFingerprint(createWorkspaceGraph(migration), 'finance')).not.toBe(before);
@@ -414,14 +414,14 @@ it('keys copied migration resources but keeps generated release metadata out of 
 
 it('retains runtime edges when a facade exports both values and types from one implementation', () => {
   const files = sources();
-  files.set('packages/contracts/src/finance.ts', 'export { amount } from "./money"; export type { Currency } from "./money";');
-  files.set('packages/contracts/src/money.ts', 'export const amount=1; export type Currency=string;');
+  files.set('platform/contracts/src/finance.ts', 'export { amount } from "./money"; export type { Currency } from "./money";');
+  files.set('platform/contracts/src/money.ts', 'export const amount=1; export type Currency=string;');
   const original = appRuntimeFingerprint(createWorkspaceGraph(files), 'finance');
-  files.set('packages/contracts/src/money.ts', 'export const amount=2; export type Currency=string;');
+  files.set('platform/contracts/src/money.ts', 'export const amount=2; export type Currency=string;');
   expect(appRuntimeFingerprint(createWorkspaceGraph(files), 'finance')).not.toBe(original);
 });
 
-import { maintenance } from '@erpx/server-runtime/public/runtime/maintenance';
+import { maintenance } from '@erpx/platform-runtime-server/public/runtime/maintenance';
 it('reads only the owned maintenance marker without loading the worker composition', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'erpx-maintenance-'));
   try {
@@ -452,9 +452,9 @@ it('selects declared black-box boundary smoke without expanding into unrelated n
 it('retains lazy import and require edges alongside type-only imports of the same implementation', () => {
   for (const expression of ['import("./money")', 'require("./money")', 'import(`./money`)']) {
     const files = sources();
-    files.set('packages/contracts/src/finance.ts', `import type { Currency } from "./money"; export const load=()=>${expression};`);
+    files.set('platform/contracts/src/finance.ts', `import type { Currency } from "./money"; export const load=()=>${expression};`);
     const before = appRuntimeFingerprint(createWorkspaceGraph(files), 'finance');
-    files.set('packages/contracts/src/money.ts', 'export const changed=1;');
+    files.set('platform/contracts/src/money.ts', 'export const changed=1;');
     expect(appRuntimeFingerprint(createWorkspaceGraph(files), 'finance')).not.toBe(before);
   }
 });
@@ -477,7 +477,7 @@ it('keeps development app profiles explicit and rejects compatibility mixed into
 
 import { runtimeLeafViolations } from '../../../scripts/architecture/runtime-leaves';
 it('keeps storage and availability leaves from regaining indirect business-command dependencies', () => {
-  const source='packages/server-runtime/src/adapters/runtime/filesystem.ts',read='packages/server-legal/src/adapters/runtime-mutation-authority.ts',command='packages/server-legal/src/adapters/retention-execution.ts';
+  const source='platform/runtime/server/src/adapters/runtime/filesystem.ts',read='modules/legal/server/src/adapters/runtime-mutation-authority.ts',command='modules/legal/server/src/adapters/retention-execution.ts';
   const runtimeImports=new Map([[source,new Set([read])],[read,new Set<string>()]]);
   expect(runtimeLeafViolations({runtimeImports})).toEqual([]);
   runtimeImports.get(read)!.add(command);
@@ -487,7 +487,7 @@ it('keeps storage and availability leaves from regaining indirect business-comma
 import { readFile, readdir, symlink } from 'node:fs/promises';
 import { workspaceSourceCache } from '../../../scripts/testing/workspace-source-cache';
 it('includes import-type queries in verification inputs without rebuilding application runtime', () => {
-  const files=sources(),entry='packages/contracts/src/finance.ts',target='packages/contracts/src/money.ts';
+  const files=sources(),entry='platform/contracts/src/finance.ts',target='platform/contracts/src/money.ts';
   files.set(entry,'export type Amount = import("./money").Amount; export const currency="THB";');
   files.set(target,'export type Amount={minor:number};');
   const original=createWorkspaceGraph(files),beforeRuntime=appRuntimeFingerprint(original,'finance'),beforeTypes=workspaceFingerprint(original,[entry]);
@@ -500,19 +500,19 @@ it('includes import-type queries in verification inputs without rebuilding appli
 });
 it('retains a real resource read alongside a type-only import of the same file', () => {
   const files=sources();files.set('apps/finance/src/app/page.tsx','import "../../../../scripts/local/reader";');
-  files.set('scripts/local/reader.ts','import type { Amount } from "../../packages/contracts/src/money"; import {readFileSync} from "node:fs"; export const source=readFileSync(new URL("../../packages/contracts/src/money.ts",import.meta.url));');
+  files.set('scripts/local/reader.ts','import type { Amount } from "../../platform/contracts/src/money"; import {readFileSync} from "node:fs"; export const source=readFileSync(new URL("../../platform/contracts/src/money.ts",import.meta.url));');
   const before=appRuntimeFingerprint(createWorkspaceGraph(files),'finance');
-  files.set('packages/contracts/src/money.ts','export type Amount=string; export const currency="USD";');
+  files.set('platform/contracts/src/money.ts','export type Amount=string; export const currency="USD";');
   expect(appRuntimeFingerprint(createWorkspaceGraph(files),'finance')).not.toBe(before);
 });
 it('includes external import-equals syntax as a runtime module dependency', () => {
-  const files=sources();files.set('packages/contracts/src/finance.ts','import money = require("./money"); export const currency=money.currency;');
-  expect(createWorkspaceGraph(files).runtimeImports.get('packages/contracts/src/finance.ts')?.has('packages/contracts/src/money.ts')).toBe(true);
+  const files=sources();files.set('platform/contracts/src/finance.ts','import money = require("./money"); export const currency=money.currency;');
+  expect(createWorkspaceGraph(files).runtimeImports.get('platform/contracts/src/finance.ts')?.has('platform/contracts/src/money.ts')).toBe(true);
 });
 it('reuses source syntax across invocations and invalidates by bytes rather than file timestamps', async () => {
   const root=await mkdtemp(join(tmpdir(),'erpx-source-cache-'));
   try{
-    const first=workspaceSourceCache(root),file='packages/contracts/src/finance.ts';
+    const first=workspaceSourceCache(root),file='platform/contracts/src/finance.ts';
     expect(first.parse(file,'export * from "./money";').modules).toEqual([{specifier:'./money',runtime:true}]);first.flush();
     expect(first.stats.persisted).toBe(true);
     const next=workspaceSourceCache(root);expect(next.stats.loaded).toBe(true);
@@ -525,7 +525,7 @@ it('reuses source syntax across invocations and invalidates by bytes rather than
 it('reparses corrupted syntax cache entries and repairs the owned cache without hiding imports', async () => {
   const root=await mkdtemp(join(tmpdir(),'erpx-source-cache-'));
   try{
-    const file='packages/contracts/src/finance.ts',source='export * from "./money";',cache=workspaceSourceCache(root);cache.parse(file,source);cache.flush();
+    const file='platform/contracts/src/finance.ts',source='export * from "./money";',cache=workspaceSourceCache(root);cache.parse(file,source);cache.flush();
     const path=join(root,'.scratch/dev/workspace-graph/source-syntax.json'),content=JSON.parse(await readFile(path,'utf8'));
     content.entries[0][1].modules=[];await writeFile(path,JSON.stringify(content));
     const repaired=workspaceSourceCache(root);expect(repaired.stats.loaded).toBe(false);
@@ -536,12 +536,12 @@ it('reparses corrupted syntax cache entries and repairs the owned cache without 
 it('resolves warm cached imports against changed exports and refuses missing mappings', async () => {
   const root=await mkdtemp(join(tmpdir(),'erpx-source-cache-'));
   try{
-    const files=sources(),cache=workspaceSourceCache(root),manifest={name:'@erpx/contracts',exports:{'./finance':'./src/finance.ts','./people':'./src/people.ts'}};
-    files.set('packages/contracts/package.json',JSON.stringify(manifest));createWorkspaceGraph(files,cache.parse);cache.flush();
-    const warm=workspaceSourceCache(root);manifest.exports['./finance']='./src/people.ts';files.set('packages/contracts/package.json',JSON.stringify(manifest));
+    const files=sources(),cache=workspaceSourceCache(root),manifest={name:'@erpx/platform-contracts',exports:{'./finance':'./src/finance.ts','./people':'./src/people.ts'}};
+    files.set('platform/contracts/package.json',JSON.stringify(manifest));createWorkspaceGraph(files,cache.parse);cache.flush();
+    const warm=workspaceSourceCache(root);manifest.exports['./finance']='./src/people.ts';files.set('platform/contracts/package.json',JSON.stringify(manifest));
     const changed=createWorkspaceGraph(files,warm.parse);
-    expect(changed.imports.get('apps/finance/src/app/page.tsx')).toEqual(new Set(['packages/contracts/src/people.ts']));
-    files.set('packages/contracts/package.json',JSON.stringify({name:'@erpx/contracts',exports:{'./people':'./src/people.ts'}}));
+    expect(changed.imports.get('apps/finance/src/app/page.tsx')).toEqual(new Set(['platform/contracts/src/people.ts']));
+    files.set('platform/contracts/package.json',JSON.stringify({name:'@erpx/platform-contracts',exports:{'./people':'./src/people.ts'}}));
     expect(()=>createWorkspaceGraph(files,warm.parse)).toThrow('WORKSPACE_EXPORT_UNDECLARED');
     expect(warm.stats.hits).toBeGreaterThan(0);
   }finally{await rm(root,{recursive:true,force:true});}
@@ -555,8 +555,8 @@ it('does not follow an unrelated cache-directory symlink and still parses curren
   }finally{await rm(root,{recursive:true,force:true});await rm(outside,{recursive:true,force:true});}
 });
 it('stops graph selection on an unresolved relative source instead of silently dropping its dependency', () => {
-  const files=sources();files.delete('packages/contracts/src/money.ts');
-  expect(()=>createWorkspaceGraph(files)).toThrow('WORKSPACE_IMPORT_UNRESOLVED:packages/contracts/src/finance.ts:./money');
+  const files=sources();files.delete('platform/contracts/src/money.ts');
+  expect(()=>createWorkspaceGraph(files)).toThrow('WORKSPACE_IMPORT_UNRESOLVED:platform/contracts/src/finance.ts:./money');
 });
 it('rejects a graph cache override outside its repository before creating files', async () => {
   const root=await mkdtemp(join(tmpdir(),'erpx-source-cache-')),outside=await mkdtemp(join(tmpdir(),'erpx-other-cache-'));
@@ -565,11 +565,11 @@ it('rejects a graph cache override outside its repository before creating files'
 });
 
 import { workspaceTaskDefinition } from '../../../scripts/testing/workspace-tasks';
-import { appDefinition } from '@erpx/contracts/apps';
+import { appDefinition } from '@erpx/platform-contracts/apps';
 it('separates type and lint inputs from runtime compiler inputs while retaining their validation dependency', () => {
   const config=workspaceTaskDefinition(createWorkspaceGraph(sources()),appDefinition('finance'));
-  expect(config.tasks.typecheck.inputs).toContain('$TURBO_ROOT$/packages/contracts/src/person.ts');
-  expect(config.tasks.build.inputs).not.toContain('$TURBO_ROOT$/packages/contracts/src/person.ts');
+  expect(config.tasks.typecheck.inputs).toContain('$TURBO_ROOT$/platform/contracts/src/person.ts');
+  expect(config.tasks.build.inputs).not.toContain('$TURBO_ROOT$/platform/contracts/src/person.ts');
   for(const file of ['scripts/testing/app-typecheck.ts','scripts/testing/scoped-lint.ts','scripts/testing/workspace-imports.ts','scripts/testing/workspace-source-cache.ts']){
     expect(config.tasks.typecheck.inputs).toContain('$TURBO_ROOT$/'+file);
     expect(config.tasks.build.inputs).not.toContain('$TURBO_ROOT$/'+file);
@@ -614,27 +614,27 @@ it('accepts source-bound retired settings only in the historical graph and rejec
 describe('runtime owner composition cycles', () => {
  it('rejects an owner loop through public exports and a composition helper', () => {
   const graph={runtimeImports:new Map([
-   ['packages/server-records/src/adapters/read.ts',new Set(['packages/server-support/src/public/read.ts'])],
-   ['packages/server-support/src/public/read.ts',new Set(['packages/server-support/src/adapters/read.ts'])],
-   ['packages/server-support/src/adapters/read.ts',new Set(['scripts/local/composition.ts'])],
-   ['scripts/local/composition.ts',new Set(['packages/server-records/src/adapters/read.ts'])],
+   ['modules/records/server/src/adapters/read.ts',new Set(['modules/support/server/src/public/read.ts'])],
+   ['modules/support/server/src/public/read.ts',new Set(['modules/support/server/src/adapters/read.ts'])],
+   ['modules/support/server/src/adapters/read.ts',new Set(['scripts/local/composition.ts'])],
+   ['scripts/local/composition.ts',new Set(['modules/records/server/src/adapters/read.ts'])],
   ])};
   expect(runtimeOwnerCycles(graph)).toEqual([{owners:['server-records','server-support'],files:[...graph.runtimeImports.keys()].sort()}]);
  });
  it('allows explicit ports with reciprocal package usage on independent subpaths', () => {
   const graph={runtimeImports:new Map([
-   ['packages/server-records/src/adapters/composition.ts',new Set(['packages/server-support/src/public/read-factory.ts'])],
-   ['packages/server-support/src/public/read-factory.ts',new Set(['packages/server-records/src/domain/source.ts'])],
-   ['packages/server-records/src/domain/source.ts',new Set<string>()],
+   ['modules/records/server/src/adapters/composition.ts',new Set(['modules/support/server/src/public/read-factory.ts'])],
+   ['modules/support/server/src/public/read-factory.ts',new Set(['modules/records/server/src/domain/source.ts'])],
+   ['modules/records/server/src/domain/source.ts',new Set<string>()],
   ])};
   expect(runtimeOwnerCycles(graph)).toEqual([]);
  });
  it('does not merge independent same-owner cycles into a cross-owner cycle', () => {
   const graph={runtimeImports:new Map([
-   ['packages/server-records/src/adapters/a.ts',new Set(['packages/server-records/src/adapters/b.ts'])],
-   ['packages/server-records/src/adapters/b.ts',new Set(['packages/server-records/src/adapters/a.ts','packages/server-support/src/adapters/a.ts'])],
-   ['packages/server-support/src/adapters/a.ts',new Set(['packages/server-support/src/adapters/b.ts'])],
-   ['packages/server-support/src/adapters/b.ts',new Set(['packages/server-support/src/adapters/a.ts'])],
+   ['modules/records/server/src/adapters/a.ts',new Set(['modules/records/server/src/adapters/b.ts'])],
+   ['modules/records/server/src/adapters/b.ts',new Set(['modules/records/server/src/adapters/a.ts','modules/support/server/src/adapters/a.ts'])],
+   ['modules/support/server/src/adapters/a.ts',new Set(['modules/support/server/src/adapters/b.ts'])],
+   ['modules/support/server/src/adapters/b.ts',new Set(['modules/support/server/src/adapters/a.ts'])],
   ])};
   expect(runtimeOwnerCycles(graph)).toEqual([]);
  });

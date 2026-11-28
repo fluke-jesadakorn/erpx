@@ -1,7 +1,8 @@
+import { ownerWorkspacePath, workspaceManifests } from "../local/workspace-paths";
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { products } from "@erpx/contracts/product-registry";
-import { appDefinitions } from "@erpx/contracts/apps";
+import { products } from "@erpx/platform-contracts/product-registry";
+import { appDefinitions } from "@erpx/platform-contracts/apps";
 import { verificationSources, loadCatalogue, repositoryRoot, type Suite } from "./catalogue";
 import { dependencyClosure, loadWorkspaceGraph } from "./workspace-graph";
 
@@ -45,10 +46,15 @@ export function inferPostgresProfile(files: string[], texts: string[]) {
 }
 if (import.meta.main) {
   const root = repositoryRoot, graph = loadWorkspaceGraph(root), catalogue = loadCatalogue(root);
+  const nameByPath = new Map([...workspaceManifests(root)].map(([name, path]) => [path, name]));
   for (const suite of catalogue.suites) {
     const dependencies = dependencyClosure(graph, verificationSources([suite]));
     suite.apps = suiteApps(suite);
-    suite.packages = [...new Set([...dependencies].flatMap(file => /^packages\/([^/]+)\//.exec(file)?.[1] ?? []))].map(name => `@erpx/${name}`).sort();
+    suite.packages = [...new Set([...dependencies].flatMap(file => {
+      const path = ownerWorkspacePath(file);
+      const name = path && nameByPath.get(path);
+      return name ? [name] : [];
+    }))].sort();
     if (suite.lane === "integration" || suite.fixture === "postgres") {
       const fixtureTexts = [...dependencies].filter(file => (file.startsWith("tests/") || file.startsWith("fixtures/")) &&
         !["tests/support/runtime-env.ts", "tests/support/runtime-setup.ts", "tests/support/postgres-templates.ts", "tests/support/postgres-global-setup.ts"].includes(file))

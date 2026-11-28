@@ -2,9 +2,9 @@
 #[path = "../../support/inventory/consumption-facts.rs"]
 #[allow(dead_code)] mod facts;
 #[path = "../../support/rust-postgres.rs"] mod fixture;
-use erpx_server_inventory::public::{service_count_generic_detail::*,service_initial_physical_count::*};
-use erpx_server_runtime::public::postgres::{PgTransactionError,PgUnitOfWork,TransactionOptions};
-use erpx_server_shared::public::BusinessError;
+use erpx_inventory_server::public::{service_count_generic_detail::*,service_initial_physical_count::*};
+use erpx_platform_runtime_server::public::postgres::{PgTransactionError,PgUnitOfWork,TransactionOptions};
+use erpx_platform_shared_server::public::BusinessError;
 
 #[tokio::test]
 async fn facts_are_scoped_and_capture_current_stock_and_lot_balances() {
@@ -34,8 +34,8 @@ async fn facts_are_scoped_and_capture_current_stock_and_lot_balances() {
 
 #[tokio::test]
 async fn quality_lineage_count_cte_matches_actual_typescript_recursive_sql() {
- use erpx_server_inventory::public::quality_lineage_counts::{inspect_quality_lineage_counts,lock_quality_lineage_counts};
- let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");let source=root.join("packages/server-quality/src/adapters/purchase-sources.ts");
+ use erpx_inventory_server::public::quality_lineage_counts::{inspect_quality_lineage_counts,lock_quality_lineage_counts};
+ let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");let source=root.join("modules/quality/server/src/adapters/purchase-sources.ts");
  let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const q=await import(process.argv[1]);const x=q.qualityPurchaseSourceRows;const end=x.indexOf('), roots AS');if(end<0||!x.startsWith('WITH RECURSIVE lineage AS (')||!x.includes('JOIN inventory_counts c ON'))throw Error('SOURCE_CHANGED');const fn=q.qualityHoldPurchaseSource.toString(),start=fn.indexOf('WITH RECURSIVE lineage AS ('),finish=fn.indexOf('ORDER BY depth DESC LIMIT 1',start);if(start<0||finish<0)throw Error('SELECTED_SOURCE_CHANGED');process.stdout.write(JSON.stringify({global:x.slice(0,end)+') SELECT hold_id,root_id,depth FROM lineage ORDER BY hold_id,depth',selected:fn.slice(start,finish)+'ORDER BY depth DESC LIMIT 1'}));"#;
  let oracle=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(root).args(["--conditions=react-server","-e",script]).arg(source).output().unwrap();assert!(oracle.status.success(),"TS source oracle: {}",String::from_utf8_lossy(&oracle.stderr));let queries:serde_json::Value=serde_json::from_slice(&oracle.stdout).unwrap();let original=queries["global"].as_str().unwrap().to_owned();let selected=queries["selected"].as_str().unwrap().to_owned();
  fixture::with_database(2,|pool|async move{
@@ -58,7 +58,7 @@ async fn quality_lineage_count_cte_matches_actual_typescript_recursive_sql() {
 
 #[tokio::test]
 async fn quality_lineage_count_fence_rejects_shadow_rls_and_excess_sources() {
- use erpx_server_inventory::public::quality_lineage_counts::{inspect_quality_lineage_counts,lock_quality_lineage_counts};
+ use erpx_inventory_server::public::quality_lineage_counts::{inspect_quality_lineage_counts,lock_quality_lineage_counts};
  fixture::with_database(2,|pool|async move{
   facts::setup(&pool,"none").await;
   let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_quality_lineage_counts(&mut tx).await.unwrap();let witness=inspect_quality_lineage_counts(&mut tx).await.unwrap();

@@ -1,11 +1,11 @@
-use erpx_server_collaboration::public::collaboration_work::{
+use erpx_collaboration_server::public::collaboration_work::{
     AuthorizedActor, CardAction, Change, CollaborationUnit, CurrentCard, CurrentRelation,
     OwnerPlan, Receipt, RelationKind, execute,
 };
-use erpx_server_shared::public::record_source_contract::{
+use erpx_platform_shared_server::public::record_source_contract::{
     SourceKind, SourceRecord, SourceReference,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 
 struct Unit {
     steps: Vec<&'static str>,
@@ -14,7 +14,7 @@ struct Unit {
     replay: bool,
     actor: AuthorizedActor,
 }
-impl erpx_server_collaboration::public::collaboration_work::CollaborationSourcePort for Unit {
+impl erpx_collaboration_server::public::collaboration_work::CollaborationSourcePort for Unit {
     type Error = BusinessError;
     type Witness = String;
     async fn prepare(
@@ -239,7 +239,7 @@ async fn reason_uses_ecmascript_trim_and_utf16_length() {
 
 #[test]
 fn writer_partition_uses_both_stored_relation_endpoints() {
-    use erpx_server_collaboration::public::collaboration_work::{
+    use erpx_collaboration_server::public::collaboration_work::{
         WriterPartition, card_partition, relation_partition,
     };
     assert_eq!(
@@ -266,7 +266,7 @@ fn writer_partition_uses_both_stored_relation_endpoints() {
 
 #[test]
 fn wire_normalization_keeps_only_schema_fields_and_preserves_removal_receipts() {
-    use erpx_server_collaboration::public::collaboration_work::decode_work_command;
+    use erpx_collaboration_server::public::collaboration_work::decode_work_command;
     use serde_json::json;
     let create = decode_work_command("collaboration.action.create", None, &json!({
         "sourceType":"field_service_order", "sourceId":"original-id", "title":"\u{feff} Review 😀 \u{feff}",
@@ -293,7 +293,7 @@ fn wire_normalization_keeps_only_schema_fields_and_preserves_removal_receipts() 
 
 #[test]
 fn wire_rejects_route_action_mismatch_and_invalid_javascript_integer_values() {
-    use erpx_server_collaboration::public::collaboration_work::decode_work_command;
+    use erpx_collaboration_server::public::collaboration_work::decode_work_command;
     use serde_json::json;
     assert!(
         decode_work_command(
@@ -330,7 +330,7 @@ fn wire_rejects_route_action_mismatch_and_invalid_javascript_integer_values() {
 
 #[test]
 fn wire_keeps_asymmetric_relations_and_ignores_irrelevant_transition_fields() {
-    use erpx_server_collaboration::public::collaboration_work::decode_work_command;
+    use erpx_collaboration_server::public::collaboration_work::decode_work_command;
     use serde_json::json;
     let relation = decode_work_command("collaboration.relation.create", None, &json!({"sourceType":"field_service_order","sourceId":"z","targetType":"field_service_order","targetId":"a","relation":"depends_on","reason":"reviewed"})).unwrap();
     assert!(
@@ -354,7 +354,7 @@ fn wire_keeps_asymmetric_relations_and_ignores_irrelevant_transition_fields() {
 
 #[test]
 fn native_action_work_retains_ineligible_owner_and_terminal_behavior() {
-    use erpx_server_collaboration::public::collaboration_work::{ActionWorkInput, action_work};
+    use erpx_collaboration_server::public::collaboration_work::{ActionWorkInput, action_work};
     let mut r = ActionWorkInput {
         id: "card".into(),
         title: "Review".into(),
@@ -451,7 +451,7 @@ async fn stored_legacy_partition_never_returns_a_native_replay_or_stages_effects
 
 #[test]
 fn native_push_policy_preserves_quiet_hours_categories_and_recovery() {
-    use erpx_server_collaboration::public::web_push::*;
+    use erpx_collaboration_server::public::web_push::*;
     let mut p = PushPreferences {
         enabled: true,
         work: true,
@@ -485,7 +485,7 @@ fn native_push_policy_preserves_quiet_hours_categories_and_recovery() {
 }
 #[test]
 fn push_preference_input_matches_strict_form_contract() {
-    use erpx_server_collaboration::public::web_push::parse_push_preferences;
+    use erpx_collaboration_server::public::web_push::parse_push_preferences;
     let valid = serde_json::json!({"work":true,"mention":false,"system":true,"calendar":false,"notice":false,"quietStartMinute":1320,"quietEndMinute":420});
     let parsed = parse_push_preferences(&valid).unwrap();
     assert_eq!(
@@ -517,7 +517,7 @@ fn push_preference_input_matches_strict_form_contract() {
 #[cfg(feature = "push-provider")]
 mod push_provider_conformance {
     use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD as B64};
-    use erpx_server_collaboration::public::web_push::*;
+    use erpx_collaboration_server::public::web_push::*;
     const PUBLIC: &str =
         "BP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8";
     const PRIVATE: &str = "yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw";

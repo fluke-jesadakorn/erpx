@@ -8,18 +8,18 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_commercial::public::purchases::PackageEnforcementMode;
-use erpx_server_runtime::public::postgres::{
+use erpx_commercial_server::public::purchases::PackageEnforcementMode;
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
-use erpx_server_sales::public::sales_notification_execution::PgNotificationExecution;
-use erpx_server_sales::public::sales_notification_reconciliation::{
+use erpx_sales_server::public::sales_notification_execution::PgNotificationExecution;
+use erpx_sales_server::public::sales_notification_reconciliation::{
     PgNotificationReconciliation, ProviderEvent, ProviderObservation, ProviderObservationPort,
     ReconcileActor, ReconcileFuture, ReconcileInput, ReconcileReceipt,
     reconcile_customer_notification,
 };
-use erpx_server_shared::public::BusinessError;
+use erpx_platform_shared_server::public::BusinessError;
 use sqlx::Row;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -589,7 +589,7 @@ async fn provider_truth_and_scope_fail_closed_without_any_evidence() {
         seed_notice(&pool, "company-u", Some(PROVIDER)).await;
         let provider = Arc::new(Truth {
             observation: None,
-            error: Some(erpx_server_sales::public::sales_notification_reconciliation::provider_unconfirmed()),
+            error: Some(erpx_sales_server::public::sales_notification_reconciliation::provider_unconfirmed()),
             calls: AtomicUsize::new(0),
         });
         let unconfirmed = reconcile(

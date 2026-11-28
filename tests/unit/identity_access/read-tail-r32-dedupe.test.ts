@@ -2,9 +2,9 @@ import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { assignmentCompanyUserProbeSql, iamMembersPairSql } from '../../../packages/server-identity_access/src/adapters/read-tail-family-r32';
+import { assignmentCompanyUserProbeSql, iamMembersPairSql } from '../../../modules/identity-access/server/src/adapters/read-tail-family-r32';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-identity_access/src');
+const srcRoot = resolve(__dirname, '../../../modules/identity-access/server/src');
 const read = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
 const hash = (rel: string) => createHash('sha256').update(read(rel)).digest('hex');
 const calls = (rel: string, name: string) => (read(rel).match(new RegExp(`\\b${name}\\b`, 'g')) ?? []).length;

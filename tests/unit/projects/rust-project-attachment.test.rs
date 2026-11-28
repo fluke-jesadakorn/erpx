@@ -3,7 +3,7 @@
 //! These tests prove owner-only write authority, stale version refusal,
 //! outsider read denial and the bound Files-port call order. They do not write
 //! attachment rows; Files owns that ledger.
-use erpx_server_projects::public::project_attachment::{
+use erpx_projects_server::public::project_attachment::{
     PROJECT_ATTACHMENT_BIND_OPERATION, ProjectAttachmentActor, ProjectAttachmentBindingCommand,
     ProjectAttachmentBindingReceipt, ProjectAttachmentCommandReceipt,
     ProjectAttachmentFactsRepository, ProjectAttachmentFilesPort, ProjectAttachmentFuture,
@@ -11,7 +11,7 @@ use erpx_server_projects::public::project_attachment::{
     authorize_project_attachment_read, bind_project_attachment, project_attachment_fingerprint,
     replay_project_attachment_binding,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, RecordId, TimestampMillis};
+use erpx_platform_shared_server::public::{BusinessError, CompanyId, RecordId, TimestampMillis};
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
 

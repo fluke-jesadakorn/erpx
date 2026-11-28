@@ -2,8 +2,8 @@
 mod facts;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_finance::public::journal_review::*;
-use erpx_server_runtime::public::postgres::{PgTransactionError, PgUnitOfWork, TransactionOptions};
+use erpx_finance_server::public::journal_review::*;
+use erpx_platform_runtime_server::public::postgres::{PgTransactionError, PgUnitOfWork, TransactionOptions};
 use facts::*;
 use std::sync::{Arc, atomic::Ordering};
 use tokio::sync::Mutex;
@@ -47,7 +47,7 @@ async fn matched_request_hash_cannot_replay_a_stored_result_with_another_finance
 }
 
 async fn seed_rule(
-    pool: &erpx_server_runtime::public::postgres::DatabasePool,
+    pool: &erpx_platform_runtime_server::public::postgres::DatabasePool,
     id: &str,
     date: &str,
     reason_bytes: i32,
@@ -217,7 +217,7 @@ fn database_message(error: &sqlx::Error) -> &str {
         .unwrap_or_default()
 }
 async fn draft_image(
-    pool: &erpx_server_runtime::public::postgres::DatabasePool,
+    pool: &erpx_platform_runtime_server::public::postgres::DatabasePool,
     id: &str,
 ) -> (serde_json::Value, serde_json::Value, i64, i64, i64) {
     sqlx::query_as(
@@ -530,7 +530,7 @@ async fn unrelated_account_currency_is_refused_by_current_native_posting_facts()
 }
 
 async fn run(
-    pool: &erpx_server_runtime::public::postgres::DatabasePool,
+    pool: &erpx_platform_runtime_server::public::postgres::DatabasePool,
     policy: Arc<Mutex<Policy>>,
     journal: &str,
     key: &str,
@@ -549,7 +549,7 @@ async fn run(
         .await
 }
 async fn counts(
-    pool: &erpx_server_runtime::public::postgres::DatabasePool,
+    pool: &erpx_platform_runtime_server::public::postgres::DatabasePool,
     key: &str,
 ) -> (i64, i64, i64) {
     sqlx::query_as("SELECT(SELECT count(*)FROM command_receipts WHERE command_id=$1),(SELECT count(*)FROM audit_events WHERE command_id=$1),(SELECT count(*)FROM outbox_events WHERE command_id=$1)").bind(key).fetch_one(pool.raw()).await.unwrap()

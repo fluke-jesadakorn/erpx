@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from 'vitest';
-import { ApiError } from '@erpx/server-runtime/public/http';
+import { ApiError } from '@erpx/platform-runtime-server/public/http';
 
 const state = vi.hoisted(() => ({
   read: vi.fn(),
@@ -9,7 +9,7 @@ const state = vi.hoisted(() => ({
   modules: ['legal'] as string[],
 }));
 
-vi.mock('../../../packages/server-legal/src/adapters/native-processing-status/client', () => ({
+vi.mock('../../../modules/legal/server/src/adapters/native-processing-status/client', () => ({
   nativeProcessingStatusRead: async (
     actor: unknown,
     authority: unknown,
@@ -21,7 +21,7 @@ vi.mock('../../../packages/server-legal/src/adapters/native-processing-status/cl
     return state.read();
   },
 }));
-vi.mock('@erpx/server-identity_access/public/authorization', () => ({
+vi.mock('@erpx/identity-access-server/public/authorization', () => ({
   requireWorkContext: async () => ({
     holdingId: 'h001',
     holdingSlug: 'acme',
@@ -30,14 +30,14 @@ vi.mock('@erpx/server-identity_access/public/authorization', () => ({
     modules: state.modules,
   }),
 }));
-vi.mock('@erpx/server-runtime/public/runtime', () => ({
+vi.mock('@erpx/platform-runtime-server/public/runtime', () => ({
   holdingResources: async () => ({ write: {}, files: {} }),
 }));
-vi.mock('@erpx/server-manage_erpx/public/public-origin', () => ({
+vi.mock('@erpx/manage-erpx-server/public/public-origin', () => ({
   requestPublicOrigin: () => 'https://dev-erpx.example.test',
 }));
 
-import { GET } from '@erpx/feature-legal/routes/api/v1/holdings/[holdingSlug]/legal/[[...path]]/route';
+import { GET } from '@erpx/legal-ui/routes/api/v1/holdings/[holdingSlug]/legal/[[...path]]/route';
 
 const read = {
   id: 'job-1',

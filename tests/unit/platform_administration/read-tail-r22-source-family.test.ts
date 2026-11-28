@@ -5,17 +5,17 @@ import { resolve } from 'node:path';
 
 vi.mock('server-only', () => ({}));
 
-import { platformReadHeads } from '../../../packages/server-platform_administration/src/adapters/platform-read-heads';
-import { NATIVE_OWNER_WRITE_NOOP_SQL, selectOneSql } from '../../../packages/server-platform_administration/src/adapters/native-owner-write';
+import { platformReadHeads } from '../../../modules/platform-administration/server/src/adapters/platform-read-heads';
+import { NATIVE_OWNER_WRITE_NOOP_SQL, selectOneSql } from '../../../modules/platform-administration/server/src/adapters/native-owner-write';
 import {
   projectionSourceHeadSql,
   releaseAcceptanceRowSql,
   selectOneFromWhereSql,
-} from '../../../packages/server-platform_administration/src/adapters/release-predicate';
-import { recordsExecutiveUsageSql } from '../../../packages/server-platform_administration/src/adapters/records-ai-usage-projection';
-import { platformOwnerProjectionSources } from '@erpx/server-runtime/public/platform-owner-projection-sources';
+} from '../../../modules/platform-administration/server/src/adapters/release-predicate';
+import { recordsExecutiveUsageSql } from '../../../modules/platform-administration/server/src/adapters/records-ai-usage-projection';
+import { platformOwnerProjectionSources } from '@erpx/platform-runtime-server/public/platform-owner-projection-sources';
 
-const srcRoot = resolve(__dirname, '../../../packages/server-platform_administration/src');
+const srcRoot = resolve(__dirname, '../../../modules/platform-administration/server/src');
 const source = (relative: string) => readFileSync(resolve(srcRoot, relative), 'utf8');
 const sha = (value: string) => createHash('sha256').update(value).digest('hex');
 

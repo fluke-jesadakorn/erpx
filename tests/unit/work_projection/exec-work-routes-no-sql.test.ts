@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 
 const route = (path: string) =>
-  new URL(`../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/${path}`, import.meta.url);
+  new URL(`../../../platform/workplace/src/routes/api/v1/holdings/[holdingSlug]/${path}`, import.meta.url);
 
 const read = (path: string) => readFile(route(path), 'utf8');
 
@@ -54,7 +54,7 @@ describe('native exec.work routes carry no SQL', () => {
 
 describe('Rust native ingress owns the wire envelope and SQL', () => {
   const rust = (path: string) =>
-    new URL(`../../../packages/server-work_projection/src/${path}`, import.meta.url);
+    new URL(`../../../modules/work-projection/server/src/${path}`, import.meta.url);
 
   it('card-preferences executes the owner SQL readers', async () => {
     const source = await readFile(rust('adapters/work_card_preferences.rs'), 'utf8');

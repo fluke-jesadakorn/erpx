@@ -1,6 +1,6 @@
 use bytes::BytesMut;
-use erpx_server_identity_access::public::directory::*;
-use erpx_server_shared::public::{Clock, TimestampMillis};
+use erpx_identity_access_server::public::directory::*;
+use erpx_platform_shared_server::public::{Clock, TimestampMillis};
 use ldap3_proto::{LdapCodec, control::LdapControl, proto::*};
 use rustls::{
     ServerConfig,
@@ -204,7 +204,7 @@ impl Fixture {
         let directory = tempfile::tempdir().unwrap();
         write_profile(directory.path(), ca, name, false);
         let profiles = Arc::new(
-            DirectoryProfileStore::load(directory.path().join("profiles.json"),Arc::new(erpx_server_identity_access::public::directory::provenance::ProvenanceKeyRing::from_keys("development".into(),vec![("synthetic_provenance_v1".into(),[0x31;32])]).unwrap()))
+            DirectoryProfileStore::load(directory.path().join("profiles.json"),Arc::new(erpx_identity_access_server::public::directory::provenance::ProvenanceKeyRing::from_keys("development".into(),vec![("synthetic_provenance_v1".into(),[0x31;32])]).unwrap()))
                 .await
                 .unwrap(),
         );

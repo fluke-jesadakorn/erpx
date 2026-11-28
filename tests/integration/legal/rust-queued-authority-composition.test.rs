@@ -11,12 +11,12 @@ mod auth;
 mod citation_review;
 use account_queue::account::database as fixture;
 use auth::*;
-use erpx_server_identity_access::public::effective_authority::{
+use erpx_identity_access_server::public::effective_authority::{
     HoldingWorkAuthorizer, PgQueuedWorkAuthorizer, QueuedWorkBinding, WorkAuthorizationRequest,
 };
-use erpx_server_runtime::public::postgres::{DatabasePool, PgTransactionError};
-use erpx_server_shared::public::{CompanyId, HoldingId, RecordId};
-use erpx_service::legal_queue_source::LegalQueuedSource;
+use erpx_platform_runtime_server::public::postgres::{DatabasePool, PgTransactionError};
+use erpx_platform_shared_server::public::{CompanyId, HoldingId, RecordId};
+use erpx_platform_composition::legal_queue_source::LegalQueuedSource;
 use std::sync::atomic::Ordering;
 fn source() -> LegalQueuedSource {
     LegalQueuedSource::new(
@@ -30,7 +30,7 @@ fn source() -> LegalQueuedSource {
 #[tokio::test]
 async fn native_account_family_signout_fences_both_holdings_during_compute_before_queued_retention()
 {
-    use erpx_server_shared::public::Clock;
+    use erpx_platform_shared_server::public::Clock;
     use std::time::Duration;
     account_queue::account::with_system(|system|async move {
         let prepared=account_queue::prepare(system).await;
@@ -71,9 +71,9 @@ fn legal_access() -> WorkAuthorizationRequest {
 #[tokio::test]
 async fn citation_http_uses_actual_account_authority_and_retains_legal_sources() {
     use axum::{body::{Body, to_bytes}, http::{Request, StatusCode}};
-    use erpx_server_legal::public::auxiliary::{LegalAuxiliaryHttpService, LegalAuxiliaryHttpTarget};
-    use erpx_service::finance_journal_detail_http::FinanceJournalReadScopeHeaders;
-    use erpx_service::legal::{LegalBackend, LegalConfiguration, LegalService};
+    use erpx_legal_server::public::auxiliary::{LegalAuxiliaryHttpService, LegalAuxiliaryHttpTarget};
+    use erpx_platform_composition::finance_journal_detail_http::FinanceJournalReadScopeHeaders;
+    use erpx_platform_composition::legal::{LegalBackend, LegalConfiguration, LegalService};
     use std::sync::Arc;
     use tower::ServiceExt;
 
@@ -89,7 +89,7 @@ async fn citation_http_uses_actual_account_authority_and_retains_legal_sources()
         let actual:serde_json::Value=serde_json::from_slice(&to_bytes(response.into_body(),1_000_000).await.unwrap()).unwrap();
         // Independent TypeScript application oracle; its ports are read-only
         // fixture values and recordRead captures evidence without a TS writer.
-        let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const {createLegalCitationQuery}=await import('./packages/server-legal/src/application/citations.ts');const doc={id:'citation-doc',item_id:'citation-item',version:1,name:'source.txt',media_type:'text/plain',checksum:'a'.repeat(64),body:'Test text',object_key:null};const fn=createLegalCitationQuery({law:async()=>{throw Error()},chunk:async()=>null,document:async()=>doc,item:async()=>({id:'citation-item',title:'Synthetic matter',kind:'matter'}),available:async()=>true,recordRead:async()=>{},clock:{now:()=>1},identifiers:{next:()=> 'oracle'},error:(status,code,message)=>Object.assign(Error(message),{status,code})});process.stdout.write(JSON.stringify(await fn('citation-doc')));"#;
+        let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const {createLegalCitationQuery}=await import('./modules/legal/server/src/application/citations.ts');const doc={id:'citation-doc',item_id:'citation-item',version:1,name:'source.txt',media_type:'text/plain',checksum:'a'.repeat(64),body:'Test text',object_key:null};const fn=createLegalCitationQuery({law:async()=>{throw Error()},chunk:async()=>null,document:async()=>doc,item:async()=>({id:'citation-item',title:'Synthetic matter',kind:'matter'}),available:async()=>true,recordRead:async()=>{},clock:{now:()=>1},identifiers:{next:()=> 'oracle'},error:(status,code,message)=>Object.assign(Error(message),{status,code})});process.stdout.write(JSON.stringify(await fn('citation-doc')));"#;
         let oracle=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")).arg("-e").arg(script).output().unwrap();assert!(oracle.status.success(),"TS application oracle failed");
         let expected:serde_json::Value=serde_json::from_slice(&oracle.stdout).unwrap();assert_eq!(actual,expected);
         let audit:i64=sqlx::query_scalar("SELECT count(*) FROM legal_access_events WHERE item_id='citation-item' AND document_id='citation-doc' AND actor_id='fixture-a' AND action='document.citation.read'").fetch_one(db).await.unwrap();assert_eq!(audit,1);
@@ -288,13 +288,13 @@ async fn compute_between_short_transactions_retains_no_leases_and_rejects_curren
 #[cfg(feature = "legal-pdf-worker")]
 mod split_worker {
     use super::*;
-    use erpx_server_identity_access::public::effective_authority::AuthorizedWorkContext;
-    use erpx_server_legal::public::*;
-    use erpx_server_runtime::public::postgres::PgTransactionError;
-    use erpx_server_shared::public::{
+    use erpx_identity_access_server::public::effective_authority::AuthorizedWorkContext;
+    use erpx_legal_server::public::*;
+    use erpx_platform_runtime_server::public::postgres::PgTransactionError;
+    use erpx_platform_shared_server::public::{
         BusinessError, CommandKey, FailureKind, IdentifierSource, TimestampMillis, UserId,
     };
-    use erpx_service::legal_pdf_worker::{LegalPdfBridgeFactory, run_legal_pdf_short_transactions};
+    use erpx_platform_composition::legal_pdf_worker::{LegalPdfBridgeFactory, run_legal_pdf_short_transactions};
     use sqlx::PgConnection;
     use std::sync::{Arc, atomic::AtomicUsize};
     type Error = PgTransactionError<BusinessError>;
@@ -590,16 +590,16 @@ mod split_worker {
 #[cfg(feature = "legal-pdf-worker")]
 mod actual_owners {
     use super::*;
-    use erpx_server_commercial::public::purchases::current_package_catalogue;
-    use erpx_server_files::public::canonical_original::LocalOriginalStore;
-    use erpx_server_legal::public::record_policy::LegalCommercialMode;
-    use erpx_server_legal::public::{
+    use erpx_commercial_server::public::purchases::current_package_catalogue;
+    use erpx_files_server::public::canonical_original::LocalOriginalStore;
+    use erpx_legal_server::public::record_policy::LegalCommercialMode;
+    use erpx_legal_server::public::{
         AuthorizedPdfSnapshot, PdfVerificationEvidence, PdfVerificationFailure, PdfVerifierProcess,
     };
-    use erpx_server_platform_administration::public::legal_release::current_legal_release_catalogue;
-    use erpx_server_pms::public::scheduled_legal::ScheduledReleaseMode;
-    use erpx_server_shared::public::TimestampMillis;
-    use erpx_service::{
+    use erpx_platform_administration_server::public::legal_release::current_legal_release_catalogue;
+    use erpx_pms_server::public::scheduled_legal::ScheduledReleaseMode;
+    use erpx_platform_shared_server::public::TimestampMillis;
+    use erpx_platform_composition::{
         legal_owner_policy::LegalOwnerConfiguration, legal_pdf_bridge::run_current_legal_pdf,
     };
     use sha2::{Digest, Sha256};
@@ -789,17 +789,17 @@ mod actual_owners {
         }
     }
     #[cfg(feature = "legal-queue")]
-    fn queue_request(key: &str) -> erpx_service::legal_queue_administration::LegalQueueRequest {
-        erpx_service::legal_queue_administration::LegalQueueRequest {
-            key: erpx_server_shared::public::CommandKey::new(key).unwrap(),
+    fn queue_request(key: &str) -> erpx_platform_composition::legal_queue_administration::LegalQueueRequest {
+        erpx_platform_composition::legal_queue_administration::LegalQueueRequest {
+            key: erpx_platform_shared_server::public::CommandKey::new(key).unwrap(),
             document_id: RecordId::new("legal-document").unwrap(),
-            kind: erpx_server_legal::public::LegalProcessingKind::Ocr,
+            kind: erpx_legal_server::public::LegalProcessingKind::Ocr,
         }
     }
     #[cfg(feature = "legal-queue")]
     #[tokio::test]
     async fn interactive_queue_cannot_opt_out_of_selected_work_grant_cas_with_a_read_flag() {
-        use erpx_service::legal_queue_administration::LegalQueueAdministration;
+        use erpx_platform_composition::legal_queue_administration::LegalQueueAdministration;
         fixture::with_database(2, |control| async move {
             fixture::with_database(2, move |holding| async move {
                 let (authorizer, clock)=setup(&control,&holding).await;
@@ -820,7 +820,7 @@ mod actual_owners {
     #[tokio::test]
     async fn actual_interactive_queue_uses_workflow_before_one_canonical_owner_insert_and_history_replay()
      {
-        use erpx_service::legal_queue_administration::LegalQueueAdministration;
+        use erpx_platform_composition::legal_queue_administration::LegalQueueAdministration;
         fixture::with_database(2,|control|async move{fixture::with_database(2,move|holding|async move{
             let(authorizer,clock)=setup(&control,&holding).await;seed(authorizer.as_ref(),&holding).await;
             sqlx::raw_sql("CREATE FUNCTION require_real_receipt_first() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NOT EXISTS(SELECT 1 FROM command_receipts WHERE command_id=NEW.id AND record_id=NEW.item_id AND operation='legal.processing.ocr') THEN RAISE EXCEPTION 'receipt missing before Legal effect' USING ERRCODE='23514';END IF;RETURN NEW;END $$;CREATE TRIGGER require_legal_receipt BEFORE INSERT ON legal_processing_jobs FOR EACH ROW EXECUTE FUNCTION require_real_receipt_first()").execute(holding.raw()).await.unwrap();
@@ -842,7 +842,7 @@ mod actual_owners {
     #[cfg(feature = "legal-queue")]
     #[tokio::test]
     async fn actual_queue_audit_failure_and_rate_denial_roll_back_workflow_and_owner_effects() {
-        use erpx_service::legal_queue_administration::LegalQueueAdministration;
+        use erpx_platform_composition::legal_queue_administration::LegalQueueAdministration;
         fixture::with_database(2,|control|async move{fixture::with_database(2,move|holding|async move{
             let(authorizer,clock)=setup(&control,&holding).await;seed(authorizer.as_ref(),&holding).await;
             sqlx::raw_sql("CREATE FUNCTION deny_queue_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.command_id='queue-failed-audit' THEN RAISE EXCEPTION 'synthetic audit denial' USING ERRCODE='23514';END IF;RETURN NEW;END $$;CREATE TRIGGER deny_legal_audit BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION deny_queue_audit()").execute(holding.raw()).await.unwrap();
@@ -857,7 +857,7 @@ mod actual_owners {
     #[cfg(feature = "legal-queue")]
     #[tokio::test]
     async fn interactive_queue_observes_inserted_owner_denial_after_pre_snapshot_lock_wait() {
-        use erpx_service::legal_queue_administration::LegalQueueAdministration;
+        use erpx_platform_composition::legal_queue_administration::LegalQueueAdministration;
         fixture::with_database(2,|control|async move{fixture::with_database(3,move|holding|async move{
             let(authorizer,clock)=setup(&control,&holding).await;seed(authorizer.as_ref(),&holding).await;
             let mut writer=holding.raw().begin().await.unwrap();sqlx::query("INSERT INTO legal_destructions(id,item_id,policy_id,policy_version,requested_by,state,reason,manifest,created_at)VALUES('new-denial','legal-item','synthetic-policy',1,'user','executing','Synthetic denial','[]',0)").execute(&mut *writer).await.unwrap();
@@ -870,17 +870,17 @@ mod actual_owners {
     }
     #[derive(Clone)]
     struct SyntheticOperationalAdmission(bool);
-    impl erpx_service::legal_system_worker::LegalOperationalAdmission
+    impl erpx_platform_composition::legal_system_worker::LegalOperationalAdmission
         for SyntheticOperationalAdmission
     {
-        fn permits(&self, _: erpx_server_legal::public::LegalProcessingKind, _: i64) -> bool {
+        fn permits(&self, _: erpx_legal_server::public::LegalProcessingKind, _: i64) -> bool {
             self.0
         }
     }
     #[tokio::test]
     async fn actual_company_claim_policy_needs_current_release_purchase_and_operational_admission()
     {
-        use erpx_service::legal_system_worker::LegalSystemWorker;
+        use erpx_platform_composition::legal_system_worker::LegalSystemWorker;
         fixture::with_database(2,|control|async move{fixture::with_database(2,move|holding|async move{
             let(authorizer,clock)=setup(&control,&holding).await;seed(authorizer.as_ref(),&holding).await;
             sqlx::query("UPDATE legal_processing_jobs SET state='queued',lease_token=NULL,lease_until=NULL,attempts=0").execute(holding.raw()).await.unwrap();
@@ -919,16 +919,16 @@ mod actual_owners {
         fail: bool,
     }
     #[cfg(feature = "legal-document-worker")]
-    impl erpx_server_legal::public::DocumentExtractor for ExtractionPort {
+    impl erpx_legal_server::public::DocumentExtractor for ExtractionPort {
         async fn extract_with_budget(
             &self,
-            input: erpx_server_legal::public::DocumentExtractionInput,
-            budget: erpx_server_legal::public::DocumentComputeBudget,
+            input: erpx_legal_server::public::DocumentExtractionInput,
+            budget: erpx_legal_server::public::DocumentComputeBudget,
         ) -> Result<
-            erpx_server_legal::public::DocumentExtractionReport,
-            erpx_server_legal::public::DocumentExtractionFailure,
+            erpx_legal_server::public::DocumentExtractionReport,
+            erpx_legal_server::public::DocumentExtractionFailure,
         > {
-            use erpx_server_legal::public::*;
+            use erpx_legal_server::public::*;
             assert_eq!(input.bytes(), BODY);
             assert_eq!(budget.millis(), 540_000);
             for pool in [&self.holding, &self.control] {
@@ -966,7 +966,7 @@ mod actual_owners {
     #[tokio::test]
     async fn actual_ocr_owner_ports_split_compute_and_atomically_retain_success_or_terminal_failure()
      {
-        use erpx_server_legal::public::document_processing::LegalExtractionRetention;
+        use erpx_legal_server::public::document_processing::LegalExtractionRetention;
         for fail in [false, true] {
             fixture::with_database(2, move |control| async move {
                 fixture::with_database(2, move |holding| async move {
@@ -984,7 +984,7 @@ mod actual_owners {
                         holding_registry(),
                     );
                     let (_root, store) = store();
-                    let result = erpx_service::legal_document_bridge::run_current_legal_extraction(
+                    let result = erpx_platform_composition::legal_document_bridge::run_current_legal_extraction(
                         &queued,
                         source(),
                         configuration(),
@@ -1056,7 +1056,7 @@ mod actual_owners {
                     holding_registry(),
                 );
                 let (_root, store) = store();
-                let denied = erpx_service::legal_document_bridge::run_current_legal_extraction(
+                let denied = erpx_platform_composition::legal_document_bridge::run_current_legal_extraction(
                     &queued,
                     source(),
                     configuration(),
@@ -1139,7 +1139,7 @@ mod actual_owners {
     #[cfg(feature = "legal-queue")]
     #[tokio::test]
     async fn actual_processing_polling_uses_current_item_history_and_exact_public_wire() {
-        use erpx_service::legal_processing_status::LegalProcessingStatusService;
+        use erpx_platform_composition::legal_processing_status::LegalProcessingStatusService;
         fixture::with_database(2,|control|async move{fixture::with_database(2,move|holding|async move{
             let(authorizer,clock)=setup(&control,&holding).await;seed(authorizer.as_ref(),&holding).await;
             sqlx::query("UPDATE legal_processing_jobs SET state='completed',result_json=$1,error=NULL,actor_json='not-an-authority-snapshot' WHERE id='legal-job'").bind(r#"{"status":"indeterminate","warnings":["Synthetic preserved result"]}"#).execute(holding.raw()).await.unwrap();
@@ -1168,7 +1168,7 @@ mod actual_owners {
     #[cfg(feature = "legal-queue")]
     #[tokio::test]
     async fn actual_processing_polling_denies_revocation_and_invalid_bounded_sources() {
-        use erpx_service::legal_processing_status::LegalProcessingStatusService;
+        use erpx_platform_composition::legal_processing_status::LegalProcessingStatusService;
         fixture::with_database(2,|control|async move{fixture::with_database(2,move|holding|async move{
             let(authorizer,clock)=setup(&control,&holding).await;seed(authorizer.as_ref(),&holding).await;
             let service=LegalProcessingStatusService::new(authorizer,configuration(),clock);
@@ -1185,7 +1185,7 @@ mod actual_owners {
     #[cfg(feature = "legal-queue")]
     #[tokio::test]
     async fn processing_status_witness_cannot_cross_transaction_or_hide_local_row_rewrites() {
-        use erpx_server_legal::public::processing_status::load_legal_processing_status;
+        use erpx_legal_server::public::processing_status::load_legal_processing_status;
         fixture::with_database(2, |control| async move {
             fixture::with_database(2, move |holding| async move {
                 let (authorizer, _) = setup(&control, &holding).await;

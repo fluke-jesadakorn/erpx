@@ -3,16 +3,16 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_files::public::learning_evidence::PgLearningEvidence;
-use erpx_server_learning::public::learning::{
+use erpx_files_server::public::learning_evidence::PgLearningEvidence;
+use erpx_learning_server::public::learning::{
     ASSIGNMENT_EVIDENCE_BINDING_TYPE, ASSIGNMENT_EVIDENCE_COMPONENT_KIND,
     ASSIGNMENT_EVIDENCE_PURPOSE, ASSIGNMENT_EVIDENCE_TARGET_TYPE, LearningEvidencePort,
     LearningEvidenceRequest,
 };
-use erpx_server_runtime::public::postgres::{
+use erpx_platform_runtime_server::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{CompanyId, TimestampMillis};
+use erpx_platform_shared_server::public::{CompanyId, TimestampMillis};
 use sqlx::PgConnection;
 
 const NOW: i64 = 1_800_000_000_000;

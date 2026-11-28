@@ -1,10 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { buildProjectGraph, type Actual, type ProjectGraphSource } from "@erpx/server-projects/domain/graph";
-import { createProjectGraphApplication } from "@erpx/server-projects/application/graph";
-import { evaluateQualityMeasurements } from "@erpx/server-quality/domain/measurements";
-import { createSalesPricingApplication } from "@erpx/server-sales/application/pricing";
-import { milliQuantity } from "@erpx/server-inventory/domain/reorder-quantity";
-import { exactConversion } from "@erpx/server-procurement/domain/quantity-conversion";
+import { buildProjectGraph, type Actual, type ProjectGraphSource } from "@erpx/projects-server/domain/graph";
+import { createProjectGraphApplication } from "@erpx/projects-server/application/graph";
+import { evaluateQualityMeasurements } from "@erpx/quality-server/domain/measurements";
+import { createSalesPricingApplication } from "@erpx/sales-server/application/pricing";
+import { milliQuantity } from "@erpx/inventory-server/domain/reorder-quantity";
+import { exactConversion } from "@erpx/procurement-server/domain/quantity-conversion";
 
 function graphSource(): ProjectGraphSource {
   const actual = (id: string, data: Partial<Actual>): Actual => ({ id, milestone_id: "child", source_kind: "work_log", source_id: id, source_version: 1, current_source_version: 1, source_state: "approved", minutes: 30, amount_minor: null, currency: null, user_id: "person-1", journal_status: null, journal_id: null, ...data });
@@ -83,10 +83,10 @@ describe("Inventory and Procurement exact quantities", () => {
     expect(exactConversion(2500, 5000, 500)).toBe(true);
   });
 });
-import { createCRMApplication, type CRMRepository, type CRMMutation } from "@erpx/server-crm/application/leads";
-import { createCRMIdentityApplication, type CRMIdentityPorts, type CRMIdentityMutation } from "@erpx/server-crm/application/identities";
-import { analyticsRange, parseAnalyticsFilters } from "@erpx/server-crm/domain/analytics";
-import type { CRMActivity } from "@erpx/server-crm/domain/activities";
+import { createCRMApplication, type CRMRepository, type CRMMutation } from "@erpx/crm-server/application/leads";
+import { createCRMIdentityApplication, type CRMIdentityPorts, type CRMIdentityMutation } from "@erpx/crm-server/application/identities";
+import { analyticsRange, parseAnalyticsFilters } from "@erpx/crm-server/domain/analytics";
+import type { CRMActivity } from "@erpx/crm-server/domain/activities";
 
 function crmFixture(overrides:Partial<Parameters<typeof createCRMApplication>[0]>={},repositoryOverrides:Partial<CRMRepository>={}){
  const mutations:CRMMutation[]=[],calls:string[]=[];

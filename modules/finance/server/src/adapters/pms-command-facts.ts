@@ -1,0 +1,205 @@
+import {financeOwnedSnapshotSources as pmsSnapshotSources} from "@erpx/pms-server/public/finance-owned-snapshot-sources";
+import { ACCOUNT_SELECT_PREFIX } from './finance-read-tail-r30-sql';
+import { financePostingGuard, financeReferenceOptions, type Lane4Actor } from './native-lane-4/client';
+import { nativePmsFinanceFacts } from '@erpx/collaboration-server/adapters/native-pms-finance-facts';
+import "server-only";
+import type { SqlDatabase } from "@erpx/platform-runtime-server/public/runtime/types";
+const query = async <T>(db: SqlDatabase, sql: string, ...values: unknown[]) => (await db
+    .prepare(sql)
+    .bind(...values)
+    .all<T>()).results;
+const run = async (db: SqlDatabase, sql: string, ...values: unknown[]) => db
+    .prepare(sql)
+    .bind(...values)
+    .run();
+export function pmsFinanceFacts(db: SqlDatabase, actor: Lane4Actor = {}) {
+    return {
+        readFinanceAccounts: (facts: {
+            companyId: string;
+        }) => financeReferenceOptions('accounts', facts.companyId, actor),
+        readFinanceCharts: (facts: {
+            companyId: string;
+        }) => financeReferenceOptions('charts', facts.companyId, actor),
+        readFinanceParties: (facts: {
+            companyId: string;
+        }) => financeReferenceOptions('parties', facts.companyId, actor),
+        readReceiptAllocationCredits: (facts: {
+            companyId: string; propertyId: string; branchId: string;
+            chartId: string; currency: string; receivableAccountId: string;
+            advanceAccountId: string;
+            postings: Array<{entryId: string; date: string; journalId: string}>;
+        }) => query<{entryId: string; amount: string}>(db, `
+          WITH sources AS MATERIALIZED (SELECT * FROM jsonb_to_recordset(?::jsonb)
+            AS x("entryId" text,date text,"journalId" text))
+          SELECT s."entryId",SUM(l.debit_minor)::text amount FROM sources s
+          JOIN finance_journals j ON j.id=s."journalId" AND j.company_id=?
+            AND j.chart_id=? AND j.currency=? AND j.source_type='pms'
+            AND j.source_id=? AND j.memo=s."entryId"||':credit-balance'
+            AND j.entry_date=s.date AND j.status='posted' AND j.is_opening=0
+          JOIN finance_charts c ON c.id=j.chart_id AND c.company_id=j.company_id AND c.base_currency=j.currency
+          JOIN finance_journal_lines l ON l.journal_id=j.id
+          LEFT JOIN finance_accounts a ON a.id=l.account_id
+          GROUP BY s."entryId",j.id
+          HAVING COUNT(*)=2 AND SUM(l.debit_minor)=SUM(l.credit_minor)
+            AND SUM(l.debit_minor)>0 AND SUM(l.base_debit_minor)=SUM(l.debit_minor)
+            AND SUM(l.base_credit_minor)=SUM(l.credit_minor)
+            AND BOOL_AND(COALESCE(a.company_id=j.company_id AND a.chart_id=j.chart_id AND a.currency=j.currency
+              AND ((l.account_id=? AND a.category='asset' AND l.debit_minor>0 AND l.credit_minor=0)
+              OR (l.account_id=? AND a.category='liability' AND l.credit_minor>0 AND l.debit_minor=0)),false))
+            AND BOOL_AND(COALESCE(l.dimension_json::jsonb->>'propertyId'=?
+              AND l.dimension_json::jsonb->>'branchId'=?
+              AND l.dimension_json::jsonb->>'recordId'=s."entryId",false))`,
+          JSON.stringify(facts.postings),facts.companyId,facts.chartId,facts.currency,
+          facts.propertyId,facts.receivableAccountId,facts.advanceAccountId,
+          facts.propertyId,facts.branchId),
+        readFinanceJournalLines: (facts: {
+            id: string;
+        }) => query<{
+            account_id: string;
+            debit: number;
+            credit: number;
+        }>(db, `SELECT l.account_id,SUM(l.debit_minor) debit,SUM(l.credit_minor) credit FROM finance_journal_lines l JOIN (SELECT property_id,journal_id ${pmsSnapshotSources().pms_command_facts_pms_postings_from} UNION SELECT property_id,opening_journal_id ${pmsSnapshotSources().pms_command_facts_pms_import_batches_from} WHERE state='applied' AND opening_journal_id IS NOT NULL) p ON p.journal_id=l.journal_id JOIN finance_journals j ON j.id=l.journal_id WHERE p.property_id=? AND j.status='posted' GROUP BY l.account_id`, facts.id),
+        readFinanceBankTransactions: (facts: {
+            companyId: string;
+            bank: string;
+            currency: string;
+        }) => query<{
+            id: string;
+            transaction_date: string;
+            external_id: string;
+            amount_minor: number;
+            currency: string;
+            version: number;
+        }>(db, `SELECT t.id,t.transaction_date,t.external_id,t.amount_minor,t.currency,t.version
+        FROM finance_bank_transactions t JOIN finance_bank_statements b ON b.id=t.statement_id
+        WHERE t.company_id=? AND b.bank_account=? AND t.currency=? AND t.amount_minor>0 AND t.match_status IN ('unmatched','proposed')
+        ORDER BY t.transaction_date DESC,t.id LIMIT 100`, facts.companyId, facts.bank, facts.currency),
+        readFinanceCharts2: (facts: {
+            chartId: string;
+            companyId: string;
+            currency: string;
+        }) => financePostingGuard('chart_active', facts.companyId, actor, { id: facts.chartId, currency: facts.currency }),
+        readFinanceAccounts2: (facts: {
+            id: string;
+            companyId: string;
+            chartId: string;
+            currency: string;
+        }) => db.prepare("SELECT category FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND currency=? AND status='active' FOR SHARE").bind(facts.id, facts.companyId, facts.chartId, facts.currency).first<{
+            category: string;
+        }>(),
+        readFinanceAccounts3: (facts: {
+            account: string;
+            companyId: string;
+            chartId: string;
+            currency: string;
+        }) => db.prepare(ACCOUNT_SELECT_PREFIX + "id=? AND company_id=? AND chart_id=? AND currency=? AND category='revenue' AND status='active'").bind(facts.account, facts.companyId, facts.chartId, facts.currency).first(),
+        readFinanceAccounts4: (facts: {
+            id: string;
+            companyId: string;
+            chartId: string;
+            currency: string;
+        }) => financePostingGuard('account_liability', facts.companyId, actor, { id: facts.id, chartId: facts.chartId, currency: facts.currency }),
+        readFinancePeriods: (facts: {
+            companyId: string;
+            date: string;
+            date2: string;
+        }) => query<{
+            id: string;
+        }>(db, "SELECT id FROM finance_periods WHERE company_id=? AND state='open' AND start_date<=? AND end_date>=? FOR SHARE", facts.companyId, facts.date, facts.date2),
+        insertFinanceParties: (facts: {
+            party: string;
+            companyId: string;
+            fact2: string;
+            name: string;
+            currency: string;
+            now: number;
+            now2: number;
+        }) => nativePmsFinanceFacts(db, facts.companyId).party([facts.party, facts.companyId, facts.fact2, facts.name, facts.currency, facts.now, facts.now2]).then(s => s.run()),
+        insertFinanceInvoices: (facts: {
+            id: string;
+            companyId: string;
+            party: string;
+            fact3: string;
+            businessDate: string;
+            fact5: string;
+            currency: string;
+            fact7: number;
+            tax: number;
+            total: number;
+            currentDue: number;
+            receivable: string;
+            revenue: string;
+            tax2: string;
+            id2: string;
+            fact15: "paid" | "posted";
+            fact16: string | null;
+            userId: string;
+            approvedBy: string | null;
+            now: number;
+            now2: number;
+            now3: number;
+        }) => nativePmsFinanceFacts(db, facts.companyId).invoice([facts.id, facts.companyId, facts.party, facts.fact3, facts.businessDate, facts.fact5, facts.currency, facts.fact7, facts.tax, facts.total, facts.currentDue, facts.receivable, facts.revenue, facts.tax2, facts.id2, facts.fact15, facts.fact16, facts.userId, facts.approvedBy, facts.now, facts.now2, facts.now3]).then(s => s.run()),
+        insertFinancePayments: (facts: {
+            id: string;
+            companyId: string;
+            party: string;
+            fact3: "refund" | "receipt";
+            fact4: string;
+            businessDate: string;
+            currency: string;
+            amount: number;
+            fact8: string;
+            fact9: string | null;
+            userId: string;
+            userId2: string;
+            now: number;
+            now2: number;
+        }) => nativePmsFinanceFacts(db, facts.companyId).payment([facts.id, facts.companyId, facts.party, facts.fact3, facts.fact4, facts.businessDate, facts.currency, facts.amount, facts.fact8, facts.fact9, facts.userId, facts.userId2, facts.now, facts.now2]).then(s => s.run()),
+        deleteFinanceAllocations: (facts: {
+            id: string;
+            companyId: string;
+        }) => nativePmsFinanceFacts(db, facts.companyId).allocationDelete([facts.id, facts.companyId]).then(s => s.run()),
+        updateFinanceInvoices: (facts: {
+            outstanding: number;
+            outstanding2: number;
+            outstanding3: number;
+            outstanding4: number;
+            fact4: number;
+            id: string;
+            companyId: string;
+        }) => nativePmsFinanceFacts(db, facts.companyId).invoiceUpdate([facts.outstanding, facts.outstanding2, facts.outstanding3, facts.outstanding4, facts.fact4, facts.id, facts.companyId]).then(s => s.run()),
+        insertFinanceAllocations: (facts: {
+            fact0: `${string}-${string}-${string}-${string}-${string}`;
+            companyId: string;
+            id: string;
+            id2: string;
+            n: number;
+            userId: string;
+            fact6: number;
+        }) => nativePmsFinanceFacts(db, facts.companyId).allocationInsert([facts.fact0, facts.companyId, facts.id, facts.id2, facts.n, facts.userId, facts.fact6]).then(s => s.run()),
+        readFinanceParties2: (facts: {
+            partyId: string;
+            companyId: string;
+            currency: string;
+        }) => financePostingGuard('party_customer', facts.companyId, actor, { id: facts.partyId, currency: facts.currency }),
+        updateFinanceBankTransactions: (facts: {
+            bankTransactionId: string;
+            companyId: string;
+        }) => db.prepare(`SELECT t.*,b.bank_account FROM finance_bank_transactions t JOIN finance_bank_statements b ON b.id=t.statement_id
+          WHERE t.id=? AND t.company_id=? FOR UPDATE OF t`).bind(facts.bankTransactionId, facts.companyId).first<{
+            id: string;
+            version: number;
+            match_status: string;
+            bank_account: string;
+            currency: string;
+            amount_minor: number;
+            external_id: string;
+            transaction_date: string;
+        }>(),
+        updateFinanceBankTransactions2: (facts: {
+            id: string;
+            matchedBankId: string;
+            companyId: string;
+        }) => nativePmsFinanceFacts(db, facts.companyId).bankMatch([facts.id, facts.matchedBankId]).then(s => s.run())
+    };
+}

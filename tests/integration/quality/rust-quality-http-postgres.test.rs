@@ -9,10 +9,10 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use erpx_server_quality::public::quality_http::{QualityHttpTarget, quality_router};
-use erpx_server_shared::public::{Clock, CompanyId, HoldingId};
-use erpx_service::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
-use erpx_service::quality::{QualityBackend, QualityConfiguration, QualityService};
+use erpx_quality_server::public::quality_http::{QualityHttpTarget, quality_router};
+use erpx_platform_shared_server::public::{Clock, CompanyId, HoldingId};
+use erpx_platform_composition::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
+use erpx_platform_composition::quality::{QualityBackend, QualityConfiguration, QualityService};
 use std::sync::Arc;
 use tower::ServiceExt;
 

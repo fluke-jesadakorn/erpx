@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import ts from 'typescript';
 
 const adapter = (name: string) =>
-  new URL(`../../../packages/server-marketing/src/adapters/${name}`, import.meta.url);
+  new URL(`../../../modules/marketing/server/src/adapters/${name}`, import.meta.url);
 const src = (name: string) => readFile(adapter(name), 'utf8');
 
 /** AST evidence: count SELECT tokens only inside string/template text nodes. */
@@ -39,7 +39,7 @@ async function ownerTokens(): Promise<{ spaced: number; bare: number }> {
       }
     }
   };
-  await walk(resolve('packages/server-marketing/src'));
+  await walk(resolve('modules/marketing/server/src'));
   return { spaced, bare };
 }
 
@@ -57,7 +57,7 @@ describe('marketing read-tail r58 form lock cutover', () => {
   });
 
   it('keeps the prepared-presentation port awaitable through the caller chain', async () => {
-    const app = await readFile(new URL('../../../packages/server-marketing/src/application/marketing.ts', import.meta.url), 'utf8');
+    const app = await readFile(new URL('../../../modules/marketing/server/src/application/marketing.ts', import.meta.url), 'utf8');
     expect(app).toContain('preparePresentation(key:string,configuration:unknown):Promise<Prepared>');
     expect(app).toContain('await repository.preparePresentation(key,source.configuration_json)');
     expect(app).toContain('await repository.preparePresentation(key,row.configuration_json)');

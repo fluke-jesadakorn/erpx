@@ -6,11 +6,11 @@ const root = resolve(import.meta.dirname ?? process.cwd(), '../../..');
 const read = (path: string) => readFileSync(resolve(root, path), 'utf8');
 const norm = (value: string) => value.replace(/\s+/g, '');
 
-const plans = read('packages/server-commerce/src/adapters/native_commerce_read_sql.rs');
-const registry = read('packages/server-commerce/src/public/native_read.rs');
-const client = read('packages/server-commerce/src/adapters/native-commerce-read.ts');
+const plans = read('modules/commerce/server/src/adapters/native_commerce_read_sql.rs');
+const registry = read('modules/commerce/server/src/public/native_read.rs');
+const client = read('modules/commerce/server/src/adapters/native-commerce-read.ts');
 const harness = read('tests/unit/commerce/rust-commerce-order-http.test.rs');
-const adapters = (file: string) => `packages/server-commerce/src/adapters/${file}`;
+const adapters = (file: string) => `modules/commerce/server/src/adapters/${file}`;
 
 /** G4 / retire.commerce.native-read-r20: five warehouse-config reads move from
  * the registry-only public port to the mounted `/commerce/command-plan`
@@ -191,7 +191,7 @@ describe('commerce read-tail r20 native warehouse kinds', () => {
   });
 
   it('pins the owner TypeScript SELECT KPI at 338 (before 339)', () => {
-    const src = resolve(root, 'packages/server-commerce/src');
+    const src = resolve(root, 'modules/commerce/server/src');
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {

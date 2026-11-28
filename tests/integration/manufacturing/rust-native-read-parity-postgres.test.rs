@@ -11,7 +11,7 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
-use erpx_server_manufacturing::public::{ReadScope, bind, native_command};
+use erpx_manufacturing_server::public::{ReadScope, bind, native_command};
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row};
 
 const DDL: &str = "\
@@ -27,7 +27,7 @@ INSERT INTO manufacturing_orders VALUES ('order-1','company-1','branch-1','spec-
 INSERT INTO manufacturing_accounting_profiles VALUES ('profile-1','company-1','active','1','USD','chart-1','inv-1','wip-1','lab-1','oh-1','0000000000003');";
 
 /// Live `productionCommandSources` statements, copied verbatim from
-/// `packages/server-manufacturing/src/adapters/production-command-sources.ts`.
+/// `modules/manufacturing/server/src/adapters/production-command-sources.ts`.
 const LIVE_SPECIFICATION: &str = "SELECT * FROM manufacturing_specifications WHERE id=? AND company_id=? ";
 const LIVE_SPECIFICATION_LINES: &str = "SELECT * FROM manufacturing_specification_lines WHERE specification_id=? ORDER BY ordinal";
 const LIVE_ORDERS: &str = "SELECT o.*,s.name specification_name,p.name output_name FROM manufacturing_orders o JOIN manufacturing_specifications s ON s.id=o.specification_id JOIN commerce_products p ON p.id=s.output_product_id WHERE o.company_id=? AND (?::text IS NULL OR o.branch_id=?) ORDER BY o.updated_at DESC";

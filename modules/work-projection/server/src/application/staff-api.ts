@@ -1,0 +1,217 @@
+import {z} from "zod";
+import type {WorkContext,requireWorkContext} from "@erpx/identity-access-server/public/authorization";
+import type {requestPublicOrigin} from "@erpx/manage-erpx-server/public/public-origin";
+import type {listStaffNotifications} from "@erpx/collaboration-server/public/staff-notifications";
+import type {} from "@erpx/identity-access-server/public/authorization";
+import type {staffPeople,activeStaff,companyAuthority} from "@erpx/operations-server/public/staff-policy";
+import type {assignLevel,headSchema,levelAssignmentSchema,levelSchema,saveLevel,staffSettings} from "@erpx/operations-server/public/staff-settings";
+import type {listTasks,taskDetail} from '@erpx/operations-server/public/staff-tasks';
+import type {listProjectMilestones,projectMilestoneSchema,projectMilestoneTransitionSchema} from "@erpx/projects-server/public/project-milestones";
+import type {listProjectWorkLogs,projectWorkLogDecisionSchema,projectWorkLogSchema} from "@erpx/projects-server/public/project-actuals";
+import type {rerouteApproval} from '@erpx/workflow-server/public/approvals';
+import type {changeAppointment} from '@erpx/organization-server/public/department-authority';
+import type {getProject,listProjects,projectSchema} from "@erpx/projects-server/public/staff-projects";
+import type {StaffResource,StaffRequestContext} from "@erpx/work-projection-server/domain/staff-api";
+type WithoutDatabase<F> = F extends (...args:infer A)=>infer R ? A extends [unknown,...infer Tail] ? (...args:Tail)=>R:never:never;
+export type ProjectCommandPort = {request:Request;holdingSlug:string;operation:"work-log.save" | "work-log.review" | "milestone.save" | "milestone.transition" | "project.save";projectId?:string;recordId?:string;input:unknown;key:string;branchSlug?:string;departmentSlug?:string};
+export type StaffApiPorts={requireWorkContext:typeof requireWorkContext;prepare(actor:WorkContext):Promise<void>;now():number;error(status:number,code:string,message:string):Error;requestPublicOrigin:typeof requestPublicOrigin;markNotificationRead(actor:WorkContext,id:string,key:string,now:number):Promise<unknown>;
+listStaffNotifications:WithoutDatabase<typeof listStaffNotifications>;
+staffPeople:WithoutDatabase<typeof staffPeople>;
+activeStaff:WithoutDatabase<typeof activeStaff>;
+companyAuthority:WithoutDatabase<typeof companyAuthority>;
+assignLevel:WithoutDatabase<typeof assignLevel>;
+saveLevel:WithoutDatabase<typeof saveLevel>;
+staffSettings:WithoutDatabase<typeof staffSettings>;
+getProject:WithoutDatabase<typeof getProject>;
+listProjects:WithoutDatabase<typeof listProjects>;
+listTasks:WithoutDatabase<typeof listTasks>;
+taskDetail:WithoutDatabase<typeof taskDetail>;
+listProjectMilestones:WithoutDatabase<typeof listProjectMilestones>;
+listProjectWorkLogs:WithoutDatabase<typeof listProjectWorkLogs>;
+projectCommand(command:ProjectCommandPort):Promise<unknown>;
+rerouteApproval:WithoutDatabase<typeof rerouteApproval>;
+changeAppointment:WithoutDatabase<typeof changeAppointment>;headSchema:typeof headSchema.parse;
+levelAssignmentSchema:typeof levelAssignmentSchema.parse;
+levelSchema:typeof levelSchema.parse;
+projectSchema:typeof projectSchema.parse;
+projectMilestoneSchema:typeof projectMilestoneSchema.parse;
+projectMilestoneTransitionSchema:typeof projectMilestoneTransitionSchema.parse;
+projectWorkLogDecisionSchema:typeof projectWorkLogDecisionSchema.parse;
+projectWorkLogSchema:typeof projectWorkLogSchema.parse;
+facts:{projectMembers(value:string):Promise<{results:Record<string,unknown>[]}>;
+approvalQueue(companyId:string,value:0 | 1):Promise<{results:Record<string,unknown>[]}>;
+headPlacement(companyId:string,value:string,personId:string):Promise<{position_id:string|null}|null>;
+betaApproval(value:string,companyId:string):Promise<Record<string,unknown>|null>;};};
+export function createStaffApiService(ports:StaffApiPorts){return async function execute(resource:StaffResource,request:Request,context:StaffRequestContext){
+const {holdingSlug,path:p=[]}=await context.params;const actor=await ports.requireWorkContext(holdingSlug);await ports.prepare(actor);const projectScope=actor.scope.kind==='holding'?{}:{branchSlug:actor.scope.branchSlug,...(actor.scope.kind==='department'?{departmentSlug:actor.scope.departmentSlug}:{})};
+      let data: unknown;
+      if (request.method === "GET") {
+        if (resource === "staff" && p[0] === "notifications")
+          data = await ports.listStaffNotifications( actor);
+        else if (resource === "staff" && p[0] === "people") {
+          const query = new URL(request.url).searchParams;
+          await ports.activeStaff( actor.companyId, actor.userId);
+          data = await ports.staffPeople( actor.companyId, {
+            departmentId: query.get("departmentId") ?? undefined,
+            levelId: query.get("levelId") ?? undefined,
+          });
+        } else if (resource === "staff" && p[0] === "settings")
+          data = await ports.staffSettings( actor);
+        else if (resource === "staff-tasks")
+          data = p[0]
+            ? await ports.taskDetail( actor, p[0])
+            : await ports.listTasks(
+                actor,
+                new URL(request.url).searchParams.get("projectId") ?? undefined,
+              );
+        else if (resource === "projects")
+          data = p[0] && p[1] === "milestones"
+            ? await ports.listProjectMilestones( actor, p[0])
+            : p[0] && p[1] === "work-logs"
+            ? await ports.listProjectWorkLogs( actor, p[0])
+            : p[0]
+            ? {
+                project: await ports.getProject( actor, p[0]),
+                members: (
+                  await ports.facts.projectMembers(p[0])
+                ).results,
+                tasks: await ports.listTasks( actor, p[0]),
+              }
+            : await ports.listProjects( actor);
+        else if (
+          resource === "approvals" &&
+          (await ports.companyAuthority( actor))
+        )
+          data = (
+            await ports.facts.approvalQueue(actor.companyId,actor.beta ? 1 : 0)
+          ).results;
+        else throw ports.error(404, "NOT_FOUND", "Staff resource not found.");
+      } else {
+        const origin = request.headers.get("origin");
+        if (origin && origin !== ports.requestPublicOrigin(request))
+          throw ports.error(
+            403,
+            "ORIGIN_FORBIDDEN",
+            "Use the application origin.",
+          );
+        const key = request.headers.get("Idempotency-Key");
+        if (!key)
+          throw ports.error(
+            422,
+            "COMMAND_KEY_REQUIRED",
+            "Idempotency-Key is required.",
+          );
+        const input = await request.json();
+        if (
+          resource === "staff" &&
+          p[0] === "notifications" &&
+          p[2] === "read"
+        ) {
+          await ports.markNotificationRead(actor,p[1],key,ports.now());
+          data = { id: p[1] };
+        } else if (resource === "staff" && p[0] === "levels")
+          data = await ports.saveLevel(
+            actor,
+            p[1] ?? null,
+            ports.levelSchema(input),
+            key,
+          );
+        else if (
+          resource === "staff" &&
+          p[0] === "engagements" &&
+          p[2] === "level"
+        )
+          data = await ports.assignLevel(
+            actor,
+            p[1],
+            ports.levelAssignmentSchema(input),
+            key,
+          );
+        else if (
+          resource === "staff" &&
+          p[0] === "departments" &&
+          p[2] === "head"
+        )
+          {
+            const head=ports.headSchema(input);
+            const holder=await ports.facts.headPlacement(actor.companyId,p[1],head.personId);
+            data=await ports.changeAppointment(actor,{kind:"head",departmentId:p[1],positionId:holder?.position_id??null,personId:head.personId,expectedVersion:head.expectedVersion,reason:head.reason},key);
+          }
+        else if (resource === "projects" && p[1] === "milestones" && p[3] === "transition")
+          data = await ports.projectCommand({
+            request,
+            holdingSlug,
+            ...projectScope,
+            operation: "milestone.transition",
+            projectId: p[0],
+            recordId: p[2],
+            input: ports.projectMilestoneTransitionSchema(input),
+            key,
+          });
+        else if (resource === "projects" && p[1] === "work-logs" && p[3] === "review")
+          data = await ports.projectCommand({
+            request,
+            holdingSlug,
+            ...projectScope,
+            operation: "work-log.review",
+            projectId: p[0],
+            recordId: p[2],
+            input: ports.projectWorkLogDecisionSchema(input),
+            key,
+          });
+        else if (resource === "projects" && p[1] === "work-logs" && p.length <= 3)
+          data = await ports.projectCommand({
+            request,
+            holdingSlug,
+            ...projectScope,
+            operation: "work-log.save",
+            projectId: p[0],
+            input: ports.projectWorkLogSchema(input),
+            key,
+          });
+        else if (resource === "projects" && p[1] === "milestones" && p.length <= 3)
+          data = await ports.projectCommand({
+            request,
+            holdingSlug,
+            ...projectScope,
+            operation: "milestone.save",
+            projectId: p[0],
+            recordId: p[2],
+            input: ports.projectMilestoneSchema(input),
+            key,
+          });
+        else if (resource === "projects" && p.length < 2) {
+          const command = ports.projectSchema(input);
+          data = await ports.projectCommand({
+            request,
+            holdingSlug,
+            ...projectScope,
+            operation: "project.save",
+            projectId: p[0],
+            input: command,
+            key,
+          });
+        }
+        else if (resource === "approvals" && p[1] === "reroute") {
+          if (
+            actor.beta &&
+            !(await ports.facts.betaApproval(p[0],actor.companyId))
+          )
+            throw ports.error(404, "NOT_FOUND", "Approval not found.");
+          data = await ports.rerouteApproval(
+            actor,
+            p[0],
+            z
+              .object({
+                expectedVersion: z.number().int().positive(),
+                instanceVersion: z.number().int().positive(),
+                approverUserId: z.string().min(1),
+                reason: z.string().trim().min(3).max(2000),
+              })
+              .parse(input),
+            key,
+          );
+        } else throw ports.error(404, "NOT_FOUND", "Staff action not found.");
+      }
+return data;
+};}

@@ -1,11 +1,11 @@
 //! Actual owner-local HTTP router tests for the native customer access grant.
-use erpx_server_customer_authority::public::access_http::{
+use erpx_customer_authority_server::public::access_http::{
     CustomerAccessHttpBackend, CustomerAccessHttpCommand, CustomerAccessHttpFuture,
     CustomerAccessHttpRequest, CustomerAccessHttpResponse, CustomerAccessHttpTarget,
     customer_access_http_router,
 };
-use erpx_server_runtime::public::http_support::{serde_json, serve};
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_platform_runtime_server::public::http_support::{serde_json, serve};
+use erpx_platform_shared_server::public::{BusinessError, FailureKind};
 use std::sync::{Arc, Mutex};
 
 struct Noop;

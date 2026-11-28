@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const ROOT = resolve(__dirname, "../../../packages/server-people_payroll/src/adapters/native_people_list");
+const ROOT = resolve(__dirname, "../../../modules/people-payroll/server/src/adapters/native_people_list");
 const domain = readFileSync(resolve(ROOT, "domain.rs"), "utf8");
 const application = readFileSync(resolve(ROOT, "application.rs"), "utf8");
 const postgres = readFileSync(resolve(ROOT, "postgres.rs"), "utf8");

@@ -1,0 +1,6 @@
+import type {SqlDatabase} from '@erpx/platform-runtime-server/public/runtime/types';
+import type {ApprovalKind} from '@erpx/workflow-server/public/approvals-contract';
+import { nativePpStatement } from '@erpx/people-payroll-server/adapters/native-people-payroll-command';
+export function legacyApprovalRecord(db:SqlDatabase,kind:ApprovalKind,id:string,companyId:string,pendingState:'pending_approval'|'in_review'){const table=kind==='leave'?'leave_requests':'finance_expenses',stateColumn=kind==='leave'?'state':'status';return db.prepare(`SELECT version FROM ${table} WHERE id=? AND company_id=? AND ${stateColumn}=?`).bind(id,companyId,pendingState).first<{version:number}>();}
+export function stageLegacyApprovalScope(_db:SqlDatabase,kind:ApprovalKind,branchId:string|null,departmentId:string|null,now:number,id:string){const nativeKind=kind==='leave'?'pp_approval_scope_leave':'pp_approval_scope_expense';return nativePpStatement(nativeKind).bind(branchId,departmentId,now,id);}
+export function stagePeopleApprovalRevision(_db:SqlDatabase,kind:'expense'|'leave'|'leave_cancellation'|'overtime',now:number,id:string){const nativeKind=kind==='leave'||kind==='leave_cancellation'?'pp_approval_revision_leave':kind==='overtime'?'pp_approval_revision_overtime':'pp_approval_revision_expense';return nativePpStatement(nativeKind).bind(now,id);}

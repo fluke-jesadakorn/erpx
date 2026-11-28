@@ -1,13 +1,13 @@
 //! Real Postgres execution proof for the native Field part-reservation read.
 //!
-//! BUILD FREEZE: the lead owns `packages/server-field_service/Cargo.toml`, so
+//! BUILD FREEZE: the lead owns `modules/field-service/server/Cargo.toml`, so
 //! this test is ready to wire but has no `[[test]]` entry yet. Add:
 //!   [[test]]
 //!   name = "reservation_part_postgres"
 //!   path = "../../tests/unit/field_service/rust-reservation-part-postgres.test.rs"
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
-use erpx_server_field_service::public::reservation_part::{
+use erpx_field_service_server::public::reservation_part::{
     FieldPartReservationQuery, FieldPartReservationStore, PgFieldPartReservationStore, project,
 };
 

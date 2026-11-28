@@ -8,7 +8,7 @@ import {
   COMMERCIAL_RD_USAGE_METER,
   COMMERCIAL_RD_USAGE_SNAPSHOT,
   COMMERCIAL_RD_USAGE_SEAT,
-} from '../../../packages/server-commercial/src/adapters/native-owner-read';
+} from '../../../modules/commercial/server/src/adapters/native-owner-read';
 
 describe('native Commercial owner-read client', () => {
   const envKeys = [
@@ -56,7 +56,7 @@ describe('native Commercial owner-read client', () => {
   });
 
   it('moves the principal-status event base SELECT out of projection.ts', () => {
-    const projection = readFileSync(resolve(__dirname, '../../../packages/server-commercial/src/adapters/projection.ts'), 'utf8');
+    const projection = readFileSync(resolve(__dirname, '../../../modules/commercial/server/src/adapters/projection.ts'), 'utf8');
     expect(projection).not.toContain('SELECT id,user_id,status,effective_at');
     expect(projection).toContain('nativeCommercialOwnerRead(COMMERCIAL_RD_PRINCIPAL_EVENTS)');
     expect(projection.match(/SELECT\s/g) ?? []).toHaveLength(0);

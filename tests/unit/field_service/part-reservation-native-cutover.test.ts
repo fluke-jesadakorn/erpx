@@ -5,11 +5,11 @@ import { nativeApiPath } from '../../../scripts/local/native-api-proxy';
 
 const repo = resolve(__dirname, '../../..');
 const read = (path: string) => readFileSync(resolve(repo, path), 'utf8');
-const dir = 'packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service';
+const dir = 'products/service/ui/src/routes/api/v1/holdings/[holdingSlug]/field-service';
 const ROUTE = `${dir}/route.ts`;
 const RETIRED = `${dir}/native-reserve.ts`;
 const CLIENT = `${dir}/native-part-reservation.ts`;
-const COMMAND = 'packages/feature-field_service/src/lib/native-reserve-command.ts';
+const COMMAND = 'modules/field-service/ui/src/lib/native-reserve-command.ts';
 const SERVICE_ENTRY = 'apps/service/src/app/api/v1/holdings/[holdingSlug]/field-service/route.ts';
 const COMPAT_ENTRY = 'apps/compat/src/app/api/v1/holdings/[holdingSlug]/field-service/route.ts';
 
@@ -128,7 +128,7 @@ describe('field service Next API retirement', () => {
   });
 
   test('the native Axum owners register every retired path and execute SQL', () => {
-    const router = read('src/composition/src/field_service_reservation_read_http.rs');
+    const router = read('platform/composition/src/field_service_reservation_read_http.rs');
     for (const route of [
       '/field-service/collaboration', '/field-service/operations',
       '/field-service/customer-preparation', '/field-service/customer-preparation/confirmations',
@@ -144,9 +144,9 @@ describe('field service Next API retirement', () => {
       '/field-service/agreements/reviews/{key}', '/field-service/agreements/creates/{key}',
       '/field-service/billings/{key}', '/field-service/{order_id}/issues/{key}',
     ]) expect(router, route).toContain(route);
-    expect(read('src/composition/src/field_service_http_core.rs')).toContain('"/api/v1/holdings/{holding_slug}/field-service"');
-    expect(read('packages/server-field_service/src/adapters/reservation_part_http.rs')).toContain('/parts-reservations/{reservation_id}');
-    const service = read('src/composition/src/field_service_reservation_read.rs');
+    expect(read('platform/composition/src/field_service_http_core.rs')).toContain('"/api/v1/holdings/{holding_slug}/field-service"');
+    expect(read('modules/field-service/server/src/adapters/reservation_part_http.rs')).toContain('/parts-reservations/{reservation_id}');
+    const service = read('platform/composition/src/field_service_reservation_read.rs');
     expect(service).toContain('sqlx::query_scalar');
     expect(service).toContain('execute_with_sources_deferred');
   });

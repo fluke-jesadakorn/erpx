@@ -10,8 +10,8 @@ import {
   nativeWorkSnapshotConfigured,
   readNativeWorkSnapshot,
   type NativeWorkSnapshotTransport,
-} from '../../../packages/server-work_projection/src/adapters/native-work-snapshot';
-import {ApiError} from '../../../packages/server-runtime/src/adapters/http';
+} from '../../../modules/work-projection/server/src/adapters/native-work-snapshot';
+import {ApiError} from '../../../platform/runtime/server/src/adapters/http';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44992',

@@ -6,8 +6,8 @@ import {
   nativeCustomerAccessConfiguration,
   NativeCustomerAccessError,
   type NativeCustomerAccessPageContext,
-} from '../../../packages/feature-sales/src/public/native-customer-access';
-import { nativeCustomerAccessCommand, nativeCustomerAccessFailure, nativeCustomerAccessWorkspace } from '../../../packages/feature-sales/src/public/native-customer-access-page';
+} from '../../../modules/sales/ui/src/public/native-customer-access';
+import { nativeCustomerAccessCommand, nativeCustomerAccessFailure, nativeCustomerAccessWorkspace } from '../../../modules/sales/ui/src/public/native-customer-access-page';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44993',

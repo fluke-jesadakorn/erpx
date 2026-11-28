@@ -66,9 +66,9 @@ import {
   PMS_RD_OPERATION_RELATED_RECORDS,
   PMS_RD_OPERATIONS_PAGE,
   PMS_RD_SECTION_PAGE,
-} from '../../../packages/server-pms/src/adapters/native-pms-read';
-import { readPmsInventoryCommand } from '../../../packages/server-pms/src/adapters/pms/read-repository';
-import { pmsAttachmentReadSourceImage } from '../../../packages/server-pms/src/adapters/attachment-read-sources';
+} from '../../../modules/pms/server/src/adapters/native-pms-read';
+import { readPmsInventoryCommand } from '../../../modules/pms/server/src/adapters/pms/read-repository';
+import { pmsAttachmentReadSourceImage } from '../../../modules/pms/server/src/adapters/attachment-read-sources';
 
 const envKey = 'ERPX_NATIVE_PMS_CONFIG';
 const original = process.env[envKey];
@@ -168,7 +168,7 @@ describe('native PMS booking-change read retirement', () => {
   });
 
   it('removes the three TypeScript booking-change SELECT literals but keeps refund/lock reads', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/pms-booking-changes.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/pms/server/src/adapters/pms-booking-changes.ts', import.meta.url), 'utf8');
     expect(adapter).not.toContain(changeSql);
     expect(adapter).not.toContain(pendingSql);
     expect(adapter).not.toContain(paymentSql);
@@ -221,7 +221,7 @@ describe('native PMS posting-journal read retirement', () => {
   });
 
   it('removes the two TypeScript posting SELECT literals but keeps lock/refund reads', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/pms.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/pms/server/src/adapters/pms.ts', import.meta.url), 'utf8');
     expect(adapter).not.toContain(chargeSql);
     expect(adapter).not.toContain(byRecordSql);
     expect(adapter).toContain('nativePmsReadFirst');
@@ -270,11 +270,11 @@ describe('native PMS charge-correction pending read retirement', () => {
   });
 
   it('removes the two TypeScript pending charge-correction SELECT literals but keeps the FOR UPDATE read', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/pms.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/pms/server/src/adapters/pms.ts', import.meta.url), 'utf8');
     expect(adapter).not.toContain(ccPendingSql);
     expect(adapter).toContain('FOR UPDATE');
     expect(adapter).toContain('nativePmsReadFirst');
-    const controls = await readFile(new URL('../../../packages/server-pms/src/adapters/hospitality-day-controls.ts', import.meta.url), 'utf8');
+    const controls = await readFile(new URL('../../../modules/pms/server/src/adapters/hospitality-day-controls.ts', import.meta.url), 'utf8');
     expect(controls).not.toContain(ccPendingCountSql);
     expect(controls).toContain('nativePmsReadFirst');
     expect(controls).toContain('pendingHotelRoomChargeReversals');
@@ -318,7 +318,7 @@ describe('native PMS guest command record read retirement', () => {
   });
 
   it('removes the TypeScript guest command record SELECT literal but keeps the scope UNION read', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/pms.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/pms/server/src/adapters/pms.ts', import.meta.url), 'utf8');
     const call = adapter.split('\n').find(line => line.includes('readPmsGuestCommandRecord:')) ?? '';
     expect(call).toContain('nativePmsReadAll');
     expect(call).toContain('PMS_RD_GUEST_COMMAND_RECORD');
@@ -358,14 +358,14 @@ describe('native PMS document point-read retirement', () => {
   it('keeps only the document snapshot read kind and deletes the retired by-id authority', async () => {
     expect(PMS_RD_DOCUMENT_SNAPSHOT).toBe('pms_rd_document_snapshot');
     expect(PMS_RD_DOCUMENT_SNAPSHOT).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
-    const source = await readFile(new URL('../../../packages/server-pms/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
+    const source = await readFile(new URL('../../../modules/pms/server/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
     expect(source).not.toContain('pms_rd_document_by_id');
-    const entrypoint = await readFile(new URL('../../../packages/server-pms/src/adapters/entrypoint-queries.ts', import.meta.url), 'utf8');
+    const entrypoint = await readFile(new URL('../../../modules/pms/server/src/adapters/entrypoint-queries.ts', import.meta.url), 'utf8');
     expect(entrypoint).not.toContain('pmsDocumentQueries');
     expect(entrypoint).not.toContain('db.prepare');
     expect(entrypoint).not.toContain('SELECT * FROM pms_documents WHERE id=?');
 
-    const details = await readFile(new URL('../../../packages/server-pms/src/adapters/pms/record-details.ts', import.meta.url), 'utf8');
+    const details = await readFile(new URL('../../../modules/pms/server/src/adapters/pms/record-details.ts', import.meta.url), 'utf8');
     expect(details).toContain('PMS_RD_DOCUMENT_SNAPSHOT');
     expect(details).not.toContain('SELECT property_id,snapshot_json FROM pms_documents WHERE id=?');
   });
@@ -405,7 +405,7 @@ describe('native PMS property config read retirement', () => {
   });
 
   it('removes the TypeScript pms_properties config SELECT literal', async () => {
-    const controls = await readFile(new URL('../../../packages/server-pms/src/adapters/hospitality-day-controls.ts', import.meta.url), 'utf8');
+    const controls = await readFile(new URL('../../../modules/pms/server/src/adapters/hospitality-day-controls.ts', import.meta.url), 'utf8');
     expect(controls).not.toContain(propertyConfigSql);
     expect(controls).toContain('nativePmsReadFirst');
     expect(controls).toContain('PMS_RD_PROPERTY_CONFIG');
@@ -450,7 +450,7 @@ describe('native PMS day-control count-read retirement', () => {
   });
 
   it('removes both TypeScript day-control count SELECT literals', async () => {
-    const controls = await readFile(new URL('../../../packages/server-pms/src/adapters/hospitality-day-controls.ts', import.meta.url), 'utf8');
+    const controls = await readFile(new URL('../../../modules/pms/server/src/adapters/hospitality-day-controls.ts', import.meta.url), 'utf8');
     expect(controls).not.toContain('SELECT count(*) n FROM pms_transfer_requests');
     expect(controls).not.toContain('FROM pms_booking_payments');
     expect(controls).toContain('PMS_RD_PENDING_HOTEL_TRANSFERS');
@@ -495,7 +495,7 @@ describe('native PMS unposted counter receipts read retirement', () => {
   });
 
   it('removes the TypeScript unposted counter receipts SELECT literal but keeps refund reads', async () => {
-    const controls = await readFile(new URL('../../../packages/server-pms/src/adapters/hospitality-day-controls.ts', import.meta.url), 'utf8');
+    const controls = await readFile(new URL('../../../modules/pms/server/src/adapters/hospitality-day-controls.ts', import.meta.url), 'utf8');
     expect(controls).not.toContain('FROM pms_stripe_payments\n    WHERE property_id=? AND company_id=? AND received_at IS NOT NULL');
     expect(controls).toContain('PMS_RD_UNPOSTED_COUNTER_RECEIPTS');
     const call = controls.split('\n').find(line => line.includes('PMS_RD_UNPOSTED_COUNTER_RECEIPTS,')) ?? '';
@@ -539,7 +539,7 @@ describe('native PMS hospitality-setup property list read retirement', () => {
   });
 
   it('removes the TypeScript hospitality-setup pms_properties SELECT literal', async () => {
-    const setup = await readFile(new URL('../../../packages/server-pms/src/adapters/hospitality-setup.ts', import.meta.url), 'utf8');
+    const setup = await readFile(new URL('../../../modules/pms/server/src/adapters/hospitality-setup.ts', import.meta.url), 'utf8');
     expect(setup).not.toContain(hospitalitySetupPropertiesSql);
     expect(setup).toContain('nativePmsReadAll');
     expect(setup).toContain('PMS_RD_HOSPITALITY_SETUP_PROPERTIES');
@@ -586,7 +586,7 @@ describe('native PMS attachment read-source image retirement', () => {
   });
 
   it('removes both TypeScript attachment image SELECT literals but keeps the source lease', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/attachment-read-sources.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/pms/server/src/adapters/attachment-read-sources.ts', import.meta.url), 'utf8');
     expect(adapter).not.toContain(attachmentPropertyImageSql);
     expect(adapter).not.toContain(attachmentRecordImageSql);
     expect(adapter).toContain('nativePmsReadFirst');
@@ -628,13 +628,13 @@ const relatedPostingsSql = "SELECT DISTINCT pp.journal_id FROM pms_postings pp J
 
 describe('native PMS document related-postings read retirement', () => {
   it('removes the TypeScript plan/execute authority for related postings', async () => {
-    const source = await readFile(new URL('../../../packages/server-pms/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
+    const source = await readFile(new URL('../../../modules/pms/server/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
     expect(source).not.toContain('pms_rd_document_related_postings');
-    const entrypoint = await readFile(new URL('../../../packages/server-pms/src/adapters/entrypoint-queries.ts', import.meta.url), 'utf8');
+    const entrypoint = await readFile(new URL('../../../modules/pms/server/src/adapters/entrypoint-queries.ts', import.meta.url), 'utf8');
     expect(entrypoint).not.toContain('nativePmsReadAll');
     expect(entrypoint).not.toContain('db.prepare');
     expect(entrypoint).not.toContain(relatedPostingsSql);
-    const presentation = await readFile(new URL('../../../packages/server-pms/src/adapters/presentation-queries.ts', import.meta.url), 'utf8');
+    const presentation = await readFile(new URL('../../../modules/pms/server/src/adapters/presentation-queries.ts', import.meta.url), 'utf8');
     expect(presentation).not.toContain('pmsDocumentQueries');
   });
 });
@@ -651,7 +651,7 @@ describe('native PMS pos-guest-account read retirement', () => {
   });
 
   it('removes the two TypeScript pos-guest SELECT literals but keeps assertDay FOR SHARE', async () => {
-    const adapterUrl = new URL('../../../packages/server-pms/src/adapters/pos-guest-account-interface.ts', import.meta.url);
+    const adapterUrl = new URL('../../../modules/pms/server/src/adapters/pos-guest-account-interface.ts', import.meta.url);
     const adapter = await readFile(adapterUrl, 'utf8');
     expect(adapter).not.toContain(posGuestHotelsSql);
     expect(adapter).not.toContain(posGuestChoicesSql);
@@ -685,7 +685,7 @@ describe('native PMS pos-guest-account read retirement', () => {
       async batch<T>() { return [{ results: [{ id: 'property-1', name: 'Grand', branch_id: 'branch-1', property_id: 'property-1', stay_id: 'stay-1' }], success: true, meta: { changes: 0, duration: 0 } }] as unknown as { results: T[]; success: boolean; meta: { changes: number; duration: number } }[]; },
       async exec() { return { count: 0, duration: 0 }; },
     };
-    const { posGuestAccountInterface } = await import('../../../packages/server-pms/src/adapters/pos-guest-account-interface');
+    const { posGuestAccountInterface } = await import('../../../modules/pms/server/src/adapters/pos-guest-account-interface');
     const api = posGuestAccountInterface(db as never);
     const hotels = await api.hotels('company-1', 'branch-1');
     const choices = await api.choices('company-1', 'branch-1', 'THB', 'property-1');
@@ -715,7 +715,7 @@ describe('native PMS pos-stripe byte-identical read retirement', () => {
   });
 
   it('removes the four byte-identical TypeScript SELECT literals but keeps refund reads', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/pos-stripe-facts.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/pms/server/src/adapters/pos-stripe-facts.ts', import.meta.url), 'utf8');
     expect(adapter).not.toContain("one(db,'" + posStripePaymentSql + "'");
     expect(adapter).not.toContain("one(db,'" + posBookingPaymentSql + "'");
     expect(adapter).toContain('nativePmsReadFirst');
@@ -748,7 +748,7 @@ describe('native PMS pos-stripe byte-identical read retirement', () => {
       async batch<T>() { return [{ results: [{ id: 'payment-1' }], success: true, meta: { changes: 0, duration: 0 } }] as unknown as { results: T[]; success: boolean; meta: { changes: number; duration: number } }[]; },
       async exec() { return { count: 0, duration: 0 }; },
     };
-    const { posStripePmsFacts } = await import('../../../packages/server-pms/src/adapters/pos-stripe-facts');
+    const { posStripePmsFacts } = await import('../../../modules/pms/server/src/adapters/pos-stripe-facts');
     const api = posStripePmsFacts(db as never);
     const facts = { company_id: 'company-1', account_id: 'acct_1', livemode: false };
     const stripe1 = await api.readPmsStripePayments1({ counterId: 'counter-1', ...facts });
@@ -794,7 +794,7 @@ describe('native PMS pms-stripe byte-identical plain read retirement', () => {
   });
 
   it('removes the eight byte-identical TypeScript SELECT literals but keeps lock and refund reads', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/pms-stripe.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/pms/server/src/adapters/pms-stripe.ts', import.meta.url), 'utf8');
     expect(adapter).not.toContain("db.prepare('" + stripePaymentByIdSql + "')");
     expect(adapter).not.toContain("db.prepare('" + stripePaymentByIdCompanySql + "')");
     expect(adapter).not.toContain("db.prepare('" + stripePaymentPropertySql + "')");
@@ -873,7 +873,7 @@ describe('native PMS scoped-records read retirement', () => {
   });
 
   it('removes the TypeScript scoped literals and their retired exports but keeps every lock read inline', async () => {
-    const root = new URL('../../../packages/server-pms/src/adapters/', import.meta.url);
+    const root = new URL('../../../modules/pms/server/src/adapters/', import.meta.url);
     const pms = await readFile(new URL('pms.ts', root), 'utf8');
     const r25 = await readFile(new URL('pms-read-tail-r25-sql.ts', root), 'utf8');
     const r26 = await readFile(new URL('pms-read-tail-r26-sql.ts', root), 'utf8');
@@ -906,7 +906,7 @@ describe('native PMS scoped-records read retirement', () => {
   });
 
   it('carries byte-identical retired SQL in the Rust registry', async () => {
-    const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/pms/server/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
     for (const [suffix, sql] of [
       ['STAY', stayCommandSql], ['CASHIER', cashierCommandSql],
       ['POS', posCommandSql], ['NIGHT', nightCommandSql],
@@ -966,7 +966,7 @@ describe('native PMS guest booking-document read retirement', () => {
   });
 
   it('removes the TypeScript SELECT literal and keeps the authorization read', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/pms/guest-document.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/pms/server/src/adapters/pms/guest-document.ts', import.meta.url), 'utf8');
     expect(adapter).not.toContain(guestDocumentSql);
     expect(adapter).not.toContain('tx.prepare(');
     expect(adapter).toContain('nativePmsReadFirst<');
@@ -975,7 +975,7 @@ describe('native PMS guest booking-document read retirement', () => {
   });
 
   it('carries the byte-identical retired SQL in the Rust registry with three binds', async () => {
-    const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/pms/server/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
     expect(rust).toContain('pub const PMS_RD_GUEST_BOOKING_DOCUMENT: &str = "pms_rd_guest_booking_document";');
     expect(rust).toContain('const SQL_GUEST_BOOKING_DOCUMENT: &str = ' + JSON.stringify(guestDocumentSql) + ';');
     expect(rust).toContain('READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS, READ_BOOKING_ALLOCATION_EXISTS, READ_PENDING_JOBS, READ_BOOKING_PROPERTY_SCOPE, READ_BOOKING_PROPERTY_SCOPE_BRANCH, READ_BOOKING_RECORDS, READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS, READ_RECORD_DETAIL, READ_PMS_CHOICES, READ_PMS_CHOICES_BLOCK, READ_OPERATION_RELATED_RECORDS, READ_OPERATIONS_PAGE, READ_SECTION_PAGE];');
@@ -1033,7 +1033,7 @@ describe('native PMS hotelMetrics read retirement', () => {
   });
 
   it('removes the TypeScript property-scope fallback and routes home through the native kind', async () => {
-    const home = await readFile(new URL('../../../packages/server-pms/src/adapters/pms/home.ts', import.meta.url), 'utf8');
+    const home = await readFile(new URL('../../../modules/pms/server/src/adapters/pms/home.ts', import.meta.url), 'utf8');
     expect(home).not.toContain("pmsPropertyScopeSql('hotelMetrics')");
     expect(home).toContain('nativePmsReadAll<{');
     // The hotelMetrics authority is now the mounted axum executor; TypeScript
@@ -1041,13 +1041,13 @@ describe('native PMS hotelMetrics read retirement', () => {
     expect(home).toContain('nativeHomeMetrics({');
     expect(home).toContain('companyId: facts.companyId');
     expect(home).not.toContain('PMS_RD_HOTEL_METRICS, [facts.companyId');
-    const r41 = await readFile(new URL('../../../packages/server-pms/src/adapters/pms-read-tail-r41-sql.ts', import.meta.url), 'utf8');
+    const r41 = await readFile(new URL('../../../modules/pms/server/src/adapters/pms-read-tail-r41-sql.ts', import.meta.url), 'utf8');
     expect(r41).not.toContain('hotelMetrics');
     expect(r41).toContain("type PropertyScope = 'hotelMoney' | 'liabilities'");
   });
 
   it('carries the retained owner-port bytes in the Rust registry with five binds', async () => {
-    const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/pms/server/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
     expect(rust).toContain('pub const PMS_RD_HOTEL_METRICS: &str = "pms_rd_hotel_metrics";');
     expect(rust).toContain(hotelMetricsSql);
     expect(rust).toContain('READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS, READ_BOOKING_ALLOCATION_EXISTS, READ_PENDING_JOBS, READ_BOOKING_PROPERTY_SCOPE, READ_BOOKING_PROPERTY_SCOPE_BRANCH, READ_BOOKING_RECORDS, READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS, READ_RECORD_DETAIL, READ_PMS_CHOICES, READ_PMS_CHOICES_BLOCK, READ_OPERATION_RELATED_RECORDS, READ_OPERATIONS_PAGE, READ_SECTION_PAGE];');
@@ -1056,12 +1056,12 @@ describe('native PMS hotelMetrics read retirement', () => {
     expect(hotelMetricsSql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
     // Byte parity with the owner read port: the plan is the same statement with
     // the numbered placeholders replaced by positional ones.
-    const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/home_metrics_postgres.rs', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/pms/server/src/adapters/home_metrics_postgres.rs', import.meta.url), 'utf8');
     const literal = adapter.match(/const HOTEL_METRICS_SQL: &str = "([\s\S]*?)";/);
     expect(literal).toBeTruthy();
     const ported = literal![1]!.replace(/\$1/g, '?').replace(/\$2/g, '?').replace(/\$3/g, '?').replace(/\$4/g, '?').replace(/\$5/g, '?');
     expect(hotelMetricsSql).toBe(ported);
-    const bridge = await readFile(new URL('../../../packages/server-pms/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/pms/server/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
     expect(bridge).toContain("export const PMS_RD_HOTEL_METRICS = 'pms_rd_hotel_metrics';");
   });
 
@@ -1104,7 +1104,7 @@ describe('native PMS booking-receipt point-read retirement', () => {
   });
 
   it('removes both TypeScript SELECT literals but keeps the receipt writes and payment locks', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/pms-booking.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/pms/server/src/adapters/pms-booking.ts', import.meta.url), 'utf8');
     expect(adapter).not.toContain(receiptByKeySql);
     expect(adapter).not.toContain(receiptByAttemptSql);
     expect(adapter).toContain('nativePmsReadFirst<');
@@ -1115,7 +1115,7 @@ describe('native PMS booking-receipt point-read retirement', () => {
   });
 
   it('carries the byte-identical retired SQL in the Rust registry with matching binds', async () => {
-    const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/pms/server/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
     expect(rust).toContain('pub const PMS_RD_BOOKING_RECEIPT_BY_KEY: &str = "pms_rd_booking_receipt_by_key";');
     expect(rust).toContain('pub const PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT: &str = "pms_rd_booking_receipt_by_attempt";');
     expect(rust).toContain('const SQL_BOOKING_RECEIPT_BY_KEY: &str = ' + JSON.stringify(receiptByKeySql) + ';');
@@ -1124,7 +1124,7 @@ describe('native PMS booking-receipt point-read retirement', () => {
     expect(receiptByKeySql.match(/\?/g)).toHaveLength(1);
     expect(receiptByAttemptSql.match(/\?/g)).toHaveLength(2);
     for (const sql of [receiptByKeySql, receiptByAttemptSql]) expect(sql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
-    const bridge = await readFile(new URL('../../../packages/server-pms/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/pms/server/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
     expect(bridge).toContain("export const PMS_RD_BOOKING_RECEIPT_BY_KEY = 'pms_rd_booking_receipt_by_key';");
     expect(bridge).toContain("export const PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT = 'pms_rd_booking_receipt_by_attempt';");
   });
@@ -1172,7 +1172,7 @@ describe('native PMS booking companion read retirement', () => {
   });
 
   it('removes both TypeScript SELECT literals but keeps the booking writes and payment locks', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/pms-booking.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/pms/server/src/adapters/pms-booking.ts', import.meta.url), 'utf8');
     expect(adapter).not.toContain(bookingDocumentsSql);
     expect(adapter).not.toContain(changePaymentPendingSql);
     expect(adapter).toContain('nativePmsReadAll<');
@@ -1184,7 +1184,7 @@ describe('native PMS booking companion read retirement', () => {
   });
 
   it('carries the byte-identical retired SQL in the Rust registry with matching binds', async () => {
-    const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/pms/server/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
     expect(rust).toContain('pub const PMS_RD_BOOKING_DOCUMENTS: &str = "pms_rd_booking_documents";');
     expect(rust).toContain('pub const PMS_RD_CHANGE_PAYMENT_PENDING: &str = "pms_rd_change_payment_pending";');
     expect(rust).toContain('const SQL_BOOKING_DOCUMENTS: &str = ' + JSON.stringify(bookingDocumentsSql) + ';');
@@ -1193,7 +1193,7 @@ describe('native PMS booking companion read retirement', () => {
     expect(bookingDocumentsSql.match(/\?/g)).toHaveLength(3);
     expect(changePaymentPendingSql.match(/\?/g)).toHaveLength(1);
     for (const sql of [bookingDocumentsSql, changePaymentPendingSql]) expect(sql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
-    const bridge = await readFile(new URL('../../../packages/server-pms/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/pms/server/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
     expect(bridge).toContain("export const PMS_RD_BOOKING_DOCUMENTS = 'pms_rd_booking_documents';");
     expect(bridge).toContain("export const PMS_RD_CHANGE_PAYMENT_PENDING = 'pms_rd_change_payment_pending';");
   });
@@ -1241,7 +1241,7 @@ describe('native PMS refund allocation companion read retirement', () => {
   });
 
   it('removes both TypeScript SELECT heads but keeps refund-state reads and payment locks', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/pms-booking-refunds.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/pms/server/src/adapters/pms-booking-refunds.ts', import.meta.url), 'utf8');
     expect(adapter).not.toContain(bookingAllocationsSql);
     expect(adapter).not.toContain(refundRequestAllocationsSql);
     expect(adapter).not.toContain('pmsTwoColumnPointReadSql');
@@ -1253,7 +1253,7 @@ describe('native PMS refund allocation companion read retirement', () => {
   });
 
   it('carries the byte-identical retired SQL in the Rust registry with one bind each', async () => {
-    const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/pms/server/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
     expect(rust).toContain('pub const PMS_RD_BOOKING_ALLOCATIONS: &str = "pms_rd_booking_allocations";');
     expect(rust).toContain('pub const PMS_RD_REFUND_REQUEST_ALLOCATIONS: &str = "pms_rd_refund_request_allocations";');
     expect(rust).toContain('const SQL_BOOKING_ALLOCATIONS: &str = ' + JSON.stringify(bookingAllocationsSql) + ';');
@@ -1263,7 +1263,7 @@ describe('native PMS refund allocation companion read retirement', () => {
       expect(sql.match(/\?/g)).toHaveLength(1);
       expect(sql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
     }
-    const bridge = await readFile(new URL('../../../packages/server-pms/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/pms/server/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
     expect(bridge).toContain("export const PMS_RD_BOOKING_ALLOCATIONS = 'pms_rd_booking_allocations';");
     expect(bridge).toContain("export const PMS_RD_REFUND_REQUEST_ALLOCATIONS = 'pms_rd_refund_request_allocations';");
   });
@@ -1311,7 +1311,7 @@ describe('native PMS transfer/document companion read retirement', () => {
   });
 
   it('removes both TypeScript SELECT literals but keeps the lock reads', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/pms.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/pms/server/src/adapters/pms.ts', import.meta.url), 'utf8');
     expect(adapter).not.toContain(transferRequestsSql);
     expect(adapter).not.toContain(guestDocumentsSql);
     expect(adapter).toContain('nativePmsReadAll<TransferRequestRow>');
@@ -1321,7 +1321,7 @@ describe('native PMS transfer/document companion read retirement', () => {
   });
 
   it('carries the byte-identical retired SQL in the Rust registry with two binds each', async () => {
-    const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/pms/server/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
     expect(rust).toContain('pub const PMS_RD_TRANSFER_REQUESTS: &str = "pms_rd_transfer_requests";');
     expect(rust).toContain('pub const PMS_RD_GUEST_DOCUMENTS: &str = "pms_rd_guest_documents";');
     expect(rust).toContain('const SQL_TRANSFER_REQUESTS: &str = ' + JSON.stringify(transferRequestsSql) + ';');
@@ -1331,7 +1331,7 @@ describe('native PMS transfer/document companion read retirement', () => {
       expect(sql.match(/\?/g)).toHaveLength(2);
       expect(sql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
     }
-    const bridge = await readFile(new URL('../../../packages/server-pms/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/pms/server/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
     expect(bridge).toContain("export const PMS_RD_TRANSFER_REQUESTS = 'pms_rd_transfer_requests';");
     expect(bridge).toContain("export const PMS_RD_GUEST_DOCUMENTS = 'pms_rd_guest_documents';");
   });
@@ -1379,7 +1379,7 @@ describe('native PMS allocation/pending-job read retirement', () => {
   });
 
   it('removes both TypeScript SELECT literals but keeps the property lock reads', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/pms.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/pms/server/src/adapters/pms.ts', import.meta.url), 'utf8');
     expect(adapter).not.toContain(allocationExistsSql);
     expect(adapter).not.toContain(pendingJobsSql);
     expect(adapter).toContain('nativePmsReadFirst<{ id: string }>(PMS_RD_BOOKING_ALLOCATION_EXISTS');
@@ -1389,7 +1389,7 @@ describe('native PMS allocation/pending-job read retirement', () => {
   });
 
   it('carries the byte-identical retired SQL in the Rust registry with matching binds', async () => {
-    const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/pms/server/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
     expect(rust).toContain('pub const PMS_RD_BOOKING_ALLOCATION_EXISTS: &str = "pms_rd_booking_allocation_exists";');
     expect(rust).toContain('pub const PMS_RD_PENDING_JOBS: &str = "pms_rd_pending_jobs";');
     expect(rust).toContain('const SQL_BOOKING_ALLOCATION_EXISTS: &str = ' + JSON.stringify(allocationExistsSql) + ';');
@@ -1398,7 +1398,7 @@ describe('native PMS allocation/pending-job read retirement', () => {
     expect(allocationExistsSql.match(/\?/g)).toHaveLength(2);
     expect(pendingJobsSql.match(/\?/g)).toHaveLength(4);
     for (const sql of [allocationExistsSql, pendingJobsSql]) expect(sql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
-    const bridge = await readFile(new URL('../../../packages/server-pms/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/pms/server/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
     expect(bridge).toContain("export const PMS_RD_BOOKING_ALLOCATION_EXISTS = 'pms_rd_booking_allocation_exists';");
     expect(bridge).toContain("export const PMS_RD_PENDING_JOBS = 'pms_rd_pending_jobs';");
   });
@@ -1450,7 +1450,7 @@ describe('native PMS booking property/records variant retirement', () => {
   });
 
   it('removes both TypeScript SELECT heads and routes the closed variants in TS', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/pms-booking.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/pms/server/src/adapters/pms-booking.ts', import.meta.url), 'utf8');
     expect(adapter).not.toContain(propertyScopeSql);
     expect(adapter).not.toContain(bookingRecordsSql);
     expect(adapter).not.toContain(bookingRecordsSearchSql);
@@ -1462,7 +1462,7 @@ describe('native PMS booking property/records variant retirement', () => {
   });
 
   it('carries the byte-identical retired SQL in the Rust registry with matching binds', async () => {
-    const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/pms/server/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
     for (const [name, kind, sql, binds] of [
       ['BOOKING_PROPERTY_SCOPE', PMS_RD_BOOKING_PROPERTY_SCOPE, propertyScopeSql, 2],
       ['BOOKING_PROPERTY_SCOPE_BRANCH', PMS_RD_BOOKING_PROPERTY_SCOPE_BRANCH, propertyScopeBranchSql, 3],
@@ -1475,7 +1475,7 @@ describe('native PMS booking property/records variant retirement', () => {
       expect(sql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
     }
     expect(rust).toContain('READ_PENDING_JOBS, READ_BOOKING_PROPERTY_SCOPE, READ_BOOKING_PROPERTY_SCOPE_BRANCH, READ_BOOKING_RECORDS, READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS, READ_RECORD_DETAIL, READ_PMS_CHOICES, READ_PMS_CHOICES_BLOCK, READ_OPERATION_RELATED_RECORDS, READ_OPERATIONS_PAGE, READ_SECTION_PAGE];');
-    const bridge = await readFile(new URL('../../../packages/server-pms/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/pms/server/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
     for (const kind of [PMS_RD_BOOKING_PROPERTY_SCOPE, PMS_RD_BOOKING_PROPERTY_SCOPE_BRANCH, PMS_RD_BOOKING_RECORDS, PMS_RD_BOOKING_RECORDS_SEARCH])
       expect(bridge).toContain(`export const ${kind.toUpperCase()} = '${kind}';`);
   });
@@ -1540,7 +1540,7 @@ describe('native PMS guest-account/correction read retirement', () => {
   });
 
   it('removes both TypeScript SELECT heads and routes the closed correction variant in TS', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/pms.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/pms/server/src/adapters/pms.ts', import.meta.url), 'utf8');
     expect(adapter).not.toContain(guestAccountSumsSql);
     expect(adapter).not.toContain(correctionHead);
     expect(adapter).not.toContain("AND c.status='pending' ORDER BY c.created_at DESC LIMIT 100");
@@ -1551,7 +1551,7 @@ describe('native PMS guest-account/correction read retirement', () => {
   });
 
   it('carries the byte-identical retired SQL in the Rust registry with matching binds', async () => {
-    const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/pms/server/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
     for (const [name, kind, sql, binds] of [
       ['GUEST_ACCOUNT_SUMS', PMS_RD_GUEST_ACCOUNT_SUMS, guestAccountSumsSql, 1],
       ['CHARGE_CORRECTIONS', PMS_RD_CHARGE_CORRECTIONS, correctionsSql, 2],
@@ -1563,7 +1563,7 @@ describe('native PMS guest-account/correction read retirement', () => {
       expect(sql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
     }
     expect(rust).toContain('READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS, READ_RECORD_DETAIL, READ_PMS_CHOICES, READ_PMS_CHOICES_BLOCK, READ_OPERATION_RELATED_RECORDS, READ_OPERATIONS_PAGE, READ_SECTION_PAGE];');
-    const bridge = await readFile(new URL('../../../packages/server-pms/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/pms/server/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
     for (const kind of [PMS_RD_GUEST_ACCOUNT_SUMS, PMS_RD_CHARGE_CORRECTIONS, PMS_RD_CHARGE_CORRECTIONS_FRONT])
       expect(bridge).toContain(`export const ${kind.toUpperCase()} = '${kind}';`);
   });
@@ -1619,17 +1619,17 @@ describe('native PMS r46 two-column point-read retirement', () => {
 
   it('removes the renderer and routes all three consumers through the native bridge', async () => {
     for (const name of ['pms-booking.ts', 'pms-stripe.ts', 'property-purchase-boundary.ts']) {
-      const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/' + name, import.meta.url), 'utf8');
+      const adapter = await readFile(new URL('../../../modules/pms/server/src/adapters/' + name, import.meta.url), 'utf8');
       expect(adapter).not.toContain('pmsTwoColumnPointReadSql');
       expect(adapter).toContain('nativePmsReadFirst<');
     }
-    const bridge = await readFile(new URL('../../../packages/server-pms/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/pms/server/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
     for (const kind of [PMS_RD_BOOKING_TOKEN, PMS_RD_STRIPE_PAYMENT_KEY, PMS_RD_PROPERTY_SCOPE])
       expect(bridge).toContain(`export const ${kind.toUpperCase()} = '${kind}';`);
   });
 
   it('carries the byte-identical retired SQL in the Rust registry with matching binds', async () => {
-    const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/pms/server/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
     for (const [name, kind, sql, binds] of [
       ['BOOKING_TOKEN', PMS_RD_BOOKING_TOKEN, bookingTokenSql, 2],
       ['STRIPE_PAYMENT_KEY', PMS_RD_STRIPE_PAYMENT_KEY, stripePaymentKeySql, 1],
@@ -1690,7 +1690,7 @@ describe('native PMS failed-counter-refund read retirement', () => {
   });
 
   it('removes the TypeScript SELECT literal but keeps the day-control family intact', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/hospitality-day-controls.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/pms/server/src/adapters/hospitality-day-controls.ts', import.meta.url), 'utf8');
     expect(adapter).not.toContain(failedCounterRefundsSql);
     expect(adapter).toContain('PMS_RD_FAILED_COUNTER_REFUNDS, [facts.propertyId, facts.companyId, facts.timezone, facts.businessDate], db');
     expect(adapter).toContain('PMS_RD_UNPOSTED_COUNTER_RECEIPTS');
@@ -1699,13 +1699,13 @@ describe('native PMS failed-counter-refund read retirement', () => {
   });
 
   it('carries the byte-identical retired SQL in the Rust registry with four binds', async () => {
-    const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/pms/server/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
     expect(rust).toContain('pub const PMS_RD_FAILED_COUNTER_REFUNDS: &str = "pms_rd_failed_counter_refunds";');
     expect(rust).toContain(failedCounterRefundsSql);
     expect(rust).toContain('READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS, READ_RECORD_DETAIL, READ_PMS_CHOICES, READ_PMS_CHOICES_BLOCK, READ_OPERATION_RELATED_RECORDS, READ_OPERATIONS_PAGE, READ_SECTION_PAGE];');
     expect(failedCounterRefundsSql.match(/\?/g)).toHaveLength(4);
     expect(failedCounterRefundsSql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
-    const bridge = await readFile(new URL('../../../packages/server-pms/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/pms/server/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
     expect(bridge).toContain("export const PMS_RD_FAILED_COUNTER_REFUNDS = 'pms_rd_failed_counter_refunds';");
   });
 
@@ -1753,20 +1753,20 @@ describe('native PMS reservation-property/rollout-probe read retirement', () => 
   });
 
   it('removes both TypeScript SELECT heads but keeps cross-owner rollout evidence', async () => {
-    const changes = await readFile(new URL('../../../packages/server-pms/src/adapters/pms-booking-changes.ts', import.meta.url), 'utf8');
+    const changes = await readFile(new URL('../../../modules/pms/server/src/adapters/pms-booking-changes.ts', import.meta.url), 'utf8');
     expect(changes).not.toContain(reservationPropertySql);
     expect(changes).toContain('PMS_RD_RESERVATION_PROPERTY, [facts.reservationId], db');
-    const rollout = await readFile(new URL('../../../packages/server-pms/src/adapters/hospitality-rollout.ts', import.meta.url), 'utf8');
+    const rollout = await readFile(new URL('../../../modules/pms/server/src/adapters/hospitality-rollout.ts', import.meta.url), 'utf8');
     expect(rollout).not.toContain(rolloutSetupReadySql);
     expect(rollout).not.toContain('pmsRolloutReadyExistsSql');
     expect(rollout).toContain('PMS_RD_ROLLOUT_SETUP_READY, [companyId], db');
     expect(rollout).toContain('productionAccepted');
-    const r41 = await readFile(new URL('../../../packages/server-pms/src/adapters/pms-read-tail-r41-sql.ts', import.meta.url), 'utf8');
+    const r41 = await readFile(new URL('../../../modules/pms/server/src/adapters/pms-read-tail-r41-sql.ts', import.meta.url), 'utf8');
     expect(r41).not.toContain('pmsRolloutReadyExistsSql');
   });
 
   it('carries the byte-identical retired SQL in the Rust registry with one bind each', async () => {
-    const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/pms/server/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
     expect(rust).toContain('pub const PMS_RD_RESERVATION_PROPERTY: &str = "pms_rd_reservation_property";');
     expect(rust).toContain('pub const PMS_RD_ROLLOUT_SETUP_READY: &str = "pms_rd_rollout_setup_ready";');
     expect(rust).toContain('const SQL_RESERVATION_PROPERTY: &str = ' + JSON.stringify(reservationPropertySql) + ';');
@@ -1776,7 +1776,7 @@ describe('native PMS reservation-property/rollout-probe read retirement', () => 
       expect(sql.match(/\?/g)).toHaveLength(1);
       expect(sql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
     }
-    const bridge = await readFile(new URL('../../../packages/server-pms/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/pms/server/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
     expect(bridge).toContain("export const PMS_RD_RESERVATION_PROPERTY = 'pms_rd_reservation_property';");
     expect(bridge).toContain("export const PMS_RD_ROLLOUT_SETUP_READY = 'pms_rd_rollout_setup_ready';");
   });
@@ -1829,7 +1829,7 @@ describe('native PMS attachment owner read retirement', () => {
   });
 
   it('removes both TypeScript SELECT heads but keeps the attachment version guards', async () => {
-    const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/attachments-finance-facts.ts', import.meta.url), 'utf8');
+    const adapter = await readFile(new URL('../../../modules/pms/server/src/adapters/attachments-finance-facts.ts', import.meta.url), 'utf8');
     expect(adapter).not.toContain(attachmentOwnerFactSql);
     expect(adapter).not.toContain(attachmentPropertyOwnerSql);
     expect(adapter).toContain('nativePmsReadFirst<Row>(PMS_RD_ATTACHMENT_OWNER_FACT,[facts.targetId,facts.companyId],db)');
@@ -1840,7 +1840,7 @@ describe('native PMS attachment owner read retirement', () => {
   });
 
   it('carries the byte-identical retired SQL in the Rust registry with two binds each', async () => {
-    const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/pms/server/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
     expect(rust).toContain('pub const PMS_RD_ATTACHMENT_OWNER_FACT: &str = "pms_rd_attachment_owner_fact";');
     expect(rust).toContain('pub const PMS_RD_ATTACHMENT_PROPERTY_OWNER: &str = "pms_rd_attachment_property_owner";');
     expect(rust).toContain(attachmentOwnerFactSql);
@@ -1850,7 +1850,7 @@ describe('native PMS attachment owner read retirement', () => {
       expect(sql.match(/\?/g)).toHaveLength(2);
       expect(sql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
     }
-    const bridge = await readFile(new URL('../../../packages/server-pms/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/pms/server/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
     expect(bridge).toContain("export const PMS_RD_ATTACHMENT_OWNER_FACT = 'pms_rd_attachment_owner_fact';");
     expect(bridge).toContain("export const PMS_RD_ATTACHMENT_PROPERTY_OWNER = 'pms_rd_attachment_property_owner';");
   });
@@ -1910,24 +1910,24 @@ describe('native PMS dashboard records read retirement', () => {
   });
 
   it('deletes the exported TS SQL and routes the dashboard reader through the native bridge', async () => {
-    const repository = await readFile(new URL('../../../packages/server-pms/src/adapters/pms/read-repository.ts', import.meta.url), 'utf8');
+    const repository = await readFile(new URL('../../../modules/pms/server/src/adapters/pms/read-repository.ts', import.meta.url), 'utf8');
     expect(repository).not.toContain('pmsDashboardRecordsSql');
     expect(repository).not.toContain('stayPredicate');
     expect(repository).toContain('nativePmsReadAll<PmsStoredRecord>(PMS_RD_DASHBOARD_RECORDS');
     expect(repository).toContain('[facts.propertyId, facts.date, facts.date2, facts.propertyId2], db');
-    const barrel = await readFile(new URL('../../../packages/server-pms/src/public/pms/read-repository.ts', import.meta.url), 'utf8');
+    const barrel = await readFile(new URL('../../../modules/pms/server/src/public/pms/read-repository.ts', import.meta.url), 'utf8');
     expect(barrel).not.toContain('pmsDashboardRecordsSql');
     expect(barrel).toContain('readPmsDashboard');
   });
 
   it('carries the byte-identical rendered statement in the Rust registry with four binds', async () => {
-    const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/pms/server/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
     expect(rust).toContain('pub const PMS_RD_DASHBOARD_RECORDS: &str = "pms_rd_dashboard_records";');
     expect(rust).toContain(dashboardRecordsSql);
     expect(rust).toContain('READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS, READ_RECORD_DETAIL, READ_PMS_CHOICES, READ_PMS_CHOICES_BLOCK, READ_OPERATION_RELATED_RECORDS, READ_OPERATIONS_PAGE, READ_SECTION_PAGE];');
     expect(dashboardRecordsSql.match(/\?/g)).toHaveLength(4);
     expect(dashboardRecordsSql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
-    const bridge = await readFile(new URL('../../../packages/server-pms/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/pms/server/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
     expect(bridge).toContain("export const PMS_RD_DASHBOARD_RECORDS = 'pms_rd_dashboard_records';");
   });
 
@@ -1990,7 +1990,7 @@ describe('native PMS record detail/choices read retirement', () => {
   });
 
   it('removes the three TypeScript templates and routes both readers through the bridge', async () => {
-    const repository = await readFile(new URL('../../../packages/server-pms/src/adapters/pms/read-repository.ts', import.meta.url), 'utf8');
+    const repository = await readFile(new URL('../../../modules/pms/server/src/adapters/pms/read-repository.ts', import.meta.url), 'utf8');
     expect(repository).not.toContain(recordDetailSql);
     expect(repository).not.toContain(pmsChoicesSql);
     expect(repository).not.toContain('const eligible=');
@@ -2000,7 +2000,7 @@ describe('native PMS record detail/choices read retirement', () => {
   });
 
   it('carries the byte-identical rendered statements in the Rust registry', async () => {
-    const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/pms/server/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
     expect(rust).toContain('pub const PMS_RD_RECORD_DETAIL: &str = "pms_rd_record_detail";');
     expect(rust).toContain('pub const PMS_RD_PMS_CHOICES: &str = "pms_rd_pms_choices";');
     expect(rust).toContain('pub const PMS_RD_PMS_CHOICES_BLOCK: &str = "pms_rd_pms_choices_block";');
@@ -2063,7 +2063,7 @@ describe('native PMS operation related records read retirement', () => {
   });
 
   it('deletes the inline TS SQL and drops the retired fragment imports', async () => {
-    const repository = await readFile(new URL('../../../packages/server-pms/src/adapters/pms/read-repository.ts', import.meta.url), 'utf8');
+    const repository = await readFile(new URL('../../../modules/pms/server/src/adapters/pms/read-repository.ts', import.meta.url), 'utf8');
     expect(repository).not.toContain(operationRelatedSql);
     expect(repository).toContain('nativePmsReadAll<PmsStoredRecord>(PMS_RD_OPERATION_RELATED_RECORDS');
     expect(repository).toContain('[facts.propertyId, facts.seedsJson, facts.propertyId2, facts.propertyId3, facts.propertyId3], db');
@@ -2071,13 +2071,13 @@ describe('native PMS operation related records read retirement', () => {
   });
 
   it('carries the byte-identical rendered statement in the Rust registry with five binds', async () => {
-    const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/pms/server/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
     expect(rust).toContain('pub const PMS_RD_OPERATION_RELATED_RECORDS: &str = "pms_rd_operation_related_records";');
     expect(rust).toContain(operationRelatedSql);
     expect(rust).toContain('READ_PMS_CHOICES_BLOCK, READ_OPERATION_RELATED_RECORDS, READ_OPERATIONS_PAGE, READ_SECTION_PAGE];');
     expect(operationRelatedSql.match(/\?/g)).toHaveLength(5);
     expect(operationRelatedSql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
-    const bridge = await readFile(new URL('../../../packages/server-pms/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
+    const bridge = await readFile(new URL('../../../modules/pms/server/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
     expect(bridge).toContain("export const PMS_RD_OPERATION_RELATED_RECORDS = 'pms_rd_operation_related_records';");
   });
 
@@ -2135,7 +2135,7 @@ describe('native PMS paged list read retirement', () => {
   });
 
   it('removes the paged list SQL and the now-dead fragment imports', async () => {
-    const repository = await readFile(new URL('../../../packages/server-pms/src/adapters/pms/read-repository.ts', import.meta.url), 'utf8');
+    const repository = await readFile(new URL('../../../modules/pms/server/src/adapters/pms/read-repository.ts', import.meta.url), 'utf8');
     expect(repository).not.toContain(operationsPageSql);
     expect(repository).not.toContain(sectionPageSql);
     expect(repository).toContain('nativePmsReadAll<{ id: string }>(PMS_RD_OPERATIONS_PAGE');
@@ -2144,7 +2144,7 @@ describe('native PMS paged list read retirement', () => {
   });
 
   it('carries the byte-identical rendered statements in the Rust registry', async () => {
-    const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
+    const rust = await readFile(new URL('../../../modules/pms/server/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
     expect(rust).toContain('pub const PMS_RD_OPERATIONS_PAGE: &str = "pms_rd_operations_page";');
     expect(rust).toContain('pub const PMS_RD_SECTION_PAGE: &str = "pms_rd_section_page";');
     expect(rust).toContain(operationsPageSql);

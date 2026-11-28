@@ -5,14 +5,14 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { projectionColumnHeadSql } from '../../../packages/server-records/src/adapters/read-tail-r32-sql';
-import { requestAiUsageCountSql } from '../../../packages/server-records/src/adapters/read-tail-count-sql';
+import { projectionColumnHeadSql } from '../../../modules/records/server/src/adapters/read-tail-r32-sql';
+import { requestAiUsageCountSql } from '../../../modules/records/server/src/adapters/read-tail-count-sql';
 
 const root = resolve(__dirname, '../../..');
 const read = (p: string) => readFileSync(resolve(root, p), 'utf8');
 const sha = (s: string) => createHash('sha256').update(s, 'utf8').digest('hex');
-const records = read('packages/server-records/src/adapters/records.ts');
-const count = read('packages/server-records/src/adapters/read-tail-count-sql.ts');
+const records = read('modules/records/server/src/adapters/records.ts');
+const count = read('modules/records/server/src/adapters/read-tail-count-sql.ts');
 
 describe('Records search/count detail generator retirement', () => {
   test('search references still render the exact prior SQL through r32', () => {
@@ -54,7 +54,7 @@ describe('Records search/count detail generator retirement', () => {
         else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
       }
     };
-    walk(resolve(root, 'packages/server-records/src'));
+    walk(resolve(root, 'modules/records/server/src'));
     expect(total).toBe(6);
     expect(total).toBeLessThan(11);
   });

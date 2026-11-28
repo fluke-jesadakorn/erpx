@@ -8,7 +8,7 @@ vi.mock('server-only', () => ({}));
 vi.mock('next/headers', () => ({
   headers: async () => new Headers({ host: 'acme.jesadakorn.com' }),
 }));
-vi.mock('@erpx/server-identity_access/public/authorization', () => ({
+vi.mock('@erpx/identity-access-server/public/authorization', () => ({
   requireWorkContext: async () => ({ holdingId: 'h001', holdingSlug: 'acme', companyId: 'c1' }),
 }));
 
@@ -20,10 +20,10 @@ import {
   nativeCollaborationLane15Configured,
   NATIVE_COLLABORATION_LANE15_CONFIG_ENV,
   type HoldingActor,
-} from '../../../packages/server-collaboration/src/adapters/native-lane-15/client';
-import { fieldCollaborationCommand } from '../../../packages/server-collaboration/src/adapters/native-lane-15/field-command-client';
-import { betaManagementFacts } from '../../../packages/server-collaboration/src/adapters/beta-management-facts';
-import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
+} from '../../../modules/collaboration/server/src/adapters/native-lane-15/client';
+import { fieldCollaborationCommand } from '../../../modules/collaboration/server/src/adapters/native-lane-15/field-command-client';
+import { betaManagementFacts } from '../../../modules/collaboration/server/src/adapters/beta-management-facts';
+import type { WorkContext } from '@erpx/identity-access-server/public/authorization';
 
 const root = process.cwd();
 const sha = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -255,7 +255,7 @@ describe('native Collaboration lane 15 beta-facts reads', () => {
 
   it('removed every owner statement from the TypeScript read source', () => {
     const source = fs.readFileSync(
-      path.join(root, 'packages/server-collaboration/src/adapters/beta-management-facts.ts'),
+      path.join(root, 'modules/collaboration/server/src/adapters/beta-management-facts.ts'),
       'utf8',
     );
     expect(source).not.toMatch(/SELECT /);
@@ -345,7 +345,7 @@ describe('native Collaboration lane 15 field-command routing read', () => {
 
   it('removed every owner statement from the field-command TypeScript source', () => {
     const source = fs.readFileSync(
-      path.join(root, 'packages/server-collaboration/src/adapters/field-command-owner.ts'),
+      path.join(root, 'modules/collaboration/server/src/adapters/field-command-owner.ts'),
       'utf8',
     );
     expect(source).not.toMatch(/SELECT /);

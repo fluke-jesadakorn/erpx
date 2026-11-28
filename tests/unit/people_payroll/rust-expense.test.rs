@@ -6,7 +6,7 @@
 //! port defaults. PostgreSQL transaction behaviour and the composed
 //! Organization/Workflow/Files/Finance ports are proven by the sibling
 //! integration target.
-use erpx_server_people_payroll::public::expense::{
+use erpx_people_payroll_server::public::expense::{
     ExpenseAccountingInput, ExpenseAccountingWrite, ExpenseAction, ExpenseApprovalDecision,
     ExpenseApprovalInstance, ExpenseApprovalPort, ExpenseApprovalView, ExpenseCancelWrite,
     ExpenseClaimant, ExpenseCommandFuture, ExpenseCommandRepository, ExpenseDecisionInput,
@@ -26,8 +26,8 @@ use erpx_server_people_payroll::public::expense::{
     prepare_expense_payment, remove_expense_attachment, reverse_expense, save_expense,
     save_expense_accounting, save_expense_payment, submit_expense,
 };
-use erpx_server_people_payroll::public::workforce::WorkforceCommandActor;
-use erpx_server_shared::public::{
+use erpx_people_payroll_server::public::workforce::WorkforceCommandActor;
+use erpx_platform_shared_server::public::{
     BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, TimestampMillis,
 };
 use serde_json::{Value, json};
@@ -1508,7 +1508,7 @@ async fn reversal_requires_a_holding_finance_approver_and_no_settlement() {
     assert_eq!(error.code, "EXPENSE_HAS_SETTLEMENT");
 
     let mut branch_actor = reviewer();
-    branch_actor.branch_id = Some(erpx_server_shared::public::RecordId::new("branch").unwrap());
+    branch_actor.branch_id = Some(erpx_platform_shared_server::public::RecordId::new("branch").unwrap());
     let mut repo = FakeRepo::with_row(posted_row());
     let error = reverse_expense(
         &branch_actor,
