@@ -17,7 +17,8 @@ export function calendarAnnouncementsWorkProjectionFacts(db: SqlDatabase) {
             value7: string;
             value8: number;
         }) => nativeAnnouncementCandidates(lane29ContextFor(db, facts.value1), facts.value1, [
-            facts.value1, facts.value2, facts.value3, facts.value4, facts.value5,
-            facts.value6, facts.value7, facts.value7, facts.value7, facts.value8,
+            facts.value1, facts.value2, facts.value3, facts.value4,
+            // The Axum contract repeats the management scope and ends with a reserved value.
+            facts.value4, facts.value5, facts.value6, facts.value7, facts.value8, null,
         ]).then(rows => rows as unknown as (AnnouncementRow & {owner_name: string})[]) };
 }

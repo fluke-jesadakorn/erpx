@@ -62,6 +62,26 @@ afterEach(() => {
 });
 
 describe('native lane 29 contract', () => {
+  it('sends announcement filters in the native request order', async () => {
+    const client = await import('../../../packages/server-work_projection/src/adapters/native-lane-29/client');
+    const { calendarAnnouncementsWorkProjectionFacts } = await import('../../../packages/server-work_projection/src/adapters/calendar-announcements-facts');
+    const read = vi.spyOn(client, 'nativeAnnouncementCandidates').mockResolvedValue([]);
+    try {
+      const db = {} as Parameters<typeof calendarAnnouncementsWorkProjectionFacts>[0];
+      const audience = JSON.stringify([company, 'branch-1']);
+      const managed = JSON.stringify(['branch-1']);
+      await calendarAnnouncementsWorkProjectionFacts(db).read1({
+        value1: company, value2: audience, value3: false, value4: managed,
+        value5: '2026-11-29', value6: '2026-11-28', value7: 'shift', value8: 30,
+      });
+      expect(read).toHaveBeenCalledExactlyOnceWith(context, company, [
+        company, audience, false, managed, managed, '2026-11-29', '2026-11-28', 'shift', 30, null,
+      ]);
+    } finally {
+      read.mockRestore();
+    }
+  });
+
   it('accepts the exact owner response shapes', () => {
     expect(
       parseNativeLane29Response(
