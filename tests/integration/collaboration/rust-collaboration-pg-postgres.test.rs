@@ -31,7 +31,7 @@ fn configured() -> bool {
 
 async fn setup(pool: &DatabasePool, now: i64) {
     let files = load_migrations(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres"),
         MigrationTrack::HoldingWrite,
     )
     .await

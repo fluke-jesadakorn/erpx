@@ -97,7 +97,7 @@ async fn create_lease(track: MigrationTrack, max_connections: u32) -> Lease {
     )
     .await
     .unwrap();
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
     let migrations = load_migrations(&root, track).await.unwrap();
     migrate_database(&pool, track, &migrations).await.unwrap();
     Lease {
@@ -329,7 +329,7 @@ async fn beta_policy_held_lock_rejects_weak_and_released_fences() {
         lock_beta_policy_sources, require_beta_policy_sources_held,
     };
     holding_fixture::with_database(2, |pool| async move {
-        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
         let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
         let mut outside=pool.raw().acquire().await.unwrap();assert!(require_beta_policy_sources_held(&mut outside).await.is_err());drop(outside);
         let mut weak=pool.raw().begin().await.unwrap();sqlx::query("LOCK TABLE beta_policy IN ROW SHARE MODE").execute(&mut *weak).await.unwrap();assert!(matches!(require_beta_policy_sources_held(&mut weak).await,Err(PgTransactionError::Persistence(ref e)) if e.code=="BETA_POLICY_LOCK_REQUIRED"));weak.rollback().await.unwrap();
@@ -347,7 +347,7 @@ async fn beta_policy_authority_boundary_checks_canonical_source_and_unit() {
     };
     holding_fixture::with_database(2, |pool| async move {
         let root =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
         let migrations = load_migrations(root, MigrationTrack::HoldingWrite)
             .await
             .unwrap();

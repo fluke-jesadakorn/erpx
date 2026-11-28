@@ -6,7 +6,7 @@ use erpx_platform_runtime_server::public::postgres::{MigrationTrack,load_migrati
 use sqlx::Connection;
 #[tokio::test]
 async fn fence_waits_for_real_writer_before_snapshot(){fixture::with_database(4,|pool|async move{
- let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let files=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
+ let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");let files=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
  sqlx::query("INSERT INTO employee_requests(id,company_id,kind,category,title,requester_user_id,created_by,state,created_at,updated_at) VALUES('source','company','purchase','fixture','Original','user','user','draft',0,0)").execute(pool.raw()).await.unwrap();
  let mut c=pool.raw().acquire().await.unwrap();assert!(lock_portal_records_sources(&mut c).await.is_err());drop(c);
  let mut writer=pool.raw().begin().await.unwrap();let wp:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();sqlx::query("UPDATE employee_requests SET title='Committed' WHERE id='source'").execute(&mut *writer).await.unwrap();

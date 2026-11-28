@@ -7,7 +7,7 @@ use sqlx::Connection;
 #[tokio::test]
 async fn procurement_fence_waits_for_real_rfq_writer_before_snapshot(){
  fixture::with_database(4,|pool| async move {
-  let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let files=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
+  let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");let files=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
   sqlx::raw_sql("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,status,hierarchy_revision) VALUES('company','company','company','Company',NULL,'company','active',1),('branch','branch','branch','Branch','company','company','active',1);\
    INSERT INTO commerce_warehouses(id,company_id,branch_id,code,name,status,version) VALUES('warehouse','company','branch','W1','Warehouse','active',1);\
    INSERT INTO procurement_rfqs(id,company_id,branch_id,warehouse_id,currency,title,demand_evidence,needed_date,status,created_by,version,created_at,updated_at) VALUES('rfq','company','branch','warehouse','THB','Original','fixture','2026-11-20','collecting','fixture',1,0,0)").execute(pool.raw()).await.unwrap();

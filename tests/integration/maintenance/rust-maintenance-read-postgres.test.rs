@@ -453,7 +453,7 @@ async fn maintenance_asset_purchase_locks_require_same_unit_and_report_contentio
     use erpx_maintenance_server::public::asset_purchase_locks::*;
     use erpx_platform_runtime_server::public::postgres::{MigrationTrack,PgTransactionError,load_migrations,migrate_database};
     fixture::with_database(2,|pool|async move {
-        let migrations=load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
+        let migrations=load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres"),MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
         let mut unlocked=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unlocked).await.unwrap();assert!(bind_maintenance_asset_purchase_sources(&mut unlocked).await.is_err());unlocked.rollback().await.unwrap();
         let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_maintenance_asset_purchase_sources(&mut tx).await.unwrap();let source=bind_maintenance_asset_purchase_sources(&mut tx).await.unwrap();source.require_current(&mut tx).await.unwrap();
         let held:i64=sqlx::query_scalar("SELECT count(DISTINCT relation) FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND granted AND mode='ShareRowExclusiveLock' AND relation IN ('public.maintenance_work_orders'::regclass,'public.maintenance_preventive_plans'::regclass,'public.maintenance_preventive_occurrences'::regclass)").fetch_one(&mut *tx).await.unwrap();assert_eq!(held,3);tx.rollback().await.unwrap();
@@ -516,7 +516,7 @@ async fn retirement_work_matches_real_assets_typescript_guard() {
     use erpx_maintenance_server::public::{asset_purchase_locks::*,asset_purchase_record::*};
     use erpx_platform_runtime_server::public::postgres::{MigrationTrack,load_migrations,migrate_database};
     fixture::with_database(2,|pool|async move {
-        let migrations=load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),MigrationTrack::HoldingWrite).await.unwrap();
+        let migrations=load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres"),MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
         // Extract the exact guard from the Assets adapter and the actual
         // Maintenance-owned projection; neither selector is caller SQL.

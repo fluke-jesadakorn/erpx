@@ -295,7 +295,7 @@ where
     .unwrap();
     let owned = admin_options.clone().database(&name);
     let mut connection = PgConnection::connect_with(&owned).await.unwrap();
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
     let files = erpx_platform_runtime_server::public::postgres::load_migrations(
         root,
         erpx_platform_runtime_server::public::postgres::MigrationTrack::HoldingWrite,

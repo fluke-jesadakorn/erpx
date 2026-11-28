@@ -48,7 +48,7 @@ fn key(value: &str) -> CommandKey {
 
 async fn setup(pool: &DatabasePool) {
     let root = std::env::var("ERPX_REPO_ROOT").map_or_else(
-        |_| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),
+        |_| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres"),
         |root| std::path::PathBuf::from(root).join("migrations/postgres"),
     );
     let files = load_migrations(root, MigrationTrack::HoldingWrite)

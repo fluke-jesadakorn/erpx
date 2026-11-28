@@ -13,7 +13,7 @@ use sqlx::Connection;
 #[tokio::test]
 async fn postgres_portal_requires_serializable_and_preserves_record_replay_and_rollback() {
     fixture::with_database(4, |pool| async move {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
         let migrations = load_migrations(root, MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
         sqlx::raw_sql("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status,hierarchy_revision) VALUES ('company','company','company','Company',NULL,'company',NULL,'active',1),('branch','branch','branch','Branch','company','company',NULL,'active',1);\

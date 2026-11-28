@@ -12,7 +12,7 @@ use sqlx::Connection;
 use std::{future::Future, pin::Pin};
 
 async fn migrate(pool: &DatabasePool) {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
     let migrations = load_migrations(&root, MigrationTrack::HoldingWrite)
         .await
         .unwrap();

@@ -66,7 +66,7 @@ fn migration_input(holding_id: &str) -> RunHoldingMigrationInput {
     }
 }
 async fn migrate(pool: &DatabasePool, track: MigrationTrack) {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
     let files = load_migrations(root, track).await.unwrap();
     migrate_database(pool, track, &files).await.unwrap();
 }
@@ -74,7 +74,7 @@ async fn owner(
     control: &DatabasePool,
     holdings: Vec<PlatformHoldingDatabase>,
 ) -> PgPlatformAdministration {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
     let files = load_migrations(root, MigrationTrack::HoldingWrite)
         .await
         .unwrap();
@@ -611,7 +611,7 @@ async fn holding_migrations_run_once_with_control_receipt_and_holdings_isolation
                 assert_eq!(h001_applied, first.applied_after);
                 let h002_files = load_migrations(
                     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                        .join("../../migrations/postgres"),
+                        .join("../../../migrations/postgres"),
                     MigrationTrack::HoldingWrite,
                 )
                 .await
@@ -732,7 +732,7 @@ async fn a_failed_holding_migration_is_retained_as_failed_without_a_success_resu
         fixture::with_database(2, move |holding| async move {
             migrate(&control, MigrationTrack::Control).await;
             let root =
-                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
             let mut files = load_migrations(root, MigrationTrack::HoldingWrite)
                 .await
                 .unwrap();

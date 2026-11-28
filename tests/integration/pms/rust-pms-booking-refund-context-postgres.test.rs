@@ -34,7 +34,7 @@ fn now_ms() -> i64 {
 }
 
 async fn migrate(pool: &DatabasePool, track: MigrationTrack) {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
     let migrations = load_migrations(&root, track).await.unwrap();
     migrate_database(pool, track, &migrations).await.unwrap();
 }

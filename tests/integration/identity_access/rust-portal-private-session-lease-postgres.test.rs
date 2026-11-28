@@ -7,7 +7,7 @@ use erpx_platform_runtime_server::public::postgres::{DatabasePool,MigrationTrack
 const NOW:i64=1_800_000_000_000;
 async fn setup(pool: &DatabasePool) {
         let root =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
         let files = load_migrations(root, MigrationTrack::Control)
             .await
             .unwrap();

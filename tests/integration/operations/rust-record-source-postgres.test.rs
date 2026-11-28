@@ -14,7 +14,7 @@ use erpx_platform_shared_server::public::record_source_contract::SourceKind;
 use erpx_platform_shared_server::public::{BusinessError, CompanyId};
 
 async fn migrate(pool: &DatabasePool) {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
     let migrations = load_migrations(&root, MigrationTrack::HoldingWrite)
         .await
         .unwrap();

@@ -9,7 +9,7 @@ const NOW:i64=1_800_000_000_000;const COMPANY:&str="company";
 type Error=PgTransactionError<BusinessError>;
 fn code(e:&Error)->&'static str{match e{PgTransactionError::Business(e)=>e.code,PgTransactionError::Persistence(_)=>"PERSISTENCE"}}
 fn actor(user:&str)->SupportActor{SupportActor{user_id:user.into(),company_id:COMPANY.into(),branch_id:Some("branch".into()),department_id:None,assignment_id:format!("assignment-{user}"),role:"sales_manager".into(),session_id:None,assignment_version:None,permissions:vec!["commerce.read".into(),"commerce.sales".into(),"commerce.approve".into()]}}
-async fn migrate(pool:&DatabasePool){let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let files=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(pool,MigrationTrack::HoldingWrite,&files).await.unwrap();}
+async fn migrate(pool:&DatabasePool){let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");let files=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(pool,MigrationTrack::HoldingWrite,&files).await.unwrap();}
 async fn seed(pool:&DatabasePool){
  sqlx::raw_sql("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status,hierarchy_revision) VALUES('company','company','company','Company',NULL,'company',NULL,'active',1),('branch','branch','branch','Branch',NULL,'company',NULL,'active',1);\
  INSERT INTO iam_members(company_id,user_id,principal_id,status,login_policy,version) VALUES('company','creator','local:creator','active','local',1),('company','manager','local:manager','active','local',1),('company','closer','local:closer','active','local',1);\

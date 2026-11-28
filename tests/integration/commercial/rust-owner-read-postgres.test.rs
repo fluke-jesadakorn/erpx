@@ -14,7 +14,7 @@ async fn owner_usage_reads_execute_on_migrated_control_schema() {
     fixture::with_database(3, |pool| {
         Box::pin(async move {
             let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../../migrations/postgres");
+                .join("../../../migrations/postgres");
             let files = load_migrations(&root, MigrationTrack::Control).await.unwrap();
             migrate_database(&pool, MigrationTrack::Control, &files)
                 .await

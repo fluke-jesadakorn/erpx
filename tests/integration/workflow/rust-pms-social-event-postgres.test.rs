@@ -21,7 +21,7 @@ use sqlx::{Connection, PgConnection, Row};
 const PMS_SOURCES_SQL: &str = "SELECT r.id,r.property_id,r.kind,r.data_json::jsonb data,r.version,r.updated_at,\n    p.company_id,p.branch_id,p.name property_name,p.business_date\n  FROM pms_records r JOIN pms_properties p ON p.id=r.property_id";
 
 async fn migrate(pool: &DatabasePool) {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
     let migrations = load_migrations(&root, MigrationTrack::HoldingWrite)
         .await
         .unwrap();

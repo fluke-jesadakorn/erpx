@@ -6,7 +6,7 @@ use erpx_platform_runtime_server::public::postgres::{MigrationTrack,load_migrati
 use sqlx::Connection;
 #[tokio::test]
 async fn fence_waits_for_real_writer_before_snapshot(){fixture::with_database(4,|pool|async move{
- let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let files=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
+ let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");let files=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
  sqlx::query("INSERT INTO sales_price_lists(id,company_id,name,currency,valid_from,valid_until,status,version,created_by,created_at,updated_at,prepared_by) VALUES('source','company','Original','THB','2026-01-01','2026-12-31','draft',1,'user',0,0,'user')").execute(pool.raw()).await.unwrap();
  let mut c=pool.raw().acquire().await.unwrap();assert!(lock_portal_sales_sources(&mut c).await.is_err());drop(c);
  let mut writer=pool.raw().begin().await.unwrap();let wp:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();sqlx::query("UPDATE sales_price_lists SET name='Committed' WHERE id='source'").execute(&mut *writer).await.unwrap();

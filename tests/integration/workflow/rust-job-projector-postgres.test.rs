@@ -26,7 +26,7 @@ const PAYROLL_SQL: &str = "SELECT status state,version,company_id,NULL branch_id
      FROM hr_payroll_runs WHERE id=$1";
 
 async fn migrate(pool: &DatabasePool, track: MigrationTrack) {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
     let migrations = load_migrations(&root, track).await.unwrap();
     migrate_database(pool, track, &migrations).await.unwrap();
 }

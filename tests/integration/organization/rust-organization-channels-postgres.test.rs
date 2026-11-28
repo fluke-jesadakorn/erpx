@@ -12,7 +12,7 @@ use erpx_platform_shared_server::public::{BusinessError, CompanyId};
 const NOW: i64 = 1_800_000_000_000;
 
 async fn seed(pool: &erpx_platform_runtime_server::public::postgres::DatabasePool) {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
     let files = load_migrations(root, MigrationTrack::HoldingWrite)
         .await
         .unwrap();

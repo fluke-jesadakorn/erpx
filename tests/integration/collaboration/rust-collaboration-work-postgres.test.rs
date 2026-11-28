@@ -28,7 +28,7 @@ async fn push_preferences_preserve_enabled_and_roll_back_on_source_drift() {
         async fn require_current(&self, _: &mut PgConnection) -> Result<(), PgTransactionError<BusinessError>> { Ok(()) }
     }
     fixture::with_database(2, |pool| async move {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
         let migrations = load_migrations(root, MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
         let input = parse_push_preferences(&serde_json::json!({"work":true,"mention":false,"system":true,"calendar":true,"notice":false,"quietStartMinute":1320,"quietEndMinute":420})).unwrap();
@@ -104,7 +104,7 @@ fn plan() -> OwnerPlan {
 #[tokio::test]
 async fn action_effects_preserve_stored_scope_and_notice_tampering_rolls_back() {
     fixture::with_database(2, |pool| async move {
-        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
+        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
         PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
             lock_collaboration_work_sources(c).await?;
@@ -139,7 +139,7 @@ async fn action_effects_preserve_stored_scope_and_notice_tampering_rolls_back() 
 async fn card_history_returns_versioned_events_with_scope_authority() {
     use erpx_collaboration_server::public::collaboration_work::CardAction;
     fixture::with_database(2, |pool| async move {
-        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
+        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
         PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
             lock_collaboration_work_sources(c).await?;
@@ -190,7 +190,7 @@ async fn card_history_returns_versioned_events_with_scope_authority() {
 #[tokio::test]
 async fn card_history_statement_matches_retained_read_with_scope_guard() {
     fixture::with_database(2, |pool| async move {
-        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
+        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
         PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
             lock_collaboration_work_sources(c).await?;
@@ -252,7 +252,7 @@ async fn run_statement(
 #[tokio::test]
 async fn eligible_people_statement_matches_retained_read() {
     fixture::with_database(2, |pool| async move {
-        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
+        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
         PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
             // One records.write-capable employee: custom published revision on
@@ -283,7 +283,7 @@ async fn eligible_people_statement_matches_retained_read() {
 #[tokio::test]
 async fn workspace_statements_match_retained_reads_with_scope_guard() {
     fixture::with_database(2, |pool| async move {
-        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
+        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
         PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
             lock_collaboration_work_sources(c).await?;
@@ -348,7 +348,7 @@ async fn workspace_statements_match_retained_reads_with_scope_guard() {
 async fn pos_registers_statement_matches_retained_read_with_scope_guard() {
     use erpx_collaboration_server::public::notification_statement::pos_registers_statement;
     fixture::with_database(2, |pool| async move {
-        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
+        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
         PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
             // Minimal seed: company + two branches, then two commerce
@@ -466,7 +466,7 @@ async fn brand_attachment_statements_match_retained_reads() {
         brand_attachment_image_statement, brand_organization_image_statement,
     };
     fixture::with_database(2, |pool| async move {
-        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
+        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
         PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
             sqlx::raw_sql(
@@ -580,7 +580,7 @@ async fn run_text_raw(
 async fn pos_sale_statement_matches_retained_read() {
     use erpx_collaboration_server::public::notification_statement::pos_sale_statement;
     fixture::with_database(2, |pool| async move {
-        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
+        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
         PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
             sqlx::query("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status) VALUES('company','company','company','Company',NULL,'company',NULL,'active'),('b1','branch','b1','Branch 1','company','company',NULL,'active')").execute(&mut *c).await?;
@@ -612,7 +612,7 @@ async fn pos_sale_statement_matches_retained_read() {
 async fn pos_settings_statement_matches_retained_read() {
     use erpx_collaboration_server::public::notification_statement::pos_settings_statement;
     fixture::with_database(2, |pool| async move {
-        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
+        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
         PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
             sqlx::query("INSERT INTO pos_settings(company_id,enabled,currency,timezone,accounts_json) VALUES('company',true,'THB','Asia/Bangkok','{}')").execute(&mut *c).await?;
@@ -638,7 +638,7 @@ async fn pos_settings_statement_matches_retained_read() {
 async fn pos_registers_front_statement_matches_retained_read() {
     use erpx_collaboration_server::public::notification_statement::pos_registers_front_statement;
     fixture::with_database(2, |pool| async move {
-        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
+        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
         PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
             sqlx::query("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status) VALUES('company','company','company','Company',NULL,'company',NULL,'active'),('b1','branch','b1','Branch 1','company','company',NULL,'active')").execute(&mut *c).await?;

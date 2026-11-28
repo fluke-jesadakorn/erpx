@@ -12,7 +12,7 @@ use erpx_platform_runtime_server::public::postgres::{
 async fn attests_exact_database_primary_role_and_reviewed_inventory() {
     fixture::with_database(2, |pool| async move {
         let root =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
         let files = load_migrations(&root, MigrationTrack::HoldingWrite)
             .await
             .unwrap();

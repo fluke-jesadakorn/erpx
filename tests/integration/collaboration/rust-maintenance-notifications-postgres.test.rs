@@ -85,7 +85,7 @@ fn denied<T>(result: Result<T, Error>, code: &str) {
 }
 async fn setup(pool: &DatabasePool) {
     let migrations = load_migrations(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres"),
         MigrationTrack::HoldingWrite,
     )
     .await

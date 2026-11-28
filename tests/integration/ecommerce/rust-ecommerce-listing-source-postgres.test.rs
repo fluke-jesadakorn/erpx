@@ -18,7 +18,7 @@ use std::{str::FromStr, sync::atomic::AtomicU64, time::Duration};
 static NEXT_DATABASE: AtomicU64 = AtomicU64::new(0);
 
 async fn migrate(pool: &DatabasePool) {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
     let files = load_migrations(root, MigrationTrack::HoldingWrite)
         .await
         .unwrap();

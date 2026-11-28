@@ -7,7 +7,7 @@ use sqlx::Connection;
 #[tokio::test]
 async fn portal_fence_same_unit_and_direct_history_snapshot() {
  fixture::with_database(4,|pool| async move {
-  let files=load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
+  let files=load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres"),MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
   let mut seed=pool.raw().begin().await.unwrap();
   sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,ends_at,version,reason,evidence,updated_at) VALUES('company','sales-portal',1,'inactive',0,NULL,1,'fixture','fixture',1)").execute(&mut *seed).await.unwrap();
   sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) SELECT 'event-1',company_id,package_id,'fixture','fixture',NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),1 FROM company_package_grants WHERE company_id='company' AND package_id='sales-portal'").execute(&mut *seed).await.unwrap();seed.commit().await.unwrap();
@@ -32,7 +32,7 @@ async fn portal_pre_matches_same_source_typescript() {
  use std::io::Write;
  struct TestClock; impl Clock for TestClock {fn now(&self)->TimestampMillis{TimestampMillis::new(1000)}}
  fixture::with_database(4,|pool| async move {
-  let files=load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
+  let files=load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres"),MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
   let mut seed=pool.raw().begin().await.unwrap();
   sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,ends_at,version,reason,evidence,updated_at) VALUES('company','sales-portal',1,'active',0,2000,1,'fixture','fixture',1)").execute(&mut *seed).await.unwrap();
   sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) SELECT 'event-1',company_id,package_id,'fixture','fixture',NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),1 FROM company_package_grants WHERE company_id='company' AND package_id='sales-portal'").execute(&mut *seed).await.unwrap();seed.commit().await.unwrap();
@@ -59,7 +59,7 @@ async fn portal_after_guard_and_typescript_shadow_agree() {
  use erpx_platform_shared_server::public::{CompanyId,FailureKind};
  use std::io::Write;
  fixture::with_database(4,|pool|async move {
-  let files=load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
+  let files=load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres"),MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
   let mut seed=pool.raw().begin().await.unwrap();
   sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,ends_at,version,reason,evidence,updated_at) VALUES('company','sales-portal',1,'active',0,NULL,1,'fixture','fixture',1)").execute(&mut *seed).await.unwrap();
   sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) SELECT 'event-1',company_id,package_id,'fixture','fixture',NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),1 FROM company_package_grants WHERE company_id='company' AND package_id='sales-portal'").execute(&mut *seed).await.unwrap();seed.commit().await.unwrap();
@@ -82,7 +82,7 @@ async fn enforced_after_matches_typescript_and_preserves_collisions() {
  use erpx_platform_shared_server::public::CompanyId;
  use std::io::Write;
  fixture::with_database(4,|pool|async move {
-  let files=load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
+  let files=load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres"),MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
   let mut seed=pool.raw().begin().await.unwrap();
   for (company,starts,ends) in [("active",0i64,None),("expired",0,Some(1i64)),("future",9000000000000,None)] {
    sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,ends_at,version,reason,evidence,updated_at) VALUES($1,'sales-portal',1,'active',$2,$3,1,'fixture','fixture',1)").bind(company).bind(starts).bind(ends).execute(&mut *seed).await.unwrap();
@@ -110,7 +110,7 @@ async fn before_guard_matches_typescript_and_waits_for_advisory() {
  use erpx_platform_shared_server::public::CompanyId;
  use std::io::Write;
  fixture::with_database(5,|pool|async move {
-  let files=load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
+  let files=load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres"),MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
   let mut seed=pool.raw().begin().await.unwrap();
   for package in ["sales","sales-portal"] {
    sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,ends_at,version,reason,evidence,updated_at) VALUES('company',$1,1,'active',0,NULL,1,'fixture','fixture',1)").bind(package).execute(&mut *seed).await.unwrap();

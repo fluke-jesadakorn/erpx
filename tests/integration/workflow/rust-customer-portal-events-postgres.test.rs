@@ -7,7 +7,7 @@ use erpx_platform_runtime_server::public::postgres::{MigrationTrack,load_migrati
 use erpx_platform_shared_server::public::{BusinessError,FailureKind};
 use sqlx::{Connection,PgConnection};
 async fn setup(pool: &erpx_platform_runtime_server::public::postgres::DatabasePool) {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
     let files = load_migrations(root, MigrationTrack::HoldingWrite)
         .await
         .unwrap();

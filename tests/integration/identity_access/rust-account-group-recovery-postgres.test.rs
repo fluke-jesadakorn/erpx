@@ -493,7 +493,7 @@ async fn key_migration_backfills_only_original_native_digest_ids_and_is_idempote
         MigrationTrack, load_migrations, migrate_database,
     };
     fixture::database::with_database(2,|pool|async move{
-        let files=load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),MigrationTrack::Control).await.unwrap();
+        let files=load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres"),MigrationTrack::Control).await.unwrap();
         let before=files.iter().filter(|file|file.name()<"0043_").cloned().collect::<Vec<_>>();
         migrate_database(&pool,MigrationTrack::Control,&before).await.unwrap();
         let native="a".repeat(64);sqlx::query("INSERT INTO account_device_browsers(id,revision,updated_at) VALUES($1,7,123),('b0ee2b0e-1234-4567-8888-123456789012',2,123)").bind(&native).execute(pool.raw()).await.unwrap();

@@ -67,7 +67,7 @@ fn owner() -> Owner {
 }
 async fn setup(p: &DatabasePool) {
     let files = load_migrations(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres"),
         MigrationTrack::HoldingWrite,
     )
     .await

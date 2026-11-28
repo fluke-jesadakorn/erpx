@@ -215,7 +215,7 @@ fn business(error: &PgTransactionError<BusinessError>) -> &BusinessError {
 }
 
 async fn setup(holding: &DatabasePool) {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
     let migrations = load_migrations(&root, MigrationTrack::HoldingWrite)
         .await
         .unwrap();

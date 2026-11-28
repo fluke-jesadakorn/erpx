@@ -9,7 +9,7 @@ use erpx_workflow_server::public::request_ai_effects::{
 
 async fn setup(pool: &DatabasePool) {
     let files = load_migrations(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres"),
         MigrationTrack::HoldingWrite,
     )
     .await

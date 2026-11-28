@@ -32,7 +32,7 @@ fn request(now: i64) -> WorkContextRequest {
     }
 }
 async fn seed_selection(pool: &erpx_platform_runtime_server::public::postgres::DatabasePool, now: i64) {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
     let files = load_migrations(root, MigrationTrack::HoldingWrite)
         .await
         .unwrap();
@@ -75,7 +75,7 @@ async fn retained_control_proof_fences_parent_switch_until_the_holding_snapshot_
     };
     use std::{sync::Arc, time::Duration};
     fixture::with_database(3,|control|async move{
-    let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let files=load_migrations(root,MigrationTrack::Control).await.unwrap();migrate_database(&control,MigrationTrack::Control,&files).await.unwrap();
+    let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");let files=load_migrations(root,MigrationTrack::Control).await.unwrap();migrate_database(&control,MigrationTrack::Control,&files).await.unwrap();
     let now:i64=sqlx::query_scalar("SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint").fetch_one(control.raw()).await.unwrap();
     sqlx::query("INSERT INTO \"user\"(id,name,email,\"emailVerified\",\"createdAt\",\"updatedAt\") VALUES('user','Synthetic','user@example.test',1,$1,$1)").bind(now).execute(control.raw()).await.unwrap();
     for(id,digest)in[("parent","b".repeat(64)),("session","a".repeat(64))]{

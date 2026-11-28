@@ -571,7 +571,7 @@ async fn ownership_witness_is_company_scoped_transaction_bound_and_rechecks_sour
 
 async fn migrate(pool: &DatabasePool) {
     let migrations = load_migrations(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres"),
         MigrationTrack::HoldingWrite,
     )
     .await

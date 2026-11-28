@@ -7,7 +7,7 @@ use sqlx::Connection;
 #[tokio::test]
 async fn purchase_fence_waits_for_writer_and_reads_committed_grant() {
  fixture::with_database(4,|pool| async move {
-  let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let files=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
+  let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");let files=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
   let mut plain=pool.raw().acquire().await.unwrap();assert!(lock_portal_purchase_writer_fence(&mut plain).await.is_err());drop(plain);
   let mut writer=pool.raw().begin().await.unwrap();let writer_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();
   sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,ends_at,version,reason,evidence,updated_at) VALUES('company','sales-portal',1,'active',0,9000000000000,1,'fixture','fixture',1)").execute(&mut *writer).await.unwrap();

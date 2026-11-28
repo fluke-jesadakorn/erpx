@@ -15,7 +15,7 @@ async fn withdrawal_and_retry_respect_the_installation_version_and_company() {
 }
 
 async fn check_installations(pool: erpx_platform_runtime_server::public::postgres::DatabasePool) {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
     let files = load_migrations(&root, MigrationTrack::HoldingWrite)
         .await
         .unwrap();

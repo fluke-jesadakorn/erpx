@@ -53,7 +53,7 @@ fn policy() -> OutboxSupervisorPolicy {
 }
 
 fn root() -> std::path::PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres")
 }
 
 async fn migrate_holding(pool: &DatabasePool) {

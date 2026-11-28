@@ -144,7 +144,7 @@ impl PgQualityNotificationSource for QualitySource {
 #[tokio::test]
 async fn quality_notifications_preserve_conflicts_bridge_and_rollback() {
     fixture::with_database(2,|pool|async move {
-        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let m=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&m).await.unwrap();
+        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");let m=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&m).await.unwrap();
         sqlx::raw_sql("CREATE TABLE quality_notification_test_source(company_id text,hold_id text,version bigint,updated_at bigint,recipients text[]); INSERT INTO quality_notification_test_source VALUES('co','hold',2,7,ARRAY['manager','reviewer','owner']),('co','empty-hold',2,7,ARRAY[]::text[]); INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) VALUES('quality-command-manager','other','other','other','other',1,'other',1),('existing-unique','co','owner','quality_hold','hold',2,'Quality handoff: review the source record',7)").execute(pool.raw()).await.unwrap();
         PgUnitOfWork::new(pool.clone()).run::<(),BusinessError,_>(TransactionOptions::default(),move|c|Box::pin(async move {
             lock_quality_notifications(c).await?;
@@ -243,7 +243,7 @@ async fn qualified_crm_owner_effect_supplies_actual_lead_notification_source() {
     };
     use erpx_platform_shared_server::public::CompanyId;
     fixture::with_database(2, |pool| async move {
-        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
         let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
         sqlx::raw_sql("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status) VALUES('co','company','co','Co',NULL,'co',NULL,'active'),('branch','branch','branch','Branch','co','co',NULL,'active'); INSERT INTO finance_parties(id,company_id,kind,code,name,currency,status,version,created_at,updated_at) VALUES('customer','co','customer','C1','Customer','THB','active',1,1,1); INSERT INTO crm_accounts(id,company_id,kind,name,finance_party_id,reviewed_by,created_by,created_at,updated_at) VALUES('account','co','business','Account','customer','reviewer','owner',1,1); INSERT INTO crm_leads(id,company_id,branch_id,title,contact_name,contact_detail,source,brief,owner_id,due_date,status,version,created_by,created_at,updated_at,account_id) VALUES('lead','co','branch','Lead','Customer','Contact','Staff','Brief','owner','2026-12-01','open',1,'owner',1,1,'account')").execute(pool.raw()).await.unwrap();
@@ -320,7 +320,7 @@ impl PgCrmLeadNotificationSource for ActualCrmLeadSource {
 #[tokio::test]
 async fn crm_lead_notice_preserves_original_conflicts_and_inbox_effects() {
     fixture::with_database(2, |pool| async move {
-        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
         let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
         sqlx::raw_sql("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status) VALUES('co','company','co','Co',NULL,'co',NULL,'active'),('branch','branch','branch','Branch','co','co',NULL,'active'); INSERT INTO crm_leads(id,company_id,branch_id,title,contact_name,contact_detail,source,brief,owner_id,due_date,status,version,created_by,created_at,updated_at) VALUES('lead','co','branch','Lead','Customer','Contact','Staff','Brief','owner','2026-12-01','qualified',2,'owner',1,7)").execute(pool.raw()).await.unwrap();
@@ -412,7 +412,7 @@ impl PgCrmActivityNotificationSource for ActualCrmSource {
 #[tokio::test]
 async fn crm_activity_notification_retains_source_and_both_conflict_types() {
     fixture::with_database(2, |pool| async move {
-        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
         let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
         sqlx::raw_sql("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status) VALUES('co','company','co','Co',NULL,'co',NULL,'active'),('branch','branch','branch','Branch','co','co',NULL,'active'); INSERT INTO crm_leads(id,company_id,branch_id,title,contact_name,contact_detail,source,brief,owner_id,due_date,status,version,created_by,created_at,updated_at) VALUES('lead','co','branch','Lead','Customer','Contact','Staff','Brief','owner','2026-12-01','open',1,'owner',0,0); INSERT INTO crm_lead_activities(id,company_id,lead_id,activity_type,subject,details,owner_id,due_date,created_by,created_at,updated_at) VALUES('activity','co','lead','call','Call customer','Discuss scope','owner','2026-12-01','owner',7,7)").execute(pool.raw()).await.unwrap();
@@ -522,7 +522,7 @@ impl PgCountFlowNotificationSource for SyntheticSource {
 #[tokio::test]
 async fn notification_planned_image_is_retained_and_existing_unique_conflict_is_preserved() {
     fixture::with_database(2,|pool|async move{
- let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let m=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&m).await.unwrap();
+ let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");let m=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&m).await.unwrap();
  for id in ["notice-a","notice-b"] {PgUnitOfWork::new(pool.clone()).run::<_,BusinessError,_>(TransactionOptions::default(),move|c|Box::pin(async move{lock_count_flow_notifications(c).await?;let source=SyntheticSource(CountFlowNotificationFacts{id:id.into(),company_id:"co".into(),recipient:"reviewer".into(),count_id:"count".into(),version:2,message:"Review".into(),created_at:1});let p=prepare_count_flow_notification(c,&source).await?;let retained=p.persist(c).await?;retained.require_current(c).await?;Ok(())})).await.unwrap();}
  let rows:(i64,String)=sqlx::query_as("SELECT count(*),min(id) FROM staff_notifications WHERE record_type='stock_count' AND record_id='count'").fetch_one(pool.raw()).await.unwrap();assert_eq!(rows,(1,"notice-a".into()));
 }).await

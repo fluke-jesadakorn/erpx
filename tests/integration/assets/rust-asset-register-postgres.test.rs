@@ -65,7 +65,7 @@ macro_rules! register_retirement {
 }
 
 async fn setup(pool: &DatabasePool) {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
     let files = load_migrations(path, MigrationTrack::HoldingWrite)
         .await
         .unwrap();

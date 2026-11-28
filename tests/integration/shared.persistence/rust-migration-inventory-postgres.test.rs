@@ -4,7 +4,7 @@ use erpx_platform_runtime_server::public::postgres::*;
 use std::{sync::Arc, time::Duration};
 async fn files() -> Vec<MigrationFile> {
     load_migrations(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres"),
         MigrationTrack::Control,
     )
     .await

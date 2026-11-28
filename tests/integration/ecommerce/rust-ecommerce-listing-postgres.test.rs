@@ -226,7 +226,7 @@ static USD_COMMERCE: UsdCommerceSource = UsdCommerceSource;
 static MONEY: MoneyCapture = MoneyCapture;
 
 async fn migrate(pool: &DatabasePool) {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
     let files = load_migrations(root, MigrationTrack::HoldingWrite)
         .await
         .unwrap();

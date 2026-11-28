@@ -47,7 +47,7 @@ fn view(status: &str, record_version: i64, flow_version: i64, revision: i64) -> 
 #[tokio::test]
 async fn route_assignment_and_action_commit_with_exact_versions_and_event_images() {
     fixture::with_database(2,|pool|async move{
-  let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
+  let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
   PgUnitOfWork::new(pool.clone()).run::<_,BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move{
    lock_stock_count_flow_sources(c).await?;
    let basis=read_stock_count_flow_basis(c,"company","count-example","branch").await?;
@@ -180,7 +180,7 @@ async fn seed_committed_service_mapping(pool: &DatabasePool) {
 #[tokio::test]
 async fn committed_1062_source_receipt_and_exact_ledger_replay_are_reciprocal() {
     fixture::with_database(2,|pool|async move{
-  let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();seed_committed_service_mapping(&pool).await;
+  let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();seed_committed_service_mapping(&pool).await;
   for expected_replay in [false,true] {PgUnitOfWork::new(pool.clone()).run::<_,BusinessError,_>(TransactionOptions::default(),move|c|Box::pin(async move{
    let command=WorkflowRequest{key:"count-key".into(),operation:"inventory.count.create".into(),record_id:"count-count-key".into(),input:CommandJson::parse(r#"{"expectedVersion":0,"contextKey":"fixture","input":{"warehouseId":"warehouse","countDate":"2026-01-10","reason":"Actual count","lines":[{"productId":"product","countedQuantity":"0","allocations":[]}]}}"#)?};
    let mut authority=FixtureAuthority;let mut ids=IdFixture;let mut effects=CountFixtureEffects;let mut ledger=PgCommandLedger::new(CompanyId::new("company").unwrap(),c,&mut authority,&ClockFixture,&mut ids);
@@ -201,7 +201,7 @@ async fn committed_1062_source_receipt_and_exact_ledger_replay_are_reciprocal() 
 #[tokio::test]
 async fn scoped_defaults_and_late_drift_are_fenced_on_the_same_transaction() {
     fixture::with_database(2,|pool|async move{
-  let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
+  let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
   sqlx::raw_sql("INSERT INTO flow_defaults(company_id,kind,step_key,branch_id,department_id,primary_user_id,created_by,reason,created_at) VALUES('company','stock_count','submitted',NULL,NULL,'company-reviewer','maker','default',1),('company','stock_count','submitted','branch',NULL,'branch-reviewer','maker','default',2)").execute(pool.raw()).await.unwrap();
   let result=PgUnitOfWork::new(pool.clone()).run::<(),BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move{
    lock_stock_count_flow_sources(c).await?;let basis=read_stock_count_flow_basis(c,"company","count-example","branch").await?;
@@ -278,7 +278,7 @@ impl PgOwnerCommandEffects for AssignmentFixtureEffects {
 #[tokio::test]
 async fn assignment_ledger_replay_does_not_duplicate_route_or_flow_event() {
     fixture::with_database(2,|pool|async move{
-  let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
+  let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
   for expected in [false,true] {PgUnitOfWork::new(pool.clone()).run::<_,BusinessError,_>(TransactionOptions::default(),move|c|Box::pin(async move{
    let input=normalize_stock_count_assignment(r#"{"stepKey":"submitted","userId":"reviewer","expectedVersion":0,"recordVersion":1,"reason":"Assign review","saveDefault":false}"#)?;
    let command=WorkflowRequest{key:"assign-key".into(),operation:"flow.assign".into(),record_id:"count-example".into(),input};let mut authority=FixtureAuthority;let mut ids=IdFixture;let mut effects=AssignmentFixtureEffects{witness:None};let mut ledger=PgCommandLedger::new(CompanyId::new("company").unwrap(),c,&mut authority,&ClockFixture,&mut ids);
@@ -291,7 +291,7 @@ async fn assignment_ledger_replay_does_not_duplicate_route_or_flow_event() {
 #[tokio::test]
 async fn blocked_flow_lock_reads_the_new_committed_default_revision() {
     fixture::with_database(3,|pool|async move{
-  let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
+  let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
   let mut writer=pool.raw().begin().await.unwrap();sqlx::query("LOCK TABLE flow_defaults IN ACCESS EXCLUSIVE MODE").execute(&mut *writer).await.unwrap();
   let (started,received)=tokio::sync::oneshot::channel();let reader_pool=pool.clone();
   let reader=tokio::spawn(async move{PgUnitOfWork::new(reader_pool).run_once::<_,BusinessError,_>(TransactionOptions::default(),move|c|{let signal=std::sync::Mutex::new(Some(started));Box::pin(async move{
@@ -308,7 +308,7 @@ async fn blocked_flow_lock_reads_the_new_committed_default_revision() {
 #[tokio::test]
 async fn assignment_unplanned_handoff_trigger_rejects_and_rolls_back_receipt_route_and_event() {
     fixture::with_database(2,|pool|async move{
-  let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
+  let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
   sqlx::raw_sql("CREATE FUNCTION fixture_flow_false_handoff() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN NEW.next_step_key:='submitted'; NEW.next_user_id:='unexpected'; RETURN NEW; END $$; CREATE TRIGGER fixture_flow_false_handoff BEFORE INSERT ON flow_events FOR EACH ROW EXECUTE FUNCTION fixture_flow_false_handoff()").execute(pool.raw()).await.unwrap();
   let result=PgUnitOfWork::new(pool.clone()).run::<(),BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move{
    let input=normalize_stock_count_assignment(r#"{"stepKey":"submitted","userId":"reviewer","expectedVersion":0,"recordVersion":1,"reason":"Assign review","saveDefault":false}"#)?;
@@ -322,7 +322,7 @@ async fn assignment_unplanned_handoff_trigger_rejects_and_rolls_back_receipt_rou
 #[tokio::test]
 async fn oversized_operation_and_result_id_are_rejected_without_variable_projection() {
     fixture::with_database(2,|pool|async move{
-  let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
+  let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
   sqlx::raw_sql("INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json) VALUES('oversize-op',repeat('x',7000),'maker','hash','count-oversize-op',jsonb_build_object('padding',repeat('x',2097153))::text,0,'{\"companyId\":\"company\"}'),('oversize-result','inventory.count.create','maker','hash','count-oversize-result',jsonb_build_object('id',repeat('x',2097153),'status','draft','version',1)::text,0,'{\"companyId\":\"company\"}')").execute(pool.raw()).await.unwrap();
   for key in ["oversize-op","oversize-result"] {let outcome=PgUnitOfWork::new(pool.clone()).run::<(),BusinessError,_>(TransactionOptions::default(),move|c|Box::pin(async move{
    lock_service_initial_count_receipts(c).await?;let count=format!("count-{key}");let _=read_service_initial_count_receipt(c,key,"company",&count).await?;Ok(())
@@ -336,7 +336,7 @@ async fn original_service_setup_receipt_exposes_exact_request_hash_for_matching_
         read_service_count_setup_history, read_service_count_setup_receipt,
     };
     fixture::with_database(2,|pool|async move{
-  let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();seed_committed_service_mapping(&pool).await;
+  let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();seed_committed_service_mapping(&pool).await;
   PgUnitOfWork::new(pool.clone()).run::<_,BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move{
    lock_service_initial_count_receipts(c).await?;
    let mapping:String=sqlx::query_scalar("SELECT to_jsonb(s)::text FROM commerce_settings s WHERE company_id='company'").fetch_one(&mut *c).await?;
@@ -351,7 +351,7 @@ async fn original_service_setup_receipt_exposes_exact_request_hash_for_matching_
 async fn count_decision_evidence_rejects_trigger_tamper_and_rolls_back_receipt() {
     use erpx_workflow_server::public::service_count_decision_evidence::*;
     fixture::with_database(2, |pool| async move {
-        let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
         let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
         PgUnitOfWork::new(pool.clone()).run::<(),BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move {
@@ -443,7 +443,7 @@ async fn planned_count_command_rejects_corruption_before_retaining_ledger_rows()
         CountCommandClock, CountCommandGeneratedIds,
     };
     fixture::with_database(2,|pool|async move{
-  let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
+  let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
   sqlx::raw_sql("CREATE FUNCTION fixture_corrupt_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN NEW.actor_id:='tampered'; RETURN NEW; END $$; CREATE TRIGGER fixture_corrupt_audit BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION fixture_corrupt_audit()").execute(pool.raw()).await.unwrap();
   let result=PgUnitOfWork::new(pool.clone()).run::<(),BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move{
    let request=WorkflowRequest{key:"count-evidence-fixture".into(),operation:"inventory.count.approve".into(),record_id:"count-fixture".into(),input:CommandJson::parse(r#"{"expectedVersion":1}"#)?};let generated=CountCommandGeneratedIds::default();let clock=CountCommandClock::sample(&ClockFixture)?;let mut raw_ids=IdFixture;let mut ids=generated.wrap(&mut raw_ids);let mut authority=FixtureAuthority;let mut effects=PlannedLedgerFixture{generated:&generated,clock,plan:None};PgCommandLedger::new(CompanyId::new("company")?,c,&mut authority,&clock,&mut ids).execute(&request,&mut effects).await?;Ok(())
@@ -458,7 +458,7 @@ async fn count_revision_evidence_checks_ordinary_ledger_without_flow_or_decision
         CountCommandClock, CountCommandGeneratedIds, verify_historical_count_command,
     };
     fixture::with_database(2, |pool| async move {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
         let migrations = load_migrations(root, MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
         let result = PgUnitOfWork::new(pool.clone()).run::<(), BusinessError, _>(
@@ -499,7 +499,7 @@ async fn count_revision_evidence_checks_ordinary_ledger_without_flow_or_decision
 #[tokio::test]
 async fn assignment_default_is_scoped_retained_and_rolls_back_on_tampering() {
     fixture::with_database(2, |pool| async move {
-        let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
         let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
         let unit=PgUnitOfWork::new(pool.clone());
@@ -547,7 +547,7 @@ async fn assignment_default_is_scoped_retained_and_rolls_back_on_tampering() {
 #[tokio::test]
 async fn concurrent_default_assignments_serialize_against_the_same_route() {
     fixture::with_database(3, |pool| async move {
-        let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
         let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
         let run=|command: &'static str, event: &'static str| {

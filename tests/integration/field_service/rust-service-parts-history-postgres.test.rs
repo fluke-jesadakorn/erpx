@@ -9,7 +9,7 @@ use std::sync::Arc;
 #[tokio::test]
 async fn field_service_history_is_company_scoped_and_bound_to_original_transaction() {
     fixture::with_database(2,|pool|async move {
-        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
         let files=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
         let current=PgUnitOfWork::new(pool.clone()).run::<_,BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move {
@@ -27,7 +27,7 @@ async fn field_service_history_is_company_scoped_and_bound_to_original_transacti
 #[tokio::test]
 async fn field_history_lock_waits_before_serializable_snapshot() {
     fixture::with_database(3, |pool| async move {
-        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
         let files=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
         sqlx::query("INSERT INTO organization_nodes(id,kind,slug,display_name,company_id) VALUES('company','company','company','Before','company')").execute(pool.raw()).await.unwrap();
@@ -56,7 +56,7 @@ async fn field_invoice_history_candidate_matches_legacy_field_predicate() {
     use erpx_platform_runtime_server::public::postgres::PgTransactionError;
     use sqlx::Acquire;
     fixture::with_database(2,|pool|async move {
-        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
         let files=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
         let company=CompanyId::new("company").unwrap();
         let request=FieldInvoiceHistoryCandidate{company_id:company.clone(),order_id:"field-order".into(),command_id:"billing-key".into(),actor_id:"releaser".into(),customer_id:"customer".into(),currency:"THB".into(),amount_minor:100,pricing_date:"2026-01-01".into()};
@@ -114,7 +114,7 @@ async fn field_parts_journal_candidate_matches_actual_typescript_history() {
     use erpx_platform_runtime_server::public::postgres::PgTransactionError;
     use sqlx::Acquire;
     fixture::with_database(2,|pool|async move {
-        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let files=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
+        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");let files=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
         let company=CompanyId::new("company").unwrap();
         let request=FieldPartsJournalHistoryCandidate{company_id:company.clone(),branch_id:"branch".into(),department_id:None,order_id:"field-order".into(),source_version:3,command_id:"issue-key".into(),actor_id:"issuer".into(),consumption_id:"operational-part-issue-key".into(),journal_id:"journal-parts".into(),warehouse_id:"warehouse".into(),product_id:"product".into(),quantity_milli:1000,value_minor:100};
         let mut conn=pool.raw().acquire().await.unwrap();
@@ -149,7 +149,7 @@ async fn field_parts_journal_candidate_matches_actual_typescript_history() {
 #[tokio::test]
 async fn field_service_history_includes_field_parts_consumption() {
     fixture::with_database(2, |pool| async move {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
         let files = load_migrations(root, MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool, MigrationTrack::HoldingWrite, &files).await.unwrap();
         let company = CompanyId::new("company").unwrap();

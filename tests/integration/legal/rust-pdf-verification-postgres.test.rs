@@ -251,7 +251,7 @@ impl PgLegalPdfVerificationBridge for Bridge {
 }
 
 async fn setup(pool: &DatabasePool, canonical: bool, self_approved: bool) {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
     let migrations = load_migrations(root, MigrationTrack::HoldingWrite)
         .await
         .unwrap();

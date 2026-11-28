@@ -184,7 +184,7 @@ async fn real_journal_facts_use_company_rates_scales_and_mandatory_authority() {
 }
 
 async fn setup(pool: &erpx_platform_runtime_server::public::postgres::DatabasePool) {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
     let files = load_migrations(root, MigrationTrack::HoldingWrite)
         .await
         .unwrap();

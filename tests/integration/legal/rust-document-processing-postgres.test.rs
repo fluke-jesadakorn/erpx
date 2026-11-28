@@ -188,7 +188,7 @@ async fn setup(pool: &DatabasePool, original: bool) -> Bridge {
 }
 async fn setup_with_raw(pool: &DatabasePool, original: bool, raw: bool) -> Bridge {
     let migrations = load_migrations(
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres"),
         MigrationTrack::HoldingWrite,
     )
     .await

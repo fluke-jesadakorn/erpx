@@ -8,7 +8,7 @@ use erpx_platform_runtime_server::public::postgres::{
 use erpx_platform_shared_server::public::{BusinessError, CompanyId, HoldingId, RecordId};
 use std::{sync::Arc, time::Duration};
 async fn setup(pool: &DatabasePool) {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
     let files = load_migrations(path, MigrationTrack::HoldingWrite)
         .await
         .unwrap();

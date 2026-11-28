@@ -99,7 +99,7 @@ WITH scoped_orders AS (
 #[tokio::test]
 async fn native_activity_matches_retained_ts_projection_over_real_postgres() {
     fixture::with_database(5, |pool| async move {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
         let files = load_migrations(root, MigrationTrack::HoldingWrite)
             .await
             .unwrap();

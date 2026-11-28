@@ -30,7 +30,7 @@ impl Clock for FixedClock {
 }
 
 async fn migrations(pool: &DatabasePool, track: MigrationTrack) {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
     let files = load_migrations(root, track).await.unwrap();
     migrate_database(pool, track, &files).await.unwrap();
 }

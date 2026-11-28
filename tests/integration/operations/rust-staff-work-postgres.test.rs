@@ -17,7 +17,7 @@ use std::sync::atomic::{AtomicI64, Ordering};
 static NOW: AtomicI64 = AtomicI64::new(1_790_000_000_000);
 
 async fn migrate(pool: &DatabasePool) {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
     let migrations = load_migrations(&root, MigrationTrack::HoldingWrite)
         .await
         .unwrap();

@@ -63,7 +63,7 @@ async fn all_immutable_schema_tracks_bootstrap_fresh_isolated_databases() {
     ] {
         with_database(2, move |pool| async move {
             let root =
-                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
             let files = load_migrations(root, track).await.unwrap();
             assert!(!files.is_empty());
             let result = migrate_database(&pool, track, &files).await.unwrap();
@@ -81,7 +81,7 @@ async fn all_immutable_schema_tracks_bootstrap_fresh_isolated_databases() {
 async fn grandfathered_receipts_require_both_exact_hashes_and_are_never_rewritten() {
     with_database(2, |pool| async move {
         let root =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
         let all = load_migrations(root, MigrationTrack::HoldingWrite)
             .await
             .unwrap();
@@ -155,7 +155,7 @@ async fn grandfathered_receipts_require_both_exact_hashes_and_are_never_rewritte
 #[tokio::test]
 async fn populated_field_intake_retains_every_original_column_receipt_and_write_shape() {
     with_database(2, |pool| async move {
-        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations/postgres");
         let mut files=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();
         files.retain(|file|file.name()<"1049");
         let split=files.iter().position(|file|file.name().starts_with("1048_")).unwrap();
