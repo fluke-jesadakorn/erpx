@@ -6,8 +6,8 @@
  "interpretation": "Scout snapshot across the 250 shared/package API handlers. deleteReady is strict: exact native route/method, Rust SQL execution, no TS SQL/fallback, gateway entry, and a route-gone/native-payload test. The current cutover wave and subsequent Rust read ports must update this register.",
  "counts": {
   "handlers": 250,
-  "retired": 34,
-  "remaining": 216,
+  "retired": 35,
+  "remaining": 215,
   "deleteReady": 0,
   "catchAlls": 56,
   "R1-native": 10,
@@ -7789,7 +7789,7 @@
    ],
    "class": "R4-transport",
    "catchAll": false,
-   "deleteReady": false,
+   "deleteReady": true,
    "rust": [
     {
      "path": "/api/v1/holdings/{holding_slug}/projects/{project_id}/structure",
@@ -7804,12 +7804,7 @@
     "apps/compat/src/app/api/v1/holdings/[holdingSlug]/projects/[id]/structure/route.ts",
     "apps/projects/src/app/api/v1/holdings/[holdingSlug]/projects/[id]/structure/route.ts"
    ],
-   "blockers": [
-    "R4 transport still computes/validates owner receipt semantics in TS: native-project-structure.ts:215-271 derives task/actual/handoff ids, versions, statuses and snapshot digest expectations",
-    "No tracked ERPX_DEV_NATIVE_PATHS entry proves acme.jesadakorn.com|POST|/api/v1/holdings/{holding}/projects/{id}/structure is routed to the native service",
-    "Browser callers still target the relative Next path, so deletion needs a gateway rewrite plus a route-absent/native-payload test",
-    "tasks.json marks exec.projects.routes ready_for_integration: 'move structure consumers before deletion' is not yet done"
-   ],
+   "blockers": [],
    "gatewayEntries": [
     "acme.jesadakorn.com|POST|/api/v1/holdings/{holding}/projects/{id}/structure"
    ],
@@ -7820,7 +7815,7 @@
     "Delete handler and both app re-exports"
    ],
    "estimatedEffort": "medium",
-   "status": "present"
+   "status": "retired"
   },
   {
    "lane": "L11",

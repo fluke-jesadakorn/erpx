@@ -1438,7 +1438,6 @@
         "src/app/api/v1/holdings/[holdingSlug]/staff-tasks/[[...path]]/route.ts",
         "src/app/api/v1/holdings/[holdingSlug]/record-details/route.ts",
         "src/app/api/v1/holdings/[holdingSlug]/projects/[[...path]]/route.ts",
-        "src/app/api/v1/holdings/[holdingSlug]/projects/[id]/structure/route.ts",
         "src/app/api/v1/holdings/[holdingSlug]/self-service/summary/route.ts",
         "src/app/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/sanitization-attestation/route.ts",
         "src/app/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/links/route.ts",
