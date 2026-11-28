@@ -5,6 +5,7 @@ import { nativeApiPath, nativeApiRewrite } from '../../../scripts/local/native-a
 const host = 'erpx-internal.jesadakorn.com';
 const rewrite = '/api/v1/platform/billing/forecast=/api/v1/holdings/erpx/billing/forecast';
 const environment = {
+  NODE_ENV: 'test' as const,
   ERPX_DEV_NATIVE_PATHS: `${host}|GET|/api/v1/platform/billing/forecast`,
   ERPX_DEV_NATIVE_REWRITES: rewrite,
 };

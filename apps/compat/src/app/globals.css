@@ -41,6 +41,7 @@
 @source "../../../../packages/feature-account/src/routes/verify-email/page.tsx";
 @source "../../../../packages/feature-admin/src/routes/admin/choose-work-role/page.tsx";
 @source "../../../../packages/feature-admin/src/routes/admin/launch/route.ts";
+@source "../../../../packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/agents/route.ts";
 @source "../../../../packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/authority/[[...path]]/route.ts";
 @source "../../../../packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/authority/flows/preview/route.ts";
 @source "../../../../packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/beta/[[...path]]/route.ts";
@@ -2473,6 +2474,7 @@
 @source "../../../../packages/server-agent/src/public/hospitality-owner-projection-sources.ts";
 @source "../../../../packages/server-agent/src/public/native-agent-evidence-page.ts";
 @source "../../../../packages/server-agent/src/public/native-agent-evidence.ts";
+@source "../../../../packages/server-agent/src/public/native-agent-governance.ts";
 @source "../../../../packages/server-agent/src/public/native-agent-workspace.ts";
 @source "../../../../packages/server-agent/src/public/operations-guided-intake-facts.ts";
 @source "../../../../packages/server-agent/src/public/records-ai-quota.ts";
@@ -7814,6 +7816,7 @@
 @source "../../../../packages/workplace/src/routes/api/v1/account/work-context/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/front-access/quick-access/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/front/[holdingSlug]/[companySlug]/[app]/[[...path]]/route.ts";
+@source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/assignments/active/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/assistant/intake/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/assistant/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/content/route.ts";

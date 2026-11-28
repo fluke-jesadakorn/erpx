@@ -9631,7 +9631,7 @@ async fn assemble_checked(
                 Arc::new(FieldServiceReadScopeHeaders),
                 Arc::new(SharedClock(clock.clone())),
                 work_roles,
-                true,
+                config.profile == Profile::OasisDemoStaging,
             )
             .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?,
         );

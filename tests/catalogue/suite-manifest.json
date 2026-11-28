@@ -132963,7 +132963,6 @@
         "packages/server-files/src/adapters/attachments/native-field-attachment.ts",
         "packages/server-files/src/public/attachments/native-field-attachment.ts",
         "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/withdraw/route.ts",
-        "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/status/route.ts",
         "packages/contracts/src/field-attachment.generated.ts",
         "scripts/docs/export-field-attachment-contracts.rs",
         "scripts/docs/generate-field-attachment-contracts.ts",
@@ -170654,6 +170653,96 @@
       "packages": [
         "@erpx/server-talent"
       ]
+    },
+    {
+      "id": "collaboration.native-handbook-cutover.unit",
+      "lane": "unit",
+      "owner": "collaboration",
+      "modules": ["collaboration"],
+      "files": ["tests/unit/collaboration/native-handbook-cutover.test.ts"],
+      "fixture": "none",
+      "requires": { "jobs": false, "scanner": false },
+      "ci": { "critical": false, "reason": "Handbook route-gone and native payload assertions." }
+    },
+    {
+      "id": "files.attachment-link-status-route-gone.unit",
+      "lane": "unit",
+      "owner": "files",
+      "modules": ["learning"],
+      "files": ["tests/unit/files/attachment-link-status-route-gone.test.ts"],
+      "fixture": "none",
+      "requires": { "jobs": false, "scanner": false },
+      "ci": { "critical": false, "reason": "Attachment status route-gone and native SQL assertions." }
+    },
+    {
+      "id": "manage_erpx.native-onboarding-cutover.unit",
+      "lane": "unit",
+      "owner": "manage_erpx",
+      "modules": ["manage_erpx"],
+      "files": ["tests/unit/manage_erpx/native-onboarding-cutover.test.ts"],
+      "fixture": "none",
+      "requires": { "jobs": false, "scanner": false },
+      "ci": { "critical": false, "reason": "Onboarding route-gone and native envelope assertions." }
+    },
+    {
+      "id": "platform_administration.native-billing-forecast-rewrite.unit",
+      "lane": "unit",
+      "owner": "platform_administration",
+      "modules": ["platform_administration"],
+      "files": ["tests/unit/platform_administration/native-platform-billing-forecast-rewrite.test.ts"],
+      "fixture": "none",
+      "requires": { "jobs": false, "scanner": false },
+      "ci": { "critical": false, "reason": "Platform billing forecast selector and envelope assertions." }
+    },
+    {
+      "id": "pms.native-pms-imports-cutover.unit",
+      "lane": "unit",
+      "owner": "pms",
+      "modules": ["pms"],
+      "files": ["tests/unit/pms/native-pms-imports-cutover.test.ts"],
+      "fixture": "none",
+      "requires": { "jobs": false, "scanner": false },
+      "ci": { "critical": false, "reason": "PMS imports route-gone and native payload assertions." }
+    },
+    {
+      "id": "pms.stripe-payments-native-cutover.unit",
+      "lane": "unit",
+      "owner": "pms",
+      "modules": ["pms"],
+      "files": ["tests/unit/pms/stripe-payments-native-cutover.test.ts"],
+      "fixture": "none",
+      "requires": { "jobs": false, "scanner": false },
+      "ci": { "critical": false, "reason": "PMS payment-status route-gone and native payload assertions." }
+    },
+    {
+      "id": "procurement.supplier-promise-get-gone.unit",
+      "lane": "unit",
+      "owner": "procurement",
+      "modules": ["procurement"],
+      "files": ["tests/unit/procurement/nextapi-l03-supplier-promise-get-gone.test.ts"],
+      "fixture": "none",
+      "requires": { "jobs": false, "scanner": false },
+      "ci": { "critical": false, "reason": "Supplier-promise GET route-gone and native SQL assertions." }
+    },
+    {
+      "id": "projects.native-project-structure-cutover.unit",
+      "lane": "unit",
+      "owner": "projects",
+      "modules": ["projects"],
+      "files": ["tests/unit/projects/native-project-structure-cutover.test.ts"],
+      "fixture": "none",
+      "requires": { "jobs": false, "scanner": false },
+      "ci": { "critical": false, "reason": "Project structure route-gone and native payload assertions." }
+    },
+    {
+      "id": "projects.native-project-structure-l11b.unit",
+      "lane": "unit",
+      "owner": "projects",
+      "modules": ["projects"],
+      "files": ["tests/unit/projects/native-project-structure-l11b.test.ts"],
+      "fixture": "none",
+      "requires": { "jobs": false, "scanner": false },
+      "ci": { "critical": false, "reason": "Project structure receipt-shaping and native payload assertions." }
     }
   ]
 }

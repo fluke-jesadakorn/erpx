@@ -49,7 +49,7 @@ describe('PromptPay payment-status Next route retirement', () => {
   it('routes only the bounded GET read through the proposed native path entry', () => {
     const environment = {
       ERPX_DEV_NATIVE_PATHS: 'acme.jesadakorn.com|GET|/api/v1/holdings/acme/pms/stripe-payments',
-    } as NodeJS.ProcessEnv;
+    } as unknown as NodeJS.ProcessEnv;
     const base = '/api/v1/holdings/acme/pms/stripe-payments';
     expect(nativeApiPath(environment, `${base}?id=p-1`, 'acme.jesadakorn.com', 'GET')).toBe(true);
     expect(nativeApiPath(environment, base, 'acme.jesadakorn.com', 'POST')).toBe(false);

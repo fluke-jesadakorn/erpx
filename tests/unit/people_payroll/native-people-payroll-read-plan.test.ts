@@ -125,7 +125,7 @@ describe('native People Payroll caller-unit read plan', () => {
     const { db, bound, prepared } = fakeDb();
 
     const exits = await organizationRosterExitEngagementIds(db as never, 'company', 'position-1');
-    const groups = await organizationMonthlyPayGroups(db as never, 'company');
+    const groups = await organizationMonthlyPayGroups(db as never, { companyId: 'company' } as never);
     expect(exits).toEqual(['run-1']);
     expect(groups).toEqual([{ id: 'run-1' }]);
 

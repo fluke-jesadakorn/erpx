@@ -4351,6 +4351,7 @@
 @source "../../../../packages/workplace/src/routes/api/ready/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/account/preferences/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/account/work-context/route.ts";
+@source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/assignments/active/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/assistant/intake/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/assistant/route.ts";
 @source "../../../../packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/content/route.ts";

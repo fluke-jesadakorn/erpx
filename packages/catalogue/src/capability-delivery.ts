@@ -945,7 +945,7 @@ const delivery: Record<string, ModuleDelivery> = {
     "stage": 7,
     "status": "flow_accepted",
     "ui": "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/agents/screen.tsx",
-    "api": "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/agents/route.ts",
+    "api": "packages/server-agent/src/public/agents_public_read.rs",
     "service": "packages/server-agent/src/public/agent-governance.ts",
     "schema": "migrations/postgres/holding-write/0231_agent_governance.sql",
     "test": "tests/integration/agent/workspace-assistant.test.ts; tests/integration/agent/rust-agent-governance-postgres.test.rs; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",

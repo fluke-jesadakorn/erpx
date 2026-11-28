@@ -32,7 +32,7 @@ describe('native Projects structure command cutover', () => {
     const env = {
       ERPX_DEV_NATIVE_PATHS:
         'acme.jesadakorn.com|POST|/api/v1/holdings/{holding}/projects/{id}/structure',
-    } as NodeJS.ProcessEnv;
+    } as unknown as NodeJS.ProcessEnv;
     const path = '/api/v1/holdings/acme/projects/p1/structure';
     expect(nativeApiPath(env, path, 'acme.jesadakorn.com', 'POST')).toBe(true);
     expect(nativeApiPath(env, path, 'acme.jesadakorn.com', 'GET')).toBe(false);

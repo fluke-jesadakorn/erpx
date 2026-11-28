@@ -12,7 +12,6 @@ vi.mock('../../../packages/workplace/src/lib/native-field-family',()=>({nativeFi
  const {fieldFilesRoute}=await import('../../../packages/native-sdk/src/field-service-files-routes');
  return Response.json({nativePath:fieldFilesRoute('acme',input.route).path});
 }}));
-import {GET as statusRoute} from '@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/status/route';
 
 const db=env.H001_DB, prefix=`field-owner-${randomUUID()}`, actor={companyId:'owner-company'};
 const field=`${prefix}-field`,other=`${prefix}-other`,foreign=`${prefix}-foreign`,orphan=`${prefix}-orphan`,linked=`${prefix}-linked`,corrupt=`${prefix}-corrupt`,foreignUpload=`${prefix}-foreign-upload`;
@@ -44,14 +43,6 @@ describe('persisted Field file writer selection',()=>{
   await expect(fieldFileWriterOwnerInDatabase(db,actor,{kind:'set',id:foreign})).rejects.toMatchObject({status:404,code:'ATTACHMENT_NOT_FOUND'});
   await expect(fieldFileWriterOwnerInDatabase(db,actor,{kind:'set',id:''})).rejects.toMatchObject({status:404});
  });
-});
-
-it('routes long persisted physical IDs through actual Company ownership and SDK paths',async()=>{
- routeState.legacy.mockClear();
- const read=(id:string)=>statusRoute(new Request(`https://acme.example.test/api/v1/holdings/acme/attachment-links/${encodeURIComponent(id)}/status`),{params:Promise.resolve({holdingSlug:'acme',linkId:id})});
- const fieldResponse=await read(longFieldLink);expect(fieldResponse.status).toBe(200);
- expect(await fieldResponse.json()).toEqual({nativePath:`/api/v1/holdings/acme/field-service/attachment-links/${encodeURIComponent(longFieldLink)}/status`});expect(routeState.legacy).not.toHaveBeenCalled();
- const otherResponse=await read(longOtherLink);expect(otherResponse.status).toBe(200);expect((await otherResponse.json()).data).toEqual({linkId:longOtherLink,owner:'other'});expect(routeState.legacy).toHaveBeenCalledOnce();
 });
 
 it('rejects retired direct Field content calls without opening bytes or recording allowed access',async()=>{

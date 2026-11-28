@@ -9,6 +9,7 @@ import {
   type NativeProjectsPageContext,
 } from './native-project-wbs';
 import { nativeProjectsFailure } from './native-project-wbs-page';
+export type { NativeProjectsPageContext } from './native-project-wbs';
 
 /**
  * Strict private-loopback client for the native Projects work-structure

@@ -30,11 +30,7 @@
     { "method": "POST", "path": "projects/{id}/structure" },
     { "method": "GET", "path": "attachment-links/{linkId}/status" },
     { "method": "GET", "path": "posts/{id}/revisions" },
-    { "method": "GET", "path": "pms/imports" },
-    { "method": "GET", "path": "assignments/active" },
-    { "method": "POST", "path": "assignments/active" },
-    { "method": "GET", "path": "agents" },
-    { "method": "POST", "path": "agents" }
+    { "method": "GET", "path": "pms/imports" }
   ],
   "platform": [
     { "host": "admin.jesadakorn.com", "method": "GET", "path": "/api/v1/platform/operations" },
